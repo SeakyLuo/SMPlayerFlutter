@@ -22,14 +22,15 @@ Flutter migration workspace for Simple Melody Player. This project starts as a c
 
 The initial Electron migration material is copied into this repository so it can be converted deliberately instead of rediscovered later.
 
-- `migration/electron/locales`: original TypeScript locale dictionaries.
+- `assets/locales`: shared JSON locale dictionaries used as the source for Flutter localization.
+- `migration/electron/locales`: JSON copies of the Electron locale dictionaries kept as migration reference.
 - `migration/electron/shared`: i18n helpers and related text helpers from the Electron codebase.
 - `tooling/i18n`: original i18n audit/check scripts.
 - `storelisting`: existing Microsoft Store listing CSV and screenshots.
 - `assets/branding`: existing app icon and branding images registered as Flutter assets.
 - `docs`: migration notes copied from the Electron project.
 
-The locale files are reference inputs for a later Dart/ARB localization pass. They are not yet wired into Flutter localization.
+The locale files are shared JSON inputs for a later Dart/ARB localization pass. They are not yet wired into Flutter localization.
 
 ## Architecture Direction
 
