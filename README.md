@@ -18,6 +18,19 @@ Flutter migration workspace for Simple Melody Player. This project starts as a c
 - Connectivity and files: `connectivity_plus`, `file_picker`, `http`, `url_launcher`.
 - Desktop integration: `window_manager`, `tray_manager`.
 
+## Migrated Reference Assets
+
+The initial Electron migration material is copied into this repository so it can be converted deliberately instead of rediscovered later.
+
+- `migration/electron/locales`: original TypeScript locale dictionaries.
+- `migration/electron/shared`: i18n helpers and related text helpers from the Electron codebase.
+- `tooling/i18n`: original i18n audit/check scripts.
+- `storelisting`: existing Microsoft Store listing CSV and screenshots.
+- `assets/branding`: existing app icon and branding images registered as Flutter assets.
+- `docs`: migration notes copied from the Electron project.
+
+The locale files are reference inputs for a later Dart/ARB localization pass. They are not yet wired into Flutter localization.
+
 ## Architecture Direction
 
 Keep the music library, database, pairing, connection diagnostics, and streaming protocol independent from Flutter screens. Desktop and mobile should call the same core services where possible.
