@@ -11,6 +11,11 @@
 
 namespace {
 
+constexpr int kHotKeyPlayPause = 5001;
+constexpr int kHotKeyPrevious = 5002;
+constexpr int kHotKeyNext = 5003;
+constexpr int kHotKeyStop = 5004;
+
 std::wstring Utf16FromUtf8(const std::string& utf8_string) {
   if (utf8_string.empty()) {
     return std::wstring();
@@ -57,6 +62,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   RegisterDesktopFeatureChannel();
+  RegisterGlobalMediaHotkeys();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -110,7 +116,32 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
       });
 }
 
+void FlutterWindow::RegisterGlobalMediaHotkeys() {
+  HWND window_handle = GetHandle();
+  ::RegisterHotKey(window_handle, kHotKeyPlayPause, 0, VK_MEDIA_PLAY_PAUSE);
+  ::RegisterHotKey(window_handle, kHotKeyPrevious, 0, VK_MEDIA_PREV_TRACK);
+  ::RegisterHotKey(window_handle, kHotKeyNext, 0, VK_MEDIA_NEXT_TRACK);
+  ::RegisterHotKey(window_handle, kHotKeyStop, 0, VK_MEDIA_STOP);
+}
+
+void FlutterWindow::UnregisterGlobalMediaHotkeys() {
+  HWND window_handle = GetHandle();
+  ::UnregisterHotKey(window_handle, kHotKeyPlayPause);
+  ::UnregisterHotKey(window_handle, kHotKeyPrevious);
+  ::UnregisterHotKey(window_handle, kHotKeyNext);
+  ::UnregisterHotKey(window_handle, kHotKeyStop);
+}
+
+void FlutterWindow::SendDesktopCommand(const std::string& command) {
+  if (!desktop_feature_channel_) {
+    return;
+  }
+  desktop_feature_channel_->InvokeMethod(
+      "desktopCommand", std::make_unique<flutter::EncodableValue>(command));
+}
+
 void FlutterWindow::OnDestroy() {
+  UnregisterGlobalMediaHotkeys();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -133,6 +164,22 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_HOTKEY:
+      switch (wparam) {
+        case kHotKeyPlayPause:
+          SendDesktopCommand("play-pause");
+          return 0;
+        case kHotKeyPrevious:
+          SendDesktopCommand("previous");
+          return 0;
+        case kHotKeyNext:
+          SendDesktopCommand("next");
+          return 0;
+        case kHotKeyStop:
+          SendDesktopCommand("stop");
+          return 0;
+      }
+      break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

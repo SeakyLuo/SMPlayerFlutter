@@ -797,6 +797,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _mediaControlController.onPrevious();
       case DesktopFeatureCommand.next:
         _mediaControlController.onNext();
+      case DesktopFeatureCommand.stop:
+        _mediaControlController.onStop();
       case DesktopFeatureCommand.quickPlay:
         _quickPlayLibrary(ref);
       case DesktopFeatureCommand.toggleDesktopLyrics:

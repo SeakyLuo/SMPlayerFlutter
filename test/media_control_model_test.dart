@@ -103,6 +103,10 @@ void main() {
 
     controller.onToggleFavorite();
     expect(controller.state.track.favorite, isTrue);
+
+    controller.onStop();
+    expect(controller.state.isPlaying, isFalse);
+    expect(controller.state.progressSeconds, 0);
   });
 
   test('formatDuration matches Electron player duration display', () {
