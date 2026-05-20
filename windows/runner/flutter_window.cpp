@@ -1,8 +1,39 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <shlobj.h>
+#include <string>
+#include <variant>
+#include <vector>
+#include <windows.h>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+std::wstring Utf16FromUtf8(const std::string& utf8_string) {
+  if (utf8_string.empty()) {
+    return std::wstring();
+  }
+  int target_length = ::MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, utf8_string.data(),
+      static_cast<int>(utf8_string.length()), nullptr, 0);
+  if (target_length == 0) {
+    return std::wstring();
+  }
+  std::wstring utf16_string;
+  utf16_string.resize(target_length);
+  int converted_length = ::MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, utf8_string.data(),
+      static_cast<int>(utf8_string.length()), utf16_string.data(),
+      target_length);
+  if (converted_length == 0) {
+    return std::wstring();
+  }
+  return utf16_string;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +56,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  RegisterDesktopFeatureChannel();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -37,6 +69,45 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->ForceRedraw();
 
   return true;
+}
+
+void FlutterWindow::RegisterDesktopFeatureChannel() {
+  desktop_feature_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "smplayer_flutter/desktop_features",
+          &flutter::StandardMethodCodec::GetInstance());
+  desktop_feature_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+             result) {
+        if (call.method_name() != "setRecentDocuments") {
+          result->NotImplemented();
+          return;
+        }
+
+        const auto* arguments =
+            std::get_if<std::vector<flutter::EncodableValue>>(call.arguments());
+        if (!arguments) {
+          result->Error("invalid_arguments",
+                        "setRecentDocuments expects a string list.");
+          return;
+        }
+
+        for (auto iterator = arguments->rbegin(); iterator != arguments->rend();
+             ++iterator) {
+          const auto* file_path = std::get_if<std::string>(&*iterator);
+          if (!file_path || file_path->empty()) {
+            continue;
+          }
+          const std::wstring utf16_path = Utf16FromUtf8(*file_path);
+          if (!utf16_path.empty()) {
+            ::SHAddToRecentDocs(SHARD_PATHW, utf16_path.c_str());
+          }
+        }
+
+        result->Success();
+      });
 }
 
 void FlutterWindow::OnDestroy() {

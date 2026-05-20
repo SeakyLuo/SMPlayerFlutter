@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -9,9 +10,12 @@ void main() {
     locale: 'en-US',
     messages: {
       'common.nowPlaying': 'Now Playing',
+      'common.myFavorites': 'My Favorites',
+      'context.addToPlaylist': 'Add To',
       'context.seeAlbum': 'See Album',
       'context.seeAlbumArt': 'See Album Art',
       'context.seeLyrics': 'See Lyrics',
+      'context.seeLocalFile': 'See Local File',
       'context.seeMusicInfo': 'See Music Info',
       'nowPlaying.fullScreen': 'Full Screen',
       'nowPlaying.quickPlay': 'Quick Play',
@@ -36,6 +40,15 @@ void main() {
       'player.shuffleEnabled': 'Shuffle: Enabled',
       'player.unlike': 'Remove from My Favorites',
       'player.unmute': 'Unmute',
+      'playlists.newPlaylist': 'New Playlist',
+      'preferences.level.dislike': 'Dislike',
+      'preferences.level.do-not-appear': 'Do not appear',
+      'preferences.level.high': 'High',
+      'preferences.level.higher': 'Higher',
+      'preferences.level.normal': 'Normal',
+      'preferences.level.very-high': 'Very High',
+      'preferences.undoPrefer': 'Undo Preference',
+      'settings.preferenceSettings': 'Preference Settings',
     },
   );
 
@@ -201,4 +214,126 @@ void main() {
     expect(find.text('See Lyrics'), findsOneWidget);
     expect(find.text('Enter Mini Mode'), findsOneWidget);
   });
+
+  testWidgets('MediaControl More menu exposes current song actions', (
+    tester,
+  ) async {
+    int? addedPlaylistId;
+    var favoriteToggled = false;
+    var localOpened = false;
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack(
+                id: 1,
+                title: 'Song',
+                artist: 'Artist',
+                artworkUrl: '',
+                isLoading: false,
+                favorite: false,
+              ),
+              currentSong: _song,
+              playlists: const [
+                LibraryPlaylist(
+                  id: 3,
+                  name: 'Built in',
+                  priority: 0,
+                  songCount: 0,
+                  songIds: [],
+                  sortCriterion: PlaylistSortCriterion.title,
+                  isBuiltIn: true,
+                ),
+                LibraryPlaylist(
+                  id: 10,
+                  name: 'Mix',
+                  priority: 1,
+                  songCount: 0,
+                  songIds: [],
+                  sortCriterion: PlaylistSortCriterion.title,
+                  isBuiltIn: false,
+                ),
+              ],
+              disabled: false,
+              isPlaying: false,
+              volume: 50,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 180,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (_) {},
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {
+                favoriteToggled = true;
+              },
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              onEnterMiniMode: () {},
+              onAddToPlaylist: (playlistId) {
+                addedPlaylistId = playlistId;
+              },
+              onCreatePlaylist: () {},
+              onSetPreference: (level) {},
+              onSeeLocal: () {
+                localOpened = true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('More').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add To'), findsOneWidget);
+    expect(find.text('Preference Settings'), findsOneWidget);
+    expect(find.text('See Local File'), findsOneWidget);
+    expect(find.text('Built in'), findsNothing);
+
+    await tester.tap(find.text('Add To'));
+    await tester.pumpAndSettle();
+    expect(find.text('My Favorites'), findsOneWidget);
+    expect(find.text('New Playlist'), findsOneWidget);
+    expect(find.text('Mix'), findsOneWidget);
+
+    await tester.tap(find.text('Mix'));
+    await tester.pumpAndSettle();
+    expect(addedPlaylistId, 10);
+
+    await tester.tap(find.byTooltip('More').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('See Local File'));
+    expect(localOpened, isTrue);
+
+    expect(favoriteToggled, isFalse);
+  });
 }
+
+const _song = LibrarySong(
+  id: 1,
+  path: r'C:\Music\song.mp3',
+  title: 'Song',
+  artist: 'Artist',
+  artists: ['Artist'],
+  album: 'Album',
+  duration: 180,
+  playCount: 0,
+  lyricsOffsetMs: 0,
+  dateAdded: '2026-05-20T00:00:00',
+  favorite: false,
+  thumbnailPath: '',
+);

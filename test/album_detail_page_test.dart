@@ -26,6 +26,7 @@ void main() {
       'common.albumUnknown': 'Unknown Album',
       'common.artist': 'Artist',
       'common.artistUnknown': 'Unknown Artist',
+      'common.artistSeparator': ' / ',
       'common.cancel': 'Cancel',
       'common.clear': 'Clear',
       'common.close': 'Close',
@@ -54,6 +55,7 @@ void main() {
       'preferences.level.higher': 'Higher',
       'preferences.level.normal': 'Normal',
       'preferences.level.very-high': 'Very High',
+      'preferences.undoPrefer': 'Undo Prefer',
       'settings.preferenceSettings': 'Preference Settings',
       'settings.save': 'Save',
       'song.albumArt': 'Album Art',
@@ -147,7 +149,7 @@ void main() {
 
       expect(repository.preferenceType, 'album');
       expect(repository.preferenceItemId, 'Blue Hour');
-      expect(repository.preferenceName, 'Blue Hour');
+      expect(repository.preferenceName, 'Blue Hour - Artist A');
       expect(repository.preferenceLevel, 'high');
 
       await tester.tap(find.text('Edit Artwork'));
@@ -161,6 +163,68 @@ void main() {
       expect(find.text('No Album Art'), findsOneWidget);
     },
   );
+
+  testWidgets('AlbumDetailPage shows Electron current preference state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository =
+        _FakeLibraryRepository()..existingPreferenceLevel = 'high';
+
+    await tester.pumpWidget(
+      _AlbumDetailTestApp(repository: repository, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Undo Prefer'), findsOneWidget);
+
+    await tester.tap(find.text('Undo Prefer'));
+    await tester.pump();
+
+    expect(repository.removedPreferenceType, 'album');
+    expect(repository.removedPreferenceItemId, 'Blue Hour');
+  });
+
+  testWidgets('AlbumDetailPage shows collapsed Electron-style command bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _AlbumDetailTestApp(i18n: i18n, snapshot: _longAlbumSnapshot),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
+      findsNothing,
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+      const Offset(0, -260),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('AlbumDetailPage records play only for Electron shuffle', (
     tester,
@@ -221,18 +285,20 @@ class _AlbumDetailTestApp extends StatelessWidget {
     required this.i18n,
     this.repository,
     this.albumName = 'Blue Hour',
+    this.snapshot = _snapshot,
   });
 
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final String albumName;
+  final MusicLibrarySnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => _snapshot),
+        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -252,6 +318,9 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceItemId;
   String? preferenceName;
   String? preferenceLevel;
+  String? existingPreferenceLevel;
+  String? removedPreferenceType;
+  String? removedPreferenceItemId;
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -280,6 +349,17 @@ class _FakeLibraryRepository extends LibraryRepository {
     preferenceItemId = itemId;
     preferenceName = name;
     preferenceLevel = level;
+  }
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return existingPreferenceLevel;
+  }
+
+  @override
+  Future<void> removePreferenceItem(String type, String itemId) async {
+    removedPreferenceType = type;
+    removedPreferenceItemId = itemId;
   }
 }
 
@@ -346,6 +426,41 @@ const _snapshot = MusicLibrarySnapshot(
   ],
   favoritePlaylistId: 3,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: [9]),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+final _longAlbumSnapshot = MusicLibrarySnapshot(
+  songs: [
+    ..._snapshot.songs,
+    for (var index = 0; index < 16; index += 1)
+      LibrarySong(
+        id: 100 + index,
+        path: r'C:\Music\blue-extra.mp3',
+        title: 'Blue Extra $index',
+        artist: 'Artist A',
+        artists: const ['Artist A'],
+        album: 'Blue Hour',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+  ],
+  recentSongs: const [],
+  recentPlaylists: const [],
+  recentAlbums: const [],
+  recentArtists: const [],
+  recentSearches: const [],
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
   hasLibrary: true,
   sortCriterion: MusicLibrarySortCriterion.title,
   albumsSort: AlbumSortCriterion.defaultSort,

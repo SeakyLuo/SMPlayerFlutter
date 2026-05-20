@@ -489,7 +489,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     )
                     .toList(),
             onChange: (value) {
-              _updateSettings(AppSettingsUpdate(notificationSend: value));
+              _updateSettings(
+                AppSettingsUpdate(
+                  notificationSend: value,
+                  showNotifications: value != NotificationSendMode.never,
+                ),
+              );
             },
           ),
         ],
@@ -710,33 +715,6 @@ class TimeSettingRow extends StatelessWidget {
     required this.onEndChange,
   });
 
-  static const _times = [
-    '00:00',
-    '01:00',
-    '02:00',
-    '03:00',
-    '04:00',
-    '05:00',
-    '06:00',
-    '07:00',
-    '08:00',
-    '09:00',
-    '10:00',
-    '11:00',
-    '12:00',
-    '13:00',
-    '14:00',
-    '15:00',
-    '16:00',
-    '17:00',
-    '18:00',
-    '19:00',
-    '20:00',
-    '21:00',
-    '22:00',
-    '23:00',
-  ];
-
   final String label;
   final String startLabel;
   final String endLabel;
@@ -757,11 +735,7 @@ class TimeSettingRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _TimeDropdown(
-              value: startValue,
-              options: _times,
-              onChange: onStartChange,
-            ),
+            child: _TimePicker(value: startValue, onChange: onStartChange),
           ),
           const SizedBox(width: 12),
           Text(
@@ -769,13 +743,7 @@ class TimeSettingRow extends StatelessWidget {
             style: const TextStyle(color: SettingsPageColors.textMuted),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: _TimeDropdown(
-              value: endValue,
-              options: _times,
-              onChange: onEndChange,
-            ),
-          ),
+          Expanded(child: _TimePicker(value: endValue, onChange: onEndChange)),
         ],
       ),
     );
@@ -838,7 +806,7 @@ class RangeSettingRow extends StatelessWidget {
   }
 }
 
-class ColorSettingRow extends StatelessWidget {
+class ColorSettingRow extends StatefulWidget {
   const ColorSettingRow({
     super.key,
     required this.label,
@@ -846,6 +814,15 @@ class ColorSettingRow extends StatelessWidget {
     required this.onChange,
   });
 
+  final String label;
+  final String value;
+  final ValueChanged<String> onChange;
+
+  @override
+  State<ColorSettingRow> createState() => _ColorSettingRowState();
+}
+
+class _ColorSettingRowState extends State<ColorSettingRow> {
   static const _swatches = [
     '#4AA8FF',
     '#FFFFFF',
@@ -854,50 +831,110 @@ class ColorSettingRow extends StatelessWidget {
     '#FF5C8A',
   ];
 
-  final String label;
-  final String value;
-  final ValueChanged<String> onChange;
+  late final TextEditingController _controller;
+  var _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toUpperCase());
+  }
+
+  @override
+  void didUpdateWidget(ColorSettingRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextValue = widget.value.toUpperCase();
+    if (_controller.text.toUpperCase() != nextValue) {
+      _controller.text = nextValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return _SettingsRowFrame(
-      label: label,
+      label: widget.label,
       child: Row(
         children: [
           Container(
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: _parseHexColor(value),
+              color: _parseHexColor(widget.value),
               shape: BoxShape.circle,
               border: Border.all(color: SettingsPageColors.inputBorder),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value.toUpperCase(),
-                isExpanded: true,
-                borderRadius: BorderRadius.circular(8),
-                items:
-                    _swatches
-                        .map(
-                          (swatch) => DropdownMenuItem<String>(
-                            value: swatch,
-                            child: Text(swatch),
-                          ),
-                        )
-                        .toList(),
-                onChanged: (nextValue) {
-                  onChange(nextValue!);
-                },
+            child: TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                isDense: true,
+                errorText: _hasError ? '' : null,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: SettingsPageColors.inputBorder,
+                  ),
+                ),
               ),
+              onSubmitted: _commitColor,
+              onEditingComplete: () {
+                _commitColor(_controller.text);
+              },
             ),
           ),
+          const SizedBox(width: 8),
+          for (final swatch in _swatches)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Tooltip(
+                message: swatch,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () {
+                    _controller.text = swatch;
+                    setState(() {
+                      _hasError = false;
+                    });
+                    widget.onChange(swatch);
+                  },
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: _parseHexColor(swatch),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: SettingsPageColors.inputBorder),
+                    ),
+                    child: const SizedBox.square(dimension: 18),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  void _commitColor(String value) {
+    final normalized = value.trim().toUpperCase();
+    final valid = RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized);
+    setState(() {
+      _hasError = !valid;
+    });
+    if (valid) {
+      _controller.text = normalized;
+      widget.onChange(normalized);
+    }
   }
 
   Color _parseHexColor(String value) {
@@ -1003,17 +1040,28 @@ class SettingsActionButton extends StatelessWidget {
 }
 
 class PreferenceSettingsPage extends StatefulWidget {
-  const PreferenceSettingsPage({super.key, required this.onClose});
+  const PreferenceSettingsPage({
+    super.key,
+    required this.onClose,
+    this.initialSnapshot,
+  });
 
   final VoidCallback onClose;
+  final PreferenceSettingsSnapshot? initialSnapshot;
 
   @override
   State<PreferenceSettingsPage> createState() => _PreferenceSettingsPageState();
 }
 
 class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
-  var _snapshot = PreferenceSettingsSnapshot.defaults();
+  late PreferenceSettingsSnapshot _snapshot;
   final _expandedSections = <PreferenceSectionKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1054,6 +1102,8 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                       onToggleEnabled: _toggleEnabled,
                       onToggleExpanded: _toggleExpanded,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
+                      onClearInvalid: _clearInvalid,
                     ),
                     PreferenceSection(
                       title: i18n.t('preferences.artists'),
@@ -1067,6 +1117,8 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                       onToggleEnabled: _toggleEnabled,
                       onToggleExpanded: _toggleExpanded,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
+                      onClearInvalid: _clearInvalid,
                     ),
                     PreferenceSection(
                       title: i18n.t('preferences.albums'),
@@ -1080,6 +1132,8 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                       onToggleEnabled: _toggleEnabled,
                       onToggleExpanded: _toggleExpanded,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
+                      onClearInvalid: _clearInvalid,
                     ),
                     PreferenceSection(
                       title: i18n.t('preferences.playlists'),
@@ -1094,6 +1148,8 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                       onToggleEnabled: _toggleEnabled,
                       onToggleExpanded: _toggleExpanded,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
+                      onClearInvalid: _clearInvalid,
                     ),
                     PreferenceSection(
                       title: i18n.t('preferences.folders'),
@@ -1107,10 +1163,13 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                       onToggleEnabled: _toggleEnabled,
                       onToggleExpanded: _toggleExpanded,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
+                      onClearInvalid: _clearInvalid,
                     ),
                     _PreferenceOthersSection(
                       items: _snapshot.others,
                       onUpdateItem: _updateItem,
+                      onRemoveItem: _removeItem,
                     ),
                   ],
                 ),
@@ -1142,11 +1201,39 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
 
   void _updateItem(PreferenceItemSnapshot item, PreferenceItemSnapshot update) {
     setState(() {
-      _snapshot = _snapshot.copyWith(
-        others:
-            _snapshot.others
-                .map((current) => current.name == item.name ? update : current)
+      _snapshot = _snapshotWithUpdatedItems(
+        _snapshot,
+        _sectionForPreferenceType(item.type),
+        (items) =>
+            items
+                .map(
+                  (current) =>
+                      _samePreferenceItem(current, item) ? update : current,
+                )
                 .toList(),
+      );
+    });
+  }
+
+  void _removeItem(PreferenceItemSnapshot item) {
+    setState(() {
+      _snapshot = _snapshotWithUpdatedItems(
+        _snapshot,
+        _sectionForPreferenceType(item.type),
+        (items) =>
+            items
+                .where((current) => !_samePreferenceItem(current, item))
+                .toList(),
+      );
+    });
+  }
+
+  void _clearInvalid(PreferenceSectionKey section) {
+    setState(() {
+      _snapshot = _snapshotWithUpdatedItems(
+        _snapshot,
+        section,
+        (items) => items.where((item) => item.isValid).toList(),
       );
     });
   }
@@ -1164,6 +1251,8 @@ class PreferenceSection extends StatelessWidget {
     required this.onToggleEnabled,
     required this.onToggleExpanded,
     required this.onUpdateItem,
+    required this.onRemoveItem,
+    required this.onClearInvalid,
   });
 
   final String title;
@@ -1180,11 +1269,14 @@ class PreferenceSection extends StatelessWidget {
     PreferenceItemSnapshot update,
   )
   onUpdateItem;
+  final ValueChanged<PreferenceItemSnapshot> onRemoveItem;
+  final ValueChanged<PreferenceSectionKey> onClearInvalid;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final visibleItems = expanded ? items : items.take(5).toList();
+    final hasInvalid = items.any((item) => !item.isValid);
 
     return _PreferenceSectionFrame(
       title: title,
@@ -1209,6 +1301,13 @@ class PreferenceSection extends StatelessWidget {
                     : i18n.t('preferences.expand'),
               ),
             ),
+          if (hasInvalid)
+            TextButton(
+              onPressed: () {
+                onClearInvalid(section);
+              },
+              child: Text(i18n.t('preferences.clearInvalid')),
+            ),
         ],
       ),
       child:
@@ -1217,6 +1316,7 @@ class PreferenceSection extends StatelessWidget {
               : PreferenceItems(
                 items: visibleItems,
                 onUpdateItem: onUpdateItem,
+                onRemoveItem: onRemoveItem,
               ),
     );
   }
@@ -1227,6 +1327,7 @@ class PreferenceItems extends StatelessWidget {
     super.key,
     required this.items,
     required this.onUpdateItem,
+    required this.onRemoveItem,
   });
 
   final List<PreferenceItemSnapshot> items;
@@ -1235,6 +1336,7 @@ class PreferenceItems extends StatelessWidget {
     PreferenceItemSnapshot update,
   )
   onUpdateItem;
+  final ValueChanged<PreferenceItemSnapshot> onRemoveItem;
 
   @override
   Widget build(BuildContext context) {
@@ -1270,6 +1372,17 @@ class PreferenceItems extends StatelessWidget {
                       style: const TextStyle(color: SettingsPageColors.danger),
                     ),
                   const SizedBox(width: 12),
+                  if (item.canRemove)
+                    IconButton(
+                      tooltip: i18n.t('playlists.removeSelected'),
+                      icon: const Icon(FluentIcons.dismiss_20_regular),
+                      onPressed: () {
+                        onRemoveItem(item);
+                      },
+                    )
+                  else
+                    const SizedBox(width: 40),
+                  const SizedBox(width: 4),
                   _PreferenceSwitch(
                     checked: item.isEnabled,
                     onChanged: (checked) {
@@ -1406,6 +1519,53 @@ String _preferenceItemName(SmPlayerI18n i18n, PreferenceItemSnapshot item) {
   };
 }
 
+PreferenceSectionKey? _sectionForPreferenceType(PreferenceEntityType type) {
+  return switch (type) {
+    PreferenceEntityType.song => PreferenceSectionKey.songs,
+    PreferenceEntityType.artist => PreferenceSectionKey.artists,
+    PreferenceEntityType.album => PreferenceSectionKey.albums,
+    PreferenceEntityType.playlist => PreferenceSectionKey.playlists,
+    PreferenceEntityType.folder => PreferenceSectionKey.folders,
+    PreferenceEntityType.recentAdded ||
+    PreferenceEntityType.myFavorites ||
+    PreferenceEntityType.mostPlayed ||
+    PreferenceEntityType.leastPlayed => null,
+  };
+}
+
+PreferenceSettingsSnapshot _snapshotWithUpdatedItems(
+  PreferenceSettingsSnapshot snapshot,
+  PreferenceSectionKey? section,
+  List<PreferenceItemSnapshot> Function(List<PreferenceItemSnapshot> items)
+  update,
+) {
+  return switch (section) {
+    PreferenceSectionKey.songs => snapshot.copyWith(
+      songs: update(snapshot.songs),
+    ),
+    PreferenceSectionKey.artists => snapshot.copyWith(
+      artists: update(snapshot.artists),
+    ),
+    PreferenceSectionKey.albums => snapshot.copyWith(
+      albums: update(snapshot.albums),
+    ),
+    PreferenceSectionKey.playlists => snapshot.copyWith(
+      playlists: update(snapshot.playlists),
+    ),
+    PreferenceSectionKey.folders => snapshot.copyWith(
+      folders: update(snapshot.folders),
+    ),
+    null => snapshot.copyWith(others: update(snapshot.others)),
+  };
+}
+
+bool _samePreferenceItem(
+  PreferenceItemSnapshot left,
+  PreferenceItemSnapshot right,
+) {
+  return left.type == right.type && left.name == right.name;
+}
+
 class _SettingsColumn extends StatelessWidget {
   const _SettingsColumn({required this.children});
 
@@ -1448,6 +1608,56 @@ class _SettingsRowFrame extends StatelessWidget {
   }
 }
 
+class _TimePicker extends StatelessWidget {
+  const _TimePicker({required this.value, required this.onChange});
+
+  static final _hours = List.generate(
+    24,
+    (index) => index.toString().padLeft(2, '0'),
+  );
+  static final _minutes = List.generate(
+    60,
+    (index) => index.toString().padLeft(2, '0'),
+  );
+
+  final String value;
+  final ValueChanged<String> onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = value.split(':');
+    final hour = parts.first;
+    final minute = parts.last;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _TimeDropdown(
+            value: hour,
+            options: _hours,
+            onChange: (nextHour) {
+              onChange('$nextHour:$minute');
+            },
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text(':', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        Expanded(
+          child: _TimeDropdown(
+            value: minute,
+            options: _minutes,
+            onChange: (nextMinute) {
+              onChange('$hour:$nextMinute');
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TimeDropdown extends StatelessWidget {
   const _TimeDropdown({
     required this.value,
@@ -1466,12 +1676,13 @@ class _TimeDropdown extends StatelessWidget {
         value: value,
         isExpanded: true,
         borderRadius: BorderRadius.circular(8),
+        menuMaxHeight: 260,
         items:
             options
-                .map((time) => DropdownMenuItem(value: time, child: Text(time)))
+                .map((part) => DropdownMenuItem(value: part, child: Text(part)))
                 .toList(),
-        onChanged: (time) {
-          onChange(time!);
+        onChanged: (part) {
+          onChange(part!);
         },
       ),
     );
@@ -1752,7 +1963,7 @@ class _DialogOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
+    return SizedBox.expand(
       child: Material(
         color: SettingsPageColors.overlay,
         child: Center(child: child),
@@ -1874,6 +2085,7 @@ class _PreferenceOthersSection extends StatelessWidget {
   const _PreferenceOthersSection({
     required this.items,
     required this.onUpdateItem,
+    required this.onRemoveItem,
   });
 
   final List<PreferenceItemSnapshot> items;
@@ -1882,6 +2094,7 @@ class _PreferenceOthersSection extends StatelessWidget {
     PreferenceItemSnapshot update,
   )
   onUpdateItem;
+  final ValueChanged<PreferenceItemSnapshot> onRemoveItem;
 
   @override
   Widget build(BuildContext context) {
@@ -1891,7 +2104,11 @@ class _PreferenceOthersSection extends StatelessWidget {
       title: i18n.t('settings.others'),
       counter: '${items.length}',
       action: const SizedBox.shrink(),
-      child: PreferenceItems(items: items, onUpdateItem: onUpdateItem),
+      child: PreferenceItems(
+        items: items,
+        onUpdateItem: onUpdateItem,
+        onRemoveItem: onRemoveItem,
+      ),
     );
   }
 }

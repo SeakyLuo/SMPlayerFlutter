@@ -28,11 +28,12 @@ class NowPlayingFullPage extends ConsumerStatefulWidget {
 }
 
 class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
-  final _selection = PageSelectionController<int>();
+  final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
   final _settingsController = SettingsController();
   var _isPlaylistOpen = false;
   var _settings = const SettingsSnapshot.defaults();
+  LibrarySong? _dialogSong;
   SongDialogMode? _dialogMode;
 
   @override
@@ -187,19 +188,26 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                       onAddToPlaylist: _addSongsToPlaylist,
                       onToggleFavorite: _toggleSongsFavorite,
                       onCreatePlaylist: _createPlaylist,
+                      onAddToNowPlaying: (song) {
+                        _addSongToNowPlaying(song, queueSongIds);
+                      },
                       onSetPreference: _setSongPreference,
                       onDeleteSongFromDisk: _deleteSongFromDisk,
                       onHideSongFile: _hideSongFile,
                       onMoveSongToFolder: _moveSongToFolder,
+                      onOpenSongDialog: _openMusicDialog,
+                      onRevealSong: _revealPath,
                     ),
                   ),
-                if (currentSong != null && _dialogMode != null)
+                if ((currentSong != null || _dialogSong != null) &&
+                    _dialogMode != null)
                   MusicDialog(
-                    song: currentSong,
+                    song: _dialogSong ?? currentSong!,
                     initialMode: _dialogMode!,
                     canPause:
                         mediaControlState.isPlaying &&
-                        mediaControlState.track.id == currentSong.id,
+                        mediaControlState.track.id ==
+                            (_dialogSong ?? currentSong!).id,
                     onPlay:
                         ref
                             .read(mediaControlControllerProvider)
@@ -725,6 +733,18 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     ref.invalidate(musicLibrarySnapshotProvider);
   }
 
+  void _addSongToNowPlaying(LibrarySong song, List<int> queueSongIds) {
+    final before = queueSongIds.toList();
+    _replaceQueue([...queueSongIds, song.id]);
+    _showUndo(
+      context.smPlayerI18n.t('notification.songAddedTo', {
+        'title': song.title,
+        'target': context.smPlayerI18n.t('common.nowPlaying'),
+      }),
+      () => _replaceQueue(before),
+    );
+  }
+
   Future<void> _setSongPreference(
     int songId,
     String title,
@@ -753,11 +773,24 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await moveSongToFolder(ref, songId, folderPath);
   }
 
-  void _openMusicDialog(SongDialogMode mode) {
+  void _openMusicDialog(SongDialogMode mode, [LibrarySong? song]) {
     setState(() {
       _isPlaylistOpen = false;
+      _dialogSong = song;
       _dialogMode = mode;
     });
+  }
+
+  void _showUndo(String message, VoidCallback action) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: context.smPlayerI18n.t('common.undo'),
+          onPressed: action,
+        ),
+      ),
+    );
   }
 
   Future<void> _revealPath(String targetPath) async {
@@ -1126,10 +1159,13 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
     required this.onAddToPlaylist,
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
+    required this.onAddToNowPlaying,
     required this.onSetPreference,
     required this.onDeleteSongFromDisk,
     required this.onHideSongFile,
     required this.onMoveSongToFolder,
+    required this.onOpenSongDialog,
+    required this.onRevealSong,
   });
 
   final SmPlayerI18n i18n;
@@ -1153,10 +1189,13 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
   final Future<void> Function(int, List<int>) onAddToPlaylist;
   final Future<void> Function(List<int>, bool) onToggleFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
+  final ValueChanged<LibrarySong> onAddToNowPlaying;
   final Future<void> Function(int, String, String) onSetPreference;
   final Future<void> Function(LibrarySong) onDeleteSongFromDisk;
   final Future<void> Function(int) onHideSongFile;
   final Future<void> Function(int, String) onMoveSongToFolder;
+  final void Function(SongDialogMode, LibrarySong) onOpenSongDialog;
+  final ValueChanged<String> onRevealSong;
 
   @override
   Widget build(BuildContext context) {
@@ -1386,7 +1425,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
           onPlayNext(songIds, queueIndex);
         },
         onAddToNowPlaying: () {
-          showMessage(i18n.t('common.nowPlaying'));
+          onAddToNowPlaying(song);
         },
         onCreatePlaylist: () {
           onCreatePlaylist(song.title, [song.id]);
@@ -1426,16 +1465,16 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
           showMessage(i18n.t('context.seeAlbum'));
         },
         onSeeMusicInfo: () {
-          showMessage(i18n.t('context.seeMusicInfo'));
+          onOpenSongDialog(SongDialogMode.properties, song);
         },
         onSeeLyrics: () {
-          showMessage(i18n.t('context.seeLyrics'));
+          onOpenSongDialog(SongDialogMode.lyrics, song);
         },
         onSeeAlbumArt: () {
-          showMessage(i18n.t('context.seeAlbumArt'));
+          onOpenSongDialog(SongDialogMode.albumArt, song);
         },
         onSeeLocal: () {
-          showMessage(song.path);
+          onRevealSong(song.path);
         },
       ),
     );

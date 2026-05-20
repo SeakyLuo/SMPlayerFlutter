@@ -257,6 +257,8 @@ class MultiSelectCommandBar extends StatelessWidget {
     this.onAddToPlaylist,
     this.onRemove,
     this.removeLabel,
+    this.currentPlaylistName,
+    this.excludePlaylistName,
     this.extraActions = const [],
     this.hideAfterOperation = false,
     this.playlists = const [],
@@ -276,6 +278,8 @@ class MultiSelectCommandBar extends StatelessWidget {
   final ValueChanged<int>? onAddToPlaylist;
   final VoidCallback? onRemove;
   final String? removeLabel;
+  final String? currentPlaylistName;
+  final String? excludePlaylistName;
   final List<MultiSelectCommandBarExtraAction> extraActions;
   final bool hideAfterOperation;
   final List<MultiSelectCommandBarPlaylist> playlists;
@@ -382,6 +386,8 @@ class MultiSelectCommandBar extends StatelessWidget {
                               playlists: playlists,
                               includeNowPlaying: includeNowPlayingInAddTo,
                               includeFavorites: includeFavoritesInAddTo,
+                              currentPlaylistName: currentPlaylistName,
+                              excludePlaylistName: excludePlaylistName,
                               onAddToNowPlaying: onAddToNowPlaying,
                               onToggleFavorite: onToggleFavorite,
                               onCreatePlaylist: onCreatePlaylist,
@@ -1098,6 +1104,8 @@ class _MultiSelectAddToAction extends StatelessWidget {
     required this.playlists,
     required this.includeNowPlaying,
     required this.includeFavorites,
+    required this.currentPlaylistName,
+    required this.excludePlaylistName,
     required this.onAddToNowPlaying,
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
@@ -1110,6 +1118,8 @@ class _MultiSelectAddToAction extends StatelessWidget {
   final List<MultiSelectCommandBarPlaylist> playlists;
   final bool includeNowPlaying;
   final bool includeFavorites;
+  final String? currentPlaylistName;
+  final String? excludePlaylistName;
   final VoidCallback? onAddToNowPlaying;
   final VoidCallback? onToggleFavorite;
   final VoidCallback? onCreatePlaylist;
@@ -1133,6 +1143,8 @@ class _MultiSelectAddToAction extends StatelessWidget {
               i18n: i18n,
               songIds: menuSongIds,
               playlists: playlists,
+              currentPlaylistName: currentPlaylistName,
+              excludePlaylistName: excludePlaylistName,
               includeNowPlaying: includeNowPlaying,
               includeFavorites: includeFavorites,
               onAddToNowPlaying:

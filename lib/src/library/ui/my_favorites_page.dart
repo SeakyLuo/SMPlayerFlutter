@@ -60,91 +60,100 @@ class MyFavoritesPage extends ConsumerWidget {
                 .firstOrNull ??
             '';
 
-        return HeaderedPlaylistControl(
-          type: HeaderedPlaylistType.favorites,
-          title: i18n.t('common.myFavorites'),
-          songs: songs,
-          selectedTrackId: mediaControl.track.id,
-          isPlaying: mediaControl.isPlaying,
-          playlists: snapshot.playlists,
-          favoritePlaylistId: snapshot.favoritePlaylistId,
-          artworkUrl: artworkUrl,
-          removable: true,
-          showAlbum: true,
-          canClear: songs.isNotEmpty,
-          canSetPreferred: true,
-          sortCriterion:
-              favoritesPlaylist?.sortCriterion ?? PlaylistSortCriterion.title,
-          preferenceType: 'my-favorites',
-          preferenceItemId: '6',
-          onPlayTrack: (trackId, queueSongIds) {
-            _playTrack(ref, snapshot, trackId, queueSongIds);
-          },
-          onMoveToMusicOrPlay: (songId) {
-            _playTrack(
-              ref,
-              snapshot,
-              songId,
-              songs.map((song) => song.id).toList(),
-            );
-          },
-          onPlayNext: (songId) {
-            _playNext(ref, snapshot, songId);
-          },
-          onTogglePlayPause:
-              ref.read(mediaControlControllerProvider).onTogglePlayPause,
-          onAddSongToPlaylist: (playlistId, songId) {
-            ref
-                .read(libraryRepositoryProvider)
-                .addSongToPlaylist(playlistId, songId);
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
-          onAddSongsToPlaylist: (playlistId, songIds) {
-            ref
-                .read(libraryRepositoryProvider)
-                .addSongsToPlaylist(playlistId, songIds);
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
-          onRemoveSongs: (songIds) async {
-            await ref
-                .read(libraryRepositoryProvider)
-                .setSongsFavorite(songIds, false);
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
-          onClear: () {
-            final songIds = songs.map((song) => song.id).toList();
-            ref
-                .read(libraryRepositoryProvider)
-                .setSongsFavorite(songIds, false);
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
-          onSetPreferred: (_) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(i18n.t('settings.preferenceSettings'))),
-            );
-          },
-          onSortSongs: (songIds, sortCriterion) {
-            ref
-                .read(libraryRepositoryProvider)
-                .reorderPlaylistSongs(
-                  snapshot.favoritePlaylistId,
-                  songIds,
-                  sortCriterion,
-                );
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
-          onArtistClick: (artist) {
-            context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
-          },
-          onAlbumClick: (album) {
-            context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
-          },
-          onToggleFavorite: (songId, favorite) {
-            ref
-                .read(libraryRepositoryProvider)
-                .setSongFavorite(songId, favorite);
-            ref.invalidate(musicLibrarySnapshotProvider);
-          },
+        return SmPlayerI18nScope(
+          i18n: i18n,
+          child: HeaderedPlaylistControl(
+            type: HeaderedPlaylistType.favorites,
+            title: i18n.t('common.myFavorites'),
+            songs: songs,
+            selectedTrackId: mediaControl.track.id,
+            isPlaying: mediaControl.isPlaying,
+            playlists: snapshot.playlists,
+            favoritePlaylistId: snapshot.favoritePlaylistId,
+            artworkUrl: artworkUrl,
+            removable: true,
+            showAlbum: true,
+            canClear: songs.isNotEmpty,
+            canSetPreferred: true,
+            sortCriterion:
+                favoritesPlaylist?.sortCriterion ?? PlaylistSortCriterion.title,
+            preferenceType: 'my-favorites',
+            preferenceItemId: '6',
+            onPlayTrack: (trackId, queueSongIds) {
+              _playTrack(ref, snapshot, trackId, queueSongIds);
+            },
+            onMoveToMusicOrPlay: (songId) {
+              _playTrack(
+                ref,
+                snapshot,
+                songId,
+                songs.map((song) => song.id).toList(),
+              );
+            },
+            onPlayNext: (songId) {
+              _playNext(ref, snapshot, songId);
+            },
+            onTogglePlayPause:
+                ref.read(mediaControlControllerProvider).onTogglePlayPause,
+            onAddSongToPlaylist: (playlistId, songId) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .addSongToPlaylist(playlistId, songId);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onAddSongsToPlaylist: (playlistId, songIds) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .addSongsToPlaylist(playlistId, songIds);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onRemoveSongs: (songIds) async {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .setSongsFavorite(songIds, false);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onClear: () {
+              final songIds = songs.map((song) => song.id).toList();
+              ref
+                  .read(libraryRepositoryProvider)
+                  .setSongsFavorite(songIds, false);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onSetPreferred: (level) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .addPreferenceItem(
+                    'my-favorites',
+                    '6',
+                    i18n.t('common.myFavorites'),
+                    level,
+                  );
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onSortSongs: (songIds, sortCriterion) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .reorderPlaylistSongs(
+                    snapshot.favoritePlaylistId,
+                    songIds,
+                    sortCriterion,
+                  );
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onArtistClick: (artist) {
+              context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+            },
+            onAlbumClick: (album) {
+              context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
+            },
+            onToggleFavorite: (songId, favorite) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .setSongFavorite(songId, favorite);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
         );
       },
     );

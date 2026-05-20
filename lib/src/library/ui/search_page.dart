@@ -9,6 +9,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -20,10 +21,16 @@ import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key, required this.query, required this.activeType});
+  const SearchPage({
+    super.key,
+    required this.query,
+    required this.activeType,
+    this.folderRelativePath,
+  });
 
   final String query;
   final String? activeType;
+  final String? folderRelativePath;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -57,7 +64,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void didUpdateWidget(covariant SearchPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     final nextFilter = searchFilterKeyFromType(widget.activeType);
-    if (oldWidget.query != widget.query || nextFilter != _activeFilter) {
+    if (oldWidget.query != widget.query ||
+        oldWidget.folderRelativePath != widget.folderRelativePath ||
+        nextFilter != _activeFilter) {
       _activeFilter = nextFilter;
       _selection.cancel();
       _recordRecentSearch();
@@ -86,9 +95,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       error: (_, _) => _SearchEmptyState(message: i18n.t('search.noResult')),
       data: (snapshot) {
         final normalizedQuery = query.toLowerCase();
+        final searchFolderPath = _searchFolderPath(
+          snapshot.rootPath,
+          widget.folderRelativePath,
+        );
+        final searchableSongs =
+            searchFolderPath.isEmpty
+                ? snapshot.songs
+                : snapshot.songs
+                    .where(
+                      (song) => isSongUnderFolder(song.path, searchFolderPath),
+                    )
+                    .toList();
+        final searchableFolders =
+            searchFolderPath.isEmpty
+                ? snapshot.folders
+                : snapshot.folders
+                    .where(
+                      (folder) =>
+                          isFolderUnderFolder(folder.path, searchFolderPath),
+                    )
+                    .toList();
         final results = buildSearchResults(
-          snapshot.songs,
-          snapshot.folders,
+          searchableSongs,
+          searchableFolders,
           snapshot.playlists,
           snapshot.rootPath,
           normalizedQuery,
@@ -124,6 +154,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     title:
                         query.isEmpty
                             ? i18n.t('search.resultTitle')
+                            : widget.folderRelativePath?.isNotEmpty == true
+                            ? i18n.t('search.directoryResultOf', {
+                              'query': query,
+                              'folder': _searchFolderName(
+                                snapshot.rootPath,
+                                widget.folderRelativePath!,
+                              ),
+                            })
                             : i18n.t('search.resultOf', {'query': query}),
                     summary: i18n.t('search.resultSummary', {
                       'count': _totalCount(results),
@@ -146,6 +184,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       _SearchResultSection(
                         section: section,
                         i18n: i18n,
+                        activeFilter: _activeFilter,
                         showCount: snapshot.showCount,
                         mediaControlState: mediaControlState,
                         selection: _selection,
@@ -184,6 +223,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 .read(mediaControlControllerProvider)
                                 .onTogglePlayPause,
                         onPlayNext: _playNext,
+                        onAddSongsToNowPlaying: (songIds) {
+                          return addSongsToNowPlaying(ref, songIds);
+                        },
                         onAddSongsToPlaylist: _addSongsToPlaylist,
                         onToggleSongsFavorite: _toggleSongsFavorite,
                         onCreatePlaylist: _createPlaylist,
@@ -202,11 +244,64 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 selectedCount: selectedSongIds.length,
                 playlists: _customPlaylists(snapshot.playlists),
                 showAddTo: true,
+                addToSongIds: selectedSongIds,
+                includeNowPlayingInAddTo: true,
+                includeFavoritesInAddTo: hasNotFavoriteSongs(selectedSongIds, {
+                  for (final song in snapshot.songs) song.id: song,
+                }),
                 onPlay:
                     selectedSongIds.isEmpty
                         ? null
                         : () {
-                          _playSongIds(selectedSongIds);
+                          _playSongIds(shuffleSearchSongIds(selectedSongIds));
+                          _selection.hideAfterOperation(
+                            snapshot.hideMultiSelectCommandBarAfterOperation,
+                          );
+                          setState(() {});
+                        },
+                onAddToNowPlaying:
+                    selectedSongIds.isEmpty
+                        ? null
+                        : () {
+                          addSongsToNowPlaying(ref, selectedSongIds);
+                          _selection.hideAfterOperation(
+                            snapshot.hideMultiSelectCommandBarAfterOperation,
+                          );
+                          setState(() {});
+                        },
+                onToggleFavorite:
+                    selectedSongIds.isEmpty
+                        ? null
+                        : () {
+                          final songsById = {
+                            for (final song in snapshot.songs) song.id: song,
+                          };
+                          setSongsFavorite(
+                            ref,
+                            notFavoriteSongIds(selectedSongIds, songsById),
+                            true,
+                          );
+                          _selection.hideAfterOperation(
+                            snapshot.hideMultiSelectCommandBarAfterOperation,
+                          );
+                          setState(() {});
+                        },
+                onCreatePlaylist:
+                    selectedSongIds.isEmpty
+                        ? null
+                        : () async {
+                          await createPlaylistWithSongs(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            playlists: snapshot.playlists,
+                            defaultName:
+                                query.isEmpty ? i18n.t('common.songs') : query,
+                            songIds: selectedSongIds,
+                          );
+                          if (!mounted) {
+                            return;
+                          }
                           _selection.hideAfterOperation(
                             snapshot.hideMultiSelectCommandBarAfterOperation,
                           );
@@ -332,15 +427,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _changeFilter(SearchFilterKey filter) {
     final type = searchFilterTypeValue(filter);
-    final encodedQuery = Uri.encodeQueryComponent(widget.query.trim());
     setState(() {
       _activeFilter = filter;
       _selection.cancel();
     });
     context.go(
-      filter == SearchFilterKey.all
-          ? '/search?query=$encodedQuery'
-          : '/search?query=$encodedQuery&type=$type',
+      Uri(
+        path: '/search',
+        queryParameters: {
+          'query': widget.query.trim(),
+          if (filter != SearchFilterKey.all) 'type': type,
+          if (widget.folderRelativePath?.isNotEmpty == true)
+            'folder': widget.folderRelativePath!,
+        },
+      ).toString(),
     );
     _recordRecentSearch();
   }
@@ -393,7 +493,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return;
     }
 
-    final type = searchHistoryTypeForFilter(_activeFilter);
+    final type =
+        widget.folderRelativePath?.isNotEmpty == true
+            ? SearchHistoryType.folders
+            : searchHistoryTypeForFilter(_activeFilter);
     final recentSearchKey = '$query:${type.name}';
     if (_lastRecentSearchKey == recentSearchKey) {
       return;
@@ -460,20 +563,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _playCard(SearchResultType type, SearchResult card) {
-    switch (type) {
-      case SearchResultType.artists:
-        ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
-      case SearchResultType.albums:
-        ref.read(libraryRepositoryProvider).recordAlbumPlayed(card.title);
-      case SearchResultType.playlists:
-        ref
-            .read(libraryRepositoryProvider)
-            .recordPlaylistPlayed(int.parse(card.sourceId!));
-      case SearchResultType.folders:
-      case SearchResultType.songs:
-        break;
+    if (type == SearchResultType.artists) {
+      ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
     }
-    _playSongIds(card.songIds);
+    _playSongIds(shuffleSearchSongIds(card.songIds));
     ref.invalidate(musicLibrarySnapshotProvider);
   }
 
@@ -800,6 +893,7 @@ class _SearchResultSection extends StatelessWidget {
   const _SearchResultSection({
     required this.section,
     required this.i18n,
+    required this.activeFilter,
     required this.showCount,
     required this.mediaControlState,
     required this.selection,
@@ -815,6 +909,7 @@ class _SearchResultSection extends StatelessWidget {
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onPlayNext,
+    required this.onAddSongsToNowPlaying,
     required this.onAddSongsToPlaylist,
     required this.onToggleSongsFavorite,
     required this.onCreatePlaylist,
@@ -827,6 +922,7 @@ class _SearchResultSection extends StatelessWidget {
 
   final _SearchSectionData section;
   final SmPlayerI18n i18n;
+  final SearchFilterKey activeFilter;
   final bool showCount;
   final MediaControlState mediaControlState;
   final PageSelectionController<String> selection;
@@ -842,6 +938,7 @@ class _SearchResultSection extends StatelessWidget {
   final void Function(LibrarySong, int) onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<LibrarySong> onPlayNext;
+  final Future<void> Function(List<int>) onAddSongsToNowPlaying;
   final Future<void> Function(int, List<int>) onAddSongsToPlaylist;
   final Future<void> Function(List<int>, bool) onToggleSongsFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
@@ -853,9 +950,7 @@ class _SearchResultSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preview =
-        searchFilterKeyFromType(section.type.name) != SearchFilterKey.all &&
-        _isAllFilter(context);
+    final preview = activeFilter == SearchFilterKey.all;
     final visibleCount = preview ? section.previewLimit : section.count;
     final showViewToggle = section.count > section.previewLimit;
     final sortOptions = getSortOptions(section.type, i18n);
@@ -908,12 +1003,6 @@ class _SearchResultSection extends StatelessWidget {
           _buildCards(context, visibleCount),
       ],
     );
-  }
-
-  bool _isAllFilter(BuildContext context) {
-    final uri = GoRouterState.of(context).uri;
-    return searchFilterKeyFromType(uri.queryParameters['type']) ==
-        SearchFilterKey.all;
   }
 
   String _sectionTitle(SearchResultType type, int count) {
@@ -1048,7 +1137,7 @@ class _SearchResultSection extends StatelessWidget {
       includeNowPlaying: true,
       includeFavorites: !song.favorite,
       onAddToNowPlaying: () {
-        onPlayNext(song);
+        onAddSongsToNowPlaying([song.id]);
       },
       onToggleFavorite: () {
         onToggleSongsFavorite([song.id], true);
@@ -1151,7 +1240,7 @@ class _SearchResultSection extends StatelessWidget {
       includeNowPlaying: true,
       includeFavorites: true,
       onAddToNowPlaying: () {
-        onPlaySongs(card.songIds);
+        onAddSongsToNowPlaying(card.songIds);
       },
       onToggleFavorite: () {
         onToggleSongsFavorite(card.songIds, true);
@@ -1533,4 +1622,28 @@ class _SearchColors {
   static const textMuted = Color(0xff5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
+}
+
+String _searchFolderPath(String rootPath, String? folderRelativePath) {
+  final relativePath = folderRelativePath ?? '';
+  if (relativePath.isEmpty) {
+    return '';
+  }
+
+  final separator = rootPath.contains('\\') ? '\\' : '/';
+  final normalizedRoot = rootPath.replaceFirst(RegExp(r'[\\/]+$'), '');
+  return '$normalizedRoot$separator${relativePath.split('/').join(separator)}';
+}
+
+String _searchFolderName(String rootPath, String folderRelativePath) {
+  final segments =
+      folderRelativePath
+          .split('/')
+          .where((segment) => segment.isNotEmpty)
+          .toList();
+  if (segments.isNotEmpty) {
+    return segments.last;
+  }
+
+  return getPathLabel(rootPath);
 }

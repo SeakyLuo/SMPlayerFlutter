@@ -212,190 +212,156 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                     autofocus: true,
                     child: Stack(
                       children: [
-                        Column(
-                          children: [
-                            CommandBar(
-                              overflowLabel: i18n.t('player.more'),
-                              children: [
-                                if (compact)
-                                  CommandBarButton(
-                                    key: const ValueKey(
-                                      'MusicLibrary.QuickJumpToggle',
-                                    ),
-                                    icon:
-                                        FluentIcons.apps_list_detail_24_regular,
-                                    label: '#-Z',
-                                    active: _quickJumpPanelOpen,
-                                    canOverflow: false,
-                                    onPressed: () {
-                                      setState(() {
-                                        _quickJumpPanelOpen =
-                                            !_quickJumpPanelOpen;
-                                      });
-                                    },
-                                  ),
-                                CommandBarButton(
-                                  icon: FluentIcons.select_all_on_24_regular,
-                                  label: i18n.t('common.multiSelect'),
-                                  active: _selection.multiSelect,
-                                  onPressed: () {
-                                    setState(_selection.enterMultiSelect);
-                                  },
-                                ),
-                                CommandBarButton(
-                                  icon: FluentIcons.play_24_regular,
-                                  label: i18n.t('common.play'),
-                                  disabled: selectedSongIds.isEmpty,
-                                  onPressed: () {
-                                    _playSongIds(selectedSongIds);
-                                  },
-                                ),
-                              ],
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: _LibraryColors.panel,
+                            borderRadius: BorderRadius.circular(
+                              compact ? 10 : 14,
                             ),
-                            const SizedBox(height: 12),
-                            Expanded(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: _LibraryColors.panel,
-                                  borderRadius: BorderRadius.circular(
-                                    compact ? 10 : 14,
-                                  ),
-                                  border: Border.all(
-                                    color: _LibraryColors.panelBorder,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: _LibraryColors.panelShadow,
-                                      offset: Offset(0, 22),
-                                      blurRadius: 52,
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                    compact ? 10 : 14,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      if (!compact)
-                                        _QuickJumpRail(
-                                          activeKey: activeQuickJumpKey,
-                                          keys: _quickJumpKeysForDirection(
-                                            _sortDirection,
-                                          ),
-                                          enabledKeys:
-                                              quickJumpMap.keys.toSet(),
-                                          targetName: i18n.t('common.songs'),
-                                          basisName: _libraryQuickJumpBasisName(
-                                            _sortCriterion,
-                                            i18n,
-                                          ),
-                                          i18n: i18n,
-                                          onJump: (key) {
-                                            _jumpToKey(
-                                              quickJumpMap,
-                                              key,
-                                              compact,
-                                            );
-                                          },
-                                        ),
-                                      Expanded(
-                                        child:
-                                            compact
-                                                ? _CompactSongList(
-                                                  songs: sortedSongs,
-                                                  scrollController:
-                                                      _scrollController,
-                                                  sortCriterion: _sortCriterion,
-                                                  sortDirection: _sortDirection,
-                                                  selectedSongIds:
-                                                      _selection.selectedItems,
-                                                  multiSelect:
-                                                      _selection.multiSelect,
-                                                  i18n: i18n,
-                                                  onSort: _toggleSort,
-                                                  onSelected: (songId) {
-                                                    _selectSongFromPointer(
-                                                      songId,
-                                                      sortedSongs.map(
-                                                        (song) => song.id,
-                                                      ),
-                                                    );
-                                                  },
-                                                  onAddNextAndPlay: (songId) {
-                                                    _addNextAndPlay(songId);
-                                                  },
-                                                  onToggleSelection:
-                                                      _toggleSongSelection,
-                                                  onToggleFavorite: (songId) {
-                                                    setSongsFavorite(ref, [
-                                                      songId,
-                                                    ], false);
-                                                  },
-                                                  onOpenContextMenu: (
-                                                    position,
-                                                    song,
-                                                  ) {
-                                                    _openSongContextMenu(
-                                                      position,
-                                                      song,
-                                                      sortedSongs,
-                                                      customPlaylists,
-                                                    );
-                                                  },
-                                                )
-                                                : _WideSongTable(
-                                                  songs: sortedSongs,
-                                                  sortCriterion: _sortCriterion,
-                                                  sortDirection: _sortDirection,
-                                                  scrollController:
-                                                      _scrollController,
-                                                  selectedSongIds:
-                                                      _selection.selectedItems,
-                                                  multiSelect:
-                                                      _selection.multiSelect,
-                                                  i18n: i18n,
-                                                  columnWidths: _columnWidths,
-                                                  onSort: _toggleSort,
-                                                  onResizeColumn: _resizeColumn,
-                                                  onSelected: (songId) {
-                                                    _selectSongFromPointer(
-                                                      songId,
-                                                      sortedSongs.map(
-                                                        (song) => song.id,
-                                                      ),
-                                                    );
-                                                  },
-                                                  onAddNextAndPlay: (songId) {
-                                                    _addNextAndPlay(songId);
-                                                  },
-                                                  onToggleSelection:
-                                                      _toggleSongSelection,
-                                                  onToggleFavorite: (songId) {
-                                                    setSongsFavorite(ref, [
-                                                      songId,
-                                                    ], false);
-                                                  },
-                                                  onOpenContextMenu: (
-                                                    position,
-                                                    song,
-                                                  ) {
-                                                    _openSongContextMenu(
-                                                      position,
-                                                      song,
-                                                      sortedSongs,
-                                                      customPlaylists,
-                                                    );
-                                                  },
-                                                ),
+                            border: Border.all(
+                              color: _LibraryColors.panelBorder,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: _LibraryColors.panelShadow,
+                                offset: Offset(0, 22),
+                                blurRadius: 52,
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              compact ? 10 : 14,
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(compact ? 4 : 10),
+                              child: Row(
+                                children: [
+                                  if (!compact)
+                                    _QuickJumpRail(
+                                      activeKey: activeQuickJumpKey,
+                                      keys: _quickJumpKeysForDirection(
+                                        _sortDirection,
                                       ),
-                                    ],
+                                      enabledKeys: quickJumpMap.keys.toSet(),
+                                      targetName: i18n.t('common.songs'),
+                                      basisName: _libraryQuickJumpBasisName(
+                                        _sortCriterion,
+                                        i18n,
+                                      ),
+                                      i18n: i18n,
+                                      onJump: (key) {
+                                        _jumpToKey(quickJumpMap, key, compact);
+                                      },
+                                    ),
+                                  Expanded(
+                                    child:
+                                        compact
+                                            ? _CompactSongList(
+                                              songs: sortedSongs,
+                                              scrollController:
+                                                  _scrollController,
+                                              sortCriterion: _sortCriterion,
+                                              sortDirection: _sortDirection,
+                                              selectedSongIds:
+                                                  _selection.selectedItems,
+                                              multiSelect:
+                                                  _selection.multiSelect,
+                                              i18n: i18n,
+                                              onSort: _toggleSort,
+                                              onSelected: (songId) {
+                                                _selectSongFromPointer(
+                                                  songId,
+                                                  sortedSongs.map(
+                                                    (song) => song.id,
+                                                  ),
+                                                );
+                                              },
+                                              onAddNextAndPlay: (songId) {
+                                                _addNextAndPlay(songId);
+                                              },
+                                              onToggleSelection:
+                                                  _toggleSongSelection,
+                                              onToggleFavorite: (songId) {
+                                                setSongsFavorite(ref, [
+                                                  songId,
+                                                ], false);
+                                              },
+                                              onOpenContextMenu: (
+                                                position,
+                                                song,
+                                              ) {
+                                                _openSongContextMenu(
+                                                  position,
+                                                  song,
+                                                  sortedSongs,
+                                                  customPlaylists,
+                                                );
+                                              },
+                                            )
+                                            : _WideSongTable(
+                                              songs: sortedSongs,
+                                              sortCriterion: _sortCriterion,
+                                              sortDirection: _sortDirection,
+                                              scrollController:
+                                                  _scrollController,
+                                              selectedSongIds:
+                                                  _selection.selectedItems,
+                                              multiSelect:
+                                                  _selection.multiSelect,
+                                              i18n: i18n,
+                                              columnWidths: _columnWidths,
+                                              onSort: _toggleSort,
+                                              onResizeColumn: _resizeColumn,
+                                              onSelected: (songId) {
+                                                _selectSongFromPointer(
+                                                  songId,
+                                                  sortedSongs.map(
+                                                    (song) => song.id,
+                                                  ),
+                                                );
+                                              },
+                                              onAddNextAndPlay: (songId) {
+                                                _addNextAndPlay(songId);
+                                              },
+                                              onToggleSelection:
+                                                  _toggleSongSelection,
+                                              onToggleFavorite: (songId) {
+                                                setSongsFavorite(ref, [
+                                                  songId,
+                                                ], false);
+                                              },
+                                              onOpenContextMenu: (
+                                                position,
+                                                song,
+                                              ) {
+                                                _openSongContextMenu(
+                                                  position,
+                                                  song,
+                                                  sortedSongs,
+                                                  customPlaylists,
+                                                );
+                                              },
+                                            ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
+                        if (compact)
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: _CompactQuickJumpButton(
+                              active: _quickJumpPanelOpen,
+                              onPressed: () {
+                                setState(() {
+                                  _quickJumpPanelOpen = !_quickJumpPanelOpen;
+                                });
+                              },
+                            ),
+                          ),
                         if (compact && _quickJumpPanelOpen)
                           _QuickJumpPanel(
                             activeKey: activeQuickJumpKey,
@@ -1349,7 +1315,11 @@ class _WideSongRow extends StatelessWidget {
                 child:
                     selectionMode
                         ? _SelectionMark(selected: selected)
-                        : LibraryRowArtwork(song: song, size: 42),
+                        : LibraryRowArtwork(
+                          song: song,
+                          size: 42,
+                          onPlay: onAddNextAndPlay,
+                        ),
               ),
             ),
             _SongTextCell(
@@ -1800,7 +1770,11 @@ class _CompactSongRow extends StatelessWidget {
           children: [
             selectionMode
                 ? SizedBox(width: 46, child: _SelectionMark(selected: selected))
-                : LibraryRowArtwork(song: song, size: 46),
+                : LibraryRowArtwork(
+                  song: song,
+                  size: 46,
+                  onPlay: onAddNextAndPlay,
+                ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1879,29 +1853,92 @@ class _CompactSongRow extends StatelessWidget {
   }
 }
 
-class LibraryRowArtwork extends StatelessWidget {
-  const LibraryRowArtwork({super.key, required this.song, required this.size});
+class LibraryRowArtwork extends StatefulWidget {
+  const LibraryRowArtwork({
+    super.key,
+    required this.song,
+    required this.size,
+    required this.onPlay,
+  });
 
   final LibrarySong song;
   final double size;
+  final VoidCallback onPlay;
+
+  @override
+  State<LibraryRowArtwork> createState() => _LibraryRowArtworkState();
+}
+
+class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final file = song.thumbnailPath.isEmpty ? null : File(song.thumbnailPath);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox.square(
-        dimension: size,
-        child:
-            file != null && file.existsSync()
-                ? Image.file(file, fit: BoxFit.cover)
-                : const DecoratedBox(
-                  decoration: BoxDecoration(color: _LibraryColors.artwork),
-                  child: Icon(
-                    FluentIcons.music_note_2_24_regular,
-                    color: _LibraryColors.artworkIcon,
+    final file =
+        widget.song.thumbnailPath.isEmpty
+            ? null
+            : File(widget.song.thumbnailPath);
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox.square(
+          dimension: widget.size,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              file != null && file.existsSync()
+                  ? Image.file(file, fit: BoxFit.cover)
+                  : const DecoratedBox(
+                    decoration: BoxDecoration(color: _LibraryColors.artwork),
+                    child: Icon(
+                      FluentIcons.music_note_2_24_regular,
+                      color: _LibraryColors.artworkIcon,
+                    ),
+                  ),
+              IgnorePointer(
+                ignoring: !_hovered,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: _hovered ? 1 : 0,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: ValueKey(
+                        'MusicLibrary.ArtworkPlay.${widget.song.id}',
+                      ),
+                      onTap: widget.onPlay,
+                      child: Center(
+                        child: Container(
+                          width: widget.size - 8,
+                          height: widget.size - 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _LibraryColors.overlayPlay,
+                          ),
+                          child: const Icon(
+                            FluentIcons.play_20_filled,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2057,87 +2094,126 @@ class _QuickJumpPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned(
       key: const ValueKey('MusicLibrary.QuickJumpPanel'),
-      top: 64,
-      left: 12,
-      right: 12,
-      child: Align(
-        alignment: Alignment.topRight,
-        child: Material(
-          color: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: _LibraryColors.panel,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _LibraryColors.panelBorder),
-                boxShadow: const [
-                  BoxShadow(
-                    color: _LibraryColors.panelShadow,
-                    offset: Offset(0, 18),
-                    blurRadius: 42,
-                  ),
-                ],
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Material(
+        color: Colors.transparent,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            color: _LibraryColors.quickJumpPanel,
+            boxShadow: [
+              BoxShadow(
+                color: _LibraryColors.quickJumpPanelShadow,
+                offset: Offset(0, 18),
+                blurRadius: 36,
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 9,
-                  mainAxisSpacing: 6,
-                  crossAxisSpacing: 6,
-                  children:
-                      keys.map((key) {
-                        final enabled = enabledKeys.contains(key);
-                        final active = activeKey == key;
-                        return Tooltip(
-                          message: getQuickJumpTooltip(
-                            key: key,
-                            enabled: enabled,
-                            targetName: targetName,
-                            basisName: basisName,
-                            i18n: i18n,
-                          ),
-                          child: TextButton(
-                            key: ValueKey('MusicLibrary.QuickJumpPanel.$key'),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size.square(30),
-                              foregroundColor:
-                                  enabled
-                                      ? active
-                                          ? _LibraryColors.accentStrong
-                                          : _LibraryColors.textMuted
-                                      : _LibraryColors.disabled,
-                              backgroundColor:
-                                  active
-                                      ? _LibraryColors.accentSoft
-                                      : Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(7),
-                              ),
-                            ),
-                            onPressed:
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 50, 18, 18),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 6,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.2,
+                children:
+                    keys.map((key) {
+                      final enabled = enabledKeys.contains(key);
+                      final active = activeKey == key;
+                      return Tooltip(
+                        message: getQuickJumpTooltip(
+                          key: key,
+                          enabled: enabled,
+                          targetName: targetName,
+                          basisName: basisName,
+                          i18n: i18n,
+                        ),
+                        child: TextButton(
+                          key: ValueKey('MusicLibrary.QuickJumpPanel.$key'),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(42, 40),
+                            foregroundColor:
                                 enabled
-                                    ? () {
-                                      onJump(key);
-                                    }
-                                    : null,
-                            child: Text(
-                              key,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                    ? active
+                                        ? _LibraryColors.accentStrong
+                                        : _LibraryColors.textMuted
+                                    : _LibraryColors.disabled,
+                            backgroundColor:
+                                active
+                                    ? _LibraryColors.accentSoft
+                                    : _LibraryColors.quickJumpPanelButton,
+                            shape: RoundedRectangleBorder(
+                              side: const BorderSide(
+                                color:
+                                    _LibraryColors.quickJumpPanelButtonBorder,
                               ),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                        );
-                      }).toList(),
-                ),
+                          onPressed:
+                              enabled
+                                  ? () {
+                                    onJump(key);
+                                  }
+                                  : null,
+                          child: Text(
+                            key,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactQuickJumpButton extends StatelessWidget {
+  const _CompactQuickJumpButton({
+    required this.active,
+    required this.onPressed,
+  });
+
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '#-Z',
+      child: Material(
+        color: Colors.transparent,
+        child: IconButton(
+          key: const ValueKey('MusicLibrary.QuickJumpToggle'),
+          style: IconButton.styleFrom(
+            backgroundColor:
+                active ? _LibraryColors.accentSoft : _LibraryColors.panel,
+            foregroundColor:
+                active
+                    ? _LibraryColors.accentStrong
+                    : _LibraryColors.textStrong,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: _LibraryColors.panelBorder),
+            ),
+            elevation: 6,
+            shadowColor: _LibraryColors.panelShadow,
+          ),
+          icon: const Icon(FluentIcons.apps_list_detail_24_regular),
+          onPressed: onPressed,
         ),
       ),
     );
@@ -2362,6 +2438,10 @@ class _LibraryColors {
   static const panel = Color(0xffffffff);
   static const panelBorder = Color(0x29677486);
   static const panelShadow = Color(0x1f1f2a38);
+  static const quickJumpPanel = Color(0xf5f4f6f9);
+  static const quickJumpPanelShadow = Color(0x1f2a384e);
+  static const quickJumpPanelButton = Color(0xadffffff);
+  static const quickJumpPanelButtonBorder = Color(0x1a677486);
   static const quickJumpBorder = Color(0x1a677486);
   static const rowBorder = Color(0x21727e8c);
   static const rowHover = Color(0x0e0078d7);
@@ -2377,4 +2457,5 @@ class _LibraryColors {
   static const disabled = Color(0x3d5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
+  static const overlayPlay = Color(0xb81e2228);
 }

@@ -27,6 +27,7 @@ class LocalFolderCard extends StatelessWidget {
     required this.onSearchFolder,
     required this.onRevealFolder,
     required this.onOpenFolder,
+    required this.onOpenFolderMenu,
     required this.onToggleSelection,
   });
 
@@ -46,6 +47,7 @@ class LocalFolderCard extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
+  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleSelection;
 
   @override
@@ -58,174 +60,185 @@ class LocalFolderCard extends StatelessWidget {
   }
 
   Widget _buildGridCard() {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: multiSelect ? () => onToggleSelection(folder.relativePath) : _open,
-      child: Container(
-        width: 180,
-        constraints: const BoxConstraints(minHeight: 232),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color:
-              selected
-                  ? LocalPageColors.surfaceCardHover
-                  : LocalPageColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow:
-              selected
-                  ? const [
-                    BoxShadow(
-                      color: LocalPageColors.panelShadow,
-                      offset: Offset(0, 16),
-                      blurRadius: 34,
+    return GestureDetector(
+      onSecondaryTapDown:
+          (details) => onOpenFolderMenu(folder, details.globalPosition),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap:
+            multiSelect ? () => onToggleSelection(folder.relativePath) : _open,
+        child: Container(
+          width: 180,
+          constraints: const BoxConstraints(minHeight: 232),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                selected
+                    ? LocalPageColors.surfaceCardHover
+                    : LocalPageColors.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow:
+                selected
+                    ? const [
+                      BoxShadow(
+                        color: LocalPageColors.panelShadow,
+                        offset: Offset(0, 16),
+                        blurRadius: 34,
+                      ),
+                    ]
+                    : const [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  _FolderArtwork(folder: folder, songsById: songsById),
+                  if (multiSelect)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _LocalCheckMark(selected: selected),
                     ),
-                  ]
-                  : const [],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                _FolderArtwork(folder: folder, songsById: songsById),
-                if (multiSelect)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _LocalCheckMark(selected: selected),
-                  ),
-                if (!multiSelect)
-                  Positioned.fill(
-                    child: _FolderCardActions(
-                      folder: folder,
-                      i18n: i18n,
-                      onPlayFolder: onPlayFolder,
-                      onAddFolder: onAddFolder,
+                  if (!multiSelect)
+                    Positioned.fill(
+                      child: _FolderCardActions(
+                        folder: folder,
+                        i18n: i18n,
+                        onPlayFolder: onPlayFolder,
+                        onAddFolder: onAddFolder,
+                      ),
                     ),
+                  const Positioned(
+                    right: 7,
+                    bottom: 7,
+                    child: _FolderTypeBadge(),
                   ),
-                const Positioned(
-                  right: 7,
-                  bottom: 7,
-                  child: _FolderTypeBadge(),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                folder.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: LocalPageColors.textStrong,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              folder.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: LocalPageColors.textStrong,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              _folderInfo,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: LocalPageColors.textMuted,
-                fontSize: 12,
-                height: 1.35,
+              const SizedBox(height: 3),
+              Text(
+                _folderInfo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: LocalPageColors.textMuted,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildListCard() {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: multiSelect ? () => onToggleSelection(folder.relativePath) : _open,
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: selected ? LocalPageColors.rowSelected : LocalPageColors.panel,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: LocalPageColors.rowBorder),
-        ),
-        child: Row(
-          children: [
-            if (onToggleTreeExpanded != null)
-              IconButton(
-                tooltip: folder.name,
-                visualDensity: VisualDensity.compact,
-                onPressed: treeExpandable ? onToggleTreeExpanded : null,
-                icon: Icon(
-                  treeExpandable && treeExpanded == true
-                      ? FluentIcons.chevron_down_20_regular
-                      : FluentIcons.chevron_right_20_regular,
-                  size: 18,
+    return GestureDetector(
+      onSecondaryTapDown:
+          (details) => onOpenFolderMenu(folder, details.globalPosition),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap:
+            multiSelect ? () => onToggleSelection(folder.relativePath) : _open,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color:
+                selected ? LocalPageColors.rowSelected : LocalPageColors.panel,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: LocalPageColors.rowBorder),
+          ),
+          child: Row(
+            children: [
+              if (onToggleTreeExpanded != null)
+                IconButton(
+                  tooltip: folder.name,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: treeExpandable ? onToggleTreeExpanded : null,
+                  icon: Icon(
+                    treeExpandable && treeExpanded == true
+                        ? FluentIcons.chevron_down_20_regular
+                        : FluentIcons.chevron_right_20_regular,
+                    size: 18,
+                  ),
+                ),
+              if (multiSelect) ...[
+                _LocalCheckMark(selected: selected),
+                const SizedBox(width: 10),
+              ],
+              const _FolderTypeBadge(size: 34, iconSize: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  folder.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: LocalPageColors.textStrong,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            if (multiSelect) ...[
-              _LocalCheckMark(selected: selected),
-              const SizedBox(width: 10),
-            ],
-            const _FolderTypeBadge(size: 34, iconSize: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                folder.name,
+              Text(
+                _folderInfo,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: LocalPageColors.textStrong,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  color: LocalPageColors.textMuted,
+                  fontSize: 12,
                 ),
               ),
-            ),
-            Text(
-              _folderInfo,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: LocalPageColors.textMuted,
-                fontSize: 12,
-              ),
-            ),
-            if (!multiSelect) ...[
-              const SizedBox(width: 8),
-              _LocalIconAction(
-                tooltip: i18n.t('local.gridFolderPlayInfo', {
-                  'name': folder.name,
-                }),
-                icon: FluentIcons.play_20_regular,
-                onPressed: () => onPlayFolder(folder),
-              ),
-              _LocalIconAction(
-                tooltip: i18n.t('context.addToPlaylist'),
-                icon: FluentIcons.add_20_regular,
-                onPressed:
-                    folder.subtreeSongIds.isEmpty
-                        ? null
-                        : () => onAddFolder(folder),
-              ),
-              _LocalIconAction(
-                tooltip: i18n.t('local.updateFolder'),
-                icon: FluentIcons.arrow_sync_20_regular,
-                onPressed: () => onRefreshFolder(folder),
-              ),
-              _LocalIconAction(
-                tooltip: i18n.t('local.searchFolderButtonTooltip'),
-                icon: FluentIcons.search_20_regular,
-                onPressed: () => onSearchFolder(folder),
-              ),
-              _LocalIconAction(
-                tooltip: i18n.t('local.openLocalButtonTooltip'),
-                icon: FluentIcons.folder_open_20_regular,
-                onPressed: () => onRevealFolder(folder),
-              ),
+              if (!multiSelect) ...[
+                const SizedBox(width: 8),
+                _LocalIconAction(
+                  tooltip: i18n.t('local.gridFolderPlayInfo', {
+                    'name': folder.name,
+                  }),
+                  icon: FluentIcons.play_20_regular,
+                  onPressed: () => onPlayFolder(folder),
+                ),
+                _LocalIconAction(
+                  tooltip: i18n.t('context.addToPlaylist'),
+                  icon: FluentIcons.add_20_regular,
+                  onPressed:
+                      folder.subtreeSongIds.isEmpty
+                          ? null
+                          : () => onAddFolder(folder),
+                ),
+                _LocalIconAction(
+                  tooltip: i18n.t('local.updateFolder'),
+                  icon: FluentIcons.arrow_sync_20_regular,
+                  onPressed: () => onRefreshFolder(folder),
+                ),
+                _LocalIconAction(
+                  tooltip: i18n.t('local.searchFolderButtonTooltip'),
+                  icon: FluentIcons.search_20_regular,
+                  onPressed: () => onSearchFolder(folder),
+                ),
+                _LocalIconAction(
+                  tooltip: i18n.t('local.openLocalButtonTooltip'),
+                  icon: FluentIcons.folder_open_20_regular,
+                  onPressed: () => onRevealFolder(folder),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

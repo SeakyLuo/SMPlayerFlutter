@@ -7,6 +7,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/album_artwork_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
@@ -136,7 +137,11 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       .addPreferenceItem(
                         'album',
                         routeAlbumName,
-                        routeAlbumName,
+                        getAlbumPreferenceDisplayName(
+                          routeAlbumName,
+                          albumSongs,
+                          i18n,
+                        ),
                         level,
                       );
                 },

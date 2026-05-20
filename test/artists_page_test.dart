@@ -61,10 +61,17 @@ void main() {
       'nowPlaying.randomPlay': 'Shuffle',
       'player.more': 'More',
       'playlists.newPlaylist': 'New Playlist',
+      'preferences.level.dislike': 'Dislike',
+      'preferences.level.do-not-appear': 'Do Not Appear',
+      'preferences.level.high': 'High',
+      'preferences.level.higher': 'Higher',
+      'preferences.level.normal': 'Normal',
+      'preferences.level.very-high': 'Very High',
       'quickJump.disabled': 'No {target} has {basis} starting with {group}',
       'quickJump.enabled': 'Jump to {target} whose {basis} starts with {group}',
       'quickJump.letterGroup': '{key}',
       'quickJump.symbolGroup': 'numbers, symbols, or other characters',
+      'settings.preferenceSettings': 'Preference Settings',
       'sidebar.back': 'Back',
       'sidebar.recentSearches': 'Recent searches',
       'sidebar.removeRecentSearch': 'Remove {query}',
@@ -204,7 +211,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Multi Select'));
+    await tester.tap(find.byTooltip('More').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Multi Select'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Blue Song'));
     await tester.pumpAndSettle();
@@ -240,7 +249,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Multi Select'));
+    await tester.tap(find.byTooltip('More').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Multi Select'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Blue Song'));
     await tester.pumpAndSettle();
@@ -304,6 +315,69 @@ void main() {
     expect(repository.recordedAlbums, ['Blue Hour']);
     expect(repository.replacedNowPlaying, [1]);
     expect(mediaController.state.track.id, 1);
+  });
+
+  testWidgets('ArtistsPage artist group menu writes Electron preference', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _snapshot, i18n: i18n, repository: repository),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('More').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('High'));
+    await tester.pumpAndSettle();
+
+    expect(repository.preferenceType, 'artist');
+    expect(repository.preferenceItemId, 'Artist A');
+    expect(repository.preferenceName, 'Artist A');
+    expect(repository.preferenceLevel, 'high');
+  });
+
+  testWidgets('ArtistsPage album group menu mirrors Electron actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final router = _createArtistsRouter();
+
+    await tester.pumpWidget(
+      _ArtistsRouterTestApp(snapshot: _snapshot, i18n: i18n, router: router),
+    );
+    router.go('/artists?artist=Artist%20A');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('More').at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 selected'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('More').at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('See Album'));
+    await tester.pumpAndSettle();
+
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/albums');
+    expect(uri.queryParameters['album'], 'Blue Hour');
   });
 
   testWidgets('ArtistsPage song row uses PlaylistControlItem actions', (
@@ -956,6 +1030,10 @@ class _FakeLibraryRepository extends LibraryRepository {
   List<String> recordedArtists = [];
   List<String> recordedAlbums = [];
   List<({String query, SearchHistoryType type})> recordedSearches = [];
+  String? preferenceType;
+  String? preferenceItemId;
+  String? preferenceName;
+  String? preferenceLevel;
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -990,6 +1068,19 @@ class _FakeLibraryRepository extends LibraryRepository {
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query, type: type));
+  }
+
+  @override
+  Future<void> addPreferenceItem(
+    String type,
+    String itemId,
+    String name,
+    String level,
+  ) async {
+    preferenceType = type;
+    preferenceItemId = itemId;
+    preferenceName = name;
+    preferenceLevel = level;
   }
 }
 

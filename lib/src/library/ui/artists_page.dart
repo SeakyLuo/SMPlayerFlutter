@@ -272,6 +272,28 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             onRemoveRecentSearch: _removeArtistRecentSearch,
                             onClearRecentSearches: _clearArtistRecentSearches,
                             onOpenArtistDetail: _openArtistDetail,
+                            onPlayArtist: (artist) {
+                              _playShuffledSongIds(
+                                artist.songs.map((song) => song.id).toList(),
+                                artistName: artist.name,
+                              );
+                            },
+                            onOpenArtistMenu: (position, artist) {
+                              _showGroupContextMenu(
+                                position: position,
+                                type: _ArtistGroupMenuType.artist,
+                                label: artist.name,
+                                songs: artist.songs,
+                              );
+                            },
+                            onOpenAlbumMenu: (position, album) {
+                              _showGroupContextMenu(
+                                position: position,
+                                type: _ArtistGroupMenuType.album,
+                                label: album.name,
+                                songs: album.songs,
+                              );
+                            },
                             onJumpToArtistKey: _jumpToArtistKey,
                             onReturnToArtistList: () {
                               _returnToArtistList();
@@ -330,6 +352,22 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                                 onClearRecentSearches:
                                     _clearArtistRecentSearches,
                                 onOpenArtistDetail: _openArtistDetail,
+                                onPlayArtist: (artist) {
+                                  _playShuffledSongIds(
+                                    artist.songs
+                                        .map((song) => song.id)
+                                        .toList(),
+                                    artistName: artist.name,
+                                  );
+                                },
+                                onOpenArtistMenu: (position, artist) {
+                                  _showGroupContextMenu(
+                                    position: position,
+                                    type: _ArtistGroupMenuType.artist,
+                                    label: artist.name,
+                                    songs: artist.songs,
+                                  );
+                                },
                                 onJumpToArtistKey: _jumpToArtistKey,
                               ),
                               const SizedBox(width: 16),
@@ -340,12 +378,28 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                                   multiSelect: _selection.multiSelect,
                                   selectedSongIds: _selection.selectedItems,
                                   i18n: i18n,
-                                  onEnterMultiSelect: () {
-                                    setState(() {
-                                      _selection.enterMultiSelect();
-                                    });
-                                  },
                                   onPlaySongs: _playShuffledSongIds,
+                                  onOpenArtistMenu: (
+                                    position,
+                                    artist, {
+                                    required showLocateArtist,
+                                  }) {
+                                    _showGroupContextMenu(
+                                      position: position,
+                                      type: _ArtistGroupMenuType.artist,
+                                      label: artist.name,
+                                      songs: artist.songs,
+                                      showLocateArtist: showLocateArtist,
+                                    );
+                                  },
+                                  onOpenAlbumMenu: (position, album) {
+                                    _showGroupContextMenu(
+                                      position: position,
+                                      type: _ArtistGroupMenuType.album,
+                                      label: album.name,
+                                      songs: album.songs,
+                                    );
+                                  },
                                   selectedTrackId: mediaState.track.id,
                                   isPlaying: mediaState.isPlaying,
                                   onPlayTrack: _playTrackInQueue,
@@ -593,6 +647,24 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     );
   }
 
+  void _scrollToArtist(String artistName) {
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
+    final artistGroups = buildArtistGroups(snapshot.songs, i18n);
+    final artistIndex = artistGroups.indexWhere(
+      (artist) => artist.name == artistName,
+    );
+    if (artistIndex < 0 || !_artistListController.hasClients) {
+      return;
+    }
+
+    _artistListController.animateTo(
+      artistIndex * artistRowHeight,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _handleArtistListScroll() {
     final nextScrollTop = _artistListController.offset;
     if (nextScrollTop == _artistScrollTop) {
@@ -703,6 +775,151 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
   void _hideAfterOperation(bool hideMultiSelectCommandBarAfterOperation) {
     _selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
+  }
+
+  void _showGroupContextMenu({
+    required Offset position,
+    required _ArtistGroupMenuType type,
+    required String label,
+    required List<LibrarySong> songs,
+    bool showLocateArtist = false,
+  }) {
+    final i18n = context.smPlayerI18n;
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final songIds = songs.map((song) => song.id).toList();
+    final customPlaylists =
+        snapshot.playlists
+            .where((playlist) => !playlist.isBuiltIn)
+            .map(
+              (playlist) => MultiSelectCommandBarPlaylist(
+                id: playlist.id,
+                name: playlist.name,
+                songIds: playlist.songIds,
+              ),
+            )
+            .toList();
+    final notFavoriteIds =
+        songs.where((song) => !song.favorite).map((song) => song.id).toList();
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: songIds,
+      playlists: customPlaylists,
+      includeNowPlaying: true,
+      includeFavorites: notFavoriteIds.isNotEmpty,
+      onAddToNowPlaying: () {
+        addSongsToNowPlaying(ref, songIds);
+      },
+      onToggleFavorite:
+          notFavoriteIds.isEmpty
+              ? null
+              : () {
+                setSongsFavorite(ref, notFavoriteIds, true);
+              },
+      onCreatePlaylist: () async {
+        await createPlaylistWithSongs(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlists: snapshot.playlists,
+          defaultName: getNextPlaylistName(label, snapshot.playlists),
+          songIds: songIds,
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        addSongsToPlaylist(ref, playlistId, songIds);
+      },
+    );
+
+    showMenuFlyout(
+      context,
+      position: position,
+      items: [
+        MenuFlyoutItem(
+          key: 'shuffle',
+          text: i18n.t('nowPlaying.randomPlay'),
+          icon: FluentIcons.arrow_shuffle_20_regular,
+          onPressed: () {
+            _playShuffledSongIds(
+              songIds,
+              artistName: type == _ArtistGroupMenuType.artist ? label : null,
+              albumName: type == _ArtistGroupMenuType.album ? label : null,
+            );
+          },
+        ),
+        if (addToItem != null) addToItem,
+        MenuFlyoutItem(
+          key: type == _ArtistGroupMenuType.artist ? 'multi-select' : 'select',
+          text:
+              type == _ArtistGroupMenuType.artist
+                  ? i18n.t('common.multiSelect')
+                  : i18n.t('context.select'),
+          icon: FluentIcons.select_all_on_20_regular,
+          onPressed: () {
+            setState(() {
+              if (type == _ArtistGroupMenuType.artist) {
+                _selection.enterMultiSelect();
+                _selection.clearSelection();
+              } else {
+                _selection.selectAll(songIds);
+              }
+            });
+          },
+        ),
+        _buildGroupPreferenceMenuItem(i18n, type, label),
+        if (type == _ArtistGroupMenuType.artist && showLocateArtist)
+          MenuFlyoutItem(
+            key: 'locate-artist',
+            text: i18n.t('artists.locateArtist'),
+            icon: FluentIcons.music_note_2_20_regular,
+            onPressed: () {
+              _scrollToArtist(label);
+            },
+          ),
+        if (type == _ArtistGroupMenuType.album)
+          MenuFlyoutItem(
+            key: 'see-album',
+            text: i18n.t('context.seeAlbum'),
+            icon: FluentIcons.album_20_regular,
+            onPressed: () {
+              context.go('/albums?album=${Uri.encodeQueryComponent(label)}');
+            },
+          ),
+      ],
+    );
+  }
+
+  MenuFlyoutItem _buildGroupPreferenceMenuItem(
+    SmPlayerI18n i18n,
+    _ArtistGroupMenuType type,
+    String label,
+  ) {
+    final preferenceType =
+        type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
+    return MenuFlyoutItem(
+      key: 'preference',
+      text: i18n.t('settings.preferenceSettings'),
+      icon: FluentIcons.star_20_regular,
+      submenu: [
+        for (final level in const [
+          'do-not-appear',
+          'dislike',
+          'normal',
+          'high',
+          'higher',
+          'very-high',
+        ])
+          MenuFlyoutItem(
+            key: 'preference-$level',
+            text: i18n.t('preferences.level.$level'),
+            onPressed: () async {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .addPreferenceItem(preferenceType, label, label, level);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+      ],
+    );
   }
 
   void _showSongContextMenu(
@@ -861,6 +1078,8 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 }
 
+enum _ArtistGroupMenuType { artist, album }
+
 class _CompactArtistsPage extends StatelessWidget {
   const _CompactArtistsPage({
     required this.artistSearch,
@@ -882,6 +1101,9 @@ class _CompactArtistsPage extends StatelessWidget {
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
     required this.onOpenArtistDetail,
+    required this.onPlayArtist,
+    required this.onOpenArtistMenu,
+    required this.onOpenAlbumMenu,
     required this.onJumpToArtistKey,
     required this.onReturnToArtistList,
     required this.onPlaySongs,
@@ -915,6 +1137,9 @@ class _CompactArtistsPage extends StatelessWidget {
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
   final ValueChanged<String> onOpenArtistDetail;
+  final ValueChanged<ArtistGroup> onPlayArtist;
+  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
+  final void Function(Offset position, AlbumGroup album) onOpenAlbumMenu;
   final void Function(Map<String, int> artistQuickJumpMap, String key)
   onJumpToArtistKey;
   final VoidCallback onReturnToArtistList;
@@ -945,8 +1170,13 @@ class _CompactArtistsPage extends StatelessWidget {
         selectedSongIds: selectedSongIds,
         compact: true,
         i18n: i18n,
-        onEnterMultiSelect: () {},
         onPlaySongs: onPlaySongs,
+        onOpenArtistMenu: (position, artist, {required showLocateArtist}) {
+          onOpenArtistMenu(position, artist);
+        },
+        onOpenAlbumMenu: (position, album) {
+          onOpenAlbumMenu(position, album);
+        },
         selectedTrackId: selectedTrackId,
         isPlaying: isPlaying,
         onPlayTrack: onPlayTrack,
@@ -992,6 +1222,12 @@ class _CompactArtistsPage extends StatelessWidget {
                       onPressed: () {
                         onOpenArtistDetail(artist.name);
                       },
+                      onPlay: () {
+                        onPlayArtist(artist);
+                      },
+                      onOpenContextMenu: (position) {
+                        onOpenArtistMenu(position, artist);
+                      },
                     );
                   },
                 ),
@@ -1031,6 +1267,8 @@ class _ArtistsMaster extends StatelessWidget {
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
     required this.onOpenArtistDetail,
+    required this.onPlayArtist,
+    required this.onOpenArtistMenu,
     required this.onJumpToArtistKey,
   });
 
@@ -1051,27 +1289,27 @@ class _ArtistsMaster extends StatelessWidget {
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
   final ValueChanged<String> onOpenArtistDetail;
+  final ValueChanged<ArtistGroup> onPlayArtist;
+  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
   final void Function(Map<String, int> artistQuickJumpMap, String key)
   onJumpToArtistKey;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 326,
+      width: 300,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _ArtistsColors.panel,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _ArtistsColors.panelBorder),
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: _ArtistsColors.panelBorder)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                    child: _ArtistsSearchBox(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    _ArtistsSearchBox(
                       artistSearch: artistSearch,
                       i18n: i18n,
                       searchFocused: searchFocused,
@@ -1084,37 +1322,45 @@ class _ArtistsMaster extends StatelessWidget {
                       onRemoveRecentSearch: onRemoveRecentSearch,
                       onClearRecentSearches: onClearRecentSearches,
                     ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: scrollController,
-                      itemExtent: artistRowHeight,
-                      itemCount: visibleArtists.length,
-                      itemBuilder: (context, index) {
-                        final artist = visibleArtists[index];
-                        return _ArtistListItem(
-                          artist: artist,
-                          active: artist.name == selectedArtistName,
-                          i18n: i18n,
-                          onPressed: () {
-                            onOpenArtistDetail(artist.name);
-                          },
-                        );
-                      },
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemExtent: artistRowHeight,
+                        itemCount: visibleArtists.length,
+                        itemBuilder: (context, index) {
+                          final artist = visibleArtists[index];
+                          return _ArtistListItem(
+                            artist: artist,
+                            active: artist.name == selectedArtistName,
+                            i18n: i18n,
+                            onPressed: () {
+                              onOpenArtistDetail(artist.name);
+                            },
+                            onPlay: () {
+                              onPlayArtist(artist);
+                            },
+                            onOpenContextMenu: (position) {
+                              onOpenArtistMenu(position, artist);
+                            },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            _ArtistQuickJump(
-              activeKey: activeArtistQuickJumpKey,
-              enabledKeys: artistQuickJumpMap.keys.toSet(),
-              i18n: i18n,
-              onJump: (key) {
-                onJumpToArtistKey(artistQuickJumpMap, key);
-              },
-            ),
-          ],
+              const SizedBox(width: 4),
+              _ArtistQuickJump(
+                activeKey: activeArtistQuickJumpKey,
+                enabledKeys: artistQuickJumpMap.keys.toSet(),
+                i18n: i18n,
+                onJump: (key) {
+                  onJumpToArtistKey(artistQuickJumpMap, key);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1224,12 +1470,16 @@ class _ArtistListItem extends StatelessWidget {
     required this.active,
     required this.i18n,
     required this.onPressed,
+    required this.onPlay,
+    required this.onOpenContextMenu,
   });
 
   final ArtistGroup artist;
   final bool active;
   final SmPlayerI18n i18n;
   final VoidCallback onPressed;
+  final VoidCallback onPlay;
+  final ValueChanged<Offset> onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -1238,6 +1488,9 @@ class _ArtistListItem extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onPressed,
+        onSecondaryTapDown: (details) {
+          onOpenContextMenu(details.globalPosition);
+        },
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: active ? _ArtistsColors.accentSoft : Colors.transparent,
@@ -1247,7 +1500,7 @@ class _ArtistListItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
-                ArtistListArtwork(artist: artist),
+                ArtistListArtwork(artist: artist, onPlay: onPlay),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -1289,31 +1542,90 @@ class _ArtistListItem extends StatelessWidget {
   }
 }
 
-class ArtistListArtwork extends StatelessWidget {
-  const ArtistListArtwork({super.key, required this.artist});
+class ArtistListArtwork extends StatefulWidget {
+  const ArtistListArtwork({
+    super.key,
+    required this.artist,
+    required this.onPlay,
+  });
 
   final ArtistGroup artist;
+  final VoidCallback onPlay;
+
+  @override
+  State<ArtistListArtwork> createState() => _ArtistListArtworkState();
+}
+
+class _ArtistListArtworkState extends State<ArtistListArtwork> {
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final song = artist.songs.firstWhere(
-      (song) => song.id == artist.artworkSongId,
+    final song = widget.artist.songs.firstWhere(
+      (song) => song.id == widget.artist.artworkSongId,
     );
     final file = song.thumbnailPath.isEmpty ? null : File(song.thumbnailPath);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(9),
-      child: SizedBox.square(
-        dimension: 46,
-        child:
-            file != null && file.existsSync()
-                ? Image.file(file, fit: BoxFit.cover)
-                : const DecoratedBox(
-                  decoration: BoxDecoration(color: _ArtistsColors.artwork),
-                  child: Icon(
-                    FluentIcons.person_24_regular,
-                    color: _ArtistsColors.artworkIcon,
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox.square(
+          dimension: 48,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              file != null && file.existsSync()
+                  ? Image.file(file, fit: BoxFit.cover)
+                  : const DecoratedBox(
+                    decoration: BoxDecoration(color: _ArtistsColors.artwork),
+                    child: Icon(
+                      FluentIcons.person_24_regular,
+                      color: _ArtistsColors.artworkIcon,
+                    ),
+                  ),
+              IgnorePointer(
+                ignoring: !_hovered,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: _hovered ? 1 : 0,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: ValueKey(
+                        'Artists.ArtworkPlay.${widget.artist.name}',
+                      ),
+                      onTap: widget.onPlay,
+                      child: Center(
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _ArtistsColors.overlayPlay,
+                          ),
+                          child: const Icon(
+                            FluentIcons.play_20_filled,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1326,8 +1638,9 @@ class _ArtistsDetail extends StatelessWidget {
     required this.multiSelect,
     required this.selectedSongIds,
     required this.i18n,
-    required this.onEnterMultiSelect,
     required this.onPlaySongs,
+    required this.onOpenArtistMenu,
+    required this.onOpenAlbumMenu,
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlayTrack,
@@ -1346,13 +1659,19 @@ class _ArtistsDetail extends StatelessWidget {
   final bool multiSelect;
   final Set<int> selectedSongIds;
   final SmPlayerI18n i18n;
-  final VoidCallback onEnterMultiSelect;
   final void Function(
     List<int> songIds, {
     String? artistName,
     String? albumName,
   })
   onPlaySongs;
+  final void Function(
+    Offset position,
+    ArtistGroup artist, {
+    required bool showLocateArtist,
+  })
+  onOpenArtistMenu;
+  final void Function(Offset position, AlbumGroup album) onOpenAlbumMenu;
   final int? selectedTrackId;
   final bool isPlaying;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
@@ -1377,12 +1696,8 @@ class _ArtistsDetail extends StatelessWidget {
     }
 
     final albums = buildAlbumGroups(artist.songs, i18n);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _ArtistsColors.panel,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _ArtistsColors.panelBorder),
-      ),
+    return ColoredBox(
+      color: _ArtistsColors.detailBackground,
       child: CustomScrollView(
         controller: scrollController,
         slivers: [
@@ -1392,12 +1707,14 @@ class _ArtistsDetail extends StatelessWidget {
               compact: compact,
               i18n: i18n,
               onReturnToArtistList: onReturnToArtistList,
-              onEnterMultiSelect: onEnterMultiSelect,
               onPlaySongs: () {
                 onPlaySongs(
                   artist.songs.map((song) => song.id).toList(),
                   artistName: artist.name,
                 );
+              },
+              onOpenArtistMenu: (position) {
+                onOpenArtistMenu(position, artist, showLocateArtist: true);
               },
             ),
           ),
@@ -1418,6 +1735,9 @@ class _ArtistsDetail extends StatelessWidget {
                     album.songs.map((song) => song.id).toList(),
                     albumName: album.name,
                   );
+                },
+                onOpenAlbumMenu: (position) {
+                  onOpenAlbumMenu(position, album);
                 },
                 onPlayTrack: onPlayTrack,
                 onTogglePlayPause: onTogglePlayPause,
@@ -1441,21 +1761,21 @@ class _ArtistDetailHeader extends StatelessWidget {
     required this.compact,
     required this.i18n,
     required this.onReturnToArtistList,
-    required this.onEnterMultiSelect,
     required this.onPlaySongs,
+    required this.onOpenArtistMenu,
   });
 
   final ArtistGroup artist;
   final bool compact;
   final SmPlayerI18n i18n;
   final VoidCallback? onReturnToArtistList;
-  final VoidCallback onEnterMultiSelect;
   final VoidCallback onPlaySongs;
+  final ValueChanged<Offset> onOpenArtistMenu;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 12 : 22, 18, 22, 14),
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 28, 22, 28, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1501,10 +1821,20 @@ class _ArtistDetailHeader extends StatelessWidget {
                 icon: const Icon(FluentIcons.arrow_shuffle_24_regular),
                 onPressed: onPlaySongs,
               ),
-              IconButton(
-                tooltip: i18n.t('common.multiSelect'),
-                icon: const Icon(FluentIcons.select_all_on_24_regular),
-                onPressed: onEnterMultiSelect,
+              Builder(
+                builder: (buttonContext) {
+                  return IconButton(
+                    tooltip: i18n.t('player.more'),
+                    icon: const Icon(FluentIcons.more_horizontal_24_regular),
+                    onPressed: () {
+                      final button =
+                          buttonContext.findRenderObject()! as RenderBox;
+                      onOpenArtistMenu(
+                        button.localToGlobal(Offset(0, button.size.height + 4)),
+                      );
+                    },
+                  );
+                },
               ),
             ],
           ),
@@ -1524,6 +1854,7 @@ class _ArtistAlbumSection extends StatelessWidget {
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlaySongs,
+    required this.onOpenAlbumMenu,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onPlayNext,
@@ -1541,6 +1872,7 @@ class _ArtistAlbumSection extends StatelessWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final VoidCallback onPlaySongs;
+  final ValueChanged<Offset> onOpenAlbumMenu;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
@@ -1553,12 +1885,19 @@ class _ArtistAlbumSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+      padding: const EdgeInsets.fromLTRB(28, 0, 28, 22),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: _ArtistsColors.albumSection,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _ArtistsColors.panelBorder),
+          boxShadow: const [
+            BoxShadow(
+              color: _ArtistsColors.albumShadow,
+              offset: Offset(0, 16),
+              blurRadius: 38,
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -1566,6 +1905,7 @@ class _ArtistAlbumSection extends StatelessWidget {
               album: album,
               i18n: i18n,
               onPlaySongs: onPlaySongs,
+              onOpenAlbumMenu: onOpenAlbumMenu,
             ),
             ...album.songs.map(
               (song) => PlaylistControlItem(
@@ -1618,11 +1958,13 @@ class _ArtistAlbumHeader extends StatelessWidget {
     required this.album,
     required this.i18n,
     required this.onPlaySongs,
+    required this.onOpenAlbumMenu,
   });
 
   final AlbumGroup album;
   final SmPlayerI18n i18n;
   final VoidCallback onPlaySongs;
+  final ValueChanged<Offset> onOpenAlbumMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -1675,6 +2017,20 @@ class _ArtistAlbumHeader extends StatelessWidget {
             tooltip: i18n.t('nowPlaying.randomPlay'),
             icon: const Icon(FluentIcons.arrow_shuffle_24_regular),
             onPressed: onPlaySongs,
+          ),
+          Builder(
+            builder: (buttonContext) {
+              return IconButton(
+                tooltip: i18n.t('player.more'),
+                icon: const Icon(FluentIcons.more_horizontal_24_regular),
+                onPressed: () {
+                  final button = buttonContext.findRenderObject()! as RenderBox;
+                  onOpenAlbumMenu(
+                    button.localToGlobal(Offset(0, button.size.height + 4)),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -1790,7 +2146,7 @@ class _ArtistsPagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      padding: EdgeInsets.zero,
       child: SizedBox.expand(child: child),
     );
   }
@@ -1830,12 +2186,14 @@ String _formatArtistSummary(SmPlayerI18n i18n, int albums, int songs) {
 class _ArtistsColors {
   const _ArtistsColors._();
 
-  static const panel = Color(0xffffffff);
-  static const albumSection = Color(0xfffbfcfe);
-  static const panelBorder = Color(0x24677486);
+  static const detailBackground = Color(0xfff8fbfe);
+  static const albumSection = Color(0xa3ffffff);
+  static const albumShadow = Color(0x14685870);
+  static const panelBorder = Color(0x2e7e8b9a);
   static const searchSurface = Color(0x0f0d1826);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
+  static const overlayPlay = Color(0xb81e2228);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
   static const disabled = Color(0x3d5b697a);

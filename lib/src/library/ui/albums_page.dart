@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -49,6 +50,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   var _searchDraft = '';
   var _searchQuery = '';
   var _searchFocused = false;
+  var _appBarSearchOpen = false;
   var _sortCriterion = AlbumSortCriterion.defaultSort;
   AlbumSortCriterion? _syncedAlbumsSort;
   var _reverseDisplayOrder = false;
@@ -56,6 +58,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   var _albumScrollTop = 0.0;
   String? _albumQuickJumpTargetKey;
   int? _albumQuickJumpTargetRow;
+  AlbumView? _albumArtPreview;
   final _selection = PageSelectionController<String>.stored('albums');
   final _albumGridScrollController = ScrollController();
 
@@ -322,10 +325,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                         _toggleAlbumSelection(album.name);
                                       },
                                       onOpenContextMenu: (position) {
-                                        _showAlbumContextMenu(
-                                          position,
-                                          album,
-                                          customPlaylists,
+                                        unawaited(
+                                          _showAlbumContextMenu(
+                                            position,
+                                            album,
+                                            customPlaylists,
+                                          ),
                                         );
                                       },
                                     );
@@ -337,6 +342,34 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                         ),
                       ),
                     ],
+                  ),
+                  _AlbumsAppBarActions(
+                    searchOpen: _appBarSearchOpen,
+                    searchDraft: _searchDraft,
+                    searchHasText:
+                        _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+                    sortCriterion: _sortCriterion,
+                    i18n: i18n,
+                    onOpenSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = true;
+                        _searchFocused = true;
+                      });
+                    },
+                    onCloseSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = false;
+                        _searchFocused = false;
+                      });
+                    },
+                    onSearchChanged: (value) {
+                      setState(() {
+                        _searchDraft = value;
+                      });
+                    },
+                    onSearchSubmitted: _submitSearch,
+                    onClearSearch: _clearSearch,
+                    onChangeAlbumSort: _changeAlbumSort,
                   ),
                   MultiSelectCommandBar(
                     visible: _selection.multiSelect,
@@ -352,7 +385,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                         selectedSongIds.isEmpty
                             ? null
                             : () {
-                              addSongsToNowPlaying(ref, selectedSongIds);
+                              _addSongsToNowPlayingWithUndo(selectedSongIds);
                               _hideSelectionAfterOperation(
                                 snapshot
                                     .hideMultiSelectCommandBarAfterOperation,
@@ -362,8 +395,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                         selectedSongIds.isEmpty
                             ? null
                             : () {
-                              setSongsFavorite(
-                                ref,
+                              _setSongsFavoriteWithUndo(
                                 notFavoriteSongIds(selectedSongIds, songsById),
                                 true,
                               );
@@ -405,7 +437,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                               );
                             },
                     onAddToPlaylist: (playlistId) {
-                      addSongsToPlaylist(ref, playlistId, selectedSongIds);
+                      _addSongsToPlaylistWithUndo(playlistId, selectedSongIds);
                       _hideSelectionAfterOperation(
                         snapshot.hideMultiSelectCommandBarAfterOperation,
                       );
@@ -431,6 +463,16 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       setState(_selection.cancel);
                     },
                   ),
+                  if (_albumArtPreview != null)
+                    _AlbumArtPreviewDialog(
+                      album: _albumArtPreview!,
+                      i18n: i18n,
+                      onClose: () {
+                        setState(() {
+                          _albumArtPreview = null;
+                        });
+                      },
+                    ),
                 ],
               ),
             );
@@ -446,6 +488,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       _searchDraft = query;
       _searchQuery = _searchDraft;
       _searchFocused = false;
+      _appBarSearchOpen = false;
     });
     if (query.isNotEmpty) {
       ref
@@ -461,6 +504,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       _searchDraft = query;
       _searchQuery = query;
       _searchFocused = false;
+      _appBarSearchOpen = false;
     });
     ref
         .read(libraryRepositoryProvider)
@@ -474,6 +518,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       _searchDraft = '';
       _searchQuery = '';
       _searchFocused = false;
+      _appBarSearchOpen = false;
     });
     if (widget.targetAlbumName != null) {
       context.go('/albums');
@@ -548,12 +593,18 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     _scrollAlbumsToTop();
   }
 
-  void _showAlbumContextMenu(
+  Future<void> _showAlbumContextMenu(
     Offset position,
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = context.smPlayerI18n;
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('album', album.name);
+    if (!mounted) {
+      return;
+    }
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: album.songIds,
@@ -561,13 +612,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       includeNowPlaying: true,
       includeFavorites: album.songs.any((song) => !song.favorite),
       onAddToNowPlaying: () {
-        addSongsToNowPlaying(ref, album.songIds);
+        _addSongsToNowPlayingWithUndo(album.songIds);
       },
       onToggleFavorite:
           album.songs.any((song) => !song.favorite)
               ? () {
-                setSongsFavorite(
-                  ref,
+                _setSongsFavoriteWithUndo(
                   album.songs
                       .where((song) => !song.favorite)
                       .map((song) => song.id)
@@ -588,7 +638,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         );
       },
       onAddToPlaylist: (playlistId) {
-        addSongsToPlaylist(ref, playlistId, album.songIds);
+        _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
     showMenuFlyout(
@@ -611,27 +661,69 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           onPressed: () {
             setState(() {
               _selection.enterMultiSelect();
-              if (!_selection.isSelected(album.name)) {
-                _selection.toggle(album.name);
-              }
+              _selection.selectSingle(album.name);
             });
           },
         ),
+        _buildAlbumPreferenceMenuItem(i18n, album, preferenceLevel),
         MenuFlyoutItem(
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
           icon: FluentIcons.image_20_regular,
           onPressed: () {
-            _showMessage(i18n.t('context.seeAlbumArt'));
+            setState(() {
+              _albumArtPreview = album;
+            });
           },
         ),
       ],
     );
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+  MenuFlyoutItem _buildAlbumPreferenceMenuItem(
+    SmPlayerI18n i18n,
+    AlbumView album,
+    String? preferenceLevel,
+  ) {
+    return MenuFlyoutItem(
+      key: 'preference',
+      text: i18n.t('settings.preferenceSettings'),
+      icon: FluentIcons.star_20_regular,
+      submenu: [
+        if (preferenceLevel != null) ...[
+          MenuFlyoutItem(
+            key: 'preference-undo',
+            text: i18n.t('preferences.undoPrefer'),
+            icon: FluentIcons.arrow_undo_20_regular,
+            onPressed: () {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .removePreferenceItem('album', album.name);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+        ],
+        for (final level in const [
+          'do-not-appear',
+          'dislike',
+          'normal',
+          'high',
+          'higher',
+          'very-high',
+        ])
+          MenuFlyoutItem(
+            key: 'preference-$level',
+            text: i18n.t('preferences.level.$level'),
+            checked: preferenceLevel == level,
+            onPressed: () {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .addPreferenceItem('album', album.name, album.name, level);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+      ],
     );
   }
 
@@ -648,13 +740,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       includeNowPlaying: true,
       includeFavorites: album.songs.any((song) => !song.favorite),
       onAddToNowPlaying: () {
-        addSongsToNowPlaying(ref, album.songIds);
+        _addSongsToNowPlayingWithUndo(album.songIds);
       },
       onToggleFavorite:
           album.songs.any((song) => !song.favorite)
               ? () {
-                setSongsFavorite(
-                  ref,
+                _setSongsFavoriteWithUndo(
                   album.songs
                       .where((song) => !song.favorite)
                       .map((song) => song.id)
@@ -674,7 +765,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         );
       },
       onAddToPlaylist: (playlistId) {
-        addSongsToPlaylist(ref, playlistId, album.songIds);
+        _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
     if (addToItem == null) {
@@ -712,6 +803,85 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           queueIndex: 0,
         );
     ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
+    if (songIds.isEmpty) {
+      return;
+    }
+
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final insertedIndex = snapshot.nowPlaying.songIds.length;
+    await ref.read(libraryRepositoryProvider).replaceNowPlaying([
+      ...snapshot.nowPlaying.songIds,
+      ...songIds,
+    ]);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    _showUndoSnackBar(() async {
+      final currentSongIds =
+          ref
+              .read(musicLibrarySnapshotProvider)
+              .valueOrNull
+              ?.nowPlaying
+              .songIds ??
+          [...snapshot.nowPlaying.songIds, ...songIds];
+      final nextSongIds =
+          currentSongIds.toList()..removeRange(
+            insertedIndex,
+            min(insertedIndex + songIds.length, currentSongIds.length),
+          );
+      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    });
+  }
+
+  Future<void> _addSongsToPlaylistWithUndo(
+    int playlistId,
+    List<int> songIds,
+  ) async {
+    if (songIds.isEmpty) {
+      return;
+    }
+
+    await ref
+        .read(libraryRepositoryProvider)
+        .addSongsToPlaylist(playlistId, songIds);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    _showUndoSnackBar(() async {
+      await ref
+          .read(libraryRepositoryProvider)
+          .removeSongsFromPlaylist(playlistId, songIds);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    });
+  }
+
+  Future<void> _setSongsFavoriteWithUndo(
+    List<int> songIds,
+    bool favorite,
+  ) async {
+    if (songIds.isEmpty) {
+      return;
+    }
+
+    await setSongsFavorite(ref, songIds, favorite);
+    _showUndoSnackBar(() async {
+      await setSongsFavorite(ref, songIds, !favorite);
+    });
+  }
+
+  void _showUndoSnackBar(FutureOr<void> Function() onUndo) {
+    final i18n = context.smPlayerI18n;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(i18n.t('notification.operationDone')),
+        action: SnackBarAction(
+          label: i18n.t('common.undo'),
+          onPressed: () {
+            unawaited(Future<void>.sync(onUndo));
+          },
+        ),
+      ),
+    );
   }
 
   void _jumpToAlbumKey(
@@ -959,6 +1129,183 @@ class _AlbumsToolbar extends StatelessWidget {
   }
 }
 
+class _AlbumsAppBarActions extends StatelessWidget {
+  const _AlbumsAppBarActions({
+    required this.searchOpen,
+    required this.searchDraft,
+    required this.searchHasText,
+    required this.sortCriterion,
+    required this.i18n,
+    required this.onOpenSearch,
+    required this.onCloseSearch,
+    required this.onSearchChanged,
+    required this.onSearchSubmitted,
+    required this.onClearSearch,
+    required this.onChangeAlbumSort,
+  });
+
+  final bool searchOpen;
+  final String searchDraft;
+  final bool searchHasText;
+  final AlbumSortCriterion sortCriterion;
+  final SmPlayerI18n i18n;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onCloseSearch;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSearchSubmitted;
+  final VoidCallback onClearSearch;
+  final ValueChanged<AlbumSortCriterion> onChangeAlbumSort;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      key: const ValueKey('Albums.AppBarActions'),
+      top: 8,
+      right: 8,
+      child: Material(
+        elevation: 8,
+        shadowColor: const Color(0x1a000000),
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child:
+              searchOpen
+                  ? SizedBox(
+                    width: 320,
+                    height: 42,
+                    child: TextField(
+                      autofocus: true,
+                      controller: TextEditingController(text: searchDraft)
+                        ..selection = TextSelection.collapsed(
+                          offset: searchDraft.length,
+                        ),
+                      onChanged: onSearchChanged,
+                      onSubmitted: (_) {
+                        onSearchSubmitted();
+                      },
+                      decoration: InputDecoration(
+                        hintText: i18n.t('albums.searchAlbumPlaceholder'),
+                        prefixIcon: IconButton(
+                          tooltip: i18n.t('common.search'),
+                          icon: const Icon(FluentIcons.search_20_regular),
+                          onPressed: onSearchSubmitted,
+                        ),
+                        suffixIcon:
+                            searchHasText
+                                ? IconButton(
+                                  tooltip: i18n.t('common.clear'),
+                                  icon: const Icon(
+                                    FluentIcons.dismiss_20_regular,
+                                  ),
+                                  onPressed: onClearSearch,
+                                )
+                                : IconButton(
+                                  tooltip: i18n.t('common.close'),
+                                  icon: const Icon(
+                                    FluentIcons.dismiss_20_regular,
+                                  ),
+                                  onPressed: onCloseSearch,
+                                ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(9),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  )
+                  : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        key: const ValueKey('Albums.AppBar.Search'),
+                        tooltip: i18n.t('common.search'),
+                        icon: const Icon(FluentIcons.search_20_regular),
+                        onPressed: onOpenSearch,
+                      ),
+                      Builder(
+                        builder: (context) {
+                          return IconButton(
+                            key: const ValueKey('Albums.AppBar.Sort'),
+                            tooltip: _albumSortLabel(i18n, sortCriterion),
+                            icon: const Icon(FluentIcons.arrow_sort_20_regular),
+                            onPressed: () {
+                              showMenuFlyout(
+                                context,
+                                items: [
+                                  MenuFlyoutItem(
+                                    key: 'reverse',
+                                    text: i18n.t('local.sortReverseList'),
+                                    icon:
+                                        FluentIcons
+                                            .arrow_sort_down_lines_20_regular,
+                                    checked:
+                                        sortCriterion ==
+                                        AlbumSortCriterion.reverse,
+                                    onPressed: () {
+                                      onChangeAlbumSort(
+                                        AlbumSortCriterion.reverse,
+                                      );
+                                    },
+                                  ),
+                                  MenuFlyoutItem(
+                                    key: 'default',
+                                    text: i18n.t('albums.sort.default'),
+                                    icon: FluentIcons.arrow_sort_20_regular,
+                                    checked:
+                                        sortCriterion ==
+                                        AlbumSortCriterion.defaultSort,
+                                    onPressed: () {
+                                      onChangeAlbumSort(
+                                        AlbumSortCriterion.defaultSort,
+                                      );
+                                    },
+                                  ),
+                                  MenuFlyoutItem(
+                                    key: 'name',
+                                    text: i18n.t('albums.sort.name'),
+                                    icon:
+                                        FluentIcons
+                                            .text_sort_ascending_20_regular,
+                                    checked:
+                                        sortCriterion ==
+                                        AlbumSortCriterion.name,
+                                    onPressed: () {
+                                      onChangeAlbumSort(
+                                        AlbumSortCriterion.name,
+                                      );
+                                    },
+                                  ),
+                                  MenuFlyoutItem(
+                                    key: 'artist',
+                                    text: i18n.t('albums.sort.artist'),
+                                    icon: FluentIcons.person_20_regular,
+                                    checked:
+                                        sortCriterion ==
+                                        AlbumSortCriterion.artist,
+                                    onPressed: () {
+                                      onChangeAlbumSort(
+                                        AlbumSortCriterion.artist,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AlbumsQuickJump extends StatelessWidget {
   const _AlbumsQuickJump({
     required this.activeKey,
@@ -1067,6 +1414,70 @@ class _AlbumsEmptyState extends StatelessWidget {
         '$title\n$message',
         textAlign: TextAlign.center,
         style: const TextStyle(color: _AlbumsColors.textMuted, height: 1.5),
+      ),
+    );
+  }
+}
+
+class _AlbumArtPreviewDialog extends StatelessWidget {
+  const _AlbumArtPreviewDialog({
+    required this.album,
+    required this.i18n,
+    required this.onClose,
+  });
+
+  final AlbumView album;
+  final SmPlayerI18n i18n;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.32),
+        child: Center(
+          child: Container(
+            width: 320,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: i18n.t('common.close'),
+                    icon: const Icon(FluentIcons.dismiss_20_regular),
+                    onPressed: onClose,
+                  ),
+                ),
+                AlbumArtControl(album: album),
+                const SizedBox(height: 14),
+                Text(
+                  album.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xff111827),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

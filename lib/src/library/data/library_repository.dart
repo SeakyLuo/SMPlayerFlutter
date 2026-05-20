@@ -286,6 +286,299 @@ class LibraryRepository {
     }
   }
 
+  Future<void> moveLocalItemsToFolder(
+    List<int> songIds,
+    List<String> folderPaths,
+    String targetFolderPath,
+  ) async {
+    if (songIds.isEmpty && folderPaths.isEmpty) {
+      return;
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final targetDirectory = Directory(targetFolderPath);
+      if (targetDirectory.statSync().type != FileSystemEntityType.directory) {
+        throw StateError('Target path is not a folder.');
+      }
+
+      final movedSongs = <({int id, String oldPath, String newPath})>[];
+      if (songIds.isNotEmpty) {
+        final placeholders = List.filled(songIds.length, '?').join(', ');
+        final rows = db.select(
+          '''
+          SELECT Id AS id, Path AS path
+          FROM Music
+          WHERE Id IN ($placeholders)
+            AND State = ?
+        ''',
+          [...songIds, _activeState],
+        );
+        for (final row in rows) {
+          final songPath = row['path'] as String;
+          if (_getFileParentPath(songPath) == targetFolderPath) {
+            continue;
+          }
+          var targetPath = p.join(targetFolderPath, p.basename(songPath));
+          if (FileSystemEntity.typeSync(targetPath) !=
+              FileSystemEntityType.notFound) {
+            targetPath = _getAvailableSiblingPath(targetPath);
+          }
+          await File(songPath).rename(targetPath);
+          movedSongs.add((
+            id: row['id'] as int,
+            oldPath: songPath,
+            newPath: targetPath,
+          ));
+        }
+      }
+
+      final movedFolders = <({String oldPath, String newPath})>[];
+      for (final folderPath in folderPaths) {
+        var targetPath = p.join(targetFolderPath, p.basename(folderPath));
+        if (FileSystemEntity.typeSync(targetPath) !=
+            FileSystemEntityType.notFound) {
+          targetPath = _getAvailableSiblingPath(targetPath);
+        }
+        await Directory(folderPath).rename(targetPath);
+        movedFolders.add((oldPath: folderPath, newPath: targetPath));
+      }
+
+      db.execute('BEGIN');
+      try {
+        final targetFolderId = _readActiveFolderId(db, targetFolderPath) ?? 0;
+        for (final movedSong in movedSongs) {
+          db.execute(
+            '''
+            UPDATE Music
+            SET Path = ?
+            WHERE Id = ?
+              AND State = ?
+          ''',
+            [movedSong.newPath, movedSong.id, _activeState],
+          );
+          db.execute(
+            '''
+            UPDATE File
+            SET Path = ?, ParentId = ?
+            WHERE Path = ?
+          ''',
+            [movedSong.newPath, targetFolderId, movedSong.oldPath],
+          );
+        }
+
+        for (final movedFolder in movedFolders) {
+          _updatePathPrefixInsideTransaction(
+            db,
+            table: 'Music',
+            oldPath: movedFolder.oldPath,
+            newPath: movedFolder.newPath,
+          );
+          _updatePathPrefixInsideTransaction(
+            db,
+            table: 'File',
+            oldPath: movedFolder.oldPath,
+            newPath: movedFolder.newPath,
+          );
+          _updatePathPrefixInsideTransaction(
+            db,
+            table: 'Folder',
+            oldPath: movedFolder.oldPath,
+            newPath: movedFolder.newPath,
+          );
+          db.execute(
+            '''
+            UPDATE Folder
+            SET ParentId = ?
+            WHERE Path = ?
+              AND State = ?
+          ''',
+            [targetFolderId, movedFolder.newPath, _activeState],
+          );
+        }
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> deleteLocalItems(
+    List<int> songIds,
+    List<String> folderPaths,
+  ) async {
+    if (songIds.isEmpty && folderPaths.isEmpty) {
+      return;
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final songRows = _readActiveSongsForLocalItems(db, songIds, folderPaths);
+      for (final row in songRows) {
+        final file = File(row.path);
+        if (file.existsSync()) {
+          await file.delete();
+        }
+      }
+      for (final folderPath in folderPaths) {
+        final directory = Directory(folderPath);
+        if (directory.existsSync()) {
+          await directory.delete(recursive: true);
+        }
+      }
+
+      db.execute('BEGIN');
+      try {
+        if (songRows.isNotEmpty) {
+          _deleteSongsInsideTransaction(
+            db,
+            songRows.map((row) => row.id).toList(),
+            songRows.map((row) => row.path).toList(),
+          );
+        }
+        _updateFolderPathStateInsideTransaction(
+          db,
+          folderPaths,
+          _inactiveState,
+        );
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> hideFolder(String folderPath) async {
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('BEGIN');
+      try {
+        _updateFolderPathStateInsideTransaction(db, [folderPath], _hiddenState);
+        _upsertHiddenStorageItem(db, 'folder', folderPath);
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<List<HiddenStorageItem>> getHiddenStorageItems() async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return const [];
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final rows = db.select(
+        '''
+        SELECT Id AS id, Type AS type, Path AS path
+        FROM HiddenStorageItem
+        WHERE State = ?
+        ORDER BY Id DESC
+      ''',
+        [_activeState],
+      );
+      return [
+        for (final row in rows)
+          HiddenStorageItem(
+            id: row['id'] as int,
+            type: row['type'] as String,
+            path: row['path'] as String,
+          ),
+      ];
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> resumeHiddenStorageItem(HiddenStorageItem item) async {
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('BEGIN');
+      try {
+        if (item.type == 'folder') {
+          _updateFolderPathStateInsideTransaction(db, [
+            item.path,
+          ], _activeState);
+        } else {
+          db.execute('UPDATE Music SET State = ? WHERE Path = ?', [
+            _activeState,
+            item.path,
+          ]);
+          db.execute('UPDATE File SET State = ? WHERE Path = ?', [
+            _activeState,
+            item.path,
+          ]);
+        }
+        db.execute(
+          '''
+          UPDATE HiddenStorageItem
+          SET State = ?
+          WHERE Id = ?
+        ''',
+          [_inactiveState, item.id],
+        );
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> renameFolder(String folderPath, String name) async {
+    final targetPath = p.join(p.dirname(folderPath), name);
+    await Directory(folderPath).rename(targetPath);
+
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('BEGIN');
+      try {
+        _updatePathPrefixInsideTransaction(
+          db,
+          table: 'Music',
+          oldPath: folderPath,
+          newPath: targetPath,
+        );
+        _updatePathPrefixInsideTransaction(
+          db,
+          table: 'File',
+          oldPath: folderPath,
+          newPath: targetPath,
+        );
+        _updatePathPrefixInsideTransaction(
+          db,
+          table: 'Folder',
+          oldPath: folderPath,
+          newPath: targetPath,
+        );
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<void> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
@@ -1074,6 +1367,58 @@ class LibraryRepository {
     }
   }
 
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return null;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final rows = db.select(
+        '''
+        SELECT Level AS level
+        FROM PreferenceItem
+        WHERE Type = ?
+          AND ItemId = ?
+          AND IsEnabled = 1
+          AND State = ?
+        LIMIT 1
+      ''',
+        [_toPreferenceEntityValue(type), itemId, _activeState],
+      );
+      if (rows.isEmpty) {
+        return null;
+      }
+      return _toPreferenceLevelName(rows.first['level'] as int);
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> removePreferenceItem(String type, String itemId) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE PreferenceItem
+        SET IsEnabled = 0
+        WHERE Type = ?
+          AND ItemId = ?
+          AND State = ?
+      ''',
+        [_toPreferenceEntityValue(type), itemId, _activeState],
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<void> addSongToPlaylist(int playlistId, int songId) async {
     await addSongsToPlaylist(playlistId, [songId]);
   }
@@ -1388,6 +1733,94 @@ class LibraryRepository {
       [folderPath, _activeState],
     );
     return rows.isEmpty ? null : rows.first['id'] as int;
+  }
+
+  List<({int id, String path})> _readActiveSongsForLocalItems(
+    Database db,
+    List<int> songIds,
+    List<String> folderPaths,
+  ) {
+    final clauses = <String>[];
+    final args = <Object?>[];
+    if (songIds.isNotEmpty) {
+      clauses.add('Id IN (${List.filled(songIds.length, '?').join(', ')})');
+      args.addAll(songIds);
+    }
+    for (final folderPath in folderPaths) {
+      clauses.add('(Path LIKE ? OR Path LIKE ?)');
+      args
+        ..add('$folderPath/%')
+        ..add('$folderPath\\%');
+    }
+
+    final rows = db.select(
+      '''
+      SELECT Id AS id, Path AS path
+      FROM Music
+      WHERE State = ?
+        AND (${clauses.join(' OR ')})
+    ''',
+      [_activeState, ...args],
+    );
+    return [
+      for (final row in rows)
+        (id: row['id'] as int, path: row['path'] as String),
+    ];
+  }
+
+  void _updatePathPrefixInsideTransaction(
+    Database db, {
+    required String table,
+    required String oldPath,
+    required String newPath,
+  }) {
+    db.execute(
+      '''
+      UPDATE $table
+      SET Path = ? || substr(Path, ?)
+      WHERE Path = ?
+        OR Path LIKE ?
+        OR Path LIKE ?
+    ''',
+      [newPath, oldPath.length + 1, oldPath, '$oldPath/%', '$oldPath\\%'],
+    );
+  }
+
+  void _updateFolderPathStateInsideTransaction(
+    Database db,
+    List<String> folderPaths,
+    int state,
+  ) {
+    for (final folderPath in folderPaths) {
+      db.execute(
+        '''
+        UPDATE Folder
+        SET State = ?
+        WHERE Path = ?
+          OR Path LIKE ?
+          OR Path LIKE ?
+      ''',
+        [state, folderPath, '$folderPath/%', '$folderPath\\%'],
+      );
+      db.execute(
+        '''
+        UPDATE Music
+        SET State = ?
+        WHERE Path LIKE ?
+          OR Path LIKE ?
+      ''',
+        [state, '$folderPath/%', '$folderPath\\%'],
+      );
+      db.execute(
+        '''
+        UPDATE File
+        SET State = ?
+        WHERE Path LIKE ?
+          OR Path LIKE ?
+      ''',
+        [state, '$folderPath/%', '$folderPath\\%'],
+      );
+    }
   }
 
   void _deleteSongsInsideTransaction(
@@ -2724,10 +3157,23 @@ int _toPreferenceLevelValue(String level) {
   return switch (level) {
     'do-not-appear' => 0,
     'dislike' => -1,
+    'normal' => 1,
     'high' => 2,
     'higher' => 3,
     'very-high' => 4,
     _ => throw ArgumentError.value(level, 'level'),
+  };
+}
+
+String _toPreferenceLevelName(int level) {
+  return switch (level) {
+    0 => 'do-not-appear',
+    -1 => 'dislike',
+    1 => 'normal',
+    2 => 'high',
+    3 => 'higher',
+    4 => 'very-high',
+    _ => 'normal',
   };
 }
 

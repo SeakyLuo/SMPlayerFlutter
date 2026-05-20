@@ -77,7 +77,7 @@ void main() {
             i18n: testI18n,
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
-            onSearchCommitted: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
             onItemInvoked: (target) {
               invokedTarget = target;
             },
@@ -117,7 +117,7 @@ void main() {
               toggleCount += 1;
             },
             onSearchTextChanged: (_) {},
-            onSearchCommitted: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
             onItemInvoked: (_) {},
           ),
         ),
@@ -152,7 +152,7 @@ void main() {
               backCount += 1;
             },
             onSearchTextChanged: (_) {},
-            onSearchCommitted: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
             onItemInvoked: (_) {},
           ),
         ),
@@ -186,7 +186,7 @@ void main() {
             onSearchTextChanged: (value) {
               changedText = value;
             },
-            onSearchCommitted: (value) {
+            onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
               committedText = value;
             },
             onItemInvoked: (_) {},
@@ -243,7 +243,7 @@ void main() {
             ],
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
-            onSearchCommitted: (value) {
+            onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
               committedText = value;
             },
             onItemInvoked: (_) {},
@@ -327,7 +327,7 @@ void main() {
             ],
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
-            onSearchCommitted: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
             onItemInvoked: (target) {
               invokedTarget = target;
             },
