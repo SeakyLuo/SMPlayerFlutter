@@ -21,6 +21,7 @@ enum DesktopFeatureCommand {
   playPause,
   previous,
   next,
+  stop,
   quickPlay,
   toggleDesktopLyrics,
   openSettings,
@@ -403,6 +404,7 @@ class TrayWindowDesktopFeatureService
     await _ignorePlatformErrors(
       tray.trayManager.setIcon('assets/branding/monotone_no_bg.png'),
     );
+    _desktopFeatureChannel.setMethodCallHandler(_handlePlatformMethodCall);
   }
 
   @override
@@ -506,6 +508,15 @@ class TrayWindowDesktopFeatureService
   void dispose() {
     tray.trayManager.removeListener(this);
     windowManager.removeListener(this);
+    _desktopFeatureChannel.setMethodCallHandler(null);
+  }
+
+  Future<void> _handlePlatformMethodCall(MethodCall call) async {
+    if (call.method != 'desktopCommand') {
+      return;
+    }
+    final command = call.arguments as String;
+    _emit(DesktopFeatureAction(_desktopFeatureCommandFromPlatform(command)));
   }
 
   tray.MenuItem _toTrayMenuItem(DesktopTrayMenuEntry entry) {
@@ -569,6 +580,19 @@ String desktopRecentSongTitle(DesktopRecentSong song) {
     return song.title;
   }
   return path.basename(song.path);
+}
+
+DesktopFeatureCommand _desktopFeatureCommandFromPlatform(String command) {
+  return switch (command) {
+    'play-pause' => DesktopFeatureCommand.playPause,
+    'previous' => DesktopFeatureCommand.previous,
+    'next' => DesktopFeatureCommand.next,
+    'stop' => DesktopFeatureCommand.stop,
+    'quick-play' => DesktopFeatureCommand.quickPlay,
+    'show-window' => DesktopFeatureCommand.toggleWindowVisibility,
+    'toggle-desktop-lyrics' => DesktopFeatureCommand.toggleDesktopLyrics,
+    _ => throw ArgumentError.value(command, 'command'),
+  };
 }
 
 String _appleScriptString(String value) {

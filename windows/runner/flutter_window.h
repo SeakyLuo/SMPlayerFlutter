@@ -26,6 +26,9 @@ class FlutterWindow : public Win32Window {
 
  private:
   void RegisterDesktopFeatureChannel();
+  void RegisterGlobalMediaHotkeys();
+  void UnregisterGlobalMediaHotkeys();
+  void SendDesktopCommand(const std::string& command);
 
   // The project to run.
   flutter::DartProject project_;
@@ -34,6 +37,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_feature_channel_;
+  HWND hot_key_window_ = nullptr;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

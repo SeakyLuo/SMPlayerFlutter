@@ -232,6 +232,15 @@ class MediaControlController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void onStop() {
+    if (_state.disabled) {
+      return;
+    }
+
+    _state = _state.copyWith(isPlaying: false, progressSeconds: 0);
+    notifyListeners();
+  }
+
   void onSeek(double seconds) {
     final nextProgress = seconds.clamp(0, _state.durationSeconds).toDouble();
     _state = _state.copyWith(progressSeconds: nextProgress);
