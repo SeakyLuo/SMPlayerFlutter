@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -27,10 +28,12 @@ class SettingsPage extends StatefulWidget {
     this.appVersion,
     this.onUpdateSettings,
     this.controller,
+    this.libraryRepository = const LibraryRepository(),
   });
 
   final SettingsSnapshot initialSnapshot;
   final SettingsController? controller;
+  final LibraryRepository libraryRepository;
   final bool loading;
   final bool scanning;
   final String? error;
@@ -56,6 +59,10 @@ class _SettingsPageState extends State<SettingsPage> {
   var _showReleaseNotes = false;
   var _showFeedbackOptions = false;
   var _showImportDataDialog = false;
+  var _showSmartArtistFixDialog = false;
+  var _smartArtistFixRunning = false;
+  var _smartArtistApplyRunning = false;
+  ArtistSplitAnalysisResult? _artistSplitAnalysisResult;
   var _showLyricsBatchOptions = false;
   var _lyricsBatchOverwrite = false;
   var _lyricsBatchRunning = false;
@@ -176,6 +183,40 @@ class _SettingsPageState extends State<SettingsPage> {
                 unawaited(_importData());
               },
             ),
+          if (_showSmartArtistFixDialog)
+            _ConfirmSettingsDialog(
+              title: i18n.t('settings.smartMultiArtistFix'),
+              message: i18n.t('settings.smartMultiArtistFixMessage'),
+              confirmText: i18n.t('settings.smartMultiArtistFixConfirm'),
+              busy: _smartArtistFixRunning,
+              onCancel: () {
+                if (_smartArtistFixRunning) {
+                  return;
+                }
+                setState(() {
+                  _showSmartArtistFixDialog = false;
+                });
+              },
+              onConfirm: () {
+                unawaited(_analyzeSmartArtistFix(i18n));
+              },
+            ),
+          if (_artistSplitAnalysisResult case final result?)
+            _ArtistSplitReviewDialog(
+              result: result,
+              applying: _smartArtistApplyRunning,
+              onCancel: () {
+                if (_smartArtistApplyRunning) {
+                  return;
+                }
+                setState(() {
+                  _artistSplitAnalysisResult = null;
+                });
+              },
+              onApply: () {
+                unawaited(_applySmartArtistFix(result, i18n));
+              },
+            ),
         ],
       ),
     );
@@ -252,11 +293,7 @@ class _SettingsPageState extends State<SettingsPage> {
             SettingsActionButton(
               icon: FluentIcons.people_24_regular,
               disabled: widget.loading || widget.scanning,
-              onClick:
-                  widget.onRequestSmartArtistFix ??
-                  () {
-                    _showMessage(i18n.t('settings.smartMultiArtistFixPending'));
-                  },
+              onClick: _requestSmartArtistFix,
               child: Text(i18n.t('settings.smartMultiArtistFix')),
             ),
         ],
@@ -747,6 +784,77 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _requestSmartArtistFix() {
+    if (widget.onRequestSmartArtistFix case final callback?) {
+      callback();
+      return;
+    }
+
+    setState(() {
+      _showSmartArtistFixDialog = true;
+    });
+  }
+
+  Future<void> _analyzeSmartArtistFix(SmPlayerI18n i18n) async {
+    setState(() {
+      _smartArtistFixRunning = true;
+    });
+
+    try {
+      final result = await widget.libraryRepository.analyzeArtistSplits();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showSmartArtistFixDialog = false;
+        _artistSplitAnalysisResult = result.hasSuggestions ? result : null;
+      });
+      if (!result.hasSuggestions) {
+        _showMessage(i18n.t('common.saved'));
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('settings.smartMultiArtistFixPending'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _smartArtistFixRunning = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _applySmartArtistFix(
+    ArtistSplitAnalysisResult result,
+    SmPlayerI18n i18n,
+  ) async {
+    setState(() {
+      _smartArtistApplyRunning = true;
+    });
+
+    try {
+      await widget.libraryRepository.applyArtistSplits(_splitItems(result));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _artistSplitAnalysisResult = null;
+      });
+      _showMessage(i18n.t('common.saved'));
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('settings.smartMultiArtistFixPending'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _smartArtistApplyRunning = false;
+        });
+      }
+    }
+  }
+
   Future<void> _startLyricsBatch(SmPlayerI18n i18n) async {
     setState(() {
       _showLyricsBatchOptions = false;
@@ -757,7 +865,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      final result = await const LibraryRepository().batchAddInternetLyrics(
+      final result = await widget.libraryRepository.batchAddInternetLyrics(
         overwrite: _lyricsBatchOverwrite,
         isCanceled: () => _lyricsBatchCancelRequested,
         onProgress: (progress) {
@@ -815,7 +923,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (targetPath == null) {
       return false;
     }
-    return const LibraryRepository().exportDataTo(targetPath);
+    return widget.libraryRepository.exportDataTo(targetPath);
   }
 
   Future<bool> _importDataWithPicker(SmPlayerI18n i18n) async {
@@ -832,7 +940,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (sourcePath == null) {
       return false;
     }
-    return const LibraryRepository().importDataFrom(sourcePath);
+    return widget.libraryRepository.importDataFrom(sourcePath);
   }
 
   void _onSettingsChanged() {
@@ -844,6 +952,10 @@ class _SettingsPageState extends State<SettingsPage> {
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
+}
+
+List<ArtistSplitResultItem> _splitItems(ArtistSplitAnalysisResult result) {
+  return [...result.directSplits, ...result.possibleSplits];
 }
 
 class ToggleSettingRow extends StatelessWidget {
@@ -2313,18 +2425,225 @@ class _ReleaseNoteItem extends StatelessWidget {
   }
 }
 
+class _ArtistSplitReviewDialog extends StatelessWidget {
+  const _ArtistSplitReviewDialog({
+    required this.result,
+    required this.applying,
+    required this.onCancel,
+    required this.onApply,
+  });
+
+  final ArtistSplitAnalysisResult result;
+  final bool applying;
+  final VoidCallback onCancel;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final splitItems = _splitItems(result);
+
+    return _DialogOverlay(
+      child: _DialogBox(
+        width: 640,
+        title: i18n.t('local.startupArtistSplitSuggestionsTitle'),
+        onClose: onCancel,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              i18n.t('local.artistSplitReviewTotal', {
+                'count': splitItems.length,
+              }),
+              style: const TextStyle(
+                color: SettingsPageColors.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 390),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (result.directSplits.isNotEmpty)
+                      _ArtistSplitGroup(
+                        title: i18n.t('local.directArtistSplitsGroup', {
+                          'count': result.directSplits.length,
+                        }),
+                        items: result.directSplits,
+                      ),
+                    if (result.possibleSplits.isNotEmpty)
+                      _ArtistSplitGroup(
+                        title: i18n.t(
+                          'local.refreshArtistSplitSuggestionsGroup',
+                          {'count': result.possibleSplits.length},
+                        ),
+                        items: result.possibleSplits,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: applying ? null : onCancel,
+                  child: Text(i18n.t('local.keepArtistSplits')),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: applying ? null : onApply,
+                  child: Text(
+                    applying
+                        ? i18n.t('local.applyingArtistSplits')
+                        : i18n.t('local.applyArtistSplits'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtistSplitGroup extends StatelessWidget {
+  const _ArtistSplitGroup({required this.title, required this.items});
+
+  final String title;
+  final List<ArtistSplitResultItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: SettingsPageColors.textStrong,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final item in items) _ArtistSplitTile(item: item),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArtistSplitTile extends StatelessWidget {
+  const _ArtistSplitTile({required this.item});
+
+  final ArtistSplitResultItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final separator = i18n.t('common.artistSeparator');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SettingsPageColors.cardSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            FluentIcons.people_24_regular,
+            color: SettingsPageColors.accent,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: SettingsPageColors.textStrong,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _ArtistSplitLine(
+                  label: i18n.t('local.artistSplitOriginal'),
+                  text: item.artist,
+                ),
+                const SizedBox(height: 4),
+                _ArtistSplitLine(
+                  label: i18n.t('local.artistSplitAfter'),
+                  text: item.artists.join(separator),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArtistSplitLine extends StatelessWidget {
+  const _ArtistSplitLine({required this.label, required this.text});
+
+  final String label;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          color: SettingsPageColors.textMuted,
+          fontSize: 13,
+          height: 1.3,
+        ),
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          TextSpan(text: text),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConfirmSettingsDialog extends StatelessWidget {
   const _ConfirmSettingsDialog({
     required this.title,
     required this.message,
     required this.onCancel,
     required this.onConfirm,
+    this.confirmText,
+    this.busy = false,
   });
 
   final String title;
   final String message;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
+  final String? confirmText;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -2344,13 +2663,17 @@ class _ConfirmSettingsDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: onCancel,
+                  onPressed: busy ? null : onCancel,
                   child: Text(i18n.t('common.cancel')),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: onConfirm,
-                  child: Text(i18n.t('common.confirm')),
+                  onPressed: busy ? null : onConfirm,
+                  child: Text(
+                    busy
+                        ? i18n.t('settings.smartMultiArtistFixPending')
+                        : confirmText ?? i18n.t('common.confirm'),
+                  ),
                 ),
               ],
             ),
@@ -2366,16 +2689,18 @@ class _DialogBox extends StatelessWidget {
     required this.title,
     required this.onClose,
     required this.child,
+    this.width = 460,
   });
 
   final String title;
   final VoidCallback onClose;
   final Widget child;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 460,
+      width: width,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: BoxDecoration(
         color: SettingsPageColors.dialogSurface,

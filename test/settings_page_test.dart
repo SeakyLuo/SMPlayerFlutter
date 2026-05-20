@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
@@ -14,6 +16,8 @@ void main() {
       'common.close': '关闭',
       'common.confirm': '确认',
       'common.folders': '音乐文件夹',
+      'common.saved': '已保存',
+      'common.artistSeparator': '、',
       'settings.autoPlay': '打开应用后自动播放歌曲',
       'settings.batchAddLyrics': '批量添加歌词',
       'settings.batchAddLyricsCopy': '为所有歌曲搜索并添加歌词。已有歌词不会重复写入。',
@@ -91,6 +95,8 @@ void main() {
       'settings.shuffleAfterOneRound': '播放一轮后重新随机排序',
       'settings.showCounts': '显示计数',
       'settings.smartMultiArtistFix': '智能修正歌手',
+      'settings.smartMultiArtistFixConfirm': '智能修正',
+      'settings.smartMultiArtistFixMessage': '是否现在扫描音乐库并生成多歌手更新建议？',
       'settings.smartMultiArtistFixPending': '正在分析...',
       'settings.smartMultiArtistRecognition': '智能识别多歌手',
       'settings.smartMultiArtistRecognitionHint':
@@ -120,6 +126,15 @@ void main() {
       'preferences.playlists': '偏好播放列表',
       'preferences.songs': '偏好歌曲',
       'playlists.removeSelected': '删除',
+      'local.applyingArtistSplits': '正在更新...',
+      'local.applyArtistSplits': '全部拆分',
+      'local.artistSplitAfter': '拆分后',
+      'local.artistSplitOriginal': '原始',
+      'local.artistSplitReviewTotal': '共 {count} 首歌',
+      'local.directArtistSplitsGroup': '可以直接拆分（{count}）',
+      'local.keepArtistSplits': '保持原样',
+      'local.refreshArtistSplitSuggestionsGroup': '可能的多歌手（{count}）',
+      'local.startupArtistSplitSuggestionsTitle': '歌手更新建议',
     },
   );
 
@@ -301,6 +316,61 @@ void main() {
     },
   );
 
+  testWidgets('SettingsPage analyzes and applies smart artist fixes', (
+    tester,
+  ) async {
+    final directSplit = ArtistSplitResultItem(
+      songId: 99,
+      title: 'Collab Song',
+      artist: 'Alpha / Beta',
+      artists: const ['Alpha', 'Beta'],
+    );
+    final repository = _FakeLibraryRepository(
+      ArtistSplitAnalysisResult(
+        directSplits: [directSplit],
+        possibleSplits: const [],
+        mergeSuggestions: const [],
+      ),
+    );
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(body: SettingsPage(libraryRepository: repository)),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('智能修正歌手'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('是否现在扫描音乐库并生成多歌手更新建议？'), findsOneWidget);
+
+    await tester.tap(find.text('智能修正'));
+    await tester.pumpAndSettle();
+
+    expect(repository.analyzeRequested, isTrue);
+    expect(find.text('歌手更新建议'), findsOneWidget);
+    expect(find.text('Collab Song'), findsOneWidget);
+    expect(_richTextContaining('Alpha / Beta'), findsOneWidget);
+    expect(_richTextContaining('Alpha、Beta'), findsOneWidget);
+    expect(find.text('99'), findsNothing);
+
+    await tester.tap(find.text('全部拆分'));
+    await tester.pumpAndSettle();
+
+    expect(repository.appliedSplits, [directSplit]);
+    expect(find.text('歌手更新建议'), findsNothing);
+  });
+
   testWidgets('SettingsPage import and export actions return to idle', (
     tester,
   ) async {
@@ -436,3 +506,28 @@ const _preferenceSnapshot = PreferenceSettingsSnapshot(
   folders: [],
   others: [],
 );
+
+class _FakeLibraryRepository extends LibraryRepository {
+  _FakeLibraryRepository(this.result);
+
+  final ArtistSplitAnalysisResult result;
+  var analyzeRequested = false;
+  List<ArtistSplitResultItem> appliedSplits = const [];
+
+  @override
+  Future<ArtistSplitAnalysisResult> analyzeArtistSplits() async {
+    analyzeRequested = true;
+    return result;
+  }
+
+  @override
+  Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {
+    appliedSplits = splits;
+  }
+}
+
+Finder _richTextContaining(String text) {
+  return find.byWidgetPredicate(
+    (widget) => widget is RichText && widget.text.toPlainText().contains(text),
+  );
+}

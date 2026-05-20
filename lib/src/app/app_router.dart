@@ -19,13 +19,20 @@ import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final smPlayerRouter = createSmPlayerRouter();
 
-GoRouter createSmPlayerRouter({String initialLocation = '/songs'}) {
+GoRouter createSmPlayerRouter({
+  String initialLocation = '/songs',
+  SettingsController? settingsController,
+  List<String> initialExternalFilePaths = const [],
+  List<ExternalAppCommand> initialExternalCommands = const [],
+}) {
   return GoRouter(
     initialLocation: resolveRestoredPage(initialLocation),
     routes: [
@@ -49,7 +56,6 @@ GoRouter createSmPlayerRouter({String initialLocation = '/songs'}) {
           return SmPlayerShellPage(
             currentPath: path,
             canGoBack: canGoBack,
-            child: child,
             onNavigate: (target) {
               context.go(target);
             },
@@ -76,6 +82,9 @@ GoRouter createSmPlayerRouter({String initialLocation = '/songs'}) {
             onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
               context.go(_searchRouteFor(query, type));
             },
+            initialExternalFilePaths: initialExternalFilePaths,
+            initialExternalCommands: initialExternalCommands,
+            child: child,
           );
         },
         routes: [
@@ -137,6 +146,7 @@ GoRouter createSmPlayerRouter({String initialLocation = '/songs'}) {
             path: '/settings',
             builder:
                 (context, _) => SettingsPage(
+                  controller: settingsController,
                   onSendFeedbackEmail: () {
                     unawaited(_sendFeedbackEmail(context.smPlayerI18n.locale));
                   },
