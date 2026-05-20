@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -14,6 +19,12 @@ class SettingsPage extends StatefulWidget {
     this.onPickLibraryRoot,
     this.onScanLibrary,
     this.onRequestSmartArtistFix,
+    this.onImportData,
+    this.onExportData,
+    this.onRevealSystemLogs,
+    this.onSendFeedbackEmail,
+    this.onOpenFeedbackInBrowser,
+    this.appVersion,
     this.onUpdateSettings,
     this.controller,
   });
@@ -23,9 +34,15 @@ class SettingsPage extends StatefulWidget {
   final bool loading;
   final bool scanning;
   final String? error;
-  final VoidCallback? onPickLibraryRoot;
+  final FutureOr<String?> Function()? onPickLibraryRoot;
   final VoidCallback? onScanLibrary;
   final VoidCallback? onRequestSmartArtistFix;
+  final FutureOr<bool> Function()? onImportData;
+  final FutureOr<bool> Function()? onExportData;
+  final VoidCallback? onRevealSystemLogs;
+  final VoidCallback? onSendFeedbackEmail;
+  final VoidCallback? onOpenFeedbackInBrowser;
+  final String? appVersion;
   final ValueChanged<AppSettingsUpdate>? onUpdateSettings;
 
   @override
@@ -40,8 +57,10 @@ class _SettingsPageState extends State<SettingsPage> {
   var _showFeedbackOptions = false;
   var _showImportDataDialog = false;
   var _dataTransferState = DataTransferState.idle;
+  String? _appVersion;
 
   SettingsSnapshot get _snapshot => _settingsController.snapshot;
+  bool get _isDataTransferBusy => _dataTransferState != DataTransferState.idle;
 
   @override
   void initState() {
@@ -53,6 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_ownsSettingsController) {
       _settingsController.refresh();
     }
+    _loadAppVersion();
   }
 
   @override
@@ -106,14 +126,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  '${i18n.t('app.shell')} 1.0.0',
-                  style: TextStyle(
-                    color: SettingsPageColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                if (_appVersion case final appVersion?)
+                  Text(
+                    '${i18n.t('app.shell')} $appVersion',
+                    style: TextStyle(
+                      color: SettingsPageColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -147,10 +168,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 });
               },
               onConfirm: () {
-                setState(() {
-                  _showImportDataDialog = false;
-                  _dataTransferState = DataTransferState.importing;
-                });
+                unawaited(_importData());
               },
             ),
         ],
@@ -188,7 +206,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: _SettingsIconButton(
                   icon: FluentIcons.folder_24_regular,
                   tooltip: i18n.t('common.folders'),
-                  onPressed: widget.onPickLibraryRoot ?? _pickLibraryRoot,
+                  onPressed: () {
+                    unawaited(_pickLibraryRoot());
+                  },
                 ),
               ),
             ],
@@ -522,6 +542,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Text(i18n.t('settings.releaseNotes')),
               ),
               SettingsActionButton(
+                disabled: _isDataTransferBusy,
                 onClick: () {
                   setState(() {
                     _showImportDataDialog = true;
@@ -530,10 +551,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Text(i18n.t('settings.importData')),
               ),
               SettingsActionButton(
+                disabled: _isDataTransferBusy,
                 onClick: () {
-                  setState(() {
-                    _dataTransferState = DataTransferState.exporting;
-                  });
+                  unawaited(_exportData());
                 },
                 child: Text(i18n.t('settings.exportData')),
               ),
@@ -548,12 +568,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   setState(() {
                     _showFeedbackOptions = false;
                   });
-                  _showMessage(label);
+                  if (label == i18n.t('settings.viaEmail')) {
+                    widget.onSendFeedbackEmail?.call();
+                  } else {
+                    widget.onOpenFeedbackInBrowser?.call();
+                  }
                 },
               ),
               SettingsActionButton(
                 onClick: () {
-                  _showMessage(i18n.t('settings.systemLog'));
+                  widget.onRevealSystemLogs?.call();
                 },
                 child: Text(i18n.t('settings.systemLog')),
               ),
@@ -564,15 +588,140 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
-  void _pickLibraryRoot() {
-    _updateSettings(
-      const AppSettingsUpdate(rootPath: r'C:\Users\Public\Music'),
-    );
+  Future<void> _loadAppVersion() async {
+    final providedVersion = widget.appVersion;
+    if (providedVersion != null) {
+      setState(() {
+        _appVersion = providedVersion;
+      });
+      return;
+    }
+
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _appVersion = packageInfo.version;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _appVersion = '1.0.0';
+      });
+    }
+  }
+
+  Future<void> _pickLibraryRoot() async {
+    final selectedRootPath =
+        widget.onPickLibraryRoot == null
+            ? await FilePicker.getDirectoryPath()
+            : await widget.onPickLibraryRoot!();
+    if (selectedRootPath == null || selectedRootPath.isEmpty) {
+      return;
+    }
+
+    _updateSettings(AppSettingsUpdate(rootPath: selectedRootPath));
+    widget.onScanLibrary?.call();
+  }
+
+  Future<void> _exportData() async {
+    final i18n = context.smPlayerI18n;
+    setState(() {
+      _dataTransferState = DataTransferState.openingExport;
+    });
+
+    try {
+      final exported =
+          widget.onExportData == null
+              ? await _exportDataWithPicker(i18n)
+              : await widget.onExportData!();
+      if (exported && mounted) {
+        _showMessage(i18n.t('settings.dataExported'));
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('settings.dataExportFailed'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dataTransferState = DataTransferState.idle;
+        });
+      }
+    }
+  }
+
+  Future<void> _importData() async {
+    final i18n = context.smPlayerI18n;
+    setState(() {
+      _showImportDataDialog = false;
+      _dataTransferState = DataTransferState.openingImport;
+    });
+
+    try {
+      final imported =
+          widget.onImportData == null
+              ? await _importDataWithPicker(i18n)
+              : await widget.onImportData!();
+      if (!mounted) {
+        return;
+      }
+      if (imported) {
+        setState(() {
+          _dataTransferState = DataTransferState.reloading;
+        });
+        _showMessage(i18n.t('settings.dataImported'));
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('settings.dataImportFailed'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dataTransferState = DataTransferState.idle;
+        });
+      }
+    }
   }
 
   void _updateSettings(AppSettingsUpdate update) {
     _settingsController.updateSettings(update);
     widget.onUpdateSettings?.call(update);
+  }
+
+  Future<bool> _exportDataWithPicker(SmPlayerI18n i18n) async {
+    final targetPath = await FilePicker.saveFile(
+      dialogTitle: i18n.t('settings.exportData'),
+      fileName: 'SMPlayerSettings.db',
+      type: FileType.custom,
+      allowedExtensions: const ['db'],
+    );
+    if (targetPath == null) {
+      return false;
+    }
+    return const LibraryRepository().exportDataTo(targetPath);
+  }
+
+  Future<bool> _importDataWithPicker(SmPlayerI18n i18n) async {
+    final result = await FilePicker.pickFiles(
+      dialogTitle: i18n.t('settings.importData'),
+      type: FileType.custom,
+      allowedExtensions: const ['db'],
+      allowMultiple: false,
+    );
+    if (result == null) {
+      return false;
+    }
+    final sourcePath = result.files.single.path;
+    if (sourcePath == null) {
+      return false;
+    }
+    return const LibraryRepository().importDataFrom(sourcePath);
   }
 
   void _onSettingsChanged() {

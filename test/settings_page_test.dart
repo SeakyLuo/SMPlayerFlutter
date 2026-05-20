@@ -18,6 +18,9 @@ void main() {
       'settings.batchAddLyrics': '批量添加歌词',
       'settings.batchAddLyricsCopy': '为所有歌曲搜索并添加歌词。已有歌词不会重复写入。',
       'settings.dataImported': '数据已导入，正在重新加载',
+      'settings.dataImportFailed': '导入失败',
+      'settings.dataExported': '数据已导出',
+      'settings.dataExportFailed': '导出失败',
       'settings.desktopLyrics': '桌面歌词',
       'settings.desktopLyricsColor': '字体颜色',
       'settings.desktopLyricsFontFamily': '字体',
@@ -256,6 +259,100 @@ void main() {
       expect(lastUpdate?.showNotifications, isTrue);
     },
   );
+
+  testWidgets(
+    'SettingsPage picks a real library root instead of fallback path',
+    (tester) async {
+      AppSettingsUpdate? lastUpdate;
+      var scanRequested = false;
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            home: SettingsPage(
+              appVersion: '1.0.0',
+              onPickLibraryRoot: () async => '/Users/me/Music',
+              onScanLibrary: () {
+                scanRequested = true;
+              },
+              onUpdateSettings: (update) {
+                lastUpdate = update;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('音乐文件夹'));
+      await tester.pump();
+
+      expect(lastUpdate?.rootPath, '/Users/me/Music');
+      expect(scanRequested, isTrue);
+    },
+  );
+
+  testWidgets('SettingsPage import and export actions return to idle', (
+    tester,
+  ) async {
+    var exportRequested = false;
+    var importRequested = false;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SettingsPage(
+              appVersion: '1.0.0',
+              onExportData: () async {
+                exportRequested = true;
+                return true;
+              },
+              onImportData: () async {
+                importRequested = true;
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('导出数据'),
+      300,
+      scrollable: scrollable,
+    );
+    await tester.tap(find.text('导出数据'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(exportRequested, isTrue);
+    expect(find.text('正在导出数据...'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('导入数据'),
+      300,
+      scrollable: scrollable,
+    );
+    await tester.tap(find.text('导入数据'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(importRequested, isTrue);
+    expect(find.text('正在导入数据...'), findsNothing);
+  });
 
   testWidgets('PreferenceSettingsPage updates and clears concrete sections', (
     tester,

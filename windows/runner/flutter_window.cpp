@@ -117,19 +117,19 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
 }
 
 void FlutterWindow::RegisterGlobalMediaHotkeys() {
-  HWND window_handle = GetHandle();
-  ::RegisterHotKey(window_handle, kHotKeyPlayPause, 0, VK_MEDIA_PLAY_PAUSE);
-  ::RegisterHotKey(window_handle, kHotKeyPrevious, 0, VK_MEDIA_PREV_TRACK);
-  ::RegisterHotKey(window_handle, kHotKeyNext, 0, VK_MEDIA_NEXT_TRACK);
-  ::RegisterHotKey(window_handle, kHotKeyStop, 0, VK_MEDIA_STOP);
+  hot_key_window_ = GetHandle();
+  ::RegisterHotKey(hot_key_window_, kHotKeyPlayPause, 0, VK_MEDIA_PLAY_PAUSE);
+  ::RegisterHotKey(hot_key_window_, kHotKeyPrevious, 0, VK_MEDIA_PREV_TRACK);
+  ::RegisterHotKey(hot_key_window_, kHotKeyNext, 0, VK_MEDIA_NEXT_TRACK);
+  ::RegisterHotKey(hot_key_window_, kHotKeyStop, 0, VK_MEDIA_STOP);
 }
 
 void FlutterWindow::UnregisterGlobalMediaHotkeys() {
-  HWND window_handle = GetHandle();
-  ::UnregisterHotKey(window_handle, kHotKeyPlayPause);
-  ::UnregisterHotKey(window_handle, kHotKeyPrevious);
-  ::UnregisterHotKey(window_handle, kHotKeyNext);
-  ::UnregisterHotKey(window_handle, kHotKeyStop);
+  ::UnregisterHotKey(hot_key_window_, kHotKeyPlayPause);
+  ::UnregisterHotKey(hot_key_window_, kHotKeyPrevious);
+  ::UnregisterHotKey(hot_key_window_, kHotKeyNext);
+  ::UnregisterHotKey(hot_key_window_, kHotKeyStop);
+  hot_key_window_ = nullptr;
 }
 
 void FlutterWindow::SendDesktopCommand(const std::string& command) {
