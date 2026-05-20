@@ -84,6 +84,30 @@ class LibraryRepository {
     }
   }
 
+  Future<bool> exportDataTo(String targetPath) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return false;
+    }
+
+    final target = File(targetPath);
+    await target.parent.create(recursive: true);
+    await databaseFile.copy(target.path);
+    return true;
+  }
+
+  Future<bool> importDataFrom(String sourcePath) async {
+    final source = File(sourcePath);
+    if (!source.existsSync()) {
+      return false;
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    await databaseFile.parent.create(recursive: true);
+    await source.copy(databaseFile.path);
+    return true;
+  }
+
   Future<void> replaceNowPlaying(List<int> songIds) async {
     final databaseFile = await _resolveDatabaseFile();
     if (!databaseFile.existsSync()) {
