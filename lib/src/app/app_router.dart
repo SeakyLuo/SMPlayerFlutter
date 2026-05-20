@@ -1,5 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
@@ -14,12 +21,13 @@ import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 final smPlayerRouter = createSmPlayerRouter();
 
-GoRouter createSmPlayerRouter() {
+GoRouter createSmPlayerRouter({String initialLocation = '/songs'}) {
   return GoRouter(
-    initialLocation: '/songs',
+    initialLocation: resolveRestoredPage(initialLocation),
     routes: [
       GoRoute(path: '/', redirect: (_, _) => '/songs'),
       ShellRoute(
@@ -125,7 +133,21 @@ GoRouter createSmPlayerRouter() {
             builder: (_, _) => const MyFavoritesPage(),
           ),
           GoRoute(path: '/playlists', builder: (_, _) => const PlaylistsPage()),
-          GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+          GoRoute(
+            path: '/settings',
+            builder:
+                (context, _) => SettingsPage(
+                  onSendFeedbackEmail: () {
+                    unawaited(_sendFeedbackEmail(context.smPlayerI18n.locale));
+                  },
+                  onOpenFeedbackInBrowser: () {
+                    unawaited(launchUrl(Uri.parse(_feedbackIssueUrl)));
+                  },
+                  onRevealSystemLogs: () {
+                    unawaited(_revealSystemLogs());
+                  },
+                ),
+          ),
           GoRoute(
             path: '/search',
             builder:
@@ -148,6 +170,46 @@ GoRouter createSmPlayerRouter() {
       ),
     ],
   );
+}
+
+const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerEletron/issues';
+const _feedbackEmailAddress = 'luokiss9@qq.com';
+
+const _feedbackEmailSubjects = {
+  'zh-CN': '简音播放器反馈',
+  'zh-Hant': '簡音播放器反饋',
+  'en-US': 'Simple Melody Player Feedback',
+};
+
+Future<void> _sendFeedbackEmail(String locale) async {
+  final subject =
+      _feedbackEmailSubjects[locale] ??
+      (locale.startsWith('zh')
+          ? _feedbackEmailSubjects['zh-CN']!
+          : _feedbackEmailSubjects['en-US']!);
+  await launchUrl(
+    Uri(
+      scheme: 'mailto',
+      path: _feedbackEmailAddress,
+      queryParameters: {'subject': subject},
+    ),
+  );
+}
+
+Future<void> _revealSystemLogs() async {
+  final supportDirectory = await getApplicationSupportDirectory();
+  final logsDirectory = Directory(p.join(supportDirectory.path, 'Logs'));
+  await logsDirectory.create(recursive: true);
+
+  if (Platform.isWindows) {
+    await Process.start('explorer.exe', [logsDirectory.path]);
+    return;
+  }
+  if (Platform.isMacOS) {
+    await Process.start('open', [logsDirectory.path]);
+    return;
+  }
+  await Process.start('xdg-open', [logsDirectory.path]);
 }
 
 String _searchRouteFor(String query, SearchHistoryType type) {

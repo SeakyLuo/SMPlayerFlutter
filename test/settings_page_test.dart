@@ -26,8 +26,10 @@ void main() {
       'settings.desktopLyricsFontFamily': '字体',
       'settings.desktopLyricsFontSize': '字体字号',
       'settings.desktopLyricsFontSystem': '系统默认',
+      'settings.desktopLyricsLock': '锁定桌面歌词并让鼠标点击穿透',
       'settings.desktopLyricsOpacity': '文字透明度',
       'settings.desktopLyricsRestoreDefaults': '恢复默认',
+      'settings.desktopLyricsResetOffset': '重置歌词偏移',
       'settings.desktopLyricsStroke': '文字描边',
       'settings.desktopLyricsStrokeColor': '描边颜色',
       'settings.display': '显示',
@@ -78,7 +80,12 @@ void main() {
       'settings.preferenceSettings': '偏好设置',
       'settings.quitOnClose': '关闭窗口时退出应用',
       'settings.releaseNotes': '更新日志',
+      'settings.releaseNotesArtists': '音乐可以按歌手和专辑分组。',
       'settings.releaseNotesIntro': '版本历史',
+      'settings.releaseNotesLibrary': '设置中可以导入和导出数据。',
+      'settings.releaseNotesUi': '可在设置中查看更新日志。',
+      'settings.releaseNotesVersion': '版本',
+      'releaseNotes.architectureFeedback': '本次更新进行了大量调整，欢迎通过设置进行反馈。',
       'settings.rescan': '正在刷新',
       'settings.saveProgress': '退出时保存播放进度',
       'settings.shuffleAfterOneRound': '播放一轮后重新随机排序',
@@ -220,9 +227,11 @@ void main() {
     );
 
     expect(find.text('字体颜色'), findsOneWidget);
+    expect(find.text('锁定桌面歌词并让鼠标点击穿透'), findsOneWidget);
     expect(find.text('文字描边'), findsOneWidget);
     expect(find.text('字体字号'), findsOneWidget);
     expect(find.text('文字透明度'), findsOneWidget);
+    expect(find.text('重置歌词偏移'), findsOneWidget);
   });
 
   testWidgets(

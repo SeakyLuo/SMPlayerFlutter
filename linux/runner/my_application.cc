@@ -1,11 +1,120 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <gdk/gdkkeysyms.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
+#include <X11/XF86keysym.h>
+#include <X11/Xlib.h>
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+FlMethodChannel* desktop_feature_channel = nullptr;
+
+#ifdef GDK_WINDOWING_X11
+Display* media_key_display = nullptr;
+Window media_key_root = 0;
+bool media_key_filter_registered = false;
+#endif
+
+void send_desktop_command(const gchar* command) {
+  if (desktop_feature_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) arguments = fl_value_new_string(command);
+  fl_method_channel_invoke_method(desktop_feature_channel, "desktopCommand",
+                                  arguments, nullptr, nullptr, nullptr);
+}
+
+#ifdef GDK_WINDOWING_X11
+void grab_media_key(Display* display, Window root, KeySym keysym) {
+  const KeyCode key_code = XKeysymToKeycode(display, keysym);
+  if (key_code == 0) {
+    return;
+  }
+  XGrabKey(display, key_code, AnyModifier, root, True, GrabModeAsync,
+           GrabModeAsync);
+}
+
+void ungrab_media_key(Display* display, Window root, KeySym keysym) {
+  const KeyCode key_code = XKeysymToKeycode(display, keysym);
+  if (key_code == 0) {
+    return;
+  }
+  XUngrabKey(display, key_code, AnyModifier, root);
+}
+
+GdkFilterReturn media_key_filter(GdkXEvent* xevent, GdkEvent* event,
+                                 gpointer data) {
+  XEvent* x_event = static_cast<XEvent*>(xevent);
+  if (x_event->type != KeyPress) {
+    return GDK_FILTER_CONTINUE;
+  }
+
+  const KeySym keysym = XLookupKeysym(&x_event->xkey, 0);
+  switch (keysym) {
+    case XF86XK_AudioPlay:
+      send_desktop_command("play-pause");
+      return GDK_FILTER_REMOVE;
+    case XF86XK_AudioPrev:
+      send_desktop_command("previous");
+      return GDK_FILTER_REMOVE;
+    case XF86XK_AudioNext:
+      send_desktop_command("next");
+      return GDK_FILTER_REMOVE;
+    case XF86XK_AudioStop:
+      send_desktop_command("stop");
+      return GDK_FILTER_REMOVE;
+    default:
+      return GDK_FILTER_CONTINUE;
+  }
+}
+
+void register_global_media_keys(GtkWindow* window) {
+  GdkDisplay* gdk_display = gtk_widget_get_display(GTK_WIDGET(window));
+  if (!GDK_IS_X11_DISPLAY(gdk_display)) {
+    return;
+  }
+
+  media_key_display = GDK_DISPLAY_XDISPLAY(gdk_display);
+  media_key_root = DefaultRootWindow(media_key_display);
+  grab_media_key(media_key_display, media_key_root, XF86XK_AudioPlay);
+  grab_media_key(media_key_display, media_key_root, XF86XK_AudioPrev);
+  grab_media_key(media_key_display, media_key_root, XF86XK_AudioNext);
+  grab_media_key(media_key_display, media_key_root, XF86XK_AudioStop);
+  XFlush(media_key_display);
+
+  if (!media_key_filter_registered) {
+    gdk_window_add_filter(nullptr, media_key_filter, nullptr);
+    media_key_filter_registered = true;
+  }
+}
+
+void unregister_global_media_keys() {
+  if (media_key_display == nullptr || media_key_root == 0) {
+    return;
+  }
+  ungrab_media_key(media_key_display, media_key_root, XF86XK_AudioPlay);
+  ungrab_media_key(media_key_display, media_key_root, XF86XK_AudioPrev);
+  ungrab_media_key(media_key_display, media_key_root, XF86XK_AudioNext);
+  ungrab_media_key(media_key_display, media_key_root, XF86XK_AudioStop);
+  XFlush(media_key_display);
+  if (media_key_filter_registered) {
+    gdk_window_remove_filter(nullptr, media_key_filter, nullptr);
+    media_key_filter_registered = false;
+  }
+  media_key_display = nullptr;
+  media_key_root = 0;
+}
+#else
+void register_global_media_keys(GtkWindow* window) {}
+void unregister_global_media_keys() {}
+#endif
+
+}  // namespace
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -58,6 +167,11 @@ static void my_application_activate(GApplication* application) {
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  desktop_feature_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "smplayer_flutter/desktop_features",
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  register_global_media_keys(window);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -95,6 +209,7 @@ static void my_application_shutdown(GApplication* application) {
   //MyApplication* self = MY_APPLICATION(object);
 
   // Perform any actions required at application shutdown.
+  unregister_global_media_keys();
 
   G_APPLICATION_CLASS(my_application_parent_class)->shutdown(application);
 }

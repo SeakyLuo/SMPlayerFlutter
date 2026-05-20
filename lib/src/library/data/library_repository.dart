@@ -1114,12 +1114,174 @@ class LibraryRepository {
     await _writeLyricsToSongPath(songPath, rawLyrics);
   }
 
+  Future<void> updateLyricsOffset(int songId, int offsetMs) async {
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE Music
+        SET LyricsOffsetMs = ?
+        WHERE Id = ?
+          AND State = ?
+      ''',
+        [offsetMs, songId, _activeState],
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<LyricsSnapshot> getInternetLyrics(int songId) async {
     final song = await _getLyricsSongLookup(songId);
     final rawLyrics = await _searchInternetLyrics(song);
     return _createLyricsSnapshot(
       rawLyrics,
       rawLyrics.trim().isEmpty ? LyricsSource.none : LyricsSource.internet,
+    );
+  }
+
+  Future<LyricsBatchResult> batchAddInternetLyrics({
+    bool overwrite = false,
+    void Function(LyricsBatchProgress progress)? onProgress,
+    bool Function()? isCanceled,
+  }) async {
+    final snapshot = await getMusicLibrarySnapshot();
+    var saved = 0;
+    var overwritten = 0;
+    var skipped = 0;
+    var missing = 0;
+    var failed = 0;
+    var backedUp = 0;
+    var backupBytes = 0;
+    var lastRequestStartedAt = DateTime.fromMillisecondsSinceEpoch(0);
+    final details = <LyricsBatchDetail>[];
+
+    for (var index = 0; index < snapshot.songs.length; index += 1) {
+      if (isCanceled?.call() == true) {
+        break;
+      }
+
+      final song = snapshot.songs[index];
+      onProgress?.call(
+        LyricsBatchProgress(
+          currentIndex: index + 1,
+          total: snapshot.songs.length,
+          currentSongTitle: song.title,
+          saved: saved,
+          overwritten: overwritten,
+          skipped: skipped,
+          missing: missing,
+          failed: failed,
+          backedUp: backedUp,
+          backupBytes: backupBytes,
+        ),
+      );
+
+      try {
+        final localLyrics = await _getSongLyricsByPath(song.path);
+        final existingRawLyrics = localLyrics.rawText;
+        if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
+          skipped += 1;
+          details.add(
+            LyricsBatchDetail(
+              songId: song.id,
+              title: song.title,
+              result: LyricsBatchDetailResult.skipped,
+              reason: LyricsBatchSkipReason.alreadyExists,
+            ),
+          );
+          continue;
+        }
+
+        final elapsed =
+            DateTime.now().difference(lastRequestStartedAt).inMilliseconds;
+        if (lastRequestStartedAt.millisecondsSinceEpoch > 0 && elapsed < 200) {
+          await Future<void>.delayed(Duration(milliseconds: 200 - elapsed));
+        }
+        lastRequestStartedAt = DateTime.now();
+        final internetLyrics = await _searchInternetLyrics(
+          _LyricsSongLookup(
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            path: song.path,
+          ),
+        );
+
+        if (internetLyrics.trim().isEmpty) {
+          missing += 1;
+          details.add(
+            LyricsBatchDetail(
+              songId: song.id,
+              title: song.title,
+              result: LyricsBatchDetailResult.missing,
+            ),
+          );
+          continue;
+        }
+
+        if (overwrite &&
+            _normalizeLyricsForCompare(existingRawLyrics) ==
+                _normalizeLyricsForCompare(internetLyrics)) {
+          skipped += 1;
+          details.add(
+            LyricsBatchDetail(
+              songId: song.id,
+              title: song.title,
+              result: LyricsBatchDetailResult.skipped,
+              reason: LyricsBatchSkipReason.sameContent,
+            ),
+          );
+          continue;
+        }
+
+        if (existingRawLyrics.trim().isNotEmpty) {
+          backedUp += 1;
+          backupBytes += utf8.encode(existingRawLyrics).length;
+        }
+        await _writeLyricsToSongPath(song.path, internetLyrics);
+        if (existingRawLyrics.trim().isEmpty) {
+          saved += 1;
+          details.add(
+            LyricsBatchDetail(
+              songId: song.id,
+              title: song.title,
+              result: LyricsBatchDetailResult.saved,
+            ),
+          );
+        } else {
+          overwritten += 1;
+          details.add(
+            LyricsBatchDetail(
+              songId: song.id,
+              title: song.title,
+              result: LyricsBatchDetailResult.overwritten,
+            ),
+          );
+        }
+      } on Object {
+        failed += 1;
+        details.add(
+          LyricsBatchDetail(
+            songId: song.id,
+            title: song.title,
+            result: LyricsBatchDetailResult.failed,
+          ),
+        );
+      }
+    }
+
+    return LyricsBatchResult(
+      total: snapshot.songs.length,
+      saved: saved,
+      overwritten: overwritten,
+      skipped: skipped,
+      missing: missing,
+      failed: failed,
+      backedUp: backedUp,
+      backupBytes: backupBytes,
+      details: details,
     );
   }
 
@@ -2073,6 +2235,20 @@ class LibraryRepository {
     }
   }
 
+  Future<LyricsSnapshot> _getSongLyricsByPath(String songPath) async {
+    final sidecarLyrics = await _getSidecarLyrics(songPath);
+    if (sidecarLyrics != null) {
+      return sidecarLyrics;
+    }
+
+    final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(songPath);
+    if (embeddedLyrics.trim().isNotEmpty) {
+      return _createLyricsSnapshot(embeddedLyrics, LyricsSource.musicFile);
+    }
+
+    return _createLyricsSnapshot('', LyricsSource.none);
+  }
+
   Future<String> _getSongMid(_LyricsSongLookup song) async {
     for (final attempt in _buildLyricsSearchAttempts(song)) {
       final songMid = await _searchSongMidByKeyword(
@@ -2274,6 +2450,16 @@ class LibraryRepository {
     }
 
     return normalized.contains('姝ゆ瓕鏇蹭负娌℃湁濉瘝鐨勭函闊充箰璇锋偍娆ｈ祻');
+  }
+
+  String _normalizeLyricsForCompare(String rawLyrics) {
+    return rawLyrics
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join('\n');
   }
 
   Future<LyricsSnapshot?> _getSidecarLyrics(String songPath) async {
@@ -3259,6 +3445,74 @@ class _LyricsSongLookup {
   final String artist;
   final String album;
   final String path;
+}
+
+class LyricsBatchProgress {
+  const LyricsBatchProgress({
+    required this.currentIndex,
+    required this.total,
+    required this.currentSongTitle,
+    required this.saved,
+    required this.overwritten,
+    required this.skipped,
+    required this.missing,
+    required this.failed,
+    required this.backedUp,
+    required this.backupBytes,
+  });
+
+  final int currentIndex;
+  final int total;
+  final String currentSongTitle;
+  final int saved;
+  final int overwritten;
+  final int skipped;
+  final int missing;
+  final int failed;
+  final int backedUp;
+  final int backupBytes;
+}
+
+class LyricsBatchResult {
+  const LyricsBatchResult({
+    required this.total,
+    required this.saved,
+    required this.overwritten,
+    required this.skipped,
+    required this.missing,
+    required this.failed,
+    required this.backedUp,
+    required this.backupBytes,
+    required this.details,
+  });
+
+  final int total;
+  final int saved;
+  final int overwritten;
+  final int skipped;
+  final int missing;
+  final int failed;
+  final int backedUp;
+  final int backupBytes;
+  final List<LyricsBatchDetail> details;
+}
+
+enum LyricsBatchDetailResult { saved, overwritten, skipped, missing, failed }
+
+enum LyricsBatchSkipReason { alreadyExists, sameContent }
+
+class LyricsBatchDetail {
+  const LyricsBatchDetail({
+    required this.songId,
+    required this.title,
+    required this.result,
+    this.reason,
+  });
+
+  final int songId;
+  final String title;
+  final LyricsBatchDetailResult result;
+  final LyricsBatchSkipReason? reason;
 }
 
 class _LyricsSearchAttempt {

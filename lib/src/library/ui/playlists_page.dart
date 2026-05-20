@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -13,6 +14,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 class PlaylistsPage extends ConsumerStatefulWidget {
   const PlaylistsPage({super.key, this.selectedPlaylistId});
@@ -26,6 +28,7 @@ class PlaylistsPage extends ConsumerStatefulWidget {
 class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   List<int>? _previewPlaylistIds;
   int? _draggingPlaylistId;
+  int? _lastPersistedPlaylistId;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +59,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 .where((playlist) => playlist.id == widget.selectedPlaylistId)
                 .firstOrNull;
         if (widget.selectedPlaylistId != null && selectedPlaylist != null) {
+          _persistLastPlaylist(selectedPlaylist.id);
           return _buildDetail(context, ref, i18n, snapshot, selectedPlaylist);
         }
 
@@ -343,6 +347,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                     i18n: i18n,
                                     dragging: false,
                                     onOpen: () {
+                                      _persistLastPlaylist(playlist.id);
                                       context.go('/playlists/${playlist.id}');
                                     },
                                     onPlay: () {
@@ -411,8 +416,25 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         .createPlaylist(name, songIds);
     ref.invalidate(musicLibrarySnapshotProvider);
     if (context.mounted) {
+      _persistLastPlaylist(playlist.id);
       context.go('/playlists/${playlist.id}');
     }
+  }
+
+  void _persistLastPlaylist(int playlistId) {
+    if (_lastPersistedPlaylistId == playlistId) {
+      return;
+    }
+    _lastPersistedPlaylistId = playlistId;
+    unawaited(_saveLastPlaylist(playlistId));
+  }
+
+  Future<void> _saveLastPlaylist(int playlistId) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setInt(
+      SmPlayerSettingsStorageKeys.lastPlaylistId,
+      playlistId,
+    );
   }
 
   Future<void> _renamePlaylist(

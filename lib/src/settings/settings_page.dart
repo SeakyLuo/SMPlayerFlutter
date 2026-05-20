@@ -56,6 +56,12 @@ class _SettingsPageState extends State<SettingsPage> {
   var _showReleaseNotes = false;
   var _showFeedbackOptions = false;
   var _showImportDataDialog = false;
+  var _showLyricsBatchOptions = false;
+  var _lyricsBatchOverwrite = false;
+  var _lyricsBatchRunning = false;
+  var _lyricsBatchCancelRequested = false;
+  LyricsBatchProgress? _lyricsBatchProgress;
+  LyricsBatchResult? _lyricsBatchResult;
   var _dataTransferState = DataTransferState.idle;
   String? _appVersion;
 
@@ -149,9 +155,8 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           if (_showReleaseNotes)
-            _SimpleSettingsDialog(
-              title: i18n.t('settings.releaseNotes'),
-              message: i18n.t('settings.releaseNotesIntro'),
+            ReleaseNotesDialog(
+              version: _appVersion,
               onClose: () {
                 setState(() {
                   _showReleaseNotes = false;
@@ -268,11 +273,44 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           SettingsActionButton(
             icon: FluentIcons.text_grammar_wand_24_regular,
+            disabled: _lyricsBatchRunning,
             onClick: () {
-              _showMessage(i18n.t('settings.lyricsBatchStarting'));
+              setState(() {
+                _showLyricsBatchOptions = !_showLyricsBatchOptions;
+              });
             },
             child: Text(i18n.t('settings.batchAddLyrics')),
           ),
+          if (_showLyricsBatchOptions)
+            _LyricsBatchOptions(
+              overwrite: _lyricsBatchOverwrite,
+              onOverwriteChanged: (checked) {
+                setState(() {
+                  _lyricsBatchOverwrite = checked;
+                });
+              },
+              onStart: () {
+                unawaited(_startLyricsBatch(i18n));
+              },
+              onCancel: () {
+                setState(() {
+                  _showLyricsBatchOptions = false;
+                });
+              },
+            ),
+          if (_lyricsBatchRunning)
+            SettingsActionButton(
+              icon: FluentIcons.dismiss_24_regular,
+              onClick: () {
+                _lyricsBatchCancelRequested = true;
+              },
+              child: Text(i18n.t('common.cancel')),
+            ),
+          if (_lyricsBatchProgress case final progress?)
+            _LyricsBatchProgressPanel(progress: progress),
+          if (!_lyricsBatchRunning)
+            if (_lyricsBatchResult case final result?)
+              _LyricsBatchResultPanel(result: result),
         ],
       ),
       SettingsCard(
@@ -288,6 +326,15 @@ class _SettingsPageState extends State<SettingsPage> {
         children:
             _snapshot.desktopLyricsEnabled
                 ? [
+                  ToggleSettingRow(
+                    label: i18n.t('settings.desktopLyricsLock'),
+                    checked: _snapshot.desktopLyricsLocked,
+                    onChange: (checked) {
+                      _updateSettings(
+                        AppSettingsUpdate(desktopLyricsLocked: checked),
+                      );
+                    },
+                  ),
                   ColorSettingRow(
                     label: i18n.t('settings.desktopLyricsColor'),
                     value: _snapshot.desktopLyricsColor,
@@ -369,17 +416,28 @@ class _SettingsPageState extends State<SettingsPage> {
                     onClick: () {
                       _updateSettings(
                         const AppSettingsUpdate(
+                          desktopLyricsLocked: false,
                           desktopLyricsColor: '#4AA8FF',
                           desktopLyricsStrokeColor: '#111111',
                           desktopLyricsFontSize: 28,
                           desktopLyricsFontFamily: 'system',
                           desktopLyricsOpacity: 88,
+                          desktopLyricsBounds: '',
                         ),
                       );
                     },
                     child: Text(
                       i18n.t('settings.desktopLyricsRestoreDefaults'),
                     ),
+                  ),
+                  SettingsActionButton(
+                    icon: FluentIcons.arrow_reset_24_regular,
+                    onClick: () {
+                      _updateSettings(
+                        const AppSettingsUpdate(desktopLyricsBounds: ''),
+                      );
+                    },
+                    child: Text(i18n.t('settings.desktopLyricsResetOffset')),
                   ),
                 ]
                 : null,
@@ -684,6 +742,59 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _dataTransferState = DataTransferState.idle;
+        });
+      }
+    }
+  }
+
+  Future<void> _startLyricsBatch(SmPlayerI18n i18n) async {
+    setState(() {
+      _showLyricsBatchOptions = false;
+      _lyricsBatchRunning = true;
+      _lyricsBatchCancelRequested = false;
+      _lyricsBatchProgress = null;
+      _lyricsBatchResult = null;
+    });
+
+    try {
+      final result = await const LibraryRepository().batchAddInternetLyrics(
+        overwrite: _lyricsBatchOverwrite,
+        isCanceled: () => _lyricsBatchCancelRequested,
+        onProgress: (progress) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _lyricsBatchProgress = progress;
+          });
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lyricsBatchResult = result;
+      });
+      final message =
+          _lyricsBatchCancelRequested
+              ? i18n.t('settings.lyricsBatchStopped')
+              : i18n.t('settings.lyricsBatchDone');
+      _showMessage(
+        '$message: ${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
+        '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
+        '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
+        '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
+        '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}',
+      );
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('settings.lyricsBatchFailed'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _lyricsBatchRunning = false;
+          _lyricsBatchCancelRequested = false;
         });
       }
     }
@@ -1183,6 +1294,148 @@ class SettingsActionButton extends StatelessWidget {
         backgroundColor: SettingsPageColors.buttonSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _LyricsBatchOptions extends StatelessWidget {
+  const _LyricsBatchOptions({
+    required this.overwrite,
+    required this.onOverwriteChanged,
+    required this.onStart,
+    required this.onCancel,
+  });
+
+  final bool overwrite;
+  final ValueChanged<bool> onOverwriteChanged;
+  final VoidCallback onStart;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SettingsPageColors.buttonSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            i18n.t('settings.lyricsBatchWriteStrategy'),
+            style: const TextStyle(
+              color: SettingsPageColors.textStrong,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ToggleSettingRow(
+            label: i18n.t('settings.lyricsBatchOverwriteToggle'),
+            checked: overwrite,
+            onChange: onOverwriteChanged,
+          ),
+          Wrap(
+            spacing: 10,
+            children: [
+              SettingsActionButton(
+                onClick: onStart,
+                child: Text(i18n.t('common.start')),
+              ),
+              SettingsActionButton(
+                onClick: onCancel,
+                child: Text(i18n.t('common.cancel')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricsBatchProgressPanel extends StatelessWidget {
+  const _LyricsBatchProgressPanel({required this.progress});
+
+  final LyricsBatchProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final ratio =
+        progress.total == 0 ? 0.0 : progress.currentIndex / progress.total;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SettingsPageColors.buttonSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  i18n.t('settings.lyricsBatchRequesting'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text('${progress.currentIndex}/${progress.total}'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: ratio.clamp(0, 1).toDouble()),
+          const SizedBox(height: 8),
+          Text(
+            progress.currentSongTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${i18n.t('settings.lyricsBatchSaved')} ${progress.saved} · '
+            '${i18n.t('settings.lyricsBatchOverwritten')} ${progress.overwritten} · '
+            '${i18n.t('settings.lyricsBatchSkipped')} ${progress.skipped} · '
+            '${i18n.t('settings.lyricsBatchMissing')} ${progress.missing} · '
+            '${i18n.t('settings.lyricsBatchFailed')} ${progress.failed}',
+            style: const TextStyle(
+              color: SettingsPageColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricsBatchResultPanel extends StatelessWidget {
+  const _LyricsBatchResultPanel({required this.result});
+
+  final LyricsBatchResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SettingsPageColors.buttonSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Text(
+        '${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
+        '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
+        '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
+        '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
+        '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}',
+        style: const TextStyle(fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1971,21 +2224,91 @@ class _SettingsProgressOverlay extends StatelessWidget {
   }
 }
 
-class _SimpleSettingsDialog extends StatelessWidget {
-  const _SimpleSettingsDialog({
-    required this.title,
-    required this.message,
+class ReleaseNotesDialog extends StatelessWidget {
+  const ReleaseNotesDialog({
+    super.key,
+    required this.version,
     required this.onClose,
   });
 
-  final String title;
-  final String message;
+  final String? version;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final releaseVersion = version ?? '1.0.0';
+
     return _DialogOverlay(
-      child: _DialogBox(title: title, onClose: onClose, child: Text(message)),
+      child: _DialogBox(
+        title: i18n.t('settings.releaseNotes'),
+        onClose: onClose,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${i18n.t('settings.releaseNotesVersion')} $releaseVersion',
+              style: const TextStyle(
+                color: SettingsPageColors.textStrong,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              i18n.t('settings.releaseNotesIntro'),
+              style: const TextStyle(color: SettingsPageColors.textMuted),
+            ),
+            const SizedBox(height: 16),
+            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesArtists')),
+            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesLibrary')),
+            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesUi')),
+            _ReleaseNoteItem(text: i18n.t('releaseNotes.architectureFeedback')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReleaseNoteItem extends StatelessWidget {
+  const _ReleaseNoteItem({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: SizedBox(
+              width: 5,
+              height: 5,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: SettingsPageColors.accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: SettingsPageColors.textStrong,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

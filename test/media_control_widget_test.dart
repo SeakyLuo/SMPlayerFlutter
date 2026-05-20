@@ -148,6 +148,7 @@ void main() {
   testWidgets('MediaControl More menu mirrors Electron player flyout', (
     tester,
   ) async {
+    var miniModeEntered = false;
     final controller = MediaControlController(
       const MediaControlState(
         track: MediaControlTrack(
@@ -198,7 +199,9 @@ void main() {
               onQuickPlay: () {},
               onOpenNowPlaying: () {},
               onToggleWindowFullScreen: () {},
-              onEnterMiniMode: () {},
+              onEnterMiniMode: () {
+                miniModeEntered = true;
+              },
             ),
           ),
         ),
@@ -213,6 +216,11 @@ void main() {
     expect(find.text('See Album'), findsOneWidget);
     expect(find.text('See Lyrics'), findsOneWidget);
     expect(find.text('Enter Mini Mode'), findsOneWidget);
+
+    await tester.tap(find.text('Enter Mini Mode'));
+    await tester.pump();
+
+    expect(miniModeEntered, isTrue);
   });
 
   testWidgets('MediaControl More menu exposes current song actions', (

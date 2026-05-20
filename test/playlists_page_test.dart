@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('PlaylistsPage writes Electron playlist preference', (
     tester,
   ) async {
@@ -38,6 +44,18 @@ void main() {
     expect(repository.preferenceItemId, '7');
     expect(repository.preferenceName, 'Mix');
     expect(repository.preferenceLevel, 'high');
+  });
+
+  testWidgets('PlaylistsPage persists Electron last selected playlist', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _PlaylistTestApp(child: const PlaylistsPage(selectedPlaylistId: 7)),
+    );
+    await tester.pumpAndSettle();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getInt(SmPlayerSettingsStorageKeys.lastPlaylistId), 7);
   });
 
   testWidgets('PlaylistsPage Add To excludes the current playlist', (

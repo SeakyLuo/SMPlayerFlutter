@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 void main() {
   const emptyLibrarySnapshot = MusicLibrarySnapshot(
@@ -79,6 +81,40 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('RecentItem')));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/recent');
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(
+      preferences.getString(SmPlayerSettingsStorageKeys.lastPage),
+      '/recent',
+    );
+  });
+
+  test('restored page follows Electron restorable route list', () {
+    expect(resolveRestoredPage('/recent'), '/recent');
+    expect(resolveRestoredPage(' /local '), '/local');
+    expect(resolveRestoredPage('/playlists/7'), '/songs');
+    expect(resolveRestoredPage('/settings'), '/songs');
+  });
+
+  testWidgets('router restores the Electron last page on startup', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter(initialLocation: '/recent');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          musicLibrarySnapshotProvider.overrideWith(
+            (ref) async => emptyLibrarySnapshot,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(router.routeInformationProvider.value.uri.path, '/recent');
