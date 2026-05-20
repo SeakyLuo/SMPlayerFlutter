@@ -1,25 +1,25 @@
 import { readFileSync } from 'node:fs'
 
 const localeFiles = [
-  'src/shared/locales/en-US.json',
-  'src/shared/locales/zh-CN.json',
-  'src/shared/locales/fr.json',
-  'src/shared/locales/ru.json',
-  'src/shared/locales/ja.json',
-  'src/shared/locales/de.json',
-  'src/shared/locales/pt-BR.json',
-  'src/shared/locales/es.json',
-  'src/shared/locales/it.json',
-  'src/shared/locales/zh-Hant.json',
-  'src/shared/locales/nl.json',
-  'src/shared/locales/cs.json',
-  'src/shared/locales/uk.json',
-  'src/shared/locales/sv.json',
-  'src/shared/locales/id.json',
+  'locales/en-US.json',
+  'locales/zh-CN.json',
+  'locales/fr.json',
+  'locales/ru.json',
+  'locales/ja.json',
+  'locales/de.json',
+  'locales/pt-BR.json',
+  'locales/es.json',
+  'locales/it.json',
+  'locales/zh-Hant.json',
+  'locales/nl.json',
+  'locales/cs.json',
+  'locales/uk.json',
+  'locales/sv.json',
+  'locales/id.json',
 ]
 
 const dictionaries = new Map(localeFiles.map((file) => [file, readDictionary(file)]))
-const source = dictionaries.get('src/shared/locales/zh-CN.json')
+const source = dictionaries.get('locales/zh-CN.json')
 const sourceKeys = Object.keys(source)
 const failures = []
 

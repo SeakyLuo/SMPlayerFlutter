@@ -1,19 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/app_router.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 void main() {
   runApp(const ProviderScope(child: SmPlayerApp()));
 }
 
-class SmPlayerApp extends StatelessWidget {
+class SmPlayerApp extends ConsumerWidget {
   const SmPlayerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final i18nValue = ref.watch(smPlayerI18nProvider);
+    final i18n =
+        i18nValue.valueOrNull ??
+        const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
+
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'Simple Melody Player',
-      home: SizedBox.shrink(),
+      title: i18n.t('app.shell'),
+      locale: smPlayerLocaleFromName(i18n.locale),
+      supportedLocales: smPlayerSupportedLocales,
+      routerConfig: smPlayerRouter,
+      builder: (context, child) {
+        return SmPlayerI18nScope(
+          i18n: i18n,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

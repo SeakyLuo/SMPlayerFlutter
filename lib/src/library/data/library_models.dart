@@ -1,0 +1,382 @@
+enum MusicLibrarySortCriterion {
+  title,
+  artist,
+  album,
+  duration,
+  playCount,
+  dateAdded,
+}
+
+enum MusicLibrarySortDirection { ascending, descending }
+
+enum AlbumSortCriterion { defaultSort, name, artist, reverse }
+
+enum SearchHistoryType { sidebar, artists, albums, songs, playlists, folders }
+
+enum LocalFolderSortCriterion { title, artist, album, reverse }
+
+enum PlaylistSortCriterion {
+  title,
+  artist,
+  album,
+  duration,
+  playCount,
+  dateAdded,
+}
+
+class LibrarySong {
+  const LibrarySong({
+    required this.id,
+    required this.path,
+    required this.title,
+    required this.artist,
+    required this.artists,
+    required this.album,
+    required this.duration,
+    required this.playCount,
+    required this.lyricsOffsetMs,
+    required this.dateAdded,
+    required this.favorite,
+    required this.thumbnailPath,
+  });
+
+  final int id;
+  final String path;
+  final String title;
+  final String artist;
+  final List<String> artists;
+  final String album;
+  final int duration;
+  final int playCount;
+  final int lyricsOffsetMs;
+  final String dateAdded;
+  final bool favorite;
+  final String thumbnailPath;
+}
+
+class SongPropertiesSnapshot {
+  const SongPropertiesSnapshot({
+    required this.songId,
+    required this.path,
+    required this.title,
+    required this.subtitle,
+    required this.artist,
+    required this.artists,
+    required this.album,
+    required this.albumArtist,
+    required this.publisher,
+    required this.trackNumber,
+    required this.year,
+    required this.genre,
+    required this.composers,
+    required this.duration,
+    required this.bitrate,
+    required this.fileSize,
+    required this.dateCreated,
+    required this.dateModified,
+    required this.fileType,
+    required this.playCount,
+  });
+
+  final int songId;
+  final String path;
+  final String title;
+  final String subtitle;
+  final String artist;
+  final List<String> artists;
+  final String album;
+  final String albumArtist;
+  final String publisher;
+  final int trackNumber;
+  final int year;
+  final String genre;
+  final String composers;
+  final int duration;
+  final int bitrate;
+  final int fileSize;
+  final String dateCreated;
+  final String dateModified;
+  final String fileType;
+  final int playCount;
+
+  SongPropertiesSnapshot copyWith({
+    String? title,
+    String? subtitle,
+    String? artist,
+    List<String>? artists,
+    String? album,
+    String? albumArtist,
+    String? publisher,
+    int? trackNumber,
+    int? year,
+    String? genre,
+    String? composers,
+    int? playCount,
+  }) {
+    return SongPropertiesSnapshot(
+      songId: songId,
+      path: path,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      artist: artist ?? this.artist,
+      artists: artists ?? this.artists,
+      album: album ?? this.album,
+      albumArtist: albumArtist ?? this.albumArtist,
+      publisher: publisher ?? this.publisher,
+      trackNumber: trackNumber ?? this.trackNumber,
+      year: year ?? this.year,
+      genre: genre ?? this.genre,
+      composers: composers ?? this.composers,
+      duration: duration,
+      bitrate: bitrate,
+      fileSize: fileSize,
+      dateCreated: dateCreated,
+      dateModified: dateModified,
+      fileType: fileType,
+      playCount: playCount ?? this.playCount,
+    );
+  }
+}
+
+class SongPropertiesUpdate {
+  const SongPropertiesUpdate({
+    required this.title,
+    required this.artist,
+    required this.artists,
+    required this.album,
+    required this.playCount,
+    this.subtitle = '',
+    this.albumArtist = '',
+    this.publisher = '',
+    this.trackNumber = 0,
+    this.year = 0,
+    this.genre = '',
+    this.composers = '',
+  });
+
+  final String title;
+  final String subtitle;
+  final String artist;
+  final List<String> artists;
+  final String album;
+  final String albumArtist;
+  final String publisher;
+  final int trackNumber;
+  final int year;
+  final String genre;
+  final String composers;
+  final int playCount;
+}
+
+enum LyricsSource { none, lrcFile, textFile, musicFile, internet }
+
+class LyricsLine {
+  const LyricsLine({
+    required this.id,
+    required this.timestampMs,
+    required this.text,
+  });
+
+  final int id;
+  final int? timestampMs;
+  final String text;
+}
+
+class LyricsSnapshot {
+  const LyricsSnapshot({
+    required this.source,
+    required this.isSynced,
+    required this.rawText,
+    required this.lines,
+  });
+
+  final LyricsSource source;
+  final bool isSynced;
+  final String rawText;
+  final List<LyricsLine> lines;
+}
+
+enum SongArtworkSource { cached, embedded, shell, none }
+
+class SongArtworkSnapshot {
+  const SongArtworkSnapshot({
+    required this.songId,
+    required this.artworkUrl,
+    required this.sourceUrl,
+    required this.sourcePath,
+    required this.source,
+  });
+
+  final int songId;
+  final String artworkUrl;
+  final String sourceUrl;
+  final String sourcePath;
+  final SongArtworkSource source;
+}
+
+class RecentLibrarySong extends LibrarySong {
+  const RecentLibrarySong({
+    required super.id,
+    required super.path,
+    required super.title,
+    required super.artist,
+    required super.artists,
+    required super.album,
+    required super.duration,
+    required super.playCount,
+    required super.lyricsOffsetMs,
+    required super.dateAdded,
+    required super.favorite,
+    required super.thumbnailPath,
+    required this.playedAt,
+  });
+
+  RecentLibrarySong.fromSong(LibrarySong song, {required this.playedAt})
+    : super(
+        id: song.id,
+        path: song.path,
+        title: song.title,
+        artist: song.artist,
+        artists: song.artists,
+        album: song.album,
+        duration: song.duration,
+        playCount: song.playCount,
+        lyricsOffsetMs: song.lyricsOffsetMs,
+        dateAdded: song.dateAdded,
+        favorite: song.favorite,
+        thumbnailPath: song.thumbnailPath,
+      );
+
+  final String playedAt;
+}
+
+class RecentPlaylistPlayback {
+  const RecentPlaylistPlayback({
+    required this.id,
+    required this.playlistId,
+    required this.playedAt,
+  });
+
+  final int id;
+  final int playlistId;
+  final String playedAt;
+}
+
+class RecentAlbumPlayback {
+  const RecentAlbumPlayback({
+    required this.id,
+    required this.album,
+    required this.playedAt,
+  });
+
+  final int id;
+  final String album;
+  final String playedAt;
+}
+
+class RecentArtistPlayback {
+  const RecentArtistPlayback({
+    required this.id,
+    required this.artist,
+    required this.playedAt,
+  });
+
+  final int id;
+  final String artist;
+  final String playedAt;
+}
+
+class SearchHistoryEntry {
+  const SearchHistoryEntry({
+    required this.id,
+    required this.query,
+    required this.type,
+    required this.searchedAt,
+  });
+
+  final int id;
+  final String query;
+  final SearchHistoryType type;
+  final String searchedAt;
+}
+
+class LibraryPlaylist {
+  const LibraryPlaylist({
+    required this.id,
+    required this.name,
+    required this.priority,
+    required this.songCount,
+    required this.songIds,
+    required this.sortCriterion,
+    required this.isBuiltIn,
+  });
+
+  final int id;
+  final String name;
+  final int priority;
+  final int songCount;
+  final List<int> songIds;
+  final PlaylistSortCriterion sortCriterion;
+  final bool isBuiltIn;
+}
+
+class LibraryFolder {
+  const LibraryFolder({
+    required this.id,
+    required this.path,
+    required this.parentId,
+    required this.criterion,
+  });
+
+  final int id;
+  final String path;
+  final int parentId;
+  final int criterion;
+}
+
+class NowPlayingSnapshot {
+  const NowPlayingSnapshot({required this.playlistId, required this.songIds});
+
+  final int playlistId;
+  final List<int> songIds;
+}
+
+class MusicLibrarySnapshot {
+  const MusicLibrarySnapshot({
+    required this.songs,
+    required this.hasLibrary,
+    required this.sortCriterion,
+    required this.albumsSort,
+    required this.databasePath,
+    this.recentSongs = const [],
+    this.recentPlaylists = const [],
+    this.recentAlbums = const [],
+    this.recentArtists = const [],
+    this.recentSearches = const [],
+    this.playlists = const [],
+    this.folders = const [],
+    this.favoritePlaylistId = 0,
+    this.nowPlaying = const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    this.showCount = true,
+    this.hideMultiSelectCommandBarAfterOperation = true,
+    this.rootPath = '',
+  });
+
+  final List<LibrarySong> songs;
+  final List<RecentLibrarySong> recentSongs;
+  final List<RecentPlaylistPlayback> recentPlaylists;
+  final List<RecentAlbumPlayback> recentAlbums;
+  final List<RecentArtistPlayback> recentArtists;
+  final List<SearchHistoryEntry> recentSearches;
+  final List<LibraryPlaylist> playlists;
+  final List<LibraryFolder> folders;
+  final int favoritePlaylistId;
+  final NowPlayingSnapshot nowPlaying;
+  final bool hasLibrary;
+  final MusicLibrarySortCriterion sortCriterion;
+  final AlbumSortCriterion albumsSort;
+  final bool showCount;
+  final bool hideMultiSelectCommandBarAfterOperation;
+  final String rootPath;
+  final String databasePath;
+}
