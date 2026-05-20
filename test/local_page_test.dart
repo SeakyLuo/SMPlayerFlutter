@@ -30,6 +30,9 @@ void main() {
       'common.albumUnknown': 'Unknown Album',
       'common.artistUnknown': 'Unknown Artist',
       'common.cancel': 'Cancel',
+      'common.close': 'Close',
+      'common.comma': ', ',
+      'common.artistSeparator': ', ',
       'common.folders': 'Folders',
       'common.myFavorites': 'My Favorites',
       'common.nowPlaying': 'Now Playing',
@@ -82,6 +85,16 @@ void main() {
       'local.renameFolder': 'Rename Folder',
       'local.renameFolderPrompt': 'Folder name',
       'local.scanPopulate': 'Scan to populate.',
+      'local.refreshAddedGroup': 'Added ({count})',
+      'local.refreshAddedMultiple': '{count} songs added',
+      'local.refreshArtistSplitsAppliedGroup': 'Ready to Split ({count})',
+      'local.refreshArtistSplitSuggestionsGroup': 'Possible splits ({count})',
+      'local.refreshArtistUpdatesTab': 'Artist updates',
+      'local.refreshMovedGroup': 'Moved ({count})',
+      'local.refreshMovedMultiple': '{count} songs moved',
+      'local.refreshNoChange': 'No changes found.',
+      'local.refreshRemovedGroup': 'Removed ({count})',
+      'local.refreshRemovedMultiple': '{count} songs removed',
       'local.scopeCurrent': 'Current folder',
       'local.scopeSubtree': 'Include subfolders',
       'local.searchDirectoryPrompt': 'Search under "{name}"',
@@ -93,6 +106,10 @@ void main() {
       'local.sortByTitle': 'Title',
       'local.sortReverseList': 'Reverse',
       'local.updateFolder': 'Update Folder',
+      'local.updateFolderProgressProcessedItems':
+          'Processed: {count} / {total}',
+      'local.updateFolderProgressTitle': 'Updating local folder',
+      'local.updateResultOfFolder': 'Update result for "{name}"',
       'local.updateFolderShort': 'Update',
       'nowPlaying.randomPlay': 'Shuffle',
       'player.more': 'More',
@@ -145,6 +162,43 @@ void main() {
     expect(repository.replacedNowPlaying, [1]);
     expect(mediaController.state.track.id, 1);
     expect(mediaController.state.isPlaying, isTrue);
+  });
+
+  testWidgets('LocalPage refresh shows Electron-style result details', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository =
+        _FakeLibraryRepository()
+          ..refreshResult = const LocalFolderRefreshResult(
+            filesAdded: [r'C:\Music\New Song.mp3'],
+            filesRemoved: [r'C:\Music\Old Song.mp3'],
+            filesMoved: [],
+            artistSplitsApplied: [],
+            artistSplitSuggestions: [],
+            artistMergeSuggestions: [],
+          );
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await _pressTextButtonByLabel(tester, 'Update Folder');
+    await tester.pumpAndSettle();
+
+    expect(repository.refreshedFolderPath, r'C:\Music');
+    expect(find.textContaining('Update result for'), findsOneWidget);
+    expect(find.text('Added (1)'), findsOneWidget);
+    expect(find.text('Removed (1)'), findsOneWidget);
+    expect(find.text('New Song'), findsOneWidget);
+    expect(find.text('Old Song'), findsOneWidget);
+    expect(find.textContaining(r'C:\Music'), findsNothing);
   });
 
   testWidgets('LocalPage multi-select add to playlist uses selected folders', (
@@ -691,6 +745,15 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceItemId;
   String? preferenceName;
   String? preferenceLevel;
+  String? refreshedFolderPath;
+  LocalFolderRefreshResult refreshResult = const LocalFolderRefreshResult(
+    filesAdded: [],
+    filesRemoved: [],
+    filesMoved: [],
+    artistSplitsApplied: [],
+    artistSplitSuggestions: [],
+    artistMergeSuggestions: [],
+  );
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -736,6 +799,25 @@ class _FakeLibraryRepository extends LibraryRepository {
     movedSongIds = songIds.toList();
     movedFolderPaths = folderPaths.toList();
     movedTargetFolderPath = targetFolderPath;
+  }
+
+  @override
+  Future<LocalFolderRefreshResult> refreshLocalFolder(
+    String folderPath, {
+    void Function(LocalFolderRefreshProgress progress)? onProgress,
+  }) async {
+    refreshedFolderPath = folderPath;
+    onProgress?.call(
+      LocalFolderRefreshProgress(
+        current: refreshResult.filesAdded.length,
+        total: refreshResult.filesAdded.length + 1,
+        currentPath:
+            refreshResult.filesAdded.isEmpty
+                ? ''
+                : refreshResult.filesAdded.last,
+      ),
+    );
+    return refreshResult;
   }
 
   @override

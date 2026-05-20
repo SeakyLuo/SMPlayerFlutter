@@ -49,6 +49,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   final _createdFolderPaths = <String>{};
   final _treeExpandedFolderPaths = <String>{};
   final _scrollController = ScrollController();
+  LocalFolderRefreshProgress? _refreshProgress;
+  ({FolderNode folder, LocalFolderRefreshResult result})? _refreshResultDialog;
+  String? _localOperationTitle;
 
   @override
   void didUpdateWidget(LocalPage oldWidget) {
@@ -307,8 +310,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                             isCompactLayout
                                 ? i18n.t('local.updateFolderShort')
                                 : i18n.t('local.updateFolder'),
-                        onPressed:
-                            () => _showMessage(i18n.t('local.updateFolder')),
+                        onPressed: () => _refreshFolder(currentNode, i18n),
                       ),
                       Builder(
                         builder: (context) {
@@ -420,9 +422,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       i18n: i18n,
                                     ),
                                 onRefreshFolder:
-                                    (folder) => _showMessage(
-                                      i18n.t('local.updateFolder'),
-                                    ),
+                                    (folder) => _refreshFolder(folder, i18n),
                                 onSearchFolder:
                                     (folder) => _searchDirectory(folder, i18n),
                                 onRevealFolder: _revealFolder,
@@ -633,6 +633,21 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     }),
                 onCancel: () => setState(_clearMultiSelectStatus),
               ),
+              if (_refreshProgress case final progress?)
+                _LocalProgressOverlay(
+                  title: _localOperationTitle ?? i18n.t('local.updateFolder'),
+                  progress: progress,
+                ),
+              if (_refreshResultDialog case final dialog?)
+                _LocalRefreshResultDialog(
+                  folder: dialog.folder,
+                  result: dialog.result,
+                  onClose: () {
+                    setState(() {
+                      _refreshResultDialog = null;
+                    });
+                  },
+                ),
             ],
           ),
         );
@@ -800,7 +815,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           key: 'refresh-folder',
           text: i18n.t('local.updateFolder'),
           icon: FluentIcons.arrow_sync_20_regular,
-          onPressed: () => _showMessage(i18n.t('local.updateFolder')),
+          onPressed: () => _refreshFolder(folder, i18n),
         ),
         MenuFlyoutItem(
           key: 'rename-folder',
@@ -1330,10 +1345,75 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required List<String> folderPaths,
     required String targetFolderPath,
   }) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .moveLocalItemsToFolder(songIds, folderPaths, targetFolderPath);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    setState(() {
+      _localOperationTitle = context.smPlayerI18n.t('context.moveToFolder');
+      _refreshProgress = const LocalFolderRefreshProgress(
+        current: 0,
+        total: 1,
+        currentPath: '',
+      );
+    });
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .moveLocalItemsToFolder(songIds, folderPaths, targetFolderPath);
+      if (!mounted) {
+        return;
+      }
+      ref.invalidate(musicLibrarySnapshotProvider);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _refreshProgress = null;
+          _localOperationTitle = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
+    setState(() {
+      _localOperationTitle = i18n.t('local.updateFolderProgressTitle');
+      _refreshProgress = const LocalFolderRefreshProgress(
+        current: 0,
+        total: 1,
+        currentPath: '',
+      );
+    });
+
+    try {
+      final result = await ref
+          .read(libraryRepositoryProvider)
+          .refreshLocalFolder(
+            folder.path,
+            onProgress: (progress) {
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _refreshProgress = progress;
+              });
+            },
+          );
+      if (!mounted) {
+        return;
+      }
+      ref.invalidate(musicLibrarySnapshotProvider);
+      setState(() {
+        _refreshProgress = null;
+        _localOperationTitle = null;
+        _refreshResultDialog = (folder: folder, result: result);
+      });
+      _showMessage(_formatLocalRefreshResult(result, i18n));
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _refreshProgress = null;
+          _localOperationTitle = null;
+        });
+        _showMessage(i18n.t('local.updateFolder'));
+      }
+    }
   }
 
   Future<void> _requestDeleteLocalItems({
@@ -1940,6 +2020,51 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 }
 
+String _formatLocalRefreshResult(
+  LocalFolderRefreshResult result,
+  SmPlayerI18n i18n,
+) {
+  final messages = [
+    if (result.filesAdded.isNotEmpty)
+      i18n.t('local.refreshAddedMultiple', {'count': result.filesAdded.length}),
+    if (result.filesRemoved.isNotEmpty)
+      i18n.t('local.refreshRemovedMultiple', {
+        'count': result.filesRemoved.length,
+      }),
+    if (result.filesMoved.isNotEmpty)
+      i18n.t('local.refreshMovedMultiple', {'count': result.filesMoved.length}),
+    if (result.artistSplitsApplied.isNotEmpty)
+      i18n.t('local.refreshArtistSplitsAppliedGroup', {
+        'count': result.artistSplitsApplied.length,
+      }),
+    if (result.artistSplitSuggestions.isNotEmpty)
+      i18n.t('local.refreshArtistSplitSuggestionsGroup', {
+        'count': result.artistSplitSuggestions.length,
+      }),
+  ];
+  return messages.isEmpty
+      ? i18n.t('local.refreshNoChange')
+      : messages.join(i18n.t('common.comma'));
+}
+
+String _relativeFileTitle(String filePath, String folderPath) {
+  final normalizedFilePath = normalizePath(filePath);
+  final normalizedFolderPath = normalizePath(folderPath);
+  final filePathKey = normalizedFilePath.toLowerCase();
+  final folderPathKey = normalizedFolderPath.toLowerCase();
+  final relativePath =
+      filePathKey.startsWith('$folderPathKey/')
+          ? normalizedFilePath.substring(normalizedFolderPath.length + 1)
+          : normalizedFilePath;
+  return _fileTitle(relativePath);
+}
+
+String _fileTitle(String filePath) {
+  final name = normalizePath(filePath).split('/').last;
+  final extensionIndex = name.lastIndexOf('.');
+  return extensionIndex > 0 ? name.substring(0, extensionIndex) : name;
+}
+
 class _LocalScaffold extends StatelessWidget {
   const _LocalScaffold({required this.child});
 
@@ -2043,6 +2168,260 @@ class _SearchDirectoryDialogState extends State<_SearchDirectoryDialog> {
     }
 
     Navigator.of(context).pop(query);
+  }
+}
+
+class _LocalProgressOverlay extends StatelessWidget {
+  const _LocalProgressOverlay({required this.title, required this.progress});
+
+  final String title;
+  final LocalFolderRefreshProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final value = progress.current / progress.total;
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.28),
+      child: Center(
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: LocalPageColors.panel,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: LocalPageColors.panelBorder),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: LocalPageColors.textStrong,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: value.clamp(0, 1).toDouble()),
+              const SizedBox(height: 10),
+              Text(
+                i18n.t('local.updateFolderProgressProcessedItems', {
+                  'count': progress.current,
+                  'total': progress.total,
+                }),
+                style: const TextStyle(color: LocalPageColors.textMuted),
+              ),
+              if (progress.currentPath.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _fileTitle(progress.currentPath),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: LocalPageColors.textMuted),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocalRefreshResultDialog extends StatelessWidget {
+  const _LocalRefreshResultDialog({
+    required this.folder,
+    required this.result,
+    required this.onClose,
+  });
+
+  final FolderNode folder;
+  final LocalFolderRefreshResult result;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.28),
+      child: Center(
+        child: Container(
+          width: 620,
+          constraints: const BoxConstraints(maxHeight: 620),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+          decoration: BoxDecoration(
+            color: LocalPageColors.panel,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: LocalPageColors.panelBorder),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      i18n.t('local.updateResultOfFolder', {
+                        'name':
+                            folder.name.isEmpty
+                                ? i18n.t('local.libraryRoot')
+                                : folder.name,
+                      }),
+                      style: const TextStyle(
+                        color: LocalPageColors.textStrong,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: i18n.t('common.close'),
+                    onPressed: onClose,
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!result.hasChanges)
+                        Text(
+                          i18n.t('local.refreshNoChange'),
+                          style: const TextStyle(
+                            color: LocalPageColors.textMuted,
+                          ),
+                        ),
+                      _LocalRefreshSection(
+                        title: i18n.t('local.refreshAddedGroup', {
+                          'count': result.filesAdded.length,
+                        }),
+                        folderPath: folder.path,
+                        paths: result.filesAdded,
+                      ),
+                      _LocalRefreshSection(
+                        title: i18n.t('local.refreshRemovedGroup', {
+                          'count': result.filesRemoved.length,
+                        }),
+                        folderPath: folder.path,
+                        paths: result.filesRemoved,
+                      ),
+                      _LocalRefreshSection(
+                        title: i18n.t('local.refreshMovedGroup', {
+                          'count': result.filesMoved.length,
+                        }),
+                        folderPath: folder.path,
+                        paths: result.filesMoved,
+                      ),
+                      if (result.artistSplitsApplied.isNotEmpty ||
+                          result.artistSplitSuggestions.isNotEmpty)
+                        _LocalArtistRefreshSection(result: result),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocalRefreshSection extends StatelessWidget {
+  const _LocalRefreshSection({
+    required this.title,
+    required this.folderPath,
+    required this.paths,
+  });
+
+  final String title;
+  final String folderPath;
+  final List<String> paths;
+
+  @override
+  Widget build(BuildContext context) {
+    if (paths.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: LocalPageColors.textStrong,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final path in paths)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                _relativeFileTitle(path, folderPath),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: LocalPageColors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocalArtistRefreshSection extends StatelessWidget {
+  const _LocalArtistRefreshSection({required this.result});
+
+  final LocalFolderRefreshResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final separator = i18n.t('common.artistSeparator');
+    final items = [
+      ...result.artistSplitsApplied,
+      ...result.artistSplitSuggestions,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            i18n.t('local.refreshArtistUpdatesTab'),
+            style: const TextStyle(
+              color: LocalPageColors.textStrong,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '${item.title}: ${item.artist} -> ${item.artists.join(separator)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: LocalPageColors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

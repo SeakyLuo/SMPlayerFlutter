@@ -16,6 +16,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -90,6 +91,8 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
     this.onSearchCommit,
     this.desktopFeatureService,
     this.appVersion,
+    this.initialExternalFilePaths = const [],
+    this.initialExternalCommands = const [],
   });
 
   final Widget? child;
@@ -100,6 +103,8 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
   final MainNavigationSearchCommit? onSearchCommit;
   final DesktopFeatureService? desktopFeatureService;
   final String? appVersion;
+  final List<String> initialExternalFilePaths;
+  final List<ExternalAppCommand> initialExternalCommands;
 
   @override
   ConsumerState<SmPlayerShellPage> createState() => _SmPlayerShellPageState();
@@ -139,6 +144,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
     _persistCurrentPage(widget.currentPath ?? _currentPath);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleInitialExternalInputs();
+    });
   }
 
   @override
@@ -1100,7 +1108,87 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         unawaited(_desktopFeatureService.quit());
       case DesktopFeatureCommand.playRecentSong:
         _playRecentSongFromPlatform(action.songId!);
+      case DesktopFeatureCommand.openExternalAudioFiles:
+        unawaited(_openExternalAudioFiles(action.filePaths));
     }
+  }
+
+  void _handleInitialExternalInputs() {
+    for (final command in widget.initialExternalCommands) {
+      _handleExternalAppCommand(command);
+    }
+    if (widget.initialExternalFilePaths.isNotEmpty) {
+      unawaited(_openExternalAudioFiles(widget.initialExternalFilePaths));
+    }
+  }
+
+  void _handleExternalAppCommand(ExternalAppCommand command) {
+    switch (command.kind) {
+      case ExternalAppCommandKind.playPause:
+        _mediaControlController.onTogglePlayPause();
+      case ExternalAppCommandKind.next:
+        _mediaControlController.onNext();
+      case ExternalAppCommandKind.previous:
+        _mediaControlController.onPrevious();
+      case ExternalAppCommandKind.stop:
+        _mediaControlController.onStop();
+      case ExternalAppCommandKind.quickPlay:
+        _quickPlayLibrary(ref);
+      case ExternalAppCommandKind.showWindow:
+        unawaited(_desktopFeatureService.showWindow());
+      case ExternalAppCommandKind.toggleDesktopLyrics:
+        _toggleDesktopLyricsFromPlatform();
+    }
+  }
+
+  Future<void> _openExternalAudioFiles(List<String> filePaths) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final openedSongIds = await repository.importExternalAudioFiles(filePaths);
+    if (!mounted || openedSongIds.isEmpty) {
+      return;
+    }
+
+    final snapshot = await repository.getMusicLibrarySnapshot();
+    final openedSongIdSet = openedSongIds.toSet();
+    final queueWithoutOpened =
+        snapshot.nowPlaying.songIds
+            .where((songId) => !openedSongIdSet.contains(songId))
+            .toList();
+    final currentQueueIndex = _mediaControlController.state.selectedQueueIndex;
+    final insertIndex =
+        min(max(currentQueueIndex ?? -1, -1), queueWithoutOpened.length - 1) +
+        1;
+    final nextQueue = [
+      ...queueWithoutOpened.take(insertIndex),
+      ...openedSongIds,
+      ...queueWithoutOpened.skip(insertIndex),
+    ];
+    await repository.replaceNowPlaying(nextQueue);
+    if (!mounted) {
+      return;
+    }
+
+    ref.invalidate(musicLibrarySnapshotProvider);
+    _settingsController.savePlaybackSettingsImmediate(
+      PlaybackSettingsUpdate(lastMusicIndex: insertIndex, musicProgress: 0),
+    );
+
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final song = songsById[openedSongIds.first]!;
+    _mediaControlController.playTrack(
+      MediaControlTrack(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        artworkUrl: song.thumbnailPath,
+        isLoading: false,
+        favorite: song.favorite,
+      ),
+      durationSeconds: song.duration.toDouble(),
+      queueIndex: insertIndex,
+    );
+    _navigateTo('/now-playing');
+    await _desktopFeatureService.showWindow();
   }
 
   void _toggleDesktopLyricsFromPlatform() {

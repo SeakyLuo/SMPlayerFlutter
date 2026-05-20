@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'id3_tag_service.dart';
+import 'artist_split_model.dart' as artist_split_model;
 import 'library_models.dart';
 
 const _activeState = 1;
@@ -16,6 +17,19 @@ const _nowPlayingJsonName = 'NowPlaying.json';
 const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
 const _recentSongLimit = 500;
 const _recentCollectionLimit = 200;
+const _audioFileExtensions = {
+  '.aac',
+  '.aiff',
+  '.alac',
+  '.ape',
+  '.flac',
+  '.m4a',
+  '.mp3',
+  '.ogg',
+  '.opus',
+  '.wav',
+  '.wma',
+};
 
 const _recentRecordTypeSong = 0;
 const _recentRecordTypePlaylist = 3;
@@ -927,6 +941,166 @@ class LibraryRepository {
 
   Future<void> setSongFavorite(int songId, bool favorite) async {
     await setSongsFavorite([songId], favorite);
+  }
+
+  Future<ArtistSplitAnalysisResult> analyzeArtistSplits() async {
+    final snapshot = await getMusicLibrarySnapshot();
+    return artist_split_model.analyzeArtistSplits(snapshot.songs);
+  }
+
+  Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {
+    if (splits.isEmpty) {
+      return;
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('BEGIN');
+      try {
+        for (final split in splits) {
+          final artists = _normalizeArtists(split.artists).take(6).toList();
+          db.execute(
+            '''
+            UPDATE Music
+            SET Artist = ?
+            WHERE Id = ?
+              AND State = ?
+          ''',
+            [artists.join(', '), split.songId, _activeState],
+          );
+          _syncSongArtists(db, split.songId, artists);
+        }
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<List<int>> importExternalAudioFiles(List<String> filePaths) async {
+    final audioFiles =
+        filePaths.where((filePath) {
+          return _audioFileExtensions.contains(
+                p.extension(filePath).toLowerCase(),
+              ) &&
+              File(filePath).existsSync();
+        }).toList();
+    if (audioFiles.isEmpty) {
+      return const [];
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    final openedSongIds = <int>[];
+    try {
+      db.execute('BEGIN');
+      try {
+        for (final filePath in audioFiles) {
+          openedSongIds.add(await _upsertExternalAudioFile(db, filePath));
+        }
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+
+    return openedSongIds;
+  }
+
+  Future<LocalFolderRefreshResult> refreshLocalFolder(
+    String folderPath, {
+    void Function(LocalFolderRefreshProgress progress)? onProgress,
+  }) async {
+    final scannedPaths = _findAudioFiles(folderPath);
+    final scannedPathKeys = scannedPaths.map(_pathComparisonKey).toSet();
+    final databaseFile = await _resolveDatabaseFile();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final existingRows = db.select(
+        '''
+        SELECT Id AS id, Path AS path
+        FROM Music
+        WHERE State = ?
+          AND (Path = ? OR Path LIKE ? OR Path LIKE ?)
+      ''',
+        [_activeState, folderPath, '$folderPath/%', '$folderPath\\%'],
+      );
+      final existingPathKeys = {
+        for (final row in existingRows)
+          _pathComparisonKey(row['path'] as String): row,
+      };
+      final addedPaths =
+          scannedPaths.where((filePath) {
+            return !existingPathKeys.containsKey(_pathComparisonKey(filePath));
+          }).toList();
+      final removedRows =
+          existingRows.where((row) {
+            return !scannedPathKeys.contains(
+              _pathComparisonKey(row['path'] as String),
+            );
+          }).toList();
+
+      db.execute('BEGIN');
+      try {
+        if (removedRows.isNotEmpty) {
+          _deleteSongsInsideTransaction(
+            db,
+            removedRows.map((row) => row['id'] as int).toList(),
+            removedRows.map((row) => row['path'] as String).toList(),
+          );
+        }
+        for (final entry in addedPaths.indexed) {
+          onProgress?.call(
+            LocalFolderRefreshProgress(
+              current: entry.$1,
+              total: addedPaths.length,
+              currentPath: entry.$2,
+            ),
+          );
+          await _upsertExternalAudioFile(db, entry.$2);
+        }
+
+        final artistAnalysis = artist_split_model.analyzeArtistSplits(
+          _readSongs(db),
+        );
+        for (final split in artistAnalysis.directSplits) {
+          final artists = _normalizeArtists(split.artists).take(6).toList();
+          db.execute(
+            '''
+            UPDATE Music
+            SET Artist = ?
+            WHERE Id = ?
+              AND State = ?
+          ''',
+            [artists.join(', '), split.songId, _activeState],
+          );
+          _syncSongArtists(db, split.songId, artists);
+        }
+        db.execute('COMMIT');
+
+        return LocalFolderRefreshResult(
+          filesAdded: addedPaths,
+          filesRemoved:
+              removedRows.map((row) => row['path'] as String).toList(),
+          filesMoved: const [],
+          artistSplitsApplied: artistAnalysis.directSplits,
+          artistSplitSuggestions: artistAnalysis.possibleSplits,
+          artistMergeSuggestions: artistAnalysis.mergeSuggestions,
+        );
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
   }
 
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
@@ -2158,6 +2332,59 @@ class LibraryRepository {
         ],
       ],
     );
+  }
+
+  Future<int> _upsertExternalAudioFile(Database db, String filePath) async {
+    final properties = await _id3TagService.readSongTagProperties(filePath);
+    final title =
+        properties.title.trim().isEmpty
+            ? p.basenameWithoutExtension(filePath)
+            : properties.title.trim();
+    final artist = properties.artist.trim();
+    final album = properties.album.trim();
+    final dateAdded = DateTime.now().toIso8601String();
+    final rows = db.select(
+      '''
+      INSERT INTO Music (
+        Path,
+        Name,
+        Artist,
+        Album,
+        ThumbnailPath,
+        Duration,
+        PlayCount,
+        DateAdded,
+        State
+      )
+      VALUES (
+        ?, ?, ?, ?, '', 0,
+        COALESCE((SELECT PlayCount FROM Music WHERE Path = ?), 0),
+        COALESCE((SELECT DateAdded FROM Music WHERE Path = ?), ?),
+        ?
+      )
+      ON CONFLICT(Path) DO UPDATE SET
+        Name = excluded.Name,
+        Artist = excluded.Artist,
+        Album = excluded.Album,
+        ThumbnailPath = excluded.ThumbnailPath,
+        Duration = excluded.Duration,
+        State = excluded.State
+      RETURNING Id AS id
+    ''',
+      [
+        filePath,
+        title,
+        artist,
+        album,
+        filePath,
+        filePath,
+        dateAdded,
+        _activeState,
+      ],
+    );
+    final songId = rows.first['id'] as int;
+    _syncSongArtists(db, songId, _normalizeArtists([artist]));
+    return songId;
   }
 
   Future<String> _getSongPath(int songId) async {
@@ -3431,6 +3658,20 @@ List<String> _normalizeArtists(List<String> artists) {
       .where((artist) => artist.isNotEmpty)
       .toSet()
       .toList();
+}
+
+List<String> _findAudioFiles(String folderPath) {
+  return Directory(
+    folderPath,
+  ).listSync(recursive: true).whereType<File>().map((file) => file.path).where((
+    filePath,
+  ) {
+    return _audioFileExtensions.contains(p.extension(filePath).toLowerCase());
+  }).toList();
+}
+
+String _pathComparisonKey(String path) {
+  return path.replaceAll('\\', '/').toLowerCase();
 }
 
 class _LyricsSongLookup {

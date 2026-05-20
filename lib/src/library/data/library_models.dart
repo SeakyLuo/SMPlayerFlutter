@@ -346,6 +346,75 @@ class HiddenStorageItem {
   final String path;
 }
 
+class ArtistSplitResultItem {
+  const ArtistSplitResultItem({
+    required this.songId,
+    required this.title,
+    required this.artist,
+    required this.artists,
+  });
+
+  final int songId;
+  final String title;
+  final String artist;
+  final List<String> artists;
+}
+
+class ArtistSplitAnalysisResult {
+  const ArtistSplitAnalysisResult({
+    required this.directSplits,
+    required this.possibleSplits,
+    required this.mergeSuggestions,
+  });
+
+  final List<ArtistSplitResultItem> directSplits;
+  final List<ArtistSplitResultItem> possibleSplits;
+  final List<ArtistSplitResultItem> mergeSuggestions;
+
+  bool get hasSuggestions =>
+      directSplits.isNotEmpty ||
+      possibleSplits.isNotEmpty ||
+      mergeSuggestions.isNotEmpty;
+}
+
+class LocalFolderRefreshResult {
+  const LocalFolderRefreshResult({
+    required this.filesAdded,
+    required this.filesRemoved,
+    required this.filesMoved,
+    required this.artistSplitsApplied,
+    required this.artistSplitSuggestions,
+    required this.artistMergeSuggestions,
+  });
+
+  final List<String> filesAdded;
+  final List<String> filesRemoved;
+  final List<String> filesMoved;
+  final List<ArtistSplitResultItem> artistSplitsApplied;
+  final List<ArtistSplitResultItem> artistSplitSuggestions;
+  final List<ArtistSplitResultItem> artistMergeSuggestions;
+
+  bool get hasChanges =>
+      filesAdded.isNotEmpty ||
+      filesRemoved.isNotEmpty ||
+      filesMoved.isNotEmpty ||
+      artistSplitsApplied.isNotEmpty ||
+      artistSplitSuggestions.isNotEmpty ||
+      artistMergeSuggestions.isNotEmpty;
+}
+
+class LocalFolderRefreshProgress {
+  const LocalFolderRefreshProgress({
+    required this.current,
+    required this.total,
+    required this.currentPath,
+  });
+
+  final int current;
+  final int total;
+  final String currentPath;
+}
+
 class NowPlayingSnapshot {
   const NowPlayingSnapshot({required this.playlistId, required this.songIds});
 

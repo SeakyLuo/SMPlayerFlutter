@@ -5,8 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
@@ -27,13 +30,19 @@ enum DesktopFeatureCommand {
   openSettings,
   quit,
   playRecentSong,
+  openExternalAudioFiles,
 }
 
 class DesktopFeatureAction {
-  const DesktopFeatureAction(this.command, {this.songId});
+  const DesktopFeatureAction(
+    this.command, {
+    this.songId,
+    this.filePaths = const [],
+  });
 
   final DesktopFeatureCommand command;
   final int? songId;
+  final List<String> filePaths;
 }
 
 class DesktopRecentSong {
@@ -343,6 +352,8 @@ abstract class DesktopFeatureService {
 
   Future<void> exitMiniMode();
 
+  Future<void> showWindow();
+
   Future<void> toggleWindowVisibility();
 
   Future<void> quit();
@@ -379,6 +390,9 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
 
   @override
   Future<void> exitMiniMode() async {}
+
+  @override
+  Future<void> showWindow() async {}
 
   @override
   Future<void> toggleWindowVisibility() async {}
@@ -503,6 +517,12 @@ class TrayWindowDesktopFeatureService
   }
 
   @override
+  Future<void> showWindow() async {
+    await windowManager.show();
+    await windowManager.focus();
+  }
+
+  @override
   Future<void> toggleWindowVisibility() async {
     final visible = await windowManager.isVisible();
     if (visible) {
@@ -529,6 +549,7 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onWindowClose() {
+    unawaited(_saveMainWindowState());
     final state = _lastTrayState;
     if (_quitting || state?.quitOnClose == true) {
       _emit(const DesktopFeatureAction(DesktopFeatureCommand.quit));
@@ -550,6 +571,26 @@ class TrayWindowDesktopFeatureService
   }
 
   @override
+  void onWindowMoved() {
+    unawaited(_saveMainWindowState());
+  }
+
+  @override
+  void onWindowResized() {
+    unawaited(_saveMainWindowState());
+  }
+
+  @override
+  void onWindowMaximize() {
+    unawaited(_saveMainWindowState());
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    unawaited(_saveMainWindowState());
+  }
+
+  @override
   void dispose() {
     tray.trayManager.removeListener(this);
     windowManager.removeListener(this);
@@ -557,6 +598,19 @@ class TrayWindowDesktopFeatureService
   }
 
   Future<void> _handlePlatformMethodCall(MethodCall call) async {
+    if (call.method == 'openFiles') {
+      final paths = (call.arguments as List).whereType<String>().toList(
+        growable: false,
+      );
+      _emit(
+        DesktopFeatureAction(
+          DesktopFeatureCommand.openExternalAudioFiles,
+          filePaths: paths,
+        ),
+      );
+      return;
+    }
+
     if (call.method != 'desktopCommand') {
       return;
     }
@@ -594,6 +648,25 @@ class TrayWindowDesktopFeatureService
 
   void _emit(DesktopFeatureAction action) {
     _onAction?.call(action);
+  }
+
+  Future<void> _saveMainWindowState() async {
+    if (_miniModeActive || await windowManager.isFullScreen()) {
+      return;
+    }
+    final maximized = await windowManager.isMaximized();
+    final bounds = await windowManager.getBounds();
+    final preferences = await SharedPreferences.getInstance();
+    await Future.wait([
+      preferences.setString(
+        SmPlayerSettingsStorageKeys.mainWindowBounds,
+        serializeMainWindowBounds(bounds),
+      ),
+      preferences.setBool(
+        SmPlayerSettingsStorageKeys.mainWindowMaximized,
+        maximized,
+      ),
+    ]);
   }
 
   Future<void> _enterMiniMode() async {
