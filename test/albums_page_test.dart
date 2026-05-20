@@ -44,7 +44,9 @@ void main() {
       'common.multiSelect': 'Multi Select',
       'common.myFavorites': 'My Favorites',
       'common.clear': 'Clear',
+      'common.close': 'Close',
       'common.nowPlaying': 'Now Playing',
+      'common.search': 'Search',
       'common.sort': '排序',
       'context.addToPlaylist': '添加到',
       'context.select': '选择',
@@ -52,8 +54,16 @@ void main() {
       'local.sortReverseList': 'Reverse List',
       'nowPlaying.randomPlay': '随机播放',
       'playlists.newPlaylist': 'New Playlist',
+      'preferences.level.dislike': 'Dislike',
+      'preferences.level.do-not-appear': 'Do Not Appear',
+      'preferences.level.high': 'High',
+      'preferences.level.higher': 'Higher',
+      'preferences.level.normal': 'Normal',
+      'preferences.level.very-high': 'Very High',
+      'preferences.undoPrefer': 'Undo Prefer',
       'sidebar.recentSearches': 'Recent searches',
       'sidebar.removeRecentSearch': 'Remove {query}',
+      'settings.preferenceSettings': 'Preference Settings',
       'player.more': '更多',
     },
   );
@@ -113,6 +123,89 @@ void main() {
     expect(find.text('New Playlist'), findsOneWidget);
     expect(find.text('Mix'), findsOneWidget);
     expect(find.text('Built in'), findsNothing);
+  });
+
+  testWidgets('AlbumsPage context menu writes Electron album preference', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(snapshot: _snapshot, i18n: i18n, repository: repository),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Do Not Appear'), findsOneWidget);
+    expect(find.text('High'), findsOneWidget);
+
+    await tester.tap(find.text('High'));
+    await tester.pump();
+
+    expect(repository.preferenceType, 'album');
+    expect(repository.preferenceItemId, 'Blue Hour');
+    expect(repository.preferenceName, 'Blue Hour');
+    expect(repository.preferenceLevel, 'high');
+  });
+
+  testWidgets('AlbumsPage context menu shows Electron current preference', (
+    tester,
+  ) async {
+    final repository =
+        _FakeLibraryRepository()..existingPreferenceLevel = 'high';
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(snapshot: _snapshot, i18n: i18n, repository: repository),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Undo Prefer'), findsOneWidget);
+
+    await tester.tap(find.text('Undo Prefer'));
+    await tester.pump();
+
+    expect(repository.removedPreferenceType, 'album');
+    expect(repository.removedPreferenceItemId, 'Blue Hour');
+  });
+
+  testWidgets('AlbumsPage context menu opens Electron album art preview', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查看专辑插图'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Close'), findsOneWidget);
+    expect(find.text('Blue Hour'), findsWidgets);
+  });
+
+  testWidgets('AlbumsPage exposes Electron appbar search entry', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Albums.AppBar.Search')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'Red');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Red Days'), findsOneWidget);
+    expect(find.text('Blue Hour'), findsNothing);
   });
 
   testWidgets('AlbumsPage multi-select play replaces Now Playing', (
@@ -584,6 +677,13 @@ class _FakeLibraryRepository extends LibraryRepository {
   bool? favoriteValue;
   List<String> recordedAlbums = [];
   List<({String query, SearchHistoryType type})> recordedSearches = [];
+  String? preferenceType;
+  String? preferenceItemId;
+  String? preferenceName;
+  String? preferenceLevel;
+  String? existingPreferenceLevel;
+  String? removedPreferenceType;
+  String? removedPreferenceItemId;
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -613,6 +713,30 @@ class _FakeLibraryRepository extends LibraryRepository {
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query, type: type));
+  }
+
+  @override
+  Future<void> addPreferenceItem(
+    String type,
+    String itemId,
+    String name,
+    String level,
+  ) async {
+    preferenceType = type;
+    preferenceItemId = itemId;
+    preferenceName = name;
+    preferenceLevel = level;
+  }
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return existingPreferenceLevel;
+  }
+
+  @override
+  Future<void> removePreferenceItem(String type, String itemId) async {
+    removedPreferenceType = type;
+    removedPreferenceItemId = itemId;
   }
 }
 

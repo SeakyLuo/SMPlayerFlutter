@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -10,6 +11,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
@@ -115,8 +118,18 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
 class _HeaderedPlaylistControlState
     extends ConsumerState<HeaderedPlaylistControl> {
   final _selection = PageSelectionController<int>();
+  final _scrollController = ScrollController();
   List<int>? _orderedSongIds;
   PlaylistSortCriterion? _selectedSortCriterion;
+  LibrarySong? _dialogSong;
+  SongDialogMode? _dialogMode;
+  var _scrollTop = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
 
   @override
   void didUpdateWidget(HeaderedPlaylistControl oldWidget) {
@@ -129,8 +142,21 @@ class _HeaderedPlaylistControlState
   }
 
   @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final collapseDistance = compact ? 136.0 : 210.0;
+    final collapseProgress = (_scrollTop / collapseDistance).clamp(0.0, 1.0);
+    final headerCollapsed =
+        _scrollTop >= (compact ? 112.0 : 224.0) ||
+        (collapseProgress == 1.0 && _scrollTop > 0);
     final songsById = {for (final song in widget.songs) song.id: song};
     final visibleSongs = _visibleSongs(songsById);
     final queueSongIds = visibleSongs.map((song) => song.id).toList();
@@ -150,10 +176,24 @@ class _HeaderedPlaylistControlState
               ),
             )
             .toList();
+    final currentSavedPlaylist =
+        widget.type == HeaderedPlaylistType.playlist
+            ? widget.playlists.firstWhere(
+              (playlist) => playlist.name == widget.title,
+            )
+            : null;
+    final currentPlaylistName =
+        widget.type == HeaderedPlaylistType.favorites
+            ? i18n.t('common.myFavorites')
+            : widget.type == HeaderedPlaylistType.playlist
+            ? currentSavedPlaylist!.name
+            : widget.title;
 
     return Stack(
       children: [
         CustomScrollView(
+          key: const ValueKey('HeaderedPlaylist.ScrollView'),
+          controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(
               child: _HeaderHero(
@@ -163,6 +203,7 @@ class _HeaderedPlaylistControlState
                 caption: widget.caption,
                 info: getHeaderPlaylistInfo(headerSongs, i18n),
                 artworkUrls: _headerArtworkUrls(headerSongs),
+                collapseProgress: collapseProgress,
                 commandBar: _buildCommandBar(
                   context,
                   i18n,
@@ -230,6 +271,8 @@ class _HeaderedPlaylistControlState
                         i18n: i18n,
                         songIds: [song.id],
                         playlists: customPlaylists,
+                        currentPlaylistName: currentPlaylistName,
+                        excludePlaylistName: currentSavedPlaylist?.name,
                         includeNowPlaying: true,
                         includeFavorites:
                             widget.type != HeaderedPlaylistType.favorites,
@@ -265,7 +308,9 @@ class _HeaderedPlaylistControlState
                       widget.onPlayNext?.call(song.id);
                     },
                     onOpenContextMenu: (position) {
-                      _showSongMenu(context, i18n, position, song, index);
+                      unawaited(
+                        _showSongMenu(context, i18n, position, song, index),
+                      );
                     },
                     onSeeArtist: widget.onArtistClick,
                     onSeeAlbum:
@@ -284,6 +329,18 @@ class _HeaderedPlaylistControlState
             ),
           ],
         ),
+        if (headerCollapsed)
+          _CollapsedHeaderCommandBar(
+            title: widget.title,
+            i18n: i18n,
+            commandBar: _buildShyCommandBar(
+              context,
+              i18n,
+              visibleSongs,
+              queueSongIds,
+              activeSortCriterion,
+            ),
+          ),
         MultiSelectCommandBar(
           visible: _selection.multiSelect,
           selectedCount: _effectiveSelectedSongIds(queueSongIds).length,
@@ -292,6 +349,8 @@ class _HeaderedPlaylistControlState
           includeNowPlayingInAddTo: true,
           includeFavoritesInAddTo:
               widget.type != HeaderedPlaylistType.favorites,
+          currentPlaylistName: currentPlaylistName,
+          excludePlaylistName: currentSavedPlaylist?.name,
           onAddToNowPlaying: () {
             _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
             _hideSelectionAfterOperation();
@@ -358,8 +417,36 @@ class _HeaderedPlaylistControlState
             });
           },
         ),
+        if (_dialogSong != null && _dialogMode != null)
+          MusicDialog(
+            song: _dialogSong!,
+            initialMode: _dialogMode!,
+            canPause:
+                widget.isPlaying && widget.selectedTrackId == _dialogSong!.id,
+            onPlay: widget.onTogglePlayPause,
+            onReveal: _revealPath,
+            onSaved: () {
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+            onClose: () {
+              setState(() {
+                _dialogSong = null;
+                _dialogMode = null;
+              });
+            },
+          ),
       ],
     );
+  }
+
+  void _handleScroll() {
+    final nextScrollTop = _scrollController.offset;
+    if ((nextScrollTop - _scrollTop).abs() < 0.5) {
+      return;
+    }
+    setState(() {
+      _scrollTop = nextScrollTop;
+    });
   }
 
   Widget _buildCommandBar(
@@ -399,26 +486,7 @@ class _HeaderedPlaylistControlState
             icon: FluentIcons.star_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
             onPressed: () {
-              showMenuFlyout(
-                context,
-                items: [
-                  for (final level in const [
-                    'do-not-appear',
-                    'dislike',
-                    'normal',
-                    'high',
-                    'higher',
-                    'very-high',
-                  ])
-                    MenuFlyoutItem(
-                      key: 'preference-$level',
-                      text: i18n.t('preferences.level.$level'),
-                      onPressed: () {
-                        widget.onSetPreferred?.call(level);
-                      },
-                    ),
-                ],
-              );
+              unawaited(_showHeaderPreferenceMenu(context, i18n));
             },
           ),
         CommandBarButton(
@@ -467,6 +535,93 @@ class _HeaderedPlaylistControlState
     );
   }
 
+  Widget _buildShyCommandBar(
+    BuildContext context,
+    SmPlayerI18n i18n,
+    List<LibrarySong> visibleSongs,
+    List<int> queueSongIds,
+    PlaylistSortCriterion activeSortCriterion,
+  ) {
+    return CommandBar(
+      dynamicOverflow: false,
+      overflowItems: [
+        MenuFlyoutItem(
+          key: 'multi-select',
+          text: captionForHeaderedPlaylist(i18n, 'multiSelect'),
+          icon: FluentIcons.checkbox_checked_20_regular,
+          disabled: visibleSongs.isEmpty,
+          onPressed: () {
+            setState(() {
+              _selection.enterMultiSelect();
+            });
+          },
+        ),
+        if (widget.canSetPreferred)
+          MenuFlyoutItem(
+            key: 'preference-settings',
+            text: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
+            icon: FluentIcons.star_20_regular,
+            onPressed: () {
+              unawaited(_showHeaderPreferenceMenu(context, i18n));
+            },
+          ),
+        MenuFlyoutItem(
+          key: 'sort',
+          text: captionForHeaderedPlaylist(i18n, 'sort'),
+          icon: FluentIcons.arrow_sort_20_regular,
+          disabled: visibleSongs.isEmpty,
+          submenu: _sortMenuItems(i18n, activeSortCriterion),
+        ),
+        if (widget.canRename)
+          MenuFlyoutItem(
+            key: 'rename',
+            text: captionForHeaderedPlaylist(i18n, 'rename'),
+            icon: FluentIcons.edit_20_regular,
+            onPressed: () {
+              unawaited(_requestRename(i18n));
+            },
+          ),
+        if (widget.canClear)
+          MenuFlyoutItem(
+            key: 'clear',
+            text: captionForHeaderedPlaylist(i18n, 'clear'),
+            icon: FluentIcons.dismiss_circle_20_regular,
+            disabled: visibleSongs.isEmpty,
+            onPressed: () {
+              unawaited(_requestClear(i18n));
+            },
+          ),
+        if (widget.canDelete)
+          MenuFlyoutItem(
+            key: 'delete',
+            text: captionForHeaderedPlaylist(i18n, 'delete'),
+            icon: FluentIcons.delete_20_regular,
+            onPressed: () {
+              unawaited(_requestDelete(i18n));
+            },
+          ),
+        if (widget.canEditArtwork)
+          MenuFlyoutItem(
+            key: 'edit-artwork',
+            text: captionForHeaderedPlaylist(i18n, 'editArtwork'),
+            icon: FluentIcons.image_edit_20_regular,
+            onPressed: widget.onEditArtwork,
+          ),
+      ],
+      overflowLabel: i18n.t('player.more'),
+      children: [
+        CommandBarButton(
+          icon: FluentIcons.arrow_shuffle_20_regular,
+          label: captionForHeaderedPlaylist(i18n, 'shuffle'),
+          disabled: visibleSongs.isEmpty,
+          onPressed: () {
+            _shuffle(queueSongIds);
+          },
+        ),
+      ],
+    );
+  }
+
   List<MenuFlyoutItem> _sortMenuItems(
     SmPlayerI18n i18n,
     PlaylistSortCriterion activeSortCriterion,
@@ -488,6 +643,63 @@ class _HeaderedPlaylistControlState
           },
         ),
     ];
+  }
+
+  Future<void> _showHeaderPreferenceMenu(
+    BuildContext context,
+    SmPlayerI18n i18n,
+  ) async {
+    final preferenceType = widget.preferenceType;
+    final preferenceItemId = widget.preferenceItemId;
+    final preferenceLevel =
+        preferenceType == null || preferenceItemId == null
+            ? null
+            : await ref
+                .read(libraryRepositoryProvider)
+                .getPreferenceLevel(preferenceType, preferenceItemId);
+    if (!context.mounted) {
+      return;
+    }
+
+    showMenuFlyout(
+      context,
+      items: [
+        if (preferenceType != null &&
+            preferenceItemId != null &&
+            preferenceLevel != null)
+          MenuFlyoutItem(
+            key: 'preference-undo',
+            text: i18n.t('preferences.undoPrefer'),
+            icon: FluentIcons.arrow_undo_20_regular,
+            onPressed: () {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .removePreferenceItem(preferenceType, preferenceItemId);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+        if (preferenceType != null &&
+            preferenceItemId != null &&
+            preferenceLevel != null)
+          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+        for (final level in const [
+          'do-not-appear',
+          'dislike',
+          'normal',
+          'high',
+          'higher',
+          'very-high',
+        ])
+          MenuFlyoutItem(
+            key: 'preference-$level',
+            text: i18n.t('preferences.level.$level'),
+            checked: preferenceLevel == level,
+            onPressed: () {
+              widget.onSetPreferred?.call(level);
+            },
+          ),
+      ],
+    );
   }
 
   List<LibrarySong> _visibleSongs(Map<int, LibrarySong> songsById) {
@@ -543,11 +755,28 @@ class _HeaderedPlaylistControlState
     }
 
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final insertedIndex = snapshot.nowPlaying.songIds.length;
     ref.read(libraryRepositoryProvider).replaceNowPlaying([
       ...snapshot.nowPlaying.songIds,
       ...songIds,
     ]);
     ref.invalidate(musicLibrarySnapshotProvider);
+    _showUndoSnackBar(() async {
+      final currentSongIds =
+          ref
+              .read(musicLibrarySnapshotProvider)
+              .valueOrNull
+              ?.nowPlaying
+              .songIds ??
+          [...snapshot.nowPlaying.songIds, ...songIds];
+      final nextSongIds =
+          currentSongIds.toList()..removeRange(
+            insertedIndex,
+            min(insertedIndex + songIds.length, currentSongIds.length),
+          );
+      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    });
   }
 
   void _commitSort(
@@ -593,7 +822,49 @@ class _HeaderedPlaylistControlState
 
   Future<void> _removeSongsFromCurrentPlaylist(List<int> songIds) async {
     await widget.onRemoveSongs?.call(songIds);
+    _showUndoRemoveSongs(songIds);
     _hideSelectionAfterOperation();
+  }
+
+  void _showUndoRemoveSongs(List<int> songIds) {
+    if (songIds.isEmpty) {
+      return;
+    }
+    if (widget.type == HeaderedPlaylistType.favorites) {
+      _showUndoSnackBar(() async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .setSongsFavorite(songIds, true);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      });
+      return;
+    }
+    if (widget.type == HeaderedPlaylistType.playlist) {
+      final playlist = widget.playlists.firstWhere(
+        (playlist) => playlist.name == widget.title,
+      );
+      _showUndoSnackBar(() async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .addSongsToPlaylist(playlist.id, songIds);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      });
+    }
+  }
+
+  void _showUndoSnackBar(FutureOr<void> Function() onUndo) {
+    final i18n = context.smPlayerI18n;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(i18n.t('notification.operationDone')),
+        action: SnackBarAction(
+          label: i18n.t('common.undo'),
+          onPressed: () {
+            unawaited(Future<void>.sync(onUndo));
+          },
+        ),
+      ),
+    );
   }
 
   void _hideSelectionAfterOperation() {
@@ -605,116 +876,161 @@ class _HeaderedPlaylistControlState
     });
   }
 
-  void _showSongMenu(
+  Future<void> _showSongMenu(
     BuildContext context,
     SmPlayerI18n i18n,
     Offset position,
     LibrarySong song,
     int index,
-  ) {
+  ) async {
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+    if (!context.mounted) {
+      return;
+    }
+    final currentSavedPlaylist =
+        widget.type == HeaderedPlaylistType.playlist
+            ? widget.playlists.firstWhere(
+              (playlist) => playlist.name == widget.title,
+            )
+            : null;
+    final currentPlaylistName =
+        widget.type == HeaderedPlaylistType.favorites
+            ? i18n.t('common.myFavorites')
+            : widget.type == HeaderedPlaylistType.playlist
+            ? currentSavedPlaylist!.name
+            : widget.title;
     showMenuFlyout(
       context,
       position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'play',
-          text:
-              widget.selectedTrackId == song.id && widget.isPlaying
-                  ? i18n.t('context.pause')
-                  : i18n.t('context.play'),
-          icon:
-              widget.selectedTrackId == song.id && widget.isPlaying
-                  ? FluentIcons.pause_20_regular
-                  : FluentIcons.play_20_regular,
-          onPressed: () {
-            if (widget.selectedTrackId == song.id && widget.isPlaying) {
-              widget.onTogglePlayPause?.call();
-              return;
-            }
-            _playSong(
-              song,
-              _currentVisibleSongs().map((item) => item.id).toList(),
-            );
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'play-next',
-          text: i18n.t('context.playNext'),
-          icon: FluentIcons.next_20_regular,
-          onPressed: () {
-            widget.onPlayNext?.call(song.id);
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.checkbox_checked_20_regular,
-          onPressed: () {
-            setState(() {
-              _selection.enterMultiSelect();
-              _selection.selectSingle(song.id);
-            });
-          },
-        ),
-        if (widget.onArtistClick != null)
-          MenuFlyoutItem(
-            key: 'artist',
-            text: i18n.t('context.seeArtist'),
-            icon: FluentIcons.person_20_regular,
-            onPressed: () {
-              widget.onArtistClick?.call(song.artist);
-            },
-          ),
-        if (widget.onAlbumClick != null)
-          MenuFlyoutItem(
-            key: 'album',
-            text: i18n.t('context.seeAlbum'),
-            icon: FluentIcons.album_20_regular,
-            onPressed: () {
-              widget.onAlbumClick?.call(song.album);
-            },
-          ),
-        MenuFlyoutItem(
-          key: 'favorite',
-          text:
-              song.favorite
-                  ? i18n.t('context.removeFavorite')
-                  : i18n.t('context.addFavorite'),
-          icon:
-              song.favorite
-                  ? FluentIcons.heart_20_filled
-                  : FluentIcons.heart_20_regular,
-          onPressed: () {
-            if (widget.type == HeaderedPlaylistType.favorites &&
-                song.favorite) {
-              unawaited(_removeSongsFromCurrentPlaylist([song.id]));
-              return;
-            }
-            widget.onToggleFavorite?.call(song.id, !song.favorite);
-          },
-        ),
-        if (widget.removable)
-          MenuFlyoutItem(
-            key: 'remove',
-            text:
-                widget.type == HeaderedPlaylistType.favorites
-                    ? i18n.t('context.removeFavorite')
-                    : i18n.t('context.removeFromList'),
-            icon: FluentIcons.delete_20_regular,
-            onPressed: () {
-              unawaited(_removeSongsFromCurrentPlaylist([song.id]));
-            },
-          ),
-      ],
+      items: buildMusicMenuFlyoutItems(
+        i18n: i18n,
+        songId: song.id,
+        isFavorite: song.favorite,
+        isCurrentTrack: widget.selectedTrackId == song.id,
+        isPlaying: widget.isPlaying,
+        currentTrackId: widget.selectedTrackId,
+        songPath: song.path,
+        playlists:
+            snapshot.playlists
+                .where((playlist) => !playlist.isBuiltIn)
+                .map(
+                  (playlist) => MultiSelectCommandBarPlaylist(
+                    id: playlist.id,
+                    name: playlist.name,
+                    songIds: playlist.songIds,
+                  ),
+                )
+                .toList(),
+        currentPlaylistName: currentPlaylistName,
+        excludePlaylistName: currentSavedPlaylist?.name,
+        showRemove: widget.removable,
+        removeLabel:
+            widget.type == HeaderedPlaylistType.favorites
+                ? i18n.t('context.removeFavorite')
+                : null,
+        onPlay: () {
+          _playSong(
+            song,
+            _currentVisibleSongs().map((item) => item.id).toList(),
+          );
+        },
+        onPause: () {
+          widget.onTogglePlayPause?.call();
+        },
+        onPlayNext: () {
+          widget.onPlayNext?.call(song.id);
+        },
+        onAddToNowPlaying: () {
+          _addSongsToNowPlaying([song.id]);
+        },
+        onCreatePlaylist: () {
+          unawaited(
+            _createPlaylistFromSongs(i18n, [
+              song.id,
+            ], defaultSourceName: song.title),
+          );
+        },
+        onAddToPlaylist: (playlistId) {
+          widget.onAddSongToPlaylist(playlistId, song.id);
+        },
+        onRemove: () {
+          unawaited(_removeSongsFromCurrentPlaylist([song.id]));
+        },
+        onSelect: () {
+          setState(() {
+            _selection.enterMultiSelect();
+            _selection.selectSingle(song.id);
+          });
+        },
+        onToggleFavorite: () {
+          if (widget.type == HeaderedPlaylistType.favorites && song.favorite) {
+            unawaited(_removeSongsFromCurrentPlaylist([song.id]));
+            return;
+          }
+          widget.onToggleFavorite?.call(song.id, !song.favorite);
+        },
+        onSetPreference: (level) async {
+          await ref
+              .read(libraryRepositoryProvider)
+              .addPreferenceItem('song', '${song.id}', song.title, level);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () {
+                  ref
+                      .read(libraryRepositoryProvider)
+                      .removePreferenceItem('song', '${song.id}');
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
+        onDelete: () {
+          unawaited(
+            requestDeleteSongFromDisk(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              song: song,
+            ),
+          );
+        },
+        onSeeArtist: () {
+          widget.onArtistClick?.call(_displayArtist(song, i18n));
+        },
+        onSeeAlbum: () {
+          widget.onAlbumClick?.call(
+            song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album,
+          );
+        },
+        onSeeMusicInfo: () {
+          _openMusicDialog(song, SongDialogMode.properties);
+        },
+        onSeeLyrics: () {
+          _openMusicDialog(song, SongDialogMode.lyrics);
+        },
+        onSeeAlbumArt: () {
+          _openMusicDialog(song, SongDialogMode.albumArt);
+        },
+        onSeeLocal: () {
+          unawaited(_revealPath(song.path));
+        },
+      ),
     );
   }
 
   Future<void> _createPlaylistFromSongs(
     SmPlayerI18n i18n,
-    List<int> songIds,
-  ) async {
+    List<int> songIds, {
+    String? defaultSourceName,
+  }) async {
     final defaultName = getNextPlaylistName(
-      isBadNewPlaylistName(widget.title, i18n) ? '' : widget.title,
+      isBadNewPlaylistName(defaultSourceName ?? widget.title, i18n)
+          ? ''
+          : defaultSourceName ?? widget.title,
       widget.playlists,
     );
     final name = await _requestPlaylistName(
@@ -730,6 +1046,34 @@ class _HeaderedPlaylistControlState
 
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
     ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+    setState(() {
+      _dialogSong = song;
+      _dialogMode = mode;
+    });
+  }
+
+  Future<void> _revealPath(String targetPath) async {
+    if (Platform.isWindows) {
+      await Process.start('explorer.exe', ['/select,$targetPath']);
+      return;
+    }
+    if (Platform.isMacOS) {
+      await Process.start('open', ['-R', targetPath]);
+      return;
+    }
+    await Process.start('xdg-open', [File(targetPath).parent.path]);
+  }
+
+  String _displayArtist(LibrarySong song, SmPlayerI18n i18n) {
+    final artists =
+        song.artists.where((artist) => artist.trim().isNotEmpty).toList();
+    if (artists.isNotEmpty) {
+      return artists.first;
+    }
+    return song.artist.isEmpty ? i18n.t('common.artistUnknown') : song.artist;
   }
 
   Future<void> _requestRename(SmPlayerI18n i18n) async {
@@ -890,12 +1234,67 @@ class _HeaderedPlaylistControlState
   }
 }
 
+class _CollapsedHeaderCommandBar extends StatelessWidget {
+  const _CollapsedHeaderCommandBar({
+    required this.title,
+    required this.i18n,
+    required this.commandBar,
+  });
+
+  final String title;
+  final SmPlayerI18n i18n;
+  final Widget commandBar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      key: const ValueKey('HeaderedPlaylist.CollapsedBar'),
+      left: 16,
+      top: 12,
+      right: 16,
+      child: Material(
+        elevation: 10,
+        shadowColor: const Color(0x1f000000),
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _HeaderedPlaylistColors.textStrong,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 220, child: commandBar),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HeaderHero extends StatelessWidget {
   const _HeaderHero({
     required this.type,
     required this.title,
     required this.info,
     required this.artworkUrls,
+    required this.collapseProgress,
     required this.commandBar,
     this.subtitle,
     this.caption,
@@ -907,13 +1306,22 @@ class _HeaderHero extends StatelessWidget {
   final String? caption;
   final String info;
   final List<String> artworkUrls;
+  final double collapseProgress;
   final Widget commandBar;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final heroHeight =
+        lerpDouble(compact ? 320 : 326, compact ? 138 : 126, collapseProgress)!;
+    final coverSize =
+        lerpDouble(compact ? 180 : 240, compact ? 68 : 86, collapseProgress)!;
+    final titleSize =
+        lerpDouble(compact ? 30 : 46, compact ? 20 : 26, collapseProgress)!;
+    final commandMargin = lerpDouble(30, 8, collapseProgress)!;
     return Container(
-      constraints: const BoxConstraints(minHeight: 326),
-      padding: const EdgeInsets.fromLTRB(32, 58, 32, 24),
+      constraints: BoxConstraints(minHeight: heroHeight),
+      padding: EdgeInsets.fromLTRB(32, compact ? 24 : 58, 32, 24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -933,7 +1341,6 @@ class _HeaderHero extends StatelessWidget {
             children: [
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final compact = constraints.maxWidth <= 720;
                   final copy = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -957,7 +1364,7 @@ class _HeaderHero extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: _HeaderedPlaylistColors.textStrong,
-                          fontSize: compact ? 30 : 46,
+                          fontSize: titleSize,
                           height: 1.05,
                           fontWeight: FontWeight.w800,
                         ),
@@ -995,6 +1402,7 @@ class _HeaderHero extends StatelessWidget {
                         artworkUrls: artworkUrls,
                         title: title,
                         type: type,
+                        size: coverSize,
                       ),
                       SizedBox(
                         width: compact ? 0 : 28,
@@ -1005,7 +1413,7 @@ class _HeaderHero extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 30),
+              SizedBox(height: commandMargin),
               commandBar,
             ],
           ),
@@ -1021,11 +1429,13 @@ class HeaderedPlaylistCover extends StatelessWidget {
     required this.artworkUrls,
     required this.title,
     required this.type,
+    this.size = 240,
   });
 
   final List<String> artworkUrls;
   final String title;
   final HeaderedPlaylistType type;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -1033,7 +1443,7 @@ class HeaderedPlaylistCover extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: SizedBox.square(
-          dimension: 240,
+          dimension: size,
           child: GridView.count(
             crossAxisCount: 2,
             physics: const NeverScrollableScrollPhysics(),
@@ -1051,7 +1461,7 @@ class HeaderedPlaylistCover extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox.square(
-        dimension: 240,
+        dimension: size,
         child:
             artworkUrls.isEmpty
                 ? const _CoverFallback()

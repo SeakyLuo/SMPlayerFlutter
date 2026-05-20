@@ -90,6 +90,7 @@ void main() {
       'settings.viaWebBrowser': '通过浏览器',
       'preferences.albums': '偏好专辑',
       'preferences.artists': '偏好歌手',
+      'preferences.clearInvalid': '清理无效项',
       'preferences.collapse': '收起列表',
       'preferences.expand': '展开列表',
       'preferences.folders': '偏好文件夹',
@@ -108,6 +109,7 @@ void main() {
       'preferences.noItems': '没有项目。',
       'preferences.playlists': '偏好播放列表',
       'preferences.songs': '偏好歌曲',
+      'playlists.removeSelected': '删除',
     },
   );
 
@@ -219,4 +221,112 @@ void main() {
     expect(find.text('字体字号'), findsOneWidget);
     expect(find.text('文字透明度'), findsOneWidget);
   });
+
+  testWidgets(
+    'SettingsPage notification mode mirrors Electron visibility flag',
+    (tester) async {
+      AppSettingsUpdate? lastUpdate;
+
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            home: SettingsPage(
+              onUpdateSettings: (update) {
+                lastUpdate = update;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('永不发送'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('音乐变更').last);
+      await tester.pump();
+
+      expect(lastUpdate?.notificationSend, NotificationSendMode.musicChanged);
+      expect(lastUpdate?.showNotifications, isTrue);
+    },
+  );
+
+  testWidgets('PreferenceSettingsPage updates and clears concrete sections', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: PreferenceSettingsPage(
+            initialSnapshot: _preferenceSnapshot,
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Song A'), findsOneWidget);
+    expect(find.text('Missing Song'), findsOneWidget);
+
+    final itemSwitch = tester.widget<Switch>(find.byType(Switch).at(1));
+    expect(itemSwitch.value, isTrue);
+
+    await tester.tap(find.byType(Switch).at(1));
+    await tester.pump();
+
+    final updatedItemSwitch = tester.widget<Switch>(find.byType(Switch).at(1));
+    expect(updatedItemSwitch.value, isFalse);
+
+    await tester.tap(find.text('清理无效项'));
+    await tester.pump();
+
+    expect(find.text('Missing Song'), findsNothing);
+
+    await tester.tap(find.byTooltip('删除'));
+    await tester.pump();
+
+    expect(find.text('Song A'), findsNothing);
+  });
 }
+
+const _preferenceSnapshot = PreferenceSettingsSnapshot(
+  enabled: {
+    PreferenceSectionKey.songs: true,
+    PreferenceSectionKey.artists: true,
+    PreferenceSectionKey.albums: true,
+    PreferenceSectionKey.playlists: true,
+    PreferenceSectionKey.folders: true,
+  },
+  songs: [
+    PreferenceItemSnapshot(
+      type: PreferenceEntityType.song,
+      name: 'Song A',
+      tooltip: 'Song A',
+      isEnabled: true,
+      level: PreferenceLevel.high,
+      isValid: true,
+      canRemove: true,
+    ),
+    PreferenceItemSnapshot(
+      type: PreferenceEntityType.song,
+      name: 'Missing Song',
+      tooltip: 'Missing Song',
+      isEnabled: true,
+      level: PreferenceLevel.dislike,
+      isValid: false,
+      canRemove: true,
+    ),
+  ],
+  artists: [],
+  albums: [],
+  playlists: [],
+  folders: [],
+  others: [],
+);

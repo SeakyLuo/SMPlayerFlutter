@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
+typedef MainNavigationSearchCommit =
+    void Function(String value, [SearchHistoryType type]);
+
 class MainNavigationView extends StatefulWidget {
   const MainNavigationView({
     super.key,
@@ -33,7 +36,7 @@ class MainNavigationView extends StatefulWidget {
   final bool canGoBack;
   final VoidCallback onPaneToggle;
   final ValueChanged<String> onSearchTextChanged;
-  final ValueChanged<String> onSearchCommitted;
+  final MainNavigationSearchCommit onSearchCommitted;
   final ValueChanged<String> onItemInvoked;
   final VoidCallback? onGoBack;
   final VoidCallback? onCreatePlaylist;
@@ -204,7 +207,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                         i18n: widget.i18n,
                         onSearchSelected: (entry) {
                           widget.onSearchTextChanged(entry.query);
-                          widget.onSearchCommitted(entry.query);
+                          widget.onSearchCommitted(entry.query, entry.type);
                           setState(() {
                             _isSearchFocused = false;
                           });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -38,8 +39,22 @@ void main() {
       'context.addFavorite': 'Add Favorite',
       'context.addToPlaylist': 'Add To',
       'context.deleteFromDisk': 'Delete from Disk',
+      'context.hideFile': 'Hide File',
+      'context.moveToFolder': 'Move To Folder',
+      'context.pause': 'Pause',
+      'context.play': 'Play',
       'context.playNext': 'Play Next',
+      'context.reveal': 'Show In Explorer',
       'context.removeFavorite': 'Remove Favorite',
+      'context.removeFromList': 'Remove From List',
+      'context.seeAlbum': 'See Album',
+      'context.seeAlbumArt': 'See Album Art',
+      'context.seeArtist': 'See Artist',
+      'context.seeLocalFile': 'See In File Explorer',
+      'context.seeLyrics': 'See Lyrics',
+      'context.seeMusicInfo': 'See Music Info',
+      'context.select': 'Select',
+      'context.view': 'View',
       'library.chooseFolder': 'Choose Folder',
       'library.scanHelp': 'Scan music first.',
       'local.allSongs': 'All Songs',
@@ -52,6 +67,8 @@ void main() {
       'local.folderNameUsed': 'A folder with this name already exists.',
       'local.goToSettings': 'Settings',
       'local.hiddenFolders': 'Hidden Folders',
+      'local.hideFolder': 'Hide Folder',
+      'local.libraryRoot': 'Library root',
       'local.newFolder': 'New Folder',
       'local.newFolderName': 'New Folder',
       'local.newFolderPrompt': 'Folder name',
@@ -62,10 +79,13 @@ void main() {
       'local.noSongsScanned': 'No songs scanned',
       'local.path': 'Path',
       'local.pleaseExitMultiSelectMode': 'Exit multi-select mode first.',
+      'local.renameFolder': 'Rename Folder',
+      'local.renameFolderPrompt': 'Folder name',
       'local.scanPopulate': 'Scan to populate.',
       'local.scopeCurrent': 'Current folder',
       'local.scopeSubtree': 'Include subfolders',
       'local.searchDirectoryPrompt': 'Search under "{name}"',
+      'local.searchDirectory': 'Search Directory',
       'local.searchHelp': 'Try another search.',
       'local.searchQueryEmpty': 'Search query cannot be empty.',
       'local.sortByAlbum': 'Album',
@@ -76,6 +96,7 @@ void main() {
       'local.updateFolderShort': 'Update',
       'nowPlaying.randomPlay': 'Shuffle',
       'player.more': 'More',
+      'player.pause': 'Pause',
       'playlists.create': 'Create',
       'playlists.createNew': 'Create Playlist',
       'playlists.nameEmpty': 'Name is required.',
@@ -84,6 +105,14 @@ void main() {
       'playlists.nameTooLong': 'Name is too long.',
       'playlists.nameUsed': 'Name already exists.',
       'playlists.newPlaylist': 'New Playlist',
+      'preferences.level.dislike': 'Dislike',
+      'preferences.level.do-not-appear': 'Do Not Appear',
+      'preferences.level.high': 'High',
+      'preferences.level.higher': 'Higher',
+      'preferences.level.normal': 'Normal',
+      'preferences.level.very-high': 'Very High',
+      'preferences.undoPrefer': 'Undo Preference',
+      'settings.preferenceSettings': 'Preference Settings',
     },
   );
 
@@ -309,6 +338,140 @@ void main() {
     expect(repository.addedPlaylistId, isNull);
   });
 
+  testWidgets('LocalPage folder context menu mirrors Electron actions', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(
+      tester.getCenter(find.text('Sub').first),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Shuffle'), findsWidgets);
+    expect(find.text('Add To'), findsOneWidget);
+    expect(find.text('Select'), findsOneWidget);
+    expect(find.text('Move To Folder'), findsOneWidget);
+    expect(find.text('Preference Settings'), findsOneWidget);
+    expect(find.text('Show In Explorer'), findsOneWidget);
+    expect(find.text('New Folder'), findsWidgets);
+    expect(find.text('Update Folder'), findsWidgets);
+
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('High'));
+    await tester.pumpAndSettle();
+
+    expect(repository.preferenceType, 'folder');
+    expect(repository.preferenceItemId, r'C:\Music\Sub');
+    expect(repository.preferenceLevel, 'high');
+  });
+
+  testWidgets('LocalPage selected local items move and delete like Electron', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithTargetFolder,
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _pressCommandBarButton(tester, 'Multi Select');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sub'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move To Folder'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Target').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.movedSongIds, isEmpty);
+    expect(repository.movedFolderPaths, [r'C:\Music\Sub']);
+    expect(repository.movedTargetFolderPath, r'C:\Music\Target');
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _pressCommandBarButton(tester, 'Multi Select');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sub'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete from Disk').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 1 selected item from disk?'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.deletedSongIds, isEmpty);
+    expect(repository.deletedFolderPaths, [r'C:\Music\Sub']);
+  });
+
+  testWidgets('LocalPage song context menu exposes Electron song actions', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(
+      tester.getCenter(find.text('Root Song').first),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Play'), findsOneWidget);
+    expect(find.text('Add To'), findsOneWidget);
+    expect(find.text('Select'), findsOneWidget);
+    expect(find.text('Move To Folder'), findsWidgets);
+    expect(find.text('Hide File'), findsOneWidget);
+    expect(find.text('View'), findsOneWidget);
+
+    await tester.tap(find.text('Select'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 selected'), findsOneWidget);
+  });
+
   testWidgets('FolderChainListView opens Electron child folder flyout', (
     tester,
   ) async {
@@ -516,6 +679,18 @@ class _FakeLibraryRepository extends LibraryRepository {
   LocalFolderSortCriterion? updatedSortCriterion;
   String? recentSearchQuery;
   SearchHistoryType? recentSearchType;
+  List<int> movedSongIds = [];
+  List<String> movedFolderPaths = [];
+  String? movedTargetFolderPath;
+  List<int> deletedSongIds = [];
+  List<String> deletedFolderPaths = [];
+  String? hiddenFolderPath;
+  String? renamedFolderPath;
+  String? renamedFolderName;
+  String? preferenceType;
+  String? preferenceItemId;
+  String? preferenceName;
+  String? preferenceLevel;
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -550,6 +725,55 @@ class _FakeLibraryRepository extends LibraryRepository {
   ]) async {
     recentSearchQuery = query;
     recentSearchType = type;
+  }
+
+  @override
+  Future<void> moveLocalItemsToFolder(
+    List<int> songIds,
+    List<String> folderPaths,
+    String targetFolderPath,
+  ) async {
+    movedSongIds = songIds.toList();
+    movedFolderPaths = folderPaths.toList();
+    movedTargetFolderPath = targetFolderPath;
+  }
+
+  @override
+  Future<void> deleteLocalItems(
+    List<int> songIds,
+    List<String> folderPaths,
+  ) async {
+    deletedSongIds = songIds.toList();
+    deletedFolderPaths = folderPaths.toList();
+  }
+
+  @override
+  Future<void> hideFolder(String folderPath) async {
+    hiddenFolderPath = folderPath;
+  }
+
+  @override
+  Future<void> renameFolder(String folderPath, String name) async {
+    renamedFolderPath = folderPath;
+    renamedFolderName = name;
+  }
+
+  @override
+  Future<void> addPreferenceItem(
+    String type,
+    String itemId,
+    String name,
+    String level,
+  ) async {
+    preferenceType = type;
+    preferenceItemId = itemId;
+    preferenceName = name;
+    preferenceLevel = level;
+  }
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return null;
   }
 }
 
@@ -611,6 +835,77 @@ const _snapshot = MusicLibrarySnapshot(
   ],
   folders: [
     LibraryFolder(id: 10, path: r'C:\Music\Sub', parentId: 0, criterion: 0),
+  ],
+  favoritePlaylistId: 20,
+  nowPlaying: NowPlayingSnapshot(playlistId: 9, songIds: [9]),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  rootPath: r'C:\Music',
+  databasePath: '',
+);
+
+const _snapshotWithTargetFolder = MusicLibrarySnapshot(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\root.mp3',
+      title: 'Root Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Root Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 2,
+      path: r'C:\Music\Sub\child.mp3',
+      title: 'Child Song',
+      artist: 'Artist B',
+      artists: ['Artist B'],
+      album: 'Child Album',
+      duration: 90,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [
+    LibraryPlaylist(
+      id: 20,
+      name: 'My Favorites',
+      priority: 0,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: true,
+    ),
+    LibraryPlaylist(
+      id: 30,
+      name: 'Road Mix',
+      priority: 1,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+  ],
+  folders: [
+    LibraryFolder(id: 10, path: r'C:\Music\Sub', parentId: 0, criterion: 0),
+    LibraryFolder(id: 11, path: r'C:\Music\Target', parentId: 0, criterion: 0),
   ],
   favoritePlaylistId: 20,
   nowPlaying: NowPlayingSnapshot(playlistId: 9, songIds: [9]),

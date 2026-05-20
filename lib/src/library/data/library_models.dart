@@ -334,6 +334,18 @@ class LibraryFolder {
   final int criterion;
 }
 
+class HiddenStorageItem {
+  const HiddenStorageItem({
+    required this.id,
+    required this.type,
+    required this.path,
+  });
+
+  final int id;
+  final String type;
+  final String path;
+}
+
 class NowPlayingSnapshot {
   const NowPlayingSnapshot({required this.playlistId, required this.songIds});
 

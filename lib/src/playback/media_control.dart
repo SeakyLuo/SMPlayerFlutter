@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -32,13 +34,24 @@ class MediaControl extends StatelessWidget {
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
     required this.onEnterMiniMode,
+    this.currentSong,
+    this.playlists = const [],
+    this.preferenceLevel,
+    this.onAddToNowPlaying,
+    this.onCreatePlaylist,
+    this.onAddToPlaylist,
+    this.onUndoPreference,
+    this.onSetPreference,
     this.onSeeAlbum,
     this.onSeeMusicInfo,
     this.onSeeLyrics,
     this.onSeeAlbumArt,
+    this.onSeeLocal,
   });
 
   final MediaControlTrack track;
+  final LibrarySong? currentSong;
+  final List<LibraryPlaylist> playlists;
   final bool disabled;
   final bool isPlaying;
   final int volume;
@@ -62,10 +75,17 @@ class MediaControl extends StatelessWidget {
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
   final VoidCallback onEnterMiniMode;
+  final String? preferenceLevel;
+  final VoidCallback? onAddToNowPlaying;
+  final VoidCallback? onCreatePlaylist;
+  final ValueChanged<int>? onAddToPlaylist;
+  final VoidCallback? onUndoPreference;
+  final ValueChanged<String>? onSetPreference;
   final VoidCallback? onSeeAlbum;
   final VoidCallback? onSeeMusicInfo;
   final VoidCallback? onSeeLyrics;
   final VoidCallback? onSeeAlbumArt;
+  final VoidCallback? onSeeLocal;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +161,8 @@ class MediaControl extends StatelessWidget {
                         flex: 9,
                         child: _PlayerTrack(
                           track: track,
+                          artworkPath:
+                              currentSong?.thumbnailPath ?? track.artworkUrl,
                           disabled: track.id == null,
                           onOpenNowPlaying: onOpenNowPlaying,
                         ),
@@ -232,13 +254,23 @@ class MediaControl extends StatelessWidget {
         onToggleShuffle: onToggleShuffle,
         onToggleRepeat: onToggleRepeat,
         onToggleRepeatOne: onToggleRepeatOne,
+        onToggleFavorite: onToggleFavorite,
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
+        currentSong: currentSong,
+        playlists: playlists,
+        preferenceLevel: preferenceLevel,
+        onAddToNowPlaying: onAddToNowPlaying,
+        onCreatePlaylist: onCreatePlaylist,
+        onAddToPlaylist: onAddToPlaylist,
+        onUndoPreference: onUndoPreference,
+        onSetPreference: onSetPreference,
         onSeeAlbum: onSeeAlbum ?? onOpenNowPlaying,
         onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
         onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
         onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
+        onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
       ),
     );
   }
@@ -627,6 +659,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
               Expanded(
                 child: _PlayerTrack(
                   track: track,
+                  artworkPath: track.artworkUrl,
                   disabled: track.id == null,
                   compact: true,
                   onOpenNowPlaying: onOpenNowPlaying,
@@ -799,6 +832,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onToggleShuffle: onToggleShuffle,
         onToggleRepeat: onToggleRepeat,
         onToggleRepeatOne: onToggleRepeatOne,
+        onToggleFavorite: onToggleFavorite,
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
@@ -806,6 +840,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onSeeMusicInfo: onOpenNowPlaying,
         onSeeLyrics: onOpenNowPlaying,
         onSeeAlbumArt: onOpenNowPlaying,
+        onSeeLocal: onOpenNowPlaying,
       ),
     );
   }
@@ -822,14 +857,48 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onToggleShuffle,
   required VoidCallback onToggleRepeat,
   required VoidCallback onToggleRepeatOne,
+  required VoidCallback onToggleFavorite,
   required VoidCallback onOpenNowPlaying,
   required VoidCallback onToggleWindowFullScreen,
   required VoidCallback onEnterMiniMode,
+  LibrarySong? currentSong,
+  List<LibraryPlaylist> playlists = const [],
+  String? preferenceLevel,
+  VoidCallback? onAddToNowPlaying,
+  VoidCallback? onCreatePlaylist,
+  ValueChanged<int>? onAddToPlaylist,
+  VoidCallback? onUndoPreference,
+  ValueChanged<String>? onSetPreference,
   required VoidCallback onSeeAlbum,
   required VoidCallback onSeeMusicInfo,
   required VoidCallback onSeeLyrics,
   required VoidCallback onSeeAlbumArt,
+  required VoidCallback onSeeLocal,
 }) {
+  final customPlaylists =
+      playlists
+          .where((playlist) => !playlist.isBuiltIn)
+          .map(
+            (playlist) => MultiSelectCommandBarPlaylist(
+              id: playlist.id,
+              name: playlist.name,
+              songIds: playlist.songIds,
+            ),
+          )
+          .toList();
+  final addToItem =
+      currentSong == null
+          ? null
+          : buildAddToPlaylistMenuFlyoutItem(
+            i18n: i18n,
+            songIds: [currentSong.id],
+            playlists: customPlaylists,
+            includeFavorites: !currentSong.favorite,
+            onToggleFavorite: currentSong.favorite ? null : onToggleFavorite,
+            onCreatePlaylist: onCreatePlaylist,
+            onAddToPlaylist: onAddToPlaylist,
+          );
+
   return [
     MenuFlyoutItem(
       key: 'quick',
@@ -837,6 +906,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       icon: Icons.play_arrow_rounded,
       onPressed: onQuickPlay,
     ),
+    if (addToItem != null) addToItem,
     MenuFlyoutItem(
       key: 'playback-mode',
       text:
@@ -890,6 +960,39 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       checked: isMuted,
       onPressed: onToggleMute,
     ),
+    if (currentSong != null && onSetPreference != null)
+      MenuFlyoutItem(
+        key: 'preference',
+        text: i18n.t('settings.preferenceSettings'),
+        icon: Icons.star_border_rounded,
+        submenu: [
+          if (preferenceLevel != null && onUndoPreference != null) ...[
+            MenuFlyoutItem(
+              key: 'preference-undo',
+              text: i18n.t('preferences.undoPrefer'),
+              icon: Icons.undo_rounded,
+              onPressed: onUndoPreference,
+            ),
+            const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+          ],
+          for (final level in const [
+            'do-not-appear',
+            'dislike',
+            'normal',
+            'high',
+            'higher',
+            'very-high',
+          ])
+            MenuFlyoutItem(
+              key: 'preference-$level',
+              text: i18n.t('preferences.level.$level'),
+              checked: preferenceLevel == level,
+              onPressed: () {
+                onSetPreference(level);
+              },
+            ),
+        ],
+      ),
     MenuFlyoutItem(
       key: 'see-album',
       text: i18n.t('context.seeAlbum'),
@@ -917,6 +1020,13 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       icon: Icons.image_rounded,
       disabled: trackId == null,
       onPressed: onSeeAlbumArt,
+    ),
+    MenuFlyoutItem(
+      key: 'see-local-file',
+      text: i18n.t('context.seeLocalFile'),
+      icon: Icons.folder_open_rounded,
+      disabled: trackId == null,
+      onPressed: onSeeLocal,
     ),
     MenuFlyoutItem(
       key: 'now-playing',
@@ -989,12 +1099,14 @@ SmPlayerI18n _mediaControlI18n(BuildContext context) {
 class _PlayerTrack extends StatelessWidget {
   const _PlayerTrack({
     required this.track,
+    required this.artworkPath,
     required this.disabled,
     required this.onOpenNowPlaying,
     this.compact = false,
   });
 
   final MediaControlTrack track;
+  final String? artworkPath;
   final bool disabled;
   final bool compact;
   final VoidCallback onOpenNowPlaying;
@@ -1025,7 +1137,7 @@ class _PlayerTrack extends StatelessWidget {
                 ),
               ],
             ),
-            child: const _DefaultAlbumArtwork(),
+            child: _PlayerArtwork(artworkPath: artworkPath),
           ),
           const SizedBox(width: 14),
           Flexible(
@@ -1366,6 +1478,25 @@ class _DefaultAlbumArtwork extends StatelessWidget {
         size: 38,
       ),
     );
+  }
+}
+
+class _PlayerArtwork extends StatelessWidget {
+  const _PlayerArtwork({required this.artworkPath});
+
+  final String? artworkPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = artworkPath;
+    if (path != null && path.isNotEmpty) {
+      final file = File(path);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
+    return const _DefaultAlbumArtwork();
   }
 }
 

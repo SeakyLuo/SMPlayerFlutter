@@ -85,109 +85,129 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .firstOrNull ??
         '';
 
-    return HeaderedPlaylistControl(
-      type:
-          selectedPlaylist.isBuiltIn
-              ? HeaderedPlaylistType.favorites
-              : HeaderedPlaylistType.playlist,
-      title: selectedPlaylist.name,
-      headerSongs: songs,
-      songs: songs,
-      selectedTrackId: mediaControl.track.id,
-      isPlaying: mediaControl.isPlaying,
-      playlists: snapshot.playlists,
-      favoritePlaylistId: snapshot.favoritePlaylistId,
-      artworkUrl: artworkUrl,
-      removable: true,
-      showAlbum: true,
-      canRename: !selectedPlaylist.isBuiltIn,
-      canDelete: !selectedPlaylist.isBuiltIn,
-      canClear: songs.isNotEmpty,
-      canSetPreferred: true,
-      sortCriterion: selectedPlaylist.sortCriterion,
-      preferenceType: selectedPlaylist.isBuiltIn ? 'my-favorites' : 'playlist',
-      preferenceItemId:
-          selectedPlaylist.isBuiltIn ? '6' : selectedPlaylist.id.toString(),
-      onPlayTrack: (trackId, queueSongIds) {
-        _playTrack(ref, snapshot, trackId, queueSongIds);
-      },
-      onMoveToMusicOrPlay: (songId) {
-        _playTrack(
-          ref,
-          snapshot,
-          songId,
-          songs.map((song) => song.id).toList(),
-        );
-      },
-      onPlayNext: (songId) {
-        _playNext(ref, snapshot, songId);
-      },
-      onTogglePlayPause:
-          ref.read(mediaControlControllerProvider).onTogglePlayPause,
-      onAddSongToPlaylist: (playlistId, songId) {
-        ref
-            .read(libraryRepositoryProvider)
-            .addSongToPlaylist(playlistId, songId);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onAddSongsToPlaylist: (playlistId, songIds) {
-        ref
-            .read(libraryRepositoryProvider)
-            .addSongsToPlaylist(playlistId, songIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onToggleFavorite: (songId, favorite) {
-        ref.read(libraryRepositoryProvider).setSongFavorite(songId, favorite);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onRemoveSongs: (songIds) async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onRename: (name) {
-        ref
-            .read(libraryRepositoryProvider)
-            .renamePlaylist(selectedPlaylist.id, name);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onDelete: () {
-        ref.read(libraryRepositoryProvider).deletePlaylist(selectedPlaylist.id);
-        ref.invalidate(musicLibrarySnapshotProvider);
-        context.go('/playlists');
-      },
-      onClear: () {
-        ref
-            .read(libraryRepositoryProvider)
-            .removeSongsFromPlaylist(
-              selectedPlaylist.id,
-              songs.map((song) => song.id).toList(),
-            );
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onSetPreferred: (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(i18n.t('settings.preferenceSettings'))),
-        );
-      },
-      onRecordPlay: () {
-        ref
-            .read(libraryRepositoryProvider)
-            .recordPlaylistPlayed(selectedPlaylist.id);
-      },
-      onSortSongs: (songIds, sortCriterion) {
-        ref
-            .read(libraryRepositoryProvider)
-            .reorderPlaylistSongs(selectedPlaylist.id, songIds, sortCriterion);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      },
-      onArtistClick: (artist) {
-        context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
-      },
-      onAlbumClick: (album) {
-        context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
-      },
+    return SmPlayerI18nScope(
+      i18n: i18n,
+      child: HeaderedPlaylistControl(
+        type:
+            selectedPlaylist.isBuiltIn
+                ? HeaderedPlaylistType.favorites
+                : HeaderedPlaylistType.playlist,
+        title: selectedPlaylist.name,
+        headerSongs: songs,
+        songs: songs,
+        selectedTrackId: mediaControl.track.id,
+        isPlaying: mediaControl.isPlaying,
+        playlists: snapshot.playlists,
+        favoritePlaylistId: snapshot.favoritePlaylistId,
+        artworkUrl: artworkUrl,
+        removable: true,
+        showAlbum: true,
+        canRename: !selectedPlaylist.isBuiltIn,
+        canDelete: !selectedPlaylist.isBuiltIn,
+        canClear: songs.isNotEmpty,
+        canSetPreferred: true,
+        sortCriterion: selectedPlaylist.sortCriterion,
+        preferenceType:
+            selectedPlaylist.isBuiltIn ? 'my-favorites' : 'playlist',
+        preferenceItemId:
+            selectedPlaylist.isBuiltIn ? '6' : selectedPlaylist.id.toString(),
+        onPlayTrack: (trackId, queueSongIds) {
+          _playTrack(ref, snapshot, trackId, queueSongIds);
+        },
+        onMoveToMusicOrPlay: (songId) {
+          _playTrack(
+            ref,
+            snapshot,
+            songId,
+            songs.map((song) => song.id).toList(),
+          );
+        },
+        onPlayNext: (songId) {
+          _playNext(ref, snapshot, songId);
+        },
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onAddSongToPlaylist: (playlistId, songId) {
+          ref
+              .read(libraryRepositoryProvider)
+              .addSongToPlaylist(playlistId, songId);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onAddSongsToPlaylist: (playlistId, songIds) {
+          ref
+              .read(libraryRepositoryProvider)
+              .addSongsToPlaylist(playlistId, songIds);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onToggleFavorite: (songId, favorite) {
+          ref.read(libraryRepositoryProvider).setSongFavorite(songId, favorite);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onRemoveSongs: (songIds) async {
+          await ref
+              .read(libraryRepositoryProvider)
+              .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onRename: (name) {
+          ref
+              .read(libraryRepositoryProvider)
+              .renamePlaylist(selectedPlaylist.id, name);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onDelete: () {
+          ref
+              .read(libraryRepositoryProvider)
+              .deletePlaylist(selectedPlaylist.id);
+          ref.invalidate(musicLibrarySnapshotProvider);
+          context.go('/playlists');
+        },
+        onClear: () {
+          ref
+              .read(libraryRepositoryProvider)
+              .removeSongsFromPlaylist(
+                selectedPlaylist.id,
+                songs.map((song) => song.id).toList(),
+              );
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onSetPreferred: (level) {
+          ref
+              .read(libraryRepositoryProvider)
+              .addPreferenceItem(
+                selectedPlaylist.isBuiltIn ? 'my-favorites' : 'playlist',
+                selectedPlaylist.isBuiltIn
+                    ? '6'
+                    : selectedPlaylist.id.toString(),
+                selectedPlaylist.isBuiltIn
+                    ? i18n.t('common.myFavorites')
+                    : selectedPlaylist.name,
+                level,
+              );
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onRecordPlay: () {
+          ref
+              .read(libraryRepositoryProvider)
+              .recordPlaylistPlayed(selectedPlaylist.id);
+        },
+        onSortSongs: (songIds, sortCriterion) {
+          ref
+              .read(libraryRepositoryProvider)
+              .reorderPlaylistSongs(
+                selectedPlaylist.id,
+                songIds,
+                sortCriterion,
+              );
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onArtistClick: (artist) {
+          context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+        },
+        onAlbumClick: (album) {
+          context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
+        },
+      ),
     );
   }
 
@@ -245,17 +265,17 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                         final columns =
                             constraints.maxWidth < 720
                                 ? 2
-                                : ((constraints.maxWidth + 24) / 224)
+                                : ((constraints.maxWidth + 30) / 210)
                                     .floor()
                                     .clamp(1, 8);
                         return GridView.builder(
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.fromLTRB(14, 8, 8, 92),
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: columns,
-                                mainAxisExtent: 260,
-                                crossAxisSpacing: 24,
-                                mainAxisSpacing: 18,
+                                mainAxisExtent: 232,
+                                crossAxisSpacing: 30,
+                                mainAxisSpacing: 26,
                               ),
                           itemCount: orderedPlaylists.length,
                           itemBuilder: (context, index) {
@@ -289,8 +309,8 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                   feedback: Material(
                                     color: Colors.transparent,
                                     child: SizedBox(
-                                      width: 200,
-                                      height: 252,
+                                      width: 180,
+                                      height: 232,
                                       child: _PlaylistCard(
                                         playlist: playlist,
                                         songs: playlistSongs,
@@ -682,87 +702,88 @@ class _PlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onOpen,
-      onSecondaryTapDown: (details) {
-        onContextMenu(details.globalPosition);
-      },
-      child: AnimatedOpacity(
-        opacity: dragging ? 0.92 : 1,
-        duration: const Duration(milliseconds: 120),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: _PlaylistsColors.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _PlaylistsColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: _PlaylistsColors.shadow,
-                blurRadius: 24,
-                offset: Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: _PlaylistArtwork(songs: songs),
-                        ),
-                      ),
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: IconButton.filled(
-                          tooltip: i18n.t('context.play'),
-                          icon: const Icon(FluentIcons.play_20_filled),
-                          onPressed: songs.isEmpty ? null : onPlay,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+    return Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: 180,
+        height: 232,
+        child: AnimatedOpacity(
+          opacity: dragging ? 0.92 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: Material(
+            color: dragging ? _PlaylistsColors.cardHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              hoverColor: _PlaylistsColors.cardHover,
+              focusColor: _PlaylistsColors.cardHover,
+              onTap: onOpen,
+              onSecondaryTapDown: (details) {
+                onContextMenu(details.globalPosition);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Stack(
                   children: [
-                    Expanded(
-                      child: Text(
-                        playlist.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _PlaylistsColors.textStrong,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox.square(
+                          dimension: 160,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _PlaylistArtwork(songs: songs),
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        Text(
+                          playlist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _PlaylistsColors.textStrong,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          i18n.t('playlists.songCount', {
+                            'count': playlist.songCount,
+                          }),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _PlaylistsColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: IconButton.filledTonal(
+                        tooltip: i18n.t('playlists.dragToSort'),
+                        icon: const Icon(
+                          FluentIcons.re_order_dots_vertical_20_regular,
+                          size: 18,
+                        ),
+                        onPressed: () {},
                       ),
                     ),
-                    const Icon(
-                      FluentIcons.re_order_dots_vertical_20_regular,
-                      color: _PlaylistsColors.textMuted,
-                      size: 18,
+                    Positioned(
+                      right: 8,
+                      bottom: 60,
+                      child: IconButton.filled(
+                        tooltip: i18n.t('context.play'),
+                        icon: const Icon(FluentIcons.play_20_filled),
+                        onPressed: songs.isEmpty ? null : onPlay,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  i18n.t('playlists.songCount', {'count': playlist.songCount}),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _PlaylistsColors.textMuted,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -840,29 +861,41 @@ class _PlaylistDropPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _PlaylistsColors.placeholder,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _PlaylistsColors.accentStrong),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              FluentIcons.add_24_regular,
-              color: _PlaylistsColors.accentStrong,
+    return Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: 180,
+        height: 232,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _PlaylistsColors.accentStrong, width: 2),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  FluentIcons.add_circle_24_regular,
+                  color: _PlaylistsColors.accentStrong,
+                  size: 30,
+                ),
+                const SizedBox(height: 13),
+                SizedBox(
+                  width: 92,
+                  child: Text(
+                    i18n.t('playlists.dropHere'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _PlaylistsColors.accentStrong,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              i18n.t('playlists.dropHere'),
-              style: const TextStyle(
-                color: _PlaylistsColors.accentStrong,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -889,10 +922,7 @@ class _PlaylistsEmptyState extends StatelessWidget {
 class _PlaylistsColors {
   const _PlaylistsColors._();
 
-  static const card = Color(0xf7ffffff);
-  static const border = Color(0x2b64748b);
-  static const shadow = Color(0x1f2f425c);
-  static const placeholder = Color(0x140078d7);
+  static const cardHover = Color(0xf2ffffff);
   static const accentStrong = Color(0xff0063b1);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff607085);

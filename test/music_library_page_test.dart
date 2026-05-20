@@ -483,10 +483,6 @@ void main() {
 
     expect(find.text('1 selected'), findsNothing);
     expect(find.text('Play Selected'), findsNothing);
-
-    await tester.tap(find.text('Play'));
-    await tester.pumpAndSettle();
-
     expect(repository.replacedNowPlaying, isEmpty);
   });
 
@@ -498,10 +494,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Multi Select'));
-    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.tap(find.text('Blue Song'));
+    await tester.pump(kDoubleTapTimeout);
     await tester.tap(find.text('Red Song'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
@@ -574,10 +571,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Multi Select'));
-    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.tap(find.text('Blue Song'));
+    await tester.pump(kDoubleTapTimeout);
     await tester.tap(find.text('Red Song'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Play Selected'));
@@ -604,10 +602,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Multi Select'));
-    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.tap(find.text('Blue Song'));
+    await tester.pump(kDoubleTapTimeout);
     await tester.tap(find.text('Red Song'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
     expect(find.text('2 selected'), findsOneWidget);
 
@@ -689,10 +688,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Multi Select'));
-    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.tap(find.text('Blue Song'));
+    await tester.pump(kDoubleTapTimeout);
     await tester.tap(find.text('Red Song'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Add To').last);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
@@ -182,9 +183,11 @@ class _ShellPageTestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SmPlayerI18nScope(
-      i18n: SmPlayerI18n(locale: 'en-US', messages: {}),
-      child: MaterialApp(home: SmPlayerShellPage()),
+    return const ProviderScope(
+      child: SmPlayerI18nScope(
+        i18n: SmPlayerI18n(locale: 'en-US', messages: {}),
+        child: MaterialApp(home: SmPlayerShellPage()),
+      ),
     );
   }
 }

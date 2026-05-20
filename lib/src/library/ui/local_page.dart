@@ -11,9 +11,12 @@ import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
+import 'artists_page_model.dart';
 import 'command_bar.dart';
 import 'headered_playlist_model.dart'
     show getNextPlaylistName, validatePlaylistName;
+import 'library_page_actions.dart'
+    show hideSongFile, moveSongToFolder, requestDeleteSongFromDisk;
 import 'local_folder_model.dart';
 import 'local_grid_content.dart';
 import 'local_page_model.dart';
@@ -263,7 +266,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     rootPath: snapshot.rootPath,
                     currentRelativePath: widget.currentRelativePath,
                     onHiddenFoldersListButtonClick:
-                        () => _showMessage(i18n.t('local.hiddenFolders')),
+                        () => context.go('/hidden-folders'),
                     onOpenFolder: _openFolder,
                   ),
                   const SizedBox(height: 12),
@@ -424,6 +427,16 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     (folder) => _searchDirectory(folder, i18n),
                                 onRevealFolder: _revealFolder,
                                 onOpenFolder: _openFolder,
+                                onOpenFolderMenu:
+                                    (folder, position) => _showFolderMenu(
+                                      position: position,
+                                      folder: folder,
+                                      nodes: nodes,
+                                      songsById: songsById,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
                                 onToggleFolderSelection: _toggleFolderSelection,
                                 onPlayTrack: _playTrack,
                                 onTogglePlayPause:
@@ -443,6 +456,15 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     (song) => _showAddToMenu(
                                       songIds: [song.id],
                                       defaultPlaylistName: song.title,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
+                                onOpenSongMenu:
+                                    (song, position) => _showSongMenu(
+                                      position: position,
+                                      song: song,
+                                      queueSongIds: visibleSongIds,
                                       playlists: customPlaylists,
                                       snapshot: snapshot,
                                       i18n: i18n,
@@ -543,8 +565,36 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 onRemove:
                     selectedLocalItemCount == 0
                         ? null
-                        : () => _showMessage(i18n.t('context.deleteFromDisk')),
+                        : () => _requestDeleteLocalItems(
+                          songIds: effectiveSelectedSongIds,
+                          folderPaths:
+                              effectiveSelectedFolderPaths
+                                  .map((folderPath) => nodes[folderPath]!.path)
+                                  .toList(),
+                          i18n: i18n,
+                        ),
                 removeLabel: i18n.t('context.deleteFromDisk'),
+                extraActions: [
+                  MultiSelectCommandBarExtraAction(
+                    key: 'move-to-folder',
+                    text: i18n.t('context.moveToFolder'),
+                    icon: FluentIcons.folder_20_regular,
+                    disabled: selectedLocalItemCount == 0,
+                    onPressed:
+                        () => _showSelectedMoveToFolderMenu(
+                          nodes: nodes,
+                          songsById: songsById,
+                          songIds: effectiveSelectedSongIds,
+                          folderPaths:
+                              effectiveSelectedFolderPaths
+                                  .map((folderPath) => nodes[folderPath]!.path)
+                                  .toList(),
+                          i18n: i18n,
+                          hideMultiSelectCommandBarAfterOperation:
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                        ),
+                  ),
+                ],
                 onSelectAll:
                     () => setState(() {
                       _selectedFolderPaths
@@ -657,6 +707,310 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     );
   }
 
+  void _showFolderMenu({
+    required Offset position,
+    required FolderNode folder,
+    required Map<String, FolderNode> nodes,
+    required Map<int, LibrarySong> songsById,
+    required List<MultiSelectCommandBarPlaylist> playlists,
+    required MusicLibrarySnapshot snapshot,
+    required SmPlayerI18n i18n,
+  }) {
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: folder.subtreeSongIds,
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
+      onAddToNowPlaying: () {
+        _addSongsToNowPlaying(folder.subtreeSongIds);
+      },
+      onToggleFavorite: () {
+        _toggleSongsFavorite(
+          _notFavoriteSongIds(folder.subtreeSongIds, songsById),
+          true,
+        );
+      },
+      onCreatePlaylist: () {
+        _createPlaylist(folder.name, folder.subtreeSongIds, snapshot, i18n);
+      },
+      onAddToPlaylist: (playlistId) {
+        _addSongsToPlaylist(playlistId, folder.subtreeSongIds);
+      },
+    );
+    final moveToFolderItem = _buildMoveToFolderMenuItem(
+      nodes: nodes,
+      songsById: songsById,
+      songIds: const [],
+      folderPaths: [folder.path],
+      i18n: i18n,
+      onMoveToFolder: (targetFolder) {
+        _moveLocalItemsToFolder(
+          songIds: const [],
+          folderPaths: [folder.path],
+          targetFolderPath: targetFolder.path,
+        );
+      },
+    );
+
+    showMenuFlyout(
+      context,
+      position: position,
+      items: [
+        MenuFlyoutItem(
+          key: 'shuffle-folder',
+          text: i18n.t('nowPlaying.randomPlay'),
+          icon: FluentIcons.arrow_shuffle_20_regular,
+          onPressed: () => _playShuffled(folder),
+        ),
+        if (addToItem != null) addToItem,
+        MenuFlyoutItem(
+          key: 'select-folder',
+          text: i18n.t('context.select'),
+          icon: FluentIcons.select_all_on_20_regular,
+          onPressed: () => _selectFolder(folder),
+        ),
+        if (moveToFolderItem != null) moveToFolderItem,
+        _buildFolderPreferenceMenuItem(i18n, folder),
+        MenuFlyoutItem(
+          key: 'show-in-explorer',
+          text: i18n.t('context.reveal'),
+          icon: FluentIcons.folder_open_20_regular,
+          onPressed: () => _revealFolder(folder),
+        ),
+        MenuFlyoutItem(
+          key: 'new-folder',
+          text: i18n.t('local.newFolder'),
+          icon: FluentIcons.add_20_regular,
+          onPressed:
+              () => _createFolder(
+                parent: folder,
+                nodes: nodes,
+                rootPath: snapshot.rootPath,
+                i18n: i18n,
+              ),
+        ),
+        MenuFlyoutItem(
+          key: 'delete-folder',
+          text: i18n.t('local.deleteFolder'),
+          icon: FluentIcons.delete_20_regular,
+          onPressed: () => _requestDeleteFolder(folder, i18n),
+        ),
+        MenuFlyoutItem(
+          key: 'refresh-folder',
+          text: i18n.t('local.updateFolder'),
+          icon: FluentIcons.arrow_sync_20_regular,
+          onPressed: () => _showMessage(i18n.t('local.updateFolder')),
+        ),
+        MenuFlyoutItem(
+          key: 'rename-folder',
+          text: i18n.t('local.renameFolder'),
+          icon: FluentIcons.rename_20_regular,
+          onPressed:
+              () => _renameFolder(
+                folder: folder,
+                nodes: nodes,
+                rootPath: snapshot.rootPath,
+                i18n: i18n,
+              ),
+        ),
+        _buildFolderSortMenuItem(i18n, folder),
+        MenuFlyoutItem(
+          key: 'search-directory',
+          text: i18n.t('local.searchDirectory'),
+          icon: FluentIcons.search_20_regular,
+          onPressed: () => _searchDirectory(folder, i18n),
+        ),
+        MenuFlyoutItem(
+          key: 'hide-folder',
+          text: i18n.t('local.hideFolder'),
+          icon: FluentIcons.eye_off_20_regular,
+          onPressed: () => _hideFolder(folder),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showSongMenu({
+    required Offset position,
+    required LibrarySong song,
+    required List<int> queueSongIds,
+    required List<MultiSelectCommandBarPlaylist> playlists,
+    required MusicLibrarySnapshot snapshot,
+    required SmPlayerI18n i18n,
+  }) async {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+    if (!mounted) {
+      return;
+    }
+
+    showMenuFlyout(
+      context,
+      position: position,
+      items: buildMusicMenuFlyoutItems(
+        i18n: i18n,
+        songId: song.id,
+        isFavorite: song.favorite,
+        isCurrentTrack: mediaState.track.id == song.id,
+        isPlaying: mediaState.isPlaying,
+        playlists: playlists,
+        folders: _menuFolders(snapshot.folders),
+        songPath: song.path,
+        currentTrackId: mediaState.track.id,
+        showMoveToFolder: snapshot.folders.isNotEmpty,
+        showHideFile: true,
+        onPlay: () => _playTrack(song.id, queueSongIds),
+        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onPlayNext: () => _playNext(song.id),
+        onAddToNowPlaying: () => _addSongsToNowPlaying([song.id]),
+        onCreatePlaylist: () {
+          _createPlaylist(
+            getNextPlaylistName(song.title, snapshot.playlists),
+            [song.id],
+            snapshot,
+            i18n,
+          );
+        },
+        onAddToPlaylist: (playlistId) {
+          _addSongsToPlaylist(playlistId, [song.id]);
+        },
+        onRemove: () => _showMessage(i18n.t('context.removeFromList')),
+        onSelect: () => _selectSong(song.id),
+        onToggleFavorite: () {
+          _toggleSongsFavorite([song.id], !song.favorite);
+        },
+        onSetPreference: (level) async {
+          await ref
+              .read(libraryRepositoryProvider)
+              .addPreferenceItem('song', '${song.id}', song.title, level);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removePreferenceItem('song', '${song.id}');
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
+        onMoveToFolder: (folderPath) {
+          moveSongToFolder(ref, song.id, folderPath);
+        },
+        onDelete: () {
+          requestDeleteSongFromDisk(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            song: song,
+          );
+        },
+        onHide: () {
+          hideSongFile(ref, song.id);
+        },
+        onSeeArtist: () {
+          final artists = getSongArtists(song);
+          final artist =
+              artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
+          context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+        },
+        onSeeAlbum: () {
+          context.go(
+            '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
+          );
+        },
+        onSeeMusicInfo: () => _showMessage(i18n.t('context.seeMusicInfo')),
+        onSeeLyrics: () => _showMessage(i18n.t('context.seeLyrics')),
+        onSeeAlbumArt: () => _showMessage(i18n.t('context.seeAlbumArt')),
+        onSeeLocal: () => _revealSong(song),
+      ),
+    );
+  }
+
+  MenuFlyoutItem _buildFolderSortMenuItem(
+    SmPlayerI18n i18n,
+    FolderNode folder,
+  ) {
+    final folderSortMode = localSortModeFromCriterion(folder.criterion);
+    return MenuFlyoutItem(
+      key: 'folder-sort',
+      text: i18n.t('common.sort'),
+      icon: FluentIcons.arrow_sort_20_regular,
+      submenu: [
+        MenuFlyoutItem(
+          key: 'folder-sort-reverse',
+          text: i18n.t('local.sortReverseList'),
+          icon: FluentIcons.arrow_sort_down_lines_20_regular,
+          onPressed:
+              () => _updateFolderSortMode(folder, LocalSortMode.reverse, i18n),
+        ),
+        const MenuFlyoutItem.separator(key: 'folder-sort-separator'),
+        for (final item in [
+          (
+            key: 'folder-sort-title',
+            text: i18n.t('local.sortByTitle'),
+            mode: LocalSortMode.title,
+            icon: FluentIcons.text_sort_ascending_20_regular,
+          ),
+          (
+            key: 'folder-sort-artist',
+            text: i18n.t('local.sortByArtist'),
+            mode: LocalSortMode.artist,
+            icon: FluentIcons.person_20_regular,
+          ),
+          (
+            key: 'folder-sort-album',
+            text: i18n.t('local.sortByAlbum'),
+            mode: LocalSortMode.album,
+            icon: FluentIcons.album_20_regular,
+          ),
+        ])
+          MenuFlyoutItem(
+            key: item.key,
+            text: item.text,
+            icon: item.icon,
+            checked: folderSortMode == item.mode,
+            onPressed: () => _updateFolderSortMode(folder, item.mode, i18n),
+          ),
+      ],
+    );
+  }
+
+  MenuFlyoutItem _buildFolderPreferenceMenuItem(
+    SmPlayerI18n i18n,
+    FolderNode folder,
+  ) {
+    return MenuFlyoutItem(
+      key: 'preference',
+      text: i18n.t('settings.preferenceSettings'),
+      icon: FluentIcons.star_20_regular,
+      submenu: [
+        for (final level in const [
+          'do-not-appear',
+          'dislike',
+          'normal',
+          'high',
+          'higher',
+          'very-high',
+        ])
+          MenuFlyoutItem(
+            key: 'preference-$level',
+            text: i18n.t('preferences.level.$level'),
+            onPressed: () async {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .addPreferenceItem('folder', folder.path, folder.name, level);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+      ],
+    );
+  }
+
   Future<void> _updateSortMode(
     FolderNode folder,
     LocalSortMode sortMode,
@@ -678,9 +1032,52 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
   }
 
+  Future<void> _updateFolderSortMode(
+    FolderNode folder,
+    LocalSortMode sortMode,
+    SmPlayerI18n i18n,
+  ) async {
+    if (_multiSelect) {
+      _showMessage(i18n.t('local.pleaseExitMultiSelectMode'));
+      return;
+    }
+
+    if (sortMode != LocalSortMode.reverse) {
+      await ref
+          .read(libraryRepositoryProvider)
+          .updateLocalFolderSort(folder.path, sortMode);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    }
+    if (folder.relativePath == widget.currentRelativePath) {
+      setState(() {
+        _sortMode = sortMode;
+      });
+    }
+  }
+
   void _enableMultiSelect() {
     setState(() {
       _multiSelect = true;
+    });
+  }
+
+  void _selectFolder(FolderNode folder) {
+    setState(() {
+      _multiSelect = true;
+      _selectedFolderPaths
+        ..clear()
+        ..add(folder.relativePath);
+      _selectedSongIds.clear();
+    });
+  }
+
+  void _selectSong(int songId) {
+    setState(() {
+      _multiSelect = true;
+      _selectedSongIds
+        ..clear()
+        ..add(songId);
+      _selectedFolderPaths.clear();
     });
   }
 
@@ -732,6 +1129,325 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     context.go(Uri(path: '/local', queryParameters: query).toString());
+  }
+
+  Future<void> _renameFolder({
+    required FolderNode folder,
+    required Map<String, FolderNode> nodes,
+    required String rootPath,
+    required SmPlayerI18n i18n,
+  }) async {
+    final name = await _requestFolderName(
+      i18n: i18n,
+      title: i18n.t('local.renameFolderPrompt'),
+      defaultName: folder.name,
+      validate: (value) {
+        return _folderNameValidationError(
+          getParentPath(folder.relativePath),
+          value,
+          nodes,
+          i18n,
+          folder.name,
+        );
+      },
+    );
+    if (name == null || name == folder.name) {
+      return;
+    }
+
+    await ref.read(libraryRepositoryProvider).renameFolder(folder.path, name);
+    ref.invalidate(musicLibrarySnapshotProvider);
+
+    if (folder.relativePath == widget.currentRelativePath && mounted) {
+      final parentPath = getParentPath(folder.relativePath);
+      final nextRelativePath = parentPath.isEmpty ? name : '$parentPath/$name';
+      _openFolder(nextRelativePath);
+    }
+  }
+
+  Future<void> _hideFolder(FolderNode folder) async {
+    await ref.read(libraryRepositoryProvider).hideFolder(folder.path);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    if (mounted) {
+      setState(_clearMultiSelectStatus);
+    }
+  }
+
+  void _showSelectedMoveToFolderMenu({
+    required Map<String, FolderNode> nodes,
+    required Map<int, LibrarySong> songsById,
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required SmPlayerI18n i18n,
+    required bool hideMultiSelectCommandBarAfterOperation,
+  }) {
+    final moveItems = _buildLocalMoveToFolderMenuItems(
+      nodes: nodes,
+      songsById: songsById,
+      songIds: songIds,
+      folderPaths: folderPaths,
+      i18n: i18n,
+      onMoveToFolder: (targetFolder) async {
+        await _moveLocalItemsToFolder(
+          songIds: songIds,
+          folderPaths: folderPaths,
+          targetFolderPath: targetFolder.path,
+        );
+        if (mounted) {
+          setState(() {
+            _hideMultiSelectAfterOperation(
+              hideMultiSelectCommandBarAfterOperation,
+            );
+          });
+        }
+      },
+    );
+    if (moveItems.isEmpty) {
+      return;
+    }
+
+    showMenuFlyout(context, items: moveItems);
+  }
+
+  MenuFlyoutItem? _buildMoveToFolderMenuItem({
+    required Map<String, FolderNode> nodes,
+    required Map<int, LibrarySong> songsById,
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required SmPlayerI18n i18n,
+    required ValueChanged<FolderNode> onMoveToFolder,
+  }) {
+    final moveItems = _buildLocalMoveToFolderMenuItems(
+      nodes: nodes,
+      songsById: songsById,
+      songIds: songIds,
+      folderPaths: folderPaths,
+      i18n: i18n,
+      onMoveToFolder: onMoveToFolder,
+    );
+    if (moveItems.isEmpty) {
+      return null;
+    }
+
+    return MenuFlyoutItem(
+      key: 'move-to-folder',
+      text: i18n.t('context.moveToFolder'),
+      icon: FluentIcons.folder_20_regular,
+      submenu: moveItems,
+    );
+  }
+
+  List<MenuFlyoutItem> _buildLocalMoveToFolderMenuItems({
+    required Map<String, FolderNode> nodes,
+    required Map<int, LibrarySong> songsById,
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required SmPlayerI18n i18n,
+    required ValueChanged<FolderNode> onMoveToFolder,
+  }) {
+    final nodesByAbsolutePath = {
+      for (final node in nodes.values) normalizePath(node.path): node,
+    };
+    final songParentPaths =
+        songIds
+            .map(
+              (songId) => normalizePath(
+                _getAbsoluteParentPath(songsById[songId]!.path),
+              ),
+            )
+            .toSet();
+    final sourceFolders =
+        folderPaths
+            .map(
+              (folderPath) => nodesByAbsolutePath[normalizePath(folderPath)]!,
+            )
+            .toList();
+
+    bool isTargetFolder(FolderNode folder) {
+      if (songParentPaths.contains(normalizePath(folder.path))) {
+        return false;
+      }
+
+      return sourceFolders.every(
+        (sourceFolder) =>
+            folder.relativePath != sourceFolder.relativePath &&
+            folder.relativePath != getParentPath(sourceFolder.relativePath) &&
+            !folder.relativePath.startsWith('${sourceFolder.relativePath}/'),
+      );
+    }
+
+    String folderMenuText(FolderNode folder) {
+      return folder.name.isEmpty ? i18n.t('local.libraryRoot') : folder.name;
+    }
+
+    MenuFlyoutItem targetItem(FolderNode folder) {
+      return MenuFlyoutItem(
+        key:
+            'move-folder-${folder.relativePath.isEmpty ? 'root' : folder.relativePath}-target',
+        text: folderMenuText(folder),
+        icon: FluentIcons.folder_20_regular,
+        onPressed: () => onMoveToFolder(folder),
+      );
+    }
+
+    MenuFlyoutItem? treeItem(FolderNode folder) {
+      final childItems = [
+        for (final childPath in folder.childPaths)
+          if (treeItem(nodes[childPath]!) case final item?) item,
+      ];
+      if (childItems.isEmpty) {
+        return isTargetFolder(folder) ? targetItem(folder) : null;
+      }
+
+      return MenuFlyoutItem(
+        key:
+            'move-folder-${folder.relativePath.isEmpty ? 'root' : folder.relativePath}',
+        text: folderMenuText(folder),
+        icon: FluentIcons.folder_20_regular,
+        submenu:
+            isTargetFolder(folder)
+                ? [
+                  targetItem(folder),
+                  MenuFlyoutItem.separator(
+                    key:
+                        'move-folder-${folder.relativePath.isEmpty ? 'root' : folder.relativePath}-separator',
+                  ),
+                  ...childItems,
+                ]
+                : childItems,
+      );
+    }
+
+    final rootItem = treeItem(nodes['']!);
+    if (rootItem == null) {
+      return const [];
+    }
+    return rootItem.submenu.isEmpty ? [rootItem] : rootItem.submenu;
+  }
+
+  Future<void> _moveLocalItemsToFolder({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required String targetFolderPath,
+  }) async {
+    await ref
+        .read(libraryRepositoryProvider)
+        .moveLocalItemsToFolder(songIds, folderPaths, targetFolderPath);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _requestDeleteLocalItems({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required SmPlayerI18n i18n,
+  }) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Text(i18n.t('context.deleteFromDisk')),
+                content: Text(
+                  _formatDeleteSelectedLocalItemsConfirm(
+                    i18n,
+                    songIds.length + folderPaths.length,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(i18n.t('common.cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(i18n.t('context.deleteFromDisk')),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!confirmed) {
+      return;
+    }
+
+    await ref
+        .read(libraryRepositoryProvider)
+        .deleteLocalItems(songIds, folderPaths);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    if (mounted) {
+      setState(() {
+        _clearMultiSelectStatus();
+      });
+    }
+  }
+
+  Future<void> _requestDeleteFolder(
+    FolderNode folder,
+    SmPlayerI18n i18n,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Text(i18n.t('local.deleteFolder')),
+                content: Text(
+                  i18n.t('local.deleteFolderConfirm', {'name': folder.name}),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(i18n.t('common.cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(i18n.t('local.deleteFolder')),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!confirmed) {
+      return;
+    }
+
+    await ref.read(libraryRepositoryProvider).deleteLocalItems(const [], [
+      folder.path,
+    ]);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  String _getAbsoluteParentPath(String filePath) {
+    final index = max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/'));
+    return index < 0 ? '' : filePath.substring(0, index);
+  }
+
+  List<MenuFlyoutFolder> _menuFolders(List<LibraryFolder> folders) {
+    return folders
+        .map(
+          (folder) => MenuFlyoutFolder(
+            id: folder.id,
+            name: _displayFolderName(folder.path),
+            path: folder.path,
+            parentId: folder.parentId,
+          ),
+        )
+        .toList();
+  }
+
+  String _displayFolderName(String path) {
+    final segments = normalizePath(path).split('/');
+    return segments.isEmpty ? path : segments.last;
+  }
+
+  String _formatDeleteSelectedLocalItemsConfirm(
+    SmPlayerI18n i18n,
+    int itemCount,
+  ) {
+    if (i18n.locale.startsWith('zh')) {
+      return '要从磁盘删除选中的 $itemCount 个项目吗？';
+    }
+    return 'Delete $itemCount selected item${itemCount == 1 ? '' : 's'} from disk?';
   }
 
   void _playShuffled(FolderNode folder) {
@@ -918,6 +1634,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required SmPlayerI18n i18n,
     required String defaultName,
     required String Function(String value) validate,
+    String? title,
   }) async {
     final controller = TextEditingController(text: defaultName);
     String? errorText;
@@ -927,7 +1644,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
-              title: Text(i18n.t('local.newFolderPrompt')),
+              title: Text(title ?? i18n.t('local.newFolderPrompt')),
               content: TextField(
                 controller: controller,
                 autofocus: true,
@@ -1187,6 +1904,20 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     await Process.run('xdg-open', [folder.path]);
+  }
+
+  Future<void> _revealSong(LibrarySong song) async {
+    if (Platform.isWindows) {
+      await Process.run('explorer', ['/select,', song.path]);
+      return;
+    }
+
+    if (Platform.isMacOS) {
+      await Process.run('open', ['-R', song.path]);
+      return;
+    }
+
+    await Process.run('xdg-open', [_getAbsoluteParentPath(song.path)]);
   }
 
   void _jumpToSongKey(String key, Map<String, int> songQuickJumpMap) {

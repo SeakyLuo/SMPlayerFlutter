@@ -44,6 +44,7 @@ class LocalGridContent extends StatelessWidget {
     required this.onSearchFolder,
     required this.onRevealFolder,
     required this.onOpenFolder,
+    required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
@@ -51,6 +52,7 @@ class LocalGridContent extends StatelessWidget {
     required this.onPlayNext,
     required this.onToggleFavorite,
     required this.onAddSong,
+    required this.onOpenSongMenu,
     required this.onJumpToSongKey,
   });
 
@@ -85,6 +87,7 @@ class LocalGridContent extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
+  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
@@ -92,6 +95,7 @@ class LocalGridContent extends StatelessWidget {
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
   final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
   @override
@@ -116,6 +120,7 @@ class LocalGridContent extends StatelessWidget {
               onSearchFolder: onSearchFolder,
               onRevealFolder: onRevealFolder,
               onOpenFolder: onOpenFolder,
+              onOpenFolderMenu: onOpenFolderMenu,
               onToggleFolderSelection: onToggleFolderSelection,
               onPlayTrack: onPlayTrack,
               onTogglePlayPause: onTogglePlayPause,
@@ -123,6 +128,7 @@ class LocalGridContent extends StatelessWidget {
               onPlayNext: onPlayNext,
               onToggleFavorite: onToggleFavorite,
               onAddSong: onAddSong,
+              onOpenSongMenu: onOpenSongMenu,
             )
             : _LocalFolderGrid(
               childFolders: childFolders,
@@ -138,6 +144,7 @@ class LocalGridContent extends StatelessWidget {
               onSearchFolder: onSearchFolder,
               onRevealFolder: onRevealFolder,
               onOpenFolder: onOpenFolder,
+              onOpenFolderMenu: onOpenFolderMenu,
               onToggleFolderSelection: onToggleFolderSelection,
             );
     final songContent = _LocalSongGrid(
@@ -160,6 +167,7 @@ class LocalGridContent extends StatelessWidget {
       onPlayNext: onPlayNext,
       onToggleFavorite: onToggleFavorite,
       onAddSong: onAddSong,
+      onOpenSongMenu: onOpenSongMenu,
       onJumpToSongKey: onJumpToSongKey,
     );
 
@@ -210,6 +218,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
     required this.onSearchFolder,
     required this.onRevealFolder,
     required this.onOpenFolder,
+    required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
@@ -217,6 +226,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
     required this.onPlayNext,
     required this.onToggleFavorite,
     required this.onAddSong,
+    required this.onOpenSongMenu,
   });
 
   final List<LocalCompactTreeRow> rows;
@@ -236,6 +246,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
+  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
@@ -243,6 +254,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
   final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +288,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
                       onSearchFolder: onSearchFolder,
                       onRevealFolder: onRevealFolder,
                       onOpenFolder: onOpenFolder,
+                      onOpenFolderMenu: onOpenFolderMenu,
                       onToggleSelection: onToggleFolderSelection,
                     )
                     : _CompactLocalSongRow(
@@ -296,6 +309,8 @@ class _LocalCompactTreeContent extends StatelessWidget {
                             !row.song!.favorite,
                           ),
                       onAddSong: () => onAddSong(row.song!),
+                      onOpenMenu:
+                          (position) => onOpenSongMenu(row.song!, position),
                     ),
           ),
       ],
@@ -318,6 +333,7 @@ class _LocalFolderGrid extends StatelessWidget {
     required this.onSearchFolder,
     required this.onRevealFolder,
     required this.onOpenFolder,
+    required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
   });
 
@@ -334,6 +350,7 @@ class _LocalFolderGrid extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
+  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
 
   @override
@@ -358,6 +375,7 @@ class _LocalFolderGrid extends StatelessWidget {
                 onSearchFolder: onSearchFolder,
                 onRevealFolder: onRevealFolder,
                 onOpenFolder: onOpenFolder,
+                onOpenFolderMenu: onOpenFolderMenu,
                 onToggleSelection: onToggleFolderSelection,
               ),
             ),
@@ -383,6 +401,7 @@ class _LocalFolderGrid extends StatelessWidget {
             onSearchFolder: onSearchFolder,
             onRevealFolder: onRevealFolder,
             onOpenFolder: onOpenFolder,
+            onOpenFolderMenu: onOpenFolderMenu,
             onToggleSelection: onToggleFolderSelection,
           ),
       ],
@@ -411,6 +430,7 @@ class _LocalSongGrid extends StatelessWidget {
     required this.onPlayNext,
     required this.onToggleFavorite,
     required this.onAddSong,
+    required this.onOpenSongMenu,
     required this.onJumpToSongKey,
   });
 
@@ -433,6 +453,7 @@ class _LocalSongGrid extends StatelessWidget {
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
   final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
   @override
@@ -456,6 +477,7 @@ class _LocalSongGrid extends StatelessWidget {
                     onToggleFavorite:
                         () => onToggleFavorite(song.id, !song.favorite),
                     onAddSong: () => onAddSong(song),
+                    onOpenMenu: (position) => onOpenSongMenu(song, position),
                   ),
               ],
             )
@@ -481,6 +503,7 @@ class _LocalSongGrid extends StatelessWidget {
                     onTogglePlayPause: onTogglePlayPause,
                     onToggleSelection: () => onToggleSongSelection(song.id),
                     onAddSong: () => onAddSong(song),
+                    onOpenMenu: (position) => onOpenSongMenu(song, position),
                   ),
               ],
             );
@@ -522,6 +545,7 @@ class _LocalSongGridItem extends StatelessWidget {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onAddSong,
+    required this.onOpenMenu,
   });
 
   final LibrarySong song;
@@ -535,117 +559,121 @@ class _LocalSongGridItem extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback onAddSong;
+  final ValueChanged<Offset> onOpenMenu;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: multiSelect ? onToggleSelection : onPlay,
-      child: Container(
-        width: 180,
-        constraints: const BoxConstraints(minHeight: 232),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color:
-              selected || current
-                  ? LocalPageColors.surfaceCardHover
-                  : LocalPageColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow:
-              selected || current
-                  ? const [
-                    BoxShadow(
-                      color: LocalPageColors.panelShadow,
-                      offset: Offset(0, 16),
-                      blurRadius: 34,
+    return GestureDetector(
+      onSecondaryTapDown: (details) => onOpenMenu(details.globalPosition),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: multiSelect ? onToggleSelection : onPlay,
+        child: Container(
+          width: 180,
+          constraints: const BoxConstraints(minHeight: 232),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                selected || current
+                    ? LocalPageColors.surfaceCardHover
+                    : LocalPageColors.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow:
+                selected || current
+                    ? const [
+                      BoxShadow(
+                        color: LocalPageColors.panelShadow,
+                        offset: Offset(0, 16),
+                        blurRadius: 34,
+                      ),
+                    ]
+                    : const [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  LibraryRowArtwork(song: song, size: 160, onPlay: onPlay),
+                  if (multiSelect)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _LocalCheckMark(selected: selected),
                     ),
-                  ]
-                  : const [],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                LibraryRowArtwork(song: song, size: 160),
-                if (multiSelect)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _LocalCheckMark(selected: selected),
-                  ),
-                if (!multiSelect)
-                  Positioned.fill(
-                    child: Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _RoundSongAction(
-                            tooltip: i18n.t('local.gridMusicPlayInfo', {
-                              'name': song.title,
-                            }),
-                            icon:
-                                playing
-                                    ? FluentIcons.pause_20_regular
-                                    : FluentIcons.play_20_regular,
-                            onPressed: current ? onTogglePlayPause : onPlay,
-                          ),
-                          const SizedBox(width: 10),
-                          _RoundSongAction(
-                            tooltip: i18n.t('context.addToPlaylist'),
-                            icon: FluentIcons.add_20_regular,
-                            onPressed: onAddSong,
-                          ),
-                        ],
+                  if (!multiSelect)
+                    Positioned.fill(
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _RoundSongAction(
+                              tooltip: i18n.t('local.gridMusicPlayInfo', {
+                                'name': song.title,
+                              }),
+                              icon:
+                                  playing
+                                      ? FluentIcons.pause_20_regular
+                                      : FluentIcons.play_20_regular,
+                              onPressed: current ? onTogglePlayPause : onPlay,
+                            ),
+                            const SizedBox(width: 10),
+                            _RoundSongAction(
+                              tooltip: i18n.t('context.addToPlaylist'),
+                              icon: FluentIcons.add_20_regular,
+                              onPressed: onAddSong,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            current
+                                ? LocalPageColors.accentStrong
+                                : LocalPageColors.textStrong,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color:
-                          current
-                              ? LocalPageColors.accentStrong
-                              : LocalPageColors.textStrong,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
+                  if (song.favorite)
+                    const Icon(
+                      FluentIcons.heart_16_filled,
+                      color: LocalPageColors.favorite,
+                      size: 16,
                     ),
-                  ),
-                ),
-                if (song.favorite)
-                  const Icon(
-                    FluentIcons.heart_16_filled,
-                    color: LocalPageColors.favorite,
-                    size: 16,
-                  ),
-              ],
-            ),
-            if (detailLabel != null) ...[
-              const SizedBox(height: 3),
-              Text(
-                detailLabel!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color:
-                      current
-                          ? LocalPageColors.accentStrong
-                          : LocalPageColors.textMuted,
-                  fontSize: 12,
-                  height: 1.35,
-                ),
+                ],
               ),
+              if (detailLabel != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  detailLabel!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color:
+                        current
+                            ? LocalPageColors.accentStrong
+                            : LocalPageColors.textMuted,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -666,6 +694,7 @@ class _CompactLocalSongRow extends StatelessWidget {
     required this.onPlayNext,
     required this.onToggleFavorite,
     required this.onAddSong,
+    required this.onOpenMenu,
   });
 
   final LibrarySong song;
@@ -680,103 +709,107 @@ class _CompactLocalSongRow extends StatelessWidget {
   final VoidCallback onPlayNext;
   final VoidCallback onToggleFavorite;
   final VoidCallback onAddSong;
+  final ValueChanged<Offset> onOpenMenu;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: selectionMode ? onToggleSelection : onPlay,
-      child: Container(
-        height: 76,
-        padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
-        decoration: BoxDecoration(
-          color: selected ? LocalPageColors.rowSelected : Colors.transparent,
-          border: const Border(
-            top: BorderSide(color: LocalPageColors.rowBorder),
+    return GestureDetector(
+      onSecondaryTapDown: (details) => onOpenMenu(details.globalPosition),
+      child: InkWell(
+        onTap: selectionMode ? onToggleSelection : onPlay,
+        child: Container(
+          height: 76,
+          padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: selected ? LocalPageColors.rowSelected : Colors.transparent,
+            border: const Border(
+              top: BorderSide(color: LocalPageColors.rowBorder),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            selectionMode
-                ? SizedBox(
-                  width: 46,
-                  child: _LocalCheckMark(selected: selected),
-                )
-                : LibraryRowArtwork(song: song, size: 46),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color:
-                          current
-                              ? LocalPageColors.accentStrong
-                              : LocalPageColors.textStrong,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              selectionMode
+                  ? SizedBox(
+                    width: 46,
+                    child: _LocalCheckMark(selected: selected),
+                  )
+                  : LibraryRowArtwork(song: song, size: 46, onPlay: onPlay),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            current
+                                ? LocalPageColors.accentStrong
+                                : LocalPageColors.textStrong,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  Text(
-                    getLocalDisplayArtists(song, i18n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: LocalPageColors.textMuted,
-                      fontSize: 13,
+                    Text(
+                      getLocalDisplayArtists(song, i18n),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: LocalPageColors.textMuted,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                  Text(
-                    displayAlbum(song, i18n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: LocalPageColors.textMuted,
-                      fontSize: 13,
+                    Text(
+                      displayAlbum(song, i18n),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: LocalPageColors.textMuted,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              tooltip:
-                  playing ? i18n.t('player.pause') : i18n.t('context.play'),
-              icon: Icon(
-                playing
-                    ? FluentIcons.pause_20_regular
-                    : FluentIcons.play_20_regular,
-                size: 18,
+              IconButton(
+                tooltip:
+                    playing ? i18n.t('player.pause') : i18n.t('context.play'),
+                icon: Icon(
+                  playing
+                      ? FluentIcons.pause_20_regular
+                      : FluentIcons.play_20_regular,
+                  size: 18,
+                ),
+                onPressed: current ? onTogglePlayPause : onPlay,
               ),
-              onPressed: current ? onTogglePlayPause : onPlay,
-            ),
-            IconButton(
-              tooltip: i18n.t('context.playNext'),
-              icon: const Icon(FluentIcons.next_20_regular, size: 18),
-              onPressed: onPlayNext,
-            ),
-            IconButton(
-              tooltip:
+              IconButton(
+                tooltip: i18n.t('context.playNext'),
+                icon: const Icon(FluentIcons.next_20_regular, size: 18),
+                onPressed: onPlayNext,
+              ),
+              IconButton(
+                tooltip:
+                    song.favorite
+                        ? i18n.t('context.removeFavorite')
+                        : i18n.t('context.addFavorite'),
+                icon: Icon(
                   song.favorite
-                      ? i18n.t('context.removeFavorite')
-                      : i18n.t('context.addFavorite'),
-              icon: Icon(
-                song.favorite
-                    ? FluentIcons.heart_20_filled
-                    : FluentIcons.heart_20_regular,
-                size: 18,
+                      ? FluentIcons.heart_20_filled
+                      : FluentIcons.heart_20_regular,
+                  size: 18,
+                ),
+                onPressed: onToggleFavorite,
               ),
-              onPressed: onToggleFavorite,
-            ),
-            IconButton(
-              tooltip: i18n.t('context.addToPlaylist'),
-              icon: const Icon(FluentIcons.add_20_regular, size: 18),
-              onPressed: onAddSong,
-            ),
-          ],
+              IconButton(
+                tooltip: i18n.t('context.addToPlaylist'),
+                icon: const Icon(FluentIcons.add_20_regular, size: 18),
+                onPressed: onAddSong,
+              ),
+            ],
+          ),
         ),
       ),
     );

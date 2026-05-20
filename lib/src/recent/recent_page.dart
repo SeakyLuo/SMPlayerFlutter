@@ -8,6 +8,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -180,16 +181,17 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                       });
                     },
                   ),
-                  CommandBarButton(
-                    icon: FluentIcons.dismiss_20_regular,
-                    label: i18n.t('recent.clearHistory'),
-                    disabled:
-                        _activeTab == RecentTab.played
-                            ? recentPlayedCount == 0
-                            : _activeTab != RecentTab.searches ||
-                                snapshot.recentSearches.isEmpty,
-                    onPressed: _clearHistory,
-                  ),
+                  if (_activeTab == RecentTab.played ||
+                      _activeTab == RecentTab.searches)
+                    CommandBarButton(
+                      icon: FluentIcons.dismiss_20_regular,
+                      label: i18n.t('recent.clearHistory'),
+                      disabled:
+                          _activeTab == RecentTab.played
+                              ? recentPlayedCount == 0
+                              : snapshot.recentSearches.isEmpty,
+                      onPressed: _confirmClearHistory,
+                    ),
                 ],
               ),
               Expanded(
@@ -243,6 +245,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                           },
                           onOpenPlaylist: (playlistId) {
                             context.go('/playlists/$playlistId');
+                          },
+                          onRecordPlaylistPlayed: (playlistId) {
+                            ref
+                                .read(libraryRepositoryProvider)
+                                .recordPlaylistPlayed(playlistId);
+                            ref.invalidate(musicLibrarySnapshotProvider);
+                          },
+                          onRecordAlbumPlayed: (albumName) {
+                            ref
+                                .read(libraryRepositoryProvider)
+                                .recordAlbumPlayed(albumName);
+                            ref.invalidate(musicLibrarySnapshotProvider);
+                          },
+                          onRecordArtistPlayed: (artistName) {
+                            ref
+                                .read(libraryRepositoryProvider)
+                                .recordArtistPlayed(artistName);
+                            ref.invalidate(musicLibrarySnapshotProvider);
                           },
                           onOpenSongContextMenu: (
                             position,
@@ -299,6 +319,12 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   selectedCount: selectedCount,
                   playlists: customPlaylists,
                   showAddTo: _activeTab != RecentTab.searches,
+                  addToSongIds: selectedOperationSongIds,
+                  includeNowPlayingInAddTo: true,
+                  includeFavoritesInAddTo: hasNotFavoriteSongs(
+                    selectedOperationSongIds,
+                    {for (final song in snapshot.songs) song.id: song},
+                  ),
                   removeLabel: i18n.t('context.removeFromList'),
                   onPlay: () {
                     if (_activeTab == RecentTab.searches) {
@@ -311,32 +337,88 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                       );
                     });
                   },
-                  onAddToPlaylist: (_) {
-                    _showMessage(i18n.t('context.addToPlaylist'));
+                  onAddToNowPlaying: () {
+                    addSongsToNowPlaying(ref, selectedOperationSongIds);
                     setState(() {
                       _hideAfterOperation(
                         snapshot.hideMultiSelectCommandBarAfterOperation,
                       );
                     });
                   },
-                  onRemove: () {
-                    if (_activeTab == RecentTab.searches) {
-                      ref
-                          .read(libraryRepositoryProvider)
-                          .removeRecentSearches(selectedSearchIds);
-                    } else if (_activeTab == RecentTab.played &&
-                        _activePlayedFilter == RecentPlayedFilter.songs) {
-                      ref
-                          .read(libraryRepositoryProvider)
-                          .removeRecentPlayed(selectedVisibleSongIds);
+                  onToggleFavorite: () {
+                    final songsById = {
+                      for (final song in snapshot.songs) song.id: song,
+                    };
+                    setSongsFavorite(
+                      ref,
+                      notFavoriteSongIds(selectedOperationSongIds, songsById),
+                      true,
+                    );
+                    setState(() {
+                      _hideAfterOperation(
+                        snapshot.hideMultiSelectCommandBarAfterOperation,
+                      );
+                    });
+                  },
+                  onCreatePlaylist: () async {
+                    await createPlaylistWithSongs(
+                      context: context,
+                      ref: ref,
+                      i18n: i18n,
+                      playlists: snapshot.playlists,
+                      defaultName: _selectedPlaylistDefaultName(
+                        i18n,
+                        snapshot.playlists,
+                        recentPlaylistViews,
+                        recentAlbumViews,
+                        recentArtistViews,
+                      ),
+                      songIds: selectedOperationSongIds,
+                    );
+                    if (mounted) {
+                      setState(() {
+                        _hideAfterOperation(
+                          snapshot.hideMultiSelectCommandBarAfterOperation,
+                        );
+                      });
                     }
-                    ref.invalidate(musicLibrarySnapshotProvider);
+                  },
+                  onAddToPlaylist: (playlistId) {
+                    addSongsToPlaylist(
+                      ref,
+                      playlistId,
+                      selectedOperationSongIds,
+                    );
                     setState(() {
                       _hideAfterOperation(
                         snapshot.hideMultiSelectCommandBarAfterOperation,
                       );
                     });
                   },
+                  onRemove:
+                      _activeTab == RecentTab.added ||
+                              (_activeTab == RecentTab.played &&
+                                  _activePlayedFilter !=
+                                      RecentPlayedFilter.songs)
+                          ? null
+                          : () {
+                            if (_activeTab == RecentTab.searches) {
+                              ref
+                                  .read(libraryRepositoryProvider)
+                                  .removeRecentSearches(selectedSearchIds);
+                            } else {
+                              ref
+                                  .read(libraryRepositoryProvider)
+                                  .removeRecentPlayed(selectedVisibleSongIds);
+                            }
+                            ref.invalidate(musicLibrarySnapshotProvider);
+                            setState(() {
+                              _hideAfterOperation(
+                                snapshot
+                                    .hideMultiSelectCommandBarAfterOperation,
+                              );
+                            });
+                          },
                   onSelectAll: () {
                     setState(() {
                       _selectAll(
@@ -425,6 +507,38 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         ref.read(musicLibrarySnapshotProvider).value?.songs ?? const [];
     final songsById = {for (final song in songs) song.id: song};
     _playSong(songsById[songIds.first]!, songIds, 0);
+  }
+
+  Future<void> _confirmClearHistory() async {
+    final i18n = context.smPlayerI18n;
+    final message =
+        _activeTab == RecentTab.played
+            ? i18n.t('recent.clearPlayedConfirm')
+            : i18n.t('recent.clearSearchesConfirm');
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Text(i18n.t('common.confirm')),
+                content: Text(message),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(i18n.t('common.cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(i18n.t('common.confirm')),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!confirmed) {
+      return;
+    }
+    _clearHistory();
   }
 
   void _clearHistory() {
@@ -582,6 +696,32 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     return songIds.toSet().toList();
   }
 
+  String _selectedPlaylistDefaultName(
+    SmPlayerI18n i18n,
+    List<LibraryPlaylist> allPlaylists,
+    List<RecentPlaylistView> playlists,
+    List<RecentAlbumView> albums,
+    List<RecentArtistView> artists,
+  ) {
+    if (_activeTab != RecentTab.played ||
+        _activePlayedFilter == RecentPlayedFilter.songs ||
+        _selectedCollectionKeys.length != 1) {
+      return getNextPlaylistName(i18n.t('common.songs'), allPlaylists);
+    }
+
+    final key = _selectedCollectionKeys.first;
+    if (_activePlayedFilter == RecentPlayedFilter.playlists) {
+      return playlists
+          .firstWhere((playlist) => key == 'playlists:${playlist.playlist.id}')
+          .playlist
+          .name;
+    }
+    if (_activePlayedFilter == RecentPlayedFilter.albums) {
+      return albums.firstWhere((album) => key == 'albums:${album.name}').name;
+    }
+    return artists.firstWhere((artist) => key == 'artists:${artist.name}').name;
+  }
+
   void _hideAfterOperation(bool hideMultiSelectCommandBarAfterOperation) {
     _clearSelection();
     if (hideMultiSelectCommandBarAfterOperation) {
@@ -598,6 +738,18 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     final i18n = context.smPlayerI18n;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final folders =
+        snapshot.folders
+            .map(
+              (folder) => MenuFlyoutFolder(
+                id: folder.id,
+                name: _displayFolderName(folder.path),
+                path: folder.path,
+                parentId: folder.parentId,
+              ),
+            )
+            .toList();
     final canRemove =
         _activeTab == RecentTab.played &&
         _activePlayedFilter == RecentPlayedFilter.songs;
@@ -614,21 +766,31 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         songPath: song.path,
         playlists: playlists,
         showRemove: canRemove,
+        folders: folders,
+        showMoveToFolder: folders.isNotEmpty,
+        showHideFile: true,
         onPlay: () {
           _playSong(song, queueSongIds, queueSongIds.indexOf(song.id));
         },
         onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () {
-          _showMessage(i18n.t('context.playNext'));
+          _playNext(song.id);
         },
         onAddToNowPlaying: () {
-          _showMessage(i18n.t('common.nowPlaying'));
+          addSongsToNowPlaying(ref, [song.id]);
         },
-        onCreatePlaylist: () {
-          _showMessage(i18n.t('playlists.newPlaylist'));
+        onCreatePlaylist: () async {
+          await createPlaylistWithSongs(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlists: snapshot.playlists,
+            defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+            songIds: [song.id],
+          );
         },
-        onAddToPlaylist: (_) {
-          _showMessage(i18n.t('context.addToPlaylist'));
+        onAddToPlaylist: (playlistId) {
+          addSongsToPlaylist(ref, playlistId, [song.id]);
         },
         onRemove: () {
           ref.read(libraryRepositoryProvider).removeRecentPlayed([song.id]);
@@ -641,13 +803,16 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           });
         },
         onToggleFavorite: () {
-          _showMessage(i18n.t('common.myFavorites'));
+          setSongsFavorite(ref, [song.id], !song.favorite);
         },
         onSetPreference: (level) async {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
           ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        onMoveToFolder: (folderPath) {
+          moveSongToFolder(ref, song.id, folderPath);
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -666,7 +831,9 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           );
         },
         onSeeAlbum: () {
-          context.go('/albums?album=${Uri.encodeQueryComponent(song.album)}');
+          context.go(
+            '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(song, i18n))}',
+          );
         },
         onSeeMusicInfo: () {
           _showMessage(i18n.t('context.seeMusicInfo'));
@@ -706,19 +873,31 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       includeNowPlaying: true,
       includeFavorites: hasNotFavoriteSong,
       onAddToNowPlaying: () {
-        _showMessage(i18n.t('common.nowPlaying'));
+        addSongsToNowPlaying(ref, songIds);
       },
       onToggleFavorite:
           hasNotFavoriteSong
               ? () {
-                _showMessage(i18n.t('common.myFavorites'));
+                setSongsFavorite(
+                  ref,
+                  notFavoriteSongIds(songIds, songsById),
+                  true,
+                );
               }
               : null,
-      onCreatePlaylist: () {
-        _showMessage(i18n.t('playlists.newPlaylist'));
+      onCreatePlaylist: () async {
+        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        await createPlaylistWithSongs(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlists: snapshot.playlists,
+          defaultName: getNextPlaylistName(title, snapshot.playlists),
+          songIds: songIds,
+        );
       },
-      onAddToPlaylist: (_) {
-        _showMessage(i18n.t('context.addToPlaylist'));
+      onAddToPlaylist: (playlistId) {
+        addSongsToPlaylist(ref, playlistId, songIds);
       },
     );
     showMenuFlyout(
@@ -727,9 +906,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       items: [
         MenuFlyoutItem(
           key: 'play',
-          text: i18n.t('context.play'),
-          icon: FluentIcons.play_20_regular,
+          text:
+              key.startsWith('artists:')
+                  ? i18n.t('nowPlaying.randomPlay')
+                  : i18n.t('context.play'),
+          icon:
+              key.startsWith('artists:')
+                  ? FluentIcons.arrow_shuffle_20_regular
+                  : FluentIcons.play_20_regular,
           onPressed: () {
+            if (key.startsWith('playlists:')) {
+              ref
+                  .read(libraryRepositoryProvider)
+                  .recordPlaylistPlayed(int.parse(key.substring(10)));
+            } else if (key.startsWith('albums:')) {
+              ref.read(libraryRepositoryProvider).recordAlbumPlayed(title);
+            } else {
+              ref.read(libraryRepositoryProvider).recordArtistPlayed(title);
+            }
             _playSongIds(songIds);
           },
         ),
@@ -810,6 +1004,20 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _playNext(int songId) {
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final selectedQueueIndex =
+        ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
+    final insertIndex =
+        selectedQueueIndex != null && selectedQueueIndex < queueSongIds.length
+            ? selectedQueueIndex + 1
+            : queueSongIds.length;
+    queueSongIds.insert(insertIndex, songId);
+    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref.invalidate(musicLibrarySnapshotProvider);
   }
 }
 
@@ -1028,6 +1236,9 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onOpenAlbum,
     required this.onOpenArtist,
     required this.onOpenPlaylist,
+    required this.onRecordPlaylistPlayed,
+    required this.onRecordAlbumPlayed,
+    required this.onRecordArtistPlayed,
     required this.onOpenSongContextMenu,
     required this.onOpenCollectionContextMenu,
   });
@@ -1053,6 +1264,9 @@ class _RecentPlayedPanel extends StatelessWidget {
   final ValueChanged<String> onOpenAlbum;
   final ValueChanged<String> onOpenArtist;
   final ValueChanged<int> onOpenPlaylist;
+  final ValueChanged<int> onRecordPlaylistPlayed;
+  final ValueChanged<String> onRecordAlbumPlayed;
+  final ValueChanged<String> onRecordArtistPlayed;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenSongContextMenu;
   final void Function(
@@ -1086,6 +1300,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         selectedKeys: selectedCollectionKeys,
         onOpen: onOpenPlaylist,
         onPlay: (playlist) {
+          onRecordPlaylistPlayed(playlist.playlist.id);
           onPlaySongs(playlist.songs.map((song) => song.id).toList());
         },
         onToggleSelection: onToggleCollectionSelection,
@@ -1104,6 +1319,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         selectedKeys: selectedCollectionKeys,
         onOpen: onOpenAlbum,
         onPlay: (album) {
+          onRecordAlbumPlayed(album.name);
           onPlaySongs(album.songIds);
         },
         onToggleSelection: onToggleCollectionSelection,
@@ -1122,6 +1338,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         selectedKeys: selectedCollectionKeys,
         onOpen: onOpenArtist,
         onPlay: (artist) {
+          onRecordArtistPlayed(artist.name);
           onPlaySongs(artist.songs.map((song) => song.id).toList());
         },
         onToggleSelection: onToggleCollectionSelection,
@@ -1678,7 +1895,9 @@ class _CollectionCardState extends State<_CollectionCard> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color:
-                widget.selected || _hovered ? Colors.white : Colors.transparent,
+                widget.selected || _hovered
+                    ? _RecentColors.accentSoft
+                    : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Stack(
@@ -1885,7 +2104,7 @@ class _RecentPagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 12, 18, 0),
       child: SizedBox.expand(child: child),
     );
   }
@@ -1955,4 +2174,14 @@ class _RecentColors {
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
   static const overlay = Color(0xb81e2228);
+}
+
+String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
+  return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+}
+
+String _displayFolderName(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final index = normalized.lastIndexOf('/');
+  return index >= 0 ? normalized.substring(index + 1) : normalized;
 }

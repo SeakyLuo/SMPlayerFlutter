@@ -1,8 +1,10 @@
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
@@ -63,8 +65,8 @@ GoRouter createSmPlayerRouter() {
                 context.go('/now-playing');
               }
             },
-            onSearchCommit: (query) {
-              context.go('/search?query=${Uri.encodeQueryComponent(query)}');
+            onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
+              context.go(_searchRouteFor(query, type));
             },
           );
         },
@@ -102,10 +104,17 @@ GoRouter createSmPlayerRouter() {
                   searchQuery: state.uri.queryParameters['query'] ?? '',
                 ),
           ),
+          GoRoute(
+            path: '/hidden-folders',
+            builder: (_, _) => const HiddenFoldersPage(),
+          ),
           GoRoute(path: '/recent', builder: (_, _) => const RecentPage()),
           GoRoute(
             path: '/now-playing',
-            builder: (_, _) => const NowPlayingPage(),
+            builder:
+                (_, state) => NowPlayingPage(
+                  searchQuery: state.uri.queryParameters['search'] ?? '',
+                ),
           ),
           GoRoute(
             path: '/now-playing/full',
@@ -123,6 +132,7 @@ GoRouter createSmPlayerRouter() {
                 (_, state) => SearchPage(
                   query: state.uri.queryParameters['query'] ?? '',
                   activeType: state.uri.queryParameters['type'],
+                  folderRelativePath: state.uri.queryParameters['folder'],
                 ),
           ),
           GoRoute(
@@ -138,4 +148,16 @@ GoRouter createSmPlayerRouter() {
       ),
     ],
   );
+}
+
+String _searchRouteFor(String query, SearchHistoryType type) {
+  final encodedQuery = Uri.encodeQueryComponent(query);
+  return switch (type) {
+    SearchHistoryType.sidebar => '/search?query=$encodedQuery',
+    SearchHistoryType.artists => '/artists?artist=$encodedQuery',
+    SearchHistoryType.albums => '/albums?album=$encodedQuery',
+    SearchHistoryType.songs => '/songs?search=$encodedQuery',
+    SearchHistoryType.playlists => '/playlists?search=$encodedQuery',
+    SearchHistoryType.folders => '/search?query=$encodedQuery&type=folders',
+  };
 }

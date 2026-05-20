@@ -46,7 +46,31 @@ String getHeaderPlaylistInfo(List<LibrarySong> songs, SmPlayerI18n i18n) {
   }
 
   final duration = songs.fold<int>(0, (total, song) => total + song.duration);
-  return '$countText - ${formatDuration(duration)}';
+  return '$countText • ${formatDuration(duration)}';
+}
+
+String getAlbumPreferenceDisplayName(
+  String albumName,
+  List<LibrarySong> songs,
+  SmPlayerI18n i18n,
+) {
+  final albumTitle =
+      albumName.isEmpty ? i18n.t('common.albumUnknown') : albumName;
+  final firstSong = songs.firstOrNull;
+  final artist =
+      firstSong == null
+          ? i18n.t('common.artistUnknown')
+          : _displayArtistsForPreference(firstSong, i18n);
+  return '$albumTitle - $artist';
+}
+
+String _displayArtistsForPreference(LibrarySong song, SmPlayerI18n i18n) {
+  final artists =
+      song.artists.where((artist) => artist.trim().isNotEmpty).toList();
+  if (artists.isNotEmpty) {
+    return artists.join(i18n.t('common.artistSeparator'));
+  }
+  return song.artist.isEmpty ? i18n.t('common.artistUnknown') : song.artist;
 }
 
 List<LibrarySong> sortSongs(
