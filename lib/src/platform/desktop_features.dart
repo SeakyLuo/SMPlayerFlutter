@@ -339,6 +339,10 @@ abstract class DesktopFeatureService {
 
   Future<void> updateDesktopLyricsState(DesktopLyricsDisplayState state);
 
+  Future<void> enterMiniMode();
+
+  Future<void> exitMiniMode();
+
   Future<void> toggleWindowVisibility();
 
   Future<void> quit();
@@ -371,6 +375,12 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
   ) async {}
 
   @override
+  Future<void> enterMiniMode() async {}
+
+  @override
+  Future<void> exitMiniMode() async {}
+
+  @override
   Future<void> toggleWindowVisibility() async {}
 
   @override
@@ -385,9 +395,11 @@ class TrayWindowDesktopFeatureService
     implements DesktopFeatureService {
   ValueChanged<DesktopFeatureAction>? _onAction;
   DesktopTrayState? _lastTrayState;
+  Rect? _boundsBeforeMiniMode;
   var _initialized = false;
   var _quitting = false;
   var _shownTrayHint = false;
+  var _miniModeActive = false;
 
   @override
   Future<void> initialize(ValueChanged<DesktopFeatureAction> onAction) async {
@@ -443,6 +455,29 @@ class TrayWindowDesktopFeatureService
       return;
     }
 
+    if (Platform.isWindows) {
+      final title = _powerShellString(payload.title);
+      final message = _powerShellString(body);
+      await _ignorePlatformErrors(
+        Process.run('powershell', [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          '''
+\$template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02
+\$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(\$template)
+\$textNodes = \$xml.GetElementsByTagName('text')
+\$textNodes.Item(0).AppendChild(\$xml.CreateTextNode($title)) | Out-Null
+\$textNodes.Item(1).AppendChild(\$xml.CreateTextNode($message)) | Out-Null
+\$toast = [Windows.UI.Notifications.ToastNotification]::new(\$xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('SMPlayer').Show(\$toast)
+''',
+        ]),
+      );
+      return;
+    }
+
     if (Platform.isLinux) {
       await _ignorePlatformErrors(
         Process.run('notify-send', [payload.title, body]),
@@ -455,6 +490,16 @@ class TrayWindowDesktopFeatureService
     await _ignorePlatformErrors(
       windowManager.setIgnoreMouseEvents(state.visible && state.locked),
     );
+  }
+
+  @override
+  Future<void> enterMiniMode() async {
+    await _ignorePlatformErrors(_enterMiniMode());
+  }
+
+  @override
+  Future<void> exitMiniMode() async {
+    await _ignorePlatformErrors(_exitMiniMode());
   }
 
   @override
@@ -551,6 +596,45 @@ class TrayWindowDesktopFeatureService
     _onAction?.call(action);
   }
 
+  Future<void> _enterMiniMode() async {
+    if (!_miniModeActive) {
+      _boundsBeforeMiniMode = await windowManager.getBounds();
+    }
+    if (await windowManager.isFullScreen()) {
+      await windowManager.setFullScreen(false);
+    }
+    final bounds = await windowManager.getBounds();
+    final x = bounds.left + bounds.width - _miniModeWindowSize.width;
+    final y = bounds.top;
+    _miniModeActive = true;
+    await windowManager.setMinimumSize(_miniModeWindowSize);
+    await windowManager.setBounds(
+      Rect.fromLTWH(
+        x,
+        y,
+        _miniModeWindowSize.width,
+        _miniModeWindowSize.height,
+      ),
+      animate: true,
+    );
+    await windowManager.setResizable(true);
+    await windowManager.setMaximizable(false);
+    await windowManager.setAlwaysOnTop(true);
+  }
+
+  Future<void> _exitMiniMode() async {
+    _miniModeActive = false;
+    await windowManager.setAlwaysOnTop(false);
+    await windowManager.setResizable(true);
+    await windowManager.setMaximizable(true);
+    await windowManager.setMinimumSize(_defaultWindowMinimumSize);
+    final bounds = _boundsBeforeMiniMode;
+    if (bounds != null) {
+      await windowManager.setBounds(bounds, animate: true);
+    }
+    _boundsBeforeMiniMode = null;
+  }
+
   Future<void> _ignorePlatformErrors<T>(Future<T> action) async {
     try {
       await action;
@@ -595,6 +679,13 @@ DesktopFeatureCommand _desktopFeatureCommandFromPlatform(String command) {
   };
 }
 
+const _miniModeWindowSize = Size(360, 360);
+const _defaultWindowMinimumSize = Size(506, 840);
+
 String _appleScriptString(String value) {
   return '"${value.replaceAll(r'\', r'\\').replaceAll('"', r'\"')}"';
+}
+
+String _powerShellString(String value) {
+  return "'${value.replaceAll("'", "''")}'";
 }

@@ -34,6 +34,7 @@ class MediaControl extends StatelessWidget {
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
     required this.onEnterMiniMode,
+    this.onOpenVoiceAssistant,
     this.currentSong,
     this.playlists = const [],
     this.preferenceLevel,
@@ -75,6 +76,7 @@ class MediaControl extends StatelessWidget {
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
   final VoidCallback onEnterMiniMode;
+  final VoidCallback? onOpenVoiceAssistant;
   final String? preferenceLevel;
   final VoidCallback? onAddToNowPlaying;
   final VoidCallback? onCreatePlaylist;
@@ -152,6 +154,7 @@ class MediaControl extends StatelessWidget {
                       onOpenNowPlaying: onOpenNowPlaying,
                       onToggleWindowFullScreen: onToggleWindowFullScreen,
                       onEnterMiniMode: onEnterMiniMode,
+                      onOpenVoiceAssistant: onOpenVoiceAssistant,
                     );
                   }
 
@@ -258,6 +261,7 @@ class MediaControl extends StatelessWidget {
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
+        onOpenVoiceAssistant: onOpenVoiceAssistant,
         currentSong: currentSong,
         playlists: playlists,
         preferenceLevel: preferenceLevel,
@@ -620,6 +624,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
     required this.onEnterMiniMode,
+    this.onOpenVoiceAssistant,
   });
 
   final MediaControlTrack track;
@@ -646,6 +651,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
   final VoidCallback onEnterMiniMode;
+  final VoidCallback? onOpenVoiceAssistant;
 
   @override
   Widget build(BuildContext context) {
@@ -747,6 +753,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                           onOpenNowPlaying: onOpenNowPlaying,
                           onToggleWindowFullScreen: onToggleWindowFullScreen,
                           onEnterMiniMode: onEnterMiniMode,
+                          onOpenVoiceAssistant: onOpenVoiceAssistant,
                         );
                       },
                     ),
@@ -818,6 +825,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required VoidCallback onOpenNowPlaying,
     required VoidCallback onToggleWindowFullScreen,
     required VoidCallback onEnterMiniMode,
+    VoidCallback? onOpenVoiceAssistant,
   }) {
     showMenuFlyout(
       context,
@@ -836,6 +844,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
+        onOpenVoiceAssistant: onOpenVoiceAssistant,
         onSeeAlbum: onOpenNowPlaying,
         onSeeMusicInfo: onOpenNowPlaying,
         onSeeLyrics: onOpenNowPlaying,
@@ -861,6 +870,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onOpenNowPlaying,
   required VoidCallback onToggleWindowFullScreen,
   required VoidCallback onEnterMiniMode,
+  VoidCallback? onOpenVoiceAssistant,
   LibrarySong? currentSong,
   List<LibraryPlaylist> playlists = const [],
   String? preferenceLevel,
@@ -1041,6 +1051,14 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       icon: Icons.fullscreen_rounded,
       onPressed: onToggleWindowFullScreen,
     ),
+    if (onOpenVoiceAssistant != null)
+      MenuFlyoutItem(
+        key: 'voice-assistant',
+        text: i18n.t('player.voiceAssistant'),
+        icon: Icons.mic_rounded,
+        disabled: trackId == null,
+        onPressed: onOpenVoiceAssistant,
+      ),
     MenuFlyoutItem(
       key: 'mini-mode',
       text: i18n.t('player.enterMiniMode'),
