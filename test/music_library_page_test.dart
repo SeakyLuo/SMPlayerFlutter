@@ -34,6 +34,7 @@ void main() {
       'common.multiSelect': 'Multi Select',
       'common.play': 'Play',
       'common.songs': 'Songs',
+      'common.undo': 'Undo',
       'common.favorite': 'Favorite',
       'common.artist': 'Artist',
       'common.album': 'Album',
@@ -63,6 +64,9 @@ void main() {
       'library.scanToBegin': 'Scan to begin',
       'library.tryAnotherSearch': 'Try another search.',
       'musicLibrary.titleHeader': 'Title',
+      'notification.deletedFromDisk': 'Deleted {title} from disk',
+      'notification.hiddenStorageItem': 'Hidden "{name}"',
+      'notification.movedSong': 'Moved "{title}"',
       'nowPlaying.randomPlay': 'Shuffle',
       'player.more': 'More',
       'playlists.delete': 'Delete',
@@ -555,6 +559,30 @@ void main() {
     expect(find.text('See In File Explorer'), findsOneWidget);
   });
 
+  testWidgets('MusicLibraryPage song view menu opens MusicDialog', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('See Music Info'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Blue Song'), findsWidgets);
+    expect(find.text('See Lyrics'), findsOneWidget);
+    expect(find.text('See Album Art'), findsOneWidget);
+  });
+
   testWidgets('MusicLibraryPage multi-select play replaces Now Playing', (
     tester,
   ) async {
@@ -780,12 +808,13 @@ void main() {
     await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Hide File'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(repository.hiddenSongId, 1);
+    expect(find.text('Undo'), findsOneWidget);
   });
 
-  testWidgets('MusicLibraryPage right menu deletes a song after confirmation', (
+  testWidgets('MusicLibraryPage right menu uses pending delete undo flow', (
     tester,
   ) async {
     final repository = _FakeLibraryRepository();
@@ -806,7 +835,8 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await tester.pumpAndSettle();
 
-    expect(repository.deletedSongId, 1);
+    expect(repository.pendingDeletedSongId, 1);
+    expect(find.text('Undo'), findsOneWidget);
   });
 
   testWidgets('MusicLibraryPage Move To Folder passes Electron folder path', (
@@ -1064,7 +1094,9 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceItemId;
   String? preferenceName;
   String? preferenceLevel;
-  int? deletedSongId;
+  int? pendingDeletedSongId;
+  final committedDeleteIds = <String>[];
+  final undoneDeleteIds = <String>[];
   int? hiddenSongId;
   int? movedSongId;
   String? movedFolderPath;
@@ -1100,8 +1132,19 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> deleteSongFromDisk(int songId) async {
-    deletedSongId = songId;
+  Future<PendingSongDelete> beginDeleteSongFromDisk(int songId) async {
+    pendingDeletedSongId = songId;
+    return PendingSongDelete(id: 'pending-$songId', songId: songId);
+  }
+
+  @override
+  Future<void> commitDeleteSongFromDisk(String deleteId) async {
+    committedDeleteIds.add(deleteId);
+  }
+
+  @override
+  Future<void> undoDeleteSongFromDisk(String deleteId) async {
+    undoneDeleteIds.add(deleteId);
   }
 
   @override
@@ -1110,9 +1153,96 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> moveSongToFolder(int songId, String folderPath) async {
+  Future<void> unhideSong(int songId) async {
+    hiddenSongId = null;
+  }
+
+  @override
+  Future<void> undoMoveLocalItems(LocalItemsMoveResult result) async {
+    movedSongId = null;
+    movedFolderPath = null;
+  }
+
+  @override
+  Future<LocalItemsMoveResult> moveSongToFolder(
+    int songId,
+    String folderPath,
+  ) async {
     movedSongId = songId;
     movedFolderPath = folderPath;
+    return LocalItemsMoveResult(
+      songs: [
+        LocalSongMove(
+          id: songId,
+          oldPath: 'old-$songId.mp3',
+          newPath: '$folderPath/$songId.mp3',
+        ),
+      ],
+      folders: const [],
+    );
+  }
+
+  @override
+  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
+    return SongPropertiesSnapshot(
+      songId: songId,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      subtitle: '',
+      artist: 'Artist A',
+      artists: const ['Artist A'],
+      album: 'Blue Album',
+      albumArtist: '',
+      publisher: '',
+      trackNumber: 0,
+      year: 0,
+      genre: '',
+      composers: '',
+      duration: 180,
+      bitrate: 0,
+      fileSize: 1024,
+      dateCreated: '2026-01-01T00:00:00Z',
+      dateModified: '2026-01-01T00:00:00Z',
+      fileType: 'MP3',
+      playCount: 0,
+    );
+  }
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+    return const LyricsSnapshot(
+      source: LyricsSource.none,
+      isSynced: false,
+      rawText: '',
+      lines: [],
+    );
+  }
+
+  @override
+  Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
+    return SongArtworkSnapshot(
+      songId: songId,
+      artworkUrl: '',
+      sourceUrl: '',
+      sourcePath: '',
+      source: SongArtworkSource.none,
+    );
+  }
+
+  @override
+  Future<List<SongArtworkSnapshot>> getSongArtworkSnapshots(
+    List<int> songIds,
+  ) async {
+    return [
+      for (final songId in songIds)
+        SongArtworkSnapshot(
+          songId: songId,
+          artworkUrl: '',
+          sourceUrl: '',
+          sourcePath: '',
+          source: SongArtworkSource.none,
+        ),
+    ];
   }
 }
 

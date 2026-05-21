@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/loading_state.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart' hide formatDuration;
 import '../../playback/media_control_provider.dart';
@@ -17,8 +19,10 @@ import 'artists_page_model.dart';
 import 'command_bar.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
+import 'music_dialog.dart';
 import 'page_selection_store.dart';
 import 'page_search_history_panel.dart';
+import '../../platform/desktop_features.dart';
 import 'quick_jump_tooltip.dart';
 
 class ArtistsPage extends ConsumerStatefulWidget {
@@ -41,6 +45,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   final _selection = PageSelectionController<int>.stored('artists');
   final _artistListController = ScrollController();
   final _artistDetailController = ScrollController();
+  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
 
   @override
   void initState() {
@@ -75,16 +80,16 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     final mediaState = ref.watch(mediaControlControllerProvider).state;
 
     if (i18nValue.isLoading) {
-      return const _ArtistsPagePanel(child: _ArtistsLoadingState());
+      return const _ArtistsPagePanel(child: SmPlayerLoadingState());
     }
 
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const _ArtistsPagePanel(child: _ArtistsLoadingState());
+      return const _ArtistsPagePanel(child: SmPlayerLoadingState());
     }
 
     return snapshotValue.when(
-      loading: () => const _ArtistsPagePanel(child: _ArtistsLoadingState()),
+      loading: () => const _ArtistsPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _ArtistsPagePanel(
             child: _ArtistsEmptyState(
@@ -445,7 +450,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     selectedVisibleSongIds.isEmpty
                         ? null
                         : () {
-                          addSongsToNowPlaying(ref, selectedVisibleSongIds);
+                          addSongsToNowPlayingWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: selectedVisibleSongIds,
+                          );
                           setState(() {
                             _hideAfterOperation(
                               snapshot.hideMultiSelectCommandBarAfterOperation,
@@ -456,13 +466,15 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     selectedVisibleSongIds.isEmpty
                         ? null
                         : () {
-                          setSongsFavorite(
-                            ref,
-                            notFavoriteSongIds(
+                          setSongsFavoriteWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: notFavoriteSongIds(
                               selectedVisibleSongIds,
                               songsById,
                             ),
-                            true,
+                            favorite: true,
                           );
                           setState(() {
                             _hideAfterOperation(
@@ -504,7 +516,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   });
                 },
                 onAddToPlaylist: (playlistId) {
-                  addSongsToPlaylist(ref, playlistId, selectedVisibleSongIds);
+                  addSongsToPlaylistWithUndo(
+                    context: context,
+                    ref: ref,
+                    i18n: i18n,
+                    playlistId: playlistId,
+                    songIds: selectedVisibleSongIds,
+                  );
                   setState(() {
                     _hideAfterOperation(
                       snapshot.hideMultiSelectCommandBarAfterOperation,
@@ -526,6 +544,28 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 },
                 onCancel: () {
                   setState(_selection.cancel);
+                },
+              ),
+            if (_musicDialog case final dialog?)
+              MusicDialog(
+                song: dialog.song,
+                initialMode: dialog.mode,
+                canPause:
+                    dialog.song.id == mediaState.track.id &&
+                    mediaState.isPlaying,
+                onPlay: () {
+                  _playTrackInQueue(dialog.song.id, [dialog.song.id]);
+                },
+                onReveal: (path) {
+                  unawaited(revealItemInFolder(path));
+                },
+                onSaved: () {
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
+                onClose: () {
+                  setState(() {
+                    _musicDialog = null;
+                  });
                 },
               ),
           ],
@@ -807,13 +847,24 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       includeNowPlaying: true,
       includeFavorites: notFavoriteIds.isNotEmpty,
       onAddToNowPlaying: () {
-        addSongsToNowPlaying(ref, songIds);
+        addSongsToNowPlayingWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: songIds,
+        );
       },
       onToggleFavorite:
           notFavoriteIds.isEmpty
               ? null
               : () {
-                setSongsFavorite(ref, notFavoriteIds, true);
+                setSongsFavoriteWithUndo(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  songIds: notFavoriteIds,
+                  favorite: true,
+                );
               },
       onCreatePlaylist: () async {
         await createPlaylistWithSongs(
@@ -826,7 +877,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         );
       },
       onAddToPlaylist: (playlistId) {
-        addSongsToPlaylist(ref, playlistId, songIds);
+        addSongsToPlaylistWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlistId: playlistId,
+          songIds: songIds,
+        );
       },
     );
 
@@ -952,7 +1009,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           _playNext(song.id);
         },
         onAddToNowPlaying: () {
-          addSongsToNowPlaying(ref, [song.id]);
+          addSongsToNowPlayingWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
+          );
         },
         onCreatePlaylist: () async {
           await createPlaylistWithSongs(
@@ -965,7 +1027,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           );
         },
         onAddToPlaylist: (playlistId) {
-          addSongsToPlaylist(ref, playlistId, [song.id]);
+          addSongsToPlaylistWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlistId: playlistId,
+            songIds: [song.id],
+          );
         },
         onRemove: () {},
         onSelect: () {
@@ -977,7 +1045,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           });
         },
         onToggleFavorite: () {
-          setSongsFavorite(ref, [song.id], true);
+          setSongsFavoriteWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
+            favorite: true,
+          );
         },
         onSetPreference: (level) async {
           await ref
@@ -1005,27 +1079,25 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           );
         },
         onSeeMusicInfo: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(i18n.t('context.seeMusicInfo'))),
-          );
+          _openMusicDialog(song, SongDialogMode.properties);
         },
         onSeeLyrics: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(i18n.t('context.seeLyrics'))));
+          _openMusicDialog(song, SongDialogMode.lyrics);
         },
         onSeeAlbumArt: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(i18n.t('context.seeAlbumArt'))),
-          );
+          _openMusicDialog(song, SongDialogMode.albumArt);
         },
         onSeeLocal: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(song.path)));
+          unawaited(revealItemInFolder(song.path));
         },
       ),
     );
+  }
+
+  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+    setState(() {
+      _musicDialog = (song: song, mode: mode);
+    });
   }
 
   void _showSongAddToMenu(BuildContext buttonContext, LibrarySong song) {
@@ -1049,13 +1121,24 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       includeNowPlaying: true,
       includeFavorites: !song.favorite,
       onAddToNowPlaying: () {
-        addSongsToNowPlaying(ref, [song.id]);
+        addSongsToNowPlayingWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: [song.id],
+        );
       },
       onToggleFavorite:
           song.favorite
               ? null
               : () {
-                setSongsFavorite(ref, [song.id], true);
+                setSongsFavoriteWithUndo(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  songIds: [song.id],
+                  favorite: true,
+                );
               },
       onCreatePlaylist: () async {
         await createPlaylistWithSongs(
@@ -1068,7 +1151,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         );
       },
       onAddToPlaylist: (playlistId) {
-        addSongsToPlaylist(ref, playlistId, [song.id]);
+        addSongsToPlaylistWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlistId: playlistId,
+          songIds: [song.id],
+        );
       },
     );
     if (addToItem == null) {
@@ -2149,15 +2238,6 @@ class _ArtistsPagePanel extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: SizedBox.expand(child: child),
     );
-  }
-}
-
-class _ArtistsLoadingState extends StatelessWidget {
-  const _ArtistsLoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator(strokeWidth: 2.5));
   }
 }
 

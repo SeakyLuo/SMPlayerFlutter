@@ -8,7 +8,6 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
-import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 void main() {
   setUp(() {
@@ -49,13 +48,17 @@ void main() {
   testWidgets('PlaylistsPage persists Electron last selected playlist', (
     tester,
   ) async {
+    final repository = _FakeLibraryRepository();
+
     await tester.pumpWidget(
-      _PlaylistTestApp(child: const PlaylistsPage(selectedPlaylistId: 7)),
+      _PlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(selectedPlaylistId: 7),
+      ),
     );
     await tester.pumpAndSettle();
 
-    final preferences = await SharedPreferences.getInstance();
-    expect(preferences.getInt(SmPlayerSettingsStorageKeys.lastPlaylistId), 7);
+    expect(repository.lastPlaylistId, 7);
   });
 
   testWidgets('PlaylistsPage Add To excludes the current playlist', (
@@ -139,6 +142,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceItemId;
   String? preferenceName;
   String? preferenceLevel;
+  int? lastPlaylistId;
 
   @override
   Future<void> addPreferenceItem(
@@ -156,6 +160,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<String?> getPreferenceLevel(String type, String itemId) async {
     return null;
+  }
+
+  @override
+  Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
+    this.lastPlaylistId = lastPlaylistId;
   }
 }
 

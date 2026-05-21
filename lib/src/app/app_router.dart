@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -8,6 +9,7 @@ import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
@@ -19,6 +21,7 @@ import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
@@ -53,38 +56,42 @@ GoRouter createSmPlayerRouter({
               isArtistDetailRoute ||
               path == '/now-playing/full';
 
-          return SmPlayerShellPage(
-            currentPath: path,
-            canGoBack: canGoBack,
-            onNavigate: (target) {
-              context.go(target);
-            },
-            onGoBack: () {
-              if (isPlaylistDetailRoute) {
-                context.go('/playlists');
-                return;
-              }
+          return Consumer(
+            builder:
+                (context, ref, _) => SmPlayerShellPage(
+                  currentPath: path,
+                  canGoBack: canGoBack,
+                  settingsRepository: ref.read(libraryRepositoryProvider),
+                  onNavigate: (target) {
+                    context.go(target);
+                  },
+                  onGoBack: () {
+                    if (isPlaylistDetailRoute) {
+                      context.go('/playlists');
+                      return;
+                    }
 
-              if (isAlbumDetailRoute) {
-                context.go('/albums');
-                return;
-              }
+                    if (isAlbumDetailRoute) {
+                      context.go('/albums');
+                      return;
+                    }
 
-              if (isArtistDetailRoute) {
-                context.go('/artists');
-                return;
-              }
+                    if (isArtistDetailRoute) {
+                      context.go('/artists');
+                      return;
+                    }
 
-              if (path == '/now-playing/full') {
-                context.go('/now-playing');
-              }
-            },
-            onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
-              context.go(_searchRouteFor(query, type));
-            },
-            initialExternalFilePaths: initialExternalFilePaths,
-            initialExternalCommands: initialExternalCommands,
-            child: child,
+                    if (path == '/now-playing/full') {
+                      context.go('/now-playing');
+                    }
+                  },
+                  onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
+                    context.go(_searchRouteFor(query, type));
+                  },
+                  initialExternalFilePaths: initialExternalFilePaths,
+                  initialExternalCommands: initialExternalCommands,
+                  child: child,
+                ),
           );
         },
         routes: [
@@ -145,17 +152,41 @@ GoRouter createSmPlayerRouter({
           GoRoute(
             path: '/settings',
             builder:
-                (context, _) => SettingsPage(
-                  controller: settingsController,
-                  onSendFeedbackEmail: () {
-                    unawaited(_sendFeedbackEmail(context.smPlayerI18n.locale));
-                  },
-                  onOpenFeedbackInBrowser: () {
-                    unawaited(launchUrl(Uri.parse(_feedbackIssueUrl)));
-                  },
-                  onRevealSystemLogs: () {
-                    unawaited(_revealSystemLogs());
-                  },
+                (context, _) => Consumer(
+                  builder:
+                      (context, ref, _) => SettingsPage(
+                        controller: settingsController,
+                        libraryRepository: ref.read(libraryRepositoryProvider),
+                        onScanLibrary: (
+                          rootPath, {
+                          cancellation,
+                          onProgress,
+                        }) async {
+                          await ref
+                              .read(libraryRepositoryProvider)
+                              .scanAllMusicLibrary(
+                                rootPath,
+                                cancellation: cancellation,
+                                onProgress: onProgress,
+                              );
+                          ref.invalidate(musicLibrarySnapshotProvider);
+                        },
+                        onDataImported: () async {
+                          await settingsController?.refresh();
+                          ref.invalidate(musicLibrarySnapshotProvider);
+                        },
+                        onSendFeedbackEmail: () {
+                          unawaited(
+                            _sendFeedbackEmail(context.smPlayerI18n.locale),
+                          );
+                        },
+                        onOpenFeedbackInBrowser: () {
+                          unawaited(launchUrl(Uri.parse(_feedbackIssueUrl)));
+                        },
+                        onRevealSystemLogs: () {
+                          unawaited(_revealSystemLogs());
+                        },
+                      ),
                 ),
           ),
           GoRoute(
@@ -210,16 +241,7 @@ Future<void> _revealSystemLogs() async {
   final supportDirectory = await getApplicationSupportDirectory();
   final logsDirectory = Directory(p.join(supportDirectory.path, 'Logs'));
   await logsDirectory.create(recursive: true);
-
-  if (Platform.isWindows) {
-    await Process.start('explorer.exe', [logsDirectory.path]);
-    return;
-  }
-  if (Platform.isMacOS) {
-    await Process.start('open', [logsDirectory.path]);
-    return;
-  }
-  await Process.start('xdg-open', [logsDirectory.path]);
+  await openFolderInShell(logsDirectory.path);
 }
 
 String _searchRouteFor(String query, SearchHistoryType type) {

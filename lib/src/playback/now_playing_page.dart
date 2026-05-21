@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -13,6 +14,7 @@ import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
@@ -47,8 +49,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final i18n = context.smPlayerI18n;
 
     return snapshotValue.when(
-      loading:
-          () => const _NowPlayingPagePanel(child: _NowPlayingLoadingState()),
+      loading: () => const _NowPlayingPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _NowPlayingPagePanel(
             child: _NowPlayingEmptyState(
@@ -730,10 +731,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           );
         },
         onHide: () {
-          unawaited(hideSongFile(ref, song.id));
+          unawaited(_hideQueueSongFileWithUndo(song, queueSongIds));
         },
         onMoveToFolder: (folderPath) {
-          unawaited(moveSongToFolder(ref, song.id, folderPath));
+          unawaited(
+            moveSongToFolderWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              song: song,
+              folderPath: folderPath,
+            ),
+          );
         },
         onSeeArtist: () {
           final artist =
@@ -1015,29 +1024,46 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     );
   }
 
+  Future<void> _hideQueueSongFileWithUndo(
+    LibrarySong song,
+    List<int> queueSongIds,
+  ) async {
+    final removedEntries = _queueEntriesForSong(queueSongIds, song.id);
+    await ref.read(libraryRepositoryProvider).hideSong(song.id);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    _replaceQueue([
+      for (final songId in queueSongIds)
+        if (songId != song.id) songId,
+    ]);
+    if (!mounted) {
+      return;
+    }
+    _showUndo(
+      context.smPlayerI18n.t('notification.hiddenStorageItem', {
+        'name': song.title,
+      }),
+      () async {
+        await ref.read(libraryRepositoryProvider).unhideSong(song.id);
+        ref.invalidate(musicLibrarySnapshotProvider);
+        final snapshot =
+            await ref.read(libraryRepositoryProvider).getMusicLibrarySnapshot();
+        _replaceQueue(
+          _insertQueueEntries(snapshot.nowPlaying.songIds, removedEntries),
+        );
+      },
+    );
+  }
+
   Future<void> _revealPath(String targetPath) async {
-    if (Platform.isWindows) {
-      await Process.start('explorer.exe', ['/select,$targetPath']);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.start('open', ['-R', targetPath]);
-      return;
-    }
-    await Process.start('xdg-open', [File(targetPath).parent.path]);
+    await revealItemInFolder(targetPath);
   }
 
   void _showUndo(String message, FutureOr<void> Function() action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: SnackBarAction(
-          label: context.smPlayerI18n.t('common.undo'),
-          onPressed: () {
-            unawaited(Future<void>.sync(action));
-          },
-        ),
-      ),
+    showUndoableSnackBar(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: message,
+      onUndo: action,
     );
   }
 
@@ -1225,6 +1251,32 @@ String _displayPathName(String path) {
   return index >= 0 ? normalized.substring(index + 1) : normalized;
 }
 
+List<({int index, int songId})> _queueEntriesForSong(
+  List<int> queueSongIds,
+  int songId,
+) {
+  return [
+    for (var index = 0; index < queueSongIds.length; index += 1)
+      if (queueSongIds[index] == songId) (index: index, songId: songId),
+  ];
+}
+
+List<int> _insertQueueEntries(
+  List<int> queueSongIds,
+  List<({int index, int songId})> entries,
+) {
+  var nextQueueSongIds = queueSongIds.toList();
+  for (final entry in entries) {
+    final index = max(0, min(entry.index, nextQueueSongIds.length));
+    nextQueueSongIds = [
+      ...nextQueueSongIds.take(index),
+      entry.songId,
+      ...nextQueueSongIds.skip(index),
+    ];
+  }
+  return nextQueueSongIds;
+}
+
 class _NowPlayingPagePanel extends StatelessWidget {
   const _NowPlayingPagePanel({required this.child});
 
@@ -1236,15 +1288,6 @@ class _NowPlayingPagePanel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       child: SizedBox.expand(child: child),
     );
-  }
-}
-
-class _NowPlayingLoadingState extends StatelessWidget {
-  const _NowPlayingLoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator(strokeWidth: 2.5));
   }
 }
 

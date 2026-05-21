@@ -26,10 +26,14 @@ void main() {
       'common.nowPlaying': 'Now Playing',
       'common.undo': 'Undo',
       'context.addToPlaylist': 'Add To',
+      'context.hideFile': 'Hide File',
+      'context.moveToFolder': 'Move To Folder',
       'context.play': 'Play',
       'context.playNext': 'Play Next',
       'context.removeFromList': 'Remove',
       'context.select': 'Select',
+      'notification.hiddenStorageItem': 'Hidden "{name}"',
+      'notification.movedSong': 'Moved "{title}"',
       'notification.songAddedTo': 'Added {title} to {target}',
       'notification.songsAddedTo': 'Added {count} songs to {target}',
       'nowPlaying.clearQueue': 'Clear Queue',
@@ -137,6 +141,96 @@ void main() {
     expect(repository.playlistSongIds[10], [1]);
   });
 
+  testWidgets('NowPlayingPage hide file uses Electron undo prompt', (
+    tester,
+  ) async {
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    await tester.pumpWidget(
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hide File'));
+    await tester.pumpAndSettle();
+
+    expect(repository.hiddenSongId, 1);
+    expect(find.text('Undo'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(repository.hiddenSongId, isNull);
+  });
+
+  testWidgets(
+    'NowPlayingPage hide removes duplicate queue entries and undo restores',
+    (tester) async {
+      final repository = _FakeNowPlayingRepository(_duplicateQueueSnapshot);
+      await tester.pumpWidget(
+        _NowPlayingTestApp(
+          snapshot: _duplicateQueueSnapshot,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.text('Blue Song').first,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hide File'));
+      await tester.pumpAndSettle();
+
+      expect(repository.hiddenSongId, 1);
+      expect(repository.snapshot.nowPlaying.songIds, [2]);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      expect(repository.hiddenSongId, isNull);
+      expect(repository.snapshot.nowPlaying.songIds, [1, 2, 1]);
+    },
+  );
+
+  testWidgets('NowPlayingPage move file uses Electron undo prompt', (
+    tester,
+  ) async {
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    await tester.pumpWidget(
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move To Folder'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Target'));
+    await tester.pumpAndSettle();
+
+    expect(repository.movedSongId, 1);
+    expect(repository.movedFolderPath, r'C:\Target');
+    expect(find.text('Undo'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(repository.movedSongId, isNull);
+    expect(repository.movedFolderPath, isNull);
+  });
+
   testWidgets('NowPlayingPage filters queue like Electron search', (
     tester,
   ) async {
@@ -193,6 +287,9 @@ class _FakeNowPlayingRepository extends LibraryRepository {
   MusicLibrarySnapshot snapshot;
   final favoriteSongIds = <int>[];
   final playlistSongIds = <int, List<int>>{};
+  int? hiddenSongId;
+  int? movedSongId;
+  String? movedFolderPath;
 
   @override
   Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async => snapshot;
@@ -236,6 +333,53 @@ class _FakeNowPlayingRepository extends LibraryRepository {
       for (final songId in playlistSongIds[playlistId] ?? const <int>[])
         if (!songIds.contains(songId)) songId,
     ];
+  }
+
+  @override
+  Future<void> hideSong(int songId) async {
+    hiddenSongId = songId;
+  }
+
+  @override
+  Future<void> unhideSong(int songId) async {
+    hiddenSongId = null;
+  }
+
+  @override
+  Future<LocalItemsMoveResult> moveSongToFolder(
+    int songId,
+    String folderPath,
+  ) async {
+    movedSongId = songId;
+    movedFolderPath = folderPath;
+    return LocalItemsMoveResult(
+      songs: [
+        LocalSongMove(
+          id: songId,
+          oldPath: r'C:\Music\blue.mp3',
+          newPath: r'C:\Target\blue.mp3',
+        ),
+      ],
+      folders: const [],
+    );
+  }
+
+  @override
+  Future<void> undoMoveLocalItems(LocalItemsMoveResult result) async {
+    movedSongId = null;
+    movedFolderPath = null;
+  }
+
+  @override
+  Future<void> replaceNowPlaying(List<int> songIds) async {
+    snapshot = _snapshotWithSongs(
+      snapshot,
+      snapshot.songs,
+      nowPlaying: NowPlayingSnapshot(
+        playlistId: snapshot.nowPlaying.playlistId,
+        songIds: songIds,
+      ),
+    );
   }
 }
 
@@ -281,6 +425,9 @@ const _snapshot = MusicLibrarySnapshot(
       isBuiltIn: false,
     ),
   ],
+  folders: [
+    LibraryFolder(id: 20, path: r'C:\Target', parentId: 0, criterion: 0),
+  ],
   favoritePlaylistId: 3,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: [1]),
   hasLibrary: true,
@@ -308,6 +455,24 @@ final _searchSnapshot = _snapshotWithSongs(_snapshot, [
     thumbnailPath: '',
   ),
 ], nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2]));
+
+final _duplicateQueueSnapshot = _snapshotWithSongs(_snapshot, [
+  ..._snapshot.songs,
+  const LibrarySong(
+    id: 2,
+    path: r'C:\Music\red.mp3',
+    title: 'Red Song',
+    artist: 'Artist B',
+    artists: ['Artist B'],
+    album: 'Red Hour',
+    duration: 130,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  ),
+], nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2, 1]));
 
 MusicLibrarySnapshot _snapshotWithSongs(
   MusicLibrarySnapshot snapshot,

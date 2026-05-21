@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
@@ -33,10 +34,12 @@ class MediaControl extends StatelessWidget {
     required this.onQuickPlay,
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
+    required this.isWindowFullScreen,
     required this.onEnterMiniMode,
     this.onOpenVoiceAssistant,
     this.currentSong,
     this.playlists = const [],
+    this.playbackNoticeKey,
     this.preferenceLevel,
     this.onAddToNowPlaying,
     this.onCreatePlaylist,
@@ -60,6 +63,7 @@ class MediaControl extends StatelessWidget {
   final PlaybackMode mode;
   final double progressSeconds;
   final double durationSeconds;
+  final String? playbackNoticeKey;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -75,6 +79,7 @@ class MediaControl extends StatelessWidget {
   final VoidCallback onQuickPlay;
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
+  final bool isWindowFullScreen;
   final VoidCallback onEnterMiniMode;
   final VoidCallback? onOpenVoiceAssistant;
   final String? preferenceLevel;
@@ -153,8 +158,10 @@ class MediaControl extends StatelessWidget {
                       onQuickPlay: onQuickPlay,
                       onOpenNowPlaying: onOpenNowPlaying,
                       onToggleWindowFullScreen: onToggleWindowFullScreen,
+                      isWindowFullScreen: isWindowFullScreen,
                       onEnterMiniMode: onEnterMiniMode,
                       onOpenVoiceAssistant: onOpenVoiceAssistant,
+                      playbackNoticeKey: playbackNoticeKey,
                     );
                   }
 
@@ -166,6 +173,7 @@ class MediaControl extends StatelessWidget {
                           track: track,
                           artworkPath:
                               currentSong?.thumbnailPath ?? track.artworkUrl,
+                          playbackNoticeKey: playbackNoticeKey,
                           disabled: track.id == null,
                           onOpenNowPlaying: onOpenNowPlaying,
                         ),
@@ -260,6 +268,7 @@ class MediaControl extends StatelessWidget {
         onToggleFavorite: onToggleFavorite,
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
+        isWindowFullScreen: isWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
         onOpenVoiceAssistant: onOpenVoiceAssistant,
         currentSong: currentSong,
@@ -541,60 +550,244 @@ class MediaControlButtons extends StatelessWidget {
   }
 }
 
+enum VolumeSliderOrientation { horizontal, vertical }
+
+int clampVolumeValue(num value) => value.round().clamp(0, 100);
+
 class VolumeSlider extends StatefulWidget {
   const VolumeSlider({
     super.key,
     required this.value,
     required this.disabled,
     required this.onChange,
+    this.orientation = VolumeSliderOrientation.horizontal,
+    this.showTooltipOnMount = false,
+    this.activeTrackColor = MediaControlColors.accent,
+    this.inactiveTrackColor = MediaControlColors.sliderInactive,
+    this.thumbColor = MediaControlColors.accent,
+    this.overlayColor = MediaControlColors.accentHover,
+    this.tooltipBackgroundColor = const Color(0xe60d1726),
+    this.tooltipForegroundColor = Colors.white,
   });
 
   final int value;
   final bool disabled;
   final ValueChanged<int> onChange;
+  final VolumeSliderOrientation orientation;
+  final bool showTooltipOnMount;
+  final Color activeTrackColor;
+  final Color inactiveTrackColor;
+  final Color thumbColor;
+  final Color overlayColor;
+  final Color tooltipBackgroundColor;
+  final Color tooltipForegroundColor;
 
   @override
   State<VolumeSlider> createState() => _VolumeSliderState();
 }
 
 class _VolumeSliderState extends State<VolumeSlider> {
-  late var _liveValue = widget.value.toDouble();
+  late var _liveValue = clampVolumeValue(widget.value).toDouble();
+  late var _lastEmittedValue = clampVolumeValue(widget.value);
+  Timer? _tooltipTimer;
+  var _tooltipActive = false;
+  var _dragging = false;
 
   @override
-  void didUpdateWidget(covariant VolumeSlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _liveValue = widget.value.toDouble();
+  void initState() {
+    super.initState();
+    if (widget.showTooltipOnMount && !widget.disabled) {
+      _tooltipActive = true;
+      _tooltipTimer = Timer(const Duration(milliseconds: 900), () {
+        if (mounted && !_dragging) {
+          setState(() {
+            _tooltipActive = false;
+          });
+        }
+      });
     }
   }
 
   @override
+  void didUpdateWidget(covariant VolumeSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextValue = clampVolumeValue(widget.value);
+    if (!_dragging && _liveValue.round() != nextValue) {
+      _liveValue = nextValue.toDouble();
+      _lastEmittedValue = nextValue;
+    }
+    if (widget.disabled && _tooltipActive) {
+      _tooltipTimer?.cancel();
+      _tooltipActive = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tooltipTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SliderTheme(
+    final value = widget.disabled ? 0.0 : _liveValue.clamp(0, 100).toDouble();
+    final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 2,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-        activeTrackColor: MediaControlColors.accent,
-        inactiveTrackColor: MediaControlColors.sliderInactive,
-        thumbColor: MediaControlColors.accent,
-        overlayColor: MediaControlColors.accentHover,
+        activeTrackColor: widget.activeTrackColor,
+        inactiveTrackColor: widget.inactiveTrackColor,
+        thumbColor: widget.thumbColor,
+        overlayColor: widget.overlayColor,
       ),
-      child: Slider(
-        value: widget.disabled ? 0 : _liveValue.clamp(0, 100).toDouble(),
-        min: 0,
-        max: 100,
-        onChanged:
-            widget.disabled
-                ? null
-                : (value) {
-                  setState(() {
-                    _liveValue = value;
-                  });
-                  widget.onChange(value.round());
-                },
+      child: Focus(
+        onFocusChange: (focused) {
+          if (focused) {
+            _showTooltip();
+          } else if (!_dragging) {
+            _hideTooltip();
+          }
+        },
+        child: MouseRegion(
+          onEnter: (_) => _showTooltip(persistent: true),
+          onExit: (_) {
+            if (!_dragging) {
+              _hideTooltip();
+            }
+          },
+          child: Slider(
+            value: value,
+            min: 0,
+            max: 100,
+            onChangeStart:
+                widget.disabled
+                    ? null
+                    : (_) {
+                      _dragging = true;
+                      _showTooltip(persistent: true);
+                    },
+            onChangeEnd:
+                widget.disabled
+                    ? null
+                    : (_) {
+                      _dragging = false;
+                      _showTooltip();
+                    },
+            onChanged: widget.disabled ? null : _handleSliderChanged,
+          ),
+        ),
       ),
     );
+
+    return SizedBox(
+      height: widget.orientation == VolumeSliderOrientation.vertical ? 156 : 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          if (widget.orientation == VolumeSliderOrientation.vertical)
+            RotatedBox(
+              quarterTurns: -1,
+              child: SizedBox(width: 132, child: slider),
+            )
+          else
+            slider,
+          if (_tooltipActive && !widget.disabled)
+            _VolumeSliderTooltip(
+              value: value.round(),
+              orientation: widget.orientation,
+              backgroundColor: widget.tooltipBackgroundColor,
+              foregroundColor: widget.tooltipForegroundColor,
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _handleSliderChanged(double value) {
+    final nextValue = clampVolumeValue(value);
+    setState(() {
+      _liveValue = nextValue.toDouble();
+    });
+    if (_lastEmittedValue == nextValue) {
+      return;
+    }
+    _lastEmittedValue = nextValue;
+    widget.onChange(nextValue);
+  }
+
+  void _showTooltip({bool persistent = false}) {
+    if (widget.disabled) {
+      return;
+    }
+    _tooltipTimer?.cancel();
+    if (!_tooltipActive) {
+      setState(() {
+        _tooltipActive = true;
+      });
+    }
+    if (!persistent) {
+      _tooltipTimer = Timer(const Duration(milliseconds: 900), () {
+        if (mounted && !_dragging) {
+          setState(() {
+            _tooltipActive = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _hideTooltip() {
+    _tooltipTimer?.cancel();
+    if (_tooltipActive) {
+      setState(() {
+        _tooltipActive = false;
+      });
+    }
+  }
+}
+
+class _VolumeSliderTooltip extends StatelessWidget {
+  const _VolumeSliderTooltip({
+    required this.value,
+    required this.orientation,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final int value;
+  final VolumeSliderOrientation orientation;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final tooltip = DecoratedBox(
+      key: const ValueKey('VolumeSlider.Tooltip'),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: const Color(0x33ffffff)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          '$value',
+          style: TextStyle(
+            color: foregroundColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+      ),
+    );
+
+    if (orientation == VolumeSliderOrientation.vertical) {
+      return Positioned(right: -4, top: 8, child: tooltip);
+    }
+    return Positioned(top: -4, child: tooltip);
   }
 }
 
@@ -623,8 +816,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.onQuickPlay,
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
+    required this.isWindowFullScreen,
     required this.onEnterMiniMode,
     this.onOpenVoiceAssistant,
+    this.playbackNoticeKey,
   });
 
   final MediaControlTrack track;
@@ -650,8 +845,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final VoidCallback onQuickPlay;
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
+  final bool isWindowFullScreen;
   final VoidCallback onEnterMiniMode;
   final VoidCallback? onOpenVoiceAssistant;
+  final String? playbackNoticeKey;
 
   @override
   Widget build(BuildContext context) {
@@ -666,6 +863,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                 child: _PlayerTrack(
                   track: track,
                   artworkPath: track.artworkUrl,
+                  playbackNoticeKey: playbackNoticeKey,
                   disabled: track.id == null,
                   compact: true,
                   onOpenNowPlaying: onOpenNowPlaying,
@@ -752,6 +950,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                           onToggleRepeatOne: onToggleRepeatOne,
                           onOpenNowPlaying: onOpenNowPlaying,
                           onToggleWindowFullScreen: onToggleWindowFullScreen,
+                          isWindowFullScreen: isWindowFullScreen,
                           onEnterMiniMode: onEnterMiniMode,
                           onOpenVoiceAssistant: onOpenVoiceAssistant,
                         );
@@ -824,6 +1023,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required VoidCallback onToggleRepeatOne,
     required VoidCallback onOpenNowPlaying,
     required VoidCallback onToggleWindowFullScreen,
+    required bool isWindowFullScreen,
     required VoidCallback onEnterMiniMode,
     VoidCallback? onOpenVoiceAssistant,
   }) {
@@ -843,6 +1043,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onToggleFavorite: onToggleFavorite,
         onOpenNowPlaying: onOpenNowPlaying,
         onToggleWindowFullScreen: onToggleWindowFullScreen,
+        isWindowFullScreen: isWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
         onOpenVoiceAssistant: onOpenVoiceAssistant,
         onSeeAlbum: onOpenNowPlaying,
@@ -869,6 +1070,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onToggleFavorite,
   required VoidCallback onOpenNowPlaying,
   required VoidCallback onToggleWindowFullScreen,
+  required bool isWindowFullScreen,
   required VoidCallback onEnterMiniMode,
   VoidCallback? onOpenVoiceAssistant,
   LibrarySong? currentSong,
@@ -1046,9 +1248,15 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       onPressed: onOpenNowPlaying,
     ),
     MenuFlyoutItem(
-      key: 'full-screen',
-      text: i18n.t('nowPlaying.fullScreen'),
-      icon: Icons.fullscreen_rounded,
+      key: isWindowFullScreen ? 'exit-full-screen' : 'full-screen',
+      text:
+          isWindowFullScreen
+              ? i18n.t('nowPlaying.exitFullScreenItem')
+              : i18n.t('nowPlaying.fullScreen'),
+      icon:
+          isWindowFullScreen
+              ? Icons.fullscreen_exit_rounded
+              : Icons.fullscreen_rounded,
       onPressed: onToggleWindowFullScreen,
     ),
     if (onOpenVoiceAssistant != null)
@@ -1121,16 +1329,21 @@ class _PlayerTrack extends StatelessWidget {
     required this.disabled,
     required this.onOpenNowPlaying,
     this.compact = false,
+    this.playbackNoticeKey,
   });
 
   final MediaControlTrack track;
   final String? artworkPath;
   final bool disabled;
   final bool compact;
+  final String? playbackNoticeKey;
   final VoidCallback onOpenNowPlaying;
 
   @override
   Widget build(BuildContext context) {
+    final noticeKey = playbackNoticeKey;
+    final noticeText =
+        noticeKey == null ? null : _mediaControlI18n(context).t(noticeKey);
     return TextButton(
       style: TextButton.styleFrom(
         foregroundColor: MediaControlColors.textStrong,
@@ -1188,6 +1401,32 @@ class _PlayerTrack extends StatelessWidget {
                       height: 1.1,
                     ),
                   ),
+                  if (noticeText != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 14,
+                          color: MediaControlColors.accent,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            noticeText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: MediaControlColors.accent,
+                              fontSize: compact ? 11 : 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

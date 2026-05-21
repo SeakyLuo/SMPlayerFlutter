@@ -442,6 +442,7 @@ class AppSettingsUpdate {
 
 extension AppSettingsUpdateApply on SettingsSnapshot {
   SettingsSnapshot apply(AppSettingsUpdate update) {
+    final nextSaveMusicProgress = update.saveMusicProgress ?? saveMusicProgress;
     return copyWith(
       rootPath: update.rootPath,
       useFilenameNotMusicName: update.useFilenameNotMusicName,
@@ -479,6 +480,7 @@ extension AppSettingsUpdateApply on SettingsSnapshot {
       autoPlay: update.autoPlay,
       shuffleAfterOneRound: update.shuffleAfterOneRound,
       saveMusicProgress: update.saveMusicProgress,
+      musicProgress: nextSaveMusicProgress ? musicProgress : 0,
       hideMultiSelectCommandBarAfterOperation:
           update.hideMultiSelectCommandBarAfterOperation,
       localViewMode: update.localViewMode,
@@ -490,19 +492,27 @@ extension AppSettingsUpdateApply on SettingsSnapshot {
 
 extension PlaybackSettingsUpdateApply on SettingsSnapshot {
   SettingsSnapshot applyPlaybackSettings(PlaybackSettingsUpdate update) {
+    final nextMusicProgress =
+        update.musicProgress == null
+            ? null
+            : saveMusicProgress
+            ? update.musicProgress
+            : 0.0;
     return copyWith(
       lastMusicIndex: update.lastMusicIndex,
       volume: update.volume,
       isMuted: update.isMuted,
       mode: update.mode,
-      musicProgress: update.musicProgress,
+      musicProgress: nextMusicProgress,
     );
   }
 }
 
 class PreferenceItemSnapshot {
   const PreferenceItemSnapshot({
+    this.id = 0,
     required this.type,
+    this.itemId = '',
     required this.name,
     required this.tooltip,
     required this.isEnabled,
@@ -511,7 +521,9 @@ class PreferenceItemSnapshot {
     required this.canRemove,
   });
 
+  final int id;
   final PreferenceEntityType type;
+  final String itemId;
   final String name;
   final String tooltip;
   final bool isEnabled;
@@ -525,7 +537,9 @@ class PreferenceItemSnapshot {
     bool? isValid,
   }) {
     return PreferenceItemSnapshot(
+      id: id,
       type: type,
+      itemId: itemId,
       name: name,
       tooltip: tooltip,
       isEnabled: isEnabled ?? this.isEnabled,

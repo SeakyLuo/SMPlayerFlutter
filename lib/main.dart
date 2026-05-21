@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
+import 'package:screen_retriever/screen_retriever.dart' as screen;
 import 'package:window_manager/window_manager.dart';
 
 Future<void> main(List<String> args) async {
@@ -102,11 +103,33 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
 }
 
 Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {
-  final bounds = parseMainWindowBounds(settings.mainWindowBounds);
-  if (bounds != null) {
-    await windowManager.setBounds(bounds);
-  }
+  await windowManager.setMinimumSize(mainWindowMinimumSize);
+  final bounds = resolveInitialMainWindowBounds(
+    parseMainWindowBounds(settings.mainWindowBounds),
+    await _mainWindowWorkAreas(),
+  );
+  await windowManager.setBounds(bounds);
   if (settings.mainWindowMaximized) {
     await windowManager.maximize();
   }
+}
+
+Future<List<Rect>> _mainWindowWorkAreas() async {
+  final displays = await screen.screenRetriever.getAllDisplays();
+  if (displays.isNotEmpty) {
+    return displays.map(_workAreaForDisplay).toList();
+  }
+  final primary = await screen.screenRetriever.getPrimaryDisplay();
+  return [_workAreaForDisplay(primary)];
+}
+
+Rect _workAreaForDisplay(screen.Display display) {
+  final visiblePosition = display.visiblePosition ?? Offset.zero;
+  final visibleSize = display.visibleSize ?? display.size;
+  return Rect.fromLTWH(
+    visiblePosition.dx,
+    visiblePosition.dy,
+    visibleSize.width,
+    visibleSize.height,
+  );
 }

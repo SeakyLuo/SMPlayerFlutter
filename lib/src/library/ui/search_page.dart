@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -14,6 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
@@ -89,9 +91,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final query = widget.query.trim();
 
     return snapshotValue.when(
-      loading:
-          () =>
-              const Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+      loading: () => const SmPlayerLoadingState(),
       error: (_, _) => _SearchEmptyState(message: i18n.t('search.noResult')),
       data: (snapshot) {
         final normalizedQuery = query.toLowerCase();
@@ -224,10 +224,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 .onTogglePlayPause,
                         onPlayNext: _playNext,
                         onAddSongsToNowPlaying: (songIds) {
-                          return addSongsToNowPlaying(ref, songIds);
+                          return addSongsToNowPlayingWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: songIds,
+                          );
                         },
-                        onAddSongsToPlaylist: _addSongsToPlaylist,
-                        onToggleSongsFavorite: _toggleSongsFavorite,
+                        onAddSongsToPlaylist: (playlistId, songIds) {
+                          return addSongsToPlaylistWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            playlistId: playlistId,
+                            songIds: songIds,
+                          );
+                        },
+                        onToggleSongsFavorite: (songIds, favorite) {
+                          return setSongsFavoriteWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: songIds,
+                            favorite: favorite,
+                          );
+                        },
                         onCreatePlaylist: _createPlaylist,
                         onOpenMusicDialog: _openMusicDialog,
                         onPreviewAlbumArt: _showAlbumArtPreview,
@@ -263,7 +284,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     selectedSongIds.isEmpty
                         ? null
                         : () {
-                          addSongsToNowPlaying(ref, selectedSongIds);
+                          addSongsToNowPlayingWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: selectedSongIds,
+                          );
                           _selection.hideAfterOperation(
                             snapshot.hideMultiSelectCommandBarAfterOperation,
                           );
@@ -276,10 +302,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           final songsById = {
                             for (final song in snapshot.songs) song.id: song,
                           };
-                          setSongsFavorite(
-                            ref,
-                            notFavoriteSongIds(selectedSongIds, songsById),
-                            true,
+                          setSongsFavoriteWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            songIds: notFavoriteSongIds(
+                              selectedSongIds,
+                              songsById,
+                            ),
+                            favorite: true,
                           );
                           _selection.hideAfterOperation(
                             snapshot.hideMultiSelectCommandBarAfterOperation,
@@ -311,7 +342,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     selectedSongIds.isEmpty
                         ? null
                         : (playlistId) {
-                          _addSongsToPlaylist(playlistId, selectedSongIds);
+                          addSongsToPlaylistWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: i18n,
+                            playlistId: playlistId,
+                            songIds: selectedSongIds,
+                          );
                           _selection.hideAfterOperation(
                             snapshot.hideMultiSelectCommandBarAfterOperation,
                           );
@@ -634,25 +671,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref.invalidate(musicLibrarySnapshotProvider);
   }
 
-  Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
-  }
-
-  Future<void> _toggleSongsFavorite(List<int> songIds, bool favorite) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .setSongsFavorite(songIds, favorite);
-    final mediaController = ref.read(mediaControlControllerProvider);
-    if (songIds.contains(mediaController.state.track.id) &&
-        mediaController.state.track.favorite != favorite) {
-      mediaController.onToggleFavorite();
-    }
-    ref.invalidate(musicLibrarySnapshotProvider);
-  }
-
   void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
     setState(() {
       _dialogSong = song;
@@ -695,16 +713,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _revealSearchCard(SearchResult card) async {
-    final sourcePath = card.sourcePath!;
-    if (Platform.isWindows) {
-      await Process.start('explorer.exe', [sourcePath]);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.start('open', [sourcePath]);
-      return;
-    }
-    await Process.start('xdg-open', [sourcePath]);
+    await openFolderInShell(card.sourcePath!);
   }
 
   Future<void> _revealSong(LibrarySong song) async {
@@ -712,15 +721,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _revealSongPath(String songPath) async {
-    if (Platform.isWindows) {
-      await Process.start('explorer.exe', ['/select,$songPath']);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.start('open', ['-R', songPath]);
-      return;
-    }
-    await Process.start('xdg-open', [File(songPath).parent.path]);
+    await revealItemInFolder(songPath);
   }
 
   List<MultiSelectCommandBarPlaylist> _customPlaylists(

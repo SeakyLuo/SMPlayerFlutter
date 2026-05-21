@@ -454,6 +454,7 @@
   "player.next": "Next",
   "player.pause": "Pause",
   "player.play": "Play",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Play or pause",
   "player.playbackMode": "Playback Mode",
   "player.playbackModeList": "List",

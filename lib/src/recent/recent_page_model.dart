@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
 class RecentPlaylistView {
@@ -72,10 +73,11 @@ List<RecentPlaylistView> buildRecentPlaylistViews(
 List<RecentAlbumView> buildRecentAlbumViews(
   List<LibrarySong> songs,
   List<RecentAlbumPlayback> recentAlbums,
+  SmPlayerI18n i18n,
 ) {
   final songsByAlbum = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    final albumName = displayAlbum(song);
+    final albumName = displayAlbum(song, i18n);
     final albumSongs = songsByAlbum[albumName] ?? <LibrarySong>[];
     albumSongs.add(song);
     songsByAlbum[albumName] = albumSongs;
@@ -88,7 +90,7 @@ List<RecentAlbumView> buildRecentAlbumViews(
       views.add(
         RecentAlbumView(
           name: recentAlbum.album,
-          artist: getRecentAlbumArtistLabel(albumSongs),
+          artist: getRecentAlbumArtistLabel(albumSongs, i18n),
           songs: albumSongs,
           songIds: albumSongs.map((song) => song.id).toList(),
           playedAt: recentAlbum.playedAt,
@@ -102,10 +104,11 @@ List<RecentAlbumView> buildRecentAlbumViews(
 List<RecentArtistView> buildRecentArtistViews(
   List<LibrarySong> songs,
   List<RecentArtistPlayback> recentArtists,
+  SmPlayerI18n i18n,
 ) {
   final songsByArtist = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    for (final artistName in getSongArtists(song)) {
+    for (final artistName in getSongArtists(song, i18n)) {
       final artistSongs = songsByArtist[artistName] ?? <LibrarySong>[];
       artistSongs.add(song);
       songsByArtist[artistName] = artistSongs;
@@ -132,7 +135,7 @@ int dateValue(String value) {
   return DateTime.tryParse(value)?.millisecondsSinceEpoch ?? 0;
 }
 
-String categorizeRecentDate(String value) {
+String categorizeRecentDate(String value, SmPlayerI18n i18n) {
   final date = DateTime.tryParse(value);
   if (date == null) {
     return '';
@@ -140,28 +143,28 @@ String categorizeRecentDate(String value) {
   final now = DateTime.now();
 
   if (sameCalendarDate(date, now)) {
-    return '今天';
+    return i18n.t('recent.time.today');
   }
 
   final yesterday = now.subtract(const Duration(days: 1));
   if (sameCalendarDate(date, yesterday)) {
-    return '昨天';
+    return i18n.t('recent.time.yesterday');
   }
 
   if (date.isAfter(now.subtract(const Duration(days: 7)))) {
-    return '最近 7 天';
+    return i18n.t('recent.time.recent7Days');
   }
 
   if (date.year == now.year && date.month == now.month) {
-    return '本月';
+    return i18n.t('recent.time.thisMonth');
   }
 
   if (date.isAfter(now.subtract(const Duration(days: 30)))) {
-    return '最近 30 天';
+    return i18n.t('recent.time.recent30Days');
   }
 
   if (date.year == now.year) {
-    return '${date.month} 月';
+    return i18n.t('recent.time.month${date.month}');
   }
 
   return '${date.year}.${date.month.toString().padLeft(2, '0')}';
@@ -181,18 +184,24 @@ String formatRecentDateTime(String value) {
       '${date.minute.toString().padLeft(2, '0')}';
 }
 
-String displayAlbum(LibrarySong song) {
-  return song.album.isEmpty ? '未知专辑' : song.album;
+String displayAlbum(LibrarySong song, [SmPlayerI18n? i18n]) {
+  return song.album.isEmpty
+      ? i18n?.t('common.albumUnknown') ?? 'Unknown Album'
+      : song.album;
 }
 
-List<String> getSongArtists(LibrarySong song) {
+List<String> getSongArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
   return song.artists.where((artist) => artist.trim().isNotEmpty).isEmpty
-      ? [song.artist.isEmpty ? '未知艺术家' : song.artist]
+      ? [
+        song.artist.isEmpty
+            ? i18n?.t('common.artistUnknown') ?? 'Unknown Artist'
+            : song.artist,
+      ]
       : song.artists;
 }
 
-String displayArtists(LibrarySong song) {
-  return getSongArtists(song).join(' / ');
+String displayArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
+  return getSongArtists(song, i18n).join(' / ');
 }
 
 String formatDuration(int seconds) {
@@ -208,21 +217,26 @@ String formatDuration(int seconds) {
   return '$minutes:$remainingSeconds';
 }
 
-String searchHistoryTypeLabel(SearchHistoryType type) {
+String searchHistoryTypeLabel(SearchHistoryType type, SmPlayerI18n i18n) {
   return switch (type) {
-    SearchHistoryType.artists => '歌手',
-    SearchHistoryType.albums => '专辑',
-    SearchHistoryType.songs => '歌曲',
-    SearchHistoryType.playlists => '播放列表',
-    SearchHistoryType.folders => '本地',
-    SearchHistoryType.sidebar => '全部',
+    SearchHistoryType.artists => i18n.t('common.artists'),
+    SearchHistoryType.albums => i18n.t('common.albums'),
+    SearchHistoryType.songs => i18n.t('common.songs'),
+    SearchHistoryType.playlists => i18n.t('common.playlists'),
+    SearchHistoryType.folders => i18n.t('common.folders'),
+    SearchHistoryType.sidebar => i18n.t('common.all'),
   };
 }
 
-String getRecentAlbumArtistLabel(List<LibrarySong> songs) {
-  final artists = songs.expand(getSongArtists).toSet().toList();
+String getRecentAlbumArtistLabel(List<LibrarySong> songs, SmPlayerI18n i18n) {
+  final artists =
+      songs.expand((song) => getSongArtists(song, i18n)).toSet().toList();
   if (artists.length >= 3) {
-    return '${artists[0]}、${artists[1]} 等 ${artists.length - 2} 位艺术家';
+    return i18n.t('albums.artistsAndMore', {
+      'first': artists[0],
+      'second': artists[1],
+      'count': artists.length - 2,
+    });
   }
   return artists.join(' / ');
 }

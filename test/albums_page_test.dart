@@ -48,11 +48,14 @@ void main() {
       'common.nowPlaying': 'Now Playing',
       'common.search': 'Search',
       'common.sort': '排序',
+      'common.undo': 'Undo',
       'context.addToPlaylist': '添加到',
       'context.select': '选择',
       'context.seeAlbumArt': '查看专辑插图',
       'local.sortReverseList': 'Reverse List',
       'nowPlaying.randomPlay': '随机播放',
+      'notification.songAddedTo': 'Added {title} to {target}',
+      'notification.songsAddedTo': 'Added {count} songs to {target}',
       'playlists.newPlaylist': 'New Playlist',
       'preferences.level.dislike': 'Dislike',
       'preferences.level.do-not-appear': 'Do Not Appear',
@@ -258,6 +261,13 @@ void main() {
 
     expect(repository.addedPlaylistId, 10);
     expect(repository.addedSongIds, [1]);
+    expect(find.text('Added Blue Song to Mix'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(repository.removedPlaylistId, 10);
+    expect(repository.removedSongIds, [1]);
   });
 
   testWidgets('AlbumsPage exits multi-select in compact layout like Electron', (
@@ -673,6 +683,8 @@ class _FakeLibraryRepository extends LibraryRepository {
   List<int> replacedNowPlaying = [];
   int? addedPlaylistId;
   List<int> addedSongIds = [];
+  int? removedPlaylistId;
+  List<int> removedSongIds = [];
   List<int> favoriteSongIds = [];
   bool? favoriteValue;
   List<String> recordedAlbums = [];
@@ -694,6 +706,15 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> addSongsToPlaylist(int playlistId, List<int> songIds) async {
     addedPlaylistId = playlistId;
     addedSongIds = songIds.toList();
+  }
+
+  @override
+  Future<void> removeSongsFromPlaylist(
+    int playlistId,
+    List<int> songIds,
+  ) async {
+    removedPlaylistId = playlistId;
+    removedSongIds = songIds.toList();
   }
 
   @override

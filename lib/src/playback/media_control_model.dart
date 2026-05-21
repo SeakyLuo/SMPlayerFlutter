@@ -1,8 +1,36 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 const defaultArtworkColorRgb = '91, 135, 182';
 
 enum PlaybackMode { once, repeat, repeatOne, shuffle }
+
+enum PlaybackStallRecoveryAction { none, finishTrack, pauseAndRecover }
+
+enum PlaybackStatus {
+  idle,
+  loading,
+  ready,
+  playing,
+  paused,
+  buffering,
+  seeking,
+}
+
+enum PlaybackTransitionType {
+  idle,
+  loadTrack,
+  ready,
+  playRequested,
+  playing,
+  pause,
+  paused,
+  buffering,
+  seeking,
+  seeked,
+  canPlay,
+}
 
 class PlaybackRuntimeSettings {
   const PlaybackRuntimeSettings({
@@ -81,6 +109,7 @@ class MediaControlState {
     required this.track,
     required this.disabled,
     required this.isPlaying,
+    this.playbackStatus = PlaybackStatus.idle,
     required this.volume,
     required this.isMuted,
     required this.mode,
@@ -88,13 +117,16 @@ class MediaControlState {
     required this.durationSeconds,
     required this.isProgressSeeking,
     this.selectedQueueIndex,
+    this.playbackNoticeKey,
   });
 
   const MediaControlState.empty()
     : track = const MediaControlTrack.empty(),
       selectedQueueIndex = null,
+      playbackNoticeKey = null,
       disabled = true,
       isPlaying = false,
+      playbackStatus = PlaybackStatus.idle,
       volume = 50,
       isMuted = false,
       mode = PlaybackMode.once,
@@ -104,8 +136,10 @@ class MediaControlState {
 
   final MediaControlTrack track;
   final int? selectedQueueIndex;
+  final String? playbackNoticeKey;
   final bool disabled;
   final bool isPlaying;
+  final PlaybackStatus playbackStatus;
   final int volume;
   final bool isMuted;
   final PlaybackMode mode;
@@ -126,18 +160,26 @@ class MediaControlState {
     int? selectedQueueIndex,
     bool? disabled,
     bool? isPlaying,
+    PlaybackStatus? playbackStatus,
     int? volume,
     bool? isMuted,
     PlaybackMode? mode,
     double? progressSeconds,
     double? durationSeconds,
     bool? isProgressSeeking,
+    String? playbackNoticeKey,
+    bool clearPlaybackNotice = false,
   }) {
     return MediaControlState(
       track: track ?? this.track,
       selectedQueueIndex: selectedQueueIndex ?? this.selectedQueueIndex,
+      playbackNoticeKey:
+          clearPlaybackNotice
+              ? null
+              : playbackNoticeKey ?? this.playbackNoticeKey,
       disabled: disabled ?? this.disabled,
       isPlaying: isPlaying ?? this.isPlaying,
+      playbackStatus: playbackStatus ?? this.playbackStatus,
       volume: volume ?? this.volume,
       isMuted: isMuted ?? this.isMuted,
       mode: mode ?? this.mode,
@@ -160,6 +202,15 @@ class MediaControlController extends ChangeNotifier {
 
   MediaControlState get state => _state;
 
+  void _setState(MediaControlState state) {
+    final status = state.playbackStatus;
+    final isBackendLoading =
+        status == PlaybackStatus.loading || status == PlaybackStatus.buffering;
+    _state = state.copyWith(
+      track: state.track.copyWith(isLoading: isBackendLoading),
+    );
+  }
+
   void applyPlaybackRuntimeSettings(PlaybackRuntimeSettings settings) {
     _state = _state.copyWith(
       volume: settings.volume,
@@ -170,17 +221,22 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void loadTrack(MediaControlTrack track, {double durationSeconds = 0}) {
-    _state = MediaControlState(
-      track: track,
-      selectedQueueIndex: null,
-      disabled: track.id == null,
-      isPlaying: false,
-      progressSeconds: 0,
-      durationSeconds: durationSeconds,
-      isProgressSeeking: false,
-      volume: _state.volume,
-      isMuted: _state.isMuted,
-      mode: _state.mode,
+    _setState(
+      MediaControlState(
+        track: track,
+        selectedQueueIndex: null,
+        disabled: track.id == null,
+        isPlaying: false,
+        playbackStatus:
+            track.id == null ? PlaybackStatus.idle : PlaybackStatus.loading,
+        progressSeconds: 0,
+        durationSeconds: durationSeconds,
+        isProgressSeeking: false,
+        volume: _state.volume,
+        isMuted: _state.isMuted,
+        mode: _state.mode,
+        playbackNoticeKey: null,
+      ),
     );
     notifyListeners();
   }
@@ -190,17 +246,22 @@ class MediaControlController extends ChangeNotifier {
     required double durationSeconds,
     int? queueIndex,
   }) {
-    _state = MediaControlState(
-      track: track,
-      selectedQueueIndex: queueIndex,
-      disabled: track.id == null,
-      isPlaying: track.id != null,
-      progressSeconds: 0,
-      durationSeconds: durationSeconds,
-      isProgressSeeking: false,
-      volume: _state.volume,
-      isMuted: _state.isMuted,
-      mode: _state.mode,
+    _setState(
+      MediaControlState(
+        track: track,
+        selectedQueueIndex: queueIndex,
+        disabled: track.id == null,
+        isPlaying: track.id != null,
+        playbackStatus:
+            track.id == null ? PlaybackStatus.idle : PlaybackStatus.loading,
+        progressSeconds: 0,
+        durationSeconds: durationSeconds,
+        isProgressSeeking: false,
+        volume: _state.volume,
+        isMuted: _state.isMuted,
+        mode: _state.mode,
+        playbackNoticeKey: null,
+      ),
     );
     notifyListeners();
   }
@@ -210,7 +271,113 @@ class MediaControlController extends ChangeNotifier {
       return;
     }
 
-    _state = _state.copyWith(isPlaying: !_state.isPlaying);
+    final nextPlaying = !_state.isPlaying;
+    _setState(
+      _state.copyWith(
+        isPlaying: nextPlaying,
+        playbackStatus: transitionPlaybackStatus(
+          _state.playbackStatus,
+          nextPlaying
+              ? PlaybackTransitionType.playRequested
+              : PlaybackTransitionType.pause,
+        ),
+      ),
+    );
+    notifyListeners();
+  }
+
+  void setPlaybackActive(bool isPlaying) {
+    final nextStatus = transitionPlaybackStatus(
+      _state.playbackStatus,
+      isPlaying ? PlaybackTransitionType.playing : PlaybackTransitionType.pause,
+    );
+    if (_state.disabled ||
+        (_state.isPlaying == isPlaying &&
+            _state.playbackStatus == nextStatus)) {
+      return;
+    }
+
+    _setState(
+      _state.copyWith(
+        isPlaying: isPlaying,
+        playbackStatus: nextStatus,
+        clearPlaybackNotice: true,
+      ),
+    );
+    notifyListeners();
+  }
+
+  void setTrackLoading(bool isLoading, {bool buffering = false}) {
+    final nextStatus =
+        isLoading
+            ? buffering
+                ? PlaybackStatus.buffering
+                : PlaybackStatus.loading
+            : _state.isPlaying
+            ? PlaybackStatus.playing
+            : PlaybackStatus.ready;
+    if (_state.disabled && nextStatus != PlaybackStatus.idle) {
+      return;
+    }
+    if (_state.track.isLoading == isLoading &&
+        _state.playbackStatus == nextStatus) {
+      return;
+    }
+
+    _setState(
+      _state.copyWith(
+        playbackStatus: nextStatus,
+        clearPlaybackNotice: isLoading,
+      ),
+    );
+    notifyListeners();
+  }
+
+  void setPlaybackLoadFailed() {
+    if (_state.disabled) {
+      return;
+    }
+
+    _setState(
+      _state.copyWith(
+        track: _state.track.copyWith(isLoading: false),
+        isPlaying: false,
+        playbackStatus: PlaybackStatus.paused,
+        playbackNoticeKey: 'player.playbackLoadFailed',
+      ),
+    );
+    notifyListeners();
+  }
+
+  void syncPlaybackProgress(double progressSeconds, {double? durationSeconds}) {
+    final nextDuration = durationSeconds ?? _state.durationSeconds;
+    final nextProgress = progressSeconds.clamp(0, nextDuration).toDouble();
+    if (_state.progressSeconds == nextProgress &&
+        _state.durationSeconds == nextDuration) {
+      return;
+    }
+
+    _setState(
+      _state.copyWith(
+        progressSeconds: nextProgress,
+        durationSeconds: nextDuration,
+      ),
+    );
+    notifyListeners();
+  }
+
+  void completePlayback() {
+    if (_state.disabled) {
+      return;
+    }
+
+    _setState(
+      _state.copyWith(
+        isPlaying: false,
+        playbackStatus: PlaybackStatus.paused,
+        progressSeconds: _state.durationSeconds,
+      ),
+    );
     notifyListeners();
   }
 
@@ -219,7 +386,7 @@ class MediaControlController extends ChangeNotifier {
       return;
     }
 
-    _state = _state.copyWith(progressSeconds: 0);
+    _setState(_state.copyWith(progressSeconds: 0));
     notifyListeners();
   }
 
@@ -228,7 +395,7 @@ class MediaControlController extends ChangeNotifier {
       return;
     }
 
-    _state = _state.copyWith(progressSeconds: 0);
+    _setState(_state.copyWith(progressSeconds: 0));
     notifyListeners();
   }
 
@@ -237,13 +404,24 @@ class MediaControlController extends ChangeNotifier {
       return;
     }
 
-    _state = _state.copyWith(isPlaying: false, progressSeconds: 0);
+    _setState(
+      _state.copyWith(
+        isPlaying: false,
+        playbackStatus: PlaybackStatus.paused,
+        progressSeconds: 0,
+      ),
+    );
     notifyListeners();
   }
 
   void onSeek(double seconds) {
     final nextProgress = seconds.clamp(0, _state.durationSeconds).toDouble();
-    _state = _state.copyWith(progressSeconds: nextProgress);
+    _setState(
+      _state.copyWith(
+        progressSeconds: nextProgress,
+        playbackStatus: PlaybackStatus.seeking,
+      ),
+    );
     notifyListeners();
     _onPlaybackSettingsUpdate?.call(
       PlaybackSettingsUpdate(musicProgress: nextProgress),
@@ -251,12 +429,26 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void onBeginSeek() {
-    _state = _state.copyWith(isProgressSeeking: true);
+    _setState(
+      _state.copyWith(
+        isProgressSeeking: true,
+        playbackStatus: PlaybackStatus.seeking,
+      ),
+    );
     notifyListeners();
   }
 
   void onEndSeek() {
-    _state = _state.copyWith(isProgressSeeking: false);
+    _setState(
+      _state.copyWith(
+        isProgressSeeking: false,
+        playbackStatus: transitionPlaybackStatus(
+          _state.playbackStatus,
+          PlaybackTransitionType.seeked,
+          paused: !_state.isPlaying,
+        ),
+      ),
+    );
     notifyListeners();
   }
 
@@ -330,6 +522,38 @@ class MediaControlController extends ChangeNotifier {
   }
 }
 
+PlaybackStatus transitionPlaybackStatus(
+  PlaybackStatus currentStatus,
+  PlaybackTransitionType transition, {
+  bool paused = false,
+  bool pendingAutoplay = false,
+}) {
+  return switch (transition) {
+    PlaybackTransitionType.idle => PlaybackStatus.idle,
+    PlaybackTransitionType.loadTrack => PlaybackStatus.loading,
+    PlaybackTransitionType.ready => PlaybackStatus.ready,
+    PlaybackTransitionType.playRequested => PlaybackStatus.loading,
+    PlaybackTransitionType.playing => PlaybackStatus.playing,
+    PlaybackTransitionType.pause =>
+      currentStatus == PlaybackStatus.loading ||
+              currentStatus == PlaybackStatus.seeking ||
+              currentStatus == PlaybackStatus.buffering
+          ? currentStatus
+          : PlaybackStatus.paused,
+    PlaybackTransitionType.paused => PlaybackStatus.paused,
+    PlaybackTransitionType.buffering => PlaybackStatus.buffering,
+    PlaybackTransitionType.seeking => PlaybackStatus.seeking,
+    PlaybackTransitionType.seeked =>
+      paused ? PlaybackStatus.paused : PlaybackStatus.playing,
+    PlaybackTransitionType.canPlay =>
+      pendingAutoplay
+          ? currentStatus
+          : paused
+          ? PlaybackStatus.ready
+          : PlaybackStatus.playing,
+  };
+}
+
 PlaybackMode getNextPlaybackMode(PlaybackMode mode) {
   return switch (mode) {
     PlaybackMode.once => PlaybackMode.shuffle,
@@ -337,6 +561,119 @@ PlaybackMode getNextPlaybackMode(PlaybackMode mode) {
     PlaybackMode.repeat => PlaybackMode.repeatOne,
     PlaybackMode.repeatOne => PlaybackMode.once,
   };
+}
+
+int? nextQueueIndexForPlayback({
+  required int queueLength,
+  required int currentIndex,
+  required PlaybackMode mode,
+  required bool forward,
+  required bool automatic,
+}) {
+  if (queueLength <= 0) {
+    return null;
+  }
+
+  final boundedCurrentIndex = currentIndex.clamp(0, queueLength - 1).toInt();
+  if (mode == PlaybackMode.repeatOne && automatic) {
+    return boundedCurrentIndex;
+  }
+
+  final nextIndex = boundedCurrentIndex + (forward ? 1 : -1);
+  if (nextIndex >= 0 && nextIndex < queueLength) {
+    return nextIndex;
+  }
+
+  if (mode == PlaybackMode.repeat || mode == PlaybackMode.shuffle) {
+    return forward ? 0 : queueLength - 1;
+  }
+
+  return automatic ? null : boundedCurrentIndex;
+}
+
+List<int> shuffleNextRoundSongIds(
+  List<int> songIds,
+  int? activeTrackId, [
+  Random? random,
+]) {
+  final shuffledSongIds = songIds.toList()..shuffle(random);
+  if (shuffledSongIds.length > 1 && shuffledSongIds.first == activeTrackId) {
+    shuffledSongIds.add(shuffledSongIds.removeAt(0));
+  }
+  return shuffledSongIds;
+}
+
+int? getNextRecoverableTrackId({
+  required List<int> playbackSongIds,
+  required int? activeTrackId,
+  required int activeQueueIndex,
+  required PlaybackMode mode,
+  required Set<int> failedTrackIds,
+}) {
+  final activeIndex = currentPlaybackQueueIndex(
+    playbackSongIds,
+    activeTrackId,
+    activeQueueIndex,
+  );
+  final shouldWrap =
+      mode == PlaybackMode.repeat || mode == PlaybackMode.shuffle;
+  final orderedSongIds =
+      shouldWrap
+          ? [
+            ...playbackSongIds.skip(activeIndex + 1),
+            ...playbackSongIds.take(activeIndex + 1),
+          ]
+          : playbackSongIds.skip(activeIndex + 1);
+  for (final songId in orderedSongIds) {
+    if (!failedTrackIds.contains(songId)) {
+      return songId;
+    }
+  }
+  return null;
+}
+
+int currentPlaybackQueueIndex(
+  List<int> songIds,
+  int? currentTrackId, [
+  int currentTrackIndex = -1,
+]) {
+  if (currentTrackId == null) {
+    return -1;
+  }
+  if (currentTrackIndex > -1 &&
+      currentTrackIndex < songIds.length &&
+      songIds[currentTrackIndex] == currentTrackId) {
+    return currentTrackIndex;
+  }
+  return songIds.indexOf(currentTrackId);
+}
+
+PlaybackStallRecoveryAction stalledPlaybackRecoveryAction({
+  required bool isPlaying,
+  required bool isUserSeeking,
+  required double currentProgressSeconds,
+  required double lastProgressSeconds,
+  required Duration stalledFor,
+  required double durationSeconds,
+  double progressEpsilonSeconds = 0.2,
+  Duration stallTimeout = const Duration(seconds: 8),
+  double finishThresholdSeconds = 0.5,
+}) {
+  if (!isPlaying || isUserSeeking) {
+    return PlaybackStallRecoveryAction.none;
+  }
+  if ((currentProgressSeconds - lastProgressSeconds).abs() >
+      progressEpsilonSeconds) {
+    return PlaybackStallRecoveryAction.none;
+  }
+  if (stalledFor < stallTimeout) {
+    return PlaybackStallRecoveryAction.none;
+  }
+  if (durationSeconds > 0 &&
+      durationSeconds - currentProgressSeconds <= finishThresholdSeconds) {
+    return PlaybackStallRecoveryAction.finishTrack;
+  }
+  return PlaybackStallRecoveryAction.pauseAndRecover;
 }
 
 String getPlaybackModeName(PlaybackMode mode) {

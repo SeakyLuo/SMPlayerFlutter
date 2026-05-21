@@ -1,18 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 class SettingsController extends ChangeNotifier {
-  SettingsController([SettingsSnapshot? initialSnapshot])
+  SettingsController([SettingsSnapshot? initialSnapshot, this.repository])
     : _snapshot = initialSnapshot ?? const SettingsSnapshot.defaults();
 
+  final LibraryRepository? repository;
+
   SettingsSnapshot _snapshot;
+  Future<void> _playbackSettingsWriteQueue = Future.value();
 
   SettingsSnapshot get snapshot => _snapshot;
 
   Future<void> refresh() async {
+    final databaseSnapshot = await repository?.getSettingsSnapshot();
+    if (databaseSnapshot != null) {
+      _snapshot = databaseSnapshot;
+      notifyListeners();
+      return;
+    }
+
     final preferences = await SharedPreferences.getInstance();
     _snapshot = _snapshot.copyWith(
       rootPath:
@@ -215,13 +226,20 @@ class SettingsController extends ChangeNotifier {
   Future<void> updateSettings(AppSettingsUpdate update) async {
     _snapshot = _snapshot.apply(update);
     notifyListeners();
-    await _saveSnapshot(_snapshot);
+    await Future.wait([
+      _saveSnapshot(_snapshot),
+      if (repository case final repository?) repository.updateSettings(update),
+    ]);
   }
 
   Future<void> savePlaybackSettings(PlaybackSettingsUpdate update) async {
     _snapshot = _snapshot.applyPlaybackSettings(update);
+    final snapshot = _snapshot;
     notifyListeners();
-    await _saveSnapshot(_snapshot);
+    _playbackSettingsWriteQueue = _playbackSettingsWriteQueue
+        .catchError((_) {})
+        .then((_) => _persistPlaybackSettings(update, snapshot));
+    await _playbackSettingsWriteQueue;
   }
 
   PlaybackRuntimeSettings getPlaybackSettingsImmediate() {
@@ -230,9 +248,50 @@ class SettingsController extends ChangeNotifier {
 
   void savePlaybackSettingsImmediate(PlaybackSettingsUpdate update) {
     _snapshot = _snapshot.applyPlaybackSettings(update);
+    final snapshot = _snapshot;
     notifyListeners();
-    unawaited(_saveSnapshot(_snapshot));
+    unawaited(_persistPlaybackSettings(update, snapshot));
   }
+
+  Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
+    _snapshot = _snapshot.copyWith(
+      lastPage: lastPage,
+      lastPlaylistId: lastPlaylistId,
+    );
+    notifyListeners();
+    await Future.wait([
+      _saveViewState(lastPage: lastPage, lastPlaylistId: lastPlaylistId),
+      if (repository case final repository?)
+        repository.saveViewState(
+          lastPage: lastPage,
+          lastPlaylistId: lastPlaylistId,
+        ),
+    ]);
+  }
+
+  Future<void> _persistPlaybackSettings(
+    PlaybackSettingsUpdate update,
+    SettingsSnapshot snapshot,
+  ) async {
+    await Future.wait([
+      _saveSnapshot(snapshot),
+      if (repository case final repository?)
+        repository.savePlaybackSettings(update),
+    ]);
+  }
+}
+
+Future<void> _saveViewState({String? lastPage, int? lastPlaylistId}) async {
+  final preferences = await SharedPreferences.getInstance();
+  await Future.wait([
+    if (lastPage != null)
+      preferences.setString(SmPlayerSettingsStorageKeys.lastPage, lastPage),
+    if (lastPlaylistId != null)
+      preferences.setInt(
+        SmPlayerSettingsStorageKeys.lastPlaylistId,
+        lastPlaylistId,
+      ),
+  ]);
 }
 
 class SmPlayerSettingsStorageKeys {

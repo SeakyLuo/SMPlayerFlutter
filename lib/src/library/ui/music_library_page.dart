@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:io';
 
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/loading_state.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
@@ -17,8 +19,10 @@ import 'artists_page_model.dart'
 import 'command_bar.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
+import 'music_dialog.dart';
 import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
+import '../../platform/desktop_features.dart';
 
 const _quickJumpKeys = [
   '#',
@@ -92,6 +96,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   final _columnWidths = {..._defaultColumnWidths};
   final _scrollController = ScrollController();
   final _selection = PageSelectionController<int>.stored('music-library');
+  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
 
   @override
   void initState() {
@@ -112,16 +117,16 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
 
     if (i18nValue.isLoading) {
-      return const _LibraryScaffold(child: _LoadingState());
+      return const _LibraryScaffold(child: SmPlayerLoadingState());
     }
 
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const _LibraryScaffold(child: _LoadingState());
+      return const _LibraryScaffold(child: SmPlayerLoadingState());
     }
 
     return snapshotValue.when(
-      loading: () => const _LibraryScaffold(child: _LoadingState()),
+      loading: () => const _LibraryScaffold(child: SmPlayerLoadingState()),
       error:
           (_, _) => _LibraryScaffold(
             child: _EmptyState(
@@ -480,6 +485,36 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                             setState(_selection.cancel);
                           },
                         ),
+                        if (_musicDialog case final dialog?)
+                          MusicDialog(
+                            song: dialog.song,
+                            initialMode: dialog.mode,
+                            canPause:
+                                dialog.song.id ==
+                                    ref
+                                        .read(mediaControlControllerProvider)
+                                        .state
+                                        .track
+                                        .id &&
+                                ref
+                                    .read(mediaControlControllerProvider)
+                                    .state
+                                    .isPlaying,
+                            onPlay: () {
+                              _playSongIds([dialog.song.id]);
+                            },
+                            onReveal: (path) {
+                              unawaited(revealItemInFolder(path));
+                            },
+                            onSaved: () {
+                              ref.invalidate(musicLibrarySnapshotProvider);
+                            },
+                            onClose: () {
+                              setState(() {
+                                _musicDialog = null;
+                              });
+                            },
+                          ),
                       ],
                     ),
                   ),
@@ -706,7 +741,13 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           ref.invalidate(musicLibrarySnapshotProvider);
         },
         onMoveToFolder: (folderPath) {
-          moveSongToFolder(ref, song.id, folderPath);
+          moveSongToFolderWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            song: song,
+            folderPath: folderPath,
+          );
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -717,7 +758,12 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         },
         onHide: () {
-          hideSongFile(ref, song.id);
+          hideSongFileWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            song: song,
+          );
         },
         onSeeArtist: () {
           final artists = getSongArtists(song);
@@ -731,19 +777,25 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         },
         onSeeMusicInfo: () {
-          _showMessage(i18n.t('context.seeMusicInfo'));
+          _openMusicDialog(song, SongDialogMode.properties);
         },
         onSeeLyrics: () {
-          _showMessage(i18n.t('context.seeLyrics'));
+          _openMusicDialog(song, SongDialogMode.lyrics);
         },
         onSeeAlbumArt: () {
-          _showMessage(i18n.t('context.seeAlbumArt'));
+          _openMusicDialog(song, SongDialogMode.albumArt);
         },
         onSeeLocal: () {
-          _showMessage(song.path);
+          unawaited(revealItemInFolder(song.path));
         },
       ),
     );
+  }
+
+  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+    setState(() {
+      _musicDialog = (song: song, mode: mode);
+    });
   }
 
   void _showSongSelectionContextMenu(
@@ -2243,20 +2295,6 @@ String _libraryQuickJumpBasisName(
       return i18n.t('common.dateAdded');
     case MusicLibrarySortCriterion.title:
       return i18n.t('musicLibrary.titleHeader');
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox.square(
-        dimension: 30,
-        child: CircularProgressIndicator(strokeWidth: 2.5),
-      ),
-    );
   }
 }
 

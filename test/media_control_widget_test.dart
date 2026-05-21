@@ -17,6 +17,7 @@ void main() {
       'context.seeLyrics': 'See Lyrics',
       'context.seeLocalFile': 'See Local File',
       'context.seeMusicInfo': 'See Music Info',
+      'nowPlaying.exitFullScreenItem': 'Exit Full Screen',
       'nowPlaying.fullScreen': 'Full Screen',
       'nowPlaying.quickPlay': 'Quick Play',
       'player.enterMiniMode': 'Enter Mini Mode',
@@ -26,6 +27,7 @@ void main() {
       'player.next': 'Next',
       'player.pause': 'Pause',
       'player.play': 'Play',
+      'player.playbackLoadFailed': 'Could not play this song.',
       'player.playbackMode': 'Playback Mode',
       'player.playbackModeList': 'List',
       'player.playbackModeRepeat': 'Repeat',
@@ -51,6 +53,75 @@ void main() {
       'settings.preferenceSettings': 'Preference Settings',
     },
   );
+
+  test('clampVolumeValue mirrors Electron volume bounds', () {
+    expect(clampVolumeValue(-12), 0);
+    expect(clampVolumeValue(42.4), 42);
+    expect(clampVolumeValue(42.6), 43);
+    expect(clampVolumeValue(150), 100);
+  });
+
+  testWidgets('VolumeSlider shows transient Electron-style value tooltip', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 180,
+              child: VolumeSlider(
+                value: 37,
+                disabled: false,
+                showTooltipOnMount: true,
+                onChange: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
+    expect(find.text('37'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 901));
+
+    expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsNothing);
+  });
+
+  testWidgets('VolumeSlider rounds and de-dupes live changes', (tester) async {
+    final changes = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 180,
+              child: VolumeSlider(
+                value: 20,
+                disabled: false,
+                onChange: changes.add,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    var slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(72.3);
+    await tester.pump();
+    slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(72.4);
+    await tester.pump();
+    slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(73.0);
+    await tester.pump();
+
+    expect(changes, [72, 73]);
+  });
 
   testWidgets(
     'MediaControl renders Electron player actions and updates state',
@@ -103,6 +174,7 @@ void main() {
                     mode: state.mode,
                     progressSeconds: state.progressSeconds,
                     durationSeconds: state.durationSeconds,
+                    playbackNoticeKey: state.playbackNoticeKey,
                     onTogglePlayPause: controller.onTogglePlayPause,
                     onPrevious: controller.onPrevious,
                     onNext: controller.onNext,
@@ -118,6 +190,7 @@ void main() {
                     onQuickPlay: () {},
                     onOpenNowPlaying: () {},
                     onToggleWindowFullScreen: () {},
+                    isWindowFullScreen: false,
                     onEnterMiniMode: () {},
                   );
                 },
@@ -142,6 +215,58 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('MediaControl.NextButton')));
       await tester.pump();
       expect(controller.state.progressSeconds, 0);
+    },
+  );
+
+  testWidgets(
+    'MediaControl renders playback load failure without file details',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 180,
+                playbackNoticeKey: 'player.playbackLoadFailed',
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Could not play this song.'), findsOneWidget);
+      expect(find.textContaining('/'), findsNothing);
     },
   );
 
@@ -199,6 +324,7 @@ void main() {
               onQuickPlay: () {},
               onOpenNowPlaying: () {},
               onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
               onEnterMiniMode: () {
                 miniModeEntered = true;
               },
@@ -289,6 +415,7 @@ void main() {
               onQuickPlay: () {},
               onOpenNowPlaying: () {},
               onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
               onEnterMiniMode: () {},
               onAddToPlaylist: (playlistId) {
                 addedPlaylistId = playlistId;

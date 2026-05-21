@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
 import 'recent_page_model.dart';
@@ -8,6 +9,7 @@ class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
     super.key,
     required this.entries,
+    required this.i18n,
     required this.multiSelect,
     required this.selectedEntryIds,
     required this.onSearch,
@@ -17,6 +19,7 @@ class RecentSearchList extends StatelessWidget {
   });
 
   final List<SearchHistoryEntry> entries;
+  final SmPlayerI18n i18n;
   final bool multiSelect;
   final Set<int> selectedEntryIds;
   final ValueChanged<SearchHistoryEntry> onSearch;
@@ -28,10 +31,10 @@ class RecentSearchList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          '没有最近搜索',
-          style: TextStyle(color: _RecentSearchColors.textMuted),
+          i18n.t('recent.noSearches'),
+          style: const TextStyle(color: _RecentSearchColors.textMuted),
         ),
       );
     }
@@ -44,6 +47,7 @@ class RecentSearchList extends StatelessWidget {
         final entry = entries[index];
         return _RecentSearchRow(
           entry: entry,
+          i18n: i18n,
           selected: selectedEntryIds.contains(entry.id),
           multiSelect: multiSelect,
           onSearch: () {
@@ -67,6 +71,7 @@ class RecentSearchList extends StatelessWidget {
 class _RecentSearchRow extends StatefulWidget {
   const _RecentSearchRow({
     required this.entry,
+    required this.i18n,
     required this.selected,
     required this.multiSelect,
     required this.onSearch,
@@ -76,6 +81,7 @@ class _RecentSearchRow extends StatefulWidget {
   });
 
   final SearchHistoryEntry entry;
+  final SmPlayerI18n i18n;
   final bool selected;
   final bool multiSelect;
   final VoidCallback onSearch;
@@ -176,7 +182,10 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            searchHistoryTypeLabel(widget.entry.type),
+                            searchHistoryTypeLabel(
+                              widget.entry.type,
+                              widget.i18n,
+                            ),
                             style: const TextStyle(
                               color: _RecentSearchColors.textMuted,
                               fontSize: 13,
@@ -196,7 +205,7 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '移除',
+                  tooltip: widget.i18n.t('context.removeFromList'),
                   icon: const Icon(FluentIcons.dismiss_16_regular, size: 15),
                   color: _RecentSearchColors.textMuted,
                   onPressed: widget.onRemove,

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -91,6 +93,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _artworkRecommendationLoading = false;
   AlbumArtRecommendation? _artworkRecommendation;
   var _libraryArtworkPickerOpen = false;
+  final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');
 
   final _titleController = TextEditingController();
   final _subtitleController = TextEditingController();
@@ -173,6 +176,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     _genreController.dispose();
     _pathController.dispose();
     _lyricsController.dispose();
+    _shortcutFocusNode.dispose();
     for (final controller in _artistControllers) {
       controller.dispose();
     }
@@ -196,141 +200,189 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       });
     }
 
-    return Stack(
-      children: [
-        PopupDialog(
-          overlayClassName: 'music-dialog-overlay MusicDialogOverlay',
-          className: 'music-dialog ContentDialog MusicDialog',
-          navClassName: 'music-dialog-pivot MusicDialogPivot',
-          navLabel: i18n.t('context.seeMusicInfo'),
-          ariaLabel: widget.song.title,
-          onClose: _requestClose,
-          navChildren: [
-            PopupDialogTab(
-              label: _dialogTabLabel(i18n.t('context.seeMusicInfo')),
-              icon: FluentIcons.info_20_regular,
-              selected: _mode == SongDialogMode.properties,
-              first: true,
-              onPressed: () {
-                setState(() {
-                  _mode = SongDialogMode.properties;
-                });
-              },
-            ),
-            PopupDialogTab(
-              label: _dialogTabLabel(i18n.t('context.seeLyrics')),
-              icon: FluentIcons.text_quote_20_regular,
-              selected: _mode == SongDialogMode.lyrics,
-              onPressed: () {
-                setState(() {
-                  _mode = SongDialogMode.lyrics;
-                });
-              },
-            ),
-            PopupDialogTab(
-              label: _dialogTabLabel(i18n.t('context.seeAlbumArt')),
-              icon: FluentIcons.image_20_regular,
-              selected: _mode == SongDialogMode.albumArt,
-              last: true,
-              onPressed: () {
-                setState(() {
-                  _mode = SongDialogMode.albumArt;
-                });
-              },
-            ),
-          ],
-          child: switch (_mode) {
-            SongDialogMode.properties => MusicInfoControl(
-              loading: _loading,
-              saving: _saving,
-              properties: _properties,
-              artistControllers: _artistControllers,
-              titleController: _titleController,
-              subtitleController: _subtitleController,
-              albumController: _albumController,
-              albumArtistController: _albumArtistController,
-              playCountController: _playCountController,
-              publisherController: _publisherController,
-              trackNumberController: _trackNumberController,
-              yearController: _yearController,
-              bitrateController: _bitrateController,
-              composersController: _composersController,
-              dateCreatedController: _dateCreatedController,
-              dateModifiedController: _dateModifiedController,
-              durationController: _durationController,
-              fileSizeController: _fileSizeController,
-              fileTypeController: _fileTypeController,
-              genreController: _genreController,
-              pathController: _pathController,
-              canPause: widget.canPause,
-              propertiesDirty: _propertiesDirty,
-              onPlay: widget.onPlay,
-              onSave: _saveProperties,
-              onReset: _resetProperties,
-              onClearPlayCount: _clearPlayCount,
-              onAddArtistCell: _addArtistCell,
-              onRemoveArtistCell: _removeArtistCell,
-              onReveal: widget.onReveal,
-            ),
-            SongDialogMode.lyrics => MusicLyricsControl(
-              loading: _lyricsLoading,
-              saving: _saving,
-              lyrics: _lyrics,
-              lyricsController: _lyricsController,
-              lyricsDirty: _lyricsDirty,
-              showLyricsTimestamps: _showLyricsTimestamps,
-              lyricsCanToggleTimestamps: _lyricsCanToggleTimestamps,
-              onSearch: _searchLyrics,
-              onImport: _importLyrics,
-              onSave: _saveLyrics,
-              onReset: _resetLyrics,
-              onToggleTimestamps: _toggleLyricsTimestamps,
-            ),
-            SongDialogMode.albumArt => MusicAlbumArtControl(
-              song: widget.song,
-              loading: _artworkLoading,
-              saving: _saving,
-              artworkUrl: _artworkUrl,
-              artworkDirty: _artworkDirty,
-              recommendation: _artworkMissing ? _artworkRecommendation : null,
-              showDeleteConfirm: _showArtworkDeleteConfirm,
-              onApplyRecommendation: _applyAlbumArtRecommendation,
-              onChangeArtwork: _changeArtwork,
-              onChooseArtworkFromLibrary: () {
-                setState(() {
-                  _libraryArtworkPickerOpen = true;
-                });
-              },
-              onSaveArtwork: _saveArtwork,
-              onResetArtwork: _resetArtwork,
-              onRequestDelete: () {
-                setState(() {
-                  _showArtworkDeleteConfirm = true;
-                });
-              },
-              onConfirmDelete: _deleteArtwork,
-              onCancelDelete: () {
-                setState(() {
-                  _showArtworkDeleteConfirm = false;
-                });
-              },
-            ),
-          },
-        ),
-        if (_libraryArtworkPickerOpen)
-          _AlbumArtLibraryPickerDialog(
-            albumName: widget.song.album,
-            currentSong: widget.song,
-            songs: librarySongs,
-            onApply: _applyAlbumArtLibraryChoice,
-            onClose: () {
-              setState(() {
-                _libraryArtworkPickerOpen = false;
-              });
+    return Focus(
+      autofocus: true,
+      focusNode: _shortcutFocusNode,
+      onKeyEvent: _handleShortcutKey,
+      child: Stack(
+        children: [
+          PopupDialog(
+            overlayClassName: 'music-dialog-overlay MusicDialogOverlay',
+            className: 'music-dialog ContentDialog MusicDialog',
+            navClassName: 'music-dialog-pivot MusicDialogPivot',
+            navLabel: i18n.t('context.seeMusicInfo'),
+            ariaLabel: widget.song.title,
+            onClose: _requestClose,
+            navChildren: [
+              PopupDialogTab(
+                label: _dialogTabLabel(i18n.t('context.seeMusicInfo')),
+                icon: FluentIcons.info_20_regular,
+                selected: _mode == SongDialogMode.properties,
+                first: true,
+                onPressed: () {
+                  setState(() {
+                    _mode = SongDialogMode.properties;
+                  });
+                },
+              ),
+              PopupDialogTab(
+                label: _dialogTabLabel(i18n.t('context.seeLyrics')),
+                icon: FluentIcons.text_quote_20_regular,
+                selected: _mode == SongDialogMode.lyrics,
+                onPressed: () {
+                  setState(() {
+                    _mode = SongDialogMode.lyrics;
+                  });
+                },
+              ),
+              PopupDialogTab(
+                label: _dialogTabLabel(i18n.t('context.seeAlbumArt')),
+                icon: FluentIcons.image_20_regular,
+                selected: _mode == SongDialogMode.albumArt,
+                last: true,
+                onPressed: () {
+                  setState(() {
+                    _mode = SongDialogMode.albumArt;
+                  });
+                },
+              ),
+            ],
+            child: switch (_mode) {
+              SongDialogMode.properties => MusicInfoControl(
+                loading: _loading,
+                saving: _saving,
+                properties: _properties,
+                artistControllers: _artistControllers,
+                titleController: _titleController,
+                subtitleController: _subtitleController,
+                albumController: _albumController,
+                albumArtistController: _albumArtistController,
+                playCountController: _playCountController,
+                publisherController: _publisherController,
+                trackNumberController: _trackNumberController,
+                yearController: _yearController,
+                bitrateController: _bitrateController,
+                composersController: _composersController,
+                dateCreatedController: _dateCreatedController,
+                dateModifiedController: _dateModifiedController,
+                durationController: _durationController,
+                fileSizeController: _fileSizeController,
+                fileTypeController: _fileTypeController,
+                genreController: _genreController,
+                pathController: _pathController,
+                canPause: widget.canPause,
+                propertiesDirty: _propertiesDirty,
+                onPlay: widget.onPlay,
+                onSave: _saveProperties,
+                onReset: _resetProperties,
+                onClearPlayCount: _clearPlayCount,
+                onAddArtistCell: _addArtistCell,
+                onRemoveArtistCell: _removeArtistCell,
+                onReveal: widget.onReveal,
+              ),
+              SongDialogMode.lyrics => MusicLyricsControl(
+                loading: _lyricsLoading,
+                saving: _saving,
+                lyrics: _lyrics,
+                lyricsController: _lyricsController,
+                lyricsDirty: _lyricsDirty,
+                showLyricsTimestamps: _showLyricsTimestamps,
+                lyricsCanToggleTimestamps: _lyricsCanToggleTimestamps,
+                onSearch: _searchLyrics,
+                onImport: _importLyrics,
+                onSave: _saveLyrics,
+                onReset: _resetLyrics,
+                onToggleTimestamps: _toggleLyricsTimestamps,
+              ),
+              SongDialogMode.albumArt => MusicAlbumArtControl(
+                song: widget.song,
+                loading: _artworkLoading,
+                saving: _saving,
+                artworkUrl: _artworkUrl,
+                artworkDirty: _artworkDirty,
+                recommendation: _artworkMissing ? _artworkRecommendation : null,
+                showDeleteConfirm: _showArtworkDeleteConfirm,
+                onApplyRecommendation: _applyAlbumArtRecommendation,
+                onChangeArtwork: _changeArtwork,
+                onChooseArtworkFromLibrary: () {
+                  setState(() {
+                    _libraryArtworkPickerOpen = true;
+                  });
+                },
+                onSaveArtwork: _saveArtwork,
+                onResetArtwork: _resetArtwork,
+                onRequestDelete: () {
+                  setState(() {
+                    _showArtworkDeleteConfirm = true;
+                  });
+                },
+                onConfirmDelete: _deleteArtwork,
+                onCancelDelete: () {
+                  setState(() {
+                    _showArtworkDeleteConfirm = false;
+                  });
+                },
+              ),
             },
           ),
-      ],
+          if (_libraryArtworkPickerOpen)
+            _AlbumArtLibraryPickerDialog(
+              albumName: widget.song.album,
+              currentSong: widget.song,
+              songs: librarySongs,
+              onApply: _applyAlbumArtLibraryChoice,
+              onClose: () {
+                setState(() {
+                  _libraryArtworkPickerOpen = false;
+                });
+              },
+            ),
+        ],
+      ),
     );
+  }
+
+  KeyEventResult _handleShortcutKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (!keyboard.isControlPressed) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyS) {
+      unawaited(_saveActiveMode());
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyR) {
+      _resetActiveMode();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyF && _mode == SongDialogMode.lyrics) {
+      unawaited(_searchLyrics());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> _saveActiveMode() {
+    return switch (_mode) {
+      SongDialogMode.properties => _saveProperties(),
+      SongDialogMode.lyrics => _saveLyrics(),
+      SongDialogMode.albumArt => _saveArtwork(),
+    };
+  }
+
+  void _resetActiveMode() {
+    switch (_mode) {
+      case SongDialogMode.properties:
+        _resetProperties();
+      case SongDialogMode.lyrics:
+        _resetLyrics();
+      case SongDialogMode.albumArt:
+        _resetArtwork();
+    }
   }
 
   Future<void> _loadSong() async {
@@ -634,20 +686,11 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
     final i18n = context.smPlayerI18n;
     final beforeText = _lyricsController.text;
-    final keyword =
-        Platform.localeName.toLowerCase().startsWith('zh') ? '歌词' : 'lyrics';
-    final query = Uri.encodeQueryComponent(
-      [
-        keyword,
-        widget.song.title,
-        widget.song.artist,
-      ].where((value) => value.isNotEmpty).join(' '),
+    final uri = musicLyricsSearchUri(
+      locale: i18n.locale,
+      title: widget.song.title,
+      artist: widget.song.artist,
     );
-    final host =
-        Platform.localeName.toLowerCase().startsWith('zh')
-            ? 'https://cn.bing.com/search'
-            : 'https://www.bing.com/search';
-    final uri = Uri.parse('$host?q=$query');
     setState(() {
       _saving = true;
     });
@@ -1038,6 +1081,22 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+Uri musicLyricsSearchUri({
+  required String locale,
+  required String title,
+  required String artist,
+}) {
+  final isChineseLanguage = locale == 'zh-CN' || locale == 'zh-Hant';
+  final keyword = isChineseLanguage ? '歌词' : 'lyrics';
+  final host =
+      isChineseLanguage
+          ? 'https://cn.bing.com/search'
+          : 'https://www.bing.com/search';
+  return Uri.parse(
+    '$host?q=${Uri.encodeQueryComponent([keyword, title, artist].where((value) => value.isNotEmpty).join(' '))}',
+  );
 }
 
 final _lyricsTimestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -17,7 +18,7 @@ class MyFavoritesPage extends ConsumerWidget {
     final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
-      return const _FavoritesPagePanel(child: CircularProgressIndicator());
+      return const _FavoritesPagePanel(child: SmPlayerLoadingState());
     }
 
     final i18n = i18nValue.valueOrNull;
@@ -26,8 +27,7 @@ class MyFavoritesPage extends ConsumerWidget {
     }
 
     return snapshotValue.when(
-      loading:
-          () => const _FavoritesPagePanel(child: CircularProgressIndicator()),
+      loading: () => const _FavoritesPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _FavoritesPagePanel(
             child: Text(

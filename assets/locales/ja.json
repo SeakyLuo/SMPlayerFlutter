@@ -454,6 +454,7 @@
   "player.next": "次の曲",
   "player.pause": "一時停止する",
   "player.play": "再生",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "再生または一時停止",
   "player.playbackMode": "再生モード",
   "player.playbackModeList": "リスト",
