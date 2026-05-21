@@ -160,7 +160,13 @@ GoRouter createSmPlayerRouter({
             path: '/favorites',
             builder: (_, _) => const MyFavoritesPage(),
           ),
-          GoRoute(path: '/playlists', builder: (_, _) => const PlaylistsPage()),
+          GoRoute(
+            path: '/playlists',
+            builder:
+                (_, state) => PlaylistsPage(
+                  searchQuery: state.uri.queryParameters['search'] ?? '',
+                ),
+          ),
           GoRoute(
             path: '/settings',
             builder:

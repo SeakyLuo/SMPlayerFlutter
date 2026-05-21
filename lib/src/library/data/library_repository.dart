@@ -325,11 +325,13 @@ String _powerShellString(String value) {
 class LibraryRepository {
   const LibraryRepository({
     Future<File> Function()? databaseFileResolver,
+    File Function()? nowPlayingFileResolver,
     Future<File> Function()? pendingDeleteFileResolver,
     TrashPath? trashPath,
     InternetLyricsResolver? internetLyricsResolver,
     ShellThumbnailResolver? shellThumbnailResolver,
   }) : _databaseFileResolver = databaseFileResolver,
+       _nowPlayingFileResolver = nowPlayingFileResolver,
        _pendingDeleteFileResolver = pendingDeleteFileResolver,
        _trashPath = trashPath ?? trashPathIfExists,
        _internetLyricsResolver = internetLyricsResolver,
@@ -337,6 +339,7 @@ class LibraryRepository {
            shellThumbnailResolver ?? resolveShellThumbnail;
 
   final Future<File> Function()? _databaseFileResolver;
+  final File Function()? _nowPlayingFileResolver;
   final Future<File> Function()? _pendingDeleteFileResolver;
   final TrashPath _trashPath;
   final InternetLyricsResolver? _internetLyricsResolver;
@@ -369,6 +372,8 @@ class LibraryRepository {
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      _cleanupInvalidPlaylistItems(db);
+      _cleanupInvalidRecentPlayed(db);
       final settings = _readLibrarySettings(db);
       final songs = _readSongs(db);
       final folders = _readFolders(db);
@@ -487,6 +492,7 @@ class LibraryRepository {
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      _cleanupInvalidLastPlaylist(db);
       final rows = db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1');
       if (rows.isEmpty) {
         return null;
@@ -713,6 +719,24 @@ class LibraryRepository {
     await replaceNowPlaying([]);
   }
 
+  Future<void> removeSongFromNowPlaying(int songId) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final nextSongIds =
+          _readNowPlayingSongIdsByPath(
+            db,
+          ).where((queuedSongId) => queuedSongId != songId).toList();
+      _writeNowPlayingSongIds(db, nextSongIds);
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<void> removeRecentPlayed(List<int> songIds) async {
     if (songIds.isEmpty) {
       return;
@@ -766,6 +790,69 @@ class LibraryRepository {
     }
   }
 
+  void _cleanupInvalidRecentPlayed(Database db) {
+    db.execute(
+      '''
+      UPDATE RecentRecord
+      SET State = ?
+      WHERE Type = $_recentRecordTypeSong
+        AND State = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM Music
+          WHERE Music.Id = CAST(RecentRecord.ItemId AS INTEGER)
+            AND Music.State = ?
+        )
+    ''',
+      [_inactiveState, _activeState, _activeState],
+    );
+  }
+
+  void _cleanupInvalidPlaylistItems(Database db) {
+    db.execute(
+      '''
+      UPDATE PlaylistItem
+      SET State = ?
+      WHERE State = ?
+        AND (
+          NOT EXISTS (
+            SELECT 1
+            FROM Playlist
+            WHERE Playlist.Id = PlaylistItem.PlaylistId
+              AND Playlist.State = ?
+          )
+          OR NOT EXISTS (
+            SELECT 1
+            FROM Music
+            WHERE Music.Id = PlaylistItem.ItemId
+              AND Music.State = ?
+          )
+        )
+    ''',
+      [_inactiveState, _activeState, _activeState, _activeState],
+    );
+  }
+
+  void _cleanupInvalidLastPlaylist(Database db) {
+    if (!_tableExists(db, 'Playlist')) {
+      return;
+    }
+    db.execute(
+      '''
+      UPDATE Settings
+      SET LastPlaylist = MyFavorites
+      WHERE LastPlaylist > 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM Playlist
+          WHERE Playlist.Id = Settings.LastPlaylist
+            AND Playlist.State = ?
+        )
+    ''',
+      [_activeState],
+    );
+  }
+
   Future<void> removeRecentSearches(List<int> entryIds) async {
     if (entryIds.isEmpty) {
       return;
@@ -802,15 +889,20 @@ class LibraryRepository {
       db.execute('BEGIN');
       try {
         final statement = db.prepare('''
-          INSERT OR REPLACE INTO SearchHistory (Id, Query, Type, SearchedAt)
+          INSERT INTO SearchHistory (Id, Query, Type, SearchedAt)
           VALUES (?, ?, ?, ?)
         ''');
         try {
           for (final entry in entries) {
+            final storedType = _toStoredSearchHistoryType(entry.type);
+            db.execute(
+              'DELETE FROM SearchHistory WHERE Query = ? AND Type = ?',
+              [entry.query, storedType],
+            );
             statement.execute([
               entry.id,
               entry.query,
-              _toStoredSearchHistoryType(entry.type),
+              storedType,
               entry.searchedAt,
             ]);
           }
@@ -822,6 +914,33 @@ class LibraryRepository {
         db.execute('ROLLBACK');
         rethrow;
       }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> restoreRecentPlayed(List<int> songIds) async {
+    if (songIds.isEmpty) {
+      return;
+    }
+
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final placeholders = List.filled(songIds.length, '?').join(', ');
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE RecentRecord
+        SET State = ?
+        WHERE Type = $_recentRecordTypeSong
+          AND ItemId IN ($placeholders)
+      ''',
+        [_activeState, ...songIds.map((songId) => songId.toString())],
+      );
     } finally {
       db.dispose();
     }
@@ -1479,7 +1598,7 @@ class LibraryRepository {
     try {
       db.execute('BEGIN');
       try {
-        _updateFolderPathStateInsideTransaction(db, [folderPath], _hiddenState);
+        _hideFolderPathStateInsideTransaction(db, folderPath);
         _upsertHiddenStorageItem(db, 'folder', folderPath);
         db.execute('COMMIT');
       } on Object {
@@ -1559,12 +1678,21 @@ class LibraryRepository {
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      db.execute('BEGIN');
+      try {
+        _syncStorageStateFromHiddenItems(db);
+        _syncHiddenItemsFromStorageState(db);
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
       final rows = db.select(
         '''
         SELECT Id AS id, Type AS type, Path AS path
         FROM HiddenStorageItem
         WHERE State = ?
-        ORDER BY Id DESC
+        ORDER BY Type, Path
       ''',
         [_activeState],
       );
@@ -1588,9 +1716,7 @@ class LibraryRepository {
       db.execute('BEGIN');
       try {
         if (item.type == 'folder') {
-          _updateFolderPathStateInsideTransaction(db, [
-            item.path,
-          ], _activeState);
+          _resumeHiddenFolderInsideTransaction(db, item.path);
         } else {
           db.execute('UPDATE Music SET State = ? WHERE Path = ?', [
             _activeState,
@@ -1605,9 +1731,10 @@ class LibraryRepository {
           '''
           UPDATE HiddenStorageItem
           SET State = ?
-          WHERE Id = ?
+          WHERE Type = ?
+            AND Path = ?
         ''',
-          [_inactiveState, item.id],
+          [_inactiveState, item.type, item.path],
         );
         db.execute('COMMIT');
       } on Object {
@@ -1857,10 +1984,7 @@ class LibraryRepository {
     }
   }
 
-  Future<void> restorePlaylist(
-    LibraryPlaylist playlist,
-    int playlistIndex,
-  ) async {
+  Future<void> restorePlaylist(LibraryPlaylist playlist) async {
     final databaseFile = await _resolveDatabaseFile();
     if (!databaseFile.existsSync()) {
       return;
@@ -1879,6 +2003,24 @@ class LibraryRepository {
         db.execute(
           '''
           UPDATE Playlist
+          SET Priority = Priority + 1
+          WHERE State = ?
+            AND Id NOT IN (?, ?, ?)
+            AND Name <> ?
+            AND Priority >= ?
+        ''',
+          [
+            _activeState,
+            settings.myFavoritesId,
+            settings.nowPlayingId,
+            playlist.id,
+            _nowPlayingPlaylistName,
+            playlist.priority,
+          ],
+        );
+        db.execute(
+          '''
+          UPDATE Playlist
           SET Name = ?,
               Criterion = ?,
               Priority = ?,
@@ -1892,7 +2034,7 @@ class LibraryRepository {
               currentPlaylistId: playlist.id,
             ),
             _toStoredPlaylistSortCriterion(playlist.sortCriterion),
-            0,
+            playlist.priority,
             _activeState,
             playlist.id,
           ],
@@ -1902,55 +2044,6 @@ class LibraryRepository {
           playlist.id,
         ]);
         _setPlaylistSongsState(db, playlist.id, playlist.songIds, true);
-
-        final rows = db.select(
-          '''
-          SELECT Playlist.Id AS id
-          FROM Playlist
-          WHERE Playlist.State = ?
-            AND Playlist.Id NOT IN (?, ?)
-            AND Playlist.Name <> ?
-          ORDER BY
-            CASE WHEN Playlist.Priority < 0 THEN 2147483647 ELSE Playlist.Priority END,
-            LOWER(Playlist.Name),
-            Playlist.Id
-        ''',
-          [
-            _activeState,
-            settings.myFavoritesId,
-            settings.nowPlayingId,
-            _nowPlayingPlaylistName,
-          ],
-        );
-        final playlistIds =
-            rows
-                .map((row) => row['id'] as int)
-                .where((playlistId) => playlistId != playlist.id)
-                .toList();
-        playlistIds.insert(
-          playlistIndex.clamp(0, playlistIds.length),
-          playlist.id,
-        );
-        final priorityCases = List.filled(
-          playlistIds.length,
-          'WHEN ? THEN ?',
-        ).join(' ');
-        final playlistIdPlaceholders = List.filled(
-          playlistIds.length,
-          '?',
-        ).join(', ');
-        final priorityCaseValues =
-            playlistIds.indexed
-                .expand((entry) => [entry.$2, entry.$1])
-                .toList();
-        db.execute(
-          '''
-          UPDATE Playlist
-          SET Priority = CASE Id $priorityCases END
-          WHERE Id IN ($playlistIdPlaceholders)
-        ''',
-          [...priorityCaseValues, ...playlistIds],
-        );
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
@@ -2181,7 +2274,10 @@ class LibraryRepository {
     try {
       final settings = _readLibrarySettings(db);
       final hiddenPaths = _readActiveHiddenStoragePaths(db);
+      final preparedFolderCount =
+          _countScannableFolders(rootPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
+      int folderProgressMax() => max(preparedFolderCount, checkedFolderCount);
       final scannedPaths = findScannableAudioFiles(
         rootPath,
         hiddenFolderPaths: hiddenPaths.folderPaths,
@@ -2193,10 +2289,10 @@ class LibraryRepository {
             LocalFolderRefreshProgress(
               stage: LocalFolderRefreshStage.checking,
               current: checkedFolderCount,
-              total: max(checkedFolderCount, 1),
+              total: max(preparedFolderCount, checkedFolderCount),
               currentPath: folderPath,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               canCancel: true,
             ),
           );
@@ -2247,7 +2343,7 @@ class LibraryRepository {
           total: readTotal,
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
-          folderCount: max(checkedFolderCount, 1),
+          folderCount: folderProgressMax(),
           songCount: scannedPaths.length,
           updatedCount: movedFiles.length,
           missingCount: removedPaths.length,
@@ -2268,7 +2364,7 @@ class LibraryRepository {
               total: readTotal,
               currentPath: filePath,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               processedSongCount: completedCount,
               songCount: scannedPaths.length,
               addedCount: readAddedCount,
@@ -2288,7 +2384,7 @@ class LibraryRepository {
           total: writeTotal,
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
-          folderCount: max(checkedFolderCount, 1),
+          folderCount: folderProgressMax(),
           songCount: scannedPaths.length,
           addedCount: addedPaths.length,
           updatedCount: movedFiles.length,
@@ -2310,7 +2406,7 @@ class LibraryRepository {
               currentPath: entry.$2,
               stage: LocalFolderRefreshStage.updating,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               processedSongCount: writtenCount,
               songCount: scannedPaths.length,
               addedCount: addedPaths.length,
@@ -2356,7 +2452,7 @@ class LibraryRepository {
             total: writeTotal,
             currentPath: '',
             checkedFolderCount: checkedFolderCount,
-            folderCount: max(checkedFolderCount, 1),
+            folderCount: folderProgressMax(),
             processedSongCount: scannedPaths.length,
             songCount: scannedPaths.length,
             addedCount: addedPaths.length,
@@ -2401,7 +2497,10 @@ class LibraryRepository {
     try {
       final settings = _readLibrarySettings(db);
       final hiddenPaths = _readActiveHiddenStoragePaths(db);
+      final preparedFolderCount =
+          _countScannableFolders(folderPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
+      int folderProgressMax() => max(preparedFolderCount, checkedFolderCount);
       final scannedPaths = findScannableAudioFiles(
         folderPath,
         hiddenFolderPaths: hiddenPaths.folderPaths,
@@ -2413,10 +2512,10 @@ class LibraryRepository {
             LocalFolderRefreshProgress(
               stage: LocalFolderRefreshStage.checking,
               current: checkedFolderCount,
-              total: max(checkedFolderCount, 1),
+              total: max(preparedFolderCount, checkedFolderCount),
               currentPath: folderPath,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               canCancel: true,
             ),
           );
@@ -2501,7 +2600,7 @@ class LibraryRepository {
           total: readTotal,
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
-          folderCount: max(checkedFolderCount, 1),
+          folderCount: folderProgressMax(),
           songCount: addedPaths.length,
           updatedCount: movedFiles.length,
           missingCount: removedSongs.length,
@@ -2520,7 +2619,7 @@ class LibraryRepository {
               total: readTotal,
               currentPath: filePath,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               processedSongCount: completedCount,
               songCount: addedPaths.length,
               addedCount: readAddedCount,
@@ -2531,6 +2630,9 @@ class LibraryRepository {
           );
         },
       );
+      final rootPath =
+          settings.rootPath.isEmpty ? folderPath : settings.rootPath;
+      final folders = _nonEmptyScannedFolders(rootPath, scannedPaths);
       final writeTotal = max(addedPaths.length + removedSongs.length + 1, 1);
       onProgress?.call(
         LocalFolderRefreshProgress(
@@ -2539,7 +2641,7 @@ class LibraryRepository {
           total: writeTotal,
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
-          folderCount: max(checkedFolderCount, 1),
+          folderCount: folderProgressMax(),
           songCount: addedPaths.length,
           addedCount: addedPaths.length,
           updatedCount: movedFiles.length,
@@ -2550,6 +2652,7 @@ class LibraryRepository {
 
       db.execute('BEGIN');
       try {
+        _markScannedFoldersInactive(db, folderPath);
         for (final movedSong in movedSongs) {
           _updateMovedSongPathInsideTransaction(db, movedSong);
         }
@@ -2569,7 +2672,7 @@ class LibraryRepository {
               total: writeTotal,
               currentPath: '',
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               songCount: addedPaths.length,
               addedCount: addedPaths.length,
               updatedCount: movedFiles.length,
@@ -2577,6 +2680,7 @@ class LibraryRepository {
             ),
           );
         }
+        final folderIds = _upsertScannedFolders(db, rootPath, folders);
         for (final entry in addedPaths.indexed) {
           final writtenCount = entry.$1 + 1;
           onProgress?.call(
@@ -2586,7 +2690,7 @@ class LibraryRepository {
               currentPath: entry.$2,
               stage: LocalFolderRefreshStage.updating,
               checkedFolderCount: checkedFolderCount,
-              folderCount: max(checkedFolderCount, 1),
+              folderCount: folderProgressMax(),
               processedSongCount: writtenCount,
               songCount: addedPaths.length,
               addedCount: addedPaths.length,
@@ -2594,9 +2698,10 @@ class LibraryRepository {
               missingCount: removedSongs.length,
             ),
           );
-          _upsertExternalAudioFile(
+          _upsertScannedAudioFile(
             db,
             entry.$2,
+            folderIds,
             metadata: metadataByPath[entry.$2]!,
             useFilenameNotMusicName: settings.useFilenameNotMusicName,
           );
@@ -2630,7 +2735,7 @@ class LibraryRepository {
             total: writeTotal,
             currentPath: '',
             checkedFolderCount: checkedFolderCount,
-            folderCount: max(checkedFolderCount, 1),
+            folderCount: folderProgressMax(),
             processedSongCount: addedPaths.length,
             songCount: addedPaths.length,
             addedCount: addedPaths.length,
@@ -2663,6 +2768,23 @@ class LibraryRepository {
     } finally {
       db.dispose();
     }
+  }
+
+  Future<LocalFolderRefreshResult> createLocalFolder(
+    String rootPath,
+    String relativePath,
+    String name, {
+    void Function(LocalFolderRefreshProgress progress)? onProgress,
+    LocalFolderScanCancellation? cancellation,
+  }) async {
+    final parentPath =
+        relativePath.isEmpty ? rootPath : p.join(rootPath, relativePath);
+    await Directory(p.join(parentPath, name)).create(recursive: true);
+    return refreshLocalFolder(
+      parentPath,
+      onProgress: onProgress,
+      cancellation: cancellation,
+    );
   }
 
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
@@ -4498,6 +4620,25 @@ class LibraryRepository {
     );
   }
 
+  void _markScannedFoldersInactive(Database db, String folderPath) {
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE State NOT IN (?, ?)
+        AND (Path = ? OR Path LIKE ? OR Path LIKE ?)
+    ''',
+      [
+        _inactiveState,
+        _hiddenState,
+        _parentHiddenState,
+        folderPath,
+        '$folderPath/%',
+        '$folderPath\\%',
+      ],
+    );
+  }
+
   List<({int id, String path})> _readActiveSongsForLocalItems(
     Database db,
     List<int> songIds,
@@ -4584,6 +4725,235 @@ class LibraryRepository {
         [state, '$folderPath/%', '$folderPath\\%'],
       );
     }
+  }
+
+  void _hideFolderPathStateInsideTransaction(Database db, String folderPath) {
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE Path = ?
+    ''',
+      [_hiddenState, folderPath],
+    );
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
+    );
+    db.execute(
+      '''
+      UPDATE Music
+      SET State = ?
+      WHERE Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
+    );
+    db.execute(
+      '''
+      UPDATE File
+      SET State = ?
+      WHERE Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
+    );
+  }
+
+  void _resumeHiddenFolderInsideTransaction(Database db, String folderPath) {
+    db.execute(
+      '''
+      UPDATE HiddenStorageItem
+      SET State = ?
+      WHERE Path = ?
+         OR Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_inactiveState, folderPath, '$folderPath/%', '$folderPath\\%'],
+    );
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE Path = ?
+         OR Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_activeState, folderPath, '$folderPath/%', '$folderPath\\%'],
+    );
+    db.execute(
+      '''
+      UPDATE Music
+      SET State = ?
+      WHERE Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_activeState, '$folderPath/%', '$folderPath\\%'],
+    );
+    db.execute(
+      '''
+      UPDATE File
+      SET State = ?
+      WHERE Path LIKE ?
+         OR Path LIKE ?
+    ''',
+      [_activeState, '$folderPath/%', '$folderPath\\%'],
+    );
+  }
+
+  void _syncHiddenItemsFromStorageState(Database db) {
+    db.execute(
+      '''
+      UPDATE HiddenStorageItem
+      SET State = ?
+      WHERE Type = 'folder'
+        AND Path IN (SELECT Path FROM Folder WHERE State = ?)
+    ''',
+      [_activeState, _hiddenState],
+    );
+    db.execute(
+      '''
+      INSERT INTO HiddenStorageItem (Type, Path, State)
+      SELECT 'folder', Folder.Path, ?
+      FROM Folder
+      WHERE State = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM HiddenStorageItem
+          WHERE HiddenStorageItem.Type = 'folder'
+            AND HiddenStorageItem.Path = Folder.Path
+        )
+    ''',
+      [_activeState, _hiddenState],
+    );
+    db.execute(
+      '''
+      UPDATE HiddenStorageItem
+      SET State = ?
+      WHERE Type = 'file'
+        AND Path IN (SELECT Path FROM File WHERE State = ?)
+    ''',
+      [_activeState, _hiddenState],
+    );
+    db.execute(
+      '''
+      INSERT INTO HiddenStorageItem (Type, Path, State)
+      SELECT 'file', File.Path, ?
+      FROM File
+      WHERE State = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM HiddenStorageItem
+          WHERE HiddenStorageItem.Type = 'file'
+            AND HiddenStorageItem.Path = File.Path
+        )
+    ''',
+      [_activeState, _hiddenState],
+    );
+  }
+
+  void _syncStorageStateFromHiddenItems(Database db) {
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE EXISTS (
+        SELECT 1
+        FROM HiddenStorageItem
+        WHERE HiddenStorageItem.Type = 'folder'
+          AND HiddenStorageItem.Path = Folder.Path
+          AND HiddenStorageItem.State = ?
+      )
+    ''',
+      [_hiddenState, _activeState],
+    );
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE State != ?
+        AND EXISTS (
+          SELECT 1
+          FROM HiddenStorageItem
+          WHERE HiddenStorageItem.Type = 'folder'
+            AND HiddenStorageItem.State = ?
+            AND (
+              Folder.Path LIKE HiddenStorageItem.Path || '/%'
+              OR Folder.Path LIKE HiddenStorageItem.Path || '\\%'
+            )
+        )
+    ''',
+      [_parentHiddenState, _hiddenState, _activeState],
+    );
+    db.execute(
+      '''
+      UPDATE Music
+      SET State = ?
+      WHERE EXISTS (
+        SELECT 1
+        FROM HiddenStorageItem
+        WHERE HiddenStorageItem.Type = 'file'
+          AND HiddenStorageItem.Path = Music.Path
+          AND HiddenStorageItem.State = ?
+      )
+    ''',
+      [_hiddenState, _activeState],
+    );
+    db.execute(
+      '''
+      UPDATE File
+      SET State = ?
+      WHERE EXISTS (
+        SELECT 1
+        FROM HiddenStorageItem
+        WHERE HiddenStorageItem.Type = 'file'
+          AND HiddenStorageItem.Path = File.Path
+          AND HiddenStorageItem.State = ?
+      )
+    ''',
+      [_hiddenState, _activeState],
+    );
+    db.execute(
+      '''
+      UPDATE Music
+      SET State = ?
+      WHERE State != ?
+        AND EXISTS (
+          SELECT 1
+          FROM HiddenStorageItem
+          WHERE HiddenStorageItem.Type = 'folder'
+            AND HiddenStorageItem.State = ?
+            AND (
+              Music.Path LIKE HiddenStorageItem.Path || '/%'
+              OR Music.Path LIKE HiddenStorageItem.Path || '\\%'
+            )
+        )
+    ''',
+      [_parentHiddenState, _hiddenState, _activeState],
+    );
+    db.execute(
+      '''
+      UPDATE File
+      SET State = ?
+      WHERE State != ?
+        AND EXISTS (
+          SELECT 1
+          FROM HiddenStorageItem
+          WHERE HiddenStorageItem.Type = 'folder'
+            AND HiddenStorageItem.State = ?
+            AND (
+              File.Path LIKE HiddenStorageItem.Path || '/%'
+              OR File.Path LIKE HiddenStorageItem.Path || '\\%'
+            )
+        )
+    ''',
+      [_parentHiddenState, _hiddenState, _activeState],
+    );
   }
 
   void _deleteSongsInsideTransaction(
@@ -6397,16 +6767,40 @@ class LibraryRepository {
     int fallbackPlaylistId,
   ) {
     final paths = _readNowPlayingPaths();
-    final songsByPath = {for (final song in songs) song.path: song.id};
     final songIds =
         paths.isEmpty
             ? _readPlaylistSongIds(db, fallbackPlaylistId)
-            : paths.expand((path) {
-              final songId = songsByPath[path];
-              return songId == null ? const <int>[] : [songId];
-            }).toList();
+            : _readNowPlayingSongIdsFromPaths(db, paths);
 
     return NowPlayingSnapshot(playlistId: fallbackPlaylistId, songIds: songIds);
+  }
+
+  List<int> _readNowPlayingSongIdsByPath(Database db) {
+    final paths = _readNowPlayingPaths();
+    return _readNowPlayingSongIdsFromPaths(db, paths);
+  }
+
+  List<int> _readNowPlayingSongIdsFromPaths(Database db, List<String> paths) {
+    if (paths.isEmpty) {
+      return const [];
+    }
+    final placeholders = List.filled(paths.length, '?').join(', ');
+    final rows = db.select(
+      '''
+      SELECT Id AS id, Path AS path
+      FROM Music
+      WHERE Path IN ($placeholders)
+        AND State = ?
+    ''',
+      [...paths, _activeState],
+    );
+    final songIdsByPath = {
+      for (final row in rows) row['path'] as String: row['id'] as int,
+    };
+    return paths.expand((songPath) {
+      final songId = songIdsByPath[songPath];
+      return songId == null ? const <int>[] : [songId];
+    }).toList();
   }
 
   List<int> _readPlaylistSongIds(Database db, int playlistId) {
@@ -6431,9 +6825,7 @@ class LibraryRepository {
   }
 
   List<String> _readNowPlayingPaths() {
-    final file = File(
-      p.join(_defaultElectronUserDataPath(), _nowPlayingJsonName),
-    );
+    final file = _resolveNowPlayingFile();
     try {
       final data = jsonDecode(file.readAsStringSync());
       return data is List
@@ -6445,9 +6837,7 @@ class LibraryRepository {
   }
 
   void _writeNowPlayingSongIds(Database db, List<int> songIds) {
-    final file = File(
-      p.join(_defaultElectronUserDataPath(), _nowPlayingJsonName),
-    );
+    final file = _resolveNowPlayingFile();
     if (songIds.isEmpty) {
       file.writeAsStringSync('[]');
       return;
@@ -6473,6 +6863,14 @@ class LibraryRepository {
         }).toList();
 
     file.writeAsStringSync(jsonEncode(songPaths));
+  }
+
+  File _resolveNowPlayingFile() {
+    final resolver = _nowPlayingFileResolver;
+    if (resolver != null) {
+      return resolver();
+    }
+    return File(p.join(_defaultElectronUserDataPath(), _nowPlayingJsonName));
   }
 
   String _validatePlaylistName(
@@ -7406,6 +7804,30 @@ List<String> findScannableAudioFiles(
 
   walk(Directory(folderPath));
   return audioFiles;
+}
+
+int _countScannableFolders(String folderPath, List<String> hiddenFolderPaths) {
+  final hiddenFolderKeys = hiddenFolderPaths.map(_pathComparisonKey).toList();
+
+  int walk(Directory directory) {
+    var count = 0;
+    for (final entry in directory.listSync(followLinks: false)) {
+      if (entry is Link) {
+        continue;
+      }
+      if (entry is! Directory) {
+        continue;
+      }
+      if (p.basename(entry.path).endsWith('.logicx') ||
+          _isHiddenFolderPath(entry.path, hiddenFolderKeys)) {
+        continue;
+      }
+      count += 1 + walk(entry);
+    }
+    return count;
+  }
+
+  return walk(Directory(folderPath));
 }
 
 bool _isScannableAudioFile(String filePath) {

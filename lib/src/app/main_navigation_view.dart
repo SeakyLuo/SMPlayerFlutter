@@ -32,6 +32,8 @@ class MainNavigationView extends StatefulWidget {
     this.onPlaylistRandomPlay,
     this.onRecentSearchRemove,
     this.onRecentSearchesClear,
+    this.onWindowDragStart,
+    this.onWindowDragEnd,
   });
 
   final bool isPaneOpen;
@@ -54,6 +56,8 @@ class MainNavigationView extends StatefulWidget {
   final ValueChanged<int>? onPlaylistRandomPlay;
   final ValueChanged<int>? onRecentSearchRemove;
   final VoidCallback? onRecentSearchesClear;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
 
   @override
   State<MainNavigationView> createState() => _MainNavigationViewState();
@@ -222,6 +226,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                 canGoBack: widget.canGoBack,
                 backLabel: widget.i18n.t('sidebar.back'),
                 onGoBack: widget.onGoBack,
+                onWindowDragStart: widget.onWindowDragStart,
+                onWindowDragEnd: widget.onWindowDragEnd,
               ),
               const SizedBox(height: 8),
               _NavigationIconButton(
@@ -402,6 +408,8 @@ class _MainNavigationViewTitle extends StatelessWidget {
     required this.canGoBack,
     required this.backLabel,
     required this.onGoBack,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
   });
 
   final bool collapsed;
@@ -409,6 +417,8 @@ class _MainNavigationViewTitle extends StatelessWidget {
   final bool canGoBack;
   final String backLabel;
   final VoidCallback? onGoBack;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -440,19 +450,50 @@ class _MainNavigationViewTitle extends StatelessWidget {
                     const SizedBox(width: 6),
                   ],
                   Expanded(
-                    child: Text(
-                      appName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: MainNavigationViewColors.textStrong,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                    child: _WindowDragRegion(
+                      onWindowDragStart: onWindowDragStart,
+                      onWindowDragEnd: onWindowDragEnd,
+                      child: Text(
+                        appName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: MainNavigationViewColors.textStrong,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
+    );
+  }
+}
+
+class _WindowDragRegion extends StatelessWidget {
+  const _WindowDragRegion({
+    required this.child,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
+  });
+
+  final Widget child;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) {
+        if (event.buttons == 1) {
+          onWindowDragStart?.call();
+        }
+      },
+      onPointerUp: (_) => onWindowDragEnd?.call(),
+      onPointerCancel: (_) => onWindowDragEnd?.call(),
+      child: Align(alignment: Alignment.centerLeft, child: child),
     );
   }
 }

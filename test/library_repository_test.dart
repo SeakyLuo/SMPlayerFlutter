@@ -429,6 +429,62 @@ void main() {
   });
 
   test(
+    'hidden folder state mirrors Electron parent-hidden semantics',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-hidden-parent-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+
+      final source = Directory('${directory.path}/Source')..createSync();
+      final target = Directory('${directory.path}/Target')..createSync();
+      final nested = Directory('${source.path}/Nested')..createSync();
+      final song = File('${source.path}/Song.mp3')..writeAsBytesSync(const []);
+      final nestedSong = File('${nested.path}/Nested.mp3')
+        ..writeAsBytesSync(const []);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLocalMoveDatabase(
+        databaseFile: databaseFile,
+        sourceFolderPath: source.path,
+        targetFolderPath: target.path,
+        songPath: song.path,
+      );
+      _addLocalFolder(databaseFile, nested.path, parentId: 1);
+      _addLocalSong(databaseFile, nestedSong.path, parentId: 3);
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
+
+      await repository.hideFolder(source.path);
+
+      expect(_readFolderState(databaseFile, source.path), -1);
+      expect(_readFolderState(databaseFile, nested.path), -2);
+      expect(_readMusicState(databaseFile, 1), -2);
+      expect(_readMusicState(databaseFile, 2), -2);
+      expect(_readFileState(databaseFile, song.path), -2);
+      expect(_readFileState(databaseFile, nestedSong.path), -2);
+      expect(
+        (await repository.getHiddenStorageItems()).map((item) => item.path),
+        [source.path],
+      );
+
+      await repository.resumeHiddenStorageItem(
+        HiddenStorageItem(id: 1, type: 'folder', path: source.path),
+      );
+
+      expect(_readFolderState(databaseFile, source.path), 1);
+      expect(_readFolderState(databaseFile, nested.path), 1);
+      expect(_readMusicState(databaseFile, 1), 1);
+      expect(_readMusicState(databaseFile, 2), 1);
+      expect(_readFileState(databaseFile, song.path), 1);
+      expect(_readFileState(databaseFile, nestedSong.path), 1);
+      expect(await repository.getHiddenStorageItems(), isEmpty);
+    },
+  );
+
+  test(
     'markSongPlayed increments play count and refreshes recent record',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -472,6 +528,235 @@ void main() {
       } finally {
         db.dispose();
       }
+    },
+  );
+
+  test('getMusicLibrarySnapshot cleans invalid recent played records', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-recent-cleanup-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, [
+      '${directory.path}/Library/Song.mp3',
+    ]);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        'INSERT INTO RecentRecord (Type, ItemId, Time, State) VALUES (0, ?, ?, 1)',
+        ['1', '2026-05-20T00:00:00.000Z'],
+      );
+      db.execute(
+        'INSERT INTO RecentRecord (Type, ItemId, Time, State) VALUES (0, ?, ?, 1)',
+        ['999', '2026-05-21T00:00:00.000Z'],
+      );
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final snapshot = await repository.getMusicLibrarySnapshot();
+
+    expect(snapshot.recentSongs.map((song) => song.id), [1]);
+    final checkDb = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        checkDb
+            .select('SELECT ItemId, State FROM RecentRecord ORDER BY Id')
+            .map((row) => (itemId: row['ItemId'], state: row['State'])),
+        [(itemId: '1', state: 1), (itemId: '999', state: 0)],
+      );
+    } finally {
+      checkDb.dispose();
+    }
+  });
+
+  test('getMusicLibrarySnapshot cleans invalid playlist items', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-playlist-cleanup-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, [
+      '${directory.path}/Library/Song.mp3',
+    ]);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('INSERT INTO Playlist (Id, Name, State) VALUES (?, ?, ?)', [
+        10,
+        'Mix',
+        1,
+      ]);
+      db.execute('INSERT INTO Playlist (Id, Name, State) VALUES (?, ?, ?)', [
+        11,
+        'Old Mix',
+        0,
+      ]);
+      db.execute(
+        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (?, ?, ?)',
+        [10, 1, 1],
+      );
+      db.execute(
+        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (?, ?, ?)',
+        [10, 999, 1],
+      );
+      db.execute(
+        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (?, ?, ?)',
+        [11, 1, 1],
+      );
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final snapshot = await repository.getMusicLibrarySnapshot();
+
+    expect(snapshot.playlists.single.songIds, [1]);
+    final checkDb = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        checkDb
+            .select(
+              'SELECT PlaylistId, ItemId, State FROM PlaylistItem ORDER BY Id',
+            )
+            .map(
+              (row) => (
+                playlistId: row['PlaylistId'],
+                itemId: row['ItemId'],
+                state: row['State'],
+              ),
+            ),
+        [
+          (playlistId: 10, itemId: 1, state: 1),
+          (playlistId: 10, itemId: 999, state: 0),
+          (playlistId: 11, itemId: 1, state: 0),
+        ],
+      );
+    } finally {
+      checkDb.dispose();
+    }
+  });
+
+  test('restorePlaylist preserves Electron priority semantics', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-playlist-restore-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, [
+      '${directory.path}/Library/Song.mp3',
+    ]);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        'INSERT INTO Playlist (Id, Name, Criterion, Priority, State) VALUES (?, ?, ?, ?, ?)',
+        [10, 'Earlier', -1, 0, 1],
+      );
+      db.execute(
+        'INSERT INTO Playlist (Id, Name, Criterion, Priority, State) VALUES (?, ?, ?, ?, ?)',
+        [11, 'Restored', -1, 1, 0],
+      );
+      db.execute(
+        'INSERT INTO Playlist (Id, Name, Criterion, Priority, State) VALUES (?, ?, ?, ?, ?)',
+        [12, 'Later', -1, 1, 1],
+      );
+      db.execute(
+        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (?, ?, ?)',
+        [11, 1, 0],
+      );
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    await repository.restorePlaylist(
+      const LibraryPlaylist(
+        id: 11,
+        name: 'Restored',
+        priority: 1,
+        songCount: 1,
+        songIds: [1],
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: false,
+      ),
+    );
+
+    final checkDb = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        checkDb
+            .select(
+              'SELECT Id, Priority, State FROM Playlist WHERE Id IN (10, 11, 12) ORDER BY Id',
+            )
+            .map(
+              (row) => (
+                id: row['Id'],
+                priority: row['Priority'],
+                state: row['State'],
+              ),
+            ),
+        [
+          (id: 10, priority: 0, state: 1),
+          (id: 11, priority: 1, state: 1),
+          (id: 12, priority: 2, state: 1),
+        ],
+      );
+      expect(
+        checkDb
+            .select(
+              'SELECT ItemId, State FROM PlaylistItem WHERE PlaylistId = 11',
+            )
+            .map((row) => (itemId: row['ItemId'], state: row['State'])),
+        [(itemId: 1, state: 1)],
+      );
+    } finally {
+      checkDb.dispose();
+    }
+  });
+
+  test(
+    'removeSongFromNowPlaying mirrors Electron path-backed queue removal',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-now-playing-remove-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songPaths = [
+        '${directory.path}/Library/One.mp3',
+        '${directory.path}/Library/Two.mp3',
+        '${directory.path}/Library/Three.mp3',
+      ];
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      final nowPlayingFile = File('${directory.path}/NowPlaying.json');
+      _createBatchLyricsDatabase(databaseFile, songPaths);
+      nowPlayingFile.writeAsStringSync(
+        jsonEncode([songPaths[0], songPaths[1], songPaths[0], songPaths[2]]),
+      );
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+        nowPlayingFileResolver: () => nowPlayingFile,
+      );
+
+      await repository.removeSongFromNowPlaying(1);
+
+      expect(jsonDecode(nowPlayingFile.readAsStringSync()), [
+        songPaths[1],
+        songPaths[2],
+      ]);
     },
   );
 
@@ -692,6 +977,60 @@ void main() {
     }
   });
 
+  test('createLocalFolder mirrors Electron create then refresh flow', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-create-local-folder-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final root = Directory('${directory.path}/Library');
+    await root.create(recursive: true);
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createScanDatabase(databaseFile, '');
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('UPDATE Settings SET RootPath = ?', [root.path]);
+      db.execute('INSERT INTO Folder (Path, State) VALUES (?, 1)', [root.path]);
+      db.execute(
+        'INSERT INTO Folder (Path, ParentId, State) VALUES (?, 1, 1)',
+        ['${root.path}/New Folder'],
+      );
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final result = await repository.createLocalFolder(
+      root.path,
+      '',
+      'New Folder',
+    );
+
+    final createdFolder = Directory('${root.path}/New Folder');
+    expect(createdFolder.existsSync(), isTrue);
+    expect(result.hasChanges, isFalse);
+    final checkDb = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        checkDb
+            .select('SELECT Path FROM Folder WHERE State = 1 ORDER BY Path')
+            .map((row) => row['Path']),
+        [root.path],
+      );
+      expect(
+        checkDb.select('SELECT State FROM Folder WHERE Path = ?', [
+          createdFolder.path,
+        ]).single['State'],
+        0,
+      );
+    } finally {
+      checkDb.dispose();
+    }
+  });
+
   test('scanAllMusicLibrary honors smart artist recognition setting', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-root-scan-artist-setting-',
@@ -745,6 +1084,7 @@ void main() {
       );
       final cancellation = LocalFolderScanCancellation();
       final stages = <LocalFolderRefreshStage>[];
+      final checkingTotals = <int>[];
 
       await expectLater(
         repository.scanAllMusicLibrary(
@@ -752,6 +1092,9 @@ void main() {
           cancellation: cancellation,
           onProgress: (progress) {
             stages.add(progress.stage);
+            if (progress.stage == LocalFolderRefreshStage.checking) {
+              checkingTotals.add(progress.total);
+            }
             if (progress.stage == LocalFolderRefreshStage.reading &&
                 progress.current == 0) {
               cancellation.cancel();
@@ -768,6 +1111,7 @@ void main() {
           LocalFolderRefreshStage.reading,
         ]),
       );
+      expect(checkingTotals, [2, 2]);
       final db = sqlite3.open(databaseFile.path);
       try {
         expect(
@@ -1173,6 +1517,25 @@ void main() {
       });
       final databaseFile = File('${directory.path}/SMPlayerSettings.db');
       _createSettingsDatabase(databaseFile);
+      final setupDb = sqlite3.open(databaseFile.path);
+      try {
+        setupDb.execute(
+          'UPDATE Settings SET MyFavorites = 7, LastPlaylist = 42',
+        );
+        setupDb.execute('''
+          CREATE TABLE Playlist (
+            Id INTEGER PRIMARY KEY,
+            Name TEXT,
+            State INTEGER
+          )
+        ''');
+        setupDb.execute(
+          'INSERT INTO Playlist (Id, Name, State) VALUES (?, ?, ?)',
+          [7, 'My Favorites', 1],
+        );
+      } finally {
+        setupDb.dispose();
+      }
       final repository = LibraryRepository(
         databaseFileResolver: () async => databaseFile,
       );
@@ -1188,6 +1551,7 @@ void main() {
       expect(snapshot.volume, 35);
       expect(snapshot.mode, PlaybackMode.repeat);
       expect(snapshot.lastPage, '/local');
+      expect(snapshot.lastPlaylistId, 7);
 
       await repository.updateSettings(
         const AppSettingsUpdate(
@@ -1900,6 +2264,18 @@ int _readFolderState(File databaseFile, String folderPath) {
   try {
     return db.select('SELECT State FROM Folder WHERE Path = ?', [
           folderPath,
+        ]).single['State']
+        as int;
+  } finally {
+    db.dispose();
+  }
+}
+
+int _readFileState(File databaseFile, String filePath) {
+  final db = sqlite3.open(databaseFile.path);
+  try {
+    return db.select('SELECT State FROM File WHERE Path = ?', [
+          filePath,
         ]).single['State']
         as int;
   } finally {

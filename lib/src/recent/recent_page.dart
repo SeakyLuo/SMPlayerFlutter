@@ -10,6 +10,7 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
@@ -230,9 +231,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                   multiSelect: _multiSelect,
                                   selectedEntryIds: _selectedSearchIds,
                                   onSearch: (entry) {
-                                    context.go(
-                                      '/search?query=${Uri.encodeQueryComponent(entry.query)}',
-                                    );
+                                    context.go(_routeForSearchHistory(entry));
                                   },
                                   onToggleSelection: _toggleSearchSelection,
                                   onRemove: (entryId) {
@@ -275,27 +274,21 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                     context.go('/playlists/$playlistId');
                                   },
                                   onRecordPlaylistPlayed: (playlistId) {
-                                    ref
-                                        .read(libraryRepositoryProvider)
-                                        .recordPlaylistPlayed(playlistId);
-                                    ref.invalidate(
-                                      musicLibrarySnapshotProvider,
+                                    _recordRecentCollectionPlayed(
+                                      (repository) => repository
+                                          .recordPlaylistPlayed(playlistId),
                                     );
                                   },
                                   onRecordAlbumPlayed: (albumName) {
-                                    ref
-                                        .read(libraryRepositoryProvider)
-                                        .recordAlbumPlayed(albumName);
-                                    ref.invalidate(
-                                      musicLibrarySnapshotProvider,
+                                    _recordRecentCollectionPlayed(
+                                      (repository) => repository
+                                          .recordAlbumPlayed(albumName),
                                     );
                                   },
                                   onRecordArtistPlayed: (artistName) {
-                                    ref
-                                        .read(libraryRepositoryProvider)
-                                        .recordArtistPlayed(artistName);
-                                    ref.invalidate(
-                                      musicLibrarySnapshotProvider,
+                                    _recordRecentCollectionPlayed(
+                                      (repository) => repository
+                                          .recordArtistPlayed(artistName),
                                     );
                                   },
                                   onOpenSongContextMenu: (
@@ -894,8 +887,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           );
         },
         onRemove: () {
-          ref.read(libraryRepositoryProvider).removeRecentPlayed([song.id]);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          _removeRecentPlayedWithUndo([song.id]);
         },
         onSelect: () {
           setState(() {
@@ -1047,13 +1039,19 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   : FluentIcons.play_20_regular,
           onPressed: () {
             if (key.startsWith('playlists:')) {
-              ref
-                  .read(libraryRepositoryProvider)
-                  .recordPlaylistPlayed(int.parse(key.substring(10)));
+              _recordRecentCollectionPlayed(
+                (repository) => repository.recordPlaylistPlayed(
+                  int.parse(key.substring(10)),
+                ),
+              );
             } else if (key.startsWith('albums:')) {
-              ref.read(libraryRepositoryProvider).recordAlbumPlayed(title);
+              _recordRecentCollectionPlayed(
+                (repository) => repository.recordAlbumPlayed(title),
+              );
             } else {
-              ref.read(libraryRepositoryProvider).recordArtistPlayed(title);
+              _recordRecentCollectionPlayed(
+                (repository) => repository.recordArtistPlayed(title),
+              );
             }
             _playSongIds(songIds);
           },
@@ -1089,6 +1087,22 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     );
   }
 
+  void _recordRecentCollectionPlayed(
+    Future<void> Function(LibraryRepository repository) record,
+  ) {
+    unawaited(_recordRecentCollectionPlayedAsync(record));
+  }
+
+  Future<void> _recordRecentCollectionPlayedAsync(
+    Future<void> Function(LibraryRepository repository) record,
+  ) async {
+    await record(ref.read(libraryRepositoryProvider));
+    if (!mounted) {
+      return;
+    }
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
   void _showSearchContextMenu(Offset position, SearchHistoryEntry entry) {
     final i18n = context.smPlayerI18n;
     showMenuFlyout(
@@ -1100,9 +1114,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           text: i18n.t('common.search'),
           icon: FluentIcons.search_20_regular,
           onPressed: () {
-            context.go(
-              '/search?query=${Uri.encodeQueryComponent(entry.query)}',
-            );
+            context.go(_routeForSearchHistory(entry));
           },
         ),
         MenuFlyoutItem(
@@ -1153,6 +1165,35 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         ref.invalidate(musicLibrarySnapshotProvider);
       },
     );
+  }
+
+  Future<void> _removeRecentPlayedWithUndo(List<int> songIds) async {
+    await ref.read(libraryRepositoryProvider).removeRecentPlayed(songIds);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    if (!mounted) {
+      return;
+    }
+    showUndoableSnackBar(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: context.smPlayerI18n.t('notification.operationDone'),
+      onUndo: () async {
+        await ref.read(libraryRepositoryProvider).restoreRecentPlayed(songIds);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
+    );
+  }
+
+  String _routeForSearchHistory(SearchHistoryEntry entry) {
+    final query = Uri.encodeQueryComponent(entry.query);
+    return switch (entry.type) {
+      SearchHistoryType.sidebar => '/search?query=$query',
+      SearchHistoryType.artists => '/artists?artist=$query',
+      SearchHistoryType.albums => '/albums?album=$query',
+      SearchHistoryType.songs => '/songs?search=$query',
+      SearchHistoryType.playlists => '/playlists?search=$query',
+      SearchHistoryType.folders => '/search?type=folders',
+    };
   }
 
   void _playNext(int songId) {
@@ -1654,61 +1695,63 @@ class _RecentSongGrid extends StatelessWidget {
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
-          child: CustomScrollView(
-            slivers: [
-              for (final group in groups) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-                    child: Text(
-                      group.label,
-                      style: const TextStyle(
-                        color: _RecentColors.textMuted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+          builder:
+              (controller) => CustomScrollView(
+                controller: controller,
+                slivers: [
+                  for (final group in groups) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                        child: Text(
+                          group.label,
+                          style: const TextStyle(
+                            color: _RecentColors.textMuted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                SliverGrid.builder(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisExtent: constraints.maxWidth <= 520 ? 104 : 136,
-                    crossAxisSpacing: 28,
-                    mainAxisSpacing: 0,
-                  ),
-                  itemCount: group.items.length,
-                  itemBuilder: (context, index) {
-                    final song = group.items[index];
-                    return _GridViewMusicItemControl(
-                      song: song,
-                      detailLabel: getDetailLabel(song),
-                      selected: selectedSongIds.contains(song.id),
-                      current: song.id == mediaControlState.track.id,
-                      playing:
-                          song.id == mediaControlState.track.id &&
-                          mediaControlState.isPlaying,
-                      multiSelect: multiSelect,
-                      onPlayTrack: () {
-                        onPlaySong(
-                          song,
-                          queueSongIds,
-                          queueSongIds.indexOf(song.id),
+                    SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisExtent: constraints.maxWidth <= 520 ? 104 : 136,
+                        crossAxisSpacing: 28,
+                        mainAxisSpacing: 0,
+                      ),
+                      itemCount: group.items.length,
+                      itemBuilder: (context, index) {
+                        final song = group.items[index];
+                        return _GridViewMusicItemControl(
+                          song: song,
+                          detailLabel: getDetailLabel(song),
+                          selected: selectedSongIds.contains(song.id),
+                          current: song.id == mediaControlState.track.id,
+                          playing:
+                              song.id == mediaControlState.track.id &&
+                              mediaControlState.isPlaying,
+                          multiSelect: multiSelect,
+                          onPlayTrack: () {
+                            onPlaySong(
+                              song,
+                              queueSongIds,
+                              queueSongIds.indexOf(song.id),
+                            );
+                          },
+                          onToggleSelection: () {
+                            onToggleSelection(song.id);
+                          },
+                          onOpenContextMenu: (position) {
+                            onOpenContextMenu(position, song, queueSongIds);
+                          },
                         );
                       },
-                      onToggleSelection: () {
-                        onToggleSelection(song.id);
-                      },
-                      onOpenContextMenu: (position) {
-                        onOpenContextMenu(position, song, queueSongIds);
-                      },
-                    );
-                  },
-                ),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 92)),
-            ],
-          ),
+                    ),
+                  ],
+                  const SliverToBoxAdapter(child: SizedBox(height: 92)),
+                ],
+              ),
         );
       },
     );
@@ -1921,10 +1964,10 @@ class _RecentPlaylistGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _RecentCollectionGrid(
-      itemCount: playlists.length,
-      itemBuilder: (context, index) {
-        final playlist = playlists[index];
+    return _RecentCollectionGrid<RecentPlaylistView>(
+      items: playlists,
+      playedAt: (playlist) => playlist.playedAt,
+      itemBuilder: (context, playlist) {
         final key = 'playlists:${playlist.playlist.id}';
         return _CollectionCard(
           icon: FluentIcons.apps_list_detail_24_regular,
@@ -1970,10 +2013,10 @@ class _RecentAlbumGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _RecentCollectionGrid(
-      itemCount: albums.length,
-      itemBuilder: (context, index) {
-        final album = albums[index];
+    return _RecentCollectionGrid<RecentAlbumView>(
+      items: albums,
+      playedAt: (album) => album.playedAt,
+      itemBuilder: (context, album) {
         final key = 'albums:${album.name}';
         final firstSong = album.songs.first;
         return _CollectionCard(
@@ -2029,67 +2072,124 @@ class _RecentArtistList extends StatelessWidget {
       );
     }
 
+    final groups = _groupRecentItems(
+      artists,
+      (artist) => artist.playedAt,
+      context.smPlayerI18n,
+    );
     return RecentScrollbar(
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
-        itemExtent: 72,
-        itemCount: artists.length,
-        itemBuilder: (context, index) {
-          final artist = artists[index];
-          final key = 'artists:${artist.name}';
-          final firstSong = artist.songs.first;
-          return _ArtistRow(
-            artist: artist,
-            imagePath: firstSong.thumbnailPath,
-            selected: selectedKeys.contains(key),
-            multiSelect: multiSelect,
-            onOpen: () {
-              if (multiSelect) {
-                onToggleSelection(key);
-              } else {
-                onOpen(artist.name);
-              }
-            },
-            onPlay: () => onPlay(artist),
-            onOpenContextMenu: (position) {
-              onOpenContextMenu(position, artist);
-            },
-          );
-        },
-      ),
+      builder:
+          (controller) => CustomScrollView(
+            controller: controller,
+            slivers: [
+              for (final group in groups) ...[
+                _RecentTimeGroupHeader(label: group.label),
+                SliverList.builder(
+                  itemCount: group.items.length,
+                  itemBuilder: (context, index) {
+                    final artist = group.items[index];
+                    final key = 'artists:${artist.name}';
+                    final firstSong = artist.songs.first;
+                    return SizedBox(
+                      height: 72,
+                      child: _ArtistRow(
+                        artist: artist,
+                        imagePath: firstSong.thumbnailPath,
+                        selected: selectedKeys.contains(key),
+                        multiSelect: multiSelect,
+                        onOpen: () {
+                          if (multiSelect) {
+                            onToggleSelection(key);
+                          } else {
+                            onOpen(artist.name);
+                          }
+                        },
+                        onPlay: () => onPlay(artist),
+                        onOpenContextMenu: (position) {
+                          onOpenContextMenu(position, artist);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 92)),
+            ],
+          ),
     );
   }
 }
 
-class _RecentCollectionGrid extends StatelessWidget {
+class _RecentCollectionGrid<T> extends StatelessWidget {
   const _RecentCollectionGrid({
-    required this.itemCount,
+    required this.items,
+    required this.playedAt,
     required this.itemBuilder,
   });
 
-  final int itemCount;
-  final IndexedWidgetBuilder itemBuilder;
+  final List<T> items;
+  final String Function(T item) playedAt;
+  final Widget Function(BuildContext context, T item) itemBuilder;
 
   @override
   Widget build(BuildContext context) {
-    if (itemCount == 0) {
+    if (items.isEmpty) {
       return _RecentEmptyState(
         title: context.smPlayerI18n.t('recent.empty'),
         message: '',
       );
     }
 
+    final groups = _groupRecentItems(items, playedAt, context.smPlayerI18n);
     return RecentScrollbar(
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 210,
-          mainAxisExtent: 242,
-          crossAxisSpacing: 30,
-          mainAxisSpacing: 26,
+      builder:
+          (controller) => CustomScrollView(
+            controller: controller,
+            slivers: [
+              for (final group in groups) ...[
+                _RecentTimeGroupHeader(label: group.label),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
+                  sliver: SliverGrid.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 210,
+                          mainAxisExtent: 242,
+                          crossAxisSpacing: 30,
+                          mainAxisSpacing: 26,
+                        ),
+                    itemCount: group.items.length,
+                    itemBuilder:
+                        (context, index) =>
+                            itemBuilder(context, group.items[index]),
+                  ),
+                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 70)),
+            ],
+          ),
+    );
+  }
+}
+
+class _RecentTimeGroupHeader extends StatelessWidget {
+  const _RecentTimeGroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 10, 14, 10),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: _RecentColors.textMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        itemCount: itemCount,
-        itemBuilder: itemBuilder,
       ),
     );
   }

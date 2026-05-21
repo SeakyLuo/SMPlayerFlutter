@@ -101,14 +101,17 @@ void main() {
       'local.scanPopulate': 'Scan to populate.',
       'local.refreshAddedGroup': 'Added ({count})',
       'local.refreshAddedMultiple': '{count} songs added',
+      'local.refreshAddedTab': 'Added Songs',
       'local.refreshArtistSplitsAppliedGroup': 'Ready to Split ({count})',
       'local.refreshArtistSplitSuggestionsGroup': 'Possible splits ({count})',
       'local.refreshArtistUpdatesTab': 'Artist updates',
       'local.refreshMovedGroup': 'Moved ({count})',
       'local.refreshMovedMultiple': '{count} songs moved',
+      'local.refreshMovedTab': 'Moved Songs',
       'local.refreshNoChange': 'No changes found.',
       'local.refreshRemovedGroup': 'Removed ({count})',
       'local.refreshRemovedMultiple': '{count} songs removed',
+      'local.refreshRemovedTab': 'Removed Songs',
       'local.scopeCurrent': 'Current folder',
       'local.scopeSubtree': 'Include subfolders',
       'local.searchDirectoryPrompt': 'Search under "{name}"',
@@ -208,7 +211,7 @@ void main() {
           ..refreshResult = const LocalFolderRefreshResult(
             filesAdded: [r'C:\Music\New Song.mp3'],
             filesRemoved: [r'C:\Music\Old Song.mp3'],
-            filesMoved: [],
+            filesMoved: [r'C:\Music\Moved Song.mp3'],
             artistSplitsApplied: [],
             artistSplitSuggestions: [],
             artistMergeSuggestions: [],
@@ -229,9 +232,14 @@ void main() {
 
     expect(repository.refreshedFolderPath, r'C:\Music');
     expect(find.textContaining('Update result for'), findsOneWidget);
-    expect(find.text('Added (1)'), findsOneWidget);
-    expect(find.text('Removed (1)'), findsOneWidget);
+    expect(find.text('Added Songs'), findsOneWidget);
+    expect(find.text('Removed Songs'), findsOneWidget);
+    expect(find.text('Moved Songs'), findsOneWidget);
     expect(find.text('New Song'), findsOneWidget);
+
+    await tester.tap(find.text('Removed Songs'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Old Song'), findsOneWidget);
     expect(find.textContaining(r'C:\Music'), findsNothing);
   });
@@ -561,25 +569,38 @@ void main() {
       }
     });
 
+    final repository = _FakeLibraryRepository();
+
     await tester.pumpWidget(
       _LocalPageTestApp(
         snapshot: _snapshotWithRoot(root.path),
         i18n: i18n,
-        repository: _FakeLibraryRepository(),
+        repository: repository,
         mediaController: MediaControlController(),
       ),
     );
     await tester.pumpAndSettle();
 
     _pressCommandBarButton(tester, 'New Folder');
-    await tester.pump();
-    await tester.tap(find.text('Create'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'New Folder');
+    tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed!();
+    await tester.pumpAndSettle();
+    for (
+      var attempt = 0;
+      attempt < 10 && repository.createdLocalFolder == null;
+      attempt += 1
+    ) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
 
-    expect(
-      Directory('${root.path}${Platform.pathSeparator}New Folder').existsSync(),
-      isTrue,
-    );
+    expect(repository.createdLocalFolder, (
+      rootPath: root.path,
+      relativePath: '',
+      name: 'New Folder',
+    ));
+    expect(repository.refreshedFolderPath, root.path);
     expect(find.text('New Folder'), findsWidgets);
   });
 
@@ -1066,6 +1087,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceLevel;
   AppSettingsUpdate? settingsUpdate;
   String? refreshedFolderPath;
+  ({String rootPath, String relativePath, String name})? createdLocalFolder;
   String? scannedRootPath;
   LocalFolderRefreshResult refreshResult = const LocalFolderRefreshResult(
     filesAdded: [],
@@ -1164,6 +1186,30 @@ class _FakeLibraryRepository extends LibraryRepository {
                 : refreshResult.filesAdded.last,
       ),
     );
+    return refreshResult;
+  }
+
+  @override
+  Future<LocalFolderRefreshResult> createLocalFolder(
+    String rootPath,
+    String relativePath,
+    String name, {
+    void Function(LocalFolderRefreshProgress progress)? onProgress,
+    LocalFolderScanCancellation? cancellation,
+  }) async {
+    createdLocalFolder = (
+      rootPath: rootPath,
+      relativePath: relativePath,
+      name: name,
+    );
+    final folderPath =
+        relativePath.isEmpty
+            ? rootPath
+            : '$rootPath${Platform.pathSeparator}${relativePath.replaceAll('/', Platform.pathSeparator)}';
+    refreshedFolderPath = folderPath;
+    await Directory(
+      '$folderPath${Platform.pathSeparator}$name',
+    ).create(recursive: true);
     return refreshResult;
   }
 

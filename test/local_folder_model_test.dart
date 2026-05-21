@@ -87,7 +87,7 @@ void main() {
         nodes: index.nodes,
         songsById: index.songsById,
       ),
-      isFalse,
+      isTrue,
     );
     expect(
       isMoveTargetFolder(

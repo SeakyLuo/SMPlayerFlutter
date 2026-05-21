@@ -41,32 +41,34 @@ class RecentSearchList extends StatelessWidget {
     }
 
     return RecentScrollbar(
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(8, 2, 22, 88),
-        itemExtent: 56,
-        itemCount: entries.length,
-        itemBuilder: (context, index) {
-          final entry = entries[index];
-          return _RecentSearchRow(
-            entry: entry,
-            i18n: i18n,
-            selected: selectedEntryIds.contains(entry.id),
-            multiSelect: multiSelect,
-            onSearch: () {
-              onSearch(entry);
+      builder:
+          (controller) => ListView.builder(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(8, 2, 22, 88),
+            itemExtent: 56,
+            itemCount: entries.length,
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return _RecentSearchRow(
+                entry: entry,
+                i18n: i18n,
+                selected: selectedEntryIds.contains(entry.id),
+                multiSelect: multiSelect,
+                onSearch: () {
+                  onSearch(entry);
+                },
+                onToggleSelection: () {
+                  onToggleSelection(entry.id);
+                },
+                onRemove: () {
+                  onRemove(entry.id);
+                },
+                onOpenContextMenu: (position) {
+                  onOpenContextMenu(position, entry);
+                },
+              );
             },
-            onToggleSelection: () {
-              onToggleSelection(entry.id);
-            },
-            onRemove: () {
-              onRemove(entry.id);
-            },
-            onOpenContextMenu: (position) {
-              onOpenContextMenu(position, entry);
-            },
-          );
-        },
-      ),
+          ),
     );
   }
 }
@@ -163,10 +165,10 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
                               ),
                             )
                           else
-                            const Padding(
-                              padding: EdgeInsets.only(right: 10),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 10),
                               child: Icon(
-                                FluentIcons.search_20_regular,
+                                _searchHistoryTypeIcon(widget.entry.type),
                                 size: 18,
                                 color: _RecentSearchColors.textMuted,
                               ),
@@ -221,6 +223,17 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
       ),
     );
   }
+}
+
+IconData _searchHistoryTypeIcon(SearchHistoryType type) {
+  return switch (type) {
+    SearchHistoryType.sidebar => FluentIcons.search_20_regular,
+    SearchHistoryType.artists => FluentIcons.people_20_regular,
+    SearchHistoryType.albums => FluentIcons.album_20_regular,
+    SearchHistoryType.songs => FluentIcons.music_note_2_20_regular,
+    SearchHistoryType.playlists => FluentIcons.apps_list_detail_20_regular,
+    SearchHistoryType.folders => FluentIcons.folder_20_regular,
+  };
 }
 
 class _RecentSearchColors {

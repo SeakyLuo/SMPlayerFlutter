@@ -649,6 +649,10 @@ abstract class DesktopFeatureService {
 
   Future<void> exitMiniMode();
 
+  Future<void> startWindowDrag();
+
+  Future<void> stopWindowDrag();
+
   Future<void> setWindowFullScreen(bool fullScreen);
 
   Future<void> setWindowControlsLight(bool light);
@@ -706,6 +710,12 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
 
   @override
   Future<void> exitMiniMode() async {}
+
+  @override
+  Future<void> startWindowDrag() async {}
+
+  @override
+  Future<void> stopWindowDrag() async {}
 
   @override
   Future<void> setWindowFullScreen(bool fullScreen) async {}
@@ -940,6 +950,14 @@ class TrayWindowDesktopFeatureService
   Future<void> exitMiniMode() async {
     await _ignorePlatformErrors(_exitMiniMode());
   }
+
+  @override
+  Future<void> startWindowDrag() async {
+    await _ignorePlatformErrors(windowManager.startDragging());
+  }
+
+  @override
+  Future<void> stopWindowDrag() async {}
 
   @override
   Future<void> setWindowFullScreen(bool fullScreen) async {
