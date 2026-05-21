@@ -18,6 +18,8 @@ struct DesktopLyricsButton {
   std::wstring label;
 };
 
+struct WindowsMediaSessionState;
+
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
  public:
@@ -40,6 +42,7 @@ class FlutterWindow : public Win32Window {
   void SendOpenExternalArguments(const std::vector<std::string>& arguments);
   void SendDesktopLyricsBounds();
   void ApplyWindowControlsLight(bool light);
+  void UpdateMediaSession(const flutter::EncodableMap& state);
   void UpdateDesktopLyricsWindow(const flutter::EncodableMap& state);
   void HideDesktopLyricsWindow();
   void DestroyDesktopLyricsWindow();
@@ -55,9 +58,11 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_feature_channel_;
+  std::unique_ptr<WindowsMediaSessionState> media_session_;
   HWND hot_key_window_ = nullptr;
   HWND desktop_lyrics_window_ = nullptr;
   std::wstring desktop_lyrics_text_;
+  ULONGLONG desktop_lyrics_text_started_at_ = 0;
   std::wstring desktop_lyrics_next_text_;
   std::wstring desktop_lyrics_title_;
   std::wstring desktop_lyrics_artist_;

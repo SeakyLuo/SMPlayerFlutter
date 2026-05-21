@@ -10,6 +10,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 void main() {
   testWidgets('MusicDialog preserves timed lyrics when timestamps are hidden', (
@@ -241,7 +243,10 @@ class _FakeMusicDialogRepository extends LibraryRepository {
   }
 
   @override
-  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
     return const LyricsSnapshot(
       source: LyricsSource.lrcFile,
       isSynced: true,

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 
 const testI18n = SmPlayerI18n(
   locale: 'zh-CN',
@@ -29,6 +32,9 @@ const testI18n = SmPlayerI18n(
     'sidebar.recentSearches': '最近搜索',
     'sidebar.removeRecentSearch': '移除最近搜索 {query}',
     'playlists.createNew': '创建新播放列表',
+    'playlists.duplicate': '复制播放列表',
+    'playlists.rename': '重命名',
+    'playlists.delete': '删除',
     'nowPlaying.randomPlay': '随机播放',
   },
 );
@@ -164,6 +170,42 @@ void main() {
     );
 
     expect(backCount, 1);
+  });
+
+  testWidgets('playlist route expands sidebar playlist group like Electron', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/playlists/7',
+            searchText: '',
+            i18n: testI18n,
+            playlists: const [
+              LibraryPlaylist(
+                id: 7,
+                name: 'Road Trip',
+                priority: 0,
+                songCount: 0,
+                songIds: [],
+                sortCriterion: PlaylistSortCriterion.title,
+                isBuiltIn: false,
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Road Trip'), findsOneWidget);
   });
 
   testWidgets('search box reports typed, submitted, and cleared values', (
@@ -347,13 +389,6 @@ void main() {
     );
     expect(createRequested, isTrue);
 
-    await tester.tap(
-      find.byKey(
-        const ValueKey('MainNavigationView.TogglePlaylistSectionButton'),
-      ),
-    );
-    await tester.pump();
-
     expect(find.text('Road Mix'), findsOneWidget);
     expect(find.text('Built in'), findsNothing);
 
@@ -364,6 +399,78 @@ void main() {
     expect(randomPlaylistId, 7);
   });
 
+  testWidgets('sidebar playlist item exposes Electron context menu actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(420, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    LibraryPlaylist? duplicated;
+    LibraryPlaylist? renamed;
+    LibraryPlaylist? deleted;
+
+    const playlist = LibraryPlaylist(
+      id: 7,
+      name: 'Road Mix',
+      priority: 1,
+      songCount: 2,
+      songIds: [1, 2],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/playlists',
+            searchText: '',
+            i18n: testI18n,
+            playlists: const [playlist],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onItemInvoked: (_) {},
+            onDuplicatePlaylist: (playlist) {
+              duplicated = playlist;
+            },
+            onRenamePlaylist: (playlist) {
+              renamed = playlist;
+            },
+            onDeletePlaylist: (playlist) {
+              deleted = playlist;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.longPress(find.byKey(const ValueKey('PlaylistItem.7')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复制播放列表'));
+    await tester.pumpAndSettle();
+    expect(duplicated?.id, 7);
+
+    await tester.longPress(find.byKey(const ValueKey('PlaylistItem.7')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('重命名'));
+    await tester.pumpAndSettle();
+    expect(renamed?.id, 7);
+
+    await tester.longPress(find.byKey(const ValueKey('PlaylistItem.7')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    expect(deleted?.id, 7);
+  });
+
   testWidgets('shell trims committed sidebar searches', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1300, 600);
@@ -372,7 +479,19 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(const MaterialApp(home: SmPlayerShellPage()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          libraryRepositoryProvider.overrideWithValue(
+            const _MainNavigationShellRepository(),
+          ),
+        ],
+        child: const SmPlayerI18nScope(
+          i18n: testI18n,
+          child: MaterialApp(home: SmPlayerShellPage()),
+        ),
+      ),
+    );
 
     await tester.enterText(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
@@ -386,4 +505,22 @@ void main() {
     );
     expect(textField.controller?.text, 'Jazz');
   });
+}
+
+class _MainNavigationShellRepository extends LibraryRepository {
+  const _MainNavigationShellRepository();
+
+  @override
+  Future<void> commitPendingDeletes() async {}
+
+  @override
+  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
+    return const MusicLibrarySnapshot(
+      songs: [],
+      hasLibrary: false,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      databasePath: '',
+    );
+  }
 }

@@ -473,7 +473,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Release Notes'), findsOneWidget);
-    expect(find.text('Version 1.0.0'), findsOneWidget);
+    expect(find.text('Version 3.0.0'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();

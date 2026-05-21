@@ -29,6 +29,7 @@ import 'library_page_actions.dart'
         addSongsToPlaylistWithUndo,
         hideSongFileWithUndo,
         moveSongToFolderWithUndo,
+        requestLocalMoveConflictResolution,
         requestDeleteSongFromDisk,
         setSongsFavoriteWithUndo;
 import 'local_folder_model.dart';
@@ -413,13 +414,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   Expanded(
                     child: _LocalContentPanel(
                       scrollController: _scrollController,
+                      scrollable: snapshot.localViewMode != LocalViewMode.list,
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
                               ? _buildEmptyContent(i18n, snapshot)
                               : snapshot.localViewMode == LocalViewMode.list
                               ? LocalTableContent(
+                                scrollController: _scrollController,
                                 childFolders: childFolders,
                                 currentSongs: currentSongs,
+                                nodes: nodes,
+                                songsById: songsById,
                                 selectedFolderPaths: _selectedFolderPaths,
                                 selectedSongIds: _selectedSongIds,
                                 selectedTrackId: mediaState.track.id,
@@ -440,6 +445,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     ),
                                 songQuickJumpMap: songQuickJumpMap,
                                 queueSongIds: visibleSongIds,
+                                compactTreeRows:
+                                    isCompactLayout
+                                        ? localCompactFolderTreeRows
+                                        : const [],
+                                compactQueueSongIds:
+                                    isCompactLayout
+                                        ? [
+                                          ...localCompactFolderTreeSongIds,
+                                          ...visibleSongIds,
+                                        ]
+                                        : const [],
                                 i18n: i18n,
                                 onToggleFoldersExpanded:
                                     () => setState(() {
@@ -448,6 +464,20 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 onToggleSongsExpanded:
                                     () => setState(() {
                                       _songsExpanded = !_songsExpanded;
+                                    }),
+                                onToggleTreeFolderExpanded:
+                                    (folderPath) => setState(() {
+                                      if (_treeExpandedFolderPaths.contains(
+                                        folderPath,
+                                      )) {
+                                        _treeExpandedFolderPaths.remove(
+                                          folderPath,
+                                        );
+                                      } else {
+                                        _treeExpandedFolderPaths.add(
+                                          folderPath,
+                                        );
+                                      }
                                     }),
                                 onPlayFolder: (folder) => _playShuffled(folder),
                                 onAddFolder:
@@ -475,6 +505,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       i18n: i18n,
                                     ),
                                 onToggleFolderSelection: _toggleFolderSelection,
+                                onMoveLocalItemsToFolder: ({
+                                  required songIds,
+                                  required folderPaths,
+                                  required targetFolderPath,
+                                }) {
+                                  _moveLocalItemsToFolder(
+                                    songIds: songIds,
+                                    folderPaths: folderPaths,
+                                    targetFolderPath: targetFolderPath,
+                                  );
+                                },
                                 onPlayTrack: _playTrack,
                                 onTogglePlayPause:
                                     () =>
@@ -503,8 +544,11 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       i18n: i18n,
                                     ),
                                 onJumpToSongKey:
-                                    (key) =>
-                                        _jumpToSongKey(key, songQuickJumpMap),
+                                    (key) => _jumpToSongKey(
+                                      key,
+                                      songQuickJumpMap,
+                                      rowExtent: 48,
+                                    ),
                               )
                               : LocalGridContent(
                                 childFolders: childFolders,
@@ -629,8 +673,11 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       i18n: i18n,
                                     ),
                                 onJumpToSongKey:
-                                    (key) =>
-                                        _jumpToSongKey(key, songQuickJumpMap),
+                                    (key) => _jumpToSongKey(
+                                      key,
+                                      songQuickJumpMap,
+                                      rowExtent: 232,
+                                    ),
                               ),
                     ),
                   ),
@@ -917,7 +964,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     );
   }
 
-  void _showFolderMenu({
+  Future<void> _showFolderMenu({
     required Offset position,
     required FolderNode folder,
     required Map<String, FolderNode> nodes,
@@ -925,7 +972,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required List<MultiSelectCommandBarPlaylist> playlists,
     required MusicLibrarySnapshot snapshot,
     required SmPlayerI18n i18n,
-  }) {
+  }) async {
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('folder', '${folder.id}');
+    if (!mounted) {
+      return;
+    }
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: folder.subtreeSongIds,
@@ -981,7 +1034,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           onPressed: () => _selectFolder(folder),
         ),
         if (moveToFolderItem != null) moveToFolderItem,
-        _buildFolderPreferenceMenuItem(i18n, folder),
+        _buildFolderPreferenceMenuItem(i18n, folder, preferenceLevel),
         MenuFlyoutItem(
           key: 'show-in-explorer',
           text: i18n.t('context.reveal'),
@@ -1210,12 +1263,27 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   MenuFlyoutItem _buildFolderPreferenceMenuItem(
     SmPlayerI18n i18n,
     FolderNode folder,
+    String? preferenceLevel,
   ) {
     return MenuFlyoutItem(
       key: 'preference',
       text: i18n.t('settings.preferenceSettings'),
       icon: FluentIcons.star_20_regular,
       submenu: [
+        if (preferenceLevel != null) ...[
+          MenuFlyoutItem(
+            key: 'preference-undo',
+            text: i18n.t('preferences.undoPrefer'),
+            icon: FluentIcons.arrow_undo_20_regular,
+            onPressed: () async {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .removePreferenceItem('folder', '${folder.id}');
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+        ],
         for (final level in const [
           'do-not-appear',
           'dislike',
@@ -1227,6 +1295,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           MenuFlyoutItem(
             key: 'preference-$level',
             text: i18n.t('preferences.level.$level'),
+            checked: preferenceLevel == level,
             onPressed: () async {
               await ref
                   .read(libraryRepositoryProvider)
@@ -1598,7 +1667,18 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     try {
       final result = await ref
           .read(libraryRepositoryProvider)
-          .moveLocalItemsToFolder(songIds, folderPaths, targetFolderPath);
+          .moveLocalItemsToFolder(
+            songIds,
+            folderPaths,
+            targetFolderPath,
+            resolveConflict:
+                (sourcePath, targetPath) => requestLocalMoveConflictResolution(
+                  context: context,
+                  i18n: context.smPlayerI18n,
+                  sourcePath: sourcePath,
+                  targetPath: targetPath,
+                ),
+          );
       if (!mounted) {
         return;
       }
@@ -2268,14 +2348,18 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     await revealItemInFolder(song.path);
   }
 
-  void _jumpToSongKey(String key, Map<String, int> songQuickJumpMap) {
+  void _jumpToSongKey(
+    String key,
+    Map<String, int> songQuickJumpMap, {
+    required double rowExtent,
+  }) {
     final index = songQuickJumpMap[key];
     if (index == null) {
       return;
     }
 
     _scrollController.animateTo(
-      (index * 232).toDouble(),
+      index * rowExtent,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
     );
@@ -2350,10 +2434,12 @@ class _LocalScaffold extends StatelessWidget {
 class _LocalContentPanel extends StatelessWidget {
   const _LocalContentPanel({
     required this.scrollController,
+    required this.scrollable,
     required this.child,
   });
 
   final ScrollController scrollController;
+  final bool scrollable;
   final Widget child;
 
   @override
@@ -2373,11 +2459,14 @@ class _LocalContentPanel extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
-        child: SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(6, 6, 6, 18),
-          child: child,
-        ),
+        child:
+            scrollable
+                ? SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 18),
+                  child: child,
+                )
+                : child,
       ),
     );
   }

@@ -6,11 +6,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
+import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_model.dart';
@@ -18,6 +20,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
@@ -25,10 +28,14 @@ import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart'
-    show ReleaseNotesDialog;
+    show ArtistSplitReviewDialog, ReleaseNotesDialog;
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class SmPlayerShellMetrics {
   const SmPlayerShellMetrics._();
@@ -212,9 +219,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   bool? _lastWindowControlsLight;
   int? _desktopLyricsSongId;
   int? _desktopLyricsLoadingSongId;
+  LyricsRequestMode? _desktopLyricsMode;
   LyricsSnapshot? _desktopLyrics;
   String? _releaseNotesDialogVersion;
   var _releaseNotesChecked = false;
+  ArtistSplitAnalysisResult? _startupArtistSplitResult;
+  var _startupArtistSplitChecked = false;
+  var _startupArtistSplitApplying = false;
   int? _lastNotifiedSongId;
   String? _lastPersistedPage;
   late final Future<SharedPreferences> _preferencesFuture;
@@ -422,14 +433,53 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                           );
                                         },
                                         onCreatePlaylist: () {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                i18n.t('playlists.createNew'),
-                                              ),
+                                          unawaited(
+                                            _createPlaylistFromNavigation(
+                                              context: context,
+                                              ref: ref,
+                                              i18n: i18n,
+                                              snapshot: snapshot,
                                             ),
+                                          );
+                                        },
+                                        onDuplicatePlaylist: (playlist) {
+                                          unawaited(
+                                            _duplicatePlaylistFromNavigation(
+                                              ref: ref,
+                                              snapshot: snapshot,
+                                              playlist: playlist,
+                                            ),
+                                          );
+                                        },
+                                        onRenamePlaylist: (playlist) {
+                                          unawaited(
+                                            _renamePlaylistFromNavigation(
+                                              context: context,
+                                              ref: ref,
+                                              i18n: i18n,
+                                              snapshot: snapshot,
+                                              playlist: playlist,
+                                            ),
+                                          );
+                                        },
+                                        onDeletePlaylist: (playlist) {
+                                          unawaited(
+                                            _deletePlaylistFromNavigation(
+                                              ref: ref,
+                                              i18n: i18n,
+                                              snapshot: snapshot,
+                                              playlist: playlist,
+                                            ),
+                                          );
+                                        },
+                                        onReorderPlaylists: (playlistIds) {
+                                          unawaited(
+                                            ref
+                                                .read(libraryRepositoryProvider)
+                                                .reorderPlaylists(playlistIds),
+                                          );
+                                          ref.invalidate(
+                                            musicLibrarySnapshotProvider,
                                           );
                                         },
                                         onPlaylistRandomPlay: (playlistId) {
@@ -553,12 +603,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             isWindowFullScreen:
                                                 _isWindowFullScreen,
                                             onEnterMiniMode: _enterMiniMode,
-                                            onOpenVoiceAssistant: () {
-                                              _showVoiceAssistantDialog(
-                                                snapshot,
-                                                i18n,
-                                              );
-                                            },
+                                            onOpenVoiceAssistant:
+                                                Platform.isWindows
+                                                    ? () {
+                                                      _showVoiceAssistantDialog(
+                                                        snapshot,
+                                                        i18n,
+                                                      );
+                                                    }
+                                                    : null,
                                             onAddToNowPlaying:
                                                 currentSong == null
                                                     ? null
@@ -718,6 +771,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                       child: _DesktopLyricsOverlay(
                                         song: currentSong,
                                         settings: settings,
+                                        repository: ref.read(
+                                          libraryRepositoryProvider,
+                                        ),
                                         i18n: context.smPlayerI18n,
                                         progressSeconds: state.progressSeconds,
                                         isPlaying: state.isPlaying,
@@ -777,6 +833,20 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                 version: version,
                                 onClose: () {
                                   unawaited(_closeReleaseNotes(version));
+                                },
+                              ),
+                            if (_startupArtistSplitResult
+                                case final ArtistSplitAnalysisResult result)
+                              ArtistSplitReviewDialog(
+                                result: result,
+                                applying: _startupArtistSplitApplying,
+                                onCancel: () {
+                                  setState(() {
+                                    _startupArtistSplitResult = null;
+                                  });
+                                },
+                                onApply: () {
+                                  unawaited(_applyStartupArtistSplits(result));
                                 },
                               ),
                           ],
@@ -1199,6 +1269,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
             final snapshot =
                 ref.watch(musicLibrarySnapshotProvider).valueOrNull;
             final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
+            final settings = _settingsController.snapshot;
             final i18n =
                 ref.watch(smPlayerI18nProvider).valueOrNull ??
                 const SmPlayerI18n(
@@ -1215,6 +1286,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
               state: mediaControlState,
               i18n: i18n,
               currentSong: currentSong,
+              repository: ref.read(libraryRepositoryProvider),
+              playerLyricsSource: settings.playerLyricsSource,
               onExit: _exitMiniMode,
               onTogglePlayPause: _mediaControlController.onTogglePlayPause,
               onPrevious: _playPreviousFromCurrentQueue,
@@ -1230,7 +1303,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                 _quickPlayLibrary(ref);
               },
               onToggleRepeat: _mediaControlController.onToggleRepeat,
+              onToggleMute: _mediaControlController.onToggleMute,
               onVolumeChange: _mediaControlController.onVolumeChange,
+              onOpenVoiceAssistant:
+                  Platform.isWindows
+                      ? () {
+                        _showVoiceAssistantDialog(snapshot, i18n);
+                      }
+                      : null,
             );
           },
         );
@@ -1239,16 +1319,30 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _quickPlayLibrary(WidgetRef ref) {
+    unawaited(_quickPlayLibraryAsync(ref));
+  }
+
+  Future<void> _quickPlayLibraryAsync(WidgetRef ref) async {
     final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     if (songs.isEmpty) {
       return;
     }
 
-    final shuffled = songs.toList()..shuffle(Random());
-    final songIds = shuffled.take(100).map((song) => song.id).toList();
-    final firstSong = shuffled.first;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
+    final repository = ref.read(libraryRepositoryProvider);
+    final preferences = await repository.getPreferenceSettings();
+    final songIds = quickPlaySongIds(
+      songs: songs,
+      playlists: snapshot!.playlists,
+      folders: snapshot.folders,
+      preferences: preferences,
+    );
+    if (songIds.isEmpty) {
+      return;
+    }
+    final songsById = {for (final song in songs) song.id: song};
+    final firstSong = songsById[songIds.first]!;
+    await repository.replaceNowPlaying(songIds);
     ref.invalidate(musicLibrarySnapshotProvider);
     _mediaControlController.playTrack(
       MediaControlTrack(
@@ -1328,6 +1422,130 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   Future<void> _revealPath(String targetPath) async {
     await revealItemInFolder(targetPath);
+  }
+
+  Future<void> _createPlaylistFromNavigation({
+    required BuildContext context,
+    required WidgetRef ref,
+    required SmPlayerI18n i18n,
+    required MusicLibrarySnapshot? snapshot,
+  }) async {
+    final currentSnapshot =
+        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+    if (!context.mounted || currentSnapshot == null) {
+      return;
+    }
+
+    final name = await showSmPlayerInputDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('playlists.createNew'),
+      defaultValue: getNextPlaylistName(
+        i18n.t('common.playlist'),
+        currentSnapshot.playlists,
+      ),
+      placeholder: i18n.t('playlists.namePlaceholder'),
+      confirmText: i18n.t('playlists.create'),
+      validate: (name) {
+        return validatePlaylistName(name, currentSnapshot.playlists, '', i18n);
+      },
+    );
+    if (name == null) {
+      return;
+    }
+
+    final playlist = await ref
+        .read(libraryRepositoryProvider)
+        .createPlaylist(name, const []);
+    await _settingsController.saveViewState(lastPlaylistId: playlist.id);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    if (!mounted) {
+      return;
+    }
+    _navigateTo('/playlists/${playlist.id}');
+  }
+
+  Future<void> _duplicatePlaylistFromNavigation({
+    required WidgetRef ref,
+    required MusicLibrarySnapshot? snapshot,
+    required LibraryPlaylist playlist,
+  }) async {
+    final currentSnapshot =
+        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+    if (currentSnapshot == null) {
+      return;
+    }
+    await ref
+        .read(libraryRepositoryProvider)
+        .createPlaylist(
+          getNextPlaylistName(playlist.name, currentSnapshot.playlists),
+          playlist.songIds,
+        );
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _renamePlaylistFromNavigation({
+    required BuildContext context,
+    required WidgetRef ref,
+    required SmPlayerI18n i18n,
+    required MusicLibrarySnapshot? snapshot,
+    required LibraryPlaylist playlist,
+  }) async {
+    final currentSnapshot =
+        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+    if (currentSnapshot == null || !context.mounted) {
+      return;
+    }
+
+    final name = await showSmPlayerInputDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('playlists.rename'),
+      defaultValue: playlist.name,
+      placeholder: i18n.t('playlists.namePlaceholder'),
+      confirmText: i18n.t('playlists.rename'),
+      validate: (name) {
+        return validatePlaylistName(
+          name,
+          currentSnapshot.playlists,
+          playlist.name,
+          i18n,
+        );
+      },
+    );
+    if (name == null || name == playlist.name) {
+      return;
+    }
+
+    await ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _deletePlaylistFromNavigation({
+    required WidgetRef ref,
+    required SmPlayerI18n i18n,
+    required MusicLibrarySnapshot? snapshot,
+    required LibraryPlaylist playlist,
+  }) async {
+    final currentSnapshot =
+        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+    if (currentSnapshot == null) {
+      return;
+    }
+    final playlistIndex = currentSnapshot.playlists.indexWhere(
+      (item) => item.id == playlist.id,
+    );
+    await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
+    ref.invalidate(musicLibrarySnapshotProvider);
+    _showUndo(
+      i18n.t('notification.playlistRemoved', {'name': playlist.name}),
+      () async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .restorePlaylist(playlist, playlistIndex);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
+    );
   }
 
   void _navigateTo(String target) {
@@ -1493,6 +1711,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _releaseNotesChecked = true;
     final lastVersion = _settingsController.snapshot.lastReleaseNotesVersion;
     if (lastVersion.isEmpty) {
+      unawaited(_checkStartupArtistSplits());
       return;
     }
 
@@ -1504,7 +1723,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       setState(() {
         _releaseNotesDialogVersion = currentVersion;
       });
+      return;
     }
+    unawaited(_checkStartupArtistSplits());
   }
 
   Future<String> _currentAppVersion() async {
@@ -1527,6 +1748,56 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     setState(() {
       _releaseNotesDialogVersion = null;
     });
+    unawaited(_checkStartupArtistSplits());
+  }
+
+  Future<void> _checkStartupArtistSplits() async {
+    if (_startupArtistSplitChecked ||
+        _releaseNotesDialogVersion != null ||
+        !_settingsController.snapshot.smartMultiArtistRecognition) {
+      return;
+    }
+    _startupArtistSplitChecked = true;
+    final repository = ref.read(libraryRepositoryProvider);
+    final shouldCheck = await repository.shouldCheckStartupArtistSplits();
+    if (!shouldCheck) {
+      return;
+    }
+    final result = await repository.analyzeArtistSplits();
+    if (!mounted || !result.hasSuggestions) {
+      return;
+    }
+    setState(() {
+      _startupArtistSplitResult = result;
+    });
+  }
+
+  Future<void> _applyStartupArtistSplits(
+    ArtistSplitAnalysisResult result,
+  ) async {
+    setState(() {
+      _startupArtistSplitApplying = true;
+    });
+    try {
+      await ref.read(libraryRepositoryProvider).applyArtistSplits([
+        ...result.directSplits,
+        ...result.possibleSplits,
+        ...result.mergeSuggestions,
+      ]);
+      ref.invalidate(musicLibrarySnapshotProvider);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _startupArtistSplitResult = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _startupArtistSplitApplying = false;
+        });
+      }
+    }
   }
 
   void _syncDesktopFeatures({
@@ -1614,28 +1885,36 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (!shouldLoadLyrics || currentSong == null) {
       _desktopLyricsSongId = null;
       _desktopLyricsLoadingSongId = null;
+      _desktopLyricsMode = null;
       _desktopLyrics = null;
       return;
     }
 
-    if (_desktopLyricsSongId == currentSong.id ||
-        _desktopLyricsLoadingSongId == currentSong.id) {
+    final mode = settings.playerLyricsSource;
+    if ((_desktopLyricsSongId == currentSong.id &&
+            _desktopLyricsMode == mode) ||
+        (_desktopLyricsLoadingSongId == currentSong.id &&
+            _desktopLyricsMode == mode)) {
       return;
     }
 
     final songId = currentSong.id;
     _desktopLyricsLoadingSongId = songId;
+    _desktopLyricsMode = mode;
     unawaited(
-      ref.read(libraryRepositoryProvider).getSongLyrics(songId).then((lyrics) {
-        if (!mounted || _desktopLyricsLoadingSongId != songId) {
-          return;
-        }
-        _desktopLyricsSongId = songId;
-        _desktopLyricsLoadingSongId = null;
-        _desktopLyrics = lyrics;
-        _lastDesktopLyricsSignature = null;
-        setState(() {});
-      }),
+      ref
+          .read(libraryRepositoryProvider)
+          .getSongLyrics(songId, mode: mode)
+          .then((lyrics) {
+            if (!mounted || _desktopLyricsLoadingSongId != songId) {
+              return;
+            }
+            _desktopLyricsSongId = songId;
+            _desktopLyricsLoadingSongId = null;
+            _desktopLyrics = lyrics;
+            _lastDesktopLyricsSignature = null;
+            setState(() {});
+          }),
     );
   }
 
@@ -1682,11 +1961,18 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }) async {
     var lyricsPreview = '';
     if (settings.showLyricsInNotification) {
+      final cachedLyrics =
+          settings.notificationLyricsSource == settings.playerLyricsSource
+              ? _desktopLyricsForSong(currentSong)
+              : null;
       final lyrics =
-          _desktopLyricsForSong(currentSong) ??
+          cachedLyrics ??
           await ref
               .read(libraryRepositoryProvider)
-              .getSongLyrics(currentSong.id);
+              .getSongLyrics(
+                currentSong.id,
+                mode: settings.notificationLyricsSource,
+              );
       if (!mounted || _lastNotifiedSongId != currentSong.id) {
         return;
       }
@@ -2029,12 +2315,35 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       builder: (context) {
         return _VoiceAssistantDialog(
           i18n: i18n,
+          getHint: () => _getVoiceAssistantHint(snapshot, i18n),
           onExecute: (command) {
             return _executeVoiceAssistantCommand(command, snapshot, i18n);
           },
         );
       },
     );
+  }
+
+  String _getVoiceAssistantHint(
+    MusicLibrarySnapshot? snapshot,
+    SmPlayerI18n i18n,
+  ) {
+    final songs = snapshot?.songs ?? const <LibrarySong>[];
+    final song = songs.isEmpty ? null : songs[Random().nextInt(songs.length)];
+    final hintType = Random().nextInt(3);
+    if (hintType == 0) {
+      final artist = song?.artist;
+      if (artist != null && artist.isNotEmpty && artist.length <= 30) {
+        return i18n.t('voiceAssistant.hintArtist', {'artist': artist});
+      }
+    }
+    if (hintType == 1) {
+      final album = song?.album;
+      if (album != null && album.isNotEmpty && album.length <= 30) {
+        return i18n.t('voiceAssistant.hintAlbum', {'album': album});
+      }
+    }
+    return i18n.t('voiceAssistant.hintQuickPlay');
   }
 
   String _executeVoiceAssistantCommand(
@@ -2048,13 +2357,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     }
 
     final lower = command.toLowerCase();
-    final englishResult = _executeEnglishVoiceAssistantCommand(
-      parseEnglishVoiceAssistantCommand(command),
+    final parsedResult = _executeVoiceAssistantCommandResult(
+      parseVoiceAssistantCommand(command, i18n.locale),
       snapshot,
       i18n,
     );
-    if (englishResult != null) {
-      return englishResult;
+    if (parsedResult != null) {
+      return parsedResult;
     }
 
     if (_isVoiceHelpCommand(lower)) {
@@ -2202,7 +2511,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     return i18n.t('voiceAssistant.notUnderstood');
   }
 
-  String? _executeEnglishVoiceAssistantCommand(
+  String? _executeVoiceAssistantCommandResult(
     VoiceAssistantCommandResult result,
     MusicLibrarySnapshot? snapshot,
     SmPlayerI18n i18n,
@@ -2235,6 +2544,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       case VoiceAssistantMatchType.next:
         _playNextFromCurrentQueue();
         return i18n.t('voiceAssistant.executed');
+      case VoiceAssistantMatchType.changeVolume:
+        return _executeVoiceVolumeRequest(result.volumeRequest!, i18n);
       case VoiceAssistantMatchType.mute:
         if (!_mediaControlController.state.isMuted) {
           _mediaControlController.onToggleMute();
@@ -2275,6 +2586,26 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           snapshot,
           i18n,
           result.value!,
+          (song, query) =>
+              _voiceTextMatches(song.title, query) ||
+              _voiceTextMatches(song.artist, query) ||
+              _voiceTextMatches(song.album, query),
+        );
+      case VoiceAssistantMatchType.playByArtistOrMusic:
+        final request = result.request!;
+        final artistSongs =
+            (snapshot?.songs ?? const <LibrarySong>[])
+                .where((song) => _songArtistMatches(song, request.right))
+                .take(100)
+                .toList();
+        if (artistSongs.isNotEmpty) {
+          _playSongQueue(artistSongs);
+          return i18n.t('voiceAssistant.executed');
+        }
+        return _playMatchedSongs(
+          snapshot,
+          i18n,
+          request.original,
           (song, query) =>
               _voiceTextMatches(song.title, query) ||
               _voiceTextMatches(song.artist, query) ||
@@ -2347,6 +2678,24 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                   )),
         );
     }
+  }
+
+  String _executeVoiceVolumeRequest(
+    VoiceAssistantVolumeRequest request,
+    SmPlayerI18n i18n,
+  ) {
+    final current = _mediaControlController.state.volume;
+    final nextVolume =
+        request.to
+            ? clampVolumeValue(request.value)
+            : clampVolumeValue(
+              current +
+                  (request.turnUp ? 1 : -1) *
+                      request.value *
+                      (request.percentage ? current / 100 : 1),
+            );
+    _mediaControlController.onVolumeChange(nextVolume);
+    return i18n.t('voiceAssistant.volume', {'volume': '$nextVolume%'});
   }
 
   String? _executeVoiceVolumeCommand(
@@ -2674,11 +3023,13 @@ int? _firstVoiceNumber(String value) {
   return match == null ? null : int.parse(match.group(0)!);
 }
 
-class _MiniModeSurface extends StatelessWidget {
+class _MiniModeSurface extends StatefulWidget {
   const _MiniModeSurface({
     required this.state,
     required this.i18n,
     required this.currentSong,
+    required this.repository,
+    required this.playerLyricsSource,
     required this.onExit,
     required this.onTogglePlayPause,
     required this.onPrevious,
@@ -2687,12 +3038,16 @@ class _MiniModeSurface extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onQuickPlay,
     required this.onToggleRepeat,
+    required this.onToggleMute,
     required this.onVolumeChange,
+    required this.onOpenVoiceAssistant,
   });
 
   final MediaControlState state;
   final SmPlayerI18n i18n;
   final LibrarySong? currentSong;
+  final LibraryRepository repository;
+  final LyricsRequestMode playerLyricsSource;
   final VoidCallback onExit;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
@@ -2701,10 +3056,76 @@ class _MiniModeSurface extends StatelessWidget {
   final VoidCallback onToggleFavorite;
   final VoidCallback onQuickPlay;
   final VoidCallback onToggleRepeat;
+  final VoidCallback onToggleMute;
   final ValueChanged<int> onVolumeChange;
+  final VoidCallback? onOpenVoiceAssistant;
+
+  @override
+  State<_MiniModeSurface> createState() => _MiniModeSurfaceState();
+}
+
+class _MiniModeSurfaceState extends State<_MiniModeSurface> {
+  Timer? _controlsHideTimer;
+  var _controlsVisible = false;
+  var _volumeOpen = false;
+
+  @override
+  void dispose() {
+    _controlsHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showControls([PointerEvent? _]) {
+    _controlsHideTimer?.cancel();
+    if (!_controlsVisible) {
+      setState(() {
+        _controlsVisible = true;
+      });
+    }
+  }
+
+  void _scheduleControlsHide([PointerEvent? _]) {
+    _controlsHideTimer?.cancel();
+    _controlsHideTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _controlsVisible = false;
+        _volumeOpen = false;
+      });
+    });
+  }
+
+  Widget _visibleControls(Widget child) {
+    return IgnorePointer(
+      ignoring: !_controlsVisible,
+      child: AnimatedOpacity(
+        opacity: _controlsVisible ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
+    final i18n = widget.i18n;
+    final currentSong = widget.currentSong;
+    final repository = widget.repository;
+    final playerLyricsSource = widget.playerLyricsSource;
+    final onExit = widget.onExit;
+    final onTogglePlayPause = widget.onTogglePlayPause;
+    final onPrevious = widget.onPrevious;
+    final onNext = widget.onNext;
+    final onSeek = widget.onSeek;
+    final onToggleFavorite = widget.onToggleFavorite;
+    final onQuickPlay = widget.onQuickPlay;
+    final onToggleRepeat = widget.onToggleRepeat;
+    final onVolumeChange = widget.onVolumeChange;
+    final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
     final artworkPath = currentSong?.thumbnailPath ?? state.track.artworkUrl;
     final title =
         state.track.title.isEmpty
@@ -2719,205 +3140,465 @@ class _MiniModeSurface extends StatelessWidget {
     final duration = state.durationSeconds <= 0 ? 1.0 : state.durationSeconds;
     final progress = state.progressSeconds.clamp(0, duration).toDouble();
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xff28394f), Color(0xff162130)],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _MiniModeArtwork(path: artworkPath),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.42),
+    return MouseRegion(
+      onEnter: _showControls,
+      onHover: _showControls,
+      onExit: _scheduleControlsHide,
+      child: Focus(
+        onFocusChange: (focused) {
+          if (focused) {
+            _showControls();
+          }
+        },
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xff28394f), Color(0xff162130)],
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _MiniModeArtwork(path: artworkPath),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(
+                    alpha: _controlsVisible ? 0.54 : 0.36,
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      IconButton(
-                        tooltip: i18n.t('player.exitMiniMode'),
-                        onPressed: onExit,
-                        color: Colors.white,
-                        icon: const Icon(Icons.arrow_back_rounded),
+                      _visibleControls(
+                        Row(
+                          children: [
+                            IconButton(
+                              tooltip: i18n.t('player.exitMiniMode'),
+                              onPressed: onExit,
+                              color: Colors.white,
+                              icon: const Icon(Icons.arrow_back_rounded),
+                            ),
+                            const Spacer(),
+                          ],
+                        ),
                       ),
-                      Expanded(
-                        child: Text(
-                          i18n.t('player.miniMode'),
+                      const Spacer(),
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xd9ffffff),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (noticeText != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          noticeText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: Color(0xff8bc8ff),
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                      ],
+                      _MiniModeLyricLine(
+                        song: currentSong,
+                        repository: repository,
+                        playerLyricsSource: playerLyricsSource,
+                        progressSeconds: state.progressSeconds,
+                        durationSeconds: state.durationSeconds,
                       ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xd9ffffff),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (noticeText != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      noticeText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xff8bc8ff),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 18),
+                      _visibleControls(
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _MiniModeButton(
+                              tooltip: i18n.t('player.previous'),
+                              icon: Icons.skip_previous_rounded,
+                              disabled: state.disabled,
+                              onPressed: onPrevious,
+                            ),
+                            const SizedBox(width: 12),
+                            _MiniModeButton(
+                              primary: true,
+                              tooltip:
+                                  state.isPlaying
+                                      ? i18n.t('player.pause')
+                                      : i18n.t('player.play'),
+                              icon:
+                                  state.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                              loading: state.track.isLoading,
+                              disabled: state.disabled,
+                              onPressed: onTogglePlayPause,
+                            ),
+                            const SizedBox(width: 12),
+                            _MiniModeButton(
+                              tooltip: i18n.t('player.next'),
+                              icon: Icons.skip_next_rounded,
+                              disabled: state.disabled,
+                              onPressed: onNext,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _MiniModeButton(
-                        tooltip: i18n.t('player.previous'),
-                        icon: Icons.skip_previous_rounded,
-                        disabled: state.disabled,
-                        onPressed: onPrevious,
-                      ),
-                      const SizedBox(width: 12),
-                      _MiniModeButton(
-                        primary: true,
-                        tooltip:
-                            state.isPlaying
-                                ? i18n.t('player.pause')
-                                : i18n.t('player.play'),
-                        icon:
-                            state.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                        loading: state.track.isLoading,
-                        disabled: state.disabled,
-                        onPressed: onTogglePlayPause,
-                      ),
-                      const SizedBox(width: 12),
-                      _MiniModeButton(
-                        tooltip: i18n.t('player.next'),
-                        icon: Icons.skip_next_rounded,
-                        disabled: state.disabled,
-                        onPressed: onNext,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 5,
-                      ),
-                    ),
-                    child: Slider(
-                      min: 0,
-                      max: duration,
-                      value: progress,
-                      activeColor: Colors.white,
-                      inactiveColor: Colors.white24,
-                      onChanged: state.disabled ? null : onSeek,
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        tooltip: i18n.t('nowPlaying.quickPlay'),
-                        onPressed: state.disabled ? null : onQuickPlay,
-                        color: Colors.white,
-                        disabledColor: Colors.white38,
-                        icon: const Icon(Icons.casino_rounded),
-                      ),
-                      IconButton(
-                        tooltip: i18n.t('player.playbackModeRepeat'),
-                        onPressed: state.disabled ? null : onToggleRepeat,
-                        color:
-                            state.mode == PlaybackMode.repeat ||
+                      _visibleControls(
+                        Column(
+                          children: [
+                            const SizedBox(height: 18),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 5,
+                                ),
+                              ),
+                              child: Slider(
+                                min: 0,
+                                max: duration,
+                                value: progress,
+                                activeColor: Colors.white,
+                                inactiveColor: Colors.white24,
+                                onChanged: state.disabled ? null : onSeek,
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                IconButton(
+                                  tooltip: i18n.t('nowPlaying.quickPlay'),
+                                  onPressed:
+                                      state.disabled ? null : onQuickPlay,
+                                  color: Colors.white,
+                                  disabledColor: Colors.white38,
+                                  icon: const Icon(Icons.casino_rounded),
+                                ),
+                                IconButton(
+                                  tooltip: i18n.t('player.playbackModeRepeat'),
+                                  onPressed:
+                                      state.disabled ? null : onToggleRepeat,
+                                  color:
+                                      state.mode == PlaybackMode.repeat ||
+                                              state.mode ==
+                                                  PlaybackMode.repeatOne
+                                          ? const Color(0xff8bc8ff)
+                                          : Colors.white,
+                                  disabledColor: Colors.white38,
+                                  icon: Icon(
                                     state.mode == PlaybackMode.repeatOne
-                                ? const Color(0xff8bc8ff)
-                                : Colors.white,
-                        disabledColor: Colors.white38,
-                        icon: Icon(
-                          state.mode == PlaybackMode.repeatOne
-                              ? Icons.repeat_one_rounded
-                              : Icons.repeat_rounded,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip:
-                            state.track.favorite
-                                ? i18n.t('player.unlike')
-                                : i18n.t('player.like'),
-                        onPressed: state.disabled ? null : onToggleFavorite,
-                        color:
-                            state.track.favorite
-                                ? const Color(0xffff78a6)
-                                : Colors.white,
-                        disabledColor: Colors.white38,
-                        icon: Icon(
-                          state.track.favorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                        ),
-                      ),
-                      SizedBox(
-                        width: 96,
-                        child: VolumeSlider(
-                          value: clampVolumeValue(state.volume),
-                          disabled: state.disabled,
-                          activeTrackColor: Colors.white,
-                          inactiveTrackColor: Colors.white24,
-                          thumbColor: Colors.white,
-                          overlayColor: Colors.white24,
-                          tooltipBackgroundColor: const Color(0xcc000000),
-                          tooltipForegroundColor: Colors.white,
-                          onChange: onVolumeChange,
+                                        ? Icons.repeat_one_rounded
+                                        : Icons.repeat_rounded,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip:
+                                      state.track.favorite
+                                          ? i18n.t('player.unlike')
+                                          : i18n.t('player.like'),
+                                  onPressed:
+                                      state.disabled ? null : onToggleFavorite,
+                                  color:
+                                      state.track.favorite
+                                          ? const Color(0xffff78a6)
+                                          : Colors.white,
+                                  disabledColor: Colors.white38,
+                                  icon: Icon(
+                                    state.track.favorite
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                  ),
+                                ),
+                                if (onOpenVoiceAssistant != null)
+                                  IconButton(
+                                    tooltip: i18n.t('player.voiceAssistant'),
+                                    onPressed:
+                                        state.disabled
+                                            ? null
+                                            : onOpenVoiceAssistant,
+                                    color: Colors.white,
+                                    disabledColor: Colors.white38,
+                                    icon: const Icon(Icons.mic_rounded),
+                                  ),
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    alignment: Alignment.center,
+                                    children: [
+                                      IconButton(
+                                        tooltip:
+                                            state.isMuted
+                                                ? i18n.t('player.unmute')
+                                                : i18n.t('player.mute'),
+                                        onPressed:
+                                            state.disabled
+                                                ? null
+                                                : () {
+                                                  setState(() {
+                                                    _volumeOpen = !_volumeOpen;
+                                                    _controlsVisible = true;
+                                                  });
+                                                },
+                                        onLongPress:
+                                            state.disabled
+                                                ? null
+                                                : widget.onToggleMute,
+                                        color:
+                                            _volumeOpen || state.isMuted
+                                                ? const Color(0xff8bc8ff)
+                                                : Colors.white,
+                                        disabledColor: Colors.white38,
+                                        icon: Icon(
+                                          state.isMuted
+                                              ? Icons.volume_off_rounded
+                                              : Icons.volume_up_rounded,
+                                        ),
+                                      ),
+                                      if (_volumeOpen)
+                                        Positioned(
+                                          bottom: 52,
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xcc0d1726),
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                              border: Border.all(
+                                                color: Colors.white24,
+                                              ),
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 12,
+                                                  ),
+                                              child: VolumeSlider(
+                                                value: clampVolumeValue(
+                                                  state.volume,
+                                                ),
+                                                disabled: state.disabled,
+                                                orientation:
+                                                    VolumeSliderOrientation
+                                                        .vertical,
+                                                showTooltipOnMount: true,
+                                                activeTrackColor: Colors.white,
+                                                inactiveTrackColor:
+                                                    Colors.white24,
+                                                thumbColor: Colors.white,
+                                                overlayColor: Colors.white24,
+                                                tooltipBackgroundColor:
+                                                    const Color(0xcc000000),
+                                                tooltipForegroundColor:
+                                                    Colors.white,
+                                                onChange: onVolumeChange,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _MiniModeLyricLine extends StatefulWidget {
+  const _MiniModeLyricLine({
+    required this.song,
+    required this.repository,
+    required this.playerLyricsSource,
+    required this.progressSeconds,
+    required this.durationSeconds,
+  });
+
+  final LibrarySong? song;
+  final LibraryRepository repository;
+  final LyricsRequestMode playerLyricsSource;
+  final double progressSeconds;
+  final double durationSeconds;
+
+  @override
+  State<_MiniModeLyricLine> createState() => _MiniModeLyricLineState();
+}
+
+class _MiniModeLyricLineState extends State<_MiniModeLyricLine> {
+  LyricsSnapshot? _lyrics;
+  int? _loadingSongId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLyricsForSong();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniModeLyricLine oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.song?.id != widget.song?.id ||
+        oldWidget.playerLyricsSource != widget.playerLyricsSource) {
+      _lyrics = null;
+      _loadLyricsForSong();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lyrics = _lyrics;
+    if (lyrics == null || lyrics.lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final progressRatio =
+        widget.durationSeconds > 0
+            ? widget.progressSeconds / widget.durationSeconds
+            : 0.0;
+    final text = _resolveMiniModeLyricText(
+      lyrics: lyrics,
+      progressSeconds: widget.progressSeconds,
+      progressRatio: progressRatio,
+    );
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.24),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.lyrics_rounded,
+                color: Color(0xd9ffffff),
+                size: 15,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadLyricsForSong() async {
+    final song = widget.song;
+    if (song == null) {
+      _loadingSongId = null;
+      return;
+    }
+
+    final songId = song.id;
+    _loadingSongId = songId;
+    final lyrics = await widget.repository.getSongLyrics(
+      songId,
+      mode: widget.playerLyricsSource,
+    );
+    if (!mounted || _loadingSongId != songId) {
+      return;
+    }
+    setState(() {
+      _lyrics = lyrics;
+    });
+  }
+}
+
+String _resolveMiniModeLyricText({
+  required LyricsSnapshot lyrics,
+  required double progressSeconds,
+  required double progressRatio,
+}) {
+  final timedLines =
+      lyrics.lines.where((line) => line.timestampMs != null).toList();
+  if (timedLines.isNotEmpty) {
+    final progressMs = max(0, (progressSeconds * 1000).floor());
+    var currentText = '';
+    for (final line in timedLines) {
+      if (line.timestampMs! > progressMs) {
+        break;
+      }
+      currentText = line.text;
+    }
+    return _toSingleDisplayLyricLine(currentText);
+  }
+
+  final lyricIndex = min(
+    lyrics.lines.length - 1,
+    (lyrics.lines.length * progressRatio.clamp(0, 1)).floor(),
+  );
+  return _toSingleDisplayLyricLine(lyrics.lines[lyricIndex].text);
+}
+
+String _toSingleDisplayLyricLine(String text) {
+  final normalizedText = text
+      .replaceAll(RegExp(r'\\r\\n|\\n|\\r'), '\n')
+      .replaceAll(RegExp(r'\r\n|[\n\r\u2028\u2029]'), '\n');
+  for (final segment in normalizedText.split('\n')) {
+    final candidate = segment.trim();
+    if (candidate.isNotEmpty) {
+      return candidate;
+    }
+  }
+  return '';
 }
 
 class _MiniModeArtwork extends StatelessWidget {
@@ -3006,27 +3687,55 @@ class _Workspace extends StatelessWidget {
 }
 
 class _VoiceAssistantDialog extends StatefulWidget {
-  const _VoiceAssistantDialog({required this.i18n, required this.onExecute});
+  const _VoiceAssistantDialog({
+    required this.i18n,
+    required this.getHint,
+    required this.onExecute,
+  });
 
   final SmPlayerI18n i18n;
+  final String Function() getHint;
   final String Function(String command) onExecute;
 
   @override
   State<_VoiceAssistantDialog> createState() => _VoiceAssistantDialogState();
 }
 
+enum _VoiceAssistantCaptureState { idle, capturing, processing }
+
 class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
   late final TextEditingController _controller;
+  late final SpeechToText _speechToText;
+  late final FlutterTts _tts;
+  Timer? _closeTimer;
+  Timer? _restartTimer;
   String? _result;
+  String _statusText = '';
+  var _state = _VoiceAssistantCaptureState.idle;
+  var _session = 0;
+  var _listening = false;
+  var _processing = false;
+  var _showHelpLink = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _speechToText = SpeechToText();
+    _tts = FlutterTts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openAssistant();
+    });
   }
 
   @override
   void dispose() {
+    _listening = false;
+    _session += 1;
+    _closeTimer?.cancel();
+    _restartTimer?.cancel();
+    unawaited(_speechToText.cancel());
+    unawaited(_tts.stop());
     _controller.dispose();
     super.dispose();
   }
@@ -3080,12 +3789,22 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
                   ],
                 ),
                 const SizedBox(height: 14),
+                _VoiceAssistantStatus(
+                  state: _state,
+                  text:
+                      _statusText.isEmpty
+                          ? i18n.t('voiceAssistant.listening')
+                          : _statusText,
+                  showHelpLink: _showHelpLink,
+                  onOpenHelp: _openHelp,
+                  i18n: i18n,
+                ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _controller,
-                  autofocus: true,
                   decoration: InputDecoration(
                     hintText: i18n.t('voiceAssistant.command.play1'),
-                    prefixIcon: const Icon(Icons.graphic_eq_rounded),
+                    prefixIcon: const Icon(Icons.keyboard_voice_rounded),
                     filled: true,
                     fillColor: const Color(0xe6ffffff),
                     border: OutlineInputBorder(
@@ -3116,6 +3835,12 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
                       child: Text(i18n.t('common.cancel')),
                     ),
                     const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: _openAssistant,
+                      icon: const Icon(Icons.mic_rounded),
+                      label: Text(i18n.t('voiceAssistant.listening')),
+                    ),
+                    const SizedBox(width: 10),
                     FilledButton.icon(
                       onPressed: _execute,
                       icon: const Icon(Icons.play_arrow_rounded),
@@ -3131,11 +3856,264 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
     );
   }
 
+  Future<void> _openAssistant() async {
+    _session += 1;
+    final session = _session;
+    _listening = true;
+    _processing = false;
+    _closeTimer?.cancel();
+    _restartTimer?.cancel();
+    await _tts.stop();
+    await _speechToText.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _result = null;
+      _statusText = widget.getHint();
+      _showHelpLink = true;
+      _state = _VoiceAssistantCaptureState.idle;
+    });
+    await _startRecognition(session);
+  }
+
+  Future<void> _startRecognition(int session) async {
+    _restartTimer?.cancel();
+    final initialized = await _speechToText.initialize(
+      onStatus: (status) => _handleSpeechStatus(status, session),
+      onError: (error) => _handleSpeechError(error, session),
+    );
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    if (!initialized) {
+      _stopListeningWithMessage(widget.i18n.t('voiceAssistant.unavailable'));
+      return;
+    }
+
+    _controller.clear();
+    setState(() {
+      _state = _VoiceAssistantCaptureState.idle;
+    });
+    await _speechToText.listen(
+      onResult: (result) => _handleSpeechResult(result, session),
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        listenMode: ListenMode.confirmation,
+        localeId: widget.i18n.locale,
+        pauseFor: const Duration(seconds: 2),
+        listenFor: const Duration(seconds: 8),
+      ),
+    );
+  }
+
+  void _handleSpeechStatus(String status, int session) {
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    if (status == 'listening') {
+      setState(() {
+        _state = _VoiceAssistantCaptureState.capturing;
+      });
+    }
+    if ((status == 'done' || status == 'notListening') &&
+        !_processing &&
+        _controller.text.trim().isEmpty) {
+      _scheduleRecognitionRestart(session);
+    }
+  }
+
+  void _handleSpeechError(SpeechRecognitionError error, int session) {
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    final message = error.errorMsg;
+    if (message.contains('no_match') ||
+        message.contains('no-speech') ||
+        message.contains('speech_timeout')) {
+      _scheduleRecognitionRestart(session);
+      return;
+    }
+    _stopListeningWithMessage(
+      message.contains('permission')
+          ? widget.i18n.t('voiceAssistant.privacyRequired')
+          : widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+    );
+  }
+
+  void _handleSpeechResult(SpeechRecognitionResult result, int session) {
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    final transcript = result.recognizedWords.trim();
+    if (transcript.isNotEmpty) {
+      _controller.text = transcript;
+      setState(() {
+        _statusText = transcript;
+        _showHelpLink = false;
+        _state = _VoiceAssistantCaptureState.capturing;
+      });
+    }
+    if (result.finalResult && transcript.isNotEmpty) {
+      unawaited(_executeRecognizedCommand(transcript, session));
+    }
+  }
+
+  Future<void> _executeRecognizedCommand(String command, int session) async {
+    _processing = true;
+    await _speechToText.stop();
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    setState(() {
+      _state = _VoiceAssistantCaptureState.processing;
+      _statusText = widget.i18n.t('voiceAssistant.processing');
+    });
+    final result = widget.onExecute(command);
+    if (!_isActiveSession(session)) {
+      return;
+    }
+    setState(() {
+      _result = result;
+      _statusText = result;
+    });
+    if (result == widget.i18n.t('voiceAssistant.notUnderstood')) {
+      await _speak(result);
+      if (_isActiveSession(session)) {
+        _processing = false;
+        _scheduleRecognitionRestart(session);
+      }
+      return;
+    }
+    _listening = false;
+    if (result != widget.i18n.t('voiceAssistant.executed') &&
+        result != widget.i18n.t('voiceAssistant.canceled')) {
+      await _speak(result);
+    }
+    _closeTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  Future<void> _speak(String message) async {
+    await _tts.stop();
+    await _tts.setLanguage(widget.i18n.locale);
+    await _tts.awaitSpeakCompletion(true);
+    await _tts.speak(message);
+  }
+
+  void _scheduleRecognitionRestart(int session) {
+    _restartTimer?.cancel();
+    _restartTimer = Timer(const Duration(milliseconds: 250), () {
+      if (_isActiveSession(session)) {
+        unawaited(_startRecognition(session));
+      }
+    });
+  }
+
+  void _stopListeningWithMessage(String message) {
+    _listening = false;
+    _processing = false;
+    setState(() {
+      _state = _VoiceAssistantCaptureState.idle;
+      _showHelpLink = false;
+      _statusText = message;
+      _result = message;
+    });
+  }
+
+  void _openHelp() {
+    setState(() {
+      _result = widget.i18n.t('voiceAssistant.help');
+      _showHelpLink = false;
+    });
+  }
+
+  bool _isActiveSession(int session) {
+    return mounted && _listening && _session == session;
+  }
+
   void _execute() {
+    _listening = false;
+    _processing = false;
+    _session += 1;
+    _restartTimer?.cancel();
+    _closeTimer?.cancel();
+    unawaited(_speechToText.stop());
     final result = widget.onExecute(_controller.text);
     setState(() {
       _result = result;
+      _statusText = result;
+      _showHelpLink = false;
+      _state = _VoiceAssistantCaptureState.idle;
     });
+  }
+}
+
+class _VoiceAssistantStatus extends StatelessWidget {
+  const _VoiceAssistantStatus({
+    required this.state,
+    required this.text,
+    required this.showHelpLink,
+    required this.onOpenHelp,
+    required this.i18n,
+  });
+
+  final _VoiceAssistantCaptureState state;
+  final String text;
+  final bool showHelpLink;
+  final VoidCallback onOpenHelp;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    final isProcessing = state == _VoiceAssistantCaptureState.processing;
+    final isCapturing = state == _VoiceAssistantCaptureState.capturing;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isCapturing ? const Color(0x1f0063b1) : const Color(0x0f0d1826),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color:
+              isCapturing ? const Color(0x660063b1) : const Color(0x1f536379),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            if (isProcessing)
+              const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              )
+            else
+              Icon(
+                isCapturing ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
+                color: const Color(0xff0063b1),
+              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Color(0xff344054),
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            if (showHelpLink)
+              TextButton(
+                onPressed: onOpenHelp,
+                child: Text(i18n.t('voiceAssistant.getHelp')),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -3200,6 +4178,7 @@ class _DesktopLyricsOverlay extends StatefulWidget {
   const _DesktopLyricsOverlay({
     required this.song,
     required this.settings,
+    required this.repository,
     required this.i18n,
     required this.progressSeconds,
     required this.isPlaying,
@@ -3215,6 +4194,7 @@ class _DesktopLyricsOverlay extends StatefulWidget {
 
   final LibrarySong song;
   final SettingsSnapshot settings;
+  final LibraryRepository repository;
   final SmPlayerI18n i18n;
   final double progressSeconds;
   final bool isPlaying;
@@ -3244,7 +4224,9 @@ class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
   @override
   void didUpdateWidget(covariant _DesktopLyricsOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.song.id != widget.song.id) {
+    if (oldWidget.song.id != widget.song.id ||
+        oldWidget.settings.playerLyricsSource !=
+            widget.settings.playerLyricsSource) {
       _loadLyrics();
     }
   }
@@ -3355,7 +4337,7 @@ class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
                         ],
                       ),
                     ),
-                  _StrokeText(
+                  _ScrollingStrokeText(
                     text: lyricText,
                     textColor: textColor,
                     strokeColor: strokeColor,
@@ -3392,7 +4374,10 @@ class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
   Future<void> _loadLyrics() async {
     final songId = widget.song.id;
     _loadingSongId = songId;
-    final lyrics = await const LibraryRepository().getSongLyrics(songId);
+    final lyrics = await widget.repository.getSongLyrics(
+      songId,
+      mode: widget.settings.playerLyricsSource,
+    );
     if (!mounted || _loadingSongId != songId) {
       return;
     }
@@ -3410,6 +4395,8 @@ class _StrokeText extends StatelessWidget {
     required this.fontSize,
     required this.fontWeight,
     this.fontFamily,
+    this.overflow = TextOverflow.ellipsis,
+    this.textAlign = TextAlign.center,
   });
 
   final String text;
@@ -3418,6 +4405,8 @@ class _StrokeText extends StatelessWidget {
   final double fontSize;
   final FontWeight fontWeight;
   final String? fontFamily;
+  final TextOverflow overflow;
+  final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
@@ -3428,13 +4417,14 @@ class _StrokeText extends StatelessWidget {
       height: 1.15,
     );
     return Stack(
-      alignment: Alignment.center,
+      alignment:
+          textAlign == TextAlign.left ? Alignment.centerLeft : Alignment.center,
       children: [
         Text(
           text,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
+          overflow: overflow,
+          textAlign: textAlign,
           style: baseStyle.copyWith(
             foreground:
                 Paint()
@@ -3446,11 +4436,128 @@ class _StrokeText extends StatelessWidget {
         Text(
           text,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
+          overflow: overflow,
+          textAlign: textAlign,
           style: baseStyle.copyWith(color: textColor),
         ),
       ],
+    );
+  }
+}
+
+class _ScrollingStrokeText extends StatefulWidget {
+  const _ScrollingStrokeText({
+    required this.text,
+    required this.textColor,
+    required this.strokeColor,
+    required this.fontSize,
+    required this.fontWeight,
+    this.fontFamily,
+  });
+
+  final String text;
+  final Color textColor;
+  final Color strokeColor;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final String? fontFamily;
+
+  @override
+  State<_ScrollingStrokeText> createState() => _ScrollingStrokeTextState();
+}
+
+class _ScrollingStrokeTextState extends State<_ScrollingStrokeText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScrollingStrokeText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text ||
+        oldWidget.fontSize != widget.fontSize ||
+        oldWidget.fontFamily != widget.fontFamily) {
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontFamily: widget.fontFamily,
+      fontSize: widget.fontSize,
+      fontWeight: widget.fontWeight,
+      height: 1.15,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          maxLines: 1,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final overflowDistance = max(0.0, painter.width - constraints.maxWidth);
+        if (overflowDistance <= 0) {
+          _controller.stop();
+          return _StrokeText(
+            text: widget.text,
+            textColor: widget.textColor,
+            strokeColor: widget.strokeColor,
+            fontSize: widget.fontSize,
+            fontWeight: widget.fontWeight,
+            fontFamily: widget.fontFamily,
+          );
+        }
+
+        final durationSeconds = min(
+          12,
+          max(5, (overflowDistance / 28).round() + 4),
+        );
+        _controller.duration = Duration(seconds: durationSeconds);
+        if (!_controller.isAnimating) {
+          _controller.repeat(reverse: true);
+        }
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final value = Curves.easeInOut.transform(_controller.value);
+              return Transform.translate(
+                offset: Offset(-overflowDistance * value, 0),
+                child: child,
+              );
+            },
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: 1,
+              child: SizedBox(
+                width: painter.width,
+                child: _StrokeText(
+                  text: widget.text,
+                  textColor: widget.textColor,
+                  strokeColor: widget.strokeColor,
+                  fontSize: widget.fontSize,
+                  fontWeight: widget.fontWeight,
+                  fontFamily: widget.fontFamily,
+                  overflow: TextOverflow.visible,
+                  textAlign: TextAlign.left,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -47,46 +47,27 @@ void main() {
     );
   });
 
-  test(
-    'desktop tray exposes recent songs without IDs and caps like JumpList',
-    () {
-      final entries = buildDesktopTrayMenuEntries(
-        DesktopTrayState(
-          appTitle: 'Simple Melody Player',
-          isPlaying: false,
-          isWindowVisible: false,
-          quitOnClose: false,
-          labels: _labels,
-          recentSongs: List.generate(
-            12,
-            (index) => DesktopRecentSong(
-              id: index + 1,
-              title: 'Song ${index + 1}',
-              path: '/music/song-${index + 1}.mp3',
-            ),
+  test('desktop tray keeps recent songs in JumpList only', () {
+    final entries = buildDesktopTrayMenuEntries(
+      DesktopTrayState(
+        appTitle: 'Simple Melody Player',
+        isPlaying: false,
+        isWindowVisible: false,
+        quitOnClose: false,
+        labels: _labels,
+        recentSongs: List.generate(
+          12,
+          (index) => DesktopRecentSong(
+            id: index + 1,
+            title: 'Song ${index + 1}',
+            path: '/music/song-${index + 1}.mp3',
           ),
         ),
-      );
+      ),
+    );
 
-      final recentMenu = entries.firstWhere((entry) => entry.label == 'Recent');
-
-      expect(recentMenu.children, hasLength(desktopRecentSongLimit));
-      expect(recentMenu.children.first.label, 'Song 1');
-      expect(recentMenu.children.first.songId, 1);
-      expect(
-        recentMenu.children
-            .map((entry) => entry.label)
-            .any((label) => RegExp(r'^\d+$').hasMatch(label)),
-        isFalse,
-      );
-      expect(
-        recentMenu.children
-            .map((entry) => entry.label)
-            .any((label) => label.contains('/music')),
-        isFalse,
-      );
-    },
-  );
+    expect(entries.where((entry) => entry.label == 'Recent'), isEmpty);
+  });
 
   test('desktop lyrics commands mirror Electron window command types', () {
     expect(

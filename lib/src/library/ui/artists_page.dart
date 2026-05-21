@@ -817,14 +817,22 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     _selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
   }
 
-  void _showGroupContextMenu({
+  Future<void> _showGroupContextMenu({
     required Offset position,
     required _ArtistGroupMenuType type,
     required String label,
     required List<LibrarySong> songs,
     bool showLocateArtist = false,
-  }) {
+  }) async {
     final i18n = context.smPlayerI18n;
+    final preferenceType =
+        type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel(preferenceType, label);
+    if (!mounted) {
+      return;
+    }
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
     final songIds = songs.map((song) => song.id).toList();
     final customPlaylists =
@@ -922,7 +930,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             });
           },
         ),
-        _buildGroupPreferenceMenuItem(i18n, type, label),
+        _buildGroupPreferenceMenuItem(i18n, type, label, preferenceLevel),
         if (type == _ArtistGroupMenuType.artist && showLocateArtist)
           MenuFlyoutItem(
             key: 'locate-artist',
@@ -949,6 +957,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     SmPlayerI18n i18n,
     _ArtistGroupMenuType type,
     String label,
+    String? preferenceLevel,
   ) {
     final preferenceType =
         type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
@@ -957,6 +966,20 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       text: i18n.t('settings.preferenceSettings'),
       icon: FluentIcons.star_20_regular,
       submenu: [
+        if (preferenceLevel != null) ...[
+          MenuFlyoutItem(
+            key: 'preference-undo',
+            text: i18n.t('preferences.undoPrefer'),
+            icon: FluentIcons.arrow_undo_20_regular,
+            onPressed: () async {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .removePreferenceItem(preferenceType, label);
+              ref.invalidate(musicLibrarySnapshotProvider);
+            },
+          ),
+          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+        ],
         for (final level in const [
           'do-not-appear',
           'dislike',
@@ -968,6 +991,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           MenuFlyoutItem(
             key: 'preference-$level',
             text: i18n.t('preferences.level.$level'),
+            checked: preferenceLevel == level,
             onPressed: () async {
               await ref
                   .read(libraryRepositoryProvider)

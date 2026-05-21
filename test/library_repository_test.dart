@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -282,6 +283,117 @@ void main() {
     expect(File(song.path).existsSync(), isTrue);
     expect(_readMusicPath(databaseFile, 1), song.path);
   });
+
+  test('Local move conflict can skip or replace like Electron', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-local-move-conflict-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+
+    final source = Directory('${directory.path}/Source')..createSync();
+    final target = Directory('${directory.path}/Target')..createSync();
+    final song = File('${source.path}/Song.mp3')..writeAsStringSync('source');
+    final targetSong = File('${target.path}/Song.mp3')
+      ..writeAsStringSync('target');
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createLocalMoveDatabase(
+      databaseFile: databaseFile,
+      sourceFolderPath: source.path,
+      targetFolderPath: target.path,
+      songPath: song.path,
+    );
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final skipped = await repository.moveSongToFolder(
+      1,
+      target.path,
+      resolveConflict: (_, _) async => LocalMoveConflictResolution.skip,
+    );
+
+    expect(skipped.itemCount, 0);
+    expect(song.existsSync(), isTrue);
+    expect(targetSong.readAsStringSync(), 'target');
+
+    final replaced = await repository.moveSongToFolder(
+      1,
+      target.path,
+      resolveConflict: (_, _) async => LocalMoveConflictResolution.replace,
+    );
+
+    expect(replaced.itemCount, 1);
+    expect(song.existsSync(), isFalse);
+    expect(targetSong.readAsStringSync(), 'source');
+    expect(_readMusicPath(databaseFile, 1), targetSong.path);
+  });
+
+  test(
+    'Local folder move merges same-name target folder like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-local-folder-merge-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+
+      final sourceRoot = Directory('${directory.path}/Source')..createSync();
+      final targetRoot = Directory('${directory.path}/Target')..createSync();
+      final sourceAlbum = Directory('${sourceRoot.path}/Album')..createSync();
+      final targetAlbum = Directory('${targetRoot.path}/Album')..createSync();
+      final sourceNested = Directory('${sourceAlbum.path}/Nested')
+        ..createSync();
+      final sourceSong = File('${sourceAlbum.path}/Song.mp3')
+        ..writeAsStringSync('source');
+      final targetSong = File('${targetAlbum.path}/Song.mp3')
+        ..writeAsStringSync('target');
+      final nestedSong = File('${sourceNested.path}/Nested.mp3')
+        ..writeAsStringSync('nested');
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLocalMoveDatabase(
+        databaseFile: databaseFile,
+        sourceFolderPath: sourceRoot.path,
+        targetFolderPath: targetRoot.path,
+        songPath: sourceSong.path,
+      );
+      _addLocalFolder(databaseFile, sourceAlbum.path, parentId: 1);
+      _addLocalFolder(databaseFile, targetAlbum.path, parentId: 2);
+      _addLocalFolder(databaseFile, sourceNested.path, parentId: 3);
+      _addLocalSong(databaseFile, nestedSong.path, parentId: 5);
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
+
+      final result = await repository.moveLocalItemsToFolder(
+        const [],
+        [sourceAlbum.path],
+        targetRoot.path,
+        resolveConflict: (_, _) async => LocalMoveConflictResolution.keepBoth,
+      );
+
+      final keptBothSong = File('${targetAlbum.path}/Song (1).mp3');
+      final movedNestedSong = File('${targetAlbum.path}/Nested/Nested.mp3');
+      expect(sourceAlbum.existsSync(), isFalse);
+      expect(targetSong.readAsStringSync(), 'target');
+      expect(keptBothSong.readAsStringSync(), 'source');
+      expect(movedNestedSong.readAsStringSync(), 'nested');
+      expect(_readMusicPath(databaseFile, 1), keptBothSong.path);
+      expect(_readMusicPath(databaseFile, 2), movedNestedSong.path);
+      expect(_readFolderState(databaseFile, sourceAlbum.path), 0);
+
+      await repository.undoMoveLocalItems(result);
+
+      expect(sourceSong.readAsStringSync(), 'source');
+      expect(nestedSong.readAsStringSync(), 'nested');
+      expect(targetSong.readAsStringSync(), 'target');
+      expect(_readMusicPath(databaseFile, 1), sourceSong.path);
+      expect(_readMusicPath(databaseFile, 2), nestedSong.path);
+      expect(_readFolderState(databaseFile, sourceAlbum.path), 1);
+    },
+  );
 
   test('Local hide undo restores song and folder state', () async {
     final directory = await Directory.systemTemp.createTemp(
@@ -716,6 +828,158 @@ void main() {
       }
     },
   );
+
+  test('external audio import syncs multi-value artists', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-external-artists-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}/Artists.mp3');
+    await songFile.writeAsBytes([
+      ..._id3v24TextTag({'TIT2': 'Duet', 'TPE1': 'Artist One\u0000Artist Two'}),
+      0xff,
+      0xfb,
+      0x90,
+      0x64,
+    ]);
+
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createScanDatabase(databaseFile, '${directory.path}/Hidden');
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final songIds = await repository.importExternalAudioFiles([songFile.path]);
+
+    expect(songIds, hasLength(1));
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        db.select('SELECT Artist FROM Music WHERE Path = ?', [
+          songFile.path,
+        ]).single['Artist'],
+        'Artist One, Artist Two',
+      );
+      expect(
+        db
+            .select(
+              '''
+              SELECT Name
+              FROM MusicArtist
+              WHERE MusicId = ?
+                AND State = 1
+              ORDER BY Priority
+              ''',
+              [songIds.single],
+            )
+            .map((row) => row['Name']),
+        ['Artist One', 'Artist Two'],
+      );
+    } finally {
+      db.dispose();
+    }
+  });
+
+  test('startup artist split check only targets legacy libraries', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-startup-artists-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('''
+        CREATE TABLE Music (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Path TEXT,
+          Name TEXT,
+          Artist TEXT,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute(
+        'INSERT INTO Music (Path, Name, Artist, State) VALUES (?, ?, ?, 1)',
+        ['song.mp3', 'Song', 'Artist A, Artist B'],
+      );
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    expect(await repository.shouldCheckStartupArtistSplits(), isTrue);
+    expect(await repository.shouldCheckStartupArtistSplits(), isFalse);
+  });
+
+  test('readLyricsFromFile imports embedded audio lyrics', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-import-audio-lyrics-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}/Lyrics.mp3');
+    await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    await const Id3TagService().writeEmbeddedLyrics(
+      songFile.path,
+      '[00:01.00]Line one',
+    );
+
+    final repository = LibraryRepository();
+
+    expect(
+      await repository.readLyricsFromFile(songFile.path),
+      '[00:01.00]Line one',
+    );
+  });
+
+  test('getSongLyrics respects Electron lyrics request modes', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-lyrics-mode-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}/Mode.mp3');
+    await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    await const Id3TagService().writeEmbeddedLyrics(
+      songFile.path,
+      '[00:02.00]Embedded line',
+    );
+    await _waitForEmbeddedLyrics(songFile, '[00:02.00]Embedded line');
+    await File(
+      p.setExtension(songFile.path, '.lrc'),
+    ).writeAsString('[00:01.00]Local line');
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createLyricsModeDatabase(databaseFile, songFile.path);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final local = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.local,
+    );
+    final embedded = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.embedded,
+    );
+    final automatic = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.auto,
+    );
+
+    expect(local.source, LyricsSource.lrcFile);
+    expect(local.lines.single.text, 'Local line');
+    expect(embedded.source, LyricsSource.musicFile);
+    expect(embedded.lines.single.text, 'Embedded line');
+    expect(automatic.source, LyricsSource.lrcFile);
+  });
 
   test('external audio import falls back to sibling folder artwork', () async {
     final directory = await Directory.systemTemp.createTemp(
@@ -1293,6 +1557,82 @@ void _createLocalMoveDatabase({
   }
 }
 
+void _addLocalFolder(
+  File databaseFile,
+  String folderPath, {
+  required int parentId,
+}) {
+  final db = sqlite3.open(databaseFile.path);
+  try {
+    db.execute('INSERT INTO Folder (Path, ParentId, State) VALUES (?, ?, 1)', [
+      folderPath,
+      parentId,
+    ]);
+  } finally {
+    db.dispose();
+  }
+}
+
+void _addLocalSong(
+  File databaseFile,
+  String songPath, {
+  required int parentId,
+}) {
+  final db = sqlite3.open(databaseFile.path);
+  try {
+    db.execute(
+      '''
+      INSERT INTO Music (
+        Path, Name, Artist, Album, ThumbnailPath, Duration,
+        PlayCount, DateAdded, LyricsOffsetMs, State
+      )
+      VALUES (?, 'Song', '', '', '', 0, 0, '', 0, 1)
+    ''',
+      [songPath],
+    );
+    final songId = db.select('SELECT last_insert_rowid() AS id').single['id'];
+    db.execute(
+      'INSERT INTO File (Path, ParentId, FileId, State) VALUES (?, ?, ?, 1)',
+      [songPath, parentId, songId],
+    );
+  } finally {
+    db.dispose();
+  }
+}
+
+void _createLyricsModeDatabase(File databaseFile, String songPath) {
+  final db = sqlite3.open(databaseFile.path);
+  try {
+    db.execute('''
+      CREATE TABLE Settings (
+        PreserveInternetLyricsTimestamps INTEGER DEFAULT 1
+      )
+    ''');
+    db.execute(
+      'INSERT INTO Settings (PreserveInternetLyricsTimestamps) VALUES (1)',
+    );
+    db.execute('''
+      CREATE TABLE Music (
+        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Path TEXT NOT NULL,
+        Name TEXT,
+        Artist TEXT,
+        Album TEXT,
+        State INTEGER DEFAULT 1
+      )
+    ''');
+    db.execute(
+      '''
+      INSERT INTO Music (Path, Name, Artist, Album, State)
+      VALUES (?, 'Mode', 'Artist', 'Album', 1)
+    ''',
+      [songPath],
+    );
+  } finally {
+    db.dispose();
+  }
+}
+
 String _readMusicPath(File databaseFile, int songId) {
   final db = sqlite3.open(databaseFile.path);
   try {
@@ -1303,6 +1643,37 @@ String _readMusicPath(File databaseFile, int songId) {
   } finally {
     db.dispose();
   }
+}
+
+List<int> _id3v24TextTag(Map<String, String> values) {
+  final frames =
+      values.entries.expand((entry) {
+        final payload = [3, ...utf8.encode(entry.value)];
+        return [
+          ...ascii.encode(entry.key),
+          ..._synchsafeBytes(payload.length),
+          0,
+          0,
+          ...payload,
+        ];
+      }).toList();
+  return [
+    ...ascii.encode('ID3'),
+    4,
+    0,
+    0,
+    ..._synchsafeBytes(frames.length),
+    ...frames,
+  ];
+}
+
+List<int> _synchsafeBytes(int value) {
+  return [
+    (value >> 21) & 0x7f,
+    (value >> 14) & 0x7f,
+    (value >> 7) & 0x7f,
+    value & 0x7f,
+  ];
 }
 
 void _createPendingDeleteDatabase(

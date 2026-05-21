@@ -19,6 +19,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
+import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key, this.searchQuery = ''});
@@ -167,9 +168,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         label: i18n.t('nowPlaying.quickPlay'),
                         disabled: snapshot.songs.isEmpty,
                         onPressed: () {
-                          _playSongIds(
-                            _randomLibrary(snapshot.songs, quickPlayLimit),
-                          );
+                          unawaited(_quickPlay(snapshot));
                         },
                       ),
                       CommandBarButton(
@@ -500,6 +499,20 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     _replaceQueue(songIds);
   }
 
+  Future<void> _quickPlay(MusicLibrarySnapshot snapshot) async {
+    final preferences =
+        await ref.read(libraryRepositoryProvider).getPreferenceSettings();
+    _playSongIds(
+      quickPlaySongIds(
+        songs: snapshot.songs,
+        playlists: snapshot.playlists,
+        folders: snapshot.folders,
+        preferences: preferences,
+        randomLimit: quickPlayLimit,
+      ),
+    );
+  }
+
   void _replaceQueue(List<int> songIds) {
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
     ref.invalidate(musicLibrarySnapshotProvider);
@@ -813,7 +826,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         text: i18n.t('nowPlaying.quickPlay'),
         icon: FluentIcons.play_20_regular,
         onPressed: () {
-          _playSongIds(_randomLibrary(snapshot.songs, quickPlayLimit));
+          unawaited(_quickPlay(snapshot));
         },
       ),
     ];

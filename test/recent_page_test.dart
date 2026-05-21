@@ -7,6 +7,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -359,7 +361,10 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
     return const LyricsSnapshot(
       source: LyricsSource.none,
       isSynced: false,

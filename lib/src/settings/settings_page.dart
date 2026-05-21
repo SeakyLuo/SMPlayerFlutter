@@ -9,6 +9,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -231,7 +232,7 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           if (_artistSplitAnalysisResult case final result?)
-            _ArtistSplitReviewDialog(
+            ArtistSplitReviewDialog(
               result: result,
               applying: _smartArtistApplyRunning,
               onCancel: () {
@@ -3324,37 +3325,59 @@ class ReleaseNotesDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final releaseVersion = version ?? '1.0.0';
+    final releaseNotes = getReleaseNotes(i18n);
 
     return _DialogOverlay(
       child: _DialogBox(
         title: i18n.t('settings.releaseNotes'),
         onClose: onClose,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${i18n.t('settings.releaseNotesVersion')} $releaseVersion',
-              style: const TextStyle(
-                color: SettingsPageColors.textStrong,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
+        width: 640,
+        child: SizedBox(
+          height: 480,
+          child: Scrollbar(
+            child: ListView.separated(
+              primary: false,
+              padding: const EdgeInsets.only(right: 14),
+              itemCount: releaseNotes.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 18),
+              itemBuilder: (context, index) {
+                return _ReleaseNoteVersion(entry: releaseNotes[index]);
+              },
             ),
-            const SizedBox(height: 10),
-            Text(
-              i18n.t('settings.releaseNotesIntro'),
-              style: const TextStyle(color: SettingsPageColors.textMuted),
-            ),
-            const SizedBox(height: 16),
-            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesArtists')),
-            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesLibrary')),
-            _ReleaseNoteItem(text: i18n.t('settings.releaseNotesUi')),
-            _ReleaseNoteItem(text: i18n.t('releaseNotes.architectureFeedback')),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ReleaseNoteVersion extends StatelessWidget {
+  const _ReleaseNoteVersion({required this.entry});
+
+  final ReleaseNoteEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final title =
+        entry.version == 'History Updates'
+            ? i18n.t('settings.releaseNotesIntro')
+            : '${i18n.t('settings.releaseNotesVersion')} ${entry.version}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: SettingsPageColors.textStrong,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...entry.items.map((item) => _ReleaseNoteItem(text: item)),
+      ],
     );
   }
 }
@@ -3400,8 +3423,9 @@ class _ReleaseNoteItem extends StatelessWidget {
   }
 }
 
-class _ArtistSplitReviewDialog extends StatelessWidget {
-  const _ArtistSplitReviewDialog({
+class ArtistSplitReviewDialog extends StatelessWidget {
+  const ArtistSplitReviewDialog({
+    super.key,
     required this.result,
     required this.applying,
     required this.onCancel,

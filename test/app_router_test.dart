@@ -8,9 +8,28 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 void main() {
   const emptyLibrarySnapshot = MusicLibrarySnapshot(
+    songs: [],
+    recentSongs: [],
+    recentPlaylists: [],
+    recentAlbums: [],
+    recentArtists: [],
+    recentSearches: [],
+    playlists: [],
+    favoritePlaylistId: 0,
+    nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+    hasLibrary: false,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    showCount: true,
+    hideMultiSelectCommandBarAfterOperation: true,
+    databasePath: '',
+    rootPath: r'C:\Music',
+  );
+  const rootlessLibrarySnapshot = MusicLibrarySnapshot(
     songs: [],
     recentSongs: [],
     recentPlaylists: [],
@@ -58,6 +77,7 @@ void main() {
     showCount: true,
     hideMultiSelectCommandBarAfterOperation: true,
     databasePath: '',
+    rootPath: r'C:\Music',
   );
   const testI18n = SmPlayerI18n(locale: 'en-US', messages: {});
 
@@ -120,6 +140,60 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/recent');
   });
 
+  testWidgets('non-settings routes show Electron missing-library-root prompt', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          musicLibrarySnapshotProvider.overrideWith(
+            (ref) async => rootlessLibrarySnapshot,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('local.noRoot'), findsOneWidget);
+    expect(find.text('local.noRootCopy'), findsOneWidget);
+    expect(find.text('library.chooseFolder'), findsOneWidget);
+
+    router.go('/recent');
+    await tester.pumpAndSettle();
+
+    expect(find.text('local.noRoot'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/recent');
+  });
+
+  testWidgets('settings route bypasses missing-library-root prompt', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          musicLibrarySnapshotProvider.overrideWith(
+            (ref) async => rootlessLibrarySnapshot,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.go('/settings');
+    await tester.pumpAndSettle();
+
+    expect(find.text('local.noRoot'), findsNothing);
+    expect(find.byType(SettingsPage), findsOneWidget);
+  });
+
   testWidgets('sidebar search commits to the search route', (tester) async {
     final router = createSmPlayerRouter();
 
@@ -134,6 +208,7 @@ void main() {
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
     );
+    await tester.pumpAndSettle();
 
     await tester.enterText(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),

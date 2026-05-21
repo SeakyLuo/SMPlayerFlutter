@@ -18,7 +18,7 @@ import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show AppSettingsUpdate, LocalViewMode;
+    show AppSettingsUpdate, LocalViewMode, LyricsRequestMode;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -266,6 +266,95 @@ void main() {
 
     expect(repository.replacedNowPlaying, [1]);
     expect(mediaController.state.track.id, 1);
+  });
+
+  testWidgets('LocalPage compact list view uses Electron folder tree rows', (
+    tester,
+  ) async {
+    _setCompactSurface(tester);
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithTargetFolderAndLocalViewMode(LocalViewMode.list),
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sub'), findsOneWidget);
+    expect(find.text('Root Song'), findsOneWidget);
+    expect(find.text('Child Song'), findsNothing);
+
+    await tester.tap(find.byIcon(FluentIcons.chevron_right_20_regular).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Child Song'), findsOneWidget);
+
+    await tester.tap(find.text('Child Song'));
+    await tester.pumpAndSettle();
+
+    expect(repository.replacedNowPlaying, [2, 1]);
+    expect(mediaController.state.track.id, 2);
+  });
+
+  testWidgets('LocalPage compact list view drags songs onto folders', (
+    tester,
+  ) async {
+    _setCompactSurface(tester);
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithTargetFolderAndLocalViewMode(LocalViewMode.list),
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final start = tester.getCenter(find.text('Root Song'));
+    final end = tester.getCenter(find.text('Target'));
+    await tester.dragFrom(start, end - start);
+    await tester.pumpAndSettle();
+
+    expect(repository.movedSongIds, [1]);
+    expect(repository.movedFolderPaths, isEmpty);
+    expect(repository.movedTargetFolderPath, r'C:\Music\Target');
+  });
+
+  testWidgets('LocalPage list view virtualizes offscreen rows like Electron', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _manyLocalSongsSnapshot(LocalViewMode.list, 140),
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Song 139'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('Song 139'),
+      900,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Song 139'), findsOneWidget);
   });
 
   testWidgets('LocalPage view toggle persists Electron LocalViewMode', (
@@ -1026,8 +1115,9 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<LocalItemsMoveResult> moveLocalItemsToFolder(
     List<int> songIds,
     List<String> folderPaths,
-    String targetFolderPath,
-  ) async {
+    String targetFolderPath, {
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
     movedSongIds = songIds.toList();
     movedFolderPaths = folderPaths.toList();
     movedTargetFolderPath = targetFolderPath;
@@ -1187,7 +1277,10 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
     return const LyricsSnapshot(
       source: LyricsSource.none,
       isSynced: false,
@@ -1386,6 +1479,76 @@ MusicLibrarySnapshot _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
     localViewMode: localViewMode,
     rootPath: _snapshot.rootPath,
     databasePath: _snapshot.databasePath,
+  );
+}
+
+MusicLibrarySnapshot _snapshotWithTargetFolderAndLocalViewMode(
+  LocalViewMode localViewMode,
+) {
+  return MusicLibrarySnapshot(
+    songs: _snapshotWithTargetFolder.songs,
+    recentSongs: _snapshotWithTargetFolder.recentSongs,
+    recentPlaylists: _snapshotWithTargetFolder.recentPlaylists,
+    recentAlbums: _snapshotWithTargetFolder.recentAlbums,
+    recentArtists: _snapshotWithTargetFolder.recentArtists,
+    recentSearches: _snapshotWithTargetFolder.recentSearches,
+    playlists: _snapshotWithTargetFolder.playlists,
+    folders: _snapshotWithTargetFolder.folders,
+    favoritePlaylistId: _snapshotWithTargetFolder.favoritePlaylistId,
+    nowPlaying: _snapshotWithTargetFolder.nowPlaying,
+    hasLibrary: _snapshotWithTargetFolder.hasLibrary,
+    sortCriterion: _snapshotWithTargetFolder.sortCriterion,
+    albumsSort: _snapshotWithTargetFolder.albumsSort,
+    showCount: _snapshotWithTargetFolder.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        _snapshotWithTargetFolder.hideMultiSelectCommandBarAfterOperation,
+    localViewMode: localViewMode,
+    rootPath: _snapshotWithTargetFolder.rootPath,
+    databasePath: _snapshotWithTargetFolder.databasePath,
+  );
+}
+
+MusicLibrarySnapshot _manyLocalSongsSnapshot(
+  LocalViewMode localViewMode,
+  int count,
+) {
+  return MusicLibrarySnapshot(
+    songs: [
+      for (var index = 0; index < count; index += 1)
+        LibrarySong(
+          id: index + 1,
+          path:
+              r'C:\Music\song'
+              '$index.mp3',
+          title: 'Song $index',
+          artist: 'Artist $index',
+          artists: ['Artist $index'],
+          album: 'Album $index',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+    ],
+    recentSongs: const [],
+    recentPlaylists: const [],
+    recentAlbums: const [],
+    recentArtists: const [],
+    recentSearches: const [],
+    playlists: _snapshot.playlists,
+    folders: const [],
+    favoritePlaylistId: _snapshot.favoritePlaylistId,
+    nowPlaying: _snapshot.nowPlaying,
+    hasLibrary: true,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    showCount: true,
+    hideMultiSelectCommandBarAfterOperation: true,
+    localViewMode: localViewMode,
+    rootPath: r'C:\Music',
+    databasePath: '',
   );
 }
 

@@ -19,6 +19,7 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 
 import 'recent_page_model.dart';
+import 'recent_scrollbar.dart';
 import 'recent_search_list.dart';
 
 enum RecentTab { added, played, searches }
@@ -1652,60 +1653,62 @@ class _RecentSongGrid extends StatelessWidget {
         final columns = ((constraints.maxWidth + 28) / (270 + 28))
             .floor()
             .clamp(1, 8);
-        return CustomScrollView(
-          slivers: [
-            for (final group in groups) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-                  child: Text(
-                    group.label,
-                    style: const TextStyle(
-                      color: _RecentColors.textMuted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+        return RecentScrollbar(
+          child: CustomScrollView(
+            slivers: [
+              for (final group in groups) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                    child: Text(
+                      group.label,
+                      style: const TextStyle(
+                        color: _RecentColors.textMuted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              SliverGrid.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisExtent: constraints.maxWidth <= 520 ? 104 : 136,
-                  crossAxisSpacing: 28,
-                  mainAxisSpacing: 0,
+                SliverGrid.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisExtent: constraints.maxWidth <= 520 ? 104 : 136,
+                    crossAxisSpacing: 28,
+                    mainAxisSpacing: 0,
+                  ),
+                  itemCount: group.items.length,
+                  itemBuilder: (context, index) {
+                    final song = group.items[index];
+                    return _GridViewMusicItemControl(
+                      song: song,
+                      detailLabel: getDetailLabel(song),
+                      selected: selectedSongIds.contains(song.id),
+                      current: song.id == mediaControlState.track.id,
+                      playing:
+                          song.id == mediaControlState.track.id &&
+                          mediaControlState.isPlaying,
+                      multiSelect: multiSelect,
+                      onPlayTrack: () {
+                        onPlaySong(
+                          song,
+                          queueSongIds,
+                          queueSongIds.indexOf(song.id),
+                        );
+                      },
+                      onToggleSelection: () {
+                        onToggleSelection(song.id);
+                      },
+                      onOpenContextMenu: (position) {
+                        onOpenContextMenu(position, song, queueSongIds);
+                      },
+                    );
+                  },
                 ),
-                itemCount: group.items.length,
-                itemBuilder: (context, index) {
-                  final song = group.items[index];
-                  return _GridViewMusicItemControl(
-                    song: song,
-                    detailLabel: getDetailLabel(song),
-                    selected: selectedSongIds.contains(song.id),
-                    current: song.id == mediaControlState.track.id,
-                    playing:
-                        song.id == mediaControlState.track.id &&
-                        mediaControlState.isPlaying,
-                    multiSelect: multiSelect,
-                    onPlayTrack: () {
-                      onPlaySong(
-                        song,
-                        queueSongIds,
-                        queueSongIds.indexOf(song.id),
-                      );
-                    },
-                    onToggleSelection: () {
-                      onToggleSelection(song.id);
-                    },
-                    onOpenContextMenu: (position) {
-                      onOpenContextMenu(position, song, queueSongIds);
-                    },
-                  );
-                },
-              ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 92)),
             ],
-            const SliverToBoxAdapter(child: SizedBox(height: 92)),
-          ],
+          ),
         );
       },
     );
@@ -2026,32 +2029,34 @@ class _RecentArtistList extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
-      itemExtent: 72,
-      itemCount: artists.length,
-      itemBuilder: (context, index) {
-        final artist = artists[index];
-        final key = 'artists:${artist.name}';
-        final firstSong = artist.songs.first;
-        return _ArtistRow(
-          artist: artist,
-          imagePath: firstSong.thumbnailPath,
-          selected: selectedKeys.contains(key),
-          multiSelect: multiSelect,
-          onOpen: () {
-            if (multiSelect) {
-              onToggleSelection(key);
-            } else {
-              onOpen(artist.name);
-            }
-          },
-          onPlay: () => onPlay(artist),
-          onOpenContextMenu: (position) {
-            onOpenContextMenu(position, artist);
-          },
-        );
-      },
+    return RecentScrollbar(
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
+        itemExtent: 72,
+        itemCount: artists.length,
+        itemBuilder: (context, index) {
+          final artist = artists[index];
+          final key = 'artists:${artist.name}';
+          final firstSong = artist.songs.first;
+          return _ArtistRow(
+            artist: artist,
+            imagePath: firstSong.thumbnailPath,
+            selected: selectedKeys.contains(key),
+            multiSelect: multiSelect,
+            onOpen: () {
+              if (multiSelect) {
+                onToggleSelection(key);
+              } else {
+                onOpen(artist.name);
+              }
+            },
+            onPlay: () => onPlay(artist),
+            onOpenContextMenu: (position) {
+              onOpenContextMenu(position, artist);
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -2074,16 +2079,18 @@ class _RecentCollectionGrid extends StatelessWidget {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 210,
-        mainAxisExtent: 242,
-        crossAxisSpacing: 30,
-        mainAxisSpacing: 26,
+    return RecentScrollbar(
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(8, 8, 14, 92),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 210,
+          mainAxisExtent: 242,
+          crossAxisSpacing: 30,
+          mainAxisSpacing: 26,
+        ),
+        itemCount: itemCount,
+        itemBuilder: itemBuilder,
       ),
-      itemCount: itemCount,
-      itemBuilder: itemBuilder,
     );
   }
 }

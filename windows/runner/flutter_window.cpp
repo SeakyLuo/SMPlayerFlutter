@@ -1,11 +1,13 @@
 #include "flutter_window.h"
 
+#include <chrono>
 #include <dwmapi.h>
 #include <optional>
 #include <propkey.h>
 #include <propvarutil.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <systemmediatransportcontrolsinterop.h>
 #include <algorithm>
 #include <cwchar>
 #include <string>
@@ -14,6 +16,11 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <wrl/client.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Media.h>
+#include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Storage.Streams.h>
+#include <winrt/base.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "utils.h"
@@ -82,6 +89,24 @@ int EncodableInt(const flutter::EncodableMap& map, const char* key,
   }
   if (const auto* value = std::get_if<int64_t>(&iterator->second)) {
     return static_cast<int>(*value);
+  }
+  return fallback;
+}
+
+double EncodableDouble(const flutter::EncodableMap& map, const char* key,
+                       double fallback) {
+  const auto iterator = map.find(flutter::EncodableValue(key));
+  if (iterator == map.end()) {
+    return fallback;
+  }
+  if (const auto* value = std::get_if<double>(&iterator->second)) {
+    return *value;
+  }
+  if (const auto* value = std::get_if<int>(&iterator->second)) {
+    return *value;
+  }
+  if (const auto* value = std::get_if<int64_t>(&iterator->second)) {
+    return static_cast<double>(*value);
   }
   return fallback;
 }
@@ -219,6 +244,11 @@ HRESULT AddJumpListTask(IObjectCollection* collection,
   return collection->AddObject(link.Get());
 }
 
+winrt::Windows::Foundation::TimeSpan TimeSpanFromSeconds(double seconds) {
+  return std::chrono::duration_cast<winrt::Windows::Foundation::TimeSpan>(
+      std::chrono::duration<double>(std::max(0.0, seconds)));
+}
+
 HRESULT UpdateWindowsJumpList(const std::wstring& category_name,
                               const std::vector<std::wstring>& file_paths) {
   ::SHAddToRecentDocs(SHARD_PATHW, nullptr);
@@ -276,6 +306,12 @@ HRESULT UpdateWindowsJumpList(const std::wstring& category_name,
 }
 
 }  // namespace
+
+struct WindowsMediaSessionState {
+  winrt::Windows::Media::SystemMediaTransportControls controls{nullptr};
+  winrt::event_token button_pressed_token{};
+  winrt::event_token playback_position_changed_token{};
+};
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -346,6 +382,19 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
             return;
           }
           ApplyWindowControlsLight(EncodableBool(*arguments, "light"));
+          result->Success();
+          return;
+        }
+
+        if (call.method_name() == "updateMediaSession") {
+          const auto* arguments =
+              std::get_if<flutter::EncodableMap>(call.arguments());
+          if (!arguments) {
+            result->Error("invalid_arguments",
+                          "updateMediaSession expects state.");
+            return;
+          }
+          UpdateMediaSession(*arguments);
           result->Success();
           return;
         }
@@ -466,6 +515,127 @@ void FlutterWindow::ApplyWindowControlsLight(bool light) {
                           sizeof(text_color));
 }
 
+void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
+  namespace media = winrt::Windows::Media;
+  namespace storage = winrt::Windows::Storage;
+  namespace streams = winrt::Windows::Storage::Streams;
+
+  if (!EncodableBool(state, "active")) {
+    if (media_session_ && media_session_->controls) {
+      media_session_->controls.PlaybackStatus(
+          media::SystemMediaTransportControlsPlaybackStatus::Closed);
+      media_session_->controls.IsEnabled(false);
+      auto updater = media_session_->controls.DisplayUpdater();
+      updater.ClearAll();
+      updater.Update();
+    }
+    return;
+  }
+
+  try {
+    if (!media_session_) {
+      try {
+        winrt::init_apartment(winrt::apartment_type::single_threaded);
+      } catch (const winrt::hresult_error& error) {
+        if (error.code() != RPC_E_CHANGED_MODE) {
+          throw;
+        }
+      }
+
+      auto session = std::make_unique<WindowsMediaSessionState>();
+      auto interop =
+          winrt::get_activation_factory<media::SystemMediaTransportControls,
+                                        ISystemMediaTransportControlsInterop>();
+      winrt::check_hresult(interop->GetForWindow(
+          GetHandle(), winrt::guid_of<media::SystemMediaTransportControls>(),
+          winrt::put_abi(session->controls)));
+
+      session->button_pressed_token =
+          session->controls.ButtonPressed([this](
+              media::SystemMediaTransportControls const&,
+              media::SystemMediaTransportControlsButtonPressedEventArgs const&
+                  args) {
+            switch (args.Button()) {
+              case media::SystemMediaTransportControlsButton::Play:
+              case media::SystemMediaTransportControlsButton::Pause:
+                SendDesktopCommand("play-pause");
+                return;
+              case media::SystemMediaTransportControlsButton::Previous:
+                SendDesktopCommand("previous");
+                return;
+              case media::SystemMediaTransportControlsButton::Next:
+                SendDesktopCommand("next");
+                return;
+              case media::SystemMediaTransportControlsButton::Stop:
+                SendDesktopCommand("stop");
+                return;
+              default:
+                return;
+            }
+          });
+
+      session->playback_position_changed_token =
+          session->controls.PlaybackPositionChangeRequested(
+              [this](media::SystemMediaTransportControls const&,
+                     media::PlaybackPositionChangeRequestedEventArgs const&
+                         args) {
+                const double seconds =
+                    std::chrono::duration<double>(
+                        args.RequestedPlaybackPosition())
+                        .count();
+                SendDesktopCommand("seek-to:" + std::to_string(seconds));
+              });
+
+      media_session_ = std::move(session);
+    }
+
+    auto controls = media_session_->controls;
+    controls.IsEnabled(true);
+    controls.IsPlayEnabled(true);
+    controls.IsPauseEnabled(true);
+    controls.IsStopEnabled(true);
+    controls.IsPreviousEnabled(true);
+    controls.IsNextEnabled(true);
+    controls.PlaybackStatus(
+        EncodableBool(state, "playing")
+            ? media::SystemMediaTransportControlsPlaybackStatus::Playing
+            : media::SystemMediaTransportControlsPlaybackStatus::Paused);
+
+    auto updater = controls.DisplayUpdater();
+    updater.ClearAll();
+    updater.Type(media::MediaPlaybackType::Music);
+    auto music = updater.MusicProperties();
+    music.Title(winrt::hstring(EncodableString(state, "title")));
+    music.Artist(winrt::hstring(EncodableString(state, "artist")));
+    music.AlbumTitle(winrt::hstring(EncodableString(state, "album")));
+
+    const std::wstring artwork_path = EncodableString(state, "artworkPath");
+    if (!artwork_path.empty()) {
+      try {
+        auto file = storage::StorageFile::GetFileFromPathAsync(
+                        winrt::hstring(artwork_path))
+                        .get();
+        updater.Thumbnail(streams::RandomAccessStreamReference::CreateFromFile(
+            file));
+      } catch (const winrt::hresult_error&) {
+      }
+    }
+    updater.Update();
+
+    const double duration = EncodableDouble(state, "durationSeconds", 0);
+    const double progress = EncodableDouble(state, "progressSeconds", 0);
+    media::SystemMediaTransportControlsTimelineProperties timeline;
+    timeline.StartTime(TimeSpanFromSeconds(0));
+    timeline.MinSeekTime(TimeSpanFromSeconds(0));
+    timeline.Position(TimeSpanFromSeconds(progress));
+    timeline.MaxSeekTime(TimeSpanFromSeconds(duration));
+    timeline.EndTime(TimeSpanFromSeconds(duration));
+    controls.UpdateTimelineProperties(timeline);
+  } catch (const winrt::hresult_error&) {
+    media_session_.reset();
+  }
+}
+
 void FlutterWindow::UpdateDesktopLyricsWindow(
     const flutter::EncodableMap& state) {
   if (!EncodableBool(state, "visible")) {
@@ -476,10 +646,14 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   const std::wstring lyric_text = EncodableString(state, "lyricText");
   const std::wstring fallback_text = EncodableString(state, "fallbackText");
   desktop_lyrics_loading_ = EncodableBool(state, "loading");
-  desktop_lyrics_text_ =
+  const std::wstring next_desktop_lyrics_text =
       desktop_lyrics_loading_
           ? L"..."
           : lyric_text.empty() ? fallback_text : lyric_text;
+  if (desktop_lyrics_text_ != next_desktop_lyrics_text) {
+    desktop_lyrics_text_started_at_ = ::GetTickCount64();
+  }
+  desktop_lyrics_text_ = next_desktop_lyrics_text;
   desktop_lyrics_next_text_ = EncodableString(state, "nextLyricText");
   desktop_lyrics_title_ = EncodableString(state, "songTitle");
   desktop_lyrics_artist_ = EncodableString(state, "artist");
@@ -560,6 +734,7 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
         nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
     ::SetLayeredWindowAttributes(desktop_lyrics_window_, RGB(0, 0, 0), 0,
                                  LWA_COLORKEY);
+    ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
   }
 
   LONG_PTR style = ::GetWindowLongPtrW(desktop_lyrics_window_, GWL_EXSTYLE);
@@ -571,6 +746,7 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   ::SetWindowLongPtrW(desktop_lyrics_window_, GWL_EXSTYLE, style);
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
   ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
   ::InvalidateRect(desktop_lyrics_window_, nullptr, TRUE);
 }
@@ -578,11 +754,13 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
 void FlutterWindow::HideDesktopLyricsWindow() {
   if (desktop_lyrics_window_) {
     ::ShowWindow(desktop_lyrics_window_, SW_HIDE);
+    ::KillTimer(desktop_lyrics_window_, 1);
   }
 }
 
 void FlutterWindow::DestroyDesktopLyricsWindow() {
   if (desktop_lyrics_window_) {
+    ::KillTimer(desktop_lyrics_window_, 1);
     ::DestroyWindow(desktop_lyrics_window_);
     desktop_lyrics_window_ = nullptr;
   }
@@ -662,8 +840,38 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   text_rect.right -= 18;
   text_rect.top += desktop_lyrics_locked_ ? 26 : 42;
   text_rect.bottom -= desktop_lyrics_next_text_.empty() ? 16 : 42;
-  ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &text_rect,
-              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+  SIZE lyric_size = {};
+  ::GetTextExtentPoint32W(
+      hdc, desktop_lyrics_text_.c_str(),
+      static_cast<int>(desktop_lyrics_text_.length()), &lyric_size);
+  const int text_width = text_rect.right - text_rect.left;
+  if (lyric_size.cx > text_width) {
+    const int distance = lyric_size.cx - text_width;
+    const int duration_ms =
+        std::min(12000, std::max(5000, ((distance / 28) + 4) * 1000));
+    const ULONGLONG elapsed =
+        ::GetTickCount64() - desktop_lyrics_text_started_at_;
+    const int cycle_ms = duration_ms * 2;
+    const int phase = static_cast<int>(elapsed % cycle_ms);
+    const double raw_progress =
+        phase <= duration_ms
+            ? static_cast<double>(phase) / duration_ms
+            : 1.0 - static_cast<double>(phase - duration_ms) / duration_ms;
+    const double eased_progress =
+        raw_progress * raw_progress * (3.0 - 2.0 * raw_progress);
+    const int saved_dc = ::SaveDC(hdc);
+    ::IntersectClipRect(hdc, text_rect.left, text_rect.top, text_rect.right,
+                        text_rect.bottom);
+    RECT scrolling_rect = text_rect;
+    scrolling_rect.left -= static_cast<int>(distance * eased_progress);
+    scrolling_rect.right = scrolling_rect.left + lyric_size.cx;
+    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &scrolling_rect,
+                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
+    ::RestoreDC(hdc, saved_dc);
+  } else {
+    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &text_rect,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+  }
 
   if (!desktop_lyrics_next_text_.empty()) {
     HFONT next_font = ::CreateFontW(
@@ -723,6 +931,9 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
     case WM_MOVE:
       window->SendDesktopLyricsBounds();
       return 0;
+    case WM_TIMER:
+      ::InvalidateRect(hwnd, nullptr, FALSE);
+      return 0;
     case WM_PAINT:
       window->PaintDesktopLyricsWindow();
       return 0;
@@ -732,6 +943,17 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
 
 void FlutterWindow::OnDestroy() {
   DestroyDesktopLyricsWindow();
+  if (media_session_ && media_session_->controls) {
+    media_session_->controls.ButtonPressed(
+        media_session_->button_pressed_token);
+    media_session_->controls.PlaybackPositionChangeRequested(
+        media_session_->playback_position_changed_token);
+    media_session_->controls.PlaybackStatus(
+        winrt::Windows::Media::
+            SystemMediaTransportControlsPlaybackStatus::Closed);
+    media_session_->controls.IsEnabled(false);
+    media_session_.reset();
+  }
   UnregisterGlobalMediaHotkeys();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

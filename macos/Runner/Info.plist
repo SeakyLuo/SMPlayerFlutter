@@ -52,7 +52,11 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Simple Melody Player uses the microphone for voice assistant commands.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Simple Melody Player uses speech recognition to run voice assistant commands.</string>
 </dict>
 </plist>

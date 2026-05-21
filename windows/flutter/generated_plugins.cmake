@@ -4,7 +4,9 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
+  flutter_tts
   screen_retriever_windows
+  speech_to_text_windows
   sqlite3_flutter_libs
   tray_manager
   url_launcher_windows

@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
@@ -26,6 +31,7 @@ import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final smPlayerRouter = createSmPlayerRouter();
@@ -57,41 +63,47 @@ GoRouter createSmPlayerRouter({
               path == '/now-playing/full';
 
           return Consumer(
-            builder:
-                (context, ref, _) => SmPlayerShellPage(
-                  currentPath: path,
-                  canGoBack: canGoBack,
-                  settingsRepository: ref.read(libraryRepositoryProvider),
-                  onNavigate: (target) {
-                    context.go(target);
-                  },
-                  onGoBack: () {
-                    if (isPlaylistDetailRoute) {
-                      context.go('/playlists');
-                      return;
-                    }
+            builder: (context, ref, _) {
+              final repository = ref.read(libraryRepositoryProvider);
+              return SmPlayerShellPage(
+                currentPath: path,
+                canGoBack: canGoBack,
+                settingsRepository: repository,
+                onNavigate: (target) {
+                  context.go(target);
+                },
+                onGoBack: () {
+                  if (isPlaylistDetailRoute) {
+                    context.go('/playlists');
+                    return;
+                  }
 
-                    if (isAlbumDetailRoute) {
-                      context.go('/albums');
-                      return;
-                    }
+                  if (isAlbumDetailRoute) {
+                    context.go('/albums');
+                    return;
+                  }
 
-                    if (isArtistDetailRoute) {
-                      context.go('/artists');
-                      return;
-                    }
+                  if (isArtistDetailRoute) {
+                    context.go('/artists');
+                    return;
+                  }
 
-                    if (path == '/now-playing/full') {
-                      context.go('/now-playing');
-                    }
-                  },
-                  onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
-                    context.go(_searchRouteFor(query, type));
-                  },
-                  initialExternalFilePaths: initialExternalFilePaths,
-                  initialExternalCommands: initialExternalCommands,
+                  if (path == '/now-playing/full') {
+                    context.go('/now-playing');
+                  }
+                },
+                onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {
+                  context.go(_searchRouteFor(query, type));
+                },
+                initialExternalFilePaths: initialExternalFilePaths,
+                initialExternalCommands: initialExternalCommands,
+                child: _LibraryRootGate(
+                  path: path,
+                  settingsController: settingsController,
                   child: child,
                 ),
+              );
+            },
           );
         },
         routes: [
@@ -242,6 +254,172 @@ Future<void> _revealSystemLogs() async {
   final logsDirectory = Directory(p.join(supportDirectory.path, 'Logs'));
   await logsDirectory.create(recursive: true);
   await openFolderInShell(logsDirectory.path);
+}
+
+class _LibraryRootGate extends ConsumerStatefulWidget {
+  const _LibraryRootGate({
+    required this.path,
+    required this.child,
+    this.settingsController,
+  });
+
+  final String path;
+  final Widget child;
+  final SettingsController? settingsController;
+
+  @override
+  ConsumerState<_LibraryRootGate> createState() => _LibraryRootGateState();
+}
+
+class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
+  var _scanning = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLibraryRootBypassedRoute(widget.path)) {
+      return widget.child;
+    }
+
+    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    return snapshotValue.when(
+      data:
+          (snapshot) =>
+              snapshot.rootPath.isEmpty
+                  ? _MissingLibraryRootPage(
+                    loading: _scanning,
+                    onPickLibraryRoot:
+                        _scanning
+                            ? null
+                            : () {
+                              unawaited(_pickLibraryRootAndScan());
+                            },
+                  )
+                  : widget.child,
+      loading: () => const _MissingLibraryRootPage(loading: true),
+      error:
+          (_, _) => _MissingLibraryRootPage(
+            loading: _scanning,
+            onPickLibraryRoot:
+                _scanning
+                    ? null
+                    : () {
+                      unawaited(_pickLibraryRootAndScan());
+                    },
+          ),
+    );
+  }
+
+  Future<void> _pickLibraryRootAndScan() async {
+    final rootPath = await FilePicker.getDirectoryPath();
+    if (rootPath == null || rootPath.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _scanning = true;
+    });
+
+    await ref.read(libraryRepositoryProvider).scanAllMusicLibrary(rootPath);
+    await widget.settingsController?.updateSettings(
+      AppSettingsUpdate(rootPath: rootPath),
+    );
+    ref.invalidate(musicLibrarySnapshotProvider);
+
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+      });
+    }
+  }
+}
+
+class _MissingLibraryRootPage extends StatelessWidget {
+  const _MissingLibraryRootPage({
+    required this.loading,
+    this.onPickLibraryRoot,
+  });
+
+  final bool loading;
+  final VoidCallback? onPickLibraryRoot;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const DecoratedBox(
+        decoration: BoxDecoration(color: Color(0xfff6f8fb)),
+        child: SmPlayerLoadingState(),
+      );
+    }
+
+    final i18n = context.smPlayerI18n;
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xfff6f8fb)),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: LocalPageColors.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: LocalPageColors.panelBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox.square(
+                    dimension: 104,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: LocalPageColors.artwork,
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                      child: Icon(
+                        FluentIcons.music_note_2_24_regular,
+                        color: LocalPageColors.artworkIcon,
+                        size: 62,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    i18n.t('local.noRoot'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: LocalPageColors.textStrong,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    i18n.t('local.noRootCopy'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: LocalPageColors.textMuted,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: onPickLibraryRoot,
+                    icon: const Icon(FluentIcons.folder_20_regular),
+                    label: Text(i18n.t('library.chooseFolder')),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool _isLibraryRootBypassedRoute(String path) {
+  return path == '/settings' || path.startsWith('/remote/');
 }
 
 String _searchRouteFor(String query, SearchHistoryType type) {

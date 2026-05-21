@@ -42,7 +42,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   static const _artistPreviewLimit = 10;
   static const _sectionPreviewLimit = 5;
 
-  final _settingsController = SettingsController();
+  late final SettingsController _settingsController;
   final _selection = PageSelectionController<String>();
   var _settings = const SettingsSnapshot.defaults();
   late var _activeFilter = searchFilterKeyFromType(widget.activeType);
@@ -54,6 +54,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
+    _settingsController = SettingsController(
+      null,
+      ref.read(libraryRepositoryProvider),
+    );
     _restoreSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -201,6 +205,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         onSortChanged: (criterion) {
                           _updateSort(section.type, criterion);
                         },
+                        onGetPreferenceLevel: _getSearchResultPreferenceLevel,
+                        onSetPreference: _setSearchResultPreference,
+                        onUndoPreference: _undoSearchResultPreference,
                         onSelectionChanged: () {
                           setState(() {});
                         },
@@ -418,25 +425,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     return [
       _SearchSectionData.cards(
         type: SearchResultType.artists,
+        criterion: criteria.artists,
         cards: sortSearchResults(results.artists, criteria.artists),
         previewLimit: _artistPreviewLimit,
       ),
       _SearchSectionData.cards(
         type: SearchResultType.albums,
+        criterion: criteria.albums,
         cards: sortSearchResults(results.albums, criteria.albums),
         previewLimit: _sectionPreviewLimit,
       ),
       _SearchSectionData.songs(
+        criterion: criteria.songs,
         songs: sortSearchSongs(results.songs, criteria.songs),
         previewLimit: _sectionPreviewLimit,
       ),
       _SearchSectionData.cards(
         type: SearchResultType.playlists,
+        criterion: criteria.playlists,
         cards: sortSearchResults(results.playlists, criteria.playlists),
         previewLimit: _sectionPreviewLimit,
       ),
       _SearchSectionData.cards(
         type: SearchResultType.folders,
+        criterion: criteria.folders,
         cards: sortSearchResults(results.folders, criteria.folders),
         previewLimit: _sectionPreviewLimit,
       ),
@@ -522,6 +534,59 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     setState(() {
       _settings = _settingsController.snapshot;
     });
+  }
+
+  Future<String?> _getSearchResultPreferenceLevel(
+    SearchResultType type,
+    SearchResult card,
+  ) async {
+    final preferenceType = _searchResultPreferenceType(type);
+    if (preferenceType == null) {
+      return null;
+    }
+    return ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel(
+          preferenceType,
+          _searchResultPreferenceId(preferenceType, card),
+        );
+  }
+
+  Future<void> _setSearchResultPreference(
+    SearchResultType type,
+    SearchResult card,
+    String level,
+  ) async {
+    final preferenceType = _searchResultPreferenceType(type);
+    if (preferenceType == null) {
+      return;
+    }
+    await ref
+        .read(libraryRepositoryProvider)
+        .addPreferenceItem(
+          preferenceType,
+          _searchResultPreferenceId(preferenceType, card),
+          card.title,
+          level,
+        );
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _undoSearchResultPreference(
+    SearchResultType type,
+    SearchResult card,
+  ) async {
+    final preferenceType = _searchResultPreferenceType(type);
+    if (preferenceType == null) {
+      return;
+    }
+    await ref
+        .read(libraryRepositoryProvider)
+        .removePreferenceItem(
+          preferenceType,
+          _searchResultPreferenceId(preferenceType, card),
+        );
+    ref.invalidate(musicLibrarySnapshotProvider);
   }
 
   void _recordRecentSearch() {
@@ -743,17 +808,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 class _SearchSectionData {
   const _SearchSectionData.cards({
     required this.type,
+    required this.criterion,
     required this.cards,
     required this.previewLimit,
   }) : songs = const [];
 
   const _SearchSectionData.songs({
+    required this.criterion,
     required this.songs,
     required this.previewLimit,
   }) : type = SearchResultType.songs,
        cards = const [];
 
   final SearchResultType type;
+  final SearchSortCriterion criterion;
   final List<SearchResult> cards;
   final List<LibrarySong> songs;
   final int previewLimit;
@@ -890,6 +958,13 @@ class _SearchFilterTab extends StatelessWidget {
   }
 }
 
+String _activeSortLabel(
+  List<({SearchSortCriterion value, String label})> options,
+  SearchSortCriterion criterion,
+) {
+  return options.firstWhere((option) => option.value == criterion).label;
+}
+
 class _SearchResultSection extends StatelessWidget {
   const _SearchResultSection({
     required this.section,
@@ -903,6 +978,9 @@ class _SearchResultSection extends StatelessWidget {
     required this.onViewAll,
     required this.onViewLess,
     required this.onSortChanged,
+    required this.onGetPreferenceLevel,
+    required this.onSetPreference,
+    required this.onUndoPreference,
     required this.onSelectionChanged,
     required this.onOpenCard,
     required this.onPlaySongs,
@@ -932,6 +1010,11 @@ class _SearchResultSection extends StatelessWidget {
   final VoidCallback onViewAll;
   final VoidCallback onViewLess;
   final ValueChanged<SearchSortCriterion> onSortChanged;
+  final Future<String?> Function(SearchResultType, SearchResult)
+  onGetPreferenceLevel;
+  final Future<void> Function(SearchResultType, SearchResult, String)
+  onSetPreference;
+  final Future<void> Function(SearchResultType, SearchResult) onUndoPreference;
   final VoidCallback onSelectionChanged;
   final ValueChanged<SearchResult> onOpenCard;
   final ValueChanged<List<int>> onPlaySongs;
@@ -981,9 +1064,22 @@ class _SearchResultSection extends StatelessWidget {
                         child: Text(option.label),
                       ),
                   ],
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(FluentIcons.arrow_sort_20_regular, size: 20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(FluentIcons.arrow_sort_20_regular, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      _activeSortLabel(sortOptions, section.criterion),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ),
             if (showViewToggle)
@@ -1228,12 +1324,16 @@ class _SearchResultSection extends StatelessWidget {
     );
   }
 
-  void _showCardContextMenu(
+  Future<void> _showCardContextMenu(
     BuildContext context,
     Offset position,
     SearchResult card,
-  ) {
+  ) async {
     final cardKey = getSearchResultCardKey(section.type, card);
+    final preferenceLevel = await onGetPreferenceLevel(section.type, card);
+    if (!context.mounted) {
+      return;
+    }
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: card.songIds,
@@ -1267,6 +1367,8 @@ class _SearchResultSection extends StatelessWidget {
           },
         ),
         if (addToItem != null) addToItem,
+        if (_searchResultPreferenceType(section.type) != null)
+          _buildSearchResultPreferenceMenuItem(card, preferenceLevel),
         if (section.type == SearchResultType.albums)
           MenuFlyoutItem(
             key: 'see-album-art',
@@ -1310,6 +1412,62 @@ class _SearchResultSection extends StatelessWidget {
       ],
     );
   }
+
+  MenuFlyoutItem _buildSearchResultPreferenceMenuItem(
+    SearchResult card,
+    String? preferenceLevel,
+  ) {
+    return MenuFlyoutItem(
+      key: 'preference',
+      text: i18n.t('settings.preferenceSettings'),
+      icon: FluentIcons.star_20_regular,
+      submenu: [
+        if (preferenceLevel != null) ...[
+          MenuFlyoutItem(
+            key: 'preference-undo',
+            text: i18n.t('preferences.undoPrefer'),
+            icon: FluentIcons.arrow_undo_20_regular,
+            onPressed: () {
+              onUndoPreference(section.type, card);
+            },
+          ),
+          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
+        ],
+        for (final level in const [
+          'do-not-appear',
+          'dislike',
+          'normal',
+          'high',
+          'higher',
+          'very-high',
+        ])
+          MenuFlyoutItem(
+            key: 'preference-$level',
+            text: i18n.t('preferences.level.$level'),
+            checked: preferenceLevel == level,
+            onPressed: () {
+              onSetPreference(section.type, card, level);
+            },
+          ),
+      ],
+    );
+  }
+}
+
+String? _searchResultPreferenceType(SearchResultType type) {
+  return switch (type) {
+    SearchResultType.artists => 'artist',
+    SearchResultType.albums => 'album',
+    SearchResultType.playlists => 'playlist',
+    SearchResultType.folders => 'folder',
+    SearchResultType.songs => null,
+  };
+}
+
+String _searchResultPreferenceId(String preferenceType, SearchResult card) {
+  return preferenceType == 'folder' || preferenceType == 'playlist'
+      ? card.sourceId!
+      : card.title;
 }
 
 class _SearchAlbumArtPreviewDialog extends StatelessWidget {

@@ -348,8 +348,9 @@ class _FakeNowPlayingRepository extends LibraryRepository {
   @override
   Future<LocalItemsMoveResult> moveSongToFolder(
     int songId,
-    String folderPath,
-  ) async {
+    String folderPath, {
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
     movedSongId = songId;
     movedFolderPath = folderPath;
     return LocalItemsMoveResult(
