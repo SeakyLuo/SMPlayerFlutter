@@ -747,14 +747,16 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: const ['lrc', 'txt'],
+        allowedExtensions: _lyricsImportExtensions,
       );
       final filePath = result?.files.single.path;
       if (filePath == null) {
         return;
       }
 
-      final rawText = await File(filePath).readAsString();
+      final rawText = await ref
+          .read(libraryRepositoryProvider)
+          .readLyricsFromFile(filePath);
       if (!mounted) {
         return;
       }
@@ -1082,6 +1084,25 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
+
+const _lyricsImportExtensions = [
+  'lrc',
+  'txt',
+  'aac',
+  'aiff',
+  'aif',
+  'alac',
+  'ape',
+  'flac',
+  'm4a',
+  'mp3',
+  'mp4',
+  'oga',
+  'ogg',
+  'opus',
+  'wav',
+  'wma',
+];
 
 Uri musicLyricsSearchUri({
   required String locale,

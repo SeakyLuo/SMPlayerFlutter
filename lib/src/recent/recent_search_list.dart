@@ -4,6 +4,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
 import 'recent_page_model.dart';
+import 'recent_scrollbar.dart';
 
 class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
@@ -39,31 +40,33 @@ class RecentSearchList extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 2, 22, 88),
-      itemExtent: 56,
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        return _RecentSearchRow(
-          entry: entry,
-          i18n: i18n,
-          selected: selectedEntryIds.contains(entry.id),
-          multiSelect: multiSelect,
-          onSearch: () {
-            onSearch(entry);
-          },
-          onToggleSelection: () {
-            onToggleSelection(entry.id);
-          },
-          onRemove: () {
-            onRemove(entry.id);
-          },
-          onOpenContextMenu: (position) {
-            onOpenContextMenu(position, entry);
-          },
-        );
-      },
+    return RecentScrollbar(
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(8, 2, 22, 88),
+        itemExtent: 56,
+        itemCount: entries.length,
+        itemBuilder: (context, index) {
+          final entry = entries[index];
+          return _RecentSearchRow(
+            entry: entry,
+            i18n: i18n,
+            selected: selectedEntryIds.contains(entry.id),
+            multiSelect: multiSelect,
+            onSearch: () {
+              onSearch(entry);
+            },
+            onToggleSelection: () {
+              onToggleSelection(entry.id);
+            },
+            onRemove: () {
+              onRemove(entry.id);
+            },
+            onOpenContextMenu: (position) {
+              onOpenContextMenu(position, entry);
+            },
+          );
+        },
+      ),
     );
   }
 }

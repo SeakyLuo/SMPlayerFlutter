@@ -344,18 +344,42 @@ private final class DesktopLyricsNativeView: NSView {
   private var labelSettings = "Settings"
   private var labelClose = "Close"
   private var buttonRects: [(rect: NSRect, command: String, label: String)] = []
+  private var lyricScrollStart = Date()
+  private var lyricScrollTimer: Timer?
   var onCommand: ((String) -> Void)?
 
   override var isFlipped: Bool { true }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window == nil {
+      lyricScrollTimer?.invalidate()
+      lyricScrollTimer = nil
+    } else if lyricScrollTimer == nil {
+      lyricScrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        self?.needsDisplay = true
+      }
+    }
+  }
+
+  deinit {
+    lyricScrollTimer?.invalidate()
+  }
 
   func apply(state: [String: Any]) {
     let lyric = (state["lyricText"] as? String) ?? ""
     let fallback = (state["fallbackText"] as? String) ?? ""
     loading = (state["loading"] as? Bool) ?? false
-    lyricText = loading ? "..." : lyric.isEmpty ? fallback : lyric
+    let nextLyricTextValue = loading ? "..." : lyric.isEmpty ? fallback : lyric
+    let nextFontFamily = (state["fontFamily"] as? String) ?? "system"
+    let nextFontSize = (state["fontSize"] as? Int) ?? 28
+    if lyricText != nextLyricTextValue || fontFamily != nextFontFamily || fontSize != nextFontSize {
+      lyricScrollStart = Date()
+    }
+    lyricText = nextLyricTextValue
     nextLyricText = (state["nextLyricText"] as? String) ?? ""
-    fontFamily = (state["fontFamily"] as? String) ?? "system"
-    fontSize = (state["fontSize"] as? Int) ?? 28
+    fontFamily = nextFontFamily
+    fontSize = nextFontSize
     locked = (state["locked"] as? Bool) ?? false
     nightMode = (state["nightMode"] as? Bool) ?? true
     let offsetMs = Double((state["offsetMs"] as? Int) ?? 0)
@@ -416,7 +440,7 @@ private final class DesktopLyricsNativeView: NSView {
     let lyricFont = fontName.flatMap { NSFont(name: $0, size: CGFloat(fontSize)) }
       ?? NSFont.systemFont(ofSize: CGFloat(fontSize), weight: .bold)
     let topInset: CGFloat = locked ? 28 : 42
-    drawCentered(
+    drawScrollingCentered(
       lyricText,
       in: card.insetBy(dx: 18, dy: nextLyricText.isEmpty ? topInset : max(topInset, 34)),
       font: lyricFont,
@@ -437,9 +461,17 @@ private final class DesktopLyricsNativeView: NSView {
   }
 
   private func drawCentered(_ text: String, in rect: NSRect, font: NSFont, color: NSColor) {
+    drawAttributed(text, in: rect, font: font, color: color, scrollOverflow: false)
+  }
+
+  private func drawScrollingCentered(_ text: String, in rect: NSRect, font: NSFont, color: NSColor) {
+    drawAttributed(text, in: rect, font: font, color: color, scrollOverflow: true)
+  }
+
+  private func drawAttributed(_ text: String, in rect: NSRect, font: NSFont, color: NSColor, scrollOverflow: Bool) {
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .center
-    paragraph.lineBreakMode = .byTruncatingTail
+    paragraph.lineBreakMode = scrollOverflow ? .byClipping : .byTruncatingTail
     let attributes: [NSAttributedString.Key: Any] = [
       .font: font,
       .foregroundColor: color,
@@ -447,6 +479,24 @@ private final class DesktopLyricsNativeView: NSView {
     ]
     let attributed = NSAttributedString(string: text, attributes: attributes)
     let size = attributed.size()
+    if scrollOverflow && size.width > rect.width {
+      let distance = size.width - rect.width
+      let duration = min(12.0, max(5.0, round(Double(distance / 28.0)) + 4.0))
+      let cycle = duration * 2.0
+      let elapsed = Date().timeIntervalSince(lyricScrollStart).truncatingRemainder(dividingBy: cycle)
+      let rawProgress = elapsed <= duration ? elapsed / duration : 1.0 - (elapsed - duration) / duration
+      let progress = rawProgress * rawProgress * (3.0 - 2.0 * rawProgress)
+      let drawRect = NSRect(
+        x: rect.minX - distance * CGFloat(progress),
+        y: rect.midY - size.height / 2,
+        width: size.width,
+        height: size.height)
+      NSGraphicsContext.saveGraphicsState()
+      rect.clip()
+      attributed.draw(with: drawRect, options: [.usesLineFragmentOrigin])
+      NSGraphicsContext.restoreGraphicsState()
+      return
+    }
     let drawRect = NSRect(
       x: rect.minX,
       y: rect.midY - size.height / 2,

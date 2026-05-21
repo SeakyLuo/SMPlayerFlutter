@@ -153,11 +153,43 @@ class LocalFolderMove {
   final String newPath;
 }
 
+class _LocalFileMove {
+  const _LocalFileMove({
+    required this.oldPath,
+    required this.newPath,
+    this.replacedPath,
+  });
+
+  final String oldPath;
+  final String newPath;
+  final String? replacedPath;
+}
+
+class _LocalResolvedFileMoveTarget {
+  const _LocalResolvedFileMoveTarget({required this.path, this.replacedPath});
+
+  final String path;
+  final String? replacedPath;
+}
+
+enum LocalMoveConflictResolution { replace, keepBoth, skip }
+
+typedef LocalMoveConflictResolver =
+    Future<LocalMoveConflictResolution> Function(
+      String sourcePath,
+      String targetPath,
+    );
+
 class LocalItemsMoveResult {
-  const LocalItemsMoveResult({required this.songs, required this.folders});
+  const LocalItemsMoveResult({
+    required this.songs,
+    required this.folders,
+    this.inactiveFolders = const [],
+  });
 
   final List<LocalSongMove> songs;
   final List<LocalFolderMove> folders;
+  final List<String> inactiveFolders;
 
   int get itemCount => songs.length + folders.length;
 }
@@ -364,6 +396,27 @@ class LibraryRepository {
         rootPath: settings.rootPath,
         databasePath: databaseFile.path,
       );
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<bool> shouldCheckStartupArtistSplits() async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return false;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final shouldCheck =
+          _tableExists(db, 'Music') &&
+          _tableHasRows(db, 'Music') &&
+          !_tableExists(db, 'MusicArtist');
+      if (shouldCheck) {
+        _createMusicArtistTable(db);
+      }
+      return shouldCheck;
     } finally {
       db.dispose();
     }
@@ -910,8 +963,9 @@ class LibraryRepository {
 
   Future<LocalItemsMoveResult> moveSongToFolder(
     int songId,
-    String folderPath,
-  ) async {
+    String folderPath, {
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
     final databaseFile = await _resolveDatabaseFile();
     final db = sqlite3.open(databaseFile.path);
     try {
@@ -925,16 +979,26 @@ class LibraryRepository {
         throw StateError('Target path is not a folder.');
       }
 
-      var targetPath = p.join(folderPath, p.basename(songPath));
-      if (FileSystemEntity.typeSync(targetPath) !=
-          FileSystemEntityType.notFound) {
-        targetPath = _getAvailableSiblingPath(targetPath);
+      final target = await _resolveLocalFileMoveTarget(
+        sourcePath: songPath,
+        targetFolderPath: folderPath,
+        resolveConflict: resolveConflict,
+      );
+      if (target == null) {
+        return const LocalItemsMoveResult(songs: [], folders: []);
       }
 
-      await File(songPath).rename(targetPath);
+      await File(songPath).rename(target.path);
       db.execute('BEGIN');
       try {
         final folderId = _readActiveFolderId(db, folderPath) ?? 0;
+        if (target.replacedPath != null) {
+          _markLocalFilePathInactiveInsideTransaction(
+            db,
+            target.replacedPath!,
+            exceptSongId: songId,
+          );
+        }
         db.execute(
           '''
           UPDATE Music
@@ -942,7 +1006,7 @@ class LibraryRepository {
           WHERE Id = ?
             AND State = ?
         ''',
-          [targetPath, songId, _activeState],
+          [target.path, songId, _activeState],
         );
         db.execute(
           '''
@@ -950,7 +1014,7 @@ class LibraryRepository {
           SET Path = ?, ParentId = ?
           WHERE Path = ?
         ''',
-          [targetPath, folderId, songPath],
+          [target.path, folderId, songPath],
         );
         db.execute('COMMIT');
       } on Object {
@@ -959,7 +1023,7 @@ class LibraryRepository {
       }
       return LocalItemsMoveResult(
         songs: [
-          LocalSongMove(id: songId, oldPath: songPath, newPath: targetPath),
+          LocalSongMove(id: songId, oldPath: songPath, newPath: target.path),
         ],
         folders: const [],
       );
@@ -971,8 +1035,9 @@ class LibraryRepository {
   Future<LocalItemsMoveResult> moveLocalItemsToFolder(
     List<int> songIds,
     List<String> folderPaths,
-    String targetFolderPath,
-  ) async {
+    String targetFolderPath, {
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
     if (songIds.isEmpty && folderPaths.isEmpty) {
       return const LocalItemsMoveResult(songs: [], folders: []);
     }
@@ -986,6 +1051,7 @@ class LibraryRepository {
       }
 
       final movedSongs = <LocalSongMove>[];
+      final movedFiles = <_LocalFileMove>[];
       if (songIds.isNotEmpty) {
         final placeholders = List.filled(songIds.length, '?').join(', ');
         final rows = db.select(
@@ -1002,55 +1068,117 @@ class LibraryRepository {
           if (_getFileParentPath(songPath) == targetFolderPath) {
             continue;
           }
-          var targetPath = p.join(targetFolderPath, p.basename(songPath));
-          if (FileSystemEntity.typeSync(targetPath) !=
-              FileSystemEntityType.notFound) {
-            targetPath = _getAvailableSiblingPath(targetPath);
+          final target = await _resolveLocalFileMoveTarget(
+            sourcePath: songPath,
+            targetFolderPath: targetFolderPath,
+            resolveConflict: resolveConflict,
+          );
+          if (target == null) {
+            continue;
           }
-          await File(songPath).rename(targetPath);
+          await File(songPath).rename(target.path);
+          movedFiles.add(
+            _LocalFileMove(
+              oldPath: songPath,
+              newPath: target.path,
+              replacedPath: target.replacedPath,
+            ),
+          );
           movedSongs.add(
             LocalSongMove(
               id: row['id'] as int,
               oldPath: songPath,
-              newPath: targetPath,
+              newPath: target.path,
             ),
           );
         }
       }
 
       final movedFolders = <LocalFolderMove>[];
+      final inactiveFolders = <String>[];
       for (final folderPath in folderPaths) {
-        var targetPath = p.join(targetFolderPath, p.basename(folderPath));
-        if (FileSystemEntity.typeSync(targetPath) !=
-            FileSystemEntityType.notFound) {
-          targetPath = _getAvailableSiblingPath(targetPath);
+        if (folderPath == targetFolderPath ||
+            targetFolderPath.startsWith('$folderPath/') ||
+            targetFolderPath.startsWith('$folderPath\\')) {
+          continue;
         }
-        await Directory(folderPath).rename(targetPath);
-        movedFolders.add(
-          LocalFolderMove(oldPath: folderPath, newPath: targetPath),
+        var targetPath = p.join(targetFolderPath, p.basename(folderPath));
+        if (folderPath == targetPath) {
+          continue;
+        }
+        final targetType = FileSystemEntity.typeSync(targetPath);
+        if (targetType == FileSystemEntityType.notFound) {
+          await Directory(folderPath).rename(targetPath);
+          movedFolders.add(
+            LocalFolderMove(oldPath: folderPath, newPath: targetPath),
+          );
+          continue;
+        }
+
+        if (targetType != FileSystemEntityType.directory) {
+          throw StateError('Target path already exists and is not a folder.');
+        }
+        await _mergeLocalFolderIntoExistingTarget(
+          sourceFolderPath: folderPath,
+          targetFolderPath: targetPath,
+          movedFiles: movedFiles,
+          movedFolders: movedFolders,
+          inactiveFolders: inactiveFolders,
+          resolveConflict: resolveConflict,
         );
       }
 
       db.execute('BEGIN');
       try {
-        final targetFolderId = _readActiveFolderId(db, targetFolderPath) ?? 0;
-        for (final movedSong in movedSongs) {
-          db.execute(
+        for (final movedFile in movedFiles) {
+          final targetFolderId =
+              _readActiveFolderId(db, p.dirname(movedFile.newPath)) ?? 0;
+          final sourceSongRows = db.select(
             '''
-            UPDATE Music
-            SET Path = ?
-            WHERE Id = ?
+            SELECT Id AS id
+            FROM Music
+            WHERE Path = ?
               AND State = ?
+            LIMIT 1
           ''',
-            [movedSong.newPath, movedSong.id, _activeState],
+            [movedFile.oldPath, _activeState],
           );
+          final sourceSongId =
+              sourceSongRows.isEmpty ? null : sourceSongRows.first['id'] as int;
+          if (movedFile.replacedPath != null) {
+            _markLocalFilePathInactiveInsideTransaction(
+              db,
+              movedFile.replacedPath!,
+              exceptSongId: sourceSongId,
+            );
+          }
+          if (sourceSongId != null) {
+            if (!movedSongs.any((move) => move.id == sourceSongId)) {
+              movedSongs.add(
+                LocalSongMove(
+                  id: sourceSongId,
+                  oldPath: movedFile.oldPath,
+                  newPath: movedFile.newPath,
+                ),
+              );
+            }
+            db.execute(
+              '''
+              UPDATE Music
+              SET Path = ?
+              WHERE Id = ?
+                AND State = ?
+            ''',
+              [movedFile.newPath, sourceSongId, _activeState],
+            );
+          }
           db.execute(
             '''
             UPDATE File
             SET Path = ?, ParentId = ?
             WHERE Path = ?
           ''',
-            [movedSong.newPath, targetFolderId, movedSong.oldPath],
+            [movedFile.newPath, targetFolderId, movedFile.oldPath],
           );
         }
 
@@ -1073,6 +1201,8 @@ class LibraryRepository {
             oldPath: movedFolder.oldPath,
             newPath: movedFolder.newPath,
           );
+          final parentFolderId =
+              _readActiveFolderId(db, p.dirname(movedFolder.newPath)) ?? 0;
           db.execute(
             '''
             UPDATE Folder
@@ -1080,15 +1210,22 @@ class LibraryRepository {
             WHERE Path = ?
               AND State = ?
           ''',
-            [targetFolderId, movedFolder.newPath, _activeState],
+            [parentFolderId, movedFolder.newPath, _activeState],
           );
+        }
+        for (final inactiveFolder in inactiveFolders) {
+          _markLocalFolderInactiveInsideTransaction(db, inactiveFolder);
         }
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
         rethrow;
       }
-      return LocalItemsMoveResult(songs: movedSongs, folders: movedFolders);
+      return LocalItemsMoveResult(
+        songs: movedSongs,
+        folders: movedFolders,
+        inactiveFolders: inactiveFolders,
+      );
     } finally {
       db.dispose();
     }
@@ -1099,14 +1236,35 @@ class LibraryRepository {
     final db = sqlite3.open(databaseFile.path);
     try {
       for (final movedFolder in result.folders.reversed) {
+        Directory(p.dirname(movedFolder.oldPath)).createSync(recursive: true);
         await Directory(movedFolder.newPath).rename(movedFolder.oldPath);
       }
       for (final movedSong in result.songs) {
+        Directory(p.dirname(movedSong.oldPath)).createSync(recursive: true);
         await File(movedSong.newPath).rename(movedSong.oldPath);
       }
 
       db.execute('BEGIN');
       try {
+        for (final inactiveFolder in result.inactiveFolders) {
+          db.execute(
+            '''
+            UPDATE Folder
+            SET State = ?
+            WHERE Path = ?
+          ''',
+            [_activeState, inactiveFolder],
+          );
+          db.execute(
+            '''
+            UPDATE HiddenStorageItem
+            SET State = ?
+            WHERE Type = 'folder'
+              AND Path = ?
+          ''',
+            [_inactiveState, inactiveFolder],
+          );
+        }
         for (final movedSong in result.songs) {
           final parentFolderId =
               _readActiveFolderId(db, _getFileParentPath(movedSong.oldPath)) ??
@@ -1689,6 +1847,110 @@ class LibraryRepository {
           _inactiveState,
           playlistId,
         ]);
+        db.execute('COMMIT');
+      } on Object {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> restorePlaylist(
+    LibraryPlaylist playlist,
+    int playlistIndex,
+  ) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final settings = _readLibrarySettings(db);
+      if (playlist.id == settings.myFavoritesId ||
+          playlist.id == settings.nowPlayingId) {
+        throw StateError('Built-in playlists cannot be restored.');
+      }
+
+      db.execute('BEGIN');
+      try {
+        db.execute(
+          '''
+          UPDATE Playlist
+          SET Name = ?,
+              Criterion = ?,
+              Priority = ?,
+              State = ?
+          WHERE Id = ?
+        ''',
+          [
+            _validatePlaylistName(
+              db,
+              playlist.name,
+              currentPlaylistId: playlist.id,
+            ),
+            _toStoredPlaylistSortCriterion(playlist.sortCriterion),
+            0,
+            _activeState,
+            playlist.id,
+          ],
+        );
+        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
+          _inactiveState,
+          playlist.id,
+        ]);
+        _setPlaylistSongsState(db, playlist.id, playlist.songIds, true);
+
+        final rows = db.select(
+          '''
+          SELECT Playlist.Id AS id
+          FROM Playlist
+          WHERE Playlist.State = ?
+            AND Playlist.Id NOT IN (?, ?)
+            AND Playlist.Name <> ?
+          ORDER BY
+            CASE WHEN Playlist.Priority < 0 THEN 2147483647 ELSE Playlist.Priority END,
+            LOWER(Playlist.Name),
+            Playlist.Id
+        ''',
+          [
+            _activeState,
+            settings.myFavoritesId,
+            settings.nowPlayingId,
+            _nowPlayingPlaylistName,
+          ],
+        );
+        final playlistIds =
+            rows
+                .map((row) => row['id'] as int)
+                .where((playlistId) => playlistId != playlist.id)
+                .toList();
+        playlistIds.insert(
+          playlistIndex.clamp(0, playlistIds.length),
+          playlist.id,
+        );
+        final priorityCases = List.filled(
+          playlistIds.length,
+          'WHEN ? THEN ?',
+        ).join(' ');
+        final playlistIdPlaceholders = List.filled(
+          playlistIds.length,
+          '?',
+        ).join(', ');
+        final priorityCaseValues =
+            playlistIds.indexed
+                .expand((entry) => [entry.$2, entry.$1])
+                .toList();
+        db.execute(
+          '''
+          UPDATE Playlist
+          SET Priority = CASE Id $priorityCases END
+          WHERE Id IN ($playlistIdPlaceholders)
+        ''',
+          [...priorityCaseValues, ...playlistIds],
+        );
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
@@ -2598,19 +2860,74 @@ class LibraryRepository {
     }
   }
 
-  Future<LyricsSnapshot> getSongLyrics(int songId) async {
-    final songPath = await _getSongPath(songId);
-    final sidecarLyrics = await _getSidecarLyrics(songPath);
-    if (sidecarLyrics != null) {
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
+  }) async {
+    final song = await _getLyricsSongLookup(songId);
+    final sidecarLyrics = await _getSidecarLyrics(song.path);
+
+    if (mode == settings.LyricsRequestMode.embedded) {
+      final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
+      return _createLyricsSnapshot(
+        embeddedLyrics,
+        embeddedLyrics.trim().isEmpty
+            ? LyricsSource.none
+            : LyricsSource.musicFile,
+      );
+    }
+
+    if (mode == settings.LyricsRequestMode.auto) {
+      final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
+      final localSnapshot =
+          sidecarLyrics ??
+          _createLyricsSnapshot(
+            embeddedLyrics,
+            embeddedLyrics.trim().isEmpty
+                ? LyricsSource.none
+                : LyricsSource.musicFile,
+          );
+      if (localSnapshot.isSynced) {
+        return localSnapshot;
+      }
+
+      final internetSnapshot = await _getSyncedInternetLyrics(song);
+      if (internetSnapshot != null) {
+        return internetSnapshot;
+      }
+
+      return localSnapshot;
+    }
+
+    if (mode != settings.LyricsRequestMode.internet && sidecarLyrics != null) {
       return sidecarLyrics;
     }
 
-    final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(songPath);
+    if (mode == settings.LyricsRequestMode.internet) {
+      final rawLyrics = await _searchInternetLyrics(song);
+      final internetLyrics = await _prepareInternetLyrics(rawLyrics);
+      return _createLyricsSnapshot(
+        internetLyrics,
+        internetLyrics.trim().isEmpty
+            ? LyricsSource.none
+            : LyricsSource.internet,
+      );
+    }
+
+    final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
     if (embeddedLyrics.trim().isNotEmpty) {
       return _createLyricsSnapshot(embeddedLyrics, LyricsSource.musicFile);
     }
 
     return _createLyricsSnapshot('', LyricsSource.none);
+  }
+
+  Future<String> readLyricsFromFile(String filePath) async {
+    if (_isScannableAudioFile(filePath)) {
+      return _id3TagService.readEmbeddedLyrics(filePath);
+    }
+
+    return File(filePath).readAsString();
   }
 
   Future<void> saveSongLyrics(int songId, String rawLyrics) async {
@@ -2639,9 +2956,10 @@ class LibraryRepository {
   Future<LyricsSnapshot> getInternetLyrics(int songId) async {
     final song = await _getLyricsSongLookup(songId);
     final rawLyrics = await _searchInternetLyrics(song);
+    final internetLyrics = await _prepareInternetLyrics(rawLyrics);
     return _createLyricsSnapshot(
-      rawLyrics,
-      rawLyrics.trim().isEmpty ? LyricsSource.none : LyricsSource.internet,
+      internetLyrics,
+      internetLyrics.trim().isEmpty ? LyricsSource.none : LyricsSource.internet,
     );
   }
 
@@ -4661,6 +4979,181 @@ class LibraryRepository {
     }
   }
 
+  Future<bool> _mergeLocalFolderIntoExistingTarget({
+    required String sourceFolderPath,
+    required String targetFolderPath,
+    required List<_LocalFileMove> movedFiles,
+    required List<LocalFolderMove> movedFolders,
+    required List<String> inactiveFolders,
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
+    var movedAll = true;
+    final entries = Directory(sourceFolderPath).listSync(followLinks: false);
+    for (final entry in entries) {
+      final sourcePath = entry.path;
+      final targetPath = p.join(targetFolderPath, p.basename(sourcePath));
+      final sourceType = FileSystemEntity.typeSync(
+        sourcePath,
+        followLinks: false,
+      );
+
+      if (sourceType == FileSystemEntityType.directory) {
+        final targetType = FileSystemEntity.typeSync(targetPath);
+        if (targetType == FileSystemEntityType.notFound) {
+          await Directory(sourcePath).rename(targetPath);
+          movedFolders.add(
+            LocalFolderMove(oldPath: sourcePath, newPath: targetPath),
+          );
+          continue;
+        }
+        if (targetType != FileSystemEntityType.directory) {
+          throw StateError('Target path already exists and is not a folder.');
+        }
+        final childMovedAll = await _mergeLocalFolderIntoExistingTarget(
+          sourceFolderPath: sourcePath,
+          targetFolderPath: targetPath,
+          movedFiles: movedFiles,
+          movedFolders: movedFolders,
+          inactiveFolders: inactiveFolders,
+          resolveConflict: resolveConflict,
+        );
+        movedAll = childMovedAll && movedAll;
+        continue;
+      }
+
+      if (sourceType == FileSystemEntityType.file) {
+        final target = await _resolveLocalFileMoveTarget(
+          sourcePath: sourcePath,
+          targetFolderPath: targetFolderPath,
+          resolveConflict: resolveConflict,
+        );
+        if (target == null) {
+          movedAll = false;
+          continue;
+        }
+        await File(sourcePath).rename(target.path);
+        movedFiles.add(
+          _LocalFileMove(
+            oldPath: sourcePath,
+            newPath: target.path,
+            replacedPath: target.replacedPath,
+          ),
+        );
+        continue;
+      }
+
+      movedAll = false;
+    }
+
+    if (Directory(sourceFolderPath).listSync(followLinks: false).isEmpty) {
+      await Directory(sourceFolderPath).delete();
+      inactiveFolders.add(sourceFolderPath);
+      return movedAll;
+    }
+    return false;
+  }
+
+  void _markLocalFilePathInactiveInsideTransaction(
+    Database db,
+    String filePath, {
+    int? exceptSongId,
+  }) {
+    if (exceptSongId == null) {
+      db.execute(
+        '''
+        UPDATE Music
+        SET State = ?
+        WHERE Path = ?
+          AND State = ?
+      ''',
+        [_inactiveState, filePath, _activeState],
+      );
+    } else {
+      db.execute(
+        '''
+        UPDATE Music
+        SET State = ?
+        WHERE Path = ?
+          AND Id <> ?
+          AND State = ?
+      ''',
+        [_inactiveState, filePath, exceptSongId, _activeState],
+      );
+    }
+    db.execute(
+      '''
+      UPDATE File
+      SET State = ?
+      WHERE Path = ?
+    ''',
+      [_inactiveState, filePath],
+    );
+    db.execute(
+      '''
+      UPDATE HiddenStorageItem
+      SET State = ?
+      WHERE Type = 'file'
+        AND Path = ?
+    ''',
+      [_inactiveState, filePath],
+    );
+  }
+
+  void _markLocalFolderInactiveInsideTransaction(
+    Database db,
+    String folderPath,
+  ) {
+    db.execute(
+      '''
+      UPDATE Folder
+      SET State = ?
+      WHERE Path = ?
+    ''',
+      [_inactiveState, folderPath],
+    );
+    db.execute(
+      '''
+      UPDATE HiddenStorageItem
+      SET State = ?
+      WHERE Type = 'folder'
+        AND Path = ?
+    ''',
+      [_inactiveState, folderPath],
+    );
+  }
+
+  Future<_LocalResolvedFileMoveTarget?> _resolveLocalFileMoveTarget({
+    required String sourcePath,
+    required String targetFolderPath,
+    LocalMoveConflictResolver? resolveConflict,
+  }) async {
+    var targetPath = p.join(targetFolderPath, p.basename(sourcePath));
+    if (FileSystemEntity.typeSync(targetPath) ==
+        FileSystemEntityType.notFound) {
+      return _LocalResolvedFileMoveTarget(path: targetPath);
+    }
+
+    final resolution =
+        resolveConflict == null
+            ? LocalMoveConflictResolution.keepBoth
+            : await resolveConflict(sourcePath, targetPath);
+    return switch (resolution) {
+      LocalMoveConflictResolution.skip => null,
+      LocalMoveConflictResolution.keepBoth => _LocalResolvedFileMoveTarget(
+        path: _getAvailableSiblingPath(targetPath),
+      ),
+      LocalMoveConflictResolution.replace => _LocalResolvedFileMoveTarget(
+        path: await _replaceLocalMoveTarget(targetPath),
+        replacedPath: targetPath,
+      ),
+    };
+  }
+
+  Future<String> _replaceLocalMoveTarget(String targetPath) async {
+    await File(targetPath).delete();
+    return targetPath;
+  }
+
   String _getAvailableSiblingPath(String targetPath) {
     final extension = p.extension(targetPath);
     final basePath = targetPath.substring(
@@ -4783,7 +5276,13 @@ class LibraryRepository {
         useFilenameNotMusicName || properties.title.trim().isEmpty
             ? p.basenameWithoutExtension(filePath)
             : properties.title.trim();
-    final artist = properties.artist.trim();
+    final artists =
+        _normalizeArtists(
+          properties.artists.isNotEmpty
+              ? properties.artists
+              : [properties.artist],
+        ).take(6).toList();
+    final artist = artists.join(', ');
     final album = properties.album.trim();
     final dateAdded = DateTime.now().toIso8601String();
     final rows = db.select(
@@ -4828,7 +5327,7 @@ class LibraryRepository {
       ],
     );
     final songId = rows.first['id'] as int;
-    _syncSongArtists(db, songId, _normalizeArtists([artist]));
+    _syncSongArtists(db, songId, artists);
     return songId;
   }
 
@@ -5099,6 +5598,52 @@ class LibraryRepository {
     } catch (_) {
       return '';
     }
+  }
+
+  Future<LyricsSnapshot?> _getSyncedInternetLyrics(
+    _LyricsSongLookup song,
+  ) async {
+    final rawLyrics = await _searchInternetLyrics(song);
+    if (rawLyrics.trim().isEmpty) {
+      return null;
+    }
+
+    final internetLyrics = await _prepareInternetLyrics(rawLyrics);
+    final snapshot = _createLyricsSnapshot(
+      internetLyrics,
+      LyricsSource.internet,
+    );
+    return snapshot.isSynced && snapshot.lines.isNotEmpty ? snapshot : null;
+  }
+
+  Future<String> _prepareInternetLyrics(String rawLyrics) async {
+    if (_isNoLyricsPlaceholder(rawLyrics)) {
+      return '';
+    }
+
+    final snapshot = await getSettingsSnapshot();
+    return (snapshot == null || snapshot.preserveInternetLyricsTimestamps)
+        ? rawLyrics
+        : _stripLyricsTimestamps(rawLyrics);
+  }
+
+  String _stripLyricsTimestamps(String rawText) {
+    final timestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');
+    final metadataRegex = RegExp(
+      r'^\[(ti|ar|al|by|offset):.*\]$',
+      caseSensitive: false,
+    );
+    return rawText
+        .split(RegExp(r'\r\n|[\n\r\u2028\u2029]'))
+        .map((line) {
+          final trimmedLine = line.trim();
+          if (metadataRegex.hasMatch(trimmedLine)) {
+            return '';
+          }
+          return line.replaceAll(timestampRegex, '').trimLeft();
+        })
+        .join('\n')
+        .trim();
   }
 
   Future<LyricsSnapshot> _getSongLyricsByPath(String songPath) async {
@@ -6209,6 +6754,38 @@ int _readWindowsUwpDatabaseExistingSampleCount(File file) {
   } finally {
     db?.dispose();
   }
+}
+
+bool _tableExists(Database db, String tableName) {
+  return db
+      .select(
+        '''
+    SELECT 1 AS found
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name = ?
+    LIMIT 1
+    ''',
+        [tableName],
+      )
+      .isNotEmpty;
+}
+
+bool _tableHasRows(Database db, String tableName) {
+  final rows = db.select('SELECT 1 AS found FROM $tableName LIMIT 1');
+  return rows.isNotEmpty;
+}
+
+void _createMusicArtistTable(Database db) {
+  db.execute('''
+    CREATE TABLE IF NOT EXISTS MusicArtist (
+      Id INTEGER PRIMARY KEY AUTOINCREMENT,
+      MusicId INTEGER,
+      Name TEXT,
+      Priority INTEGER DEFAULT 0,
+      State INTEGER DEFAULT 1
+    )
+  ''');
 }
 
 class _WindowsUwpDatabaseCandidateScore {

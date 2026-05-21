@@ -4,6 +4,7 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
 import 'headered_playlist_model.dart';
@@ -319,7 +320,17 @@ Future<void> moveSongToFolderWithUndo({
 }) async {
   final result = await ref
       .read(libraryRepositoryProvider)
-      .moveSongToFolder(song.id, folderPath);
+      .moveSongToFolder(
+        song.id,
+        folderPath,
+        resolveConflict:
+            (sourcePath, targetPath) => requestLocalMoveConflictResolution(
+              context: context,
+              i18n: i18n,
+              sourcePath: sourcePath,
+              targetPath: targetPath,
+            ),
+      );
   ref.invalidate(musicLibrarySnapshotProvider);
   if (!context.mounted || result.itemCount == 0) {
     return;
@@ -333,6 +344,55 @@ Future<void> moveSongToFolderWithUndo({
       ref.invalidate(musicLibrarySnapshotProvider);
     },
   );
+}
+
+Future<LocalMoveConflictResolution> requestLocalMoveConflictResolution({
+  required BuildContext context,
+  required SmPlayerI18n i18n,
+  required String sourcePath,
+  required String targetPath,
+}) async {
+  final result = await showDialog<LocalMoveConflictResolution>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: Text(i18n.t('local.moveConflictTitle')),
+        content: Text(
+          '${i18n.t('local.moveConflictMessage', {'name': _localMoveFileName(targetPath)})}\n\n$sourcePath',
+        ),
+        actions: [
+          TextButton(
+            onPressed:
+                () => Navigator.of(
+                  dialogContext,
+                ).pop(LocalMoveConflictResolution.replace),
+            child: Text(i18n.t('local.moveConflictReplace')),
+          ),
+          TextButton(
+            onPressed:
+                () => Navigator.of(
+                  dialogContext,
+                ).pop(LocalMoveConflictResolution.keepBoth),
+            child: Text(i18n.t('local.moveConflictKeepBoth')),
+          ),
+          TextButton(
+            onPressed:
+                () => Navigator.of(
+                  dialogContext,
+                ).pop(LocalMoveConflictResolution.skip),
+            child: Text(i18n.t('local.moveConflictSkip')),
+          ),
+        ],
+      );
+    },
+  );
+  return result ?? LocalMoveConflictResolution.skip;
+}
+
+String _localMoveFileName(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final index = normalized.lastIndexOf('/');
+  return index < 0 ? normalized : normalized.substring(index + 1);
 }
 
 Future<String?> requestPlaylistName({

@@ -12,8 +12,11 @@ import 'local_page_quick_jump.dart';
 class LocalTableContent extends StatelessWidget {
   const LocalTableContent({
     super.key,
+    required this.scrollController,
     required this.childFolders,
     required this.currentSongs,
+    required this.nodes,
+    required this.songsById,
     required this.selectedFolderPaths,
     required this.selectedSongIds,
     required this.selectedTrackId,
@@ -26,9 +29,12 @@ class LocalTableContent extends StatelessWidget {
     required this.songQuickJumpBasisName,
     required this.songQuickJumpMap,
     required this.queueSongIds,
+    required this.compactTreeRows,
+    required this.compactQueueSongIds,
     required this.i18n,
     required this.onToggleFoldersExpanded,
     required this.onToggleSongsExpanded,
+    required this.onToggleTreeFolderExpanded,
     required this.onPlayFolder,
     required this.onAddFolder,
     required this.onRefreshFolder,
@@ -37,6 +43,7 @@ class LocalTableContent extends StatelessWidget {
     required this.onOpenFolder,
     required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
+    required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
@@ -46,8 +53,11 @@ class LocalTableContent extends StatelessWidget {
     required this.onJumpToSongKey,
   });
 
+  final ScrollController scrollController;
   final List<FolderNode> childFolders;
   final List<LibrarySong> currentSongs;
+  final Map<String, FolderNode> nodes;
+  final Map<int, LibrarySong> songsById;
   final Set<String> selectedFolderPaths;
   final Set<int> selectedSongIds;
   final int? selectedTrackId;
@@ -60,9 +70,12 @@ class LocalTableContent extends StatelessWidget {
   final String songQuickJumpBasisName;
   final Map<String, int> songQuickJumpMap;
   final List<int> queueSongIds;
+  final List<LocalCompactTreeRow> compactTreeRows;
+  final List<int> compactQueueSongIds;
   final SmPlayerI18n i18n;
   final VoidCallback onToggleFoldersExpanded;
   final VoidCallback onToggleSongsExpanded;
+  final ValueChanged<String> onToggleTreeFolderExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
   final ValueChanged<FolderNode> onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
@@ -71,6 +84,12 @@ class LocalTableContent extends StatelessWidget {
   final ValueChanged<String> onOpenFolder;
   final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
+  final void Function({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required String targetFolderPath,
+  })
+  onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
@@ -81,54 +100,106 @@ class LocalTableContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Table(
-      columnWidths: const {
-        0: FlexColumnWidth(2.5),
-        1: FlexColumnWidth(1.25),
-        2: FlexColumnWidth(1.25),
+    return ListView.builder(
+      key: const ValueKey('LocalTableContent.VirtualList'),
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 18),
+      itemCount: _rowCount,
+      itemBuilder: (context, index) {
+        return _TableRowHost(row: _rowAt(context, index));
       },
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        _headerRow(),
-        if (showLocalSectionHeaders && childFolders.isNotEmpty)
-          _sectionRow(
-            title: i18n.t('common.folders'),
-            count: childFolders.length,
-            expanded: foldersExpanded,
-            onToggle: onToggleFoldersExpanded,
-          ),
-        if (!showLocalSectionHeaders || foldersExpanded)
-          for (final folder in childFolders) _folderRow(context, folder),
-        if (showLocalSectionHeaders && currentSongs.isNotEmpty)
-          _sectionRow(
-            title: i18n.t('local.allSongs'),
-            count: currentSongs.length,
-            expanded: songsExpanded,
-            onToggle: onToggleSongsExpanded,
-          ),
-        if ((!showLocalSectionHeaders || songsExpanded) && showSongQuickJump)
-          TableRow(
-            children: [
-              TableCell(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                  child: LocalSongQuickJump(
-                    basisName: songQuickJumpBasisName,
-                    enabledKeys: songQuickJumpMap,
-                    visible: showSongQuickJump,
-                    i18n: i18n,
-                    onJump: onJumpToSongKey,
-                  ),
-                ),
-              ),
-              const SizedBox.shrink(),
-              const SizedBox.shrink(),
-            ],
-          ),
-        if (!showLocalSectionHeaders || songsExpanded)
-          for (final song in currentSongs) _songRow(context, song),
-      ],
     );
+  }
+
+  int get _rowCount {
+    if (compactTreeRows.isNotEmpty) {
+      return 1 + compactTreeRows.length + currentSongs.length;
+    }
+
+    var count = 1;
+    if (showLocalSectionHeaders && childFolders.isNotEmpty) {
+      count += 1;
+    }
+    if (!showLocalSectionHeaders || foldersExpanded) {
+      count += childFolders.length;
+    }
+    if (showLocalSectionHeaders && currentSongs.isNotEmpty) {
+      count += 1;
+    }
+    if ((!showLocalSectionHeaders || songsExpanded) && showSongQuickJump) {
+      count += 1;
+    }
+    if (!showLocalSectionHeaders || songsExpanded) {
+      count += currentSongs.length;
+    }
+    return count;
+  }
+
+  TableRow _rowAt(BuildContext context, int index) {
+    if (index == 0) {
+      return _headerRow();
+    }
+
+    var rowIndex = index - 1;
+    if (compactTreeRows.isNotEmpty) {
+      if (rowIndex < compactTreeRows.length) {
+        final row = compactTreeRows[rowIndex];
+        return row.type == LocalCompactTreeRowType.folder
+            ? _treeFolderRow(context, row)
+            : _treeSongRow(context, row);
+      }
+      rowIndex -= compactTreeRows.length;
+      final song = currentSongs[rowIndex];
+      return _treeSongRow(
+        context,
+        LocalCompactTreeRow.song(
+          key: 'song:${song.id}',
+          song: song,
+          depth: 0,
+          songIndex: rowIndex,
+        ),
+      );
+    }
+
+    if (showLocalSectionHeaders && childFolders.isNotEmpty) {
+      if (rowIndex == 0) {
+        return _sectionRow(
+          title: i18n.t('common.folders'),
+          count: childFolders.length,
+          expanded: foldersExpanded,
+          onToggle: onToggleFoldersExpanded,
+        );
+      }
+      rowIndex -= 1;
+    }
+
+    if (!showLocalSectionHeaders || foldersExpanded) {
+      if (rowIndex < childFolders.length) {
+        return _folderRow(context, childFolders[rowIndex]);
+      }
+      rowIndex -= childFolders.length;
+    }
+
+    if (showLocalSectionHeaders && currentSongs.isNotEmpty) {
+      if (rowIndex == 0) {
+        return _sectionRow(
+          title: i18n.t('local.allSongs'),
+          count: currentSongs.length,
+          expanded: songsExpanded,
+          onToggle: onToggleSongsExpanded,
+        );
+      }
+      rowIndex -= 1;
+    }
+
+    if ((!showLocalSectionHeaders || songsExpanded) && showSongQuickJump) {
+      if (rowIndex == 0) {
+        return _quickJumpRow();
+      }
+      rowIndex -= 1;
+    }
+
+    return _songRow(context, currentSongs[rowIndex]);
   }
 
   TableRow _headerRow() {
@@ -183,6 +254,279 @@ class LocalTableContent extends StatelessWidget {
         const SizedBox.shrink(),
         const SizedBox.shrink(),
       ],
+    );
+  }
+
+  TableRow _quickJumpRow() {
+    return TableRow(
+      children: [
+        TableCell(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: LocalSongQuickJump(
+              basisName: songQuickJumpBasisName,
+              enabledKeys: songQuickJumpMap,
+              visible: showSongQuickJump,
+              i18n: i18n,
+              onJump: onJumpToSongKey,
+            ),
+          ),
+        ),
+        const SizedBox.shrink(),
+        const SizedBox.shrink(),
+      ],
+    );
+  }
+
+  TableRow _treeFolderRow(BuildContext context, LocalCompactTreeRow row) {
+    final folder = row.folder!;
+    final selected = selectedFolderPaths.contains(folder.relativePath);
+    return TableRow(
+      decoration: BoxDecoration(
+        color: selected ? LocalPageColors.rowSelected : Colors.transparent,
+        border: const Border(
+          bottom: BorderSide(color: LocalPageColors.rowBorder),
+        ),
+      ),
+      children: [
+        TableCell(
+          verticalAlignment: TableCellVerticalAlignment.middle,
+          child: DragTarget<LocalItemsDragPayload>(
+            onWillAcceptWithDetails:
+                (details) => _isMoveTargetFolder(folder, details.data),
+            onAcceptWithDetails:
+                (details) => _moveDraggedItems(folder, details.data),
+            builder: (context, candidateData, rejectedData) {
+              final cell = GestureDetector(
+                onSecondaryTapDown:
+                    (details) =>
+                        onOpenFolderMenu(folder, details.globalPosition),
+                child: InkWell(
+                  onTap:
+                      multiSelect
+                          ? () => onToggleFolderSelection(folder.relativePath)
+                          : () => onOpenFolder(folder.relativePath),
+                  child: Container(
+                    decoration:
+                        candidateData.isEmpty
+                            ? null
+                            : BoxDecoration(
+                              color: LocalPageColors.accentSoft,
+                              border: Border.all(
+                                color: LocalPageColors.accentStrong,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                    padding: EdgeInsets.fromLTRB(
+                      12 + row.depth * 22.0,
+                      7,
+                      8,
+                      7,
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: folder.name,
+                          icon: Icon(
+                            row.expandable
+                                ? row.expanded
+                                    ? FluentIcons.chevron_down_20_regular
+                                    : FluentIcons.chevron_right_20_regular
+                                : FluentIcons.chevron_right_20_regular,
+                          ),
+                          color:
+                              row.expandable
+                                  ? LocalPageColors.textMuted
+                                  : Colors.transparent,
+                          iconSize: 18,
+                          onPressed:
+                              row.expandable
+                                  ? () => onToggleTreeFolderExpanded(
+                                    folder.relativePath,
+                                  )
+                                  : null,
+                        ),
+                        if (multiSelect) ...[
+                          _LocalTableCheckMark(selected: selected),
+                          const SizedBox(width: 10),
+                        ],
+                        const Icon(
+                          FluentIcons.folder_20_regular,
+                          color: LocalPageColors.artworkIcon,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            folder.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: LocalPageColors.textStrong,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          i18n.t('playlists.songCount', {
+                            'count': folder.subtreeSongIds.length,
+                          }),
+                          style: const TextStyle(
+                            color: LocalPageColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+              return Draggable<LocalItemsDragPayload>(
+                data: _folderDragPayload(folder),
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: SizedBox(width: 360, child: cell),
+                ),
+                childWhenDragging: Opacity(opacity: 0.55, child: cell),
+                child: cell,
+              );
+            },
+          ),
+        ),
+        const SizedBox.shrink(),
+        const SizedBox.shrink(),
+      ],
+    );
+  }
+
+  TableRow _treeSongRow(BuildContext context, LocalCompactTreeRow row) {
+    final song = row.song!;
+    final selected = selectedSongIds.contains(song.id);
+    final current = song.id == selectedTrackId;
+    return TableRow(
+      decoration: BoxDecoration(
+        color:
+            selected || current
+                ? LocalPageColors.rowSelected
+                : Colors.transparent,
+        border: const Border(
+          bottom: BorderSide(color: LocalPageColors.rowBorder),
+        ),
+      ),
+      children: [
+        TableCell(
+          child: Draggable<LocalItemsDragPayload>(
+            data: _songDragPayload(song),
+            feedback: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: 320,
+                child: _treeSongNameCell(context, row, song, selected, current),
+              ),
+            ),
+            childWhenDragging: Opacity(
+              opacity: 0.55,
+              child: _treeSongNameCell(context, row, song, selected, current),
+            ),
+            child: GestureDetector(
+              onSecondaryTapDown:
+                  (details) => onOpenSongMenu(song, details.globalPosition),
+              child: InkWell(
+                onTap:
+                    multiSelect
+                        ? () => onToggleSongSelection(song.id)
+                        : () => onPlayTrack(song.id, compactQueueSongIds),
+                child: _treeSongNameCell(context, row, song, selected, current),
+              ),
+            ),
+          ),
+        ),
+        _TextLinkCell(
+          text: getLocalDisplayArtists(song, i18n),
+          onTap:
+              () => context.go(
+                '/artists?artist=${Uri.encodeQueryComponent(getLocalDisplayArtists(song, i18n))}',
+              ),
+        ),
+        _TextLinkCell(
+          text: displayAlbum(song, i18n),
+          onTap:
+              () => context.go(
+                '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _treeSongNameCell(
+    BuildContext context,
+    LocalCompactTreeRow row,
+    LibrarySong song,
+    bool selected,
+    bool current,
+  ) {
+    final playing = current && isPlaying;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(42 + row.depth * 22.0, 8, 8, 8),
+      child: Row(
+        children: [
+          if (multiSelect) ...[
+            _LocalTableCheckMark(selected: selected),
+            const SizedBox(width: 10),
+          ],
+          Icon(
+            current
+                ? FluentIcons.play_20_regular
+                : FluentIcons.music_note_2_20_regular,
+            color:
+                current
+                    ? LocalPageColors.accentStrong
+                    : LocalPageColors.artworkIcon,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    current
+                        ? LocalPageColors.accentStrong
+                        : LocalPageColors.textStrong,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (!multiSelect)
+            _LocalTableActions(
+              children: [
+                IconButton(
+                  tooltip:
+                      playing ? i18n.t('player.pause') : i18n.t('context.play'),
+                  icon: Icon(
+                    playing
+                        ? FluentIcons.pause_20_regular
+                        : FluentIcons.play_20_regular,
+                  ),
+                  onPressed:
+                      current
+                          ? onTogglePlayPause
+                          : () => onPlayTrack(song.id, compactQueueSongIds),
+                ),
+                IconButton(
+                  tooltip: i18n.t('context.addToPlaylist'),
+                  icon: const Icon(FluentIcons.add_20_regular),
+                  onPressed: () => onAddSong(song),
+                ),
+                IconButton(
+                  tooltip: i18n.t('context.playNext'),
+                  icon: const Icon(FluentIcons.next_20_regular),
+                  onPressed: () => onPlayNext(song.id),
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
@@ -396,6 +740,42 @@ class LocalTableContent extends StatelessWidget {
       ],
     );
   }
+
+  LocalItemsDragPayload _folderDragPayload(FolderNode folder) {
+    final folderPaths =
+        selectedFolderPaths.contains(folder.relativePath)
+            ? selectedFolderPaths.map((path) => nodes[path]!.path).toList()
+            : [folder.path];
+    return LocalItemsDragPayload(songIds: const [], folderPaths: folderPaths);
+  }
+
+  LocalItemsDragPayload _songDragPayload(LibrarySong song) {
+    final songIds =
+        selectedSongIds.contains(song.id)
+            ? selectedSongIds.toList()
+            : [song.id];
+    return LocalItemsDragPayload(songIds: songIds, folderPaths: const []);
+  }
+
+  bool _isMoveTargetFolder(
+    FolderNode targetFolder,
+    LocalItemsDragPayload payload,
+  ) {
+    return isLocalMoveTargetFolder(
+      payload: payload,
+      targetFolder: targetFolder,
+      nodes: nodes,
+      songsById: songsById,
+    );
+  }
+
+  void _moveDraggedItems(FolderNode folder, LocalItemsDragPayload payload) {
+    onMoveLocalItemsToFolder(
+      songIds: payload.songIds,
+      folderPaths: payload.folderPaths,
+      targetFolderPath: folder.path,
+    );
+  }
 }
 
 class _HeaderCell extends StatelessWidget {
@@ -415,6 +795,25 @@ class _HeaderCell extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
+    );
+  }
+}
+
+class _TableRowHost extends StatelessWidget {
+  const _TableRowHost({required this.row});
+
+  final TableRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(2.5),
+        1: FlexColumnWidth(1.25),
+        2: FlexColumnWidth(1.25),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [row],
     );
   }
 }

@@ -705,7 +705,14 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           _playNext(song.id);
         },
         onAddToNowPlaying: () {
-          addSongsToNowPlaying(ref, [song.id]);
+          unawaited(
+            addSongsToNowPlayingWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              songIds: [song.id],
+            ),
+          );
         },
         onCreatePlaylist: () async {
           await createPlaylistWithSongs(
@@ -718,7 +725,15 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         },
         onAddToPlaylist: (playlistId) {
-          addSongsToPlaylist(ref, playlistId, [song.id]);
+          unawaited(
+            addSongsToPlaylistWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              playlistId: playlistId,
+              songIds: [song.id],
+            ),
+          );
         },
         onRemove: () {
           _showMessage(i18n.t('context.removeFromList'));
@@ -732,7 +747,15 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           });
         },
         onToggleFavorite: () {
-          setSongsFavorite(ref, [song.id], !song.favorite);
+          unawaited(
+            setSongsFavoriteWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              songIds: [song.id],
+              favorite: !song.favorite,
+            ),
+          );
         },
         onSetPreference: (level) async {
           await ref

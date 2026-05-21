@@ -141,3 +141,43 @@ String getLocalDisplayArtists(LibrarySong song, SmPlayerI18n i18n) {
       ? i18n.t('common.artistUnknown')
       : artists.join(i18n.t('common.artistSeparator'));
 }
+
+bool isLocalMoveTargetFolder({
+  required LocalItemsDragPayload payload,
+  required FolderNode targetFolder,
+  required Map<String, FolderNode> nodes,
+  required Map<int, LibrarySong> songsById,
+}) {
+  if (payload.songIds.isEmpty && payload.folderPaths.isEmpty) {
+    return false;
+  }
+
+  final targetPathKey = normalizePath(targetFolder.path);
+  final songAlreadyInTarget = payload.songIds.any((songId) {
+    return normalizePath(_fileParentPath(songsById[songId]!.path)) ==
+        targetPathKey;
+  });
+  if (songAlreadyInTarget) {
+    return false;
+  }
+
+  final nodesByAbsolutePath = {
+    for (final node in nodes.values) normalizePath(node.path): node,
+  };
+  for (final folderPath in payload.folderPaths) {
+    final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
+    if (targetFolder.relativePath == sourceFolder.relativePath ||
+        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
+        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+String _fileParentPath(String filePath) {
+  final normalized = normalizePath(filePath);
+  final separatorIndex = normalized.lastIndexOf('/');
+  return separatorIndex < 0 ? '' : normalized.substring(0, separatorIndex);
+}

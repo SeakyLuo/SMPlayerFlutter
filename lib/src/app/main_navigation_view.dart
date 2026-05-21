@@ -2,9 +2,12 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 
 typedef MainNavigationSearchCommit =
     void Function(String value, [SearchHistoryType type]);
+
+enum _PlaylistDropPosition { before, after }
 
 class MainNavigationView extends StatefulWidget {
   const MainNavigationView({
@@ -22,6 +25,10 @@ class MainNavigationView extends StatefulWidget {
     this.recentSearches = const [],
     this.onGoBack,
     this.onCreatePlaylist,
+    this.onDuplicatePlaylist,
+    this.onRenamePlaylist,
+    this.onDeletePlaylist,
+    this.onReorderPlaylists,
     this.onPlaylistRandomPlay,
     this.onRecentSearchRemove,
     this.onRecentSearchesClear,
@@ -40,6 +47,10 @@ class MainNavigationView extends StatefulWidget {
   final ValueChanged<String> onItemInvoked;
   final VoidCallback? onGoBack;
   final VoidCallback? onCreatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDuplicatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onRenamePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDeletePlaylist;
+  final ValueChanged<List<int>>? onReorderPlaylists;
   final ValueChanged<int>? onPlaylistRandomPlay;
   final ValueChanged<int>? onRecentSearchRemove;
   final VoidCallback? onRecentSearchesClear;
@@ -117,16 +128,60 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   var _focusSearchAfterPaneOpen = false;
   var _isSearchFocused = false;
   var _isPlaylistNavExpanded = false;
+  int? _draggingPlaylistId;
+  ({int playlistId, _PlaylistDropPosition position})? _playlistDropIndicator;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPlaylistExpansionWithRoute();
+  }
 
   @override
   void didUpdateWidget(covariant MainNavigationView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncPlaylistExpansionWithRoute();
     if (_focusSearchAfterPaneOpen && widget.isPaneOpen) {
       _focusSearchAfterPaneOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _searchFocusNode.requestFocus();
       });
     }
+  }
+
+  void _syncPlaylistExpansionWithRoute() {
+    if (widget.isPaneOpen && widget.currentPath.startsWith('/playlists')) {
+      _isPlaylistNavExpanded = true;
+    }
+  }
+
+  void _clearPlaylistDragState() {
+    setState(() {
+      _draggingPlaylistId = null;
+      _playlistDropIndicator = null;
+    });
+  }
+
+  void _reorderDraggedPlaylist(int targetPlaylistId, bool insertAfter) {
+    final draggedPlaylistId = _draggingPlaylistId;
+    if (draggedPlaylistId == null || draggedPlaylistId == targetPlaylistId) {
+      _clearPlaylistDragState();
+      return;
+    }
+
+    final customPlaylistIds =
+        widget.playlists
+            .where((playlist) => !playlist.isBuiltIn)
+            .map((playlist) => playlist.id)
+            .where((playlistId) => playlistId != draggedPlaylistId)
+            .toList();
+    final targetIndex = customPlaylistIds.indexOf(targetPlaylistId);
+    customPlaylistIds.insert(
+      targetIndex + (insertAfter ? 1 : 0),
+      draggedPlaylistId,
+    );
+    _clearPlaylistDragState();
+    widget.onReorderPlaylists?.call(customPlaylistIds);
   }
 
   @override
@@ -253,7 +308,37 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                         });
                       },
                       onCreatePlaylist: widget.onCreatePlaylist,
+                      onDuplicatePlaylist: widget.onDuplicatePlaylist,
+                      onRenamePlaylist: widget.onRenamePlaylist,
+                      onDeletePlaylist: widget.onDeletePlaylist,
                       onPlaylistRandomPlay: widget.onPlaylistRandomPlay,
+                      draggingPlaylistId: _draggingPlaylistId,
+                      dropIndicator: _playlistDropIndicator,
+                      onPlaylistDragStarted: (playlistId) {
+                        setState(() {
+                          _draggingPlaylistId = playlistId;
+                        });
+                      },
+                      onPlaylistDragHover: (playlistId, position) {
+                        setState(() {
+                          _playlistDropIndicator = (
+                            playlistId: playlistId,
+                            position: position,
+                          );
+                        });
+                      },
+                      onPlaylistDragLeave: (playlistId) {
+                        if (_playlistDropIndicator?.playlistId != playlistId) {
+                          return;
+                        }
+                        setState(() {
+                          _playlistDropIndicator = null;
+                        });
+                      },
+                      onPlaylistDragDropped: (playlistId, insertAfter) {
+                        _reorderDraggedPlaylist(playlistId, insertAfter);
+                      },
+                      onPlaylistDragEnded: _clearPlaylistDragState,
                     ),
                     const _MainNavigationViewSeparator(),
                     _MainNavigationViewSection(
@@ -624,7 +709,17 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
     required this.onItemInvoked,
     required this.onToggleExpanded,
     required this.onCreatePlaylist,
+    required this.onDuplicatePlaylist,
+    required this.onRenamePlaylist,
+    required this.onDeletePlaylist,
     required this.onPlaylistRandomPlay,
+    required this.draggingPlaylistId,
+    required this.dropIndicator,
+    required this.onPlaylistDragStarted,
+    required this.onPlaylistDragHover,
+    required this.onPlaylistDragLeave,
+    required this.onPlaylistDragDropped,
+    required this.onPlaylistDragEnded,
   });
 
   final bool collapsed;
@@ -635,7 +730,18 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
   final ValueChanged<String> onItemInvoked;
   final VoidCallback onToggleExpanded;
   final VoidCallback? onCreatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDuplicatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onRenamePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDeletePlaylist;
   final ValueChanged<int>? onPlaylistRandomPlay;
+  final int? draggingPlaylistId;
+  final ({int playlistId, _PlaylistDropPosition position})? dropIndicator;
+  final ValueChanged<int> onPlaylistDragStarted;
+  final void Function(int playlistId, _PlaylistDropPosition position)
+  onPlaylistDragHover;
+  final ValueChanged<int> onPlaylistDragLeave;
+  final void Function(int playlistId, bool insertAfter) onPlaylistDragDropped;
+  final VoidCallback onPlaylistDragEnded;
 
   @override
   Widget build(BuildContext context) {
@@ -667,17 +773,35 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
             (playlist) => _MainNavigationPlaylistItemButton(
               key: ValueKey('PlaylistItem.${playlist.id}'),
               playlist: playlist,
+              i18n: i18n,
               randomPlayLabel: i18n.t('nowPlaying.randomPlay'),
               active: currentPath == '/playlists/${playlist.id}',
+              dragging: draggingPlaylistId == playlist.id,
+              dropPosition:
+                  dropIndicator?.playlistId == playlist.id
+                      ? dropIndicator!.position
+                      : null,
               onPressed: () {
                 onItemInvoked('/playlists/${playlist.id}');
               },
+              onDuplicate: onDuplicatePlaylist,
+              onRename: onRenamePlaylist,
+              onDelete: onDeletePlaylist,
               onRandomPlay:
                   onPlaylistRandomPlay == null
                       ? null
                       : () {
                         onPlaylistRandomPlay!(playlist.id);
                       },
+              onDragStarted: () => onPlaylistDragStarted(playlist.id),
+              onDragHover: (position) {
+                onPlaylistDragHover(playlist.id, position);
+              },
+              onDragLeave: () => onPlaylistDragLeave(playlist.id),
+              onDropped: (insertAfter) {
+                onPlaylistDragDropped(playlist.id, insertAfter);
+              },
+              onDragEnded: onPlaylistDragEnded,
             ),
           ),
       ],
@@ -719,7 +843,12 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
           key: const ValueKey('MainNavigationView.CreatePlaylistButton'),
           icon: FluentIcons.add_24_regular,
           tooltip: i18n.t('playlists.createNew'),
-          onPressed: onCreatePlaylist ?? () {},
+          onPressed: () {
+            onCreatePlaylist?.call();
+            if (!expanded) {
+              onToggleExpanded();
+            }
+          },
         ),
         _NavigationIconButton(
           key: const ValueKey('MainNavigationView.TogglePlaylistSectionButton'),
@@ -742,17 +871,39 @@ class _MainNavigationPlaylistItemButton extends StatefulWidget {
   const _MainNavigationPlaylistItemButton({
     super.key,
     required this.playlist,
+    required this.i18n,
     required this.randomPlayLabel,
     required this.active,
+    required this.dragging,
+    required this.dropPosition,
     required this.onPressed,
+    required this.onDuplicate,
+    required this.onRename,
+    required this.onDelete,
     required this.onRandomPlay,
+    required this.onDragStarted,
+    required this.onDragHover,
+    required this.onDragLeave,
+    required this.onDropped,
+    required this.onDragEnded,
   });
 
   final LibraryPlaylist playlist;
+  final SmPlayerI18n i18n;
   final String randomPlayLabel;
   final bool active;
+  final bool dragging;
+  final _PlaylistDropPosition? dropPosition;
   final VoidCallback onPressed;
+  final ValueChanged<LibraryPlaylist>? onDuplicate;
+  final ValueChanged<LibraryPlaylist>? onRename;
+  final ValueChanged<LibraryPlaylist>? onDelete;
   final VoidCallback? onRandomPlay;
+  final VoidCallback onDragStarted;
+  final ValueChanged<_PlaylistDropPosition> onDragHover;
+  final VoidCallback onDragLeave;
+  final ValueChanged<bool> onDropped;
+  final VoidCallback onDragEnded;
 
   @override
   State<_MainNavigationPlaylistItemButton> createState() =>
@@ -771,75 +922,194 @@ class _MainNavigationPlaylistItemButtonState
             ? MainNavigationViewColors.accentStrong
             : MainNavigationViewColors.textMuted;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
+    return DragTarget<int>(
+      onMove: (details) {
+        final box = context.findRenderObject() as RenderBox;
+        final localOffset = box.globalToLocal(details.offset);
+        widget.onDragHover(
+          localOffset.dy > box.size.height / 2
+              ? _PlaylistDropPosition.after
+              : _PlaylistDropPosition.before,
+        );
       },
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-        });
+      onLeave: (_) => widget.onDragLeave(),
+      onAcceptWithDetails: (details) {
+        final box = context.findRenderObject() as RenderBox;
+        final localOffset = box.globalToLocal(details.offset);
+        widget.onDropped(localOffset.dy > box.size.height / 2);
       },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: 36,
-          margin: const EdgeInsets.only(left: 8),
-          padding: const EdgeInsets.only(left: 12, right: 4),
-          decoration: BoxDecoration(
-            color:
-                highlighted
-                    ? MainNavigationViewColors.accentHover
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                FluentIcons.apps_list_detail_20_regular,
-                size: 18,
-                color: foreground,
+      builder: (context, _, __) {
+        final child = MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) {
+            setState(() {
+              _hovered = true;
+            });
+          },
+          onExit: (_) {
+            setState(() {
+              _hovered = false;
+            });
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onPressed,
+            onSecondaryTapDown: (details) {
+              _showPlaylistMenu(context, details.globalPosition);
+            },
+            onLongPressStart: (details) {
+              _showPlaylistMenu(context, details.globalPosition);
+            },
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 120),
+              opacity: widget.dragging ? 0.45 : 1,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                height: 36,
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.only(left: 12, right: 4),
+                decoration: BoxDecoration(
+                  color:
+                      highlighted
+                          ? MainNavigationViewColors.accentHover
+                          : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  border: _dropIndicatorBorder(widget.dropPosition),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      FluentIcons.apps_list_detail_20_regular,
+                      size: 18,
+                      color: foreground,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.playlist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (widget.onRandomPlay != null)
+                      IconButton(
+                        tooltip: widget.randomPlayLabel,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 28,
+                          height: 28,
+                        ),
+                        icon: const Icon(
+                          FluentIcons.arrow_shuffle_20_regular,
+                          size: 16,
+                        ),
+                        color: foreground,
+                        onPressed:
+                            widget.playlist.songIds.isEmpty
+                                ? null
+                                : widget.onRandomPlay,
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.playlist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+            ),
+          ),
+        );
+
+        return Draggable<int>(
+          data: widget.playlist.id,
+          feedback: Material(
+            color: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints.tightFor(
+                width: 220,
+                height: 36,
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: MainNavigationViewColors.dropdownSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: MainNavigationViewColors.dropdownShadow,
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      widget.playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: MainNavigationViewColors.textStrong,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              if (widget.onRandomPlay != null)
-                IconButton(
-                  tooltip: widget.randomPlayLabel,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
-                  icon: const Icon(
-                    FluentIcons.arrow_shuffle_20_regular,
-                    size: 16,
-                  ),
-                  color: foreground,
-                  onPressed:
-                      widget.playlist.songIds.isEmpty
-                          ? null
-                          : widget.onRandomPlay,
-                ),
-            ],
+            ),
           ),
+          onDragStarted: widget.onDragStarted,
+          onDragEnd: (_) => widget.onDragEnded(),
+          onDraggableCanceled: (_, _) => widget.onDragEnded(),
+          childWhenDragging: child,
+          child: child,
+        );
+      },
+    );
+  }
+
+  Border? _dropIndicatorBorder(_PlaylistDropPosition? position) {
+    return switch (position) {
+      _PlaylistDropPosition.before => const Border(
+        top: BorderSide(color: MainNavigationViewColors.accentStrong, width: 2),
+      ),
+      _PlaylistDropPosition.after => const Border(
+        bottom: BorderSide(
+          color: MainNavigationViewColors.accentStrong,
+          width: 2,
         ),
       ),
+      null => null,
+    };
+  }
+
+  void _showPlaylistMenu(BuildContext context, Offset position) {
+    showMenuFlyout(
+      context,
+      position: position,
+      items: [
+        MenuFlyoutItem(
+          key: 'rename-playlist',
+          text: widget.i18n.t('playlists.rename'),
+          icon: FluentIcons.edit_20_regular,
+          onPressed: () => widget.onRename?.call(widget.playlist),
+        ),
+        MenuFlyoutItem(
+          key: 'duplicate-playlist',
+          text: widget.i18n.t('playlists.duplicate'),
+          icon: FluentIcons.copy_20_regular,
+          onPressed: () => widget.onDuplicate?.call(widget.playlist),
+        ),
+        MenuFlyoutItem(
+          key: 'delete-playlist',
+          text: widget.i18n.t('playlists.delete'),
+          icon: FluentIcons.delete_20_regular,
+          onPressed: () => widget.onDelete?.call(widget.playlist),
+        ),
+      ],
     );
   }
 }

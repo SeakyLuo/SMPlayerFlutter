@@ -7,6 +7,7 @@ import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
+import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -95,7 +96,9 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
       builder: (context, child) {
         return SmPlayerI18nScope(
           i18n: i18n,
-          child: child ?? const SizedBox.shrink(),
+          child: TouchContextMenuAdapter(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

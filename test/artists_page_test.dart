@@ -18,6 +18,8 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     hide formatDuration;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 void main() {
   setUp(PageSelectionController.clearStoredStates);
@@ -1142,7 +1144,10 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
     return const LyricsSnapshot(
       source: LyricsSource.none,
       isSynced: false,

@@ -214,7 +214,6 @@ class DesktopTrayMenuEntry {
 
 List<DesktopTrayMenuEntry> buildDesktopTrayMenuEntries(DesktopTrayState state) {
   final labels = state.labels;
-  final recentSongs = state.recentSongs.take(desktopRecentSongLimit).toList();
   return [
     DesktopTrayMenuEntry(
       label: state.isWindowVisible ? labels.hideWindow : labels.showWindow,
@@ -241,23 +240,6 @@ List<DesktopTrayMenuEntry> buildDesktopTrayMenuEntries(DesktopTrayState state) {
       label: labels.desktopLyrics,
       action: DesktopFeatureCommand.toggleDesktopLyrics,
     ),
-    if (recentSongs.isNotEmpty) ...[
-      const DesktopTrayMenuEntry.separator(),
-      DesktopTrayMenuEntry(
-        label: labels.recent,
-        action: null,
-        children:
-            recentSongs
-                .map(
-                  (song) => DesktopTrayMenuEntry(
-                    label: desktopRecentSongTitle(song),
-                    action: DesktopFeatureCommand.playRecentSong,
-                    songId: song.id,
-                  ),
-                )
-                .toList(),
-      ),
-    ],
     const DesktopTrayMenuEntry.separator(),
     DesktopTrayMenuEntry(
       label: labels.settings,

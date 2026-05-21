@@ -20,6 +20,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
+import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -33,7 +34,7 @@ class NowPlayingFullPage extends ConsumerStatefulWidget {
 class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
-  final _settingsController = SettingsController();
+  late final SettingsController _settingsController;
   var _isPlaylistOpen = false;
   var _settings = const SettingsSnapshot.defaults();
   LibrarySong? _dialogSong;
@@ -42,6 +43,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   @override
   void initState() {
     super.initState();
+    _settingsController = SettingsController(
+      null,
+      ref.read(libraryRepositoryProvider),
+    );
     _restoreSettings();
   }
 
@@ -422,12 +427,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           icon: FluentIcons.play_20_regular,
           disabled: snapshot.songs.isEmpty,
           onPressed: () {
-            _playSongIds(
-              snapshot.songs
-                  .take(nowPlayingQuickPlayLimit)
-                  .map((song) => song.id)
-                  .toList(),
-            );
+            unawaited(_quickPlay(snapshot));
           },
         ),
         MenuFlyoutItem(
@@ -668,6 +668,20 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           queueIndex: 0,
         );
     _replaceQueue(songIds);
+  }
+
+  Future<void> _quickPlay(MusicLibrarySnapshot snapshot) async {
+    final preferences =
+        await ref.read(libraryRepositoryProvider).getPreferenceSettings();
+    _playSongIds(
+      quickPlaySongIds(
+        songs: snapshot.songs,
+        playlists: snapshot.playlists,
+        folders: snapshot.folders,
+        preferences: preferences,
+        randomLimit: nowPlayingQuickPlayLimit,
+      ),
+    );
   }
 
   bool _playNextFromQueue(List<LibrarySong> queueSongs) {

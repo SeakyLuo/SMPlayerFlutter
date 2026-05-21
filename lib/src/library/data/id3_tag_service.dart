@@ -10,6 +10,7 @@ class Id3SongTagProperties {
     this.title = '',
     this.subtitle = '',
     this.artist = '',
+    this.artists = const [],
     this.album = '',
     this.albumArtist = '',
     this.publisher = '',
@@ -22,6 +23,7 @@ class Id3SongTagProperties {
   final String title;
   final String subtitle;
   final String artist;
+  final List<String> artists;
   final String album;
   final String albumArtist;
   final String publisher;
@@ -448,6 +450,7 @@ class Id3TagService {
       title: _firstCommentValue(comments, ['TITLE']),
       subtitle: _firstCommentValue(comments, ['SUBTITLE', 'VERSION']),
       artist: _firstCommentValue(comments, ['ARTIST', 'PERFORMER']),
+      artists: _commentValues(comments, ['ARTIST', 'PERFORMER']),
       album: _firstCommentValue(comments, ['ALBUM']),
       albumArtist: _firstCommentValue(comments, [
         'ALBUMARTIST',
@@ -478,6 +481,18 @@ class Id3TagService {
       }
     }
     return '';
+  }
+
+  List<String> _commentValues(
+    Map<String, List<String>> comments,
+    List<String> keys,
+  ) {
+    return [
+      for (final key in keys)
+        ...?comments[key]
+            ?.map((value) => value.trim())
+            .where((value) => value.isNotEmpty),
+    ];
   }
 
   Id3Picture? _readFlacPictureBlock(Uint8List block) {
@@ -1032,6 +1047,7 @@ class Id3TagService {
       title: metadata.values['©nam'] ?? '',
       subtitle: metadata.values['desc'] ?? metadata.values['©des'] ?? '',
       artist: metadata.values['©ART'] ?? '',
+      artists: _singleArtistValue(metadata.values['©ART'] ?? ''),
       album: metadata.values['©alb'] ?? '',
       albumArtist: metadata.values['aART'] ?? '',
       publisher: metadata.values['cprt'] ?? '',
@@ -1047,6 +1063,7 @@ class Id3TagService {
     return Id3SongTagProperties(
       title: info['INAM'] ?? '',
       artist: info['IART'] ?? '',
+      artists: _singleArtistValue(info['IART'] ?? ''),
       album: info['IPRD'] ?? '',
       year: _readYear(yearText),
       genre: info['IGNR'] ?? '',
@@ -1061,6 +1078,7 @@ class Id3TagService {
       title: _firstApeValue(values, ['TITLE']),
       subtitle: _firstApeValue(values, ['SUBTITLE', 'VERSION']),
       artist: _firstApeValue(values, ['ARTIST']),
+      artists: _apeValues(values, ['ARTIST']),
       album: _firstApeValue(values, ['ALBUM']),
       albumArtist: _firstApeValue(values, ['ALBUM ARTIST', 'ALBUMARTIST']),
       publisher: _firstApeValue(values, ['PUBLISHER', 'LABEL']),
@@ -1078,6 +1096,7 @@ class Id3TagService {
       title: _firstAsfValue(metadata.values, ['TITLE']),
       subtitle: _firstAsfValue(metadata.values, ['WM/SUBTITLE', 'DESCRIPTION']),
       artist: _firstAsfValue(metadata.values, ['ARTIST', 'WM/AUTHOR']),
+      artists: _asfValues(metadata.values, ['ARTIST', 'WM/AUTHOR']),
       album: _firstAsfValue(metadata.values, ['WM/ALBUMTITLE']),
       albumArtist: _firstAsfValue(metadata.values, [
         'WM/ALBUMARTIST',
@@ -1103,6 +1122,15 @@ class Id3TagService {
     return '';
   }
 
+  List<String> _asfValues(Map<String, List<String>> values, List<String> keys) {
+    return [
+      for (final key in keys)
+        ...?values[key]
+            ?.map((value) => value.trim())
+            .where((value) => value.isNotEmpty),
+    ];
+  }
+
   String _firstApeValue(Map<String, List<String>> values, List<String> keys) {
     for (final key in keys) {
       final itemValues = values[key];
@@ -1113,15 +1141,26 @@ class Id3TagService {
     return '';
   }
 
+  List<String> _apeValues(Map<String, List<String>> values, List<String> keys) {
+    return [
+      for (final key in keys)
+        ...?values[key]
+            ?.map((value) => value.trim())
+            .where((value) => value.isNotEmpty),
+    ];
+  }
+
   Id3SongTagProperties _propertiesFromId3Tag(_Id3Tag? tag) {
     if (tag == null) {
       return const Id3SongTagProperties();
     }
 
+    final artistValues = _readTextFrameValues(tag, 'TPE1');
     return Id3SongTagProperties(
       title: _readTextFrame(tag, 'TIT2'),
       subtitle: _readTextFrame(tag, 'TIT3'),
-      artist: _readTextFrame(tag, 'TPE1'),
+      artist: artistValues.join(', '),
+      artists: artistValues,
       album: _readTextFrame(tag, 'TALB'),
       albumArtist: _readTextFrame(tag, 'TPE2'),
       publisher: _readTextFrame(tag, 'TPUB'),
@@ -1275,6 +1314,11 @@ class Id3TagService {
       return 0;
     }
     return int.tryParse(value.split('/').first.trim()) ?? 0;
+  }
+
+  List<String> _singleArtistValue(String value) {
+    final artist = value.trim();
+    return artist.isEmpty ? const [] : [artist];
   }
 
   int _readYear(String value) {
@@ -1660,6 +1704,36 @@ class Id3TagService {
     return _decodeEncodedText(frame.payload).trim();
   }
 
+  List<String> _readTextFrameValues(_Id3Tag tag, String frameId) {
+    final frame = tag.frames.where((frame) => frame.id == frameId).firstOrNull;
+    if (frame == null || frame.payload.isEmpty) {
+      return const [];
+    }
+    return _decodeEncodedTextValues(frame.payload);
+  }
+
+  List<String> _decodeEncodedTextValues(Uint8List payload) {
+    if (payload.isEmpty) {
+      return const [];
+    }
+
+    final encoding = payload[0];
+    final data = payload.sublist(1);
+    final text =
+        encoding == 1
+            ? _decodeUtf16WithNullsFromBom(data)
+            : encoding == 2
+            ? _decodeUtf16WithNulls(data, bigEndian: true)
+            : encoding == 3
+            ? utf8.decode(data, allowMalformed: true)
+            : latin1.decode(data, allowInvalid: true);
+    return text
+        .split('\u0000')
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
   String _readUnsynchronizedLyrics(Uint8List payload) {
     if (payload.length <= 4) {
       return '';
@@ -1725,6 +1799,26 @@ class Id3TagService {
         continue;
       }
       codeUnits.add(codeUnit);
+    }
+    return String.fromCharCodes(codeUnits);
+  }
+
+  String _decodeUtf16WithNullsFromBom(Uint8List bytes) {
+    final hasBom = bytes.length >= 2;
+    final bigEndian = hasBom && bytes[0] == 0xfe && bytes[1] == 0xff;
+    final start =
+        hasBom && ((bytes[0] == 0xff && bytes[1] == 0xfe) || bigEndian) ? 2 : 0;
+    return _decodeUtf16WithNulls(bytes.sublist(start), bigEndian: bigEndian);
+  }
+
+  String _decodeUtf16WithNulls(Uint8List bytes, {required bool bigEndian}) {
+    final codeUnits = <int>[];
+    for (var i = 0; i + 1 < bytes.length; i += 2) {
+      codeUnits.add(
+        bigEndian
+            ? (bytes[i] << 8) | bytes[i + 1]
+            : bytes[i] | (bytes[i + 1] << 8),
+      );
     }
     return String.fromCharCodes(codeUnits);
   }
