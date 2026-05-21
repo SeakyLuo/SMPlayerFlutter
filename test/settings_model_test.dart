@@ -183,6 +183,22 @@ void main() {
     expect(snapshot.playbackRuntimeSettings.mode, PlaybackMode.shuffle);
   });
 
+  test(
+    'SettingsSnapshot clears playback progress when saving progress is off',
+    () {
+      final snapshot = const SettingsSnapshot.defaults()
+          .copyWith(musicProgress: 120)
+          .apply(const AppSettingsUpdate(saveMusicProgress: false))
+          .applyPlaybackSettings(
+            const PlaybackSettingsUpdate(lastMusicIndex: 2, musicProgress: 45),
+          );
+
+      expect(snapshot.saveMusicProgress, isFalse);
+      expect(snapshot.lastMusicIndex, 2);
+      expect(snapshot.musicProgress, 0);
+    },
+  );
+
   test('settings labels mirror Electron zh-CN translations', () {
     expect(nightModeLabel(NightMode.auto), '自动');
     expect(nightModeLabel(NightMode.onMode), '开启');

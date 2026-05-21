@@ -454,6 +454,7 @@
   "player.next": "下一首",
   "player.pause": "暂停",
   "player.play": "播放",
+  "player.playbackLoadFailed": "无法播放这首歌。",
   "player.playPause": "播放或暂停",
   "player.playbackMode": "播放模式",
   "player.playbackModeList": "列表",

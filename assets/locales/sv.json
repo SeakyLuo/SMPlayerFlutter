@@ -454,6 +454,7 @@
   "player.next": "Nästa låt",
   "player.pause": "pausa",
   "player.play": "Spela upp",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Spela upp eller pausa",
   "player.playbackMode": "Uppspelningsläge",
   "player.playbackModeList": "lista",

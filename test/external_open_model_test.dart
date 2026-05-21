@@ -21,14 +21,22 @@ void main() {
     final commands = externalAppCommandsFromArgs([
       'smplayer://command/play-pause',
       'smplayer://quick-play',
+      'smplayer://show-window',
       'smplayer://command?name=toggle-desktop-lyrics',
+      'smplayer://voice-command/play%20Blue',
+      'smplayer://voice-command?text=next%20song',
       'https://example.com',
     ]);
 
     expect(commands.map((command) => command.kind), [
       ExternalAppCommandKind.playPause,
       ExternalAppCommandKind.quickPlay,
+      ExternalAppCommandKind.showWindow,
       ExternalAppCommandKind.toggleDesktopLyrics,
+      ExternalAppCommandKind.voiceCommand,
+      ExternalAppCommandKind.voiceCommand,
     ]);
+    expect(commands[4].text, 'play Blue');
+    expect(commands[5].text, 'next song');
   });
 }

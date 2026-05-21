@@ -5,16 +5,17 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smplayer_flutter/src/app/input_dialog.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 class PlaylistsPage extends ConsumerStatefulWidget {
   const PlaylistsPage({super.key, this.selectedPlaylistId});
@@ -36,7 +37,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const SmPlayerLoadingState();
     }
 
     final i18n = i18nValue.valueOrNull;
@@ -45,7 +46,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     }
 
     return snapshotValue.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const SmPlayerLoadingState(),
       error:
           (_, _) => Center(
             child: Text(
@@ -132,19 +133,41 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         onTogglePlayPause:
             ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onAddSongToPlaylist: (playlistId, songId) {
-          ref
-              .read(libraryRepositoryProvider)
-              .addSongToPlaylist(playlistId, songId);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          unawaited(
+            addSongsToPlaylistWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              playlistId: playlistId,
+              songIds: [songId],
+            ),
+          );
         },
         onAddSongsToPlaylist: (playlistId, songIds) {
-          ref
-              .read(libraryRepositoryProvider)
-              .addSongsToPlaylist(playlistId, songIds);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          unawaited(
+            addSongsToPlaylistWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              playlistId: playlistId,
+              songIds: songIds,
+            ),
+          );
         },
         onToggleFavorite: (songId, favorite) {
-          ref.read(libraryRepositoryProvider).setSongFavorite(songId, favorite);
+          if (favorite) {
+            unawaited(
+              setSongsFavoriteWithUndo(
+                context: context,
+                ref: ref,
+                i18n: i18n,
+                songIds: [songId],
+                favorite: true,
+              ),
+            );
+            return;
+          }
+          ref.read(libraryRepositoryProvider).setSongFavorite(songId, false);
           ref.invalidate(musicLibrarySnapshotProvider);
         },
         onRemoveSongs: (songIds) async {
@@ -430,11 +453,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   }
 
   Future<void> _saveLastPlaylist(int playlistId) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setInt(
-      SmPlayerSettingsStorageKeys.lastPlaylistId,
-      playlistId,
-    );
+    await ref
+        .read(libraryRepositoryProvider)
+        .saveViewState(lastPlaylistId: playlistId);
   }
 
   Future<void> _renamePlaylist(
@@ -465,34 +486,15 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     SmPlayerI18n i18n,
     LibraryPlaylist playlist,
   ) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(i18n.t('playlists.delete')),
-                content: Text(
-                  i18n.t('headeredPlaylist.deleteConfirm', {
-                    'name': playlist.name,
-                  }),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(false);
-                    },
-                    child: Text(i18n.t('common.cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(true);
-                    },
-                    child: Text(i18n.t('playlists.delete')),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await showSmPlayerConfirmDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('playlists.delete'),
+      message: i18n.t('headeredPlaylist.deleteConfirm', {
+        'name': playlist.name,
+      }),
+      confirmText: i18n.t('playlists.delete'),
+    );
     if (confirmed) {
       await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
       ref.invalidate(musicLibrarySnapshotProvider);
@@ -608,57 +610,17 @@ Future<String?> _requestPlaylistName({
   required List<LibraryPlaylist> playlists,
   required String currentName,
 }) {
-  final controller = TextEditingController(text: defaultName);
-  var errorText = '';
-  return showDialog<String>(
+  return showSmPlayerInputDialog(
     context: context,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setDialogState) {
-          void confirm() {
-            final name = controller.text.trim();
-            final error = validatePlaylistName(
-              name,
-              playlists,
-              currentName,
-              i18n,
-            );
-            if (error.isNotEmpty) {
-              setDialogState(() {
-                errorText = error;
-              });
-              return;
-            }
-            Navigator.of(context).pop(name);
-          }
-
-          return AlertDialog(
-            title: Text(title),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: i18n.t('playlists.namePlaceholder'),
-                errorText: errorText.isEmpty ? null : errorText,
-              ),
-              onSubmitted: (_) {
-                confirm();
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text(i18n.t('common.cancel')),
-              ),
-              FilledButton(onPressed: confirm, child: Text(confirmText)),
-            ],
-          );
-        },
-      );
+    i18n: i18n,
+    title: title,
+    defaultValue: defaultName,
+    placeholder: i18n.t('playlists.namePlaceholder'),
+    confirmText: confirmText,
+    validate: (name) {
+      return validatePlaylistName(name, playlists, currentName, i18n);
     },
-  ).whenComplete(controller.dispose);
+  );
 }
 
 void _playTrack(

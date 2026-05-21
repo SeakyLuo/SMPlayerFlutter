@@ -454,6 +454,7 @@
   "player.next": "Volgende nummer",
   "player.pause": "pauzeren",
   "player.play": "Afspelen",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Afspelen of pauzeren",
   "player.playbackMode": "Afspeelmodus",
   "player.playbackModeList": "lijst",

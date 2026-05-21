@@ -454,6 +454,7 @@
   "player.next": "Další píseň",
   "player.pause": "pauza",
   "player.play": "Přehrát",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Přehrát nebo pozastavit",
   "player.playbackMode": "Režim přehrávání",
   "player.playbackModeList": "seznam",

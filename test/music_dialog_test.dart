@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -81,6 +82,63 @@ void main() {
       expect(repository.internetLyricsRequested, isTrue);
     },
   );
+
+  test('musicLyricsSearchUri follows the app locale like Electron settings', () {
+    expect(
+      musicLyricsSearchUri(
+        locale: 'zh-CN',
+        title: '标题',
+        artist: '歌手',
+      ).toString(),
+      'https://cn.bing.com/search?q=%E6%AD%8C%E8%AF%8D+%E6%A0%87%E9%A2%98+%E6%AD%8C%E6%89%8B',
+    );
+    expect(
+      musicLyricsSearchUri(
+        locale: 'en-US',
+        title: 'Title',
+        artist: 'Artist',
+      ).toString(),
+      'https://www.bing.com/search?q=lyrics+Title+Artist',
+    );
+  });
+
+  testWidgets('MusicDialog shortcuts mirror Electron dialog shortcuts', (
+    tester,
+  ) async {
+    final repository =
+        _FakeMusicDialogRepository()
+          ..internetLyrics = '[00:02.00]Internet line';
+
+    await tester.pumpWidget(
+      _MusicDialogTestApp(
+        repository: repository,
+        initialMode: SongDialogMode.lyrics,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, 'Edited line');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('[00:01.00]Original line'), findsOneWidget);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(repository.internetLyricsRequested, isTrue);
+    expect(find.text('[00:02.00]Internet line'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, '[00:03.00]Saved line');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(repository.savedLyrics, '[00:03.00]Saved line');
+  });
 }
 
 class _MusicDialogTestApp extends StatelessWidget {

@@ -53,7 +53,10 @@ void main() {
       'context.play': 'Play',
       'context.playNext': 'Play Next',
       'context.seeAlbum': 'See Album',
+      'context.seeAlbumArt': 'See Album Art',
       'context.seeArtist': 'See Artist',
+      'context.seeLyrics': 'See Lyrics',
+      'context.seeMusicInfo': 'See Music Info',
       'context.select': 'Select',
       'context.view': 'View',
       'library.scanHelp': 'Scan music first.',
@@ -162,6 +165,35 @@ void main() {
     expect(find.text('New Playlist'), findsOneWidget);
     expect(find.text('Mix'), findsOneWidget);
     expect(find.text('Built in'), findsNothing);
+  });
+
+  testWidgets('ArtistsPage song view menu opens MusicDialog', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('See Music Info'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Blue Song'), findsWidgets);
+    expect(find.text('See Lyrics'), findsOneWidget);
+    expect(find.text('See Album Art'), findsOneWidget);
   });
 
   testWidgets('ArtistsPage shuffle button replaces Now Playing', (
@@ -1081,6 +1113,69 @@ class _FakeLibraryRepository extends LibraryRepository {
     preferenceItemId = itemId;
     preferenceName = name;
     preferenceLevel = level;
+  }
+
+  @override
+  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
+    return SongPropertiesSnapshot(
+      songId: songId,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      subtitle: '',
+      artist: 'Artist A',
+      artists: const ['Artist A'],
+      album: 'Blue Hour',
+      albumArtist: '',
+      publisher: '',
+      trackNumber: 0,
+      year: 0,
+      genre: '',
+      composers: '',
+      duration: 120,
+      bitrate: 0,
+      fileSize: 1024,
+      dateCreated: '2026-01-01T00:00:00Z',
+      dateModified: '2026-01-01T00:00:00Z',
+      fileType: 'MP3',
+      playCount: 0,
+    );
+  }
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(int songId) async {
+    return const LyricsSnapshot(
+      source: LyricsSource.none,
+      isSynced: false,
+      rawText: '',
+      lines: [],
+    );
+  }
+
+  @override
+  Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
+    return SongArtworkSnapshot(
+      songId: songId,
+      artworkUrl: '',
+      sourceUrl: '',
+      sourcePath: '',
+      source: SongArtworkSource.none,
+    );
+  }
+
+  @override
+  Future<List<SongArtworkSnapshot>> getSongArtworkSnapshots(
+    List<int> songIds,
+  ) async {
+    return [
+      for (final songId in songIds)
+        SongArtworkSnapshot(
+          songId: songId,
+          artworkUrl: '',
+          sourceUrl: '',
+          sourcePath: '',
+          source: SongArtworkSource.none,
+        ),
+    ];
   }
 }
 

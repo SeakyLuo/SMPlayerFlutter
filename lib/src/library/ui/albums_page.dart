@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/loading_state.dart';
+import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
@@ -89,16 +91,16 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
 
     if (i18nValue.isLoading) {
-      return const _AlbumsPagePanel(child: _AlbumsLoadingState());
+      return const _AlbumsPagePanel(child: SmPlayerLoadingState());
     }
 
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const _AlbumsPagePanel(child: _AlbumsLoadingState());
+      return const _AlbumsPagePanel(child: SmPlayerLoadingState());
     }
 
     return snapshotValue.when(
-      loading: () => const _AlbumsPagePanel(child: _AlbumsLoadingState()),
+      loading: () => const _AlbumsPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _AlbumsPagePanel(
             child: _AlbumsEmptyState(
@@ -812,27 +814,42 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
     final insertedIndex = snapshot.nowPlaying.songIds.length;
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final i18n = context.smPlayerI18n;
     await ref.read(libraryRepositoryProvider).replaceNowPlaying([
       ...snapshot.nowPlaying.songIds,
       ...songIds,
     ]);
     ref.invalidate(musicLibrarySnapshotProvider);
-    _showUndoSnackBar(() async {
-      final currentSongIds =
-          ref
-              .read(musicLibrarySnapshotProvider)
-              .valueOrNull
-              ?.nowPlaying
-              .songIds ??
-          [...snapshot.nowPlaying.songIds, ...songIds];
-      final nextSongIds =
-          currentSongIds.toList()..removeRange(
-            insertedIndex,
-            min(insertedIndex + songIds.length, currentSongIds.length),
-          );
-      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
-    });
+    _showUndoSnackBar(
+      songIds.length == 1
+          ? i18n.t('notification.songAddedTo', {
+            'title': songsById[songIds.first]!.title,
+            'target': i18n.t('common.nowPlaying'),
+          })
+          : i18n.t('notification.songsAddedTo', {
+            'count': songIds.length,
+            'target': i18n.t('common.nowPlaying'),
+          }),
+      () async {
+        final currentSongIds =
+            ref
+                .read(musicLibrarySnapshotProvider)
+                .valueOrNull
+                ?.nowPlaying
+                .songIds ??
+            [...snapshot.nowPlaying.songIds, ...songIds];
+        final nextSongIds =
+            currentSongIds.toList()..removeRange(
+              insertedIndex,
+              min(insertedIndex + songIds.length, currentSongIds.length),
+            );
+        await ref
+            .read(libraryRepositoryProvider)
+            .replaceNowPlaying(nextSongIds);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
+    );
   }
 
   Future<void> _addSongsToPlaylistWithUndo(
@@ -843,16 +860,33 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final targetPlaylist = snapshot.playlists.firstWhere(
+      (playlist) => playlist.id == playlistId,
+    );
+    final i18n = context.smPlayerI18n;
     await ref
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
     ref.invalidate(musicLibrarySnapshotProvider);
-    _showUndoSnackBar(() async {
-      await ref
-          .read(libraryRepositoryProvider)
-          .removeSongsFromPlaylist(playlistId, songIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
-    });
+    _showUndoSnackBar(
+      songIds.length == 1
+          ? i18n.t('notification.songAddedTo', {
+            'title': songsById[songIds.first]!.title,
+            'target': targetPlaylist.name,
+          })
+          : i18n.t('notification.songsAddedTo', {
+            'count': songIds.length,
+            'target': targetPlaylist.name,
+          }),
+      () async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .removeSongsFromPlaylist(playlistId, songIds);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
+    );
   }
 
   Future<void> _setSongsFavoriteWithUndo(
@@ -863,24 +897,32 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
+    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final i18n = context.smPlayerI18n;
     await setSongsFavorite(ref, songIds, favorite);
-    _showUndoSnackBar(() async {
-      await setSongsFavorite(ref, songIds, !favorite);
-    });
+    _showUndoSnackBar(
+      songIds.length == 1
+          ? i18n.t('notification.songAddedTo', {
+            'title': songsById[songIds.first]!.title,
+            'target': i18n.t('common.myFavorites'),
+          })
+          : i18n.t('notification.songsAddedTo', {
+            'count': songIds.length,
+            'target': i18n.t('common.myFavorites'),
+          }),
+      () async {
+        await setSongsFavorite(ref, songIds, !favorite);
+      },
+    );
   }
 
-  void _showUndoSnackBar(FutureOr<void> Function() onUndo) {
-    final i18n = context.smPlayerI18n;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(i18n.t('notification.operationDone')),
-        action: SnackBarAction(
-          label: i18n.t('common.undo'),
-          onPressed: () {
-            unawaited(Future<void>.sync(onUndo));
-          },
-        ),
-      ),
+  void _showUndoSnackBar(String message, FutureOr<void> Function() onUndo) {
+    showUndoableSnackBar(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: message,
+      onUndo: onUndo,
     );
   }
 
@@ -1389,15 +1431,6 @@ class _AlbumsPagePanel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: SizedBox.expand(child: child),
     );
-  }
-}
-
-class _AlbumsLoadingState extends StatelessWidget {
-  const _AlbumsLoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator(strokeWidth: 2.5));
   }
 }
 

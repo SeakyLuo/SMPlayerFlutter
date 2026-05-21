@@ -36,6 +36,19 @@ void main() {
 
     expect(result.hasSuggestions, isFalse);
   });
+
+  test('analyzeArtistSplits suggests contained artist merges', () {
+    final result = analyzeArtistSplits([
+      _song(1, 'Short Artist', 'Jay', ['Jay']),
+      _song(2, 'Canonical Artist', 'Jay Chou', ['Jay Chou']),
+    ]);
+
+    expect(result.directSplits, isEmpty);
+    expect(result.possibleSplits, isEmpty);
+    expect(result.mergeSuggestions, hasLength(1));
+    expect(result.mergeSuggestions.single.songId, 1);
+    expect(result.mergeSuggestions.single.artists, ['Jay Chou']);
+  });
 }
 
 LibrarySong _song(

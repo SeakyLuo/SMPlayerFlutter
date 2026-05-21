@@ -62,6 +62,16 @@ class FolderChainChildItem {
   final bool isHighlighted;
 }
 
+class LocalItemsDragPayload {
+  const LocalItemsDragPayload({
+    required this.songIds,
+    required this.folderPaths,
+  });
+
+  final List<int> songIds;
+  final List<String> folderPaths;
+}
+
 class FolderIndex {
   const FolderIndex({required this.nodes, required this.songsById});
 

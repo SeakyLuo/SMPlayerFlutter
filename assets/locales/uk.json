@@ -454,6 +454,7 @@
   "player.next": "Наступна пісня",
   "player.pause": "пауза",
   "player.play": "Відтворити",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Відтворити або призупинити",
   "player.playbackMode": "Режим відтворення",
   "player.playbackModeList": "список",

@@ -29,6 +29,8 @@ class LocalFolderCard extends StatelessWidget {
     required this.onOpenFolder,
     required this.onOpenFolderMenu,
     required this.onToggleSelection,
+    this.onWillAcceptDrop,
+    this.onAcceptDrop,
   });
 
   final FolderNode folder;
@@ -49,14 +51,33 @@ class LocalFolderCard extends StatelessWidget {
   final ValueChanged<String> onOpenFolder;
   final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleSelection;
+  final bool Function(FolderNode folder, LocalItemsDragPayload payload)?
+  onWillAcceptDrop;
+  final void Function(FolderNode folder, LocalItemsDragPayload payload)?
+  onAcceptDrop;
 
   @override
   Widget build(BuildContext context) {
-    if (variant == LocalFolderCardVariant.list) {
-      return _buildListCard();
-    }
-
-    return _buildGridCard();
+    final card =
+        variant == LocalFolderCardVariant.list
+            ? _buildListCard()
+            : _buildGridCard();
+    return DragTarget<LocalItemsDragPayload>(
+      onWillAcceptWithDetails:
+          onWillAcceptDrop == null
+              ? null
+              : (details) => onWillAcceptDrop!(folder, details.data),
+      onAcceptWithDetails:
+          onAcceptDrop == null
+              ? null
+              : (details) => onAcceptDrop!(folder, details.data),
+      builder: (context, candidateData, rejectedData) {
+        return _FolderDropTargetFrame(
+          active: candidateData.isNotEmpty,
+          child: card,
+        );
+      },
+    );
   }
 
   Widget _buildGridCard() {
@@ -263,6 +284,30 @@ class LocalFolderCard extends StatelessWidget {
 }
 
 enum LocalFolderCardVariant { grid, list }
+
+class _FolderDropTargetFrame extends StatelessWidget {
+  const _FolderDropTargetFrame({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: active ? LocalPageColors.accentStrong : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+      child: child,
+    );
+  }
+}
 
 class _FolderArtwork extends StatelessWidget {
   const _FolderArtwork({required this.folder, required this.songsById});

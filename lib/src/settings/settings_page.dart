@@ -4,11 +4,20 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
+
+typedef SettingsScanLibraryCallback =
+    FutureOr<void> Function(
+      String rootPath, {
+      LocalFolderScanCancellation? cancellation,
+      void Function(LocalFolderRefreshProgress progress)? onProgress,
+    });
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -21,10 +30,12 @@ class SettingsPage extends StatefulWidget {
     this.onScanLibrary,
     this.onRequestSmartArtistFix,
     this.onImportData,
+    this.onDataImported,
     this.onExportData,
     this.onRevealSystemLogs,
     this.onSendFeedbackEmail,
     this.onOpenFeedbackInBrowser,
+    this.onLoadSystemFonts,
     this.appVersion,
     this.onUpdateSettings,
     this.controller,
@@ -38,13 +49,15 @@ class SettingsPage extends StatefulWidget {
   final bool scanning;
   final String? error;
   final FutureOr<String?> Function()? onPickLibraryRoot;
-  final VoidCallback? onScanLibrary;
+  final SettingsScanLibraryCallback? onScanLibrary;
   final VoidCallback? onRequestSmartArtistFix;
   final FutureOr<bool> Function()? onImportData;
+  final FutureOr<void> Function()? onDataImported;
   final FutureOr<bool> Function()? onExportData;
   final VoidCallback? onRevealSystemLogs;
   final VoidCallback? onSendFeedbackEmail;
   final VoidCallback? onOpenFeedbackInBrowser;
+  final FutureOr<List<String>> Function()? onLoadSystemFonts;
   final String? appVersion;
   final ValueChanged<AppSettingsUpdate>? onUpdateSettings;
 
@@ -67,25 +80,34 @@ class _SettingsPageState extends State<SettingsPage> {
   var _lyricsBatchOverwrite = false;
   var _lyricsBatchRunning = false;
   var _lyricsBatchCancelRequested = false;
+  var _lyricsBatchPaused = false;
+  var _showLyricsBatchDetails = false;
   LyricsBatchProgress? _lyricsBatchProgress;
   LyricsBatchResult? _lyricsBatchResult;
   var _dataTransferState = DataTransferState.idle;
+  var _scanRunning = false;
+  LocalFolderRefreshProgress? _scanProgress;
+  LocalFolderScanCancellation? _scanCancellation;
+  var _systemFonts = const <String>[];
   String? _appVersion;
 
   SettingsSnapshot get _snapshot => _settingsController.snapshot;
   bool get _isDataTransferBusy => _dataTransferState != DataTransferState.idle;
+  bool get _isScanning => widget.scanning || _scanRunning;
 
   @override
   void initState() {
     super.initState();
     _ownsSettingsController = widget.controller == null;
     _settingsController =
-        widget.controller ?? SettingsController(widget.initialSnapshot);
+        widget.controller ??
+        SettingsController(widget.initialSnapshot, widget.libraryRepository);
     _settingsController.addListener(_onSettingsChanged);
     if (_ownsSettingsController) {
       _settingsController.refresh();
     }
     _loadAppVersion();
+    _loadSystemFonts();
   }
 
   @override
@@ -153,8 +175,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           if (_dataTransferState != DataTransferState.idle)
             _SettingsProgressOverlay(state: _dataTransferState),
+          if (_scanProgress case final progress?)
+            _SettingsScanProgressOverlay(
+              progress: progress,
+              onCancel:
+                  progress.canCancel ? () => _requestCancelScan(i18n) : null,
+            ),
           if (_showPreferenceSettings)
             PreferenceSettingsPage(
+              libraryRepository: widget.libraryRepository,
               onClose: () {
                 setState(() {
                   _showPreferenceSettings = false;
@@ -217,6 +246,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 unawaited(_applySmartArtistFix(result, i18n));
               },
             ),
+          if (_showLyricsBatchDetails && _lyricsBatchResult != null)
+            _LyricsBatchDetailsDialog(
+              result: _lyricsBatchResult!,
+              onClose: () {
+                setState(() {
+                  _showLyricsBatchDetails = false;
+                });
+              },
+            ),
         ],
       ),
     );
@@ -259,13 +297,22 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          if (widget.loading)
+          if (_isScanning)
             Text(
-              i18n.t('settings.rescan'),
+              i18n.t('library.scanning'),
               style: const TextStyle(
                 color: SettingsPageColors.textMuted,
                 fontSize: 13,
               ),
+            ),
+          if (_snapshot.rootPath.isNotEmpty)
+            SettingsActionButton(
+              icon: FluentIcons.arrow_sync_24_regular,
+              disabled: widget.loading || _isScanning,
+              onClick: () {
+                unawaited(_scanLibraryRoot(_snapshot.rootPath));
+              },
+              child: Text(i18n.t('settings.rescan')),
             ),
           ToggleSettingRow(
             label:
@@ -292,7 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
           if (_snapshot.smartMultiArtistRecognition)
             SettingsActionButton(
               icon: FluentIcons.people_24_regular,
-              disabled: widget.loading || widget.scanning,
+              disabled: widget.loading || _isScanning,
               onClick: _requestSmartArtistFix,
               child: Text(i18n.t('settings.smartMultiArtistFix')),
             ),
@@ -336,18 +383,60 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           if (_lyricsBatchRunning)
-            SettingsActionButton(
-              icon: FluentIcons.dismiss_24_regular,
-              onClick: () {
-                _lyricsBatchCancelRequested = true;
-              },
-              child: Text(i18n.t('common.cancel')),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                SettingsActionButton(
+                  icon:
+                      _lyricsBatchPaused
+                          ? FluentIcons.play_24_regular
+                          : FluentIcons.pause_24_regular,
+                  onClick: () {
+                    setState(() {
+                      _lyricsBatchPaused = !_lyricsBatchPaused;
+                    });
+                  },
+                  child: Text(
+                    _lyricsBatchPaused
+                        ? i18n.t('common.continue')
+                        : i18n.t('common.pause'),
+                  ),
+                ),
+                SettingsActionButton(
+                  icon: FluentIcons.dismiss_24_regular,
+                  onClick: () {
+                    setState(() {
+                      _lyricsBatchCancelRequested = true;
+                      _lyricsBatchPaused = false;
+                    });
+                  },
+                  child: Text(i18n.t('common.cancel')),
+                ),
+              ],
             ),
           if (_lyricsBatchProgress case final progress?)
             _LyricsBatchProgressPanel(progress: progress),
           if (!_lyricsBatchRunning)
             if (_lyricsBatchResult case final result?)
-              _LyricsBatchResultPanel(result: result),
+              _LyricsBatchResultPanel(
+                result: result,
+                onDetails:
+                    result.details.isEmpty
+                        ? null
+                        : () {
+                          setState(() {
+                            _showLyricsBatchDetails = true;
+                          });
+                        },
+                onClear: () {
+                  setState(() {
+                    _lyricsBatchResult = null;
+                    _lyricsBatchProgress = null;
+                    _showLyricsBatchDetails = false;
+                  });
+                },
+              ),
         ],
       ),
       SettingsCard(
@@ -405,17 +494,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   SelectSettingRow<String>(
                     label: i18n.t('settings.desktopLyricsFontFamily'),
                     value: _snapshot.desktopLyricsFontFamily,
-                    options: [
-                      SelectSettingOption(
-                        value: 'system',
-                        label: i18n.t('settings.desktopLyricsFontSystem'),
-                      ),
-                      SelectSettingOption(
-                        value: 'Microsoft YaHei UI',
-                        label: 'Microsoft YaHei UI',
-                      ),
-                      SelectSettingOption(value: 'Segoe UI', label: 'Segoe UI'),
-                    ],
+                    options: _desktopLyricsFontOptions(i18n),
+                    searchable: true,
+                    searchPlaceholder: i18n.t(
+                      'settings.desktopLyricsFontSearch',
+                    ),
+                    emptyLabel: i18n.t('settings.desktopLyricsFontNoResults'),
                     onChange: (value) {
                       _updateSettings(
                         AppSettingsUpdate(desktopLyricsFontFamily: value),
@@ -710,6 +794,39 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _loadSystemFonts() async {
+    final loader = widget.onLoadSystemFonts ?? loadDesktopSystemFonts;
+    final fonts = await loader();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _systemFonts = fonts;
+    });
+  }
+
+  List<SelectSettingOption<String>> _desktopLyricsFontOptions(
+    SmPlayerI18n i18n,
+  ) {
+    final fontNames =
+        <String>{
+          ..._systemFonts,
+          if (_snapshot.desktopLyricsFontFamily != 'system')
+            _snapshot.desktopLyricsFontFamily,
+        }.toList();
+    fontNames.sort(
+      (left, right) => left.toLowerCase().compareTo(right.toLowerCase()),
+    );
+    return [
+      SelectSettingOption(
+        value: 'system',
+        label: i18n.t('settings.desktopLyricsFontSystem'),
+      ),
+      for (final fontName in fontNames)
+        SelectSettingOption(value: fontName, label: fontName),
+    ];
+  }
+
   Future<void> _pickLibraryRoot() async {
     final selectedRootPath =
         widget.onPickLibraryRoot == null
@@ -719,8 +836,83 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    _updateSettings(AppSettingsUpdate(rootPath: selectedRootPath));
-    widget.onScanLibrary?.call();
+    await _scanLibraryRoot(selectedRootPath);
+  }
+
+  Future<void> _scanLibraryRoot(String rootPath) async {
+    if (_isScanning) {
+      return;
+    }
+    final cancellation = LocalFolderScanCancellation();
+    setState(() {
+      _scanRunning = true;
+      _scanCancellation = cancellation;
+      _scanProgress = const LocalFolderRefreshProgress(
+        current: 0,
+        total: 1,
+        currentPath: '',
+        stage: LocalFolderRefreshStage.checking,
+        canCancel: true,
+      );
+    });
+    try {
+      if (widget.onScanLibrary == null) {
+        await widget.libraryRepository.scanAllMusicLibrary(
+          rootPath,
+          cancellation: cancellation,
+          onProgress: _setScanProgress,
+        );
+      } else {
+        await widget.onScanLibrary!(
+          rootPath,
+          cancellation: cancellation,
+          onProgress: _setScanProgress,
+        );
+      }
+      if (mounted) {
+        _updateSettings(AppSettingsUpdate(rootPath: rootPath));
+      }
+    } on LocalFolderScanCanceledException {
+      if (mounted) {
+        setState(() {
+          _scanProgress = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scanRunning = false;
+          _scanCancellation = null;
+          _scanProgress = null;
+        });
+      }
+    }
+  }
+
+  void _setScanProgress(LocalFolderRefreshProgress progress) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _scanProgress = progress;
+    });
+  }
+
+  Future<void> _requestCancelScan(SmPlayerI18n i18n) async {
+    final cancellation = _scanCancellation;
+    if (cancellation == null) {
+      return;
+    }
+    final confirmed = await showSmPlayerConfirmDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('local.updateFolderProgressStopConfirmTitle'),
+      message: i18n.t('local.updateFolderProgressStopConfirmMessage'),
+      confirmText: i18n.t('local.updateFolderProgressStopConfirm'),
+    );
+    if (confirmed) {
+      cancellation.cancel();
+    }
   }
 
   Future<void> _exportData() async {
@@ -770,6 +962,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _dataTransferState = DataTransferState.reloading;
         });
         _showMessage(i18n.t('settings.dataImported'));
+        await _settingsController.refresh();
+        await widget.onDataImported?.call();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
       }
     } catch (_) {
       if (mounted) {
@@ -860,6 +1055,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _showLyricsBatchOptions = false;
       _lyricsBatchRunning = true;
       _lyricsBatchCancelRequested = false;
+      _lyricsBatchPaused = false;
       _lyricsBatchProgress = null;
       _lyricsBatchResult = null;
     });
@@ -868,6 +1064,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final result = await widget.libraryRepository.batchAddInternetLyrics(
         overwrite: _lyricsBatchOverwrite,
         isCanceled: () => _lyricsBatchCancelRequested,
+        waitIfPaused: _waitForLyricsBatchResume,
         onProgress: (progress) {
           if (!mounted) {
             return;
@@ -903,8 +1100,15 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _lyricsBatchRunning = false;
           _lyricsBatchCancelRequested = false;
+          _lyricsBatchPaused = false;
         });
       }
+    }
+  }
+
+  Future<void> _waitForLyricsBatchResume() async {
+    while (mounted && _lyricsBatchPaused && !_lyricsBatchCancelRequested) {
+      await Future<void>.delayed(const Duration(milliseconds: 180));
     }
   }
 
@@ -955,7 +1159,11 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 List<ArtistSplitResultItem> _splitItems(ArtistSplitAnalysisResult result) {
-  return [...result.directSplits, ...result.possibleSplits];
+  return [
+    ...result.directSplits,
+    ...result.possibleSplits,
+    ...result.mergeSuggestions,
+  ];
 }
 
 class ToggleSettingRow extends StatelessWidget {
@@ -1037,15 +1245,66 @@ class SelectSettingRow<T> extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChange,
+    this.searchable = false,
+    this.searchPlaceholder,
+    this.emptyLabel,
   });
 
   final String label;
   final T value;
   final List<SelectSettingOption<T>> options;
   final ValueChanged<T> onChange;
+  final bool searchable;
+  final String? searchPlaceholder;
+  final String? emptyLabel;
 
   @override
   Widget build(BuildContext context) {
+    if (searchable) {
+      final selectedOption = options.firstWhere(
+        (option) => option.value == value,
+        orElse: () => options.first,
+      );
+      return _SettingsRowFrame(
+        label: label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            _showSearchableSelect(context);
+          },
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: SettingsPageColors.inputSurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: SettingsPageColors.inputBorder),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedOption.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: SettingsPageColors.textStrong,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  FluentIcons.search_24_regular,
+                  size: 18,
+                  color: SettingsPageColors.textMuted,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return _SettingsRowFrame(
       label: label,
       child: DropdownButtonHideUnderline(
@@ -1072,6 +1331,115 @@ class SelectSettingRow<T> extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showSearchableSelect(BuildContext context) async {
+    final selected = await showDialog<T>(
+      context: context,
+      builder: (context) {
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final normalizedQuery = query.toLowerCase();
+            final filteredOptions =
+                normalizedQuery.isEmpty
+                    ? options
+                    : options
+                        .where(
+                          (option) => option.label.toLowerCase().contains(
+                            normalizedQuery,
+                          ),
+                        )
+                        .toList();
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 32,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: 560,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: searchPlaceholder,
+                          prefixIcon: const Icon(FluentIcons.search_24_regular),
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            query = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child:
+                            filteredOptions.isEmpty
+                                ? Center(
+                                  child: Text(
+                                    emptyLabel ?? '',
+                                    style: const TextStyle(
+                                      color: SettingsPageColors.textMuted,
+                                    ),
+                                  ),
+                                )
+                                : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: filteredOptions.length,
+                                  itemBuilder: (context, index) {
+                                    final option = filteredOptions[index];
+                                    final selected = option.value == value;
+                                    return ListTile(
+                                      selected: selected,
+                                      title: Text(
+                                        option.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing:
+                                          selected
+                                              ? const Icon(
+                                                FluentIcons
+                                                    .checkmark_24_regular,
+                                              )
+                                              : null,
+                                      onTap: () {
+                                        Navigator.of(context).pop(option.value);
+                                      },
+                                    );
+                                  },
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (selected != null) {
+      onChange(selected);
+    }
   }
 }
 
@@ -1527,9 +1895,15 @@ class _LyricsBatchProgressPanel extends StatelessWidget {
 }
 
 class _LyricsBatchResultPanel extends StatelessWidget {
-  const _LyricsBatchResultPanel({required this.result});
+  const _LyricsBatchResultPanel({
+    required this.result,
+    required this.onClear,
+    this.onDetails,
+  });
 
   final LyricsBatchResult result;
+  final VoidCallback? onDetails;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -1541,26 +1915,427 @@ class _LyricsBatchResultPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: SettingsPageColors.cardBorder),
       ),
-      child: Text(
-        '${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
-        '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
-        '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
-        '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
-        '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}',
-        style: const TextStyle(fontWeight: FontWeight.w700),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
+            '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
+            '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
+            '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
+            '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          if (result.backedUp > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${i18n.t('settings.lyricsBatchBackedUp')} ${result.backedUp} (${_formatBytes(result.backupBytes)})',
+              style: const TextStyle(
+                color: SettingsPageColors.textMuted,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              if (onDetails != null)
+                SettingsActionButton(
+                  onClick: onDetails!,
+                  child: Text(i18n.t('common.detail')),
+                ),
+              SettingsActionButton(
+                onClick: onClear,
+                child: Text(i18n.t('common.clear')),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
+
+class _LyricsBatchDetailsDialog extends StatefulWidget {
+  const _LyricsBatchDetailsDialog({
+    required this.result,
+    required this.onClose,
+  });
+
+  final LyricsBatchResult result;
+  final VoidCallback onClose;
+
+  @override
+  State<_LyricsBatchDetailsDialog> createState() =>
+      _LyricsBatchDetailsDialogState();
+}
+
+class _LyricsBatchDetailsDialogState extends State<_LyricsBatchDetailsDialog> {
+  final _expandedDetailIds = <String>{};
+  final _collapsedResults = <LyricsBatchDetailResult>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final groups =
+        LyricsBatchDetailResult.values
+            .map(
+              (result) => (
+                result: result,
+                details:
+                    widget.result.details
+                        .where((detail) => detail.result == result)
+                        .toList(),
+              ),
+            )
+            .where((group) => group.details.isNotEmpty)
+            .toList();
+
+    return _DialogOverlay(
+      child: Container(
+        width: 980,
+        height: 740,
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: SettingsPageColors.dialogSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: SettingsPageColors.cardBorder),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: _DialogHeader(
+                title: i18n.t('settings.lyricsBatchTaskDetails'),
+                onClose: widget.onClose,
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                itemBuilder: (context, index) {
+                  final group = groups[index];
+                  final collapsed = _collapsedResults.contains(group.result);
+                  return _LyricsBatchDetailGroup(
+                    result: group.result,
+                    details: group.details,
+                    collapsed: collapsed,
+                    expandedDetailIds: _expandedDetailIds,
+                    onToggleGroup: () {
+                      setState(() {
+                        if (collapsed) {
+                          _collapsedResults.remove(group.result);
+                        } else {
+                          _collapsedResults.add(group.result);
+                        }
+                      });
+                    },
+                    onToggleDetail: (id) {
+                      setState(() {
+                        if (_expandedDetailIds.contains(id)) {
+                          _expandedDetailIds.remove(id);
+                        } else {
+                          _expandedDetailIds.add(id);
+                        }
+                      });
+                    },
+                  );
+                },
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemCount: groups.length,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LyricsBatchDetailGroup extends StatelessWidget {
+  const _LyricsBatchDetailGroup({
+    required this.result,
+    required this.details,
+    required this.collapsed,
+    required this.expandedDetailIds,
+    required this.onToggleGroup,
+    required this.onToggleDetail,
+  });
+
+  final LyricsBatchDetailResult result;
+  final List<LyricsBatchDetail> details;
+  final bool collapsed;
+  final Set<String> expandedDetailIds;
+  final VoidCallback onToggleGroup;
+  final ValueChanged<String> onToggleDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Container(
+      decoration: BoxDecoration(
+        color: SettingsPageColors.buttonSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggleGroup,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    collapsed
+                        ? FluentIcons.chevron_right_24_regular
+                        : FluentIcons.chevron_down_24_regular,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _lyricsBatchResultLabel(i18n, result),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Text('${details.length}'),
+                ],
+              ),
+            ),
+          ),
+          if (!collapsed)
+            for (final detail in details)
+              _LyricsBatchDetailTile(
+                detail: detail,
+                expanded: expandedDetailIds.contains(
+                  _lyricsBatchDetailId(detail),
+                ),
+                onToggle: () => onToggleDetail(_lyricsBatchDetailId(detail)),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricsBatchDetailTile extends StatelessWidget {
+  const _LyricsBatchDetailTile({
+    required this.detail,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final LyricsBatchDetail detail;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final reason = _lyricsBatchReasonLabel(i18n, detail.reason);
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: SettingsPageColors.cardBorder)),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    expanded
+                        ? FluentIcons.chevron_down_24_regular
+                        : FluentIcons.chevron_right_24_regular,
+                    size: 18,
+                    color: SettingsPageColors.textMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      detail.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    [
+                      _lyricsBatchResultLabel(i18n, detail.result),
+                      if (reason.isNotEmpty) '($reason)',
+                    ].join(' '),
+                    style: const TextStyle(
+                      color: SettingsPageColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded) _LyricsBatchExpandedDetail(detail: detail),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricsBatchExpandedDetail extends StatelessWidget {
+  const _LyricsBatchExpandedDetail({required this.detail});
+
+  final LyricsBatchDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final source = detail.sourceRawLyrics;
+    final target = detail.targetRawLyrics;
+    if (detail.result == LyricsBatchDetailResult.overwritten) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _LyricsTextPreview(
+                title: i18n.t('settings.lyricsBatchDetailOriginalLyrics'),
+                text: source,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _LyricsTextPreview(
+                title: i18n.t('settings.lyricsBatchDetailNewLyrics'),
+                text: target,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      child: _LyricsTextPreview(
+        title:
+            target.trim().isNotEmpty
+                ? i18n.t('settings.lyricsBatchDetailWrittenLyrics')
+                : i18n.t('settings.lyricsBatchCurrentLyrics'),
+        text: target.trim().isNotEmpty ? target : source,
+      ),
+    );
+  }
+}
+
+class _LyricsTextPreview extends StatelessWidget {
+  const _LyricsTextPreview({required this.title, required this.text});
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 120),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SettingsPageColors.cardSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SettingsPageColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: SettingsPageColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            text.trim().isEmpty
+                ? i18n.t('settings.lyricsBatchDetailNoLyrics')
+                : text,
+            maxLines: 10,
+            overflow: TextOverflow.fade,
+            style: const TextStyle(
+              color: SettingsPageColors.textStrong,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _lyricsBatchDetailId(LyricsBatchDetail detail) {
+  return '${detail.songId}-${detail.result.index}-${detail.reason?.index ?? -1}';
+}
+
+String _lyricsBatchResultLabel(
+  SmPlayerI18n i18n,
+  LyricsBatchDetailResult result,
+) {
+  return switch (result) {
+    LyricsBatchDetailResult.saved => i18n.t('settings.lyricsBatchSaved'),
+    LyricsBatchDetailResult.overwritten => i18n.t(
+      'settings.lyricsBatchOverwritten',
+    ),
+    LyricsBatchDetailResult.skipped => i18n.t('settings.lyricsBatchSkipped'),
+    LyricsBatchDetailResult.missing => i18n.t('settings.lyricsBatchMissing'),
+    LyricsBatchDetailResult.failed => i18n.t('settings.lyricsBatchFailed'),
+  };
+}
+
+String _lyricsBatchReasonLabel(
+  SmPlayerI18n i18n,
+  LyricsBatchSkipReason? reason,
+) {
+  return switch (reason) {
+    LyricsBatchSkipReason.alreadyExists => i18n.t(
+      'settings.lyricsBatchReasonAlreadyExists',
+    ),
+    LyricsBatchSkipReason.sameContent => i18n.t(
+      'settings.lyricsBatchReasonSameContent',
+    ),
+    null => '',
+  };
+}
+
+String _formatBytes(int size) {
+  if (size <= 0) {
+    return '0 B';
+  }
+  if (size < 1024) {
+    return '$size B';
+  }
+  if (size < 1024 * 1024) {
+    return '${(size / 1024).toStringAsFixed(1)} KB';
+  }
+  return '${(size / (1024 * 1024)).toStringAsFixed(2)} MB';
 }
 
 class PreferenceSettingsPage extends StatefulWidget {
   const PreferenceSettingsPage({
     super.key,
     required this.onClose,
+    this.libraryRepository = const LibraryRepository(),
     this.initialSnapshot,
   });
 
   final VoidCallback onClose;
+  final LibraryRepository libraryRepository;
   final PreferenceSettingsSnapshot? initialSnapshot;
 
   @override
@@ -1570,11 +2345,17 @@ class PreferenceSettingsPage extends StatefulWidget {
 class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   late PreferenceSettingsSnapshot _snapshot;
   final _expandedSections = <PreferenceSectionKey>{};
+  var _loading = false;
+  var _loadFailed = false;
 
   @override
   void initState() {
     super.initState();
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
+    if (widget.initialSnapshot == null) {
+      _loading = true;
+      unawaited(_loadPreferenceSnapshot());
+    }
   }
 
   @override
@@ -1599,100 +2380,136 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
               onClose: widget.onClose,
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
-                child: Column(
-                  children: [
-                    const _PreferenceInfo(),
-                    PreferenceSection(
-                      title: i18n.t('preferences.songs'),
-                      section: PreferenceSectionKey.songs,
-                      limit: 100,
-                      enabled: _snapshot.enabled[PreferenceSectionKey.songs]!,
-                      items: _snapshot.songs,
-                      expanded: _expandedSections.contains(
-                        PreferenceSectionKey.songs,
+              child:
+                  _loading
+                      ? Center(child: Text(i18n.t('preferences.loading')))
+                      : _loadFailed
+                      ? Center(child: Text(i18n.t('preferences.loadFailed')))
+                      : SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
+                        child: Column(
+                          children: [
+                            const _PreferenceInfo(),
+                            PreferenceSection(
+                              title: i18n.t('preferences.songs'),
+                              section: PreferenceSectionKey.songs,
+                              limit: 100,
+                              enabled:
+                                  _snapshot.enabled[PreferenceSectionKey
+                                      .songs]!,
+                              items: _snapshot.songs,
+                              expanded: _expandedSections.contains(
+                                PreferenceSectionKey.songs,
+                              ),
+                              onToggleEnabled: _toggleEnabled,
+                              onToggleExpanded: _toggleExpanded,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                              onClearInvalid: _clearInvalid,
+                            ),
+                            PreferenceSection(
+                              title: i18n.t('preferences.artists'),
+                              section: PreferenceSectionKey.artists,
+                              limit: 50,
+                              enabled:
+                                  _snapshot.enabled[PreferenceSectionKey
+                                      .artists]!,
+                              items: _snapshot.artists,
+                              expanded: _expandedSections.contains(
+                                PreferenceSectionKey.artists,
+                              ),
+                              onToggleEnabled: _toggleEnabled,
+                              onToggleExpanded: _toggleExpanded,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                              onClearInvalid: _clearInvalid,
+                            ),
+                            PreferenceSection(
+                              title: i18n.t('preferences.albums'),
+                              section: PreferenceSectionKey.albums,
+                              limit: 50,
+                              enabled:
+                                  _snapshot.enabled[PreferenceSectionKey
+                                      .albums]!,
+                              items: _snapshot.albums,
+                              expanded: _expandedSections.contains(
+                                PreferenceSectionKey.albums,
+                              ),
+                              onToggleEnabled: _toggleEnabled,
+                              onToggleExpanded: _toggleExpanded,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                              onClearInvalid: _clearInvalid,
+                            ),
+                            PreferenceSection(
+                              title: i18n.t('preferences.playlists'),
+                              section: PreferenceSectionKey.playlists,
+                              limit: 30,
+                              enabled:
+                                  _snapshot.enabled[PreferenceSectionKey
+                                      .playlists]!,
+                              items: _snapshot.playlists,
+                              expanded: _expandedSections.contains(
+                                PreferenceSectionKey.playlists,
+                              ),
+                              onToggleEnabled: _toggleEnabled,
+                              onToggleExpanded: _toggleExpanded,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                              onClearInvalid: _clearInvalid,
+                            ),
+                            PreferenceSection(
+                              title: i18n.t('preferences.folders'),
+                              section: PreferenceSectionKey.folders,
+                              limit: 30,
+                              enabled:
+                                  _snapshot.enabled[PreferenceSectionKey
+                                      .folders]!,
+                              items: _snapshot.folders,
+                              expanded: _expandedSections.contains(
+                                PreferenceSectionKey.folders,
+                              ),
+                              onToggleEnabled: _toggleEnabled,
+                              onToggleExpanded: _toggleExpanded,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                              onClearInvalid: _clearInvalid,
+                            ),
+                            _PreferenceOthersSection(
+                              items: _snapshot.others,
+                              onUpdateItem: _updateItem,
+                              onRemoveItem: _removeItem,
+                            ),
+                          ],
+                        ),
                       ),
-                      onToggleEnabled: _toggleEnabled,
-                      onToggleExpanded: _toggleExpanded,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                      onClearInvalid: _clearInvalid,
-                    ),
-                    PreferenceSection(
-                      title: i18n.t('preferences.artists'),
-                      section: PreferenceSectionKey.artists,
-                      limit: 50,
-                      enabled: _snapshot.enabled[PreferenceSectionKey.artists]!,
-                      items: _snapshot.artists,
-                      expanded: _expandedSections.contains(
-                        PreferenceSectionKey.artists,
-                      ),
-                      onToggleEnabled: _toggleEnabled,
-                      onToggleExpanded: _toggleExpanded,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                      onClearInvalid: _clearInvalid,
-                    ),
-                    PreferenceSection(
-                      title: i18n.t('preferences.albums'),
-                      section: PreferenceSectionKey.albums,
-                      limit: 50,
-                      enabled: _snapshot.enabled[PreferenceSectionKey.albums]!,
-                      items: _snapshot.albums,
-                      expanded: _expandedSections.contains(
-                        PreferenceSectionKey.albums,
-                      ),
-                      onToggleEnabled: _toggleEnabled,
-                      onToggleExpanded: _toggleExpanded,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                      onClearInvalid: _clearInvalid,
-                    ),
-                    PreferenceSection(
-                      title: i18n.t('preferences.playlists'),
-                      section: PreferenceSectionKey.playlists,
-                      limit: 30,
-                      enabled:
-                          _snapshot.enabled[PreferenceSectionKey.playlists]!,
-                      items: _snapshot.playlists,
-                      expanded: _expandedSections.contains(
-                        PreferenceSectionKey.playlists,
-                      ),
-                      onToggleEnabled: _toggleEnabled,
-                      onToggleExpanded: _toggleExpanded,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                      onClearInvalid: _clearInvalid,
-                    ),
-                    PreferenceSection(
-                      title: i18n.t('preferences.folders'),
-                      section: PreferenceSectionKey.folders,
-                      limit: 30,
-                      enabled: _snapshot.enabled[PreferenceSectionKey.folders]!,
-                      items: _snapshot.folders,
-                      expanded: _expandedSections.contains(
-                        PreferenceSectionKey.folders,
-                      ),
-                      onToggleEnabled: _toggleEnabled,
-                      onToggleExpanded: _toggleExpanded,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                      onClearInvalid: _clearInvalid,
-                    ),
-                    _PreferenceOthersSection(
-                      items: _snapshot.others,
-                      onUpdateItem: _updateItem,
-                      onRemoveItem: _removeItem,
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _loadPreferenceSnapshot() async {
+    try {
+      final snapshot = await widget.libraryRepository.getPreferenceSettings();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _snapshot = snapshot;
+        _loading = false;
+        _loadFailed = false;
+      });
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
+    }
   }
 
   void _toggleEnabled(PreferenceSectionKey section, bool enabled) {
@@ -1701,6 +2518,9 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
         enabled: {..._snapshot.enabled, section: enabled},
       );
     });
+    unawaited(
+      widget.libraryRepository.updatePreferenceSettings({section: enabled}),
+    );
   }
 
   void _toggleExpanded(PreferenceSectionKey section) {
@@ -1727,6 +2547,13 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                 .toList(),
       );
     });
+    unawaited(
+      widget.libraryRepository.updatePreferenceItem(
+        item.id,
+        isEnabled: update.isEnabled,
+        level: update.level,
+      ),
+    );
   }
 
   void _removeItem(PreferenceItemSnapshot item) {
@@ -1740,6 +2567,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
                 .toList(),
       );
     });
+    unawaited(widget.libraryRepository.removePreferenceItemById(item.id));
   }
 
   void _clearInvalid(PreferenceSectionKey section) {
@@ -1750,6 +2578,11 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
         (items) => items.where((item) => item.isValid).toList(),
       );
     });
+    unawaited(
+      widget.libraryRepository.clearInvalidPreferenceItems(
+        _preferenceEntityTypeForSection(section),
+      ),
+    );
   }
 }
 
@@ -2047,6 +2880,18 @@ PreferenceSectionKey? _sectionForPreferenceType(PreferenceEntityType type) {
   };
 }
 
+PreferenceEntityType _preferenceEntityTypeForSection(
+  PreferenceSectionKey section,
+) {
+  return switch (section) {
+    PreferenceSectionKey.songs => PreferenceEntityType.song,
+    PreferenceSectionKey.artists => PreferenceEntityType.artist,
+    PreferenceSectionKey.albums => PreferenceEntityType.album,
+    PreferenceSectionKey.playlists => PreferenceEntityType.playlist,
+    PreferenceSectionKey.folders => PreferenceEntityType.folder,
+  };
+}
+
 PreferenceSettingsSnapshot _snapshotWithUpdatedItems(
   PreferenceSettingsSnapshot snapshot,
   PreferenceSectionKey? section,
@@ -2077,6 +2922,9 @@ bool _samePreferenceItem(
   PreferenceItemSnapshot left,
   PreferenceItemSnapshot right,
 ) {
+  if (left.id != 0 || right.id != 0) {
+    return left.id == right.id;
+  }
   return left.type == right.type && left.name == right.name;
 }
 
@@ -2336,6 +3184,133 @@ class _SettingsProgressOverlay extends StatelessWidget {
   }
 }
 
+class _SettingsScanProgressOverlay extends StatelessWidget {
+  const _SettingsScanProgressOverlay({
+    required this.progress,
+    required this.onCancel,
+  });
+
+  final LocalFolderRefreshProgress progress;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final value = (progress.current / progress.total).clamp(0, 1).toDouble();
+    final stageText = switch (progress.stage) {
+      LocalFolderRefreshStage.checking => i18n.t(
+        'local.updateFolderProgressActionChecking',
+      ),
+      LocalFolderRefreshStage.reading => i18n.t(
+        'local.updateFolderProgressActionReading',
+      ),
+      LocalFolderRefreshStage.updating => i18n.t(
+        'local.updateFolderProgressActionUpdating',
+      ),
+    };
+    final countText = switch (progress.stage) {
+      LocalFolderRefreshStage.checking => i18n.t(
+        'local.updateFolderProgressChecked',
+        {'count': progress.current, 'total': progress.total},
+      ),
+      LocalFolderRefreshStage.reading ||
+      LocalFolderRefreshStage.updating => i18n.t(
+        'local.updateFolderProgressProcessedSongs',
+        {'count': progress.processedSongCount, 'total': progress.songCount},
+      ),
+    };
+
+    return _DialogOverlay(
+      child: Container(
+        width: 440,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: SettingsPageColors.dialogSurface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: SettingsPageColors.cardBorder),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    i18n.t('local.updateFolderProgressTitle'),
+                    style: const TextStyle(
+                      color: SettingsPageColors.textStrong,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (onCancel != null)
+                  TextButton(
+                    onPressed: onCancel,
+                    child: Text(i18n.t('local.updateFolderProgressStop')),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              stageText,
+              style: const TextStyle(
+                color: SettingsPageColors.textStrong,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(value: value),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 14,
+              runSpacing: 6,
+              children: [
+                Text(
+                  countText,
+                  style: const TextStyle(color: SettingsPageColors.textMuted),
+                ),
+                Text(
+                  '${i18n.t('local.updateFolderProgressAdded')}: ${progress.addedCount}',
+                  style: const TextStyle(color: SettingsPageColors.textMuted),
+                ),
+                Text(
+                  '${i18n.t('local.updateFolderProgressUpdated')}: ${progress.updatedCount}',
+                  style: const TextStyle(color: SettingsPageColors.textMuted),
+                ),
+                Text(
+                  '${i18n.t('local.updateFolderProgressMissing')}: ${progress.missingCount}',
+                  style: const TextStyle(color: SettingsPageColors.textMuted),
+                ),
+              ],
+            ),
+            if (progress.currentPath.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                progress.stage == LocalFolderRefreshStage.checking
+                    ? i18n.t('local.updateFolderProgressCurrentFolder', {
+                      'name': _settingsFileTitle(progress.currentPath),
+                    })
+                    : _settingsFileTitle(progress.currentPath),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: SettingsPageColors.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _settingsFileTitle(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final index = normalized.lastIndexOf('/');
+  return index < 0 ? normalized : normalized.substring(index + 1);
+}
+
 class ReleaseNotesDialog extends StatelessWidget {
   const ReleaseNotesDialog({
     super.key,
@@ -2483,6 +3458,12 @@ class _ArtistSplitReviewDialog extends StatelessWidget {
                         ),
                         items: result.possibleSplits,
                       ),
+                    if (result.mergeSuggestions.isNotEmpty)
+                      _ArtistSplitGroup(
+                        title: i18n.t('local.artistMergeSuggestionsTitle'),
+                        items: result.mergeSuggestions,
+                        afterLabelKey: 'local.artistMergeAfter',
+                      ),
                   ],
                 ),
               ),
@@ -2514,10 +3495,15 @@ class _ArtistSplitReviewDialog extends StatelessWidget {
 }
 
 class _ArtistSplitGroup extends StatelessWidget {
-  const _ArtistSplitGroup({required this.title, required this.items});
+  const _ArtistSplitGroup({
+    required this.title,
+    required this.items,
+    this.afterLabelKey = 'local.artistSplitAfter',
+  });
 
   final String title;
   final List<ArtistSplitResultItem> items;
+  final String afterLabelKey;
 
   @override
   Widget build(BuildContext context) {
@@ -2535,7 +3521,8 @@ class _ArtistSplitGroup extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          for (final item in items) _ArtistSplitTile(item: item),
+          for (final item in items)
+            _ArtistSplitTile(item: item, afterLabelKey: afterLabelKey),
         ],
       ),
     );
@@ -2543,9 +3530,10 @@ class _ArtistSplitGroup extends StatelessWidget {
 }
 
 class _ArtistSplitTile extends StatelessWidget {
-  const _ArtistSplitTile({required this.item});
+  const _ArtistSplitTile({required this.item, required this.afterLabelKey});
 
   final ArtistSplitResultItem item;
+  final String afterLabelKey;
 
   @override
   Widget build(BuildContext context) {
@@ -2589,7 +3577,7 @@ class _ArtistSplitTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 _ArtistSplitLine(
-                  label: i18n.t('local.artistSplitAfter'),
+                  label: i18n.t(afterLabelKey),
                   text: item.artists.join(separator),
                 ),
               ],
@@ -2980,6 +3968,7 @@ class SettingsPageColors {
   static const cardSurface = Color(0x9effffff);
   static const cardBorder = Color(0x9eccd5e0);
   static const cardShadow = Color(0x14445870);
+  static const inputSurface = Color(0xf4ffffff);
   static const inputBorder = Color(0x387e8b9a);
   static const buttonSurface = Color(0xb8ffffff);
   static const dialogSurface = Color(0xfffbfdff);

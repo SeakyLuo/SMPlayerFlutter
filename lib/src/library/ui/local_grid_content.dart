@@ -46,6 +46,7 @@ class LocalGridContent extends StatelessWidget {
     required this.onOpenFolder,
     required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
+    required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
@@ -89,6 +90,12 @@ class LocalGridContent extends StatelessWidget {
   final ValueChanged<String> onOpenFolder;
   final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
+  final void Function({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required String targetFolderPath,
+  })
+  onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
@@ -122,6 +129,7 @@ class LocalGridContent extends StatelessWidget {
               onOpenFolder: onOpenFolder,
               onOpenFolderMenu: onOpenFolderMenu,
               onToggleFolderSelection: onToggleFolderSelection,
+              onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
               onPlayTrack: onPlayTrack,
               onTogglePlayPause: onTogglePlayPause,
               onToggleSongSelection: onToggleSongSelection,
@@ -146,6 +154,7 @@ class LocalGridContent extends StatelessWidget {
               onOpenFolder: onOpenFolder,
               onOpenFolderMenu: onOpenFolderMenu,
               onToggleFolderSelection: onToggleFolderSelection,
+              onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
             );
     final songContent = _LocalSongGrid(
       currentSongs: currentSongs,
@@ -220,6 +229,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
     required this.onOpenFolder,
     required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
+    required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
@@ -248,6 +258,12 @@ class _LocalCompactTreeContent extends StatelessWidget {
   final ValueChanged<String> onOpenFolder;
   final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
+  final void Function({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required String targetFolderPath,
+  })
+  onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
@@ -266,7 +282,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
             padding: EdgeInsets.only(left: row.depth * 22.0, bottom: 8),
             child:
                 row.type == LocalCompactTreeRowType.folder
-                    ? LocalFolderCard(
+                    ? _DraggableLocalFolderCard(
                       folder: row.folder!,
                       selected: selectedFolderPaths.contains(
                         row.folder!.relativePath,
@@ -290,6 +306,9 @@ class _LocalCompactTreeContent extends StatelessWidget {
                       onOpenFolder: onOpenFolder,
                       onOpenFolderMenu: onOpenFolderMenu,
                       onToggleSelection: onToggleFolderSelection,
+                      dragPayload: _folderDragPayload(row.folder!),
+                      onWillAcceptDrop: _isMoveTargetFolder,
+                      onAcceptDrop: _moveDraggedItems,
                     )
                     : _CompactLocalSongRow(
                       song: row.song!,
@@ -316,6 +335,34 @@ class _LocalCompactTreeContent extends StatelessWidget {
       ],
     );
   }
+
+  LocalItemsDragPayload _folderDragPayload(FolderNode folder) {
+    final folderPaths =
+        selectedFolderPaths.contains(folder.relativePath)
+            ? selectedFolderPaths.map((path) => nodes[path]!.path).toList()
+            : [folder.path];
+    return LocalItemsDragPayload(songIds: const [], folderPaths: folderPaths);
+  }
+
+  bool _isMoveTargetFolder(
+    FolderNode targetFolder,
+    LocalItemsDragPayload payload,
+  ) {
+    return isMoveTargetFolder(
+      payload: payload,
+      targetFolder: targetFolder,
+      nodes: nodes,
+      songsById: songsById,
+    );
+  }
+
+  void _moveDraggedItems(FolderNode folder, LocalItemsDragPayload payload) {
+    onMoveLocalItemsToFolder(
+      songIds: payload.songIds,
+      folderPaths: payload.folderPaths,
+      targetFolderPath: folder.path,
+    );
+  }
 }
 
 class _LocalFolderGrid extends StatelessWidget {
@@ -335,6 +382,7 @@ class _LocalFolderGrid extends StatelessWidget {
     required this.onOpenFolder,
     required this.onOpenFolderMenu,
     required this.onToggleFolderSelection,
+    required this.onMoveLocalItemsToFolder,
   });
 
   final List<FolderNode> childFolders;
@@ -352,6 +400,12 @@ class _LocalFolderGrid extends StatelessWidget {
   final ValueChanged<String> onOpenFolder;
   final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
+  final void Function({
+    required List<int> songIds,
+    required List<String> folderPaths,
+    required String targetFolderPath,
+  })
+  onMoveLocalItemsToFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -361,7 +415,7 @@ class _LocalFolderGrid extends StatelessWidget {
           for (final folder in childFolders)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: LocalFolderCard(
+              child: _DraggableLocalFolderCard(
                 folder: folder,
                 selected: selectedFolderPaths.contains(folder.relativePath),
                 multiSelect: multiSelect,
@@ -377,6 +431,9 @@ class _LocalFolderGrid extends StatelessWidget {
                 onOpenFolder: onOpenFolder,
                 onOpenFolderMenu: onOpenFolderMenu,
                 onToggleSelection: onToggleFolderSelection,
+                dragPayload: _folderDragPayload(folder),
+                onWillAcceptDrop: _isMoveTargetFolder,
+                onAcceptDrop: _moveDraggedItems,
               ),
             ),
         ],
@@ -388,7 +445,7 @@ class _LocalFolderGrid extends StatelessWidget {
       runSpacing: 26,
       children: [
         for (final folder in childFolders)
-          LocalFolderCard(
+          _DraggableLocalFolderCard(
             folder: folder,
             selected: selectedFolderPaths.contains(folder.relativePath),
             multiSelect: multiSelect,
@@ -403,8 +460,124 @@ class _LocalFolderGrid extends StatelessWidget {
             onOpenFolder: onOpenFolder,
             onOpenFolderMenu: onOpenFolderMenu,
             onToggleSelection: onToggleFolderSelection,
+            dragPayload: _folderDragPayload(folder),
+            onWillAcceptDrop: _isMoveTargetFolder,
+            onAcceptDrop: _moveDraggedItems,
           ),
       ],
+    );
+  }
+
+  LocalItemsDragPayload _folderDragPayload(FolderNode folder) {
+    final folderPaths =
+        selectedFolderPaths.contains(folder.relativePath)
+            ? selectedFolderPaths.map((path) => nodes[path]!.path).toList()
+            : [folder.path];
+    return LocalItemsDragPayload(songIds: const [], folderPaths: folderPaths);
+  }
+
+  bool _isMoveTargetFolder(
+    FolderNode targetFolder,
+    LocalItemsDragPayload payload,
+  ) {
+    return isMoveTargetFolder(
+      payload: payload,
+      targetFolder: targetFolder,
+      nodes: nodes,
+      songsById: songsById,
+    );
+  }
+
+  void _moveDraggedItems(FolderNode folder, LocalItemsDragPayload payload) {
+    onMoveLocalItemsToFolder(
+      songIds: payload.songIds,
+      folderPaths: payload.folderPaths,
+      targetFolderPath: folder.path,
+    );
+  }
+}
+
+class _DraggableLocalFolderCard extends StatelessWidget {
+  const _DraggableLocalFolderCard({
+    required this.folder,
+    required this.selected,
+    required this.multiSelect,
+    required this.nodes,
+    required this.songsById,
+    required this.i18n,
+    required this.onPlayFolder,
+    required this.onAddFolder,
+    required this.onRefreshFolder,
+    required this.onSearchFolder,
+    required this.onRevealFolder,
+    required this.onOpenFolder,
+    required this.onOpenFolderMenu,
+    required this.onToggleSelection,
+    required this.dragPayload,
+    required this.onWillAcceptDrop,
+    required this.onAcceptDrop,
+    this.variant = LocalFolderCardVariant.grid,
+    this.treeExpanded,
+    this.treeExpandable = false,
+    this.onToggleTreeExpanded,
+  });
+
+  final FolderNode folder;
+  final bool selected;
+  final bool multiSelect;
+  final Map<String, FolderNode> nodes;
+  final Map<int, LibrarySong> songsById;
+  final SmPlayerI18n i18n;
+  final LocalFolderCardVariant variant;
+  final bool? treeExpanded;
+  final bool treeExpandable;
+  final VoidCallback? onToggleTreeExpanded;
+  final ValueChanged<FolderNode> onPlayFolder;
+  final ValueChanged<FolderNode> onAddFolder;
+  final ValueChanged<FolderNode> onRefreshFolder;
+  final ValueChanged<FolderNode> onSearchFolder;
+  final ValueChanged<FolderNode> onRevealFolder;
+  final ValueChanged<String> onOpenFolder;
+  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final ValueChanged<String> onToggleSelection;
+  final LocalItemsDragPayload dragPayload;
+  final bool Function(FolderNode folder, LocalItemsDragPayload payload)
+  onWillAcceptDrop;
+  final void Function(FolderNode folder, LocalItemsDragPayload payload)
+  onAcceptDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = LocalFolderCard(
+      folder: folder,
+      selected: selected,
+      multiSelect: multiSelect,
+      nodes: nodes,
+      songsById: songsById,
+      i18n: i18n,
+      variant: variant,
+      treeExpanded: treeExpanded,
+      treeExpandable: treeExpandable,
+      onToggleTreeExpanded: onToggleTreeExpanded,
+      onPlayFolder: onPlayFolder,
+      onAddFolder: onAddFolder,
+      onRefreshFolder: onRefreshFolder,
+      onSearchFolder: onSearchFolder,
+      onRevealFolder: onRevealFolder,
+      onOpenFolder: onOpenFolder,
+      onOpenFolderMenu: onOpenFolderMenu,
+      onToggleSelection: onToggleSelection,
+      onWillAcceptDrop: onWillAcceptDrop,
+      onAcceptDrop: onAcceptDrop,
+    );
+    return Draggable<LocalItemsDragPayload>(
+      data: dragPayload,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(opacity: 0.85, child: SizedBox(width: 180, child: card)),
+      ),
+      childWhenDragging: Opacity(opacity: 0.55, child: card),
+      child: card,
     );
   }
 }
@@ -458,26 +631,33 @@ class _LocalSongGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visibleSongIds = currentSongs.map((song) => song.id).toSet();
+    final effectiveSelectedSongIds =
+        selectedSongIds.where(visibleSongIds.contains).toList();
     final songGrid =
         isCompactLayout
             ? Column(
               children: [
                 for (final song in currentSongs)
-                  _CompactLocalSongRow(
-                    song: song,
-                    selected: selectedSongIds.contains(song.id),
-                    current: song.id == selectedTrackId,
-                    playing: song.id == selectedTrackId && isPlaying,
-                    selectionMode: multiSelect,
-                    i18n: i18n,
-                    onPlay: () => onPlayTrack(song.id, queueSongIds),
-                    onTogglePlayPause: onTogglePlayPause,
-                    onToggleSelection: () => onToggleSongSelection(song.id),
-                    onPlayNext: () => onPlayNext(song.id),
-                    onToggleFavorite:
-                        () => onToggleFavorite(song.id, !song.favorite),
-                    onAddSong: () => onAddSong(song),
-                    onOpenMenu: (position) => onOpenSongMenu(song, position),
+                  _DraggableLocalSong(
+                    payload: _songDragPayload(song, effectiveSelectedSongIds),
+                    feedbackWidth: 420,
+                    child: _CompactLocalSongRow(
+                      song: song,
+                      selected: selectedSongIds.contains(song.id),
+                      current: song.id == selectedTrackId,
+                      playing: song.id == selectedTrackId && isPlaying,
+                      selectionMode: multiSelect,
+                      i18n: i18n,
+                      onPlay: () => onPlayTrack(song.id, queueSongIds),
+                      onTogglePlayPause: onTogglePlayPause,
+                      onToggleSelection: () => onToggleSongSelection(song.id),
+                      onPlayNext: () => onPlayNext(song.id),
+                      onToggleFavorite:
+                          () => onToggleFavorite(song.id, !song.favorite),
+                      onAddSong: () => onAddSong(song),
+                      onOpenMenu: (position) => onOpenSongMenu(song, position),
+                    ),
                   ),
               ],
             )
@@ -486,24 +666,28 @@ class _LocalSongGrid extends StatelessWidget {
               runSpacing: 26,
               children: [
                 for (final song in currentSongs)
-                  _LocalSongGridItem(
-                    song: song,
-                    selected: selectedSongIds.contains(song.id),
-                    current: song.id == selectedTrackId,
-                    playing: song.id == selectedTrackId && isPlaying,
-                    multiSelect: multiSelect,
-                    detailLabel: getLocalSongDetailLabel(
-                      song,
-                      sortMode,
-                      currentSortMode,
-                      i18n,
+                  _DraggableLocalSong(
+                    payload: _songDragPayload(song, effectiveSelectedSongIds),
+                    feedbackWidth: 180,
+                    child: _LocalSongGridItem(
+                      song: song,
+                      selected: selectedSongIds.contains(song.id),
+                      current: song.id == selectedTrackId,
+                      playing: song.id == selectedTrackId && isPlaying,
+                      multiSelect: multiSelect,
+                      detailLabel: getLocalSongDetailLabel(
+                        song,
+                        sortMode,
+                        currentSortMode,
+                        i18n,
+                      ),
+                      i18n: i18n,
+                      onPlay: () => onPlayTrack(song.id, queueSongIds),
+                      onTogglePlayPause: onTogglePlayPause,
+                      onToggleSelection: () => onToggleSongSelection(song.id),
+                      onAddSong: () => onAddSong(song),
+                      onOpenMenu: (position) => onOpenSongMenu(song, position),
                     ),
-                    i18n: i18n,
-                    onPlay: () => onPlayTrack(song.id, queueSongIds),
-                    onTogglePlayPause: onTogglePlayPause,
-                    onToggleSelection: () => onToggleSongSelection(song.id),
-                    onAddSong: () => onAddSong(song),
-                    onOpenMenu: (position) => onOpenSongMenu(song, position),
                   ),
               ],
             );
@@ -528,6 +712,45 @@ class _LocalSongGrid extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(child: songGrid),
       ],
+    );
+  }
+
+  LocalItemsDragPayload _songDragPayload(
+    LibrarySong song,
+    List<int> effectiveSelectedSongIds,
+  ) {
+    final songIds =
+        selectedSongIds.contains(song.id) && effectiveSelectedSongIds.isNotEmpty
+            ? effectiveSelectedSongIds
+            : [song.id];
+    return LocalItemsDragPayload(songIds: songIds, folderPaths: const []);
+  }
+}
+
+class _DraggableLocalSong extends StatelessWidget {
+  const _DraggableLocalSong({
+    required this.payload,
+    required this.feedbackWidth,
+    required this.child,
+  });
+
+  final LocalItemsDragPayload payload;
+  final double feedbackWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Draggable<LocalItemsDragPayload>(
+      data: payload,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.85,
+          child: SizedBox(width: feedbackWidth, child: child),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.55, child: child),
+      child: child,
     );
   }
 }
@@ -879,4 +1102,44 @@ class _LocalCheckMark extends StatelessWidget {
       ),
     );
   }
+}
+
+bool isMoveTargetFolder({
+  required LocalItemsDragPayload payload,
+  required FolderNode targetFolder,
+  required Map<String, FolderNode> nodes,
+  required Map<int, LibrarySong> songsById,
+}) {
+  if (payload.songIds.isEmpty && payload.folderPaths.isEmpty) {
+    return false;
+  }
+
+  final targetPathKey = normalizePath(targetFolder.path);
+  final songAlreadyInTarget = payload.songIds.any((songId) {
+    final songPath = songsById[songId]!.path;
+    return normalizePath(_fileParentPath(songPath)) == targetPathKey;
+  });
+  if (songAlreadyInTarget) {
+    return false;
+  }
+
+  final nodesByAbsolutePath = {
+    for (final node in nodes.values) normalizePath(node.path): node,
+  };
+  for (final folderPath in payload.folderPaths) {
+    final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
+    if (targetFolder.relativePath == sourceFolder.relativePath ||
+        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
+        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+String _fileParentPath(String filePath) {
+  final normalized = normalizePath(filePath);
+  final separatorIndex = normalized.lastIndexOf('/');
+  return separatorIndex < 0 ? '' : normalized.substring(0, separatorIndex);
 }

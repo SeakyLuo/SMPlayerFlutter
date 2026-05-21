@@ -454,6 +454,7 @@
   "player.next": "下一首",
   "player.pause": "暫停",
   "player.play": "播放",
+  "player.playbackLoadFailed": "無法播放這首歌。",
   "player.playPause": "播放或暫停",
   "player.playbackMode": "播放模式",
   "player.playbackModeList": "清單",

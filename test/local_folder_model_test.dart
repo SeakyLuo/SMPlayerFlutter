@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/local_grid_content.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_model.dart';
 
@@ -38,6 +39,68 @@ void main() {
     expect(index.nodes['Rock']!.directSongIds, [1]);
     expect(index.nodes['Rock']!.subtreeSongIds, [2, 1]);
     expect(index.nodes['Rock/Live']!.directSongIds, [2]);
+  });
+
+  test('isMoveTargetFolder mirrors Electron local folder drop rules', () {
+    const rootPath = r'C:\Music';
+    final songs = [
+      _song(id: 1, path: r'C:\Music\Rock\B.mp3', title: 'B'),
+      _song(id: 2, path: r'C:\Music\Rock\Live\A.mp3', title: 'A'),
+    ];
+    const folders = [
+      LibraryFolder(id: 10, path: r'C:\Music\Rock', parentId: 0, criterion: 0),
+      LibraryFolder(
+        id: 11,
+        path: r'C:\Music\Rock\Live',
+        parentId: 10,
+        criterion: 0,
+      ),
+      LibraryFolder(id: 12, path: r'C:\Music\Pop', parentId: 0, criterion: 0),
+    ];
+    final index = buildFolderIndex(songs, folders, rootPath);
+
+    expect(
+      isMoveTargetFolder(
+        payload: const LocalItemsDragPayload(songIds: [1], folderPaths: []),
+        targetFolder: index.nodes['Pop']!,
+        nodes: index.nodes,
+        songsById: index.songsById,
+      ),
+      isTrue,
+    );
+    expect(
+      isMoveTargetFolder(
+        payload: const LocalItemsDragPayload(songIds: [1], folderPaths: []),
+        targetFolder: index.nodes['Rock']!,
+        nodes: index.nodes,
+        songsById: index.songsById,
+      ),
+      isFalse,
+    );
+    expect(
+      isMoveTargetFolder(
+        payload: const LocalItemsDragPayload(
+          songIds: [],
+          folderPaths: [r'C:\Music\Rock'],
+        ),
+        targetFolder: index.nodes['Rock/Live']!,
+        nodes: index.nodes,
+        songsById: index.songsById,
+      ),
+      isFalse,
+    );
+    expect(
+      isMoveTargetFolder(
+        payload: const LocalItemsDragPayload(
+          songIds: [],
+          folderPaths: [r'C:\Music\Rock\Live'],
+        ),
+        targetFolder: index.nodes['Pop']!,
+        nodes: index.nodes,
+        songsById: index.songsById,
+      ),
+      isTrue,
+    );
   });
 
   test('sortSongs keeps Electron local sort modes', () {

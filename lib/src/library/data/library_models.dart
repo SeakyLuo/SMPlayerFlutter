@@ -1,3 +1,6 @@
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LocalViewMode;
+
 enum MusicLibrarySortCriterion {
   title,
   artist,
@@ -22,6 +25,25 @@ enum PlaylistSortCriterion {
   duration,
   playCount,
   dateAdded,
+}
+
+class PendingSongDelete {
+  const PendingSongDelete({required this.id, required this.songId});
+
+  final String id;
+  final int songId;
+}
+
+class PendingLocalItemsDelete {
+  const PendingLocalItemsDelete({
+    required this.id,
+    required this.songIds,
+    required this.folderPaths,
+  });
+
+  final String id;
+  final List<int> songIds;
+  final List<String> folderPaths;
 }
 
 class LibrarySong {
@@ -403,16 +425,56 @@ class LocalFolderRefreshResult {
       artistMergeSuggestions.isNotEmpty;
 }
 
+enum LocalFolderRefreshStage { checking, reading, updating }
+
+class LocalFolderScanCanceledException implements Exception {
+  const LocalFolderScanCanceledException();
+}
+
+class LocalFolderScanCancellation {
+  var _canceled = false;
+
+  bool get isCanceled => _canceled;
+
+  void cancel() {
+    _canceled = true;
+  }
+
+  void throwIfCanceled() {
+    if (_canceled) {
+      throw const LocalFolderScanCanceledException();
+    }
+  }
+}
+
 class LocalFolderRefreshProgress {
   const LocalFolderRefreshProgress({
     required this.current,
     required this.total,
     required this.currentPath,
+    this.stage = LocalFolderRefreshStage.updating,
+    this.checkedFolderCount = 0,
+    this.folderCount = 0,
+    this.processedSongCount = 0,
+    this.songCount = 0,
+    this.addedCount = 0,
+    this.updatedCount = 0,
+    this.missingCount = 0,
+    this.canCancel = false,
   });
 
   final int current;
   final int total;
   final String currentPath;
+  final LocalFolderRefreshStage stage;
+  final int checkedFolderCount;
+  final int folderCount;
+  final int processedSongCount;
+  final int songCount;
+  final int addedCount;
+  final int updatedCount;
+  final int missingCount;
+  final bool canCancel;
 }
 
 class NowPlayingSnapshot {
@@ -440,6 +502,7 @@ class MusicLibrarySnapshot {
     this.nowPlaying = const NowPlayingSnapshot(playlistId: 0, songIds: []),
     this.showCount = true,
     this.hideMultiSelectCommandBarAfterOperation = true,
+    this.localViewMode = LocalViewMode.grid,
     this.rootPath = '',
   });
 
@@ -458,6 +521,7 @@ class MusicLibrarySnapshot {
   final AlbumSortCriterion albumsSort;
   final bool showCount;
   final bool hideMultiSelectCommandBarAfterOperation;
+  final LocalViewMode localViewMode;
   final String rootPath;
   final String databasePath;
 }

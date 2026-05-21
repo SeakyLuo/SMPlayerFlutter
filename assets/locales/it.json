@@ -454,6 +454,7 @@
   "player.next": "Brano successivo",
   "player.pause": "pausa",
   "player.play": "Riproduci",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Riproduci o metti in pausa",
   "player.playbackMode": "Modalità di riproduzione",
   "player.playbackModeList": "elenco",

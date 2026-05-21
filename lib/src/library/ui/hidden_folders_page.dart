@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/loading_state.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
@@ -32,7 +33,7 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2.5));
+      return const SmPlayerLoadingState();
     }
 
     return Padding(
@@ -55,9 +56,7 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
               future: _itemsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  );
+                  return const SmPlayerLoadingState(compact: true);
                 }
 
                 final items = snapshot.data ?? const <HiddenStorageItem>[];

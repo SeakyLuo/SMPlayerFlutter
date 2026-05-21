@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -27,6 +28,56 @@ Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
   ref.invalidate(musicLibrarySnapshotProvider);
 }
 
+Future<void> addSongsToNowPlayingWithUndo({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required List<int> songIds,
+}) async {
+  if (songIds.isEmpty) {
+    return;
+  }
+  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  final insertedIndex = snapshot.nowPlaying.songIds.length;
+  await ref.read(libraryRepositoryProvider).replaceNowPlaying([
+    ...snapshot.nowPlaying.songIds,
+    ...songIds,
+  ]);
+  ref.invalidate(musicLibrarySnapshotProvider);
+  if (!context.mounted) {
+    return;
+  }
+  showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: songsAddedUndoMessage(
+      i18n: i18n,
+      songIds: songIds,
+      songsById: songsById,
+      target: i18n.t('common.nowPlaying'),
+    ),
+    onUndo: () async {
+      final currentSongIds =
+          ref
+              .read(musicLibrarySnapshotProvider)
+              .valueOrNull
+              ?.nowPlaying
+              .songIds ??
+          [...snapshot.nowPlaying.songIds, ...songIds];
+      final nextSongIds =
+          currentSongIds.toList()..removeRange(
+            insertedIndex,
+            insertedIndex + songIds.length > currentSongIds.length
+                ? currentSongIds.length
+                : insertedIndex + songIds.length,
+          );
+      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    },
+  );
+}
+
 Future<void> addSongsToPlaylist(
   WidgetRef ref,
   int playlistId,
@@ -36,6 +87,43 @@ Future<void> addSongsToPlaylist(
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
   ref.invalidate(musicLibrarySnapshotProvider);
+}
+
+Future<void> addSongsToPlaylistWithUndo({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required int playlistId,
+  required List<int> songIds,
+}) async {
+  if (songIds.isEmpty) {
+    return;
+  }
+  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  final playlist = snapshot.playlists.firstWhere(
+    (playlist) => playlist.id == playlistId,
+  );
+  await addSongsToPlaylist(ref, playlistId, songIds);
+  if (!context.mounted) {
+    return;
+  }
+  showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: songsAddedUndoMessage(
+      i18n: i18n,
+      songIds: songIds,
+      songsById: songsById,
+      target: playlist.name,
+    ),
+    onUndo: () async {
+      await ref
+          .read(libraryRepositoryProvider)
+          .removeSongsFromPlaylist(playlistId, songIds);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    },
+  );
 }
 
 Future<void> setSongsFavorite(
@@ -50,6 +138,54 @@ Future<void> setSongsFavorite(
     mediaController.onToggleFavorite();
   }
   ref.invalidate(musicLibrarySnapshotProvider);
+}
+
+Future<void> setSongsFavoriteWithUndo({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required List<int> songIds,
+  required bool favorite,
+}) async {
+  if (songIds.isEmpty) {
+    return;
+  }
+  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  await setSongsFavorite(ref, songIds, favorite);
+  if (!context.mounted) {
+    return;
+  }
+  showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: songsAddedUndoMessage(
+      i18n: i18n,
+      songIds: songIds,
+      songsById: songsById,
+      target: i18n.t('common.myFavorites'),
+    ),
+    onUndo: () async {
+      await setSongsFavorite(ref, songIds, !favorite);
+    },
+  );
+}
+
+String songsAddedUndoMessage({
+  required SmPlayerI18n i18n,
+  required List<int> songIds,
+  required Map<int, LibrarySong> songsById,
+  required String target,
+}) {
+  return songIds.length == 1
+      ? i18n.t('notification.songAddedTo', {
+        'title': songsById[songIds.first]!.title,
+        'target': target,
+      })
+      : i18n.t('notification.songsAddedTo', {
+        'count': songIds.length,
+        'target': target,
+      });
 }
 
 Future<void> createPlaylistWithSongs({
@@ -107,13 +243,60 @@ Future<void> requestDeleteSongFromDisk({
     return;
   }
 
-  await ref.read(libraryRepositoryProvider).deleteSongFromDisk(song.id);
+  final pendingDelete = await ref
+      .read(libraryRepositoryProvider)
+      .beginDeleteSongFromDisk(song.id);
   ref.invalidate(musicLibrarySnapshotProvider);
+  if (!context.mounted) {
+    await ref
+        .read(libraryRepositoryProvider)
+        .commitDeleteSongFromDisk(pendingDelete.id);
+    return;
+  }
+
+  final closedReason = await showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: i18n.t('notification.deletedFromDisk', {'title': song.title}),
+    onUndo: () async {
+      await ref
+          .read(libraryRepositoryProvider)
+          .undoDeleteSongFromDisk(pendingDelete.id);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    },
+  );
+  if (closedReason != SnackBarClosedReason.action) {
+    await ref
+        .read(libraryRepositoryProvider)
+        .commitDeleteSongFromDisk(pendingDelete.id);
+  }
 }
 
 Future<void> hideSongFile(WidgetRef ref, int songId) async {
   await ref.read(libraryRepositoryProvider).hideSong(songId);
   ref.invalidate(musicLibrarySnapshotProvider);
+}
+
+Future<void> hideSongFileWithUndo({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required LibrarySong song,
+}) async {
+  await ref.read(libraryRepositoryProvider).hideSong(song.id);
+  ref.invalidate(musicLibrarySnapshotProvider);
+  if (!context.mounted) {
+    return;
+  }
+  showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: i18n.t('notification.hiddenStorageItem', {'name': song.title}),
+    onUndo: () async {
+      await ref.read(libraryRepositoryProvider).unhideSong(song.id);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    },
+  );
 }
 
 Future<void> moveSongToFolder(
@@ -125,6 +308,31 @@ Future<void> moveSongToFolder(
       .read(libraryRepositoryProvider)
       .moveSongToFolder(songId, folderPath);
   ref.invalidate(musicLibrarySnapshotProvider);
+}
+
+Future<void> moveSongToFolderWithUndo({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required LibrarySong song,
+  required String folderPath,
+}) async {
+  final result = await ref
+      .read(libraryRepositoryProvider)
+      .moveSongToFolder(song.id, folderPath);
+  ref.invalidate(musicLibrarySnapshotProvider);
+  if (!context.mounted || result.itemCount == 0) {
+    return;
+  }
+  showUndoableSnackBar(
+    context: context,
+    i18n: i18n,
+    message: i18n.t('notification.movedSong', {'title': song.title}),
+    onUndo: () async {
+      await ref.read(libraryRepositoryProvider).undoMoveLocalItems(result);
+      ref.invalidate(musicLibrarySnapshotProvider);
+    },
+  );
 }
 
 Future<String?> requestPlaylistName({

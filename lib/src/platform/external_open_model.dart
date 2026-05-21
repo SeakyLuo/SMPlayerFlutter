@@ -10,12 +10,14 @@ enum ExternalAppCommandKind {
   quickPlay,
   showWindow,
   toggleDesktopLyrics,
+  voiceCommand,
 }
 
 class ExternalAppCommand {
-  const ExternalAppCommand(this.kind);
+  const ExternalAppCommand(this.kind, {this.text = ''});
 
   final ExternalAppCommandKind kind;
+  final String text;
 }
 
 const smPlayerAudioExtensions = {
@@ -62,6 +64,13 @@ ExternalAppCommand? parseExternalAppCommand(String rawUrl) {
     return _parseNamedCommand(
       _decodeCommandPath(uri) ?? uri.queryParameters['name'],
     );
+  }
+
+  if (uri.host == 'voice-command') {
+    final text = _decodeCommandPath(uri) ?? uri.queryParameters['text']?.trim();
+    return text == null || text.isEmpty
+        ? null
+        : ExternalAppCommand(ExternalAppCommandKind.voiceCommand, text: text);
   }
 
   return _parseNamedCommand(

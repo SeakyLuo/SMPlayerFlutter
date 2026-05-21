@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -14,6 +14,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 enum HeaderedPlaylistType { album, playlist, favorites }
@@ -360,10 +361,15 @@ class _HeaderedPlaylistControlState
                   ? null
                   : () {
                     final songIds = _effectiveSelectedSongIds(queueSongIds);
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .setSongsFavorite(songIds, true);
-                    ref.invalidate(musicLibrarySnapshotProvider);
+                    unawaited(
+                      setSongsFavoriteWithUndo(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        songIds: songIds,
+                        favorite: true,
+                      ),
+                    );
                     _hideSelectionAfterOperation();
                   },
           onCreatePlaylist: () {
@@ -750,33 +756,14 @@ class _HeaderedPlaylistControlState
   }
 
   void _addSongsToNowPlaying(List<int> songIds) {
-    if (songIds.isEmpty) {
-      return;
-    }
-
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
-    final insertedIndex = snapshot.nowPlaying.songIds.length;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying([
-      ...snapshot.nowPlaying.songIds,
-      ...songIds,
-    ]);
-    ref.invalidate(musicLibrarySnapshotProvider);
-    _showUndoSnackBar(() async {
-      final currentSongIds =
-          ref
-              .read(musicLibrarySnapshotProvider)
-              .valueOrNull
-              ?.nowPlaying
-              .songIds ??
-          [...snapshot.nowPlaying.songIds, ...songIds];
-      final nextSongIds =
-          currentSongIds.toList()..removeRange(
-            insertedIndex,
-            min(insertedIndex + songIds.length, currentSongIds.length),
-          );
-      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
-    });
+    unawaited(
+      addSongsToNowPlayingWithUndo(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        songIds: songIds,
+      ),
+    );
   }
 
   void _commitSort(
@@ -854,16 +841,11 @@ class _HeaderedPlaylistControlState
 
   void _showUndoSnackBar(FutureOr<void> Function() onUndo) {
     final i18n = context.smPlayerI18n;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(i18n.t('notification.operationDone')),
-        action: SnackBarAction(
-          label: i18n.t('common.undo'),
-          onPressed: () {
-            unawaited(Future<void>.sync(onUndo));
-          },
-        ),
-      ),
+    showUndoableSnackBar(
+      context: context,
+      i18n: i18n,
+      message: i18n.t('notification.operationDone'),
+      onUndo: onUndo,
     );
   }
 
@@ -1056,15 +1038,7 @@ class _HeaderedPlaylistControlState
   }
 
   Future<void> _revealPath(String targetPath) async {
-    if (Platform.isWindows) {
-      await Process.start('explorer.exe', ['/select,$targetPath']);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.start('open', ['-R', targetPath]);
-      return;
-    }
-    await Process.start('xdg-open', [File(targetPath).parent.path]);
+    await revealItemInFolder(targetPath);
   }
 
   String _displayArtist(LibrarySong song, SmPlayerI18n i18n) {

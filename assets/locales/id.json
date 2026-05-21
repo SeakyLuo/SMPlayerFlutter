@@ -454,6 +454,7 @@
   "player.next": "Lagu berikutnya",
   "player.pause": "jeda",
   "player.play": "Putar",
+  "player.playbackLoadFailed": "Could not play this song.",
   "player.playPause": "Putar atau jeda",
   "player.playbackMode": "Modus pemutaran",
   "player.playbackModeList": "daftar",

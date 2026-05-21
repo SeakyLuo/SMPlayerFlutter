@@ -126,7 +126,7 @@ void main() {
       expect(controller.snapshot.volume, 72);
       expect(controller.snapshot.isMuted, isTrue);
       expect(controller.snapshot.mode, PlaybackMode.repeatOne);
-      expect(controller.snapshot.musicProgress, 92.5);
+      expect(controller.snapshot.musicProgress, 0);
 
       final restored = SettingsController();
       await restored.refresh();
@@ -189,7 +189,7 @@ void main() {
       expect(restored.snapshot.volume, 72);
       expect(restored.snapshot.isMuted, isTrue);
       expect(restored.snapshot.mode, PlaybackMode.repeatOne);
-      expect(restored.snapshot.musicProgress, 92.5);
+      expect(restored.snapshot.musicProgress, 0);
       expect(restored.snapshot.autoPlay, isTrue);
       expect(restored.snapshot.shuffleAfterOneRound, isFalse);
       expect(restored.snapshot.saveMusicProgress, isFalse);

@@ -1,14 +1,22 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/input_dialog.dart';
+import '../../app/loading_state.dart';
+import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
+import '../../platform/desktop_features.dart';
+import '../../settings/settings_model.dart'
+    show AppSettingsUpdate, LocalViewMode;
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
@@ -16,24 +24,43 @@ import 'command_bar.dart';
 import 'headered_playlist_model.dart'
     show getNextPlaylistName, validatePlaylistName;
 import 'library_page_actions.dart'
-    show hideSongFile, moveSongToFolder, requestDeleteSongFromDisk;
+    show
+        addSongsToNowPlayingWithUndo,
+        addSongsToPlaylistWithUndo,
+        hideSongFileWithUndo,
+        moveSongToFolderWithUndo,
+        requestDeleteSongFromDisk,
+        setSongsFavoriteWithUndo;
 import 'local_folder_model.dart';
 import 'local_grid_content.dart';
 import 'local_page_model.dart';
 import 'local_page_quick_jump.dart';
+import 'local_table_content.dart';
 import 'local_title_grid.dart';
+import 'music_dialog.dart';
 
 const localCompactBreakpoint = 720.0;
+
+typedef LocalScanLibraryCallback =
+    FutureOr<LocalFolderRefreshResult> Function(
+      String rootPath, {
+      LocalFolderScanCancellation? cancellation,
+      void Function(LocalFolderRefreshProgress progress)? onProgress,
+    });
 
 class LocalPage extends ConsumerStatefulWidget {
   const LocalPage({
     super.key,
     this.currentRelativePath = '',
     this.searchQuery = '',
+    this.onPickLibraryRoot,
+    this.onScanLibrary,
   });
 
   final String currentRelativePath;
   final String searchQuery;
+  final FutureOr<String?> Function()? onPickLibraryRoot;
+  final LocalScanLibraryCallback? onScanLibrary;
 
   @override
   ConsumerState<LocalPage> createState() => _LocalPageState();
@@ -52,6 +79,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   LocalFolderRefreshProgress? _refreshProgress;
   ({FolderNode folder, LocalFolderRefreshResult result})? _refreshResultDialog;
   String? _localOperationTitle;
+  LocalFolderScanCancellation? _scanCancellation;
+  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  var _rootScanRunning = false;
 
   @override
   void didUpdateWidget(LocalPage oldWidget) {
@@ -74,16 +104,16 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
 
     if (i18nValue.isLoading) {
-      return const _LocalScaffold(child: _LoadingState());
+      return const _LocalScaffold(child: SmPlayerLoadingState());
     }
 
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const _LocalScaffold(child: _LoadingState());
+      return const _LocalScaffold(child: SmPlayerLoadingState());
     }
 
     return snapshotValue.when(
-      loading: () => const _LocalScaffold(child: _LoadingState()),
+      loading: () => const _LocalScaffold(child: SmPlayerLoadingState()),
       error:
           (_, _) => _LocalScaffold(
             child: _LocalEmptyState(
@@ -106,16 +136,32 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     SmPlayerI18n i18n,
   ) {
     if (snapshot.rootPath.isEmpty) {
-      return _LocalScaffold(
-        child: _LocalEmptyState(
-          title: i18n.t('local.noRoot'),
-          message: i18n.t('local.noRootCopy'),
-          action: TextButton.icon(
-            onPressed: () => context.go('/settings'),
-            icon: const Icon(FluentIcons.settings_20_regular),
-            label: Text(i18n.t('library.chooseFolder')),
+      return Stack(
+        children: [
+          _LocalScaffold(
+            child: _LocalEmptyState(
+              title: i18n.t('local.noRoot'),
+              message: i18n.t('local.noRootCopy'),
+              action: TextButton.icon(
+                onPressed:
+                    _rootScanRunning
+                        ? null
+                        : () {
+                          unawaited(_pickAndScanLibraryRoot(i18n));
+                        },
+                icon: const Icon(FluentIcons.folder_20_regular),
+                label: Text(i18n.t('library.chooseFolder')),
+              ),
+            ),
           ),
-        ),
+          if (_refreshProgress case final progress?)
+            _LocalProgressOverlay(
+              title: _localOperationTitle ?? i18n.t('local.updateFolder'),
+              progress: progress,
+              onCancel:
+                  progress.canCancel ? () => _requestCancelScan(i18n) : null,
+            ),
+        ],
       );
     }
 
@@ -323,6 +369,18 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         },
                       ),
                       CommandBarButton(
+                        icon:
+                            snapshot.localViewMode == LocalViewMode.list
+                                ? FluentIcons.grid_24_regular
+                                : FluentIcons.text_bullet_list_ltr_24_regular,
+                        label:
+                            snapshot.localViewMode == LocalViewMode.list
+                                ? i18n.t('local.viewGrid')
+                                : i18n.t('local.viewList'),
+                        onPressed:
+                            () => _toggleLocalViewMode(snapshot.localViewMode),
+                      ),
+                      CommandBarButton(
                         icon: FluentIcons.add_24_regular,
                         label: i18n.t('local.newFolder'),
                         onPressed:
@@ -358,6 +416,96 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
                               ? _buildEmptyContent(i18n, snapshot)
+                              : snapshot.localViewMode == LocalViewMode.list
+                              ? LocalTableContent(
+                                childFolders: childFolders,
+                                currentSongs: currentSongs,
+                                selectedFolderPaths: _selectedFolderPaths,
+                                selectedSongIds: _selectedSongIds,
+                                selectedTrackId: mediaState.track.id,
+                                isPlaying: mediaState.isPlaying,
+                                multiSelect: _multiSelect,
+                                showLocalSectionHeaders:
+                                    showLocalSectionHeaders,
+                                foldersExpanded: _foldersExpanded,
+                                songsExpanded: _songsExpanded,
+                                showSongQuickJump:
+                                    currentSongs.length >= 50 &&
+                                    songQuickJumpMap.length >= 4,
+                                songQuickJumpBasisName:
+                                    getLocalSongQuickJumpBasisName(
+                                      _sortMode,
+                                      currentSortMode,
+                                      i18n,
+                                    ),
+                                songQuickJumpMap: songQuickJumpMap,
+                                queueSongIds: visibleSongIds,
+                                i18n: i18n,
+                                onToggleFoldersExpanded:
+                                    () => setState(() {
+                                      _foldersExpanded = !_foldersExpanded;
+                                    }),
+                                onToggleSongsExpanded:
+                                    () => setState(() {
+                                      _songsExpanded = !_songsExpanded;
+                                    }),
+                                onPlayFolder: (folder) => _playShuffled(folder),
+                                onAddFolder:
+                                    (folder) => _showAddToMenu(
+                                      songIds: folder.subtreeSongIds,
+                                      defaultPlaylistName: folder.name,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
+                                onRefreshFolder:
+                                    (folder) => _refreshFolder(folder, i18n),
+                                onSearchFolder:
+                                    (folder) => _searchDirectory(folder, i18n),
+                                onRevealFolder: _revealFolder,
+                                onOpenFolder: _openFolder,
+                                onOpenFolderMenu:
+                                    (folder, position) => _showFolderMenu(
+                                      position: position,
+                                      folder: folder,
+                                      nodes: nodes,
+                                      songsById: songsById,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
+                                onToggleFolderSelection: _toggleFolderSelection,
+                                onPlayTrack: _playTrack,
+                                onTogglePlayPause:
+                                    () =>
+                                        ref
+                                            .read(
+                                              mediaControlControllerProvider,
+                                            )
+                                            .onTogglePlayPause(),
+                                onToggleSongSelection: _toggleSongSelection,
+                                onPlayNext: (songId) => _playNext(songId),
+                                onAddSong:
+                                    (song) => _showAddToMenu(
+                                      songIds: [song.id],
+                                      defaultPlaylistName: song.title,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
+                                onOpenSongMenu:
+                                    (song, position) => _showSongMenu(
+                                      position: position,
+                                      song: song,
+                                      queueSongIds: visibleSongIds,
+                                      playlists: customPlaylists,
+                                      snapshot: snapshot,
+                                      i18n: i18n,
+                                    ),
+                                onJumpToSongKey:
+                                    (key) =>
+                                        _jumpToSongKey(key, songQuickJumpMap),
+                              )
                               : LocalGridContent(
                                 childFolders: childFolders,
                                 currentSongs: currentSongs,
@@ -438,6 +586,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       i18n: i18n,
                                     ),
                                 onToggleFolderSelection: _toggleFolderSelection,
+                                onMoveLocalItemsToFolder: ({
+                                  required songIds,
+                                  required folderPaths,
+                                  required targetFolderPath,
+                                }) {
+                                  _moveLocalItemsToFolder(
+                                    songIds: songIds,
+                                    folderPaths: folderPaths,
+                                    targetFolderPath: targetFolderPath,
+                                  );
+                                },
                                 onPlayTrack: _playTrack,
                                 onTogglePlayPause:
                                     () =>
@@ -637,6 +796,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 _LocalProgressOverlay(
                   title: _localOperationTitle ?? i18n.t('local.updateFolder'),
                   progress: progress,
+                  onCancel:
+                      progress.canCancel
+                          ? () => _requestCancelScan(i18n)
+                          : null,
                 ),
               if (_refreshResultDialog case final dialog?)
                 _LocalRefreshResultDialog(
@@ -645,6 +808,33 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   onClose: () {
                     setState(() {
                       _refreshResultDialog = null;
+                    });
+                  },
+                ),
+              if (_musicDialog case final dialog?)
+                MusicDialog(
+                  song: dialog.song,
+                  initialMode: dialog.mode,
+                  canPause:
+                      dialog.song.id ==
+                          ref
+                              .read(mediaControlControllerProvider)
+                              .state
+                              .track
+                              .id &&
+                      ref.read(mediaControlControllerProvider).state.isPlaying,
+                  onPlay: () {
+                    _playTrack(dialog.song.id, [dialog.song.id]);
+                  },
+                  onReveal: (path) {
+                    unawaited(revealItemInFolder(path));
+                  },
+                  onSaved: () {
+                    ref.invalidate(musicLibrarySnapshotProvider);
+                  },
+                  onClose: () {
+                    setState(() {
+                      _musicDialog = null;
                     });
                   },
                 ),
@@ -661,9 +851,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         title: i18n.t('local.noSongsScanned'),
         message: i18n.t('local.scanPopulate'),
         action: TextButton.icon(
-          onPressed: () => context.go('/settings'),
-          icon: const Icon(FluentIcons.settings_20_regular),
-          label: Text(i18n.t('local.goToSettings')),
+          onPressed:
+              _rootScanRunning
+                  ? null
+                  : () {
+                    unawaited(_scanLibraryRoot(snapshot.rootPath, i18n));
+                  },
+          icon: const Icon(FluentIcons.arrow_sync_20_regular),
+          label: Text(i18n.t('local.rescan')),
         ),
       );
     }
@@ -914,7 +1109,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   ref.invalidate(musicLibrarySnapshotProvider);
                 },
         onMoveToFolder: (folderPath) {
-          moveSongToFolder(ref, song.id, folderPath);
+          moveSongToFolderWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            song: song,
+            folderPath: folderPath,
+          );
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -925,7 +1126,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           );
         },
         onHide: () {
-          hideSongFile(ref, song.id);
+          hideSongFileWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            song: song,
+          );
         },
         onSeeArtist: () {
           final artists = getSongArtists(song);
@@ -938,12 +1144,18 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
           );
         },
-        onSeeMusicInfo: () => _showMessage(i18n.t('context.seeMusicInfo')),
-        onSeeLyrics: () => _showMessage(i18n.t('context.seeLyrics')),
-        onSeeAlbumArt: () => _showMessage(i18n.t('context.seeAlbumArt')),
+        onSeeMusicInfo: () => _openMusicDialog(song, SongDialogMode.properties),
+        onSeeLyrics: () => _openMusicDialog(song, SongDialogMode.lyrics),
+        onSeeAlbumArt: () => _openMusicDialog(song, SongDialogMode.albumArt),
         onSeeLocal: () => _revealSong(song),
       ),
     );
+  }
+
+  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+    setState(() {
+      _musicDialog = (song: song, mode: mode);
+    });
   }
 
   MenuFlyoutItem _buildFolderSortMenuItem(
@@ -1018,7 +1230,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             onPressed: () async {
               await ref
                   .read(libraryRepositoryProvider)
-                  .addPreferenceItem('folder', folder.path, folder.name, level);
+                  .addPreferenceItem(
+                    'folder',
+                    '${folder.id}',
+                    folder.name,
+                    level,
+                  );
               ref.invalidate(musicLibrarySnapshotProvider);
             },
           ),
@@ -1045,6 +1262,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           .updateLocalFolderSort(folder.path, sortMode);
       ref.invalidate(musicLibrarySnapshotProvider);
     }
+  }
+
+  Future<void> _toggleLocalViewMode(LocalViewMode currentMode) async {
+    final nextMode =
+        currentMode == LocalViewMode.list
+            ? LocalViewMode.grid
+            : LocalViewMode.list;
+    await ref
+        .read(libraryRepositoryProvider)
+        .updateSettings(AppSettingsUpdate(localViewMode: nextMode));
+    ref.invalidate(musicLibrarySnapshotProvider);
   }
 
   Future<void> _updateFolderSortMode(
@@ -1185,6 +1413,20 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     ref.invalidate(musicLibrarySnapshotProvider);
     if (mounted) {
       setState(_clearMultiSelectStatus);
+      showUndoableSnackBar(
+        context: context,
+        i18n: context.smPlayerI18n,
+        message: context.smPlayerI18n.t('notification.hiddenStorageItem', {
+          'name':
+              folder.name.isEmpty
+                  ? context.smPlayerI18n.t('local.libraryRoot')
+                  : folder.name,
+        }),
+        onUndo: () async {
+          await ref.read(libraryRepositoryProvider).unhideFolder(folder.path);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+      );
     }
   }
 
@@ -1354,13 +1596,28 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       );
     });
     try {
-      await ref
+      final result = await ref
           .read(libraryRepositoryProvider)
           .moveLocalItemsToFolder(songIds, folderPaths, targetFolderPath);
       if (!mounted) {
         return;
       }
       ref.invalidate(musicLibrarySnapshotProvider);
+      if (result.itemCount > 0) {
+        showUndoableSnackBar(
+          context: context,
+          i18n: context.smPlayerI18n,
+          message: context.smPlayerI18n.t('notification.movedLocalItems', {
+            'count': result.itemCount,
+          }),
+          onUndo: () async {
+            await ref
+                .read(libraryRepositoryProvider)
+                .undoMoveLocalItems(result);
+            ref.invalidate(musicLibrarySnapshotProvider);
+          },
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -1372,12 +1629,16 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   Future<void> _refreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
+    final cancellation = LocalFolderScanCancellation();
     setState(() {
+      _scanCancellation = cancellation;
       _localOperationTitle = i18n.t('local.updateFolderProgressTitle');
       _refreshProgress = const LocalFolderRefreshProgress(
         current: 0,
         total: 1,
         currentPath: '',
+        stage: LocalFolderRefreshStage.checking,
+        canCancel: true,
       );
     });
 
@@ -1386,6 +1647,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           .read(libraryRepositoryProvider)
           .refreshLocalFolder(
             folder.path,
+            cancellation: cancellation,
             onProgress: (progress) {
               if (!mounted) {
                 return;
@@ -1402,17 +1664,124 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       setState(() {
         _refreshProgress = null;
         _localOperationTitle = null;
+        _scanCancellation = null;
         _refreshResultDialog = (folder: folder, result: result);
       });
       _showMessage(_formatLocalRefreshResult(result, i18n));
+    } on LocalFolderScanCanceledException {
+      if (mounted) {
+        setState(() {
+          _refreshProgress = null;
+          _localOperationTitle = null;
+          _scanCancellation = null;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
           _refreshProgress = null;
           _localOperationTitle = null;
+          _scanCancellation = null;
         });
         _showMessage(i18n.t('local.updateFolder'));
       }
+    }
+  }
+
+  Future<void> _pickAndScanLibraryRoot(SmPlayerI18n i18n) async {
+    final selectedRootPath =
+        widget.onPickLibraryRoot == null
+            ? await FilePicker.getDirectoryPath()
+            : await widget.onPickLibraryRoot!();
+    if (selectedRootPath == null || selectedRootPath.isEmpty) {
+      return;
+    }
+    await _scanLibraryRoot(selectedRootPath, i18n);
+  }
+
+  Future<void> _scanLibraryRoot(String rootPath, SmPlayerI18n i18n) async {
+    if (_rootScanRunning) {
+      return;
+    }
+    final cancellation = LocalFolderScanCancellation();
+    setState(() {
+      _rootScanRunning = true;
+      _scanCancellation = cancellation;
+      _localOperationTitle = i18n.t('library.scanning');
+      _refreshProgress = const LocalFolderRefreshProgress(
+        current: 0,
+        total: 1,
+        currentPath: '',
+        stage: LocalFolderRefreshStage.checking,
+        canCancel: true,
+      );
+    });
+    try {
+      final result =
+          widget.onScanLibrary == null
+              ? await ref
+                  .read(libraryRepositoryProvider)
+                  .scanAllMusicLibrary(
+                    rootPath,
+                    cancellation: cancellation,
+                    onProgress: _setScanProgress,
+                  )
+              : await widget.onScanLibrary!(
+                rootPath,
+                cancellation: cancellation,
+                onProgress: _setScanProgress,
+              );
+      ref.invalidate(musicLibrarySnapshotProvider);
+      if (mounted) {
+        setState(() {
+          _refreshResultDialog = (
+            folder: createFolderNode('', rootPath),
+            result: result,
+          );
+        });
+      }
+    } on LocalFolderScanCanceledException {
+      if (mounted) {
+        setState(() {
+          _refreshProgress = null;
+          _localOperationTitle = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _rootScanRunning = false;
+          _scanCancellation = null;
+          _refreshProgress = null;
+          _localOperationTitle = null;
+        });
+      }
+    }
+  }
+
+  void _setScanProgress(LocalFolderRefreshProgress progress) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _refreshProgress = progress;
+    });
+  }
+
+  Future<void> _requestCancelScan(SmPlayerI18n i18n) async {
+    final cancellation = _scanCancellation;
+    if (cancellation == null) {
+      return;
+    }
+    final confirmed = await showSmPlayerConfirmDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('local.updateFolderProgressStopConfirmTitle'),
+      message: i18n.t('local.updateFolderProgressStopConfirmMessage'),
+      confirmText: i18n.t('local.updateFolderProgressStopConfirm'),
+    );
+    if (confirmed) {
+      cancellation.cancel();
     }
   }
 
@@ -1421,39 +1790,29 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required List<String> folderPaths,
     required SmPlayerI18n i18n,
   }) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (dialogContext) => AlertDialog(
-                title: Text(i18n.t('context.deleteFromDisk')),
-                content: Text(
-                  _formatDeleteSelectedLocalItemsConfirm(
-                    i18n,
-                    songIds.length + folderPaths.length,
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: Text(i18n.t('common.cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: Text(i18n.t('context.deleteFromDisk')),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await showSmPlayerConfirmDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('context.deleteFromDisk'),
+      message: _formatDeleteSelectedLocalItemsConfirm(
+        i18n,
+        songIds.length + folderPaths.length,
+      ),
+      confirmText: i18n.t('context.deleteFromDisk'),
+    );
     if (!confirmed) {
       return;
     }
 
-    await ref
+    final pendingDelete = await ref
         .read(libraryRepositoryProvider)
-        .deleteLocalItems(songIds, folderPaths);
-    ref.invalidate(musicLibrarySnapshotProvider);
+        .beginDeleteLocalItems(songIds, folderPaths);
+    await _showPendingLocalItemsDeleteUndo(
+      pendingDelete.id,
+      i18n.t('notification.deletedLocalItems', {
+        'count': songIds.length + folderPaths.length,
+      }),
+    );
     if (mounted) {
       setState(() {
         _clearMultiSelectStatus();
@@ -1465,36 +1824,54 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     FolderNode folder,
     SmPlayerI18n i18n,
   ) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (dialogContext) => AlertDialog(
-                title: Text(i18n.t('local.deleteFolder')),
-                content: Text(
-                  i18n.t('local.deleteFolderConfirm', {'name': folder.name}),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: Text(i18n.t('common.cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: Text(i18n.t('local.deleteFolder')),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await showSmPlayerConfirmDialog(
+      context: context,
+      i18n: i18n,
+      title: i18n.t('local.deleteFolder'),
+      message: i18n.t('local.deleteFolderConfirm', {'name': folder.name}),
+      confirmText: i18n.t('local.deleteFolder'),
+    );
     if (!confirmed) {
       return;
     }
 
-    await ref.read(libraryRepositoryProvider).deleteLocalItems(const [], [
-      folder.path,
-    ]);
+    final pendingDelete = await ref
+        .read(libraryRepositoryProvider)
+        .beginDeleteLocalItems(const [], [folder.path]);
+    await _showPendingLocalItemsDeleteUndo(
+      pendingDelete.id,
+      i18n.t('notification.deletedLocalItems', {'count': 1}),
+    );
+  }
+
+  Future<void> _showPendingLocalItemsDeleteUndo(
+    String deleteId,
+    String message,
+  ) async {
     ref.invalidate(musicLibrarySnapshotProvider);
+    if (!mounted) {
+      await ref
+          .read(libraryRepositoryProvider)
+          .commitDeleteLocalItems(deleteId);
+      return;
+    }
+
+    final closedReason = await showUndoableSnackBar(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: message,
+      onUndo: () async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .undoDeleteLocalItems(deleteId);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
+    );
+    if (closedReason != SnackBarClosedReason.action) {
+      await ref
+          .read(libraryRepositoryProvider)
+          .commitDeleteLocalItems(deleteId);
+    }
   }
 
   String _getAbsoluteParentPath(String filePath) {
@@ -1716,86 +2093,44 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required String Function(String value) validate,
     String? title,
   }) async {
-    final controller = TextEditingController(text: defaultName);
-    String? errorText;
-    final result = await showDialog<String>(
+    final result = await showSmPlayerInputDialog(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: Text(title ?? i18n.t('local.newFolderPrompt')),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(errorText: errorText),
-                onSubmitted: (_) {
-                  final name = controller.text.trim();
-                  final validation = validate(name);
-                  if (validation.isNotEmpty) {
-                    setDialogState(() {
-                      errorText = validation;
-                    });
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(name);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(i18n.t('common.cancel')),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final name = controller.text.trim();
-                    final validation = validate(name);
-                    if (validation.isNotEmpty) {
-                      setDialogState(() {
-                        errorText = validation;
-                      });
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(name);
-                  },
-                  child: Text(i18n.t('playlists.create')),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      i18n: i18n,
+      title: title ?? i18n.t('local.newFolderPrompt'),
+      defaultValue: defaultName,
+      confirmText: i18n.t('playlists.create'),
+      validate: validate,
     );
-    controller.dispose();
     return result;
   }
 
   void _addSongsToNowPlaying(List<int> songIds) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying([
-      ...snapshot.nowPlaying.songIds,
-      ...songIds,
-    ]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    addSongsToNowPlayingWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+    );
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    await addSongsToPlaylistWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      playlistId: playlistId,
+      songIds: songIds,
+    );
   }
 
   Future<void> _toggleSongsFavorite(List<int> songIds, bool favorite) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .setSongsFavorite(songIds, favorite);
-    final mediaController = ref.read(mediaControlControllerProvider);
-    if (songIds.contains(mediaController.state.track.id) &&
-        mediaController.state.track.favorite != favorite) {
-      mediaController.onToggleFavorite();
-    }
-    ref.invalidate(musicLibrarySnapshotProvider);
+    await setSongsFavoriteWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      favorite: favorite,
+    );
   }
 
   void _showAddToMenu({
@@ -1857,70 +2192,17 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required String defaultName,
     required List<LibraryPlaylist> playlists,
   }) async {
-    final controller = TextEditingController(text: defaultName);
-    String? errorText;
-    final result = await showDialog<String>(
+    final result = await showSmPlayerInputDialog(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: Text(i18n.t('playlists.createNew')),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: i18n.t('playlists.namePlaceholder'),
-                  errorText: errorText,
-                ),
-                onSubmitted: (_) {
-                  final name = controller.text.trim();
-                  final validation = validatePlaylistName(
-                    name,
-                    playlists,
-                    '',
-                    i18n,
-                  );
-                  if (validation.isNotEmpty) {
-                    setDialogState(() {
-                      errorText = validation;
-                    });
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(name);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(i18n.t('common.cancel')),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final name = controller.text.trim();
-                    final validation = validatePlaylistName(
-                      name,
-                      playlists,
-                      '',
-                      i18n,
-                    );
-                    if (validation.isNotEmpty) {
-                      setDialogState(() {
-                        errorText = validation;
-                      });
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(name);
-                  },
-                  child: Text(i18n.t('playlists.create')),
-                ),
-              ],
-            );
-          },
-        );
+      i18n: i18n,
+      title: i18n.t('playlists.createNew'),
+      defaultValue: defaultName,
+      placeholder: i18n.t('playlists.namePlaceholder'),
+      confirmText: i18n.t('playlists.create'),
+      validate: (name) {
+        return validatePlaylistName(name, playlists, '', i18n);
       },
     );
-    controller.dispose();
     return result;
   }
 
@@ -1952,9 +2234,15 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     FolderNode folder,
     SmPlayerI18n i18n,
   ) async {
-    return showDialog<String>(
+    return showSmPlayerInputDialog(
       context: context,
-      builder: (_) => _SearchDirectoryDialog(folder: folder, i18n: i18n),
+      i18n: i18n,
+      title: i18n.t('local.searchDirectoryPrompt', {'name': folder.name}),
+      defaultValue: '',
+      confirmText: i18n.t('common.search'),
+      validate: (query) {
+        return query.isEmpty ? i18n.t('local.searchQueryEmpty') : '';
+      },
     );
   }
 
@@ -1973,31 +2261,11 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   Future<void> _revealFolder(FolderNode folder) async {
-    if (Platform.isWindows) {
-      await Process.run('explorer', [folder.path]);
-      return;
-    }
-
-    if (Platform.isMacOS) {
-      await Process.run('open', [folder.path]);
-      return;
-    }
-
-    await Process.run('xdg-open', [folder.path]);
+    await openFolderInShell(folder.path);
   }
 
   Future<void> _revealSong(LibrarySong song) async {
-    if (Platform.isWindows) {
-      await Process.run('explorer', ['/select,', song.path]);
-      return;
-    }
-
-    if (Platform.isMacOS) {
-      await Process.run('open', ['-R', song.path]);
-      return;
-    }
-
-    await Process.run('xdg-open', [_getAbsoluteParentPath(song.path)]);
+    await revealItemInFolder(song.path);
   }
 
   void _jumpToSongKey(String key, Map<String, int> songQuickJumpMap) {
@@ -2115,72 +2383,43 @@ class _LocalContentPanel extends StatelessWidget {
   }
 }
 
-class _SearchDirectoryDialog extends StatefulWidget {
-  const _SearchDirectoryDialog({required this.folder, required this.i18n});
-
-  final FolderNode folder;
-  final SmPlayerI18n i18n;
-
-  @override
-  State<_SearchDirectoryDialog> createState() => _SearchDirectoryDialogState();
-}
-
-class _SearchDirectoryDialogState extends State<_SearchDirectoryDialog> {
-  final _controller = TextEditingController();
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = widget.i18n;
-    return AlertDialog(
-      title: Text(
-        i18n.t('local.searchDirectoryPrompt', {'name': widget.folder.name}),
-      ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: InputDecoration(errorText: _errorText),
-        onSubmitted: (_) => _confirm(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(i18n.t('common.cancel')),
-        ),
-        FilledButton(onPressed: _confirm, child: Text(i18n.t('common.search'))),
-      ],
-    );
-  }
-
-  void _confirm() {
-    final query = _controller.text.trim();
-    if (query.isEmpty) {
-      setState(() {
-        _errorText = widget.i18n.t('local.searchQueryEmpty');
-      });
-      return;
-    }
-
-    Navigator.of(context).pop(query);
-  }
-}
-
 class _LocalProgressOverlay extends StatelessWidget {
-  const _LocalProgressOverlay({required this.title, required this.progress});
+  const _LocalProgressOverlay({
+    required this.title,
+    required this.progress,
+    required this.onCancel,
+  });
 
   final String title;
   final LocalFolderRefreshProgress progress;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final value = progress.current / progress.total;
+    final stageText = switch (progress.stage) {
+      LocalFolderRefreshStage.checking => i18n.t(
+        'local.updateFolderProgressActionChecking',
+      ),
+      LocalFolderRefreshStage.reading => i18n.t(
+        'local.updateFolderProgressActionReading',
+      ),
+      LocalFolderRefreshStage.updating => i18n.t(
+        'local.updateFolderProgressActionUpdating',
+      ),
+    };
+    final countText = switch (progress.stage) {
+      LocalFolderRefreshStage.checking => i18n.t(
+        'local.updateFolderProgressChecked',
+        {'count': progress.current, 'total': progress.total},
+      ),
+      LocalFolderRefreshStage.reading ||
+      LocalFolderRefreshStage.updating => i18n.t(
+        'local.updateFolderProgressProcessedSongs',
+        {'count': progress.processedSongCount, 'total': progress.songCount},
+      ),
+    };
 
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.28),
@@ -2197,28 +2436,66 @@ class _LocalProgressOverlay extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: LocalPageColors.textStrong,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (onCancel != null)
+                    TextButton(
+                      onPressed: onCancel,
+                      child: Text(i18n.t('local.updateFolderProgressStop')),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Text(
-                title,
+                stageText,
                 style: const TextStyle(
                   color: LocalPageColors.textStrong,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 12),
               LinearProgressIndicator(value: value.clamp(0, 1).toDouble()),
               const SizedBox(height: 10),
-              Text(
-                i18n.t('local.updateFolderProgressProcessedItems', {
-                  'count': progress.current,
-                  'total': progress.total,
-                }),
-                style: const TextStyle(color: LocalPageColors.textMuted),
+              Wrap(
+                spacing: 14,
+                runSpacing: 6,
+                children: [
+                  Text(
+                    countText,
+                    style: const TextStyle(color: LocalPageColors.textMuted),
+                  ),
+                  Text(
+                    '${i18n.t('local.updateFolderProgressAdded')}: ${progress.addedCount}',
+                    style: const TextStyle(color: LocalPageColors.textMuted),
+                  ),
+                  Text(
+                    '${i18n.t('local.updateFolderProgressUpdated')}: ${progress.updatedCount}',
+                    style: const TextStyle(color: LocalPageColors.textMuted),
+                  ),
+                  Text(
+                    '${i18n.t('local.updateFolderProgressMissing')}: ${progress.missingCount}',
+                    style: const TextStyle(color: LocalPageColors.textMuted),
+                  ),
+                ],
               ),
               if (progress.currentPath.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  _fileTitle(progress.currentPath),
+                  progress.stage == LocalFolderRefreshStage.checking
+                      ? i18n.t('local.updateFolderProgressCurrentFolder', {
+                        'name': _fileTitle(progress.currentPath),
+                      })
+                      : _fileTitle(progress.currentPath),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: LocalPageColors.textMuted),
@@ -2420,20 +2697,6 @@ class _LocalArtistRefreshSection extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox.square(
-        dimension: 30,
-        child: CircularProgressIndicator(strokeWidth: 2.5),
       ),
     );
   }
