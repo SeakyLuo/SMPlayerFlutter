@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
@@ -1597,8 +1596,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return sourceFolders.every(
         (sourceFolder) =>
             folder.relativePath != sourceFolder.relativePath &&
-            folder.relativePath != getParentPath(sourceFolder.relativePath) &&
-            !folder.relativePath.startsWith('${sourceFolder.relativePath}/'),
+            folder.relativePath != getParentPath(sourceFolder.relativePath),
       );
     }
 
@@ -2085,6 +2083,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required String rootPath,
     required SmPlayerI18n i18n,
   }) async {
+    final repository = ref.read(libraryRepositoryProvider);
     final name = await _requestFolderName(
       i18n: i18n,
       defaultName: _nextFolderName(parent.relativePath, nodes, i18n),
@@ -2103,8 +2102,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
     final relativePath =
         parent.relativePath.isEmpty ? name : '${parent.relativePath}/$name';
-    final folder = createFolderNode(relativePath, rootPath);
-    await Directory(folder.path).create();
+    await repository.createLocalFolder(rootPath, parent.relativePath, name);
     if (!mounted) {
       return;
     }
@@ -2112,6 +2110,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     setState(() {
       _createdFolderPaths.add(relativePath);
     });
+    ref.invalidate(musicLibrarySnapshotProvider);
   }
 
   String _nextFolderName(
@@ -2598,7 +2597,7 @@ class _LocalProgressOverlay extends StatelessWidget {
   }
 }
 
-class _LocalRefreshResultDialog extends StatelessWidget {
+class _LocalRefreshResultDialog extends StatefulWidget {
   const _LocalRefreshResultDialog({
     required this.folder,
     required this.result,
@@ -2610,8 +2609,73 @@ class _LocalRefreshResultDialog extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<_LocalRefreshResultDialog> createState() =>
+      _LocalRefreshResultDialogState();
+}
+
+class _LocalRefreshResultDialogState extends State<_LocalRefreshResultDialog> {
+  late _LocalRefreshResultTab _activeTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeTab = _initialTab();
+  }
+
+  _LocalRefreshResultTab _initialTab() {
+    if (_artistUpdateCount > 0) {
+      return _LocalRefreshResultTab.artists;
+    }
+    if (widget.result.filesAdded.isNotEmpty) {
+      return _LocalRefreshResultTab.added;
+    }
+    if (widget.result.filesRemoved.isNotEmpty) {
+      return _LocalRefreshResultTab.removed;
+    }
+    if (widget.result.filesMoved.isNotEmpty) {
+      return _LocalRefreshResultTab.moved;
+    }
+    return _LocalRefreshResultTab.added;
+  }
+
+  int get _artistUpdateCount =>
+      widget.result.artistSplitsApplied.length +
+      widget.result.artistSplitSuggestions.length +
+      widget.result.artistMergeSuggestions.length;
+
+  @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final tabs = [
+      if (widget.result.filesAdded.isNotEmpty)
+        _LocalRefreshTabItem(
+          tab: _LocalRefreshResultTab.added,
+          label: i18n.t('local.refreshAddedTab'),
+          count: widget.result.filesAdded.length,
+          icon: FluentIcons.music_note_2_20_regular,
+        ),
+      if (widget.result.filesRemoved.isNotEmpty)
+        _LocalRefreshTabItem(
+          tab: _LocalRefreshResultTab.removed,
+          label: i18n.t('local.refreshRemovedTab'),
+          count: widget.result.filesRemoved.length,
+          icon: FluentIcons.music_note_2_20_regular,
+        ),
+      if (widget.result.filesMoved.isNotEmpty)
+        _LocalRefreshTabItem(
+          tab: _LocalRefreshResultTab.moved,
+          label: i18n.t('local.refreshMovedTab'),
+          count: widget.result.filesMoved.length,
+          icon: FluentIcons.music_note_2_20_regular,
+        ),
+      if (_artistUpdateCount > 0)
+        _LocalRefreshTabItem(
+          tab: _LocalRefreshResultTab.artists,
+          label: i18n.t('local.refreshArtistUpdatesTab'),
+          count: _artistUpdateCount,
+          icon: FluentIcons.people_20_regular,
+        ),
+    ];
 
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.28),
@@ -2635,9 +2699,9 @@ class _LocalRefreshResultDialog extends StatelessWidget {
                     child: Text(
                       i18n.t('local.updateResultOfFolder', {
                         'name':
-                            folder.name.isEmpty
+                            widget.folder.name.isEmpty
                                 ? i18n.t('local.libraryRoot')
-                                : folder.name,
+                                : widget.folder.name,
                       }),
                       style: const TextStyle(
                         color: LocalPageColors.textStrong,
@@ -2648,50 +2712,148 @@ class _LocalRefreshResultDialog extends StatelessWidget {
                   ),
                   IconButton(
                     tooltip: i18n.t('common.close'),
-                    onPressed: onClose,
+                    onPressed: widget.onClose,
                     icon: const Icon(FluentIcons.dismiss_24_regular),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (!result.hasChanges)
-                        Text(
+                child:
+                    !widget.result.hasChanges
+                        ? Text(
                           i18n.t('local.refreshNoChange'),
                           style: const TextStyle(
                             color: LocalPageColors.textMuted,
                           ),
+                        )
+                        : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  for (final tab in tabs)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: _LocalRefreshTabButton(
+                                        item: tab,
+                                        selected: tab.tab == _activeTab,
+                                        onPressed: () {
+                                          setState(() {
+                                            _activeTab = tab.tab;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Expanded(child: _buildActiveTabContent()),
+                          ],
                         ),
-                      _LocalRefreshSection(
-                        title: i18n.t('local.refreshAddedGroup', {
-                          'count': result.filesAdded.length,
-                        }),
-                        folderPath: folder.path,
-                        paths: result.filesAdded,
-                      ),
-                      _LocalRefreshSection(
-                        title: i18n.t('local.refreshRemovedGroup', {
-                          'count': result.filesRemoved.length,
-                        }),
-                        folderPath: folder.path,
-                        paths: result.filesRemoved,
-                      ),
-                      _LocalRefreshSection(
-                        title: i18n.t('local.refreshMovedGroup', {
-                          'count': result.filesMoved.length,
-                        }),
-                        folderPath: folder.path,
-                        paths: result.filesMoved,
-                      ),
-                      if (result.artistSplitsApplied.isNotEmpty ||
-                          result.artistSplitSuggestions.isNotEmpty)
-                        _LocalArtistRefreshSection(result: result),
-                    ],
-                  ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveTabContent() {
+    return switch (_activeTab) {
+      _LocalRefreshResultTab.added => _LocalRefreshSection(
+        folderPath: widget.folder.path,
+        paths: widget.result.filesAdded,
+      ),
+      _LocalRefreshResultTab.removed => _LocalRefreshSection(
+        folderPath: widget.folder.path,
+        paths: widget.result.filesRemoved,
+      ),
+      _LocalRefreshResultTab.moved => _LocalRefreshSection(
+        folderPath: widget.folder.path,
+        paths: widget.result.filesMoved,
+      ),
+      _LocalRefreshResultTab.artists => _LocalArtistRefreshSection(
+        result: widget.result,
+      ),
+    };
+  }
+}
+
+enum _LocalRefreshResultTab { added, removed, moved, artists }
+
+class _LocalRefreshTabItem {
+  const _LocalRefreshTabItem({
+    required this.tab,
+    required this.label,
+    required this.count,
+    required this.icon,
+  });
+
+  final _LocalRefreshResultTab tab;
+  final String label;
+  final int count;
+  final IconData icon;
+}
+
+class _LocalRefreshTabButton extends StatelessWidget {
+  const _LocalRefreshTabButton({
+    required this.item,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final _LocalRefreshTabItem item;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color:
+          selected
+              ? LocalPageColors.accentSoft
+              : LocalPageColors.surfaceCardHover,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onPressed,
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color:
+                  selected
+                      ? LocalPageColors.accentStrong
+                      : LocalPageColors.panelBorder,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(item.icon, size: 18, color: LocalPageColors.accentStrong),
+              const SizedBox(width: 7),
+              Text(
+                item.label,
+                style: TextStyle(
+                  color:
+                      selected
+                          ? LocalPageColors.textStrong
+                          : LocalPageColors.textMuted,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                item.count.toString(),
+                style: const TextStyle(
+                  color: LocalPageColors.textStrong,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
@@ -2703,13 +2865,8 @@ class _LocalRefreshResultDialog extends StatelessWidget {
 }
 
 class _LocalRefreshSection extends StatelessWidget {
-  const _LocalRefreshSection({
-    required this.title,
-    required this.folderPath,
-    required this.paths,
-  });
+  const _LocalRefreshSection({required this.folderPath, required this.paths});
 
-  final String title;
   final String folderPath;
   final List<String> paths;
 
@@ -2719,31 +2876,36 @@ class _LocalRefreshSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: LocalPageColors.textStrong,
-              fontWeight: FontWeight.w800,
-            ),
+    return ListView.builder(
+      itemExtent: 58,
+      itemCount: paths.length,
+      itemBuilder: (context, index) {
+        final path = paths[index];
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color:
+                index.isEven
+                    ? LocalPageColors.surfaceCardHover
+                    : LocalPageColors.panel,
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(height: 8),
-          for (final path in paths)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
               child: Text(
                 _relativeFileTitle(path, folderPath),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: LocalPageColors.textMuted),
+                style: const TextStyle(
+                  color: LocalPageColors.textStrong,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2760,6 +2922,7 @@ class _LocalArtistRefreshSection extends StatelessWidget {
     final items = [
       ...result.artistSplitsApplied,
       ...result.artistSplitSuggestions,
+      ...result.artistMergeSuggestions,
     ];
 
     return Padding(

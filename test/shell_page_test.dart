@@ -396,6 +396,25 @@ void main() {
     expect(desktopService.trayStates.last.isWindowVisible, isFalse);
   });
 
+  testWidgets('sidebar titlebar drag calls desktop drag bridge', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(_ShellPageTestApp(desktopService: desktopService));
+    await tester.pump();
+
+    final titleCenter = tester.getCenter(find.text('app.shell'));
+    final gesture = await tester.startGesture(titleCenter);
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(desktopService.startWindowDragCount, 1);
+    expect(desktopService.stopWindowDragCount, 1);
+  });
+
   testWidgets('shell shows window for external show-window command', (
     tester,
   ) async {
@@ -538,6 +557,8 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   var windowFullScreen = false;
   var showWindowCount = 0;
   var toggleWindowVisibilityCount = 0;
+  var startWindowDragCount = 0;
+  var stopWindowDragCount = 0;
   bool? windowControlsLight;
 
   void emit(DesktopFeatureAction action) {
@@ -581,6 +602,16 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
 
   @override
   Future<void> exitMiniMode() async {}
+
+  @override
+  Future<void> startWindowDrag() async {
+    startWindowDragCount += 1;
+  }
+
+  @override
+  Future<void> stopWindowDrag() async {
+    stopWindowDragCount += 1;
+  }
 
   @override
   Future<void> setWindowFullScreen(bool fullScreen) async {

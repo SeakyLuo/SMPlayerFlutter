@@ -1129,8 +1129,7 @@ bool isMoveTargetFolder({
   for (final folderPath in payload.folderPaths) {
     final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
     if (targetFolder.relativePath == sourceFolder.relativePath ||
-        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
-        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
+        targetFolder.relativePath == getParentPath(sourceFolder.relativePath)) {
       return false;
     }
   }

@@ -138,6 +138,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         final sections = _buildSections(results, criteria);
         final visibleSections = _visibleSections(sections);
         final selectedSongIds = _selectedSongIds(results);
+        final selectedItemCount = _selectedItemCount(results);
         final selectedKeys = _selectableKeys(sections);
 
         return SmPlayerI18nScope(
@@ -269,7 +270,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ),
               MultiSelectCommandBar(
                 visible: _selection.multiSelect,
-                selectedCount: selectedSongIds.length,
+                selectedCount: selectedItemCount,
                 playlists: _customPlaylists(snapshot.playlists),
                 showAddTo: true,
                 addToSongIds: selectedSongIds,
@@ -620,8 +621,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   List<String> _selectableKeys(List<_SearchSectionData> sections) {
     return [
       for (final section in _visibleSections(sections))
-        ...section.visibleKeys(_activeFilter == SearchFilterKey.all),
+        ...section.visibleKeys(),
     ];
+  }
+
+  int _selectedItemCount(SearchResults results) {
+    final selectedKeys = _selection.selectedItems;
+    var count = 0;
+    for (final song in results.songs) {
+      if (selectedKeys.contains(_songSelectionKey(song))) {
+        count += 1;
+      }
+    }
+    for (final section in [
+      (SearchResultType.artists, results.artists),
+      (SearchResultType.albums, results.albums),
+      (SearchResultType.playlists, results.playlists),
+      (SearchResultType.folders, results.folders),
+    ]) {
+      for (final card in section.$2) {
+        if (selectedKeys.contains(getSearchResultCardKey(section.$1, card))) {
+          count += 1;
+        }
+      }
+    }
+    return count;
   }
 
   List<int> _selectedSongIds(SearchResults results) {
@@ -759,7 +783,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final query = await showPopupTextDialog(
       context: context,
       title: i18n.t('local.searchDirectoryPrompt', {'name': card.title}),
-      initialValue: widget.query.trim(),
+      initialValue: '',
       confirmLabel: i18n.t('common.search'),
     );
     if (query == null || !mounted) {
@@ -828,7 +852,7 @@ class _SearchSectionData {
 
   int get count => type == SearchResultType.songs ? songs.length : cards.length;
 
-  List<String> visibleKeys(bool preview) {
+  List<String> visibleKeys({bool preview = false}) {
     final itemCount = (preview ? count.clamp(0, previewLimit) : count).toInt();
     return type == SearchResultType.songs
         ? [for (final song in songs.take(itemCount)) _songSelectionKey(song)]
@@ -1403,9 +1427,7 @@ class _SearchResultSection extends StatelessWidget {
           icon: FluentIcons.select_all_on_20_regular,
           onPressed: () {
             selection.enterMultiSelect();
-            if (!selection.isSelected(cardKey)) {
-              selection.toggle(cardKey);
-            }
+            selection.selectSingle(cardKey);
             onSelectionChanged();
           },
         ),

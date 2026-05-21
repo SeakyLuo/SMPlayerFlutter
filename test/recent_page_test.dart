@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -66,6 +70,13 @@ void main() {
       'recent.artists': 'Artists',
       'recent.albums': 'Albums',
       'recent.playlists': 'Playlists',
+      'recent.time.today': 'Today',
+      'recent.time.yesterday': 'Yesterday',
+      'recent.time.recent7Days': 'Last 7 days',
+      'recent.time.thisMonth': 'This month',
+      'recent.time.recent30Days': 'Last 30 days',
+      'recent.time.month1': 'January',
+      'recent.time.month2': 'February',
     },
   );
 
@@ -246,6 +257,190 @@ void main() {
     expect(repository.restoredRecentSearches.single.query, 'blue');
   });
 
+  testWidgets('RecentPage opens recent searches with their saved type', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final router = GoRouter(
+      initialLocation: '/recent',
+      routes: [
+        GoRoute(
+          path: '/recent',
+          builder: (_, _) => const Scaffold(body: RecentPage()),
+        ),
+        GoRoute(
+          path: '/artists',
+          builder:
+              (_, state) =>
+                  Text('artist:${state.uri.queryParameters['artist']}'),
+        ),
+        GoRoute(
+          path: '/search',
+          builder:
+              (_, state) => Text(
+                'search:${state.uri.queryParameters['query']}:${state.uri.queryParameters['type']}',
+              ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _RecentRouterTestApp(
+        router: router,
+        snapshot: _snapshotWithArtistSearch,
+        i18n: i18n,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches  1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Artist A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('artist:Artist A'), findsOneWidget);
+  });
+
+  testWidgets('RecentPage search history uses Electron type icons', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithArtistSearch, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches  1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(FluentIcons.people_20_regular), findsOneWidget);
+    expect(find.byIcon(FluentIcons.search_20_regular), findsNothing);
+  });
+
+  testWidgets('RecentPage played collections are grouped by time', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentAlbums, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played  2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Albums'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2025.01'), findsOneWidget);
+    expect(find.text('2024.12'), findsOneWidget);
+  });
+
+  testWidgets('RecentPage refreshes after collection play is recorded', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+    final recordCompleter = Completer<void>();
+    repository.albumRecordCompleter = recordCompleter;
+    var snapshotLoads = 0;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => i18n),
+          musicLibrarySnapshotProvider.overrideWith((ref) async {
+            snapshotLoads += 1;
+            return _snapshotWithRecentAlbums;
+          }),
+          libraryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: SmPlayerI18nScope(
+          i18n: i18n,
+          child: const MaterialApp(home: Scaffold(body: RecentPage())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played  2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Albums'));
+    await tester.pumpAndSettle();
+    final loadsBeforePlay = snapshotLoads;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.text('January Album')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(FluentIcons.play_20_filled).first);
+    await tester.pump();
+
+    expect(repository.recordedAlbums, ['January Album']);
+    final loadsBeforeRecordCompletes = snapshotLoads;
+    expect(loadsBeforeRecordCompletes, greaterThanOrEqualTo(loadsBeforePlay));
+
+    recordCompleter.complete();
+    await tester.pumpAndSettle();
+
+    expect(snapshotLoads, greaterThan(loadsBeforeRecordCompletes));
+  });
+
+  testWidgets('RecentPage recent played removal can be undone', (tester) async {
+    final repository = _FakeLibraryRepository();
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(
+        snapshot: _snapshotWithRecentPlayed,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played  1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+
+    expect(repository.removedRecentPlayedIds, [1]);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(repository.restoredRecentPlayedIds, [1]);
+  });
+
   testWidgets('RecentPage uses compact appbar tabs in narrow layout', (
     tester,
   ) async {
@@ -297,11 +492,41 @@ class _RecentTestApp extends StatelessWidget {
   }
 }
 
+class _RecentRouterTestApp extends StatelessWidget {
+  const _RecentRouterTestApp({
+    required this.router,
+    required this.snapshot,
+    required this.i18n,
+  });
+
+  final GoRouter router;
+  final MusicLibrarySnapshot snapshot;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+  }
+}
+
 class _FakeLibraryRepository extends LibraryRepository {
   List<int> replacedNowPlaying = [];
   bool clearedRecentSearches = false;
   List<int> removedRecentSearchIds = [];
   List<SearchHistoryEntry> restoredRecentSearches = [];
+  List<int> removedRecentPlayedIds = [];
+  List<int> restoredRecentPlayedIds = [];
+  List<String> recordedAlbums = [];
+  Completer<void>? albumRecordCompleter;
   int? hiddenSongId;
 
   @override
@@ -317,6 +542,22 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<void> removeRecentSearches(List<int> entryIds) async {
     removedRecentSearchIds = entryIds.toList();
+  }
+
+  @override
+  Future<void> removeRecentPlayed(List<int> songIds) async {
+    removedRecentPlayedIds = songIds.toList();
+  }
+
+  @override
+  Future<void> restoreRecentPlayed(List<int> songIds) async {
+    restoredRecentPlayedIds = songIds.toList();
+  }
+
+  @override
+  Future<void> recordAlbumPlayed(String album) async {
+    recordedAlbums.add(album);
+    await albumRecordCompleter?.future;
   }
 
   @override
@@ -478,6 +719,128 @@ const _snapshotWithSearches = MusicLibrarySnapshot(
       searchedAt: '2026-05-20T00:00:00',
     ),
   ],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithArtistSearch = MusicLibrarySnapshot(
+  songs: [],
+  recentSearches: [
+    SearchHistoryEntry(
+      id: 8,
+      query: 'Artist A',
+      type: SearchHistoryType.artists,
+      searchedAt: '2026-05-20T00:00:00',
+    ),
+  ],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithRecentPlayed = MusicLibrarySnapshot(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [
+    RecentLibrarySong(
+      id: 1,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+      playedAt: '2026-05-20T00:00:00',
+    ),
+  ],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithRecentAlbums = MusicLibrarySnapshot(
+  songs: [
+    LibrarySong(
+      id: 21,
+      path: r'C:\Music\one.mp3',
+      title: 'One',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'January Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2025-01-01T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 22,
+      path: r'C:\Music\two.mp3',
+      title: 'Two',
+      artist: 'Artist B',
+      artists: ['Artist B'],
+      album: 'December Album',
+      duration: 90,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2024-12-01T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentAlbums: [
+    RecentAlbumPlayback(
+      id: 31,
+      album: 'January Album',
+      playedAt: '2025-01-15T00:00:00',
+    ),
+    RecentAlbumPlayback(
+      id: 32,
+      album: 'December Album',
+      playedAt: '2024-12-15T00:00:00',
+    ),
+  ],
+  recentSearches: [],
   playlists: [],
   favoritePlaylistId: 0,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),

@@ -485,6 +485,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                         onPlaylistRandomPlay: (playlistId) {
                                           _randomPlayPlaylist(ref, playlistId);
                                         },
+                                        onWindowDragStart: _startWindowDrag,
+                                        onWindowDragEnd: _stopWindowDrag,
                                       );
                                     },
                                   ),
@@ -1311,6 +1313,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                         _showVoiceAssistantDialog(snapshot, i18n);
                       }
                       : null,
+              onWindowDragStart: _startWindowDrag,
+              onWindowDragEnd: _stopWindowDrag,
             );
           },
         );
@@ -1532,17 +1536,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (currentSnapshot == null) {
       return;
     }
-    final playlistIndex = currentSnapshot.playlists.indexWhere(
-      (item) => item.id == playlist.id,
-    );
     await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
     ref.invalidate(musicLibrarySnapshotProvider);
     _showUndo(
       i18n.t('notification.playlistRemoved', {'name': playlist.name}),
       () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .restorePlaylist(playlist, playlistIndex);
+        await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
         ref.invalidate(musicLibrarySnapshotProvider);
       },
     );
@@ -1587,6 +1586,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       _isMiniMode = false;
     });
     unawaited(_desktopFeatureService.exitMiniMode());
+  }
+
+  void _startWindowDrag() {
+    unawaited(_desktopFeatureService.startWindowDrag());
+  }
+
+  void _stopWindowDrag() {
+    unawaited(_desktopFeatureService.stopWindowDrag());
   }
 
   void _goBack() {
@@ -3041,6 +3048,8 @@ class _MiniModeSurface extends StatefulWidget {
     required this.onToggleMute,
     required this.onVolumeChange,
     required this.onOpenVoiceAssistant,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
   });
 
   final MediaControlState state;
@@ -3059,6 +3068,8 @@ class _MiniModeSurface extends StatefulWidget {
   final VoidCallback onToggleMute;
   final ValueChanged<int> onVolumeChange;
   final VoidCallback? onOpenVoiceAssistant;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
 
   @override
   State<_MiniModeSurface> createState() => _MiniModeSurfaceState();
@@ -3175,16 +3186,30 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _visibleControls(
-                        Row(
+                      SizedBox(
+                        height: 48,
+                        child: Stack(
                           children: [
-                            IconButton(
-                              tooltip: i18n.t('player.exitMiniMode'),
-                              onPressed: onExit,
-                              color: Colors.white,
-                              icon: const Icon(Icons.arrow_back_rounded),
+                            Positioned.fill(
+                              child: _ShellWindowDragRegion(
+                                onWindowDragStart: widget.onWindowDragStart,
+                                onWindowDragEnd: widget.onWindowDragEnd,
+                                child: const SizedBox.expand(),
+                              ),
                             ),
-                            const Spacer(),
+                            _visibleControls(
+                              Row(
+                                children: [
+                                  IconButton(
+                                    tooltip: i18n.t('player.exitMiniMode'),
+                                    onPressed: onExit,
+                                    color: Colors.white,
+                                    icon: const Icon(Icons.arrow_back_rounded),
+                                  ),
+                                  const Spacer(),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -3682,6 +3707,33 @@ class _Workspace extends StatelessWidget {
           child: SizedBox.expand(child: child),
         ),
       ),
+    );
+  }
+}
+
+class _ShellWindowDragRegion extends StatelessWidget {
+  const _ShellWindowDragRegion({
+    required this.child,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
+  });
+
+  final Widget child;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) {
+        if (event.buttons == 1) {
+          onWindowDragStart?.call();
+        }
+      },
+      onPointerUp: (_) => onWindowDragEnd?.call(),
+      onPointerCancel: (_) => onWindowDragEnd?.call(),
+      child: child,
     );
   }
 }

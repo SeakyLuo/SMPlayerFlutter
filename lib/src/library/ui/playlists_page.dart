@@ -18,9 +18,10 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
 class PlaylistsPage extends ConsumerStatefulWidget {
-  const PlaylistsPage({super.key, this.selectedPlaylistId});
+  const PlaylistsPage({super.key, this.selectedPlaylistId, this.searchQuery = ''});
 
   final int? selectedPlaylistId;
+  final String searchQuery;
 
   @override
   ConsumerState<PlaylistsPage> createState() => _PlaylistsPageState();
@@ -253,11 +254,22 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                   playlist.name != 'Now Playing',
             )
             .toList();
+    final normalizedSearchQuery = widget.searchQuery.trim().toLowerCase();
+    final visiblePlaylists =
+        normalizedSearchQuery.isEmpty
+            ? customPlaylists
+            : customPlaylists
+                .where(
+                  (playlist) => playlist.name.toLowerCase().contains(
+                    normalizedSearchQuery,
+                  ),
+                )
+                .toList();
     final orderedIds =
         _previewPlaylistIds ??
         customPlaylists.map((playlist) => playlist.id).toList();
     final playlistById = {
-      for (final playlist in customPlaylists) playlist.id: playlist,
+      for (final playlist in visiblePlaylists) playlist.id: playlist,
     };
     final orderedPlaylists =
         orderedIds
