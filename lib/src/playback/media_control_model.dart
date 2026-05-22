@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 const defaultArtworkColorRgb = '91, 135, 182';
+const previousTrackRestartThresholdSeconds = 5.0;
+const volumePersistenceDebounce = Duration(milliseconds: 180);
 
 enum PlaybackMode { once, repeat, repeatOne, shuffle }
 
@@ -158,6 +161,7 @@ class MediaControlState {
   MediaControlState copyWith({
     MediaControlTrack? track,
     int? selectedQueueIndex,
+    bool clearSelectedQueueIndex = false,
     bool? disabled,
     bool? isPlaying,
     PlaybackStatus? playbackStatus,
@@ -172,7 +176,10 @@ class MediaControlState {
   }) {
     return MediaControlState(
       track: track ?? this.track,
-      selectedQueueIndex: selectedQueueIndex ?? this.selectedQueueIndex,
+      selectedQueueIndex:
+          clearSelectedQueueIndex
+              ? null
+              : selectedQueueIndex ?? this.selectedQueueIndex,
       playbackNoticeKey:
           clearPlaybackNotice
               ? null
@@ -199,6 +206,8 @@ class MediaControlController extends ChangeNotifier {
 
   MediaControlState _state;
   final ValueChanged<PlaybackSettingsUpdate>? _onPlaybackSettingsUpdate;
+  Timer? _volumePersistenceTimer;
+  PlaybackSettingsUpdate? _pendingVolumePersistence;
 
   MediaControlState get state => _state;
 
@@ -245,16 +254,19 @@ class MediaControlController extends ChangeNotifier {
     MediaControlTrack track, {
     required double durationSeconds,
     int? queueIndex,
+    double progressSeconds = 0,
+    bool autoplay = true,
   }) {
+    final nextProgress = progressSeconds.clamp(0, durationSeconds).toDouble();
     _setState(
       MediaControlState(
         track: track,
         selectedQueueIndex: queueIndex,
         disabled: track.id == null,
-        isPlaying: track.id != null,
+        isPlaying: autoplay && track.id != null,
         playbackStatus:
             track.id == null ? PlaybackStatus.idle : PlaybackStatus.loading,
-        progressSeconds: 0,
+        progressSeconds: nextProgress,
         durationSeconds: durationSeconds,
         isProgressSeeking: false,
         volume: _state.volume,
@@ -349,6 +361,37 @@ class MediaControlController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setPlaybackRuntimeFailed(double progressSeconds) {
+    if (_state.disabled) {
+      return;
+    }
+
+    final nextProgress =
+        progressSeconds.clamp(0, _state.durationSeconds).toDouble();
+    _setState(
+      _state.copyWith(
+        track: _state.track.copyWith(isLoading: false),
+        isPlaying: false,
+        playbackStatus: PlaybackStatus.paused,
+        progressSeconds: nextProgress,
+        playbackNoticeKey: 'player.playbackLoadFailed',
+      ),
+    );
+    notifyListeners();
+    _onPlaybackSettingsUpdate?.call(
+      PlaybackSettingsUpdate(musicProgress: nextProgress),
+    );
+  }
+
+  void setPlaybackNotice(String noticeKey) {
+    if (_state.disabled) {
+      return;
+    }
+
+    _setState(_state.copyWith(playbackNoticeKey: noticeKey));
+    notifyListeners();
+  }
+
   void syncPlaybackProgress(double progressSeconds, {double? durationSeconds}) {
     final nextDuration = durationSeconds ?? _state.durationSeconds;
     final nextProgress = progressSeconds.clamp(0, nextDuration).toDouble();
@@ -405,13 +448,12 @@ class MediaControlController extends ChangeNotifier {
     }
 
     _setState(
-      _state.copyWith(
-        isPlaying: false,
-        playbackStatus: PlaybackStatus.paused,
-        progressSeconds: 0,
-      ),
+      _state.copyWith(isPlaying: false, playbackStatus: PlaybackStatus.paused),
     );
     notifyListeners();
+    _onPlaybackSettingsUpdate?.call(
+      PlaybackSettingsUpdate(musicProgress: _state.progressSeconds),
+    );
   }
 
   void onSeek(double seconds) {
@@ -458,7 +500,7 @@ class MediaControlController extends ChangeNotifier {
     final mutedChanged = nextMuted != _state.isMuted;
     _state = _state.copyWith(volume: nextVolume, isMuted: nextMuted);
     notifyListeners();
-    _onPlaybackSettingsUpdate?.call(
+    _scheduleVolumePersistence(
       PlaybackSettingsUpdate(
         volume: nextVolume,
         isMuted: mutedChanged ? nextMuted : null,
@@ -467,6 +509,7 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void onToggleMute() {
+    _flushVolumePersistence();
     final nextMuted = !_state.isMuted;
     _state = _state.copyWith(isMuted: nextMuted);
     notifyListeners();
@@ -474,6 +517,7 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void onToggleShuffle() {
+    _flushVolumePersistence();
     final nextMode =
         _state.mode == PlaybackMode.shuffle
             ? PlaybackMode.once
@@ -483,7 +527,16 @@ class MediaControlController extends ChangeNotifier {
     _onPlaybackSettingsUpdate?.call(PlaybackSettingsUpdate(mode: nextMode));
   }
 
+  void setSelectedQueueIndex(int? queueIndex) {
+    _state = _state.copyWith(
+      selectedQueueIndex: queueIndex,
+      clearSelectedQueueIndex: queueIndex == null,
+    );
+    notifyListeners();
+  }
+
   void onToggleRepeat() {
+    _flushVolumePersistence();
     final nextMode =
         _state.mode == PlaybackMode.repeat
             ? PlaybackMode.once
@@ -494,6 +547,7 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void onToggleRepeatOne() {
+    _flushVolumePersistence();
     final nextMode =
         _state.mode == PlaybackMode.repeatOne
             ? PlaybackMode.once
@@ -504,10 +558,51 @@ class MediaControlController extends ChangeNotifier {
   }
 
   void cyclePlaybackMode() {
+    _flushVolumePersistence();
     final nextMode = getNextPlaybackMode(_state.mode);
     _state = _state.copyWith(mode: nextMode);
     notifyListeners();
     _onPlaybackSettingsUpdate?.call(PlaybackSettingsUpdate(mode: nextMode));
+  }
+
+  void cycleRepeatMode() {
+    _flushVolumePersistence();
+    final nextMode = getNextRepeatCycleMode(_state.mode);
+    _state = _state.copyWith(mode: nextMode);
+    notifyListeners();
+    _onPlaybackSettingsUpdate?.call(PlaybackSettingsUpdate(mode: nextMode));
+  }
+
+  void _scheduleVolumePersistence(PlaybackSettingsUpdate update) {
+    final pendingUpdate = _pendingVolumePersistence;
+    _pendingVolumePersistence =
+        pendingUpdate == null
+            ? update
+            : PlaybackSettingsUpdate(
+              volume: update.volume ?? pendingUpdate.volume,
+              isMuted: update.isMuted ?? pendingUpdate.isMuted,
+            );
+    _volumePersistenceTimer?.cancel();
+    _volumePersistenceTimer = Timer(volumePersistenceDebounce, () {
+      _flushVolumePersistence();
+    });
+  }
+
+  void _flushVolumePersistence() {
+    final update = _pendingVolumePersistence;
+    if (update == null) {
+      return;
+    }
+    _pendingVolumePersistence = null;
+    _volumePersistenceTimer?.cancel();
+    _volumePersistenceTimer = null;
+    _onPlaybackSettingsUpdate?.call(update);
+  }
+
+  @override
+  void dispose() {
+    _flushVolumePersistence();
+    super.dispose();
   }
 
   void onToggleFavorite() {
@@ -563,6 +658,30 @@ PlaybackMode getNextPlaybackMode(PlaybackMode mode) {
   };
 }
 
+PlaybackMode getNextRepeatCycleMode(PlaybackMode mode) {
+  return switch (mode) {
+    PlaybackMode.once || PlaybackMode.shuffle => PlaybackMode.repeat,
+    PlaybackMode.repeat => PlaybackMode.repeatOne,
+    PlaybackMode.repeatOne => PlaybackMode.once,
+  };
+}
+
+List<int> normalizePlaybackQueueSongIds(
+  List<int> songIds,
+  Iterable<int> librarySongIds,
+) {
+  final songIdsInLibrary = librarySongIds.toSet();
+  return songIds.where(songIdsInLibrary.contains).toList();
+}
+
+List<int> removePlaybackQueueRange(
+  List<int> songIds,
+  int startIndex,
+  int count,
+) {
+  return [...songIds.take(startIndex), ...songIds.skip(startIndex + count)];
+}
+
 int? nextQueueIndexForPlayback({
   required int queueLength,
   required int currentIndex,
@@ -571,6 +690,16 @@ int? nextQueueIndexForPlayback({
   required bool automatic,
 }) {
   if (queueLength <= 0) {
+    return null;
+  }
+
+  if (currentIndex < 0) {
+    if (forward) {
+      return 0;
+    }
+    if (mode == PlaybackMode.repeat || mode == PlaybackMode.shuffle) {
+      return queueLength - 1;
+    }
     return null;
   }
 
@@ -588,7 +717,15 @@ int? nextQueueIndexForPlayback({
     return forward ? 0 : queueLength - 1;
   }
 
-  return automatic ? null : boundedCurrentIndex;
+  return null;
+}
+
+bool shouldRestartCurrentTrackForPrevious({
+  required double progressSeconds,
+  required int queueLength,
+}) {
+  return progressSeconds > previousTrackRestartThresholdSeconds ||
+      queueLength == 1;
 }
 
 List<int> shuffleNextRoundSongIds(
@@ -599,6 +736,25 @@ List<int> shuffleNextRoundSongIds(
   final shuffledSongIds = songIds.toList()..shuffle(random);
   if (shuffledSongIds.length > 1 && shuffledSongIds.first == activeTrackId) {
     shuffledSongIds.add(shuffledSongIds.removeAt(0));
+  }
+  return shuffledSongIds;
+}
+
+List<int> shufflePlaybackQueueForCurrentTrack(
+  List<int> songIds,
+  int? activeTrackId, [
+  Random? random,
+]) {
+  final activeIndex = currentPlaybackQueueIndex(songIds, activeTrackId);
+  if (activeIndex == -1) {
+    return songIds;
+  }
+  final activeSongId = songIds[activeIndex];
+  final shuffledSongIds = songIds.toList()..shuffle(random);
+  final shuffledActiveIndex = shuffledSongIds.indexOf(activeSongId);
+  if (shuffledActiveIndex > -1) {
+    shuffledSongIds.removeAt(shuffledActiveIndex);
+    shuffledSongIds.insert(0, activeSongId);
   }
   return shuffledSongIds;
 }
@@ -655,7 +811,7 @@ PlaybackStallRecoveryAction stalledPlaybackRecoveryAction({
   required double lastProgressSeconds,
   required Duration stalledFor,
   required double durationSeconds,
-  double progressEpsilonSeconds = 0.2,
+  double progressEpsilonSeconds = 0.05,
   Duration stallTimeout = const Duration(seconds: 8),
   double finishThresholdSeconds = 0.5,
 }) {

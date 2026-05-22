@@ -186,10 +186,9 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                       onReplaceQueue: _replaceQueue,
                       onPlaySongs: _playSongIds,
                       onPlayTrack: _playQueueTrack,
-                      onTogglePlayPause:
-                          ref
-                              .read(mediaControlControllerProvider)
-                              .onTogglePlayPause,
+                      onTogglePlayPause: () {
+                        _togglePlayPauseFromQueue(queueSongs);
+                      },
                       onPlayNext: _playNext,
                       onRemove: _removeQueueIndex,
                       onSelectionChanged: () {
@@ -272,6 +271,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         _NowPlayingFullControlPanel(
           song: currentSong,
           state: mediaControlState,
+          disabled: queueSongs.isEmpty,
           night: night,
           i18n: i18n,
           onPrevious: () {
@@ -280,6 +280,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           onNext: () {
             _playNextFromQueue(queueSongs);
           },
+          onTogglePlayPause: () {
+            _togglePlayPauseFromQueue(queueSongs);
+          },
+          onToggleShuffle: _toggleShufflePlayback,
           onMoreClick: () {
             _showMoreMenu(currentSong, snapshot, queueSongIds, customPlaylists);
           },
@@ -329,6 +333,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         _NowPlayingFullControlPanel(
           song: currentSong,
           state: mediaControlState,
+          disabled: queueSongs.isEmpty,
           night: night,
           i18n: i18n,
           onPrevious: () {
@@ -337,6 +342,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           onNext: () {
             _playNextFromQueue(queueSongs);
           },
+          onTogglePlayPause: () {
+            _togglePlayPauseFromQueue(queueSongs);
+          },
+          onToggleShuffle: _toggleShufflePlayback,
           onMoreClick: () {
             _showMoreMenu(currentSong, snapshot, queueSongIds, customPlaylists);
           },
@@ -595,7 +604,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
     switch (targetMode) {
       case PlaybackMode.shuffle:
-        mediaController.onToggleShuffle();
+        _toggleShufflePlayback();
       case PlaybackMode.repeat:
         mediaController.onToggleRepeat();
       case PlaybackMode.repeatOne:
@@ -612,6 +621,30 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             break;
         }
     }
+  }
+
+  void _toggleShufflePlayback() {
+    final mediaController = ref.read(mediaControlControllerProvider);
+    final enablingShuffle = mediaController.state.mode != PlaybackMode.shuffle;
+    if (enablingShuffle) {
+      final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+      final songIds = snapshot?.nowPlaying.songIds ?? const <int>[];
+      if (songIds.isNotEmpty) {
+        final nextSongIds = shufflePlaybackQueueForCurrentTrack(
+          songIds,
+          mediaController.state.track.id,
+        );
+        _replaceQueue(nextSongIds);
+        final nextQueueIndex = currentPlaybackQueueIndex(
+          nextSongIds,
+          mediaController.state.track.id,
+        );
+        mediaController.setSelectedQueueIndex(
+          nextQueueIndex > -1 ? nextQueueIndex : null,
+        );
+      }
+    }
+    mediaController.onToggleShuffle();
   }
 
   String _playbackModeName(SmPlayerI18n i18n, PlaybackMode mode) {
@@ -688,7 +721,35 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     return _playQueueDirection(queueSongs, forward: true);
   }
 
+  bool _togglePlayPauseFromQueue(List<LibrarySong> queueSongs) {
+    final controller = ref.read(mediaControlControllerProvider);
+    if (controller.state.track.id != null) {
+      controller.onTogglePlayPause();
+      return true;
+    }
+    if (queueSongs.isEmpty) {
+      return false;
+    }
+    _playQueueTrack(
+      queueSongs.first,
+      queueSongs.map((song) => song.id).toList(),
+      0,
+    );
+    return true;
+  }
+
   bool _playPreviousFromQueue(List<LibrarySong> queueSongs) {
+    if (queueSongs.isEmpty) {
+      return false;
+    }
+    final controller = ref.read(mediaControlControllerProvider);
+    if (shouldRestartCurrentTrackForPrevious(
+      progressSeconds: controller.state.progressSeconds,
+      queueLength: queueSongs.length,
+    )) {
+      controller.onSeek(0);
+      return true;
+    }
     return _playQueueDirection(queueSongs, forward: false);
   }
 
@@ -1163,19 +1224,25 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   const _NowPlayingFullControlPanel({
     required this.song,
     required this.state,
+    required this.disabled,
     required this.night,
     required this.i18n,
     required this.onPrevious,
     required this.onNext,
+    required this.onTogglePlayPause,
+    required this.onToggleShuffle,
     required this.onMoreClick,
   });
 
   final LibrarySong? song;
   final MediaControlState state;
+  final bool disabled;
   final bool night;
   final SmPlayerI18n i18n;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback onTogglePlayPause;
+  final VoidCallback onToggleShuffle;
   final VoidCallback onMoreClick;
 
   @override
@@ -1204,14 +1271,14 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
               trackId: state.track.id,
               isLoading: state.track.isLoading,
               favorite: song?.favorite ?? state.track.favorite,
-              disabled: state.disabled,
+              disabled: disabled,
               isPlaying: state.isPlaying,
               volume: state.volume,
               isMuted: state.isMuted,
               mode: state.mode,
               progressSeconds: state.progressSeconds,
               durationSeconds: state.durationSeconds,
-              onTogglePlayPause: controller.onTogglePlayPause,
+              onTogglePlayPause: onTogglePlayPause,
               onPrevious: onPrevious,
               onNext: onNext,
               onSeek: controller.onSeek,
@@ -1219,7 +1286,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
               onEndSeek: controller.onEndSeek,
               onVolumeChange: controller.onVolumeChange,
               onToggleMute: controller.onToggleMute,
-              onToggleShuffle: controller.onToggleShuffle,
+              onToggleShuffle: onToggleShuffle,
               onToggleRepeat: controller.onToggleRepeat,
               onToggleRepeatOne: controller.onToggleRepeatOne,
               onToggleFavorite: controller.onToggleFavorite,

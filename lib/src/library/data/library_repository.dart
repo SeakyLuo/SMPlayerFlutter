@@ -3116,7 +3116,10 @@ class LibraryRepository {
         LyricsBatchProgress(
           currentIndex: index + 1,
           total: snapshot.songs.length,
-          currentSongTitle: song.title,
+          currentSongTitle: [
+            song.title,
+            song.artist,
+          ].where((part) => part.isNotEmpty).join(' - '),
           saved: saved,
           overwritten: overwritten,
           skipped: skipped,
@@ -3136,6 +3139,8 @@ class LibraryRepository {
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
+              artist: song.artist,
+              thumbnailPath: song.thumbnailPath,
               result: LyricsBatchDetailResult.skipped,
               reason: LyricsBatchSkipReason.alreadyExists,
               sourceRawLyrics: existingRawLyrics,
@@ -3168,6 +3173,8 @@ class LibraryRepository {
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
+              artist: song.artist,
+              thumbnailPath: song.thumbnailPath,
               result: LyricsBatchDetailResult.missing,
               sourceRawLyrics: existingRawLyrics,
             ),
@@ -3183,6 +3190,8 @@ class LibraryRepository {
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
+              artist: song.artist,
+              thumbnailPath: song.thumbnailPath,
               result: LyricsBatchDetailResult.skipped,
               reason: LyricsBatchSkipReason.sameContent,
               sourceRawLyrics: existingRawLyrics,
@@ -3203,6 +3212,8 @@ class LibraryRepository {
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
+              artist: song.artist,
+              thumbnailPath: song.thumbnailPath,
               result: LyricsBatchDetailResult.saved,
               targetRawLyrics: internetLyrics,
             ),
@@ -3213,6 +3224,8 @@ class LibraryRepository {
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
+              artist: song.artist,
+              thumbnailPath: song.thumbnailPath,
               result: LyricsBatchDetailResult.overwritten,
               sourceRawLyrics: existingRawLyrics,
               targetRawLyrics: internetLyrics,
@@ -3225,6 +3238,8 @@ class LibraryRepository {
           LyricsBatchDetail(
             songId: song.id,
             title: song.title,
+            artist: song.artist,
+            thumbnailPath: song.thumbnailPath,
             result: LyricsBatchDetailResult.failed,
           ),
         );
@@ -7942,6 +7957,8 @@ class LyricsBatchDetail {
   const LyricsBatchDetail({
     required this.songId,
     required this.title,
+    required this.artist,
+    required this.thumbnailPath,
     required this.result,
     this.reason,
     this.sourceRawLyrics = '',
@@ -7950,6 +7967,8 @@ class LyricsBatchDetail {
 
   final int songId;
   final String title;
+  final String artist;
+  final String thumbnailPath;
   final LyricsBatchDetailResult result;
   final LyricsBatchSkipReason? reason;
   final String sourceRawLyrics;

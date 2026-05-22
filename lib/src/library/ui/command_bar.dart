@@ -565,6 +565,8 @@ class MenuFlyoutItem {
     this.checked = false,
     this.submenu = const [],
     this.onPressed,
+    this.content,
+    this.contentHeight = 42,
   }) : separator = false;
 
   const MenuFlyoutItem.separator({required this.key})
@@ -574,6 +576,8 @@ class MenuFlyoutItem {
       checked = false,
       submenu = const [],
       onPressed = null,
+      content = null,
+      contentHeight = 42,
       separator = true;
 
   final String key;
@@ -583,6 +587,8 @@ class MenuFlyoutItem {
   final bool checked;
   final List<MenuFlyoutItem> submenu;
   final VoidCallback? onPressed;
+  final Widget? content;
+  final double contentHeight;
   final bool separator;
 }
 
@@ -1033,6 +1039,12 @@ Future<void> showMenuFlyout(
           if (item.separator) {
             return const PopupMenuDivider(height: 12);
           }
+          if (item.content != null) {
+            return _MenuFlyoutContentEntry(
+              height: item.contentHeight,
+              child: item.content!,
+            );
+          }
 
           return PopupMenuItem<void>(
             enabled: !item.disabled,
@@ -1065,6 +1077,28 @@ Future<void> showMenuFlyout(
           );
         }).toList(),
   );
+}
+
+class _MenuFlyoutContentEntry extends PopupMenuEntry<void> {
+  const _MenuFlyoutContentEntry({required this.height, required this.child});
+
+  @override
+  final double height;
+  final Widget child;
+
+  @override
+  bool represents(void value) => false;
+
+  @override
+  State<_MenuFlyoutContentEntry> createState() =>
+      _MenuFlyoutContentEntryState();
+}
+
+class _MenuFlyoutContentEntryState extends State<_MenuFlyoutContentEntry> {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(height: widget.height, child: widget.child);
+  }
 }
 
 class _MultiSelectAction extends StatelessWidget {

@@ -20,6 +20,8 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    as artists_model;
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
@@ -58,6 +60,31 @@ class SmPlayerShellMetrics {
 
     return SmPlayerNavigationMode.wide;
   }
+}
+
+@visibleForTesting
+String resolvePlayerArtistRouteName(LibrarySong song, SmPlayerI18n i18n) {
+  final artists = artists_model.getSongArtists(song);
+  return artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
+}
+
+@visibleForTesting
+double resolveQueuePlaybackStartSeconds({
+  required int? currentTrackId,
+  required int nextTrackId,
+  required double currentProgressSeconds,
+}) {
+  return currentTrackId == nextTrackId ? currentProgressSeconds : 0;
+}
+
+@visibleForTesting
+bool shouldIgnoreAudioPositionForPendingSeek({
+  required double positionSeconds,
+  required double? pendingSeekSeconds,
+  required double toleranceSeconds,
+}) {
+  return pendingSeekSeconds != null &&
+      (positionSeconds - pendingSeekSeconds).abs() > toleranceSeconds;
 }
 
 enum SmPlayerNavigationMode { minimal, overlay, wide }
@@ -151,6 +178,7 @@ class SmPlayerShellStorageKeys {
   const SmPlayerShellStorageKeys._();
 
   static const navigationCollapsed = 'smplayer:navigation-collapsed';
+  static const searchQuery = 'smplayer:search-query';
 }
 
 class SmPlayerShellPage extends ConsumerStatefulWidget {
@@ -158,6 +186,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
     super.key,
     this.child,
     this.currentPath,
+    this.currentLocation,
     this.canGoBack = false,
     this.onNavigate,
     this.onGoBack,
@@ -167,10 +196,12 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
     this.appVersion,
     this.initialExternalFilePaths = const [],
     this.initialExternalCommands = const [],
+    @visibleForTesting this.initialMiniMode = false,
   });
 
   final Widget? child;
   final String? currentPath;
+  final String? currentLocation;
   final bool canGoBack;
   final ValueChanged<String>? onNavigate;
   final VoidCallback? onGoBack;
@@ -180,6 +211,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
   final String? appVersion;
   final List<String> initialExternalFilePaths;
   final List<ExternalAppCommand> initialExternalCommands;
+  final bool initialMiniMode;
 
   @override
   ConsumerState<SmPlayerShellPage> createState() => _SmPlayerShellPageState();
@@ -188,6 +220,8 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
 class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   static const _playbackStallCheckInterval = Duration(milliseconds: 500);
   static const _playbackStallTimeout = Duration(seconds: 8);
+  static const _playbackProgressEpsilonSeconds = 0.05;
+  static const _pendingSeekToleranceSeconds = 0.25;
 
   late final SettingsController _settingsController;
   late final MediaControlController _mediaControlController;
@@ -196,18 +230,22 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   late final List<StreamSubscription<Object?>> _audioSubscriptions;
   var _isNavigationPaneOpen = true;
   var _isMinimalNavigationOpen = false;
-  var _isMiniMode = false;
+  late var _isMiniMode = widget.initialMiniMode;
   var _isWindowVisible = true;
   var _isWindowFullScreen = false;
   var _syncingAudioPlayer = false;
   var _audioLoadSerial = 0;
+  double? _pendingAudioSeekSeconds;
+  var _playbackRuntimeSettingsRestored = false;
+  var _playbackTrackRestoreScheduled = false;
+  var _playbackTrackRestored = false;
   SmPlayerNavigationMode? _navigationMode;
   var _currentPath = '/songs';
+  final _routeMemory = <String, String>{};
   var _searchText = '';
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
   int? _finishingAudioTrackId;
-  final _failedAudioTrackIds = <int>{};
   final _persistedAudioDurations = <int, int>{};
   Timer? _playbackStallTimer;
   double _stalledProgressSeconds = 0;
@@ -221,6 +259,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   int? _desktopLyricsLoadingSongId;
   LyricsRequestMode? _desktopLyricsMode;
   LyricsSnapshot? _desktopLyrics;
+  final _playerArtworkResolveAttemptedSongIds = <int>{};
+  final _playerArtworkResolvingSongIds = <int>{};
+  final _playerArtworkErrorAttemptedKeys = <String>{};
+  final _playerArtworkErrorResolvingKeys = <String>{};
   String? _releaseNotesDialogVersion;
   var _releaseNotesChecked = false;
   ArtistSplitAnalysisResult? _startupArtistSplitResult;
@@ -245,6 +287,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       _audioPlayer.positionStream.listen(_handleAudioPositionChanged),
       _audioPlayer.durationStream.listen(_handleAudioDurationChanged),
       _audioPlayer.playerStateStream.listen(_handleAudioPlayerStateChanged),
+      _audioPlayer.errorStream.listen(_handleAudioPlaybackError),
     ];
     _desktopFeatureService =
         widget.desktopFeatureService ?? createDesktopFeatureService();
@@ -253,6 +296,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
+    _restoreSearchQuery();
+    _rememberRoute(
+      widget.currentLocation ?? widget.currentPath ?? _currentPath,
+    );
     _persistCurrentPage(widget.currentPath ?? _currentPath);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleInitialExternalInputs();
@@ -263,8 +310,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   void didUpdateWidget(covariant SmPlayerShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     final currentPath = widget.currentPath ?? _currentPath;
-    final previousPath = oldWidget.currentPath ?? _currentPath;
-    if (currentPath != previousPath) {
+    final currentLocation = widget.currentLocation ?? currentPath;
+    final previousLocation =
+        oldWidget.currentLocation ?? oldWidget.currentPath ?? _currentPath;
+    if (currentLocation != previousLocation) {
+      _rememberRoute(currentLocation);
       _persistCurrentPage(currentPath);
       if (currentPath != '/now-playing/full') {
         unawaited(_desktopFeatureService.setWindowFullScreen(false));
@@ -316,6 +366,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         isNavigationPaneVisible && navigationMode != SmPlayerNavigationMode.wide
             ? SmPlayerShellMetrics.sidebarWidth
             : shellSidebarWidth;
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
 
     return ProviderScope(
       overrides: [
@@ -328,20 +379,34 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         onKeyEvent: _handlePlaybackShortcutKey,
         child: Scaffold(
           body: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_ShellColors.bodyHighlight, Colors.transparent],
-                stops: [0, 0.36],
+                colors: [
+                  nightMode
+                      ? _ShellColors.nightBodyHighlight
+                      : _ShellColors.bodyHighlight,
+                  Colors.transparent,
+                ],
+                stops: const [0, 0.36],
               ),
             ),
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [_ShellColors.bodyTop, _ShellColors.bodyBottom],
+                  colors:
+                      nightMode
+                          ? const [
+                            _ShellColors.nightBodyTop,
+                            _ShellColors.nightBodyBottom,
+                          ]
+                          : const [
+                            _ShellColors.bodyTop,
+                            _ShellColors.bodyBottom,
+                          ],
                 ),
               ),
               child: SafeArea(
@@ -415,6 +480,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                           });
                                         },
                                         onSearchCommitted: _commitSearch,
+                                        onSearchCleared: _clearSearch,
                                         onItemInvoked: _navigateTo,
                                         onRecentSearchRemove: (entryId) {
                                           ref
@@ -513,11 +579,18 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                     musicLibrarySnapshotProvider,
                                                   )
                                                   .valueOrNull;
+                                          _scheduleRestorePlaybackTrack(
+                                            snapshot,
+                                          );
                                           final currentSong =
                                               _resolvePlayerSong(
                                                 mediaControlState,
                                                 snapshot,
                                               );
+                                          _ensurePlayerArtworkResolved(
+                                            currentSong,
+                                            ref,
+                                          );
                                           final i18n =
                                               ref
                                                   .watch(smPlayerI18nProvider)
@@ -533,13 +606,27 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                 mediaControlState,
                                             currentSong: currentSong,
                                           );
+                                          final playerLyricsLine =
+                                              _resolvePlayerLyricLine(
+                                                lyrics: _desktopLyricsForSong(
+                                                  currentSong,
+                                                ),
+                                                song: currentSong,
+                                                progressSeconds:
+                                                    mediaControlState
+                                                        .progressSeconds,
+                                                durationSeconds:
+                                                    mediaControlState
+                                                        .durationSeconds,
+                                              );
                                           return MediaControl(
                                             track: mediaControlState.track,
                                             currentSong: currentSong,
                                             playlists:
                                                 snapshot?.playlists ?? const [],
-                                            disabled:
-                                                mediaControlState.disabled,
+                                            disabled: _isPlaybackQueueEmpty(
+                                              snapshot,
+                                            ),
                                             isPlaying:
                                                 mediaControlState.isPlaying,
                                             volume: mediaControlState.volume,
@@ -554,9 +641,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             playbackNoticeKey:
                                                 mediaControlState
                                                     .playbackNoticeKey,
+                                            currentLyricsLine: playerLyricsLine,
                                             onTogglePlayPause:
-                                                _mediaControlController
-                                                    .onTogglePlayPause,
+                                                _togglePlayPauseFromCurrentQueue,
                                             onPrevious:
                                                 _playPreviousFromCurrentQueue,
                                             onNext: _playNextFromCurrentQueue,
@@ -575,8 +662,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                 _mediaControlController
                                                     .onToggleMute,
                                             onToggleShuffle:
-                                                _mediaControlController
-                                                    .onToggleShuffle,
+                                                _toggleShufflePlayback,
                                             onToggleRepeat:
                                                 _mediaControlController
                                                     .onToggleRepeat,
@@ -599,6 +685,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             onOpenNowPlaying: () {
                                               _navigateTo('/now-playing');
                                             },
+                                            onArtworkError:
+                                                currentSong == null
+                                                    ? null
+                                                    : () {
+                                                      _refreshPlayerArtworkAfterError(
+                                                        currentSong,
+                                                        ref,
+                                                      );
+                                                    },
                                             onToggleWindowFullScreen: () {
                                               _toggleNativeNowPlayingFullScreen();
                                             },
@@ -656,20 +751,64 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                             const [],
                                                       );
                                                     },
+                                            onResolvePreferenceLevel:
+                                                currentSong == null
+                                                    ? null
+                                                    : () {
+                                                      return ref
+                                                          .read(
+                                                            libraryRepositoryProvider,
+                                                          )
+                                                          .getPreferenceLevel(
+                                                            'song',
+                                                            '${currentSong.id}',
+                                                          );
+                                                    },
+                                            onUndoPreference:
+                                                currentSong == null
+                                                    ? null
+                                                    : () {
+                                                      unawaited(
+                                                        ref
+                                                            .read(
+                                                              libraryRepositoryProvider,
+                                                            )
+                                                            .removePreferenceItem(
+                                                              'song',
+                                                              '${currentSong.id}',
+                                                            ),
+                                                      );
+                                                    },
                                             onSetPreference:
                                                 currentSong == null
                                                     ? null
                                                     : (level) {
-                                                      ref
-                                                          .read(
-                                                            libraryRepositoryProvider,
-                                                          )
-                                                          .addPreferenceItem(
-                                                            'song',
-                                                            '${currentSong.id}',
-                                                            currentSong.title,
-                                                            level,
+                                                      unawaited(
+                                                        ref
+                                                            .read(
+                                                              libraryRepositoryProvider,
+                                                            )
+                                                            .addPreferenceItem(
+                                                              'song',
+                                                              '${currentSong.id}',
+                                                              currentSong.title,
+                                                              level,
+                                                            ),
+                                                      );
+                                                    },
+                                            onSeeArtist:
+                                                currentSong == null
+                                                    ? null
+                                                    : () {
+                                                      final artist =
+                                                          resolvePlayerArtistRouteName(
+                                                            currentSong,
+                                                            context
+                                                                .smPlayerI18n,
                                                           );
+                                                      _navigateTo(
+                                                        '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                                                      );
                                                     },
                                             onSeeAlbum:
                                                 currentSong == null
@@ -783,8 +922,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             _playPreviousFromCurrentQueue,
                                         onNext: _playNextFromCurrentQueue,
                                         onTogglePlayPause:
-                                            _mediaControlController
-                                                .onTogglePlayPause,
+                                            _togglePlayPauseFromCurrentQueue,
                                         onSeekOffset: (deltaMs) {
                                           _updateDesktopLyricsOffset(
                                             currentSong,
@@ -817,8 +955,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                     _mediaControlController.state.isPlaying &&
                                     _mediaControlController.state.track.id ==
                                         dialog.song.id,
-                                onPlay:
-                                    _mediaControlController.onTogglePlayPause,
+                                onPlay: _togglePlayPauseFromCurrentQueue,
                                 onReveal: _revealPath,
                                 onSaved: () {
                                   setState(() {});
@@ -918,7 +1055,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   void _applyPlaybackShortcut(SmPlayerPlaybackShortcut shortcut) {
     switch (shortcut) {
       case SmPlayerPlaybackShortcut.togglePlayPause:
-        _mediaControlController.onTogglePlayPause();
+        _togglePlayPauseFromCurrentQueue();
       case SmPlayerPlaybackShortcut.next:
         _playNextFromCurrentQueue();
       case SmPlayerPlaybackShortcut.previous:
@@ -932,7 +1069,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       case SmPlayerPlaybackShortcut.seekBackwardLong:
         _seekCurrentTrackBy(-30);
       case SmPlayerPlaybackShortcut.toggleShuffle:
-        _mediaControlController.onToggleShuffle();
+        _toggleShufflePlayback();
       case SmPlayerPlaybackShortcut.toggleRepeat:
         _mediaControlController.onToggleRepeat();
       case SmPlayerPlaybackShortcut.toggleRepeatOne:
@@ -948,6 +1085,60 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _mediaControlController.onSeek(state.progressSeconds + deltaSeconds);
   }
 
+  bool _isPlaybackQueueEmpty(MusicLibrarySnapshot? snapshot) {
+    return snapshot == null || _playbackSongIds(snapshot).isEmpty;
+  }
+
+  bool _togglePlayPauseFromCurrentQueue() {
+    final state = _mediaControlController.state;
+    if (state.track.id != null) {
+      _mediaControlController.onTogglePlayPause();
+      return true;
+    }
+
+    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    if (_isPlaybackQueueEmpty(snapshot)) {
+      return false;
+    }
+    _playQueueIndex(snapshot!, _playbackSongIds(snapshot), 0);
+    return true;
+  }
+
+  void _toggleShufflePlayback() {
+    final enablingShuffle =
+        _mediaControlController.state.mode != PlaybackMode.shuffle;
+    if (enablingShuffle) {
+      _shuffleCurrentPlaybackQueue();
+    }
+    _mediaControlController.onToggleShuffle();
+  }
+
+  void _shuffleCurrentPlaybackQueue() {
+    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    if (snapshot == null) {
+      return;
+    }
+    final playbackSongIds = _playbackSongIds(snapshot);
+    if (playbackSongIds.isEmpty) {
+      return;
+    }
+    final nextSongIds = shufflePlaybackQueueForCurrentTrack(
+      playbackSongIds,
+      _mediaControlController.state.track.id,
+    );
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
+    );
+    ref.invalidate(musicLibrarySnapshotProvider);
+    final nextQueueIndex = currentPlaybackQueueIndex(
+      nextSongIds,
+      _mediaControlController.state.track.id,
+    );
+    _mediaControlController.setSelectedQueueIndex(
+      nextQueueIndex > -1 ? nextQueueIndex : null,
+    );
+  }
+
   void _syncAudioPlayerFromController() {
     if (_syncingAudioPlayer) {
       return;
@@ -959,6 +1150,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (trackId == null) {
       _loadedAudioTrackId = null;
       _loadedAudioPath = null;
+      _pendingAudioSeekSeconds = null;
       unawaited(_audioPlayer.stop());
       return;
     }
@@ -992,7 +1184,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       }
       _loadedAudioTrackId = song.id;
       _loadedAudioPath = song.path;
-      _failedAudioTrackIds.remove(song.id);
       if (duration != null) {
         _persistResolvedAudioDuration(song.id, duration);
       }
@@ -1011,38 +1202,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       if (loadSerial == _audioLoadSerial) {
         _loadedAudioTrackId = null;
         _loadedAudioPath = null;
-        _failedAudioTrackIds.add(song.id);
         _syncingAudioPlayer = true;
         _mediaControlController.setPlaybackLoadFailed();
         _syncingAudioPlayer = false;
-        if (state.isPlaying) {
-          _recoverFromAudioLoadFailure(song.id, state.selectedQueueIndex);
-        }
       }
     }
-  }
-
-  bool _recoverFromAudioLoadFailure(int failedTrackId, int? activeQueueIndex) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
-    if (snapshot == null || snapshot.nowPlaying.songIds.isEmpty) {
-      return false;
-    }
-    final nextTrackId = getNextRecoverableTrackId(
-      playbackSongIds: snapshot.nowPlaying.songIds,
-      activeTrackId: failedTrackId,
-      activeQueueIndex: activeQueueIndex ?? -1,
-      mode: _mediaControlController.state.mode,
-      failedTrackIds: _failedAudioTrackIds,
-    );
-    if (nextTrackId == null) {
-      return false;
-    }
-    final nextQueueIndex = snapshot.nowPlaying.songIds.indexOf(nextTrackId);
-    if (nextQueueIndex < 0) {
-      return false;
-    }
-    _playQueueIndex(snapshot, nextQueueIndex);
-    return true;
   }
 
   Future<void> _applyAudioPlaybackState(MediaControlState state) async {
@@ -1052,6 +1216,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (!state.isProgressSeeking &&
         (_audioPlayer.position - targetPosition).abs() >
             const Duration(milliseconds: 850)) {
+      _pendingAudioSeekSeconds = state.progressSeconds;
       await _audioPlayer.seek(targetPosition);
     }
     await _audioPlayer.setVolume(state.isMuted ? 0 : state.volume / 100);
@@ -1070,9 +1235,22 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return;
     }
 
+    final positionSeconds = position.inMilliseconds / 1000;
+    final pendingSeekSeconds = _pendingAudioSeekSeconds;
+    if (shouldIgnoreAudioPositionForPendingSeek(
+      positionSeconds: positionSeconds,
+      pendingSeekSeconds: pendingSeekSeconds,
+      toleranceSeconds: _pendingSeekToleranceSeconds,
+    )) {
+      return;
+    }
+    if (pendingSeekSeconds != null) {
+      _pendingAudioSeekSeconds = null;
+    }
+
     _syncingAudioPlayer = true;
     _mediaControlController.syncPlaybackProgress(
-      position.inMilliseconds / 1000,
+      positionSeconds,
       durationSeconds:
           _audioPlayer.duration?.inMilliseconds == null
               ? null
@@ -1096,6 +1274,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       _mediaControlController.state.progressSeconds,
       durationSeconds: duration.inMilliseconds / 1000,
     );
+    _syncingAudioPlayer = false;
+  }
+
+  void _handleAudioPlaybackError(PlayerException error) {
+    final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
+    _pendingAudioSeekSeconds = null;
+    _stopPlaybackStallTimer();
+    unawaited(_audioPlayer.pause());
+    _syncingAudioPlayer = true;
+    _mediaControlController.setPlaybackRuntimeFailed(progressSeconds);
     _syncingAudioPlayer = false;
   }
 
@@ -1125,20 +1313,36 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     }
 
     if (state.playing) {
-      _failedAudioTrackIds.clear();
       _startPlaybackStallTimer();
     } else {
       _stopPlaybackStallTimer();
     }
 
+    final backendLoading = _isAudioBackendLoading(state.processingState);
     _syncingAudioPlayer = true;
-    _mediaControlController.setTrackLoading(
-      state.processingState == ProcessingState.loading ||
-          state.processingState == ProcessingState.buffering,
-      buffering: state.processingState == ProcessingState.buffering,
-    );
-    _mediaControlController.setPlaybackActive(state.playing);
+    if (backendLoading) {
+      _mediaControlController.setPlaybackActive(state.playing);
+      _mediaControlController.setTrackLoading(
+        true,
+        buffering: state.processingState == ProcessingState.buffering,
+      );
+    } else {
+      _mediaControlController.setPlaybackActive(state.playing);
+      _mediaControlController.setTrackLoading(false);
+    }
     _syncingAudioPlayer = false;
+    if (!state.playing && _loadedAudioTrackId != null && !backendLoading) {
+      _settingsController.savePlaybackSettingsImmediate(
+        PlaybackSettingsUpdate(
+          musicProgress: _audioPlayer.position.inMilliseconds / 1000,
+        ),
+      );
+    }
+  }
+
+  bool _isAudioBackendLoading(ProcessingState processingState) {
+    return processingState == ProcessingState.loading ||
+        processingState == ProcessingState.buffering;
   }
 
   void _finishCurrentAudioTrack() {
@@ -1206,7 +1410,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   void _markPlaybackProgressForStallDetection(Duration position) {
     final progressSeconds = position.inMilliseconds / 1000;
-    if ((progressSeconds - _stalledProgressSeconds).abs() > 0.2) {
+    if ((progressSeconds - _stalledProgressSeconds).abs() >
+        _playbackProgressEpsilonSeconds) {
       _stalledProgressSeconds = progressSeconds;
       _stalledProgressStartedAt = null;
     }
@@ -1216,7 +1421,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final state = _mediaControlController.state;
     final currentProgressSeconds = _audioPlayer.position.inMilliseconds / 1000;
     final startedAt = _stalledProgressStartedAt;
-    if ((currentProgressSeconds - _stalledProgressSeconds).abs() > 0.2) {
+    if ((currentProgressSeconds - _stalledProgressSeconds).abs() >
+        _playbackProgressEpsilonSeconds) {
       _stalledProgressSeconds = currentProgressSeconds;
       _stalledProgressStartedAt = null;
       return;
@@ -1235,6 +1441,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       lastProgressSeconds: _stalledProgressSeconds,
       stalledFor: stalledFor,
       durationSeconds: durationSeconds,
+      progressEpsilonSeconds: _playbackProgressEpsilonSeconds,
       stallTimeout: _playbackStallTimeout,
     );
     switch (action) {
@@ -1255,6 +1462,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _mediaControlController.setTrackLoading(false);
     _mediaControlController.setPlaybackActive(false);
     _mediaControlController.syncPlaybackProgress(progressSeconds);
+    _mediaControlController.setPlaybackNotice('notification.playbackStalled');
     _syncingAudioPlayer = false;
     _settingsController.savePlaybackSettingsImmediate(
       PlaybackSettingsUpdate(musicProgress: progressSeconds),
@@ -1291,10 +1499,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
               repository: ref.read(libraryRepositoryProvider),
               playerLyricsSource: settings.playerLyricsSource,
               onExit: _exitMiniMode,
-              onTogglePlayPause: _mediaControlController.onTogglePlayPause,
+              onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
               onPrevious: _playPreviousFromCurrentQueue,
               onNext: _playNextFromCurrentQueue,
               onSeek: _mediaControlController.onSeek,
+              onBeginSeek: _mediaControlController.onBeginSeek,
+              onEndSeek: _mediaControlController.onEndSeek,
               onToggleFavorite:
                   currentSong == null
                       ? _mediaControlController.onToggleFavorite
@@ -1304,7 +1514,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
               onQuickPlay: () {
                 _quickPlayLibrary(ref);
               },
-              onToggleRepeat: _mediaControlController.onToggleRepeat,
+              onCycleRepeatMode: _mediaControlController.cycleRepeatMode,
               onToggleMute: _mediaControlController.onToggleMute,
               onVolumeChange: _mediaControlController.onVolumeChange,
               onOpenVoiceAssistant:
@@ -1374,6 +1584,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
     final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
     final before = snapshot?.nowPlaying.songIds ?? const <int>[];
+    final insertedIndex = before.length;
     ref.read(libraryRepositoryProvider).replaceNowPlaying([...before, song.id]);
     ref.invalidate(musicLibrarySnapshotProvider);
     _showUndo(
@@ -1382,7 +1593,18 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         'target': context.smPlayerI18n.t('common.nowPlaying'),
       }),
       () {
-        ref.read(libraryRepositoryProvider).replaceNowPlaying(before);
+        final current =
+            ref
+                .read(musicLibrarySnapshotProvider)
+                .valueOrNull
+                ?.nowPlaying
+                .songIds ??
+            before;
+        ref
+            .read(libraryRepositoryProvider)
+            .replaceNowPlaying(
+              removePlaybackQueueRange(current, insertedIndex, 1),
+            );
         ref.invalidate(musicLibrarySnapshotProvider);
       },
     );
@@ -1548,14 +1770,41 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _navigateTo(String target) {
+    final restoredTarget = _routeMemory[target] ?? target;
     setState(() {
-      _currentPath = target;
+      _currentPath = restoredTarget;
     });
     _closeNavigationOverlay();
-    widget.onNavigate?.call(target);
-    if (target != '/now-playing/full') {
+    widget.onNavigate?.call(restoredTarget);
+    if (restoredTarget != '/now-playing/full') {
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
+  }
+
+  void _rememberRoute(String path) {
+    final uri = Uri.tryParse(path);
+    final normalizedPath = uri?.path ?? path;
+    final section = _routeSection(normalizedPath);
+    if (section == null || section == '/albums' || section == '/playlists') {
+      return;
+    }
+    _routeMemory[section] = section == '/artists' ? path : normalizedPath;
+  }
+
+  String? _routeSection(String path) {
+    if (path.startsWith('/artists')) {
+      return '/artists';
+    }
+    if (path.startsWith('/local')) {
+      return '/local';
+    }
+    if (path.startsWith('/playlists')) {
+      return '/playlists';
+    }
+    if (path.startsWith('/albums')) {
+      return '/albums';
+    }
+    return restorableRoutes.contains(path) ? path : null;
   }
 
   void _toggleNativeNowPlayingFullScreen() {
@@ -1700,7 +1949,71 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _mediaControlController.applyPlaybackRuntimeSettings(
       _settingsController.getPlaybackSettingsImmediate(),
     );
+    _playbackRuntimeSettingsRestored = true;
+    _scheduleRestorePlaybackTrack(
+      ref.read(musicLibrarySnapshotProvider).valueOrNull,
+    );
     unawaited(_checkReleaseNotesVersion());
+  }
+
+  void _scheduleRestorePlaybackTrack(MusicLibrarySnapshot? snapshot) {
+    if (_playbackTrackRestored ||
+        _playbackTrackRestoreScheduled ||
+        !_playbackRuntimeSettingsRestored ||
+        snapshot == null) {
+      return;
+    }
+    _playbackTrackRestoreScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _playbackTrackRestoreScheduled = false;
+      if (!mounted || _playbackTrackRestored) {
+        return;
+      }
+      final latestSnapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+      if (latestSnapshot == null) {
+        return;
+      }
+      _restorePlaybackTrackFromSnapshot(latestSnapshot);
+    });
+  }
+
+  void _restorePlaybackTrackFromSnapshot(MusicLibrarySnapshot snapshot) {
+    if (_playbackTrackRestored) {
+      return;
+    }
+    if (_mediaControlController.state.track.id != null) {
+      _playbackTrackRestored = true;
+      return;
+    }
+    _playbackTrackRestored = true;
+    final songIds = _playbackSongIds(snapshot);
+    if (snapshot.songs.isEmpty || songIds.isEmpty) {
+      return;
+    }
+
+    final settings = _settingsController.snapshot;
+    final restoredIndex = settings.lastMusicIndex.clamp(0, songIds.length - 1);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final restoredSong = songsById[songIds[restoredIndex]];
+    if (restoredSong == null) {
+      return;
+    }
+    final progressSeconds =
+        settings.saveMusicProgress ? settings.musicProgress : 0.0;
+    _mediaControlController.playTrack(
+      MediaControlTrack(
+        id: restoredSong.id,
+        title: restoredSong.title,
+        artist: restoredSong.artist,
+        artworkUrl: restoredSong.thumbnailPath,
+        isLoading: false,
+        favorite: restoredSong.favorite,
+      ),
+      durationSeconds: restoredSong.duration.toDouble(),
+      queueIndex: restoredIndex,
+      progressSeconds: progressSeconds,
+      autoplay: settings.autoPlay,
+    );
   }
 
   Future<void> _restoreDesktopWindowFullScreenState() async {
@@ -1850,7 +2163,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       progressSeconds: mediaControlState.progressSeconds,
       i18n: i18n,
     );
-    _ensureDesktopLyricsLoaded(settings, currentSong);
+    _ensureDesktopLyricsLoaded(currentSong, mode: settings.playerLyricsSource);
     if (_lastDesktopLyricsSignature != lyricsState.signature) {
       _lastDesktopLyricsSignature = lyricsState.signature;
       unawaited(_desktopFeatureService.updateDesktopLyricsState(lyricsState));
@@ -1882,14 +2195,65 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         : null;
   }
 
+  void _ensurePlayerArtworkResolved(LibrarySong? currentSong, WidgetRef ref) {
+    if (currentSong == null) {
+      return;
+    }
+    final artworkPath = currentSong.thumbnailPath;
+    if (artworkPath.isNotEmpty && File(artworkPath).existsSync()) {
+      return;
+    }
+    if (_playerArtworkResolveAttemptedSongIds.contains(currentSong.id) ||
+        _playerArtworkResolvingSongIds.contains(currentSong.id)) {
+      return;
+    }
+
+    _playerArtworkResolvingSongIds.add(currentSong.id);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .getSongArtworkSnapshot(currentSong.id)
+          .then((snapshot) {
+            if (mounted && snapshot.artworkUrl.isNotEmpty) {
+              ref.invalidate(musicLibrarySnapshotProvider);
+            }
+          })
+          .whenComplete(() {
+            _playerArtworkResolvingSongIds.remove(currentSong.id);
+            _playerArtworkResolveAttemptedSongIds.add(currentSong.id);
+          }),
+    );
+  }
+
+  void _refreshPlayerArtworkAfterError(LibrarySong song, WidgetRef ref) {
+    final key = '${song.id}:${song.thumbnailPath}';
+    if (_playerArtworkErrorAttemptedKeys.contains(key) ||
+        _playerArtworkErrorResolvingKeys.contains(key)) {
+      return;
+    }
+
+    _playerArtworkErrorResolvingKeys.add(key);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .getSongArtworkSnapshot(song.id)
+          .then((snapshot) {
+            if (mounted && snapshot.artworkUrl.isNotEmpty) {
+              ref.invalidate(musicLibrarySnapshotProvider);
+            }
+          })
+          .whenComplete(() {
+            _playerArtworkErrorResolvingKeys.remove(key);
+            _playerArtworkErrorAttemptedKeys.add(key);
+          }),
+    );
+  }
+
   void _ensureDesktopLyricsLoaded(
-    SettingsSnapshot settings,
-    LibrarySong? currentSong,
-  ) {
-    final shouldLoadLyrics =
-        settings.desktopLyricsEnabled ||
-        (settings.showNotifications && settings.showLyricsInNotification);
-    if (!shouldLoadLyrics || currentSong == null) {
+    LibrarySong? currentSong, {
+    required LyricsRequestMode mode,
+  }) {
+    if (currentSong == null) {
       _desktopLyricsSongId = null;
       _desktopLyricsLoadingSongId = null;
       _desktopLyricsMode = null;
@@ -1897,7 +2261,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return;
     }
 
-    final mode = settings.playerLyricsSource;
     if ((_desktopLyricsSongId == currentSong.id &&
             _desktopLyricsMode == mode) ||
         (_desktopLyricsLoadingSongId == currentSong.id &&
@@ -2018,7 +2381,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       case DesktopFeatureCommand.windowFullScreenChanged:
         _setDesktopWindowFullScreen(action.isWindowFullScreen ?? false);
       case DesktopFeatureCommand.playPause:
-        _mediaControlController.onTogglePlayPause();
+        _togglePlayPauseFromCurrentQueue();
       case DesktopFeatureCommand.previous:
         _playPreviousFromCurrentQueue();
       case DesktopFeatureCommand.next:
@@ -2040,7 +2403,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       case DesktopFeatureCommand.resetDesktopLyricsOffset:
         _resetCurrentDesktopLyricsOffset();
       case DesktopFeatureCommand.openSettings:
-        _navigateTo('/settings');
+        _navigateTo('/settings#desktop-lyrics');
       case DesktopFeatureCommand.quit:
         unawaited(_desktopFeatureService.quit());
       case DesktopFeatureCommand.playRecentSong:
@@ -2111,7 +2474,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   void _handleExternalAppCommand(ExternalAppCommand command) {
     switch (command.kind) {
       case ExternalAppCommandKind.playPause:
-        _mediaControlController.onTogglePlayPause();
+        _togglePlayPauseFromCurrentQueue();
       case ExternalAppCommandKind.next:
         _playNextFromCurrentQueue();
       case ExternalAppCommandKind.previous:
@@ -2307,10 +2670,35 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _currentPath = '/search';
       }
     });
+    unawaited(_saveSearchQuery(nextSearchText));
     if (nextSearchText.isNotEmpty) {
       _closeNavigationOverlay();
       widget.onSearchCommit?.call(nextSearchText, type);
     }
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchText = '';
+    });
+    unawaited(_saveSearchQuery(''));
+  }
+
+  Future<void> _restoreSearchQuery() async {
+    final preferences = await SharedPreferences.getInstance();
+    final query =
+        preferences.getString(SmPlayerShellStorageKeys.searchQuery) ?? '';
+    if (!mounted || query.isEmpty) {
+      return;
+    }
+    setState(() {
+      _searchText = query;
+    });
+  }
+
+  Future<void> _saveSearchQuery(String query) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(SmPlayerShellStorageKeys.searchQuery, query);
   }
 
   Future<void> _showVoiceAssistantDialog(
@@ -2398,7 +2786,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (_matchesAny(command, const ['暂停']) ||
         _matchesAny(lower, const ['pause'])) {
       if (_mediaControlController.state.isPlaying) {
-        _mediaControlController.onTogglePlayPause();
+        _togglePlayPauseFromCurrentQueue();
       }
       return i18n.t('voiceAssistant.executed');
     }
@@ -2406,7 +2794,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (_matchesAny(command, const ['继续', '恢复']) ||
         _matchesAny(lower, const ['continue', 'resume'])) {
       if (!_mediaControlController.state.isPlaying) {
-        _mediaControlController.onTogglePlayPause();
+        _togglePlayPauseFromCurrentQueue();
       }
       return i18n.t('voiceAssistant.executed');
     }
@@ -2497,10 +2885,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     ]);
     if (playQuery != null) {
       if (playQuery.isEmpty) {
-        if (_mediaControlController.state.disabled) {
+        if (!_mediaControlController.state.isPlaying &&
+            !_togglePlayPauseFromCurrentQueue()) {
           _quickPlayLibrary(ref);
-        } else if (!_mediaControlController.state.isPlaying) {
-          _mediaControlController.onTogglePlayPause();
         }
         return i18n.t('voiceAssistant.executed');
       }
@@ -2534,15 +2921,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _quickPlayLibrary(ref);
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.play:
-        if (_mediaControlController.state.disabled) {
+        if (!_mediaControlController.state.isPlaying &&
+            !_togglePlayPauseFromCurrentQueue()) {
           _quickPlayLibrary(ref);
-        } else if (!_mediaControlController.state.isPlaying) {
-          _mediaControlController.onTogglePlayPause();
         }
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.pause:
         if (_mediaControlController.state.isPlaying) {
-          _mediaControlController.onTogglePlayPause();
+          _togglePlayPauseFromCurrentQueue();
         }
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.previous:
@@ -2849,26 +3235,55 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   bool _playPreviousFromCurrentQueue() {
+    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    if (snapshot == null) {
+      return false;
+    }
+    final playbackSongIds = _playbackSongIds(snapshot);
+    if (playbackSongIds.isEmpty) {
+      return false;
+    }
+    final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
+    if (shouldRestartCurrentTrackForPrevious(
+      progressSeconds: progressSeconds,
+      queueLength: playbackSongIds.length,
+    )) {
+      unawaited(_audioPlayer.seek(Duration.zero));
+      _syncingAudioPlayer = true;
+      _mediaControlController.syncPlaybackProgress(0);
+      if (!_mediaControlController.state.isPlaying) {
+        _mediaControlController.setTrackLoading(false);
+      }
+      _syncingAudioPlayer = false;
+      _settingsController.savePlaybackSettingsImmediate(
+        const PlaybackSettingsUpdate(musicProgress: 0),
+      );
+      return true;
+    }
     return _playQueueDirection(forward: false, automatic: false);
   }
 
   bool _playQueueDirection({required bool forward, required bool automatic}) {
     final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
-    if (snapshot == null || snapshot.nowPlaying.songIds.isEmpty) {
+    if (snapshot == null) {
+      return false;
+    }
+    final playbackSongIds = _playbackSongIds(snapshot);
+    if (playbackSongIds.isEmpty) {
       return false;
     }
 
-    final currentIndex = _currentQueueIndex(snapshot);
+    final currentIndex = _currentQueueIndex(snapshot, playbackSongIds);
     if (automatic &&
         forward &&
         _mediaControlController.state.mode == PlaybackMode.shuffle &&
         _settingsController.snapshot.shuffleAfterOneRound &&
-        currentIndex >= snapshot.nowPlaying.songIds.length - 1) {
-      return _shuffleAndPlayNextRound(snapshot);
+        currentIndex >= playbackSongIds.length - 1) {
+      return _shuffleAndPlayNextRound(snapshot, playbackSongIds);
     }
 
     final nextIndex = nextQueueIndexForPlayback(
-      queueLength: snapshot.nowPlaying.songIds.length,
+      queueLength: playbackSongIds.length,
       currentIndex: currentIndex,
       mode: _mediaControlController.state.mode,
       forward: forward,
@@ -2878,13 +3293,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return false;
     }
 
-    _playQueueIndex(snapshot, nextIndex);
+    _playQueueIndex(snapshot, playbackSongIds, nextIndex);
     return true;
   }
 
-  bool _shuffleAndPlayNextRound(MusicLibrarySnapshot snapshot) {
+  bool _shuffleAndPlayNextRound(
+    MusicLibrarySnapshot snapshot,
+    List<int> playbackSongIds,
+  ) {
     final nextSongIds = shuffleNextRoundSongIds(
-      snapshot.nowPlaying.songIds,
+      playbackSongIds,
       _mediaControlController.state.track.id,
     );
     unawaited(
@@ -2894,23 +3312,32 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     return _playQueueSong(snapshot, nextSongIds.first, 0);
   }
 
-  int _currentQueueIndex(MusicLibrarySnapshot snapshot) {
-    final selectedQueueIndex = _mediaControlController.state.selectedQueueIndex;
-    if (selectedQueueIndex != null &&
-        selectedQueueIndex >= 0 &&
-        selectedQueueIndex < snapshot.nowPlaying.songIds.length) {
-      return selectedQueueIndex;
-    }
-
-    final trackId = _mediaControlController.state.track.id;
-    final trackIndex = snapshot.nowPlaying.songIds.indexOf(trackId ?? -1);
-    return trackIndex == -1 ? 0 : trackIndex;
+  List<int> _playbackSongIds(MusicLibrarySnapshot snapshot) {
+    return normalizePlaybackQueueSongIds(
+      snapshot.nowPlaying.songIds,
+      snapshot.songs.map((song) => song.id),
+    );
   }
 
-  void _playQueueIndex(MusicLibrarySnapshot snapshot, int queueIndex) {
+  int _currentQueueIndex(
+    MusicLibrarySnapshot snapshot, [
+    List<int>? playbackSongIds,
+  ]) {
+    return currentPlaybackQueueIndex(
+      playbackSongIds ?? _playbackSongIds(snapshot),
+      _mediaControlController.state.track.id,
+      _mediaControlController.state.selectedQueueIndex ?? -1,
+    );
+  }
+
+  void _playQueueIndex(
+    MusicLibrarySnapshot snapshot,
+    List<int> playbackSongIds,
+    int queueIndex,
+  ) {
     final played = _playQueueSong(
       snapshot,
-      snapshot.nowPlaying.songIds[queueIndex],
+      playbackSongIds[queueIndex],
       queueIndex,
     );
     if (!played) {
@@ -2929,6 +3356,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return false;
     }
 
+    final startSeconds = resolveQueuePlaybackStartSeconds(
+      currentTrackId: _mediaControlController.state.track.id,
+      nextTrackId: song.id,
+      currentProgressSeconds: _mediaControlController.state.progressSeconds,
+    );
     _mediaControlController.playTrack(
       MediaControlTrack(
         id: song.id,
@@ -2940,9 +3372,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       ),
       durationSeconds: song.duration.toDouble(),
       queueIndex: queueIndex,
+      progressSeconds: startSeconds,
     );
     _settingsController.savePlaybackSettingsImmediate(
-      PlaybackSettingsUpdate(lastMusicIndex: queueIndex, musicProgress: 0),
+      PlaybackSettingsUpdate(
+        lastMusicIndex: queueIndex,
+        musicProgress: startSeconds,
+      ),
     );
     return true;
   }
@@ -3042,9 +3478,11 @@ class _MiniModeSurface extends StatefulWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onSeek,
+    required this.onBeginSeek,
+    required this.onEndSeek,
     required this.onToggleFavorite,
     required this.onQuickPlay,
-    required this.onToggleRepeat,
+    required this.onCycleRepeatMode,
     required this.onToggleMute,
     required this.onVolumeChange,
     required this.onOpenVoiceAssistant,
@@ -3062,9 +3500,11 @@ class _MiniModeSurface extends StatefulWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
+  final VoidCallback onBeginSeek;
+  final VoidCallback onEndSeek;
   final VoidCallback onToggleFavorite;
   final VoidCallback onQuickPlay;
-  final VoidCallback onToggleRepeat;
+  final VoidCallback onCycleRepeatMode;
   final VoidCallback onToggleMute;
   final ValueChanged<int> onVolumeChange;
   final VoidCallback? onOpenVoiceAssistant;
@@ -3079,6 +3519,8 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
   Timer? _controlsHideTimer;
   var _controlsVisible = false;
   var _volumeOpen = false;
+  var _isProgressSeeking = false;
+  var _draftProgressSeconds = 0.0;
 
   @override
   void dispose() {
@@ -3101,6 +3543,10 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
       if (!mounted) {
         return;
       }
+      if (_volumeOpen || _isProgressSeeking) {
+        _showControls();
+        return;
+      }
       setState(() {
         _controlsVisible = false;
         _volumeOpen = false;
@@ -3108,10 +3554,11 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
     });
   }
 
-  Widget _visibleControls(Widget child) {
+  Widget _visibleControls(Widget child, {Key? key}) {
     return IgnorePointer(
       ignoring: !_controlsVisible,
       child: AnimatedOpacity(
+        key: key,
         opacity: _controlsVisible ? 1 : 0,
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
@@ -3132,9 +3579,11 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
     final onPrevious = widget.onPrevious;
     final onNext = widget.onNext;
     final onSeek = widget.onSeek;
+    final onBeginSeek = widget.onBeginSeek;
+    final onEndSeek = widget.onEndSeek;
     final onToggleFavorite = widget.onToggleFavorite;
     final onQuickPlay = widget.onQuickPlay;
-    final onToggleRepeat = widget.onToggleRepeat;
+    final onCycleRepeatMode = widget.onCycleRepeatMode;
     final onVolumeChange = widget.onVolumeChange;
     final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
     final artworkPath = currentSong?.thumbnailPath ?? state.track.artworkUrl;
@@ -3149,7 +3598,9 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
     final noticeKey = state.playbackNoticeKey;
     final noticeText = noticeKey == null ? null : i18n.t(noticeKey);
     final duration = state.durationSeconds <= 0 ? 1.0 : state.durationSeconds;
-    final progress = state.progressSeconds.clamp(0, duration).toDouble();
+    final displayProgressSeconds =
+        _isProgressSeeking ? _draftProgressSeconds : state.progressSeconds;
+    final progress = displayProgressSeconds.clamp(0, duration).toDouble();
 
     return MouseRegion(
       onEnter: _showControls,
@@ -3176,7 +3627,7 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(
-                    alpha: _controlsVisible ? 0.54 : 0.36,
+                    alpha: _controlsVisible ? 0.54 : 0,
                   ),
                 ),
               ),
@@ -3214,49 +3665,57 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                         ),
                       ),
                       const Spacer(),
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                      _visibleControls(
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xd9ffffff),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (noticeText != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                noticeText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xff8bc8ff),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                            _MiniModeLyricLine(
+                              song: currentSong,
+                              repository: repository,
+                              playerLyricsSource: playerLyricsSource,
+                              progressSeconds: state.progressSeconds,
+                              durationSeconds: state.durationSeconds,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xd9ffffff),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (noticeText != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          noticeText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xff8bc8ff),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                      _MiniModeLyricLine(
-                        song: currentSong,
-                        repository: repository,
-                        playerLyricsSource: playerLyricsSource,
-                        progressSeconds: state.progressSeconds,
-                        durationSeconds: state.durationSeconds,
+                        key: const ValueKey('MiniMode.TrackCopyOpacity'),
                       ),
                       const SizedBox(height: 18),
                       _visibleControls(
@@ -3306,12 +3765,41 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                                 ),
                               ),
                               child: Slider(
+                                key: const ValueKey('MiniMode.ProgressSlider'),
                                 min: 0,
                                 max: duration,
                                 value: progress,
                                 activeColor: Colors.white,
                                 inactiveColor: Colors.white24,
-                                onChanged: state.disabled ? null : onSeek,
+                                onChanged:
+                                    state.disabled
+                                        ? null
+                                        : (value) {
+                                          setState(() {
+                                            _draftProgressSeconds = value;
+                                          });
+                                        },
+                                onChangeStart:
+                                    state.disabled
+                                        ? null
+                                        : (_) {
+                                          setState(() {
+                                            _isProgressSeeking = true;
+                                            _draftProgressSeconds = progress;
+                                            _controlsVisible = true;
+                                          });
+                                          onBeginSeek();
+                                        },
+                                onChangeEnd:
+                                    state.disabled
+                                        ? null
+                                        : (value) {
+                                          onSeek(value);
+                                          onEndSeek();
+                                          setState(() {
+                                            _isProgressSeeking = false;
+                                          });
+                                        },
                               ),
                             ),
                             Row(
@@ -3328,7 +3816,7 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                                 IconButton(
                                   tooltip: i18n.t('player.playbackModeRepeat'),
                                   onPressed:
-                                      state.disabled ? null : onToggleRepeat,
+                                      state.disabled ? null : onCycleRepeatMode,
                                   color:
                                       state.mode == PlaybackMode.repeat ||
                                               state.mode ==
@@ -3392,19 +3880,16 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                                                     _controlsVisible = true;
                                                   });
                                                 },
-                                        onLongPress:
-                                            state.disabled
-                                                ? null
-                                                : widget.onToggleMute,
                                         color:
                                             _volumeOpen || state.isMuted
                                                 ? const Color(0xff8bc8ff)
                                                 : Colors.white,
                                         disabledColor: Colors.white38,
                                         icon: Icon(
-                                          state.isMuted
-                                              ? Icons.volume_off_rounded
-                                              : Icons.volume_up_rounded,
+                                          playerVolumeIcon(
+                                            state.volume,
+                                            state.isMuted,
+                                          ),
                                         ),
                                       ),
                                       if (_volumeOpen)
@@ -3613,6 +4098,33 @@ String _resolveMiniModeLyricText({
   return _toSingleDisplayLyricLine(lyrics.lines[lyricIndex].text);
 }
 
+String? _resolvePlayerLyricLine({
+  required LyricsSnapshot? lyrics,
+  required LibrarySong? song,
+  required double progressSeconds,
+  required double durationSeconds,
+}) {
+  final snapshot = lyrics;
+  if (snapshot == null || snapshot.lines.isEmpty || song == null) {
+    return null;
+  }
+  final effectiveDurationSeconds =
+      durationSeconds > 0 ? durationSeconds : song.duration.toDouble();
+  final adjustedProgressSeconds = max(
+    0.0,
+    progressSeconds + song.lyricsOffsetMs / 1000,
+  );
+  final progressRatio =
+      effectiveDurationSeconds > 0
+          ? adjustedProgressSeconds / effectiveDurationSeconds
+          : 0.0;
+  return _resolveMiniModeLyricText(
+    lyrics: snapshot,
+    progressSeconds: adjustedProgressSeconds,
+    progressRatio: progressRatio,
+  );
+}
+
 String _toSingleDisplayLyricLine(String text) {
   final normalizedText = text
       .replaceAll(RegExp(r'\\r\\n|\\n|\\r'), '\n')
@@ -3690,13 +4202,20 @@ class _Workspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _ShellColors.workspaceSurface,
-        boxShadow: const [
+        color:
+            nightMode
+                ? _ShellColors.nightWorkspaceSurface
+                : _ShellColors.workspaceSurface,
+        boxShadow: [
           BoxShadow(
-            color: _ShellColors.workspaceShadow,
-            offset: Offset(0, 22),
+            color:
+                nightMode
+                    ? _ShellColors.nightWorkspaceShadow
+                    : _ShellColors.workspaceShadow,
+            offset: const Offset(0, 22),
             blurRadius: 56,
           ),
         ],
@@ -4741,4 +5260,9 @@ class _ShellColors {
   static const bodyBottom = Color(0xffedf2f7);
   static const workspaceSurface = Color(0xbdfafcff);
   static const workspaceShadow = Color(0x2e2f425c);
+  static const nightBodyHighlight = Color(0x1a5f9ed1);
+  static const nightBodyTop = Color(0xff111317);
+  static const nightBodyBottom = Color(0xff1a2028);
+  static const nightWorkspaceSurface = Color(0xff141a21);
+  static const nightWorkspaceShadow = Color(0x66000000);
 }

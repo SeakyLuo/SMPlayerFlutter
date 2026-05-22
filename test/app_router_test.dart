@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smplayer_flutter/main.dart' as app;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -194,6 +196,51 @@ void main() {
     expect(find.byType(SettingsPage), findsOneWidget);
   });
 
+  testWidgets('SmPlayerApp provides Material localizations for zh-CN widgets', (
+    tester,
+  ) async {
+    final settingsController = SettingsController();
+    await settingsController.refresh();
+    MaterialLocalizations? materialLocalizations;
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(
+          path: '/settings',
+          builder: (context, _) {
+            materialLocalizations = MaterialLocalizations.of(context);
+            return SettingsPage(onLoadSystemFonts: () async => const []);
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith(
+            (ref) async => const SmPlayerI18n(
+              locale: 'zh-CN',
+              messages: {'app.shell': '简音播放器'},
+            ),
+          ),
+          musicLibrarySnapshotProvider.overrideWith(
+            (ref) async => rootlessLibrarySnapshot,
+          ),
+        ],
+        child: app.SmPlayerApp(
+          router: router,
+          settingsController: settingsController,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(materialLocalizations, isNotNull);
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('sidebar search commits to the search route', (tester) async {
     final router = createSmPlayerRouter();
 
@@ -355,6 +402,36 @@ void main() {
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/artists');
     expect(uri.queryParameters.containsKey('artist'), isFalse);
+  });
+
+  testWidgets('sidebar restores remembered artist route like Electron', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          musicLibrarySnapshotProvider.overrideWith(
+            (ref) async => emptyLibrarySnapshot,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/artists?artist=Blue');
+    await tester.pumpAndSettle();
+    router.go('/songs');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('ArtistsItem')));
+    await tester.pumpAndSettle();
+
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/artists');
+    expect(uri.queryParameters['artist'], 'Blue');
   });
 
   testWidgets('library routes render migrated pages', (tester) async {

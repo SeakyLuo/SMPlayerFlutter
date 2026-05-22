@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -11,6 +12,25 @@ void main() {
     expect(getNextPlaybackMode(PlaybackMode.repeatOne), PlaybackMode.once);
   });
 
+  test('repeat cycle follows Electron mini mode order', () {
+    expect(getNextRepeatCycleMode(PlaybackMode.once), PlaybackMode.repeat);
+    expect(getNextRepeatCycleMode(PlaybackMode.shuffle), PlaybackMode.repeat);
+    expect(getNextRepeatCycleMode(PlaybackMode.repeat), PlaybackMode.repeatOne);
+    expect(getNextRepeatCycleMode(PlaybackMode.repeatOne), PlaybackMode.once);
+  });
+
+  test('normalizePlaybackQueueSongIds mirrors Electron active-song filter', () {
+    expect(
+      normalizePlaybackQueueSongIds(const [4, 2, 9, 2], const [1, 2, 3, 4]),
+      [4, 2, 2],
+    );
+  });
+
+  test('removePlaybackQueueRange mirrors Electron queue undo helper', () {
+    expect(removePlaybackQueueRange(const [1, 2, 3, 4], 2, 1), [1, 2, 4]);
+    expect(removePlaybackQueueRange(const [1, 2, 3, 4], 1, 2), [1, 4]);
+  });
+
   test('shuffleNextRoundSongIds avoids repeating active track first', () {
     final shuffled = shuffleNextRoundSongIds(
       const [1, 2, 3, 4],
@@ -19,6 +39,43 @@ void main() {
     );
 
     expect(shuffled, [2, 3, 1, 4]);
+  });
+
+  test(
+    'shufflePlaybackQueueForCurrentTrack mirrors Electron shuffle enable',
+    () {
+      final shuffled = shufflePlaybackQueueForCurrentTrack(
+        const [1, 2, 3, 4],
+        3,
+        _FixedRandom([0, 2, 1]),
+      );
+
+      expect(shuffled.first, 3);
+      expect(shuffled.toSet(), {1, 2, 3, 4});
+      expect(shufflePlaybackQueueForCurrentTrack(const [1, 2, 3], 9), [
+        1,
+        2,
+        3,
+      ]);
+    },
+  );
+
+  test('previous command restart threshold mirrors Electron playback', () {
+    expect(
+      shouldRestartCurrentTrackForPrevious(
+        progressSeconds: 5.01,
+        queueLength: 3,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldRestartCurrentTrackForPrevious(progressSeconds: 5, queueLength: 3),
+      isFalse,
+    );
+    expect(
+      shouldRestartCurrentTrackForPrevious(progressSeconds: 0, queueLength: 1),
+      isTrue,
+    );
   });
 
   test('playback mode titles match Electron mediaControlModel labels', () {
@@ -108,6 +165,24 @@ void main() {
     controller.onTogglePlayPause();
     expect(controller.state.isPlaying, isTrue);
     expect(controller.state.playbackStatus, PlaybackStatus.loading);
+
+    controller.playTrack(
+      const MediaControlTrack(
+        id: 2,
+        title: 'Restored',
+        artist: 'Artist',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 200,
+      queueIndex: 1,
+      progressSeconds: 42,
+      autoplay: false,
+    );
+    expect(controller.state.selectedQueueIndex, 1);
+    expect(controller.state.progressSeconds, 42);
+    expect(controller.state.isPlaying, isFalse);
+    expect(controller.state.playbackStatus, PlaybackStatus.loading);
   });
 
   test('MediaControlController updates playback runtime state', () {
@@ -148,11 +223,20 @@ void main() {
     expect(controller.state.progressSeconds, 100);
     expect(persistedUpdates.last.musicProgress, 100);
 
-    controller.onVolumeChange(130);
-    expect(controller.state.volume, 100);
-    expect(controller.state.isMuted, isFalse);
-    expect(persistedUpdates.last.volume, 100);
-    expect(persistedUpdates.last.isMuted, isFalse);
+    fakeAsync((async) {
+      controller.onVolumeChange(60);
+      controller.onVolumeChange(130);
+      expect(controller.state.volume, 100);
+      expect(controller.state.isMuted, isFalse);
+      expect(persistedUpdates.last.musicProgress, 100);
+
+      async.elapse(volumePersistenceDebounce - const Duration(milliseconds: 1));
+      expect(persistedUpdates.last.musicProgress, 100);
+
+      async.elapse(const Duration(milliseconds: 1));
+      expect(persistedUpdates.last.volume, 100);
+      expect(persistedUpdates.last.isMuted, isFalse);
+    });
 
     controller.onToggleMute();
     expect(controller.state.isMuted, isTrue);
@@ -161,6 +245,12 @@ void main() {
     controller.onToggleShuffle();
     expect(controller.state.mode, PlaybackMode.shuffle);
     expect(persistedUpdates.last.mode, PlaybackMode.shuffle);
+
+    controller.setSelectedQueueIndex(3);
+    expect(controller.state.selectedQueueIndex, 3);
+
+    controller.setSelectedQueueIndex(null);
+    expect(controller.state.selectedQueueIndex, isNull);
 
     controller.onToggleRepeat();
     expect(controller.state.mode, PlaybackMode.repeat);
@@ -175,7 +265,8 @@ void main() {
 
     controller.onStop();
     expect(controller.state.isPlaying, isFalse);
-    expect(controller.state.progressSeconds, 0);
+    expect(controller.state.progressSeconds, 100);
+    expect(persistedUpdates.last.musicProgress, 100);
   });
 
   test('MediaControlController accepts playback backend state updates', () {
@@ -203,6 +294,16 @@ void main() {
     expect(controller.state.isPlaying, isTrue);
     expect(controller.state.playbackStatus, PlaybackStatus.playing);
 
+    controller.setTrackLoading(true, buffering: true);
+    expect(controller.state.playbackStatus, PlaybackStatus.buffering);
+    expect(controller.state.track.isLoading, isTrue);
+
+    controller.setPlaybackActive(false);
+    expect(controller.state.playbackStatus, PlaybackStatus.buffering);
+    controller.setTrackLoading(false);
+    expect(controller.state.isPlaying, isFalse);
+    expect(controller.state.playbackStatus, PlaybackStatus.ready);
+
     controller.syncPlaybackProgress(140, durationSeconds: 180);
     expect(controller.state.progressSeconds, 140);
     expect(controller.state.durationSeconds, 180);
@@ -215,7 +316,7 @@ void main() {
     expect(controller.state.progressSeconds, 180);
   });
 
-  test('getNextRecoverableTrackId mirrors Electron playback recovery', () {
+  test('getNextRecoverableTrackId mirrors Electron shared recovery helper', () {
     expect(
       getNextRecoverableTrackId(
         playbackSongIds: const [1, 2, 3, 4],
@@ -269,6 +370,17 @@ void main() {
         durationSeconds: 100,
       ),
       PlaybackStallRecoveryAction.none,
+    );
+    expect(
+      stalledPlaybackRecoveryAction(
+        isPlaying: true,
+        isUserSeeking: false,
+        currentProgressSeconds: 40.04,
+        lastProgressSeconds: 40,
+        stalledFor: const Duration(seconds: 8),
+        durationSeconds: 100,
+      ),
+      PlaybackStallRecoveryAction.pauseAndRecover,
     );
     expect(
       stalledPlaybackRecoveryAction(
@@ -358,8 +470,56 @@ void main() {
       expect(controller.state.playbackStatus, PlaybackStatus.paused);
       expect(controller.state.playbackNoticeKey, 'player.playbackLoadFailed');
 
+      controller.setPlaybackNotice('notification.playbackStalled');
+      expect(
+        controller.state.playbackNoticeKey,
+        'notification.playbackStalled',
+      );
+
       controller.setTrackLoading(true);
       expect(controller.state.playbackNoticeKey, isNull);
+    },
+  );
+
+  test(
+    'MediaControlController mirrors Electron runtime playback error recovery',
+    () {
+      final persistedUpdates = <PlaybackSettingsUpdate>[];
+      final controller = MediaControlController(
+        const MediaControlState(
+          track: MediaControlTrack(
+            id: 1,
+            title: 'Song',
+            artist: 'Artist',
+            artworkUrl: '',
+            isLoading: false,
+          ),
+          disabled: false,
+          isPlaying: true,
+          volume: 50,
+          isMuted: false,
+          mode: PlaybackMode.once,
+          progressSeconds: 42,
+          durationSeconds: 100,
+          isProgressSeeking: false,
+          playbackStatus: PlaybackStatus.playing,
+        ),
+        persistedUpdates.add,
+      );
+
+      controller.setTrackLoading(true, buffering: true);
+      controller.setPlaybackRuntimeFailed(64);
+
+      expect(controller.state.isPlaying, isFalse);
+      expect(controller.state.track.isLoading, isFalse);
+      expect(controller.state.playbackStatus, PlaybackStatus.paused);
+      expect(controller.state.progressSeconds, 64);
+      expect(controller.state.playbackNoticeKey, 'player.playbackLoadFailed');
+      expect(persistedUpdates.last.musicProgress, 64);
+
+      controller.setPlaybackRuntimeFailed(140);
+      expect(controller.state.progressSeconds, 100);
+      expect(persistedUpdates.last.musicProgress, 100);
     },
   );
 

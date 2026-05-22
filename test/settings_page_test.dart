@@ -18,12 +18,17 @@ void main() {
       'common.close': '关闭',
       'common.confirm': '确认',
       'common.continue': '继续',
+      'common.clear': '清除',
+      'common.detail': '详情',
       'common.folders': '音乐文件夹',
+      'library.root': '音乐文件夹',
+      'library.refreshing': '正在刷新音乐库...',
       'common.pause': '暂停',
       'common.saved': '已保存',
       'common.start': '开始',
       'common.artistSeparator': '、',
       'settings.autoPlay': '打开应用后自动播放歌曲',
+      'settings.autoLyrics': '自动为最近添加的歌曲添加歌词',
       'settings.batchAddLyrics': '批量添加歌词',
       'settings.batchAddLyricsCopy': '为所有歌曲搜索并添加歌词。已有歌词不会重复写入。',
       'settings.dataImported': '数据已导入，正在重新加载',
@@ -45,11 +50,13 @@ void main() {
       'settings.desktopLyricsStrokeColor': '描边颜色',
       'settings.display': '显示',
       'settings.exportData': '导出数据',
+      'settings.exportDataHint': '导出数据可备份简音播放器的数据和设置，不包含本地音乐文件。',
       'settings.exportingData': '正在导出数据...',
       'settings.feedback': '提供反馈',
       'settings.hideMultiSelectCommandBar': '在操作后隐藏多选命令栏',
       'settings.importData': '导入数据',
       'settings.importDataConfirm': '导入数据会替换当前本地数据库并重新加载应用。继续吗？',
+      'settings.importDataHint': '导入备份数据库来恢复数据。',
       'settings.importingData': '正在导入数据...',
       'settings.interfaceLanguage': '界面语言',
       'settings.languageChinese': '简体中文',
@@ -71,7 +78,18 @@ void main() {
       'settings.loadUsingFilename': '加载音乐时使用文件名称而非音乐名称',
       'settings.loadUsingMusicName': '加载音乐时使用音乐名称而非文件名称',
       'settings.lyrics': '歌词',
+      'settings.lyricsBatchBackedUp': '已备份',
+      'settings.lyricsBatchCurrentLyrics': '当前歌词',
+      'settings.lyricsBatchDetailNoLyrics': '无歌词',
+      'settings.lyricsBatchDetailWrittenLyrics': '写入歌词',
+      'settings.lyricsBatchFailed': '失败',
+      'settings.lyricsBatchMissing': '未找到',
+      'settings.lyricsBatchNewLyrics': '新歌词',
+      'settings.lyricsBatchOverwritten': '覆盖',
+      'settings.lyricsBatchSaved': '保存',
+      'settings.lyricsBatchSkipped': '跳过',
       'settings.lyricsBatchStarting': '正在准备歌词任务',
+      'settings.lyricsBatchTaskDetails': '歌词任务详情',
       'settings.musicFolderPlaceholder': '音乐库根目录路径',
       'settings.nightMode': '夜间模式',
       'settings.nightModeAuto': '自动',
@@ -88,7 +106,10 @@ void main() {
       'settings.openingImportData': '正在打开本地文件...',
       'settings.others': '其他',
       'settings.play': '播放',
+      'settings.playerLyricsSource': '播放器歌词来源',
       'settings.preferenceSettings': '偏好设置',
+      'settings.preserveLyricsTimestamps': '保留网络歌词时间戳',
+      'settings.preserveLyricsTimestampsHint': '获取网络歌词时保留 LRC 同步时间戳。',
       'settings.quitOnClose': '关闭窗口时退出应用',
       'settings.releaseNotes': '更新日志',
       'settings.releaseNotesArtists': '音乐可以按歌手和专辑分组。',
@@ -101,6 +122,9 @@ void main() {
       'settings.saveProgress': '退出时保存播放进度',
       'settings.shuffleAfterOneRound': '播放一轮后重新随机排序',
       'settings.showCounts': '显示计数',
+      'settings.sourceEmbedded': '音乐文件歌词',
+      'settings.sourceInternet': '网络歌词',
+      'settings.sourceLocal': 'LRC 文件歌词',
       'settings.smartMultiArtistFix': '智能修正歌手',
       'settings.smartMultiArtistFixConfirm': '智能修正',
       'settings.smartMultiArtistFixMessage': '是否现在扫描音乐库并生成多歌手更新建议？',
@@ -150,6 +174,7 @@ void main() {
       'preferences.playlists': '偏好播放列表',
       'preferences.songs': '偏好歌曲',
       'playlists.removeSelected': '删除',
+      'song.lyrics.auto': '自动',
       'local.applyingArtistSplits': '正在更新...',
       'local.applyArtistSplits': '全部拆分',
       'local.artistSplitAfter': '拆分后',
@@ -206,6 +231,84 @@ void main() {
     await tester.pump();
 
     expect(lastUpdate?.autoPlay, isTrue);
+  });
+
+  testWidgets('SettingsPage lyrics rows mirror Electron order and hints', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: SettingsPage(
+            onLoadSystemFonts: () async => const [],
+            scanning: true,
+            initialSnapshot: const SettingsSnapshot.defaults().copyWith(
+              playerLyricsSource: LyricsRequestMode.internet,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('扫描中...'), findsNothing);
+    expect(find.byTooltip('获取网络歌词时保留 LRC 同步时间戳。'), findsNothing);
+
+    await tester.tap(find.text('网络歌词').first);
+    await tester.pumpAndSettle();
+
+    final autoTop = tester.getTopLeft(find.text('自动').first).dy;
+    final internetTop = tester.getTopLeft(find.text('网络歌词').last).dy;
+    final localTop = tester.getTopLeft(find.text('LRC 文件歌词')).dy;
+    final embeddedTop = tester.getTopLeft(find.text('音乐文件歌词')).dy;
+    expect(autoTop, lessThan(internetTop));
+    expect(internetTop, lessThan(localTop));
+    expect(localTop, lessThan(embeddedTop));
+  });
+
+  testWidgets('SettingsPage language options use Electron native labels', (
+    tester,
+  ) async {
+    final englishI18n = SmPlayerI18n(
+      locale: 'en-US',
+      messages: {
+        ...i18n.messages,
+        'settings.languageSystem': 'System',
+        'settings.languageChinese': 'Simplified Chinese',
+        'settings.languageChineseTraditional': 'Traditional Chinese',
+      },
+    );
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: englishI18n,
+        child: MaterialApp(
+          home: SettingsPage(onLoadSystemFonts: () async => const []),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('System').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('简体中文'), findsOneWidget);
+    expect(find.text('繁體中文'), findsOneWidget);
+    expect(find.text('Simplified Chinese'), findsNothing);
+    expect(find.text('Traditional Chinese'), findsNothing);
   });
 
   testWidgets('SettingsPage opens PreferenceSettingsPage dialog', (
@@ -272,11 +375,17 @@ void main() {
     );
 
     expect(find.text('字体颜色'), findsOneWidget);
-    expect(find.text('锁定桌面歌词并让鼠标点击穿透'), findsOneWidget);
+    expect(find.text('锁定桌面歌词并让鼠标点击穿透'), findsNothing);
     expect(find.text('文字描边'), findsOneWidget);
     expect(find.text('字体字号'), findsOneWidget);
     expect(find.text('文字透明度'), findsOneWidget);
-    expect(find.text('重置歌词偏移'), findsOneWidget);
+    expect(find.text('重置歌词偏移'), findsNothing);
+
+    await tester.ensureVisible(find.text('恢复默认'));
+    await tester.pumpAndSettle();
+
+    final restoreButton = find.widgetWithText(SettingsActionButton, '恢复默认');
+    expect(tester.getSize(restoreButton).width, lessThan(180));
   });
 
   testWidgets('SettingsPage searches desktop lyrics system fonts', (
@@ -294,11 +403,24 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          builder:
+              (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(2)),
+                child: child!,
+              ),
           home: SettingsPage(
             initialSnapshot: const SettingsSnapshot.defaults().copyWith(
               desktopLyricsEnabled: true,
             ),
-            onLoadSystemFonts: () async => ['Aptos', 'Segoe UI'],
+            onLoadSystemFonts:
+                () async => [
+                  '.SFCompactRounded-Regular',
+                  'Academy Engraved LET Fonts.ttf',
+                  'Aptos',
+                  'Segoe UI',
+                ],
             onUpdateSettings: (update) {
               lastUpdate = update;
             },
@@ -313,7 +435,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('搜索字体'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).last, 'seg');
+    final selectPanel = find.byWidgetPredicate((widget) {
+      if (widget is! Container || widget.clipBehavior != Clip.antiAlias) {
+        return false;
+      }
+      final decoration = widget.decoration;
+      return decoration is BoxDecoration &&
+          decoration.borderRadius == BorderRadius.circular(10);
+    });
+    expect(tester.getSize(selectPanel).width, 240);
+    expect(tester.getSize(find.text('搜索字体')).width, lessThan(80));
+    expect(
+      tester.getTopLeft(find.text('搜索字体')).dx,
+      tester.getTopLeft(find.text('系统默认').last).dx,
+    );
+    expect(find.byTooltip('Academy Engraved LET Fonts.ttf'), findsOneWidget);
+    final searchFieldContext = tester.element(find.byType(EditableText).last);
+    expect(MediaQuery.textScalerOf(searchFieldContext).scale(13), 13);
+    expect(find.text('.SFCompactRounded'), findsNothing);
+    await tester.enterText(find.byType(EditableText).last, 'seg');
     await tester.pump();
 
     expect(find.text('Aptos'), findsNothing);
@@ -323,6 +463,81 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(lastUpdate?.desktopLyricsFontFamily, 'Segoe UI');
+  });
+
+  testWidgets('SettingsPage color control accepts arbitrary hex colors', (
+    tester,
+  ) async {
+    AppSettingsUpdate? lastUpdate;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: SettingsPage(
+            initialSnapshot: const SettingsSnapshot.defaults().copyWith(
+              desktopLyricsEnabled: true,
+            ),
+            onLoadSystemFonts: () async => const [],
+            onPickColor: (_) async => '#123456',
+            onUpdateSettings: (update) {
+              lastUpdate = update;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('#4AA8FF'));
+    await tester.tap(find.text('#4AA8FF'));
+    await tester.pump();
+
+    expect(lastUpdate?.desktopLyricsColor, '#123456');
+  });
+
+  testWidgets('SettingsPage color control cancel keeps current value', (
+    tester,
+  ) async {
+    AppSettingsUpdate? lastUpdate;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: SettingsPage(
+            initialSnapshot: const SettingsSnapshot.defaults().copyWith(
+              desktopLyricsEnabled: true,
+            ),
+            onLoadSystemFonts: () async => const [],
+            onPickColor: (_) async => null,
+            onUpdateSettings: (update) {
+              lastUpdate = update;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('#4AA8FF'));
+    await tester.tap(find.text('#4AA8FF'));
+    await tester.pumpAndSettle();
+
+    expect(lastUpdate, isNull);
+    expect(find.text('确认'), findsNothing);
   });
 
   testWidgets(
@@ -395,36 +610,7 @@ void main() {
     },
   );
 
-  testWidgets('SettingsPage rescan runs repository root scan', (tester) async {
-    final repository = _FakeScanRepository();
-    AppSettingsUpdate? lastUpdate;
-
-    await tester.pumpWidget(
-      SmPlayerI18nScope(
-        i18n: i18n,
-        child: MaterialApp(
-          home: SettingsPage(
-            initialSnapshot: const SettingsSnapshot.defaults().copyWith(
-              rootPath: '/Users/me/Music',
-            ),
-            onLoadSystemFonts: () async => const [],
-            libraryRepository: repository,
-            onUpdateSettings: (update) {
-              lastUpdate = update;
-            },
-          ),
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('正在刷新'));
-    await tester.pumpAndSettle();
-
-    expect(repository.scannedRootPath, '/Users/me/Music');
-    expect(lastUpdate?.rootPath, '/Users/me/Music');
-  });
-
-  testWidgets('SettingsPage rescan shows progress and can cancel', (
+  testWidgets('SettingsPage folder scan shows progress and can cancel', (
     tester,
   ) async {
     final repository =
@@ -441,13 +627,14 @@ void main() {
               rootPath: '/Users/me/Music',
             ),
             onLoadSystemFonts: () async => const [],
+            onPickLibraryRoot: () async => '/Users/me/Music',
             libraryRepository: repository,
           ),
         ),
       ),
     );
 
-    await tester.tap(find.text('正在刷新'));
+    await tester.tap(find.byTooltip('音乐文件夹'));
     await tester.pump();
 
     expect(find.text('正在更新文件夹'), findsOneWidget);
@@ -668,6 +855,7 @@ void main() {
           home: Scaffold(
             body: SettingsPage(
               libraryRepository: repository,
+              lyricsBatchSongCount: 1,
               onLoadSystemFonts: () async => const [],
             ),
           ),
@@ -703,6 +891,190 @@ void main() {
     expect(repository.completed, isTrue);
     expect(find.text('暂停'), findsNothing);
   });
+
+  testWidgets('SettingsPage disables lyrics batch until songs are loaded', (
+    tester,
+  ) async {
+    final repository = _FakeLyricsBatchRepository();
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SettingsPage(
+              libraryRepository: repository,
+              onLoadSystemFonts: () async => const [],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('批量添加歌词'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    if (find.text('清除').evaluate().isNotEmpty) {
+      await tester.tap(find.text('清除'));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.text('批量添加歌词'));
+    await tester.pump();
+
+    expect(repository.started, isFalse);
+    expect(find.text('开始'), findsNothing);
+  });
+
+  testWidgets('SettingsPage mirrors Electron canceling lyrics batch state', (
+    tester,
+  ) async {
+    final repository = _FakeLyricsBatchRepository();
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SettingsPage(
+              libraryRepository: repository,
+              lyricsBatchSongCount: 1,
+              onLoadSystemFonts: () async => const [],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('批量添加歌词'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    if (find.text('清除').evaluate().isNotEmpty) {
+      await tester.tap(find.text('清除'));
+      await tester.pumpAndSettle();
+    }
+    if (find.text('开始').evaluate().isEmpty) {
+      await tester.tap(find.widgetWithText(SettingsActionButton, '批量添加歌词'));
+      await tester.pump();
+    }
+    await tester.tap(find.text('开始'));
+    await tester.pump();
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+
+    expect(find.text('暂停'), findsNothing);
+    expect(find.text('继续'), findsNothing);
+    expect(find.text('批量添加歌词'), findsOneWidget);
+
+    await tester.tap(find.text('批量添加歌词'));
+    await tester.pump();
+
+    expect(find.text('开始'), findsNothing);
+    repository.releaseBeforePauseWait();
+    repository.finish();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'SettingsPage lyrics batch details expand one row like Electron',
+    (tester) async {
+      final repository = _FakeLyricsBatchRepository(
+        result: const LyricsBatchResult(
+          total: 2,
+          saved: 2,
+          overwritten: 0,
+          skipped: 0,
+          missing: 0,
+          failed: 0,
+          backedUp: 0,
+          backupBytes: 0,
+          details: [
+            LyricsBatchDetail(
+              songId: 1,
+              title: 'Track A',
+              artist: 'Artist A',
+              thumbnailPath: '',
+              result: LyricsBatchDetailResult.saved,
+              targetRawLyrics: 'Lyrics A',
+            ),
+            LyricsBatchDetail(
+              songId: 2,
+              title: 'Track B',
+              artist: 'Artist B',
+              thumbnailPath: '',
+              result: LyricsBatchDetailResult.saved,
+              targetRawLyrics: 'Lyrics B',
+            ),
+          ],
+        ),
+      );
+
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            home: Scaffold(
+              body: SettingsPage(
+                libraryRepository: repository,
+                lyricsBatchSongCount: 2,
+                onLoadSystemFonts: () async => const [],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.scrollUntilVisible(
+        find.text('批量添加歌词'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('批量添加歌词'));
+      await tester.pump();
+      await tester.tap(find.text('开始'));
+      repository.releaseBeforePauseWait();
+      repository.finish();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('详情'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Track A'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lyrics A'), findsOneWidget);
+      expect(find.text('Lyrics B'), findsNothing);
+
+      await tester.tap(find.text('Track B'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lyrics A'), findsNothing);
+      expect(find.text('Lyrics B'), findsOneWidget);
+    },
+  );
 
   testWidgets('PreferenceSettingsPage updates and clears concrete sections', (
     tester,
@@ -808,6 +1180,21 @@ class _FakeLibraryRepository extends LibraryRepository {
 }
 
 class _FakeLyricsBatchRepository extends LibraryRepository {
+  _FakeLyricsBatchRepository({this.result = _defaultResult});
+
+  static const _defaultResult = LyricsBatchResult(
+    total: 1,
+    saved: 1,
+    overwritten: 0,
+    skipped: 0,
+    missing: 0,
+    failed: 0,
+    backedUp: 0,
+    backupBytes: 0,
+    details: [],
+  );
+
+  final LyricsBatchResult result;
   final _beforePauseWait = Completer<void>();
   final _finish = Completer<void>();
   var started = false;
@@ -851,17 +1238,7 @@ class _FakeLyricsBatchRepository extends LibraryRepository {
     await waitIfPaused?.call();
     await _finish.future;
     completed = true;
-    return const LyricsBatchResult(
-      total: 1,
-      saved: 1,
-      overwritten: 0,
-      skipped: 0,
-      missing: 0,
-      failed: 0,
-      backedUp: 0,
-      backupBytes: 0,
-      details: [],
-    );
+    return result;
   }
 }
 

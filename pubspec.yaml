@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: 2.6.1
   go_router: ^17.0.0
   http: ^1.6.0
@@ -43,6 +45,7 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   build_runner: ^2.15.0
   drift_dev: ^2.31.0
+  fake_async: ^1.3.2
   flutter_test:
     sdk: flutter
 
