@@ -41,6 +41,7 @@ GoRouter createSmPlayerRouter({
   SettingsController? settingsController,
   List<String> initialExternalFilePaths = const [],
   List<ExternalAppCommand> initialExternalCommands = const [],
+  FutureOr<void> Function()? onDataImported,
 }) {
   return GoRouter(
     initialLocation: resolveRestoredPage(initialLocation),
@@ -67,6 +68,7 @@ GoRouter createSmPlayerRouter({
               final repository = ref.read(libraryRepositoryProvider);
               return SmPlayerShellPage(
                 currentPath: path,
+                currentLocation: state.uri.toString(),
                 canGoBack: canGoBack,
                 settingsRepository: repository,
                 onNavigate: (target) {
@@ -160,20 +162,21 @@ GoRouter createSmPlayerRouter({
             path: '/favorites',
             builder: (_, _) => const MyFavoritesPage(),
           ),
-          GoRoute(
-            path: '/playlists',
-            builder:
-                (_, state) => PlaylistsPage(
-                  searchQuery: state.uri.queryParameters['search'] ?? '',
-                ),
-          ),
+          GoRoute(path: '/playlists', builder: (_, _) => const PlaylistsPage()),
           GoRoute(
             path: '/settings',
             builder:
-                (context, _) => Consumer(
+                (context, state) => Consumer(
                   builder:
                       (context, ref, _) => SettingsPage(
                         controller: settingsController,
+                        initialFragment: state.uri.fragment,
+                        lyricsBatchSongCount:
+                            ref
+                                .watch(musicLibrarySnapshotProvider)
+                                .valueOrNull
+                                ?.songs
+                                .length,
                         libraryRepository: ref.read(libraryRepositoryProvider),
                         onScanLibrary: (
                           rootPath, {
@@ -190,8 +193,12 @@ GoRouter createSmPlayerRouter({
                           ref.invalidate(musicLibrarySnapshotProvider);
                         },
                         onDataImported: () async {
-                          await settingsController?.refresh();
-                          ref.invalidate(musicLibrarySnapshotProvider);
+                          if (onDataImported != null) {
+                            await onDataImported();
+                          } else {
+                            await settingsController?.refresh();
+                            ref.invalidate(musicLibrarySnapshotProvider);
+                          }
                         },
                         onSendFeedbackEmail: () {
                           unawaited(

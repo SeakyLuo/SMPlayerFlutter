@@ -1,12 +1,39 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+
+const _playerCompactBreakpoint = 800.0;
+const _playerCondensedUtilityBreakpoint = 1200.0;
+const _artworkColorMinValue = 10;
+const _artworkColorMaxValue = 205;
+const _artworkColorGridDivisions = 16;
+const _defaultArtworkAccentColor = Color(0xff5b87b6);
+
+@visibleForTesting
+String? resolvePlayerArtworkPath(
+  MediaControlTrack track,
+  LibrarySong? currentSong,
+) {
+  return currentSong == null ? track.artworkUrl : currentSong.thumbnailPath;
+}
+
+@visibleForTesting
+double resolvePlayerDurationSeconds(
+  double durationSeconds,
+  LibrarySong? currentSong,
+) {
+  return durationSeconds > 0
+      ? durationSeconds
+      : currentSong?.duration.toDouble() ?? 0;
+}
 
 class MediaControl extends StatelessWidget {
   const MediaControl({
@@ -40,17 +67,21 @@ class MediaControl extends StatelessWidget {
     this.currentSong,
     this.playlists = const [],
     this.playbackNoticeKey,
+    this.currentLyricsLine,
     this.preferenceLevel,
+    this.onResolvePreferenceLevel,
     this.onAddToNowPlaying,
     this.onCreatePlaylist,
     this.onAddToPlaylist,
     this.onUndoPreference,
     this.onSetPreference,
+    this.onSeeArtist,
     this.onSeeAlbum,
     this.onSeeMusicInfo,
     this.onSeeLyrics,
     this.onSeeAlbumArt,
     this.onSeeLocal,
+    this.onArtworkError,
   });
 
   final MediaControlTrack track;
@@ -64,6 +95,7 @@ class MediaControl extends StatelessWidget {
   final double progressSeconds;
   final double durationSeconds;
   final String? playbackNoticeKey;
+  final String? currentLyricsLine;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -83,66 +115,58 @@ class MediaControl extends StatelessWidget {
   final VoidCallback onEnterMiniMode;
   final VoidCallback? onOpenVoiceAssistant;
   final String? preferenceLevel;
+  final FutureOr<String?> Function()? onResolvePreferenceLevel;
   final VoidCallback? onAddToNowPlaying;
   final VoidCallback? onCreatePlaylist;
   final ValueChanged<int>? onAddToPlaylist;
   final VoidCallback? onUndoPreference;
   final ValueChanged<String>? onSetPreference;
+  final VoidCallback? onSeeArtist;
   final VoidCallback? onSeeAlbum;
   final VoidCallback? onSeeMusicInfo;
   final VoidCallback? onSeeLyrics;
   final VoidCallback? onSeeAlbumArt;
   final VoidCallback? onSeeLocal;
+  final VoidCallback? onArtworkError;
 
   @override
   Widget build(BuildContext context) {
+    final artworkPath = resolvePlayerArtworkPath(track, currentSong);
+    final effectiveDurationSeconds = resolvePlayerDurationSeconds(
+      durationSeconds,
+      currentSong,
+    );
     return Material(
       color: Colors.transparent,
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: MediaControlColors.playerBorder),
-                left: BorderSide(color: MediaControlColors.playerBorder),
-                right: BorderSide(color: MediaControlColors.playerBorder),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  MediaControlColors.playerSurface,
-                  MediaControlColors.playerAccentWash,
-                  MediaControlColors.playerSurfaceSolid,
-                ],
-                stops: [0, 0.52, 1],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: MediaControlColors.playerShadow,
-                  offset: Offset(0, -18),
-                  blurRadius: 48,
-                ),
-              ],
-            ),
+          child: _PlayerTintedFrame(
+            artworkPath: artworkPath,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final compact = constraints.maxWidth <= 720;
+                  final compact =
+                      constraints.maxWidth <= _playerCompactBreakpoint;
+                  final condensedUtility =
+                      constraints.maxWidth <= _playerCondensedUtilityBreakpoint;
+                  final narrowCompact = constraints.maxWidth <= 520;
+                  final clampedVolume = clampVolumeValue(volume);
+                  final surfaceVolume = disabled ? 0 : clampedVolume;
 
                   if (compact) {
                     return _CompactMediaControlLayout(
+                      narrow: narrowCompact,
                       track: track,
                       disabled: disabled,
                       isPlaying: isPlaying,
-                      volume: volume,
+                      volume: clampedVolume,
                       isMuted: isMuted,
                       mode: mode,
                       progressSeconds: progressSeconds,
-                      durationSeconds: durationSeconds,
+                      durationSeconds: effectiveDurationSeconds,
                       onTogglePlayPause: onTogglePlayPause,
                       onPrevious: onPrevious,
                       onNext: onNext,
@@ -162,6 +186,23 @@ class MediaControl extends StatelessWidget {
                       onEnterMiniMode: onEnterMiniMode,
                       onOpenVoiceAssistant: onOpenVoiceAssistant,
                       playbackNoticeKey: playbackNoticeKey,
+                      currentLyricsLine: currentLyricsLine,
+                      currentSong: currentSong,
+                      onArtworkError: onArtworkError,
+                      playlists: playlists,
+                      preferenceLevel: preferenceLevel,
+                      onResolvePreferenceLevel: onResolvePreferenceLevel,
+                      onAddToNowPlaying: onAddToNowPlaying,
+                      onCreatePlaylist: onCreatePlaylist,
+                      onAddToPlaylist: onAddToPlaylist,
+                      onUndoPreference: onUndoPreference,
+                      onSetPreference: onSetPreference,
+                      onSeeArtist: onSeeArtist ?? onOpenNowPlaying,
+                      onSeeAlbum: onSeeAlbum ?? onOpenNowPlaying,
+                      onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
+                      onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
+                      onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
+                      onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
                     );
                   }
 
@@ -171,9 +212,10 @@ class MediaControl extends StatelessWidget {
                         flex: 9,
                         child: _PlayerTrack(
                           track: track,
-                          artworkPath:
-                              currentSong?.thumbnailPath ?? track.artworkUrl,
+                          artworkPath: artworkPath,
                           playbackNoticeKey: playbackNoticeKey,
+                          currentLyricsLine: currentLyricsLine,
+                          onArtworkError: onArtworkError,
                           disabled: track.id == null,
                           onOpenNowPlaying: onOpenNowPlaying,
                         ),
@@ -186,11 +228,11 @@ class MediaControl extends StatelessWidget {
                           favorite: track.favorite,
                           disabled: disabled,
                           isPlaying: isPlaying,
-                          volume: volume,
+                          volume: surfaceVolume,
                           isMuted: isMuted,
                           mode: mode,
                           progressSeconds: progressSeconds,
-                          durationSeconds: durationSeconds,
+                          durationSeconds: effectiveDurationSeconds,
                           onTogglePlayPause: onTogglePlayPause,
                           onPrevious: onPrevious,
                           onNext: onNext,
@@ -203,6 +245,7 @@ class MediaControl extends StatelessWidget {
                           onToggleRepeat: onToggleRepeat,
                           onToggleRepeatOne: onToggleRepeatOne,
                           onToggleFavorite: onToggleFavorite,
+                          onOpenVoiceAssistant: onOpenVoiceAssistant,
                           onMoreClick: () {
                             _showPlayerMoreMenu(
                               context,
@@ -219,7 +262,7 @@ class MediaControl extends StatelessWidget {
                             trackId: track.id,
                             favorite: track.favorite,
                             disabled: disabled,
-                            volumeValue: disabled ? 0 : volume,
+                            volumeValue: surfaceVolume,
                             isMuted: isMuted,
                             mode: mode,
                             onVolumeChange: onVolumeChange,
@@ -228,6 +271,8 @@ class MediaControl extends StatelessWidget {
                             onToggleRepeat: onToggleRepeat,
                             onToggleRepeatOne: onToggleRepeatOne,
                             onToggleFavorite: onToggleFavorite,
+                            onOpenVoiceAssistant: onOpenVoiceAssistant,
+                            condensed: condensedUtility,
                             onMoreClick: () {
                               _showPlayerMoreMenu(
                                 context,
@@ -251,7 +296,12 @@ class MediaControl extends StatelessWidget {
   Future<void> _showPlayerMoreMenu(
     BuildContext context, {
     required SmPlayerI18n i18n,
-  }) {
+  }) async {
+    final resolvedPreferenceLevel =
+        await onResolvePreferenceLevel?.call() ?? preferenceLevel;
+    if (!context.mounted) {
+      return;
+    }
     return showMenuFlyout(
       context,
       items: _buildPlayerMoreMenuItems(
@@ -260,7 +310,9 @@ class MediaControl extends StatelessWidget {
         trackId: track.id,
         mode: mode,
         isMuted: isMuted,
+        volumeValue: clampVolumeValue(volume),
         onQuickPlay: onQuickPlay,
+        onVolumeChange: onVolumeChange,
         onToggleMute: onToggleMute,
         onToggleShuffle: onToggleShuffle,
         onToggleRepeat: onToggleRepeat,
@@ -270,15 +322,16 @@ class MediaControl extends StatelessWidget {
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         isWindowFullScreen: isWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
-        onOpenVoiceAssistant: onOpenVoiceAssistant,
+        isCompact: false,
         currentSong: currentSong,
         playlists: playlists,
-        preferenceLevel: preferenceLevel,
+        preferenceLevel: resolvedPreferenceLevel,
         onAddToNowPlaying: onAddToNowPlaying,
         onCreatePlaylist: onCreatePlaylist,
         onAddToPlaylist: onAddToPlaylist,
         onUndoPreference: onUndoPreference,
         onSetPreference: onSetPreference,
+        onSeeArtist: onSeeArtist ?? onOpenNowPlaying,
         onSeeAlbum: onSeeAlbum ?? onOpenNowPlaying,
         onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
         onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
@@ -286,6 +339,104 @@ class MediaControl extends StatelessWidget {
         onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
       ),
     );
+  }
+}
+
+class _PlayerTintedFrame extends StatefulWidget {
+  const _PlayerTintedFrame({required this.artworkPath, required this.child});
+
+  final String? artworkPath;
+  final Widget child;
+
+  @override
+  State<_PlayerTintedFrame> createState() => _PlayerTintedFrameState();
+}
+
+class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
+  var _accentColor = _defaultArtworkAccentColor;
+  var _loadSerial = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArtworkAccentColor();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlayerTintedFrame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.artworkPath != widget.artworkPath) {
+      _loadArtworkAccentColor();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final night = MediaControlColors.isNight(context);
+    final coverWash = _accentColor.withValues(alpha: 0.24);
+    final nightCoverWash = _accentColor.withValues(alpha: 0.22);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: MediaControlColors.playerBorderFor(night)),
+          left: BorderSide(color: MediaControlColors.playerBorderFor(night)),
+          right: BorderSide(color: MediaControlColors.playerBorderFor(night)),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors:
+              night
+                  ? [
+                    MediaControlColors.nightPlayerHighlight,
+                    nightCoverWash,
+                    MediaControlColors.nightPlayerSurface,
+                  ]
+                  : [
+                    MediaControlColors.playerSurface,
+                    coverWash,
+                    MediaControlColors.playerSurfaceSolid,
+                  ],
+          stops: const [0, 0.52, 1],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: MediaControlColors.playerShadowFor(night),
+            offset: const Offset(0, -18),
+            blurRadius: 48,
+          ),
+        ],
+      ),
+      child: widget.child,
+    );
+  }
+
+  void _loadArtworkAccentColor() {
+    final loadSerial = _loadSerial + 1;
+    _loadSerial = loadSerial;
+    final artworkPath = widget.artworkPath ?? '';
+    if (artworkPath.isEmpty) {
+      _setAccentColor(_defaultArtworkAccentColor);
+      return;
+    }
+
+    unawaited(
+      extractPlayerArtworkAccentColor(artworkPath).then((color) {
+        if (!mounted || loadSerial != _loadSerial) {
+          return;
+        }
+        _setAccentColor(color);
+      }),
+    );
+  }
+
+  void _setAccentColor(Color color) {
+    if (_accentColor == color) {
+      return;
+    }
+    setState(() {
+      _accentColor = color;
+    });
   }
 }
 
@@ -314,6 +465,8 @@ class MediaControlSurface extends StatefulWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.onOpenVoiceAssistant,
+    this.condensed = false,
     required this.onMoreClick,
   });
 
@@ -339,6 +492,8 @@ class MediaControlSurface extends StatefulWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final VoidCallback? onOpenVoiceAssistant;
+  final bool condensed;
   final VoidCallback onMoreClick;
 
   @override
@@ -366,7 +521,7 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
       favorite: widget.favorite,
       disabled: widget.disabled,
       isPlaying: widget.isPlaying,
-      volumeValue: widget.disabled ? 0 : widget.volume,
+      volumeValue: widget.disabled ? 0 : clampVolumeValue(widget.volume),
       mode: widget.mode,
       progressSeconds: progressValue,
       progressValue: progressValue,
@@ -388,6 +543,9 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
         widget.onBeginSeek();
       },
       onSeekEnd: (value) {
+        if (!_isProgressSeeking) {
+          return;
+        }
         widget.onSeek(value);
         widget.onEndSeek();
         setState(() {
@@ -400,6 +558,7 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
       onToggleRepeat: widget.onToggleRepeat,
       onToggleRepeatOne: widget.onToggleRepeatOne,
       onToggleFavorite: widget.onToggleFavorite,
+      onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
       isMuted: widget.isMuted,
       onMoreClick: widget.onMoreClick,
     );
@@ -432,6 +591,7 @@ class MediaControlButtons extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.onOpenVoiceAssistant,
     required this.isMuted,
     required this.onMoreClick,
   });
@@ -459,12 +619,14 @@ class MediaControlButtons extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final VoidCallback? onOpenVoiceAssistant;
   final bool isMuted;
   final VoidCallback onMoreClick;
 
   @override
   Widget build(BuildContext context) {
     final i18n = _mediaControlI18n(context);
+    final textMuted = MediaControlColors.textMutedFor(context);
     final playTitle =
         isPlaying ? i18n.t('player.pause') : i18n.t('player.play');
 
@@ -514,22 +676,24 @@ class MediaControlButtons extends StatelessWidget {
                 child: Text(
                   formatDuration(progressSeconds),
                   style: const TextStyle(
-                    color: MediaControlColors.textMuted,
                     fontSize: 13,
-                  ),
+                  ).copyWith(color: textMuted),
                 ),
               ),
               Expanded(
-                child: _MediaProgressSlider(
-                  value: progressValue,
-                  max: progressMax,
-                  disabled: disabled || durationSeconds <= 0,
-                  onChanged: onSeekChange,
-                  onChangeStart: (_) {
-                    onSeekBegin();
-                  },
-                  onChangeEnd: onSeekEnd,
-                ),
+                child:
+                    isLoading
+                        ? const _MediaProgressLoading()
+                        : _MediaProgressSlider(
+                          value: progressValue,
+                          max: progressMax,
+                          disabled: disabled || durationSeconds <= 0,
+                          onChanged: onSeekChange,
+                          onChangeStart: (_) {
+                            onSeekBegin();
+                          },
+                          onChangeEnd: onSeekEnd,
+                        ),
               ),
               SizedBox(
                 width: 44,
@@ -537,9 +701,8 @@ class MediaControlButtons extends StatelessWidget {
                   formatDuration(durationSeconds),
                   textAlign: TextAlign.end,
                   style: const TextStyle(
-                    color: MediaControlColors.textMuted,
                     fontSize: 13,
-                  ),
+                  ).copyWith(color: textMuted),
                 ),
               ),
             ],
@@ -553,6 +716,22 @@ class MediaControlButtons extends StatelessWidget {
 enum VolumeSliderOrientation { horizontal, vertical }
 
 int clampVolumeValue(num value) => value.round().clamp(0, 100);
+
+IconData playerVolumeIcon(int volume, bool isMuted) {
+  if (isMuted) {
+    return Icons.volume_mute_rounded;
+  }
+  if (volume <= 0) {
+    return Icons.volume_off_rounded;
+  }
+  if (volume < 34) {
+    return Icons.volume_down_rounded;
+  }
+  if (volume < 67) {
+    return Icons.volume_down_rounded;
+  }
+  return Icons.volume_up_rounded;
+}
 
 class VolumeSlider extends StatefulWidget {
   const VolumeSlider({
@@ -631,13 +810,17 @@ class _VolumeSliderState extends State<VolumeSlider> {
   @override
   Widget build(BuildContext context) {
     final value = widget.disabled ? 0.0 : _liveValue.clamp(0, 100).toDouble();
+    final inactiveTrackColor =
+        widget.inactiveTrackColor == MediaControlColors.sliderInactive
+            ? MediaControlColors.sliderInactiveFor(context)
+            : widget.inactiveTrackColor;
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 2,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
         activeTrackColor: widget.activeTrackColor,
-        inactiveTrackColor: widget.inactiveTrackColor,
+        inactiveTrackColor: inactiveTrackColor,
         thumbColor: widget.thumbColor,
         overlayColor: widget.overlayColor,
       ),
@@ -793,6 +976,7 @@ class _VolumeSliderTooltip extends StatelessWidget {
 
 class _CompactMediaControlLayout extends StatelessWidget {
   const _CompactMediaControlLayout({
+    required this.narrow,
     required this.track,
     required this.disabled,
     required this.isPlaying,
@@ -820,8 +1004,26 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.onEnterMiniMode,
     this.onOpenVoiceAssistant,
     this.playbackNoticeKey,
+    this.currentLyricsLine,
+    this.currentSong,
+    this.onArtworkError,
+    this.playlists = const [],
+    this.preferenceLevel,
+    this.onResolvePreferenceLevel,
+    this.onAddToNowPlaying,
+    this.onCreatePlaylist,
+    this.onAddToPlaylist,
+    this.onUndoPreference,
+    this.onSetPreference,
+    required this.onSeeArtist,
+    required this.onSeeAlbum,
+    required this.onSeeMusicInfo,
+    required this.onSeeLyrics,
+    required this.onSeeAlbumArt,
+    required this.onSeeLocal,
   });
 
+  final bool narrow;
   final MediaControlTrack track;
   final bool disabled;
   final bool isPlaying;
@@ -849,10 +1051,31 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final VoidCallback onEnterMiniMode;
   final VoidCallback? onOpenVoiceAssistant;
   final String? playbackNoticeKey;
+  final String? currentLyricsLine;
+  final LibrarySong? currentSong;
+  final VoidCallback? onArtworkError;
+  final List<LibraryPlaylist> playlists;
+  final String? preferenceLevel;
+  final FutureOr<String?> Function()? onResolvePreferenceLevel;
+  final VoidCallback? onAddToNowPlaying;
+  final VoidCallback? onCreatePlaylist;
+  final ValueChanged<int>? onAddToPlaylist;
+  final VoidCallback? onUndoPreference;
+  final ValueChanged<String>? onSetPreference;
+  final VoidCallback onSeeArtist;
+  final VoidCallback onSeeAlbum;
+  final VoidCallback onSeeMusicInfo;
+  final VoidCallback onSeeLyrics;
+  final VoidCallback onSeeAlbumArt;
+  final VoidCallback onSeeLocal;
 
   @override
   Widget build(BuildContext context) {
     final i18n = _mediaControlI18n(context);
+    final primarySize = narrow ? 48.0 : 52.0;
+    final primaryPadding = narrow ? 12.0 : 13.0;
+    final utilitySize = narrow ? 34.0 : 36.0;
+    final utilityPadding = narrow ? 5.0 : 6.0;
 
     return Column(
       children: [
@@ -862,8 +1085,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
               Expanded(
                 child: _PlayerTrack(
                   track: track,
-                  artworkPath: track.artworkUrl,
+                  artworkPath: resolvePlayerArtworkPath(track, currentSong),
                   playbackNoticeKey: playbackNoticeKey,
+                  currentLyricsLine: currentLyricsLine,
+                  onArtworkError: onArtworkError,
                   disabled: track.id == null,
                   compact: true,
                   onOpenNowPlaying: onOpenNowPlaying,
@@ -880,6 +1105,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   _PlayerIconButton(
+                    key: const ValueKey('MediaControl.PlayPauseButton'),
                     tooltip:
                         isPlaying
                             ? i18n.t('player.pause')
@@ -889,6 +1115,9 @@ class _CompactMediaControlLayout extends StatelessWidget {
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
                     primary: true,
+                    buttonSize: primarySize,
+                    padding: primaryPadding,
+                    iconSize: narrow ? 24 : 26,
                     loading: track.isLoading,
                     disabled: disabled,
                     onPressed: onTogglePlayPause,
@@ -907,34 +1136,68 @@ class _CompactMediaControlLayout extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _PlayerIconButton(
-                      tooltip:
-                          '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-                      icon: _playbackModeIcon(mode),
-                      active: mode != PlaybackMode.once,
-                      disabled: disabled,
-                      onPressed: () {
-                        switch (getNextPlaybackMode(mode)) {
-                          case PlaybackMode.shuffle:
-                            onToggleShuffle();
-                          case PlaybackMode.repeat:
-                            onToggleRepeat();
-                          case PlaybackMode.repeatOne:
-                            onToggleRepeatOne();
-                          case PlaybackMode.once:
-                            if (mode == PlaybackMode.shuffle) {
-                              onToggleShuffle();
-                            } else if (mode == PlaybackMode.repeat) {
-                              onToggleRepeat();
-                            } else {
-                              onToggleRepeatOne();
-                            }
-                        }
-                      },
-                    ),
+                    if (onOpenVoiceAssistant == null)
+                      Builder(
+                        builder: (modeButtonContext) {
+                          return _PlayerIconButton(
+                            key: const ValueKey(
+                              'MediaControl.CompactModeButton',
+                            ),
+                            tooltip:
+                                '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+                            icon: _playbackModeIcon(mode),
+                            buttonSize: utilitySize,
+                            padding: utilityPadding,
+                            iconSize: narrow ? 20 : 22,
+                            active: mode != PlaybackMode.once,
+                            disabled: disabled,
+                            onPressed: () {
+                              switch (getNextPlaybackMode(mode)) {
+                                case PlaybackMode.shuffle:
+                                  onToggleShuffle();
+                                case PlaybackMode.repeat:
+                                  onToggleRepeat();
+                                case PlaybackMode.repeatOne:
+                                  onToggleRepeatOne();
+                                case PlaybackMode.once:
+                                  if (mode == PlaybackMode.shuffle) {
+                                    onToggleShuffle();
+                                  } else if (mode == PlaybackMode.repeat) {
+                                    onToggleRepeat();
+                                  } else {
+                                    onToggleRepeatOne();
+                                  }
+                              }
+                            },
+                            onLongPress: () {
+                              _showCompactPlaybackModeMenu(
+                                modeButtonContext,
+                                i18n: i18n,
+                                mode: mode,
+                                onToggleShuffle: onToggleShuffle,
+                                onToggleRepeat: onToggleRepeat,
+                                onToggleRepeatOne: onToggleRepeatOne,
+                              );
+                            },
+                          );
+                        },
+                      )
+                    else
+                      _PlayerIconButton(
+                        tooltip: i18n.t('player.voiceAssistant'),
+                        icon: Icons.mic_rounded,
+                        buttonSize: utilitySize,
+                        padding: utilityPadding,
+                        iconSize: narrow ? 20 : 22,
+                        disabled: false,
+                        onPressed: onOpenVoiceAssistant!,
+                      ),
                     _PlayerIconButton(
                       tooltip: i18n.t('player.more'),
                       icon: Icons.more_horiz_rounded,
+                      buttonSize: utilitySize,
+                      padding: utilityPadding,
+                      iconSize: narrow ? 20 : 22,
                       onPressed: () {
                         _showCompactMoreMenu(
                           context,
@@ -943,6 +1206,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                           trackId: track.id,
                           mode: mode,
                           isMuted: isMuted,
+                          volumeValue: volume,
                           onQuickPlay: onQuickPlay,
                           onToggleMute: onToggleMute,
                           onToggleShuffle: onToggleShuffle,
@@ -952,7 +1216,21 @@ class _CompactMediaControlLayout extends StatelessWidget {
                           onToggleWindowFullScreen: onToggleWindowFullScreen,
                           isWindowFullScreen: isWindowFullScreen,
                           onEnterMiniMode: onEnterMiniMode,
-                          onOpenVoiceAssistant: onOpenVoiceAssistant,
+                          currentSong: currentSong,
+                          playlists: playlists,
+                          preferenceLevel: preferenceLevel,
+                          onResolvePreferenceLevel: onResolvePreferenceLevel,
+                          onAddToNowPlaying: onAddToNowPlaying,
+                          onCreatePlaylist: onCreatePlaylist,
+                          onAddToPlaylist: onAddToPlaylist,
+                          onUndoPreference: onUndoPreference,
+                          onSetPreference: onSetPreference,
+                          onSeeArtist: onSeeArtist,
+                          onSeeAlbum: onSeeAlbum,
+                          onSeeMusicInfo: onSeeMusicInfo,
+                          onSeeLyrics: onSeeLyrics,
+                          onSeeAlbumArt: onSeeAlbumArt,
+                          onSeeLocal: onSeeLocal,
                         );
                       },
                     ),
@@ -962,60 +1240,27 @@ class _CompactMediaControlLayout extends StatelessWidget {
             ],
           ),
         ),
-        SizedBox(
-          height: 28,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 42,
-                child: Text(
-                  formatDuration(progressSeconds),
-                  style: const TextStyle(
-                    color: MediaControlColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _MediaProgressSlider(
-                  value: progressSeconds,
-                  max: durationSeconds,
-                  disabled: disabled || durationSeconds <= 0,
-                  onChanged: onSeek,
-                  onChangeStart: (_) {
-                    onBeginSeek();
-                  },
-                  onChangeEnd: (value) {
-                    onSeek(value);
-                    onEndSeek();
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 42,
-                child: Text(
-                  formatDuration(durationSeconds),
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    color: MediaControlColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        _CompactMediaProgressRow(
+          isLoading: track.isLoading,
+          disabled: disabled,
+          progressSeconds: progressSeconds,
+          durationSeconds: durationSeconds,
+          onSeek: onSeek,
+          onBeginSeek: onBeginSeek,
+          onEndSeek: onEndSeek,
         ),
       ],
     );
   }
 
-  void _showCompactMoreMenu(
+  Future<void> _showCompactMoreMenu(
     BuildContext context, {
     required SmPlayerI18n i18n,
     required bool disabled,
     required int? trackId,
     required PlaybackMode mode,
     required bool isMuted,
+    required int volumeValue,
     required VoidCallback onQuickPlay,
     required VoidCallback onToggleMute,
     required VoidCallback onToggleShuffle,
@@ -1025,8 +1270,27 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required VoidCallback onToggleWindowFullScreen,
     required bool isWindowFullScreen,
     required VoidCallback onEnterMiniMode,
-    VoidCallback? onOpenVoiceAssistant,
-  }) {
+    LibrarySong? currentSong,
+    List<LibraryPlaylist> playlists = const [],
+    String? preferenceLevel,
+    FutureOr<String?> Function()? onResolvePreferenceLevel,
+    VoidCallback? onAddToNowPlaying,
+    VoidCallback? onCreatePlaylist,
+    ValueChanged<int>? onAddToPlaylist,
+    VoidCallback? onUndoPreference,
+    ValueChanged<String>? onSetPreference,
+    required VoidCallback onSeeArtist,
+    required VoidCallback onSeeAlbum,
+    required VoidCallback onSeeMusicInfo,
+    required VoidCallback onSeeLyrics,
+    required VoidCallback onSeeAlbumArt,
+    required VoidCallback onSeeLocal,
+  }) async {
+    final resolvedPreferenceLevel =
+        await onResolvePreferenceLevel?.call() ?? preferenceLevel;
+    if (!context.mounted) {
+      return;
+    }
     showMenuFlyout(
       context,
       items: _buildPlayerMoreMenuItems(
@@ -1035,7 +1299,9 @@ class _CompactMediaControlLayout extends StatelessWidget {
         trackId: trackId,
         mode: mode,
         isMuted: isMuted,
+        volumeValue: volumeValue,
         onQuickPlay: onQuickPlay,
+        onVolumeChange: onVolumeChange,
         onToggleMute: onToggleMute,
         onToggleShuffle: onToggleShuffle,
         onToggleRepeat: onToggleRepeat,
@@ -1045,15 +1311,230 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onToggleWindowFullScreen: onToggleWindowFullScreen,
         isWindowFullScreen: isWindowFullScreen,
         onEnterMiniMode: onEnterMiniMode,
-        onOpenVoiceAssistant: onOpenVoiceAssistant,
-        onSeeAlbum: onOpenNowPlaying,
-        onSeeMusicInfo: onOpenNowPlaying,
-        onSeeLyrics: onOpenNowPlaying,
-        onSeeAlbumArt: onOpenNowPlaying,
-        onSeeLocal: onOpenNowPlaying,
+        isCompact: true,
+        currentSong: currentSong,
+        playlists: playlists,
+        preferenceLevel: resolvedPreferenceLevel,
+        onAddToNowPlaying: onAddToNowPlaying,
+        onCreatePlaylist: onCreatePlaylist,
+        onAddToPlaylist: onAddToPlaylist,
+        onUndoPreference: onUndoPreference,
+        onSetPreference: onSetPreference,
+        onSeeArtist: onSeeArtist,
+        onSeeAlbum: onSeeAlbum,
+        onSeeMusicInfo: onSeeMusicInfo,
+        onSeeLyrics: onSeeLyrics,
+        onSeeAlbumArt: onSeeAlbumArt,
+        onSeeLocal: onSeeLocal,
       ),
     );
   }
+
+  void _showCompactPlaybackModeMenu(
+    BuildContext context, {
+    required SmPlayerI18n i18n,
+    required PlaybackMode mode,
+    required VoidCallback onToggleShuffle,
+    required VoidCallback onToggleRepeat,
+    required VoidCallback onToggleRepeatOne,
+  }) {
+    _showPlaybackModeMenu(
+      context,
+      i18n: i18n,
+      mode: mode,
+      onToggleShuffle: onToggleShuffle,
+      onToggleRepeat: onToggleRepeat,
+      onToggleRepeatOne: onToggleRepeatOne,
+    );
+  }
+}
+
+void _showPlaybackModeMenu(
+  BuildContext context, {
+  required SmPlayerI18n i18n,
+  required PlaybackMode mode,
+  required VoidCallback onToggleShuffle,
+  required VoidCallback onToggleRepeat,
+  required VoidCallback onToggleRepeatOne,
+}) {
+  showMenuFlyout(
+    context,
+    items: _buildPlaybackModeMenuItems(
+      i18n: i18n,
+      mode: mode,
+      onToggleShuffle: onToggleShuffle,
+      onToggleRepeat: onToggleRepeat,
+      onToggleRepeatOne: onToggleRepeatOne,
+    ),
+  );
+}
+
+class _CompactMediaProgressRow extends StatefulWidget {
+  const _CompactMediaProgressRow({
+    required this.isLoading,
+    required this.disabled,
+    required this.progressSeconds,
+    required this.durationSeconds,
+    required this.onSeek,
+    required this.onBeginSeek,
+    required this.onEndSeek,
+  });
+
+  final bool isLoading;
+  final bool disabled;
+  final double progressSeconds;
+  final double durationSeconds;
+  final ValueChanged<double> onSeek;
+  final VoidCallback onBeginSeek;
+  final VoidCallback onEndSeek;
+
+  @override
+  State<_CompactMediaProgressRow> createState() =>
+      _CompactMediaProgressRowState();
+}
+
+class _CompactMediaProgressRowState extends State<_CompactMediaProgressRow> {
+  var _isProgressSeeking = false;
+  var _draftProgressSeconds = 0.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final progressMax =
+        widget.durationSeconds > 0 ? widget.durationSeconds : 0.0;
+    final textMuted = MediaControlColors.textMutedFor(context);
+    final displayProgressSeconds =
+        _isProgressSeeking ? _draftProgressSeconds : widget.progressSeconds;
+    final progressValue =
+        widget.disabled || progressMax <= 0
+            ? 0.0
+            : displayProgressSeconds.clamp(0, progressMax).toDouble();
+
+    return SizedBox(
+      height: 28,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(
+              formatDuration(progressValue),
+              style: const TextStyle(fontSize: 12).copyWith(color: textMuted),
+            ),
+          ),
+          Expanded(
+            child:
+                widget.isLoading
+                    ? const _MediaProgressLoading()
+                    : _MediaProgressSlider(
+                      value: progressValue,
+                      max: progressMax,
+                      disabled: widget.disabled || widget.durationSeconds <= 0,
+                      onChanged: (value) {
+                        setState(() {
+                          _draftProgressSeconds = value;
+                        });
+                      },
+                      onChangeStart: (_) {
+                        setState(() {
+                          _isProgressSeeking = true;
+                          _draftProgressSeconds = progressValue;
+                        });
+                        widget.onBeginSeek();
+                      },
+                      onChangeEnd: (value) {
+                        if (!_isProgressSeeking) {
+                          return;
+                        }
+                        widget.onSeek(value);
+                        widget.onEndSeek();
+                        setState(() {
+                          _isProgressSeeking = false;
+                        });
+                      },
+                    ),
+          ),
+          SizedBox(
+            width: 42,
+            child: Text(
+              formatDuration(widget.durationSeconds),
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontSize: 12).copyWith(color: textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<MenuFlyoutItem> _buildPlaybackModeMenuItems({
+  required SmPlayerI18n i18n,
+  required PlaybackMode mode,
+  required VoidCallback onToggleShuffle,
+  required VoidCallback onToggleRepeat,
+  required VoidCallback onToggleRepeatOne,
+}) {
+  return [
+    MenuFlyoutItem(
+      key: 'playback-mode-list',
+      text: i18n.t('player.playbackModeList'),
+      icon: Icons.queue_music_rounded,
+      checked: mode == PlaybackMode.once,
+      onPressed: () {
+        _setPlaybackMode(
+          currentMode: mode,
+          targetMode: PlaybackMode.once,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+        );
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'playback-mode-shuffle',
+      text: i18n.t('player.playbackModeShuffle'),
+      icon: Icons.shuffle_rounded,
+      checked: mode == PlaybackMode.shuffle,
+      onPressed: () {
+        _setPlaybackMode(
+          currentMode: mode,
+          targetMode: PlaybackMode.shuffle,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+        );
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'playback-mode-repeat',
+      text: i18n.t('player.playbackModeRepeat'),
+      icon: Icons.repeat_rounded,
+      checked: mode == PlaybackMode.repeat,
+      onPressed: () {
+        _setPlaybackMode(
+          currentMode: mode,
+          targetMode: PlaybackMode.repeat,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+        );
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'playback-mode-repeat-one',
+      text: i18n.t('player.playbackModeRepeatOne'),
+      icon: Icons.repeat_one_rounded,
+      checked: mode == PlaybackMode.repeatOne,
+      onPressed: () {
+        _setPlaybackMode(
+          currentMode: mode,
+          targetMode: PlaybackMode.repeatOne,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+        );
+      },
+    ),
+  ];
 }
 
 List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
@@ -1062,7 +1543,9 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required int? trackId,
   required PlaybackMode mode,
   required bool isMuted,
+  required int volumeValue,
   required VoidCallback onQuickPlay,
+  required ValueChanged<int> onVolumeChange,
   required VoidCallback onToggleMute,
   required VoidCallback onToggleShuffle,
   required VoidCallback onToggleRepeat,
@@ -1072,7 +1555,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onToggleWindowFullScreen,
   required bool isWindowFullScreen,
   required VoidCallback onEnterMiniMode,
-  VoidCallback? onOpenVoiceAssistant,
+  bool isCompact = false,
   LibrarySong? currentSong,
   List<LibraryPlaylist> playlists = const [],
   String? preferenceLevel,
@@ -1081,12 +1564,69 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   ValueChanged<int>? onAddToPlaylist,
   VoidCallback? onUndoPreference,
   ValueChanged<String>? onSetPreference,
+  required VoidCallback onSeeArtist,
   required VoidCallback onSeeAlbum,
   required VoidCallback onSeeMusicInfo,
   required VoidCallback onSeeLyrics,
   required VoidCallback onSeeAlbumArt,
   required VoidCallback onSeeLocal,
 }) {
+  final items = [
+    MenuFlyoutItem(
+      key: 'quick',
+      text: i18n.t('nowPlaying.quickPlay'),
+      icon: Icons.play_arrow_rounded,
+      onPressed: onQuickPlay,
+    ),
+    if (isCompact) ...[
+      MenuFlyoutItem(
+        key: 'playback-mode',
+        text:
+            '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+        icon: _playbackModeIcon(mode),
+        submenu: _buildPlaybackModeMenuItems(
+          i18n: i18n,
+          mode: mode,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+        ),
+      ),
+      MenuFlyoutItem(
+        key: 'player-volume',
+        text: i18n.t('player.volume'),
+        icon: playerVolumeIcon(volumeValue, isMuted),
+        checked: isMuted,
+        contentHeight: 52,
+        content: _PlayerVolumeMenuItem(
+          label: i18n.t('player.volume'),
+          muted: isMuted,
+          volumeValue: volumeValue,
+          disabled: false,
+          onToggleMute: onToggleMute,
+          onVolumeChange: onVolumeChange,
+        ),
+      ),
+      MenuFlyoutItem(
+        key: 'player-favorite',
+        text:
+            currentSong?.favorite == true
+                ? i18n.t('player.unlike')
+                : i18n.t('player.like'),
+        icon:
+            currentSong?.favorite == true
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+        disabled: currentSong == null,
+        onPressed: onToggleFavorite,
+      ),
+    ],
+  ];
+
+  if (currentSong == null) {
+    return items;
+  }
+
   final customPlaylists =
       playlists
           .where((playlist) => !playlist.isBuiltIn)
@@ -1098,81 +1638,21 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
             ),
           )
           .toList();
-  final addToItem =
-      currentSong == null
-          ? null
-          : buildAddToPlaylistMenuFlyoutItem(
-            i18n: i18n,
-            songIds: [currentSong.id],
-            playlists: customPlaylists,
-            includeFavorites: !currentSong.favorite,
-            onToggleFavorite: currentSong.favorite ? null : onToggleFavorite,
-            onCreatePlaylist: onCreatePlaylist,
-            onAddToPlaylist: onAddToPlaylist,
-          );
+  final addToItem = buildAddToPlaylistMenuFlyoutItem(
+    i18n: i18n,
+    songIds: [currentSong.id],
+    playlists: customPlaylists,
+    includeFavorites: !isCompact && !currentSong.favorite,
+    onToggleFavorite: currentSong.favorite ? null : onToggleFavorite,
+    onCreatePlaylist: onCreatePlaylist,
+    onAddToPlaylist: onAddToPlaylist,
+  );
+  if (addToItem != null) {
+    items.add(addToItem);
+  }
 
-  return [
-    MenuFlyoutItem(
-      key: 'quick',
-      text: i18n.t('nowPlaying.quickPlay'),
-      icon: Icons.play_arrow_rounded,
-      onPressed: onQuickPlay,
-    ),
-    if (addToItem != null) addToItem,
-    MenuFlyoutItem(
-      key: 'playback-mode',
-      text:
-          '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-      icon: _playbackModeIcon(mode),
-      disabled: disabled,
-      submenu: [
-        MenuFlyoutItem(
-          key: 'playback-mode-list',
-          text: i18n.t('player.playbackModeList'),
-          icon: Icons.queue_music_rounded,
-          checked: mode == PlaybackMode.once,
-          onPressed: () {
-            _setPlaybackMode(
-              currentMode: mode,
-              targetMode: PlaybackMode.once,
-              onToggleShuffle: onToggleShuffle,
-              onToggleRepeat: onToggleRepeat,
-              onToggleRepeatOne: onToggleRepeatOne,
-            );
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'playback-mode-shuffle',
-          text: i18n.t('player.playbackModeShuffle'),
-          icon: Icons.shuffle_rounded,
-          checked: mode == PlaybackMode.shuffle,
-          onPressed: onToggleShuffle,
-        ),
-        MenuFlyoutItem(
-          key: 'playback-mode-repeat',
-          text: i18n.t('player.playbackModeRepeat'),
-          icon: Icons.repeat_rounded,
-          checked: mode == PlaybackMode.repeat,
-          onPressed: onToggleRepeat,
-        ),
-        MenuFlyoutItem(
-          key: 'playback-mode-repeat-one',
-          text: i18n.t('player.playbackModeRepeatOne'),
-          icon: Icons.repeat_one_rounded,
-          checked: mode == PlaybackMode.repeatOne,
-          onPressed: onToggleRepeatOne,
-        ),
-      ],
-    ),
-    MenuFlyoutItem(
-      key: 'player-volume',
-      text: isMuted ? i18n.t('player.unmute') : i18n.t('player.mute'),
-      icon: isMuted ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-      disabled: disabled,
-      checked: isMuted,
-      onPressed: onToggleMute,
-    ),
-    if (currentSong != null && onSetPreference != null)
+  if (onSetPreference != null) {
+    items.add(
       MenuFlyoutItem(
         key: 'preference',
         text: i18n.t('settings.preferenceSettings'),
@@ -1205,47 +1685,52 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
             ),
         ],
       ),
+    );
+  }
+
+  items.addAll([
     MenuFlyoutItem(
-      key: 'see-album',
-      text: i18n.t('context.seeAlbum'),
-      icon: Icons.album_rounded,
-      disabled: trackId == null,
-      onPressed: onSeeAlbum,
-    ),
-    MenuFlyoutItem(
-      key: 'see-music-info',
-      text: i18n.t('context.seeMusicInfo'),
-      icon: Icons.info_outline_rounded,
-      disabled: trackId == null,
-      onPressed: onSeeMusicInfo,
-    ),
-    MenuFlyoutItem(
-      key: 'see-lyrics',
-      text: i18n.t('context.seeLyrics'),
-      icon: Icons.lyrics_rounded,
-      disabled: trackId == null,
-      onPressed: onSeeLyrics,
-    ),
-    MenuFlyoutItem(
-      key: 'see-album-art',
-      text: i18n.t('context.seeAlbumArt'),
-      icon: Icons.image_rounded,
-      disabled: trackId == null,
-      onPressed: onSeeAlbumArt,
-    ),
-    MenuFlyoutItem(
-      key: 'see-local-file',
-      text: i18n.t('context.seeLocalFile'),
-      icon: Icons.folder_open_rounded,
-      disabled: trackId == null,
-      onPressed: onSeeLocal,
-    ),
-    MenuFlyoutItem(
-      key: 'now-playing',
-      text: i18n.t('common.nowPlaying'),
-      icon: Icons.queue_music_rounded,
-      disabled: trackId == null,
-      onPressed: onOpenNowPlaying,
+      key: 'view',
+      text: i18n.t('context.view'),
+      icon: Icons.visibility_outlined,
+      submenu: [
+        MenuFlyoutItem(
+          key: 'see-artist',
+          text: i18n.t('context.seeArtist'),
+          icon: Icons.groups_rounded,
+          onPressed: onSeeArtist,
+        ),
+        MenuFlyoutItem(
+          key: 'see-album',
+          text: i18n.t('context.seeAlbum'),
+          icon: Icons.album_rounded,
+          onPressed: onSeeAlbum,
+        ),
+        MenuFlyoutItem(
+          key: 'see-music-info',
+          text: i18n.t('context.seeMusicInfo'),
+          icon: Icons.info_outline_rounded,
+          onPressed: onSeeMusicInfo,
+        ),
+        MenuFlyoutItem(
+          key: 'see-lyrics',
+          text: i18n.t('context.seeLyrics'),
+          icon: Icons.lyrics_rounded,
+          onPressed: onSeeLyrics,
+        ),
+        MenuFlyoutItem(
+          key: 'see-album-art',
+          text: i18n.t('context.seeAlbumArt'),
+          icon: Icons.image_rounded,
+          onPressed: onSeeAlbumArt,
+        ),
+        MenuFlyoutItem(
+          key: 'see-local-file',
+          text: i18n.t('context.seeLocalFile'),
+          icon: Icons.folder_open_rounded,
+          onPressed: onSeeLocal,
+        ),
+      ],
     ),
     MenuFlyoutItem(
       key: isWindowFullScreen ? 'exit-full-screen' : 'full-screen',
@@ -1259,21 +1744,15 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
               : Icons.fullscreen_rounded,
       onPressed: onToggleWindowFullScreen,
     ),
-    if (onOpenVoiceAssistant != null)
-      MenuFlyoutItem(
-        key: 'voice-assistant',
-        text: i18n.t('player.voiceAssistant'),
-        icon: Icons.mic_rounded,
-        disabled: trackId == null,
-        onPressed: onOpenVoiceAssistant,
-      ),
     MenuFlyoutItem(
       key: 'mini-mode',
-      text: i18n.t('player.enterMiniMode'),
+      text: i18n.t('player.miniMode'),
       icon: Icons.picture_in_picture_alt_rounded,
       onPressed: onEnterMiniMode,
     ),
-  ];
+  ]);
+
+  return items;
 }
 
 void _setPlaybackMode({
@@ -1322,7 +1801,7 @@ SmPlayerI18n _mediaControlI18n(BuildContext context) {
       const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
 }
 
-class _PlayerTrack extends StatelessWidget {
+class _PlayerTrack extends StatefulWidget {
   const _PlayerTrack({
     required this.track,
     required this.artworkPath,
@@ -1330,6 +1809,8 @@ class _PlayerTrack extends StatelessWidget {
     required this.onOpenNowPlaying,
     this.compact = false,
     this.playbackNoticeKey,
+    this.currentLyricsLine,
+    this.onArtworkError,
   });
 
   final MediaControlTrack track;
@@ -1337,101 +1818,240 @@ class _PlayerTrack extends StatelessWidget {
   final bool disabled;
   final bool compact;
   final String? playbackNoticeKey;
+  final String? currentLyricsLine;
+  final VoidCallback? onArtworkError;
   final VoidCallback onOpenNowPlaying;
 
   @override
+  State<_PlayerTrack> createState() => _PlayerTrackState();
+}
+
+class _PlayerTrackState extends State<_PlayerTrack> {
+  var _hovered = false;
+  var _focused = false;
+
+  @override
   Widget build(BuildContext context) {
-    final noticeKey = playbackNoticeKey;
+    final noticeKey = widget.playbackNoticeKey;
+    final textStrong = MediaControlColors.textStrongFor(context);
+    final textMuted = MediaControlColors.textMutedFor(context);
     final noticeText =
         noticeKey == null ? null : _mediaControlI18n(context).t(noticeKey);
-    return TextButton(
-      style: TextButton.styleFrom(
-        foregroundColor: MediaControlColors.textStrong,
-        disabledForegroundColor: MediaControlColors.textStrong,
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      onPressed: disabled ? null : onOpenNowPlaying,
-      child: Row(
-        children: [
-          Container(
-            width: compact ? 68 : 72,
-            height: compact ? 68 : 72,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: const [
-                BoxShadow(
-                  color: MediaControlColors.artworkShadow,
-                  offset: Offset(0, 10),
-                  blurRadius: 24,
-                ),
-              ],
+    final lyricsText =
+        noticeText == null && widget.currentLyricsLine?.isNotEmpty == true
+            ? widget.currentLyricsLine
+            : null;
+    final overlayVisible = !widget.disabled && (_hovered || _focused);
+    final trackCopyMaxWidth =
+        widget.compact
+            ? double.infinity
+            : min(360.0, MediaQuery.sizeOf(context).width * 0.24);
+    return MouseRegion(
+      cursor:
+          widget.disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Focus(
+        onFocusChange: (focused) {
+          setState(() {
+            _focused = focused;
+          });
+        },
+        child: TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: textStrong,
+            disabledForegroundColor: textStrong,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: _PlayerArtwork(artworkPath: artworkPath),
           ),
-          const SizedBox(width: 14),
-          Flexible(
-            child: SizedBox(
-              height: compact ? 68 : 72,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: MediaControlColors.textStrong,
-                      fontSize: compact ? 15 : 17,
-                      fontWeight: FontWeight.w600,
-                      height: 1.08,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: MediaControlColors.textMuted,
-                      fontSize: compact ? 12 : 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1.1,
-                    ),
-                  ),
-                  if (noticeText != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          size: 14,
-                          color: MediaControlColors.accent,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            noticeText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: MediaControlColors.accent,
-                              fontSize: compact ? 11 : 12,
-                              fontWeight: FontWeight.w700,
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-                      ],
+          onPressed: widget.disabled ? null : widget.onOpenNowPlaying,
+          child: Row(
+            children: [
+              Container(
+                width: widget.compact ? 68 : 72,
+                height: widget.compact ? 68 : 72,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: MediaControlColors.artworkShadow,
+                      offset: Offset(0, 10),
+                      blurRadius: 24,
                     ),
                   ],
-                ],
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _PlayerArtwork(
+                      artworkPath: widget.artworkPath,
+                      onError: widget.onArtworkError,
+                    ),
+                    AnimatedOpacity(
+                      key: const ValueKey('MediaControl.ArtworkOverlay'),
+                      duration: const Duration(milliseconds: 140),
+                      opacity: overlayVisible ? 1 : 0,
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xff0c1118,
+                            ).withValues(alpha: 0.44),
+                          ),
+                          child: const Icon(
+                            Icons.fullscreen_rounded,
+                            color: Colors.white,
+                            size: 36,
+                            shadows: [
+                              Shadow(
+                                color: Color(0x57000000),
+                                offset: Offset(0, 2),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Flexible(
+                child: ConstrainedBox(
+                  key: const ValueKey('MediaControl.TrackCopy'),
+                  constraints: BoxConstraints(
+                    minWidth: widget.compact ? 0 : 120,
+                    maxWidth: trackCopyMaxWidth,
+                  ),
+                  child: SizedBox(
+                    height: widget.compact ? 68 : 72,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: textStrong,
+                            fontSize: widget.compact ? 15 : 17,
+                            fontWeight: FontWeight.w600,
+                            height: 1.08,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          widget.track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: textMuted,
+                            fontSize: widget.compact ? 12 : 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.1,
+                          ),
+                        ),
+                        if (noticeText != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                size: 14,
+                                color: MediaControlColors.accent,
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  noticeText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: MediaControlColors.accent,
+                                    fontSize: widget.compact ? 11 : 12,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else if (lyricsText != null) ...[
+                          const SizedBox(height: 4),
+                          _PlayerTrackLyrics(
+                            line: lyricsText,
+                            compact: widget.compact,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerTrackLyrics extends StatelessWidget {
+  const _PlayerTrackLyrics({required this.line, required this.compact});
+
+  final String line;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('MediaControl.CurrentLyricsContainer'),
+      height: 17,
+      child: ClipRect(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          switchInCurve: const Cubic(0.22, 1, 0.36, 1),
+          switchOutCurve: Curves.easeOutCubic,
+          transitionBuilder: (child, animation) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            );
+          },
+          child: Align(
+            key: ValueKey(line),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              line,
+              key: const ValueKey('MediaControl.CurrentLyricsLine'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: MediaControlColors.accent,
+                fontSize: compact ? 11 : 13,
+                fontWeight: FontWeight.w600,
+                height: 1.0,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1451,6 +2071,8 @@ class _PlayerUtilityRows extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.onOpenVoiceAssistant,
+    this.condensed = false,
     required this.onMoreClick,
   });
 
@@ -1466,6 +2088,8 @@ class _PlayerUtilityRows extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final VoidCallback? onOpenVoiceAssistant;
+  final bool condensed;
   final VoidCallback onMoreClick;
 
   @override
@@ -1473,31 +2097,41 @@ class _PlayerUtilityRows extends StatelessWidget {
     final i18n = _mediaControlI18n(context);
 
     return SizedBox(
-      width: 280,
+      width: condensed ? 132 : 280,
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _PlayerIconButton(
-                tooltip:
-                    isMuted ? i18n.t('player.unmute') : i18n.t('player.mute'),
-                icon:
-                    isMuted || volumeValue == 0
-                        ? Icons.volume_off_rounded
-                        : Icons.volume_up_rounded,
-                active: isMuted,
-                disabled: disabled,
-                onPressed: onToggleMute,
-              ),
-              SizedBox(
-                width: 148,
-                child: VolumeSlider(
-                  value: volumeValue,
+              if (condensed)
+                _PlayerCompactVolumeAction(
+                  tooltip:
+                      isMuted ? i18n.t('player.unmute') : i18n.t('player.mute'),
+                  icon: playerVolumeIcon(volumeValue, isMuted),
+                  active: isMuted,
                   disabled: disabled,
-                  onChange: onVolumeChange,
+                  volumeValue: volumeValue,
+                  onVolumeChange: onVolumeChange,
+                )
+              else ...[
+                _PlayerIconButton(
+                  tooltip:
+                      isMuted ? i18n.t('player.unmute') : i18n.t('player.mute'),
+                  icon: playerVolumeIcon(volumeValue, isMuted),
+                  active: isMuted,
+                  disabled: disabled,
+                  onPressed: onToggleMute,
                 ),
-              ),
+                SizedBox(
+                  width: 148,
+                  child: VolumeSlider(
+                    key: const ValueKey('MediaControl.WideVolumeSlider'),
+                    value: volumeValue,
+                    disabled: disabled,
+                    onChange: onVolumeChange,
+                  ),
+                ),
+              ],
               if (trackId != null)
                 _PlayerIconButton(
                   tooltip:
@@ -1518,45 +2152,257 @@ class _PlayerUtilityRows extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _PlayerIconButton(
-                tooltip:
-                    mode == PlaybackMode.shuffle
-                        ? i18n.t('player.shuffleEnabled')
-                        : i18n.t('player.shuffleDisabled'),
-                icon: Icons.shuffle_rounded,
-                active: mode == PlaybackMode.shuffle,
-                disabled: disabled,
-                onPressed: onToggleShuffle,
-              ),
-              const SizedBox(width: 14),
-              _PlayerIconButton(
-                tooltip:
-                    mode == PlaybackMode.repeat
-                        ? i18n.t('player.repeatEnabled')
-                        : i18n.t('player.repeatDisabled'),
-                icon: Icons.repeat_rounded,
-                active: mode == PlaybackMode.repeat,
-                disabled: disabled,
-                onPressed: onToggleRepeat,
-              ),
-              const SizedBox(width: 14),
-              _PlayerIconButton(
-                tooltip:
-                    mode == PlaybackMode.repeatOne
-                        ? i18n.t('player.repeatOneEnabled')
-                        : i18n.t('player.repeatOneDisabled'),
-                icon: Icons.repeat_one_rounded,
-                active: mode == PlaybackMode.repeatOne,
-                disabled: disabled,
-                onPressed: onToggleRepeatOne,
-              ),
-              const SizedBox(width: 14),
+              if (condensed)
+                Builder(
+                  builder: (modeButtonContext) {
+                    return _PlayerIconButton(
+                      key: const ValueKey('MediaControl.CompactModeButton'),
+                      tooltip:
+                          '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+                      icon: _playbackModeIcon(mode),
+                      active: mode != PlaybackMode.once,
+                      disabled: disabled,
+                      onPressed: () {
+                        switch (getNextPlaybackMode(mode)) {
+                          case PlaybackMode.shuffle:
+                            onToggleShuffle();
+                          case PlaybackMode.repeat:
+                            onToggleRepeat();
+                          case PlaybackMode.repeatOne:
+                            onToggleRepeatOne();
+                          case PlaybackMode.once:
+                            if (mode == PlaybackMode.shuffle) {
+                              onToggleShuffle();
+                            } else if (mode == PlaybackMode.repeat) {
+                              onToggleRepeat();
+                            } else {
+                              onToggleRepeatOne();
+                            }
+                        }
+                      },
+                      onLongPress: () {
+                        _showPlaybackModeMenu(
+                          modeButtonContext,
+                          i18n: i18n,
+                          mode: mode,
+                          onToggleShuffle: onToggleShuffle,
+                          onToggleRepeat: onToggleRepeat,
+                          onToggleRepeatOne: onToggleRepeatOne,
+                        );
+                      },
+                    );
+                  },
+                )
+              else ...[
+                _PlayerIconButton(
+                  tooltip:
+                      mode == PlaybackMode.shuffle
+                          ? i18n.t('player.shuffleEnabled')
+                          : i18n.t('player.shuffleDisabled'),
+                  icon: Icons.shuffle_rounded,
+                  active: mode == PlaybackMode.shuffle,
+                  disabled: disabled,
+                  onPressed: onToggleShuffle,
+                ),
+                const SizedBox(width: 14),
+                _PlayerIconButton(
+                  tooltip:
+                      mode == PlaybackMode.repeat
+                          ? i18n.t('player.repeatEnabled')
+                          : i18n.t('player.repeatDisabled'),
+                  icon: Icons.repeat_rounded,
+                  active: mode == PlaybackMode.repeat,
+                  disabled: disabled,
+                  onPressed: onToggleRepeat,
+                ),
+                const SizedBox(width: 14),
+                _PlayerIconButton(
+                  tooltip:
+                      mode == PlaybackMode.repeatOne
+                          ? i18n.t('player.repeatOneEnabled')
+                          : i18n.t('player.repeatOneDisabled'),
+                  icon: Icons.repeat_one_rounded,
+                  active: mode == PlaybackMode.repeatOne,
+                  disabled: disabled,
+                  onPressed: onToggleRepeatOne,
+                ),
+                const SizedBox(width: 14),
+              ],
+              if (onOpenVoiceAssistant != null) ...[
+                _PlayerIconButton(
+                  tooltip: i18n.t('player.voiceAssistant'),
+                  icon: Icons.mic_rounded,
+                  disabled: false,
+                  onPressed: onOpenVoiceAssistant!,
+                ),
+                const SizedBox(width: 14),
+              ],
               _PlayerIconButton(
                 tooltip: i18n.t('player.more'),
                 icon: Icons.more_horiz_rounded,
                 onPressed: onMoreClick,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerCompactVolumeAction extends StatefulWidget {
+  const _PlayerCompactVolumeAction({
+    required this.tooltip,
+    required this.icon,
+    required this.active,
+    required this.disabled,
+    required this.volumeValue,
+    required this.onVolumeChange,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final bool active;
+  final bool disabled;
+  final int volumeValue;
+  final ValueChanged<int> onVolumeChange;
+
+  @override
+  State<_PlayerCompactVolumeAction> createState() =>
+      _PlayerCompactVolumeActionState();
+}
+
+class _PlayerCompactVolumeActionState
+    extends State<_PlayerCompactVolumeAction> {
+  var _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return TapRegion(
+      onTapOutside: (_) {
+        if (_open) {
+          setState(() {
+            _open = false;
+          });
+        }
+      },
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            _PlayerIconButton(
+              key: const ValueKey('MediaControl.CompactVolumeButton'),
+              tooltip: widget.tooltip,
+              icon: widget.icon,
+              active: widget.active || _open,
+              disabled: widget.disabled,
+              onPressed: () {
+                setState(() {
+                  _open = !_open;
+                });
+              },
+            ),
+            if (_open)
+              Positioned(
+                key: const ValueKey('MediaControl.CompactVolumePopover'),
+                right: -6,
+                bottom: 44,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xf5ffffff),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x1a323e4e)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x2e2a384e),
+                        offset: Offset(0, 16),
+                        blurRadius: 36,
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 10,
+                    ),
+                    child: VolumeSlider(
+                      value: widget.volumeValue,
+                      disabled: widget.disabled,
+                      orientation: VolumeSliderOrientation.vertical,
+                      showTooltipOnMount: true,
+                      onChange: widget.onVolumeChange,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerVolumeMenuItem extends StatefulWidget {
+  const _PlayerVolumeMenuItem({
+    required this.label,
+    required this.muted,
+    required this.volumeValue,
+    required this.disabled,
+    required this.onToggleMute,
+    required this.onVolumeChange,
+  });
+
+  final String label;
+  final bool muted;
+  final int volumeValue;
+  final bool disabled;
+  final VoidCallback onToggleMute;
+  final ValueChanged<int> onVolumeChange;
+
+  @override
+  State<_PlayerVolumeMenuItem> createState() => _PlayerVolumeMenuItemState();
+}
+
+class _PlayerVolumeMenuItemState extends State<_PlayerVolumeMenuItem> {
+  late var _liveValue = widget.volumeValue;
+
+  @override
+  void didUpdateWidget(covariant _PlayerVolumeMenuItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.volumeValue != widget.volumeValue) {
+      _liveValue = widget.volumeValue;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const ValueKey('MediaControl.VolumeMenuItem'),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          _PlayerIconButton(
+            tooltip: widget.label,
+            icon: playerVolumeIcon(_liveValue, widget.muted),
+            active: widget.muted,
+            disabled: widget.disabled,
+            onPressed: widget.onToggleMute,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: VolumeSlider(
+              value: widget.volumeValue,
+              disabled: widget.disabled,
+              onChange: (value) {
+                setState(() {
+                  _liveValue = value;
+                });
+                widget.onVolumeChange(value);
+              },
+            ),
           ),
         ],
       ),
@@ -1583,13 +2429,14 @@ class _MediaProgressSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inactiveTrackColor = MediaControlColors.sliderInactiveFor(context);
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 2,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
         activeTrackColor: MediaControlColors.accent,
-        inactiveTrackColor: MediaControlColors.sliderInactive,
+        inactiveTrackColor: inactiveTrackColor,
         thumbColor: MediaControlColors.accent,
         overlayColor: MediaControlColors.accentHover,
       ),
@@ -1605,27 +2452,113 @@ class _MediaProgressSlider extends StatelessWidget {
   }
 }
 
+class _MediaProgressLoading extends StatefulWidget {
+  const _MediaProgressLoading();
+
+  @override
+  State<_MediaProgressLoading> createState() => _MediaProgressLoadingState();
+}
+
+class _MediaProgressLoadingState extends State<_MediaProgressLoading>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveTrackColor = MediaControlColors.sliderInactiveFor(context);
+    return SizedBox(
+      key: const ValueKey('MediaControl.ProgressLoading'),
+      height: 18,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 2,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: inactiveTrackColor),
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  return FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 1,
+                    child: CustomPaint(
+                      painter: _MediaProgressLoadingPainter(_controller.value),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaProgressLoadingPainter extends CustomPainter {
+  const _MediaProgressLoadingPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = MediaControlColors.accent;
+    final segmentWidth = size.width * 0.35;
+    final left = -segmentWidth + progress * (size.width + segmentWidth * 2);
+    canvas.drawRect(Rect.fromLTWH(left, 0, segmentWidth, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MediaProgressLoadingPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
 class _PlayerIconButton extends StatefulWidget {
   const _PlayerIconButton({
     super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.onLongPress,
     this.disabled = false,
     this.primary = false,
     this.active = false,
     this.favorite = false,
     this.loading = false,
+    this.buttonSize,
+    this.padding,
+    this.iconSize,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
   final bool disabled;
   final bool primary;
   final bool active;
   final bool favorite;
   final bool loading;
+  final double? buttonSize;
+  final double? padding;
+  final double? iconSize;
 
   @override
   State<_PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -1636,20 +2569,25 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final size = widget.primary ? 56.0 : 36.0;
+    final size = widget.buttonSize ?? (widget.primary ? 56.0 : 36.0);
+    final padding = widget.padding ?? (widget.primary ? 14.0 : 6.0);
+    final iconSize = widget.iconSize ?? (widget.primary ? 28.0 : 22.0);
+    final textStrong = MediaControlColors.textStrongFor(context);
+    final accentStrong = MediaControlColors.accentStrongFor(context);
+    final accentHover = MediaControlColors.accentHoverFor(context);
     final color =
         widget.favorite
             ? MediaControlColors.favorite
             : widget.primary
             ? Colors.white
             : widget.active || _hovered
-            ? MediaControlColors.accentStrong
-            : MediaControlColors.textStrong;
+            ? accentStrong
+            : textStrong;
     final background =
         widget.primary
             ? MediaControlColors.accent
             : widget.active || _hovered
-            ? MediaControlColors.accentHover
+            ? accentHover
             : Colors.transparent;
 
     return Tooltip(
@@ -1672,11 +2610,12 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.disabled ? null : widget.onPressed,
+          onLongPress: widget.disabled ? null : widget.onLongPress,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 140),
             width: size,
             height: size,
-            padding: EdgeInsets.all(widget.primary ? 14 : 6),
+            padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color:
                   widget.disabled
@@ -1704,11 +2643,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                       strokeWidth: 2,
                       color: Colors.white,
                     )
-                    : Icon(
-                      widget.icon,
-                      color: color,
-                      size: widget.primary ? 28 : 22,
-                    ),
+                    : Icon(widget.icon, color: color, size: iconSize),
           ),
         ),
       ),
@@ -1739,9 +2674,10 @@ class _DefaultAlbumArtwork extends StatelessWidget {
 }
 
 class _PlayerArtwork extends StatelessWidget {
-  const _PlayerArtwork({required this.artworkPath});
+  const _PlayerArtwork({required this.artworkPath, this.onError});
 
   final String? artworkPath;
+  final VoidCallback? onError;
 
   @override
   Widget build(BuildContext context) {
@@ -1749,7 +2685,14 @@ class _PlayerArtwork extends StatelessWidget {
     if (path != null && path.isNotEmpty) {
       final file = File(path);
       if (file.existsSync()) {
-        return Image.file(file, fit: BoxFit.cover);
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) {
+            onError?.call();
+            return const _DefaultAlbumArtwork();
+          },
+        );
       }
     }
 
@@ -1766,14 +2709,88 @@ IconData _playbackModeIcon(PlaybackMode mode) {
   };
 }
 
+@visibleForTesting
+Color selectPlayerArtworkAccentColorFromRgba(
+  Uint8List rgbaPixels,
+  int width,
+  int height,
+) {
+  var selected = _defaultArtworkAccentColor;
+  var selectedDistance = -1;
+  for (var xIndex = 1; xIndex < _artworkColorGridDivisions; xIndex += 1) {
+    for (var yIndex = 1; yIndex < _artworkColorGridDivisions; yIndex += 1) {
+      final x = min(width - 1, (width * xIndex) ~/ _artworkColorGridDivisions);
+      final y = min(
+        height - 1,
+        (height * yIndex) ~/ _artworkColorGridDivisions,
+      );
+      final offset = (y * width + x) * 4;
+      final red = rgbaPixels[offset];
+      final green = rgbaPixels[offset + 1];
+      final blue = rgbaPixels[offset + 2];
+      final alpha = rgbaPixels[offset + 3];
+
+      if (alpha == 0 ||
+          red < _artworkColorMinValue ||
+          red > _artworkColorMaxValue ||
+          green < _artworkColorMinValue ||
+          green > _artworkColorMaxValue ||
+          blue < _artworkColorMinValue ||
+          blue > _artworkColorMaxValue) {
+        continue;
+      }
+
+      final distance =
+          pow(red - _artworkColorMinValue, 2) +
+          pow(green - _artworkColorMinValue, 2) +
+          pow(blue - _artworkColorMinValue, 2);
+      if (distance > selectedDistance) {
+        selected = Color.fromARGB(255, red, green, blue);
+        selectedDistance = distance.toInt();
+      }
+    }
+  }
+  return selected;
+}
+
+Future<Color> extractPlayerArtworkAccentColor(String artworkPath) async {
+  try {
+    final bytes = await File(artworkPath).readAsBytes();
+    final codec = await instantiateImageCodec(
+      bytes,
+    ).timeout(const Duration(seconds: 2));
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final width = image.width;
+    final height = image.height;
+    final byteData = await image.toByteData(format: ImageByteFormat.rawRgba);
+    image.dispose();
+    codec.dispose();
+    if (byteData == null) {
+      return _defaultArtworkAccentColor;
+    }
+    return selectPlayerArtworkAccentColorFromRgba(
+      byteData.buffer.asUint8List(),
+      width,
+      height,
+    );
+  } on Object {
+    return _defaultArtworkAccentColor;
+  }
+}
+
 class MediaControlColors {
   const MediaControlColors._();
 
   static const textStrong = Color(0xff1f252b);
   static const textMuted = Color(0xff5f625f);
+  static const nightText = Color(0xfff8fafc);
+  static const nightMuted = Color(0xffcbd5e1);
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentHover = Color(0x1f0078d7);
+  static const nightAccentStrong = Color(0xffffffff);
+  static const nightAccentHover = Color(0x380078d7);
   static const accentBorder = Color(0x2e0078d7);
   static const accentShadow = Color(0x330078d7);
   static const favorite = Color(0xffd83b7d);
@@ -1781,8 +2798,37 @@ class MediaControlColors {
   static const playerAccentWash = Color(0x1a0078d7);
   static const playerSurfaceSolid = Color(0xd1ffffff);
   static const playerBorder = Color(0xa8ffffff);
+  static const nightPlayerHighlight = Color(0x0effffff);
+  static const nightPlayerSurface = Color(0xe611161c);
+  static const nightPlayerBorder = Color(0x3dffffff);
   static const playerShadow = Color(0x382a384e);
+  static const nightPlayerShadow = Color(0x57000000);
   static const artworkShadow = Color(0x382a384e);
   static const sliderInactive = Color(0x2e323e4e);
+  static const nightSliderInactive = Color(0x2ecbd5e1);
   static const buttonSurface = Color(0xb8ffffff);
+
+  static bool isNight(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color textStrongFor(BuildContext context) =>
+      isNight(context) ? nightText : textStrong;
+
+  static Color textMutedFor(BuildContext context) =>
+      isNight(context) ? nightMuted : textMuted;
+
+  static Color accentStrongFor(BuildContext context) =>
+      isNight(context) ? nightAccentStrong : accentStrong;
+
+  static Color accentHoverFor(BuildContext context) =>
+      isNight(context) ? nightAccentHover : accentHover;
+
+  static Color sliderInactiveFor(BuildContext context) =>
+      isNight(context) ? nightSliderInactive : sliderInactive;
+
+  static Color playerBorderFor(bool night) =>
+      night ? nightPlayerBorder : playerBorder;
+
+  static Color playerShadowFor(bool night) =>
+      night ? nightPlayerShadow : playerShadow;
 }

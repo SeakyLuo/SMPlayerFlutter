@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,7 @@ const testI18n = SmPlayerI18n(
     'common.settings': '设置',
     'common.search': '搜索',
     'common.clear': '清空',
+    'context.play': '播放',
     'sidebar.back': 'Back',
     'sidebar.library': '音乐库',
     'sidebar.playback': '播放',
@@ -84,6 +86,7 @@ void main() {
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (target) {
               invokedTarget = target;
             },
@@ -97,11 +100,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('MyFavoritesItem')));
     expect(invokedTarget, '/favorites');
+    expect(find.text('播放'), findsNothing);
 
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
-    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('SettingsItem')));
     expect(invokedTarget, '/settings');
+    expect(
+      tester.getBottomLeft(find.byKey(const ValueKey('SettingsItem'))).dy,
+      lessThanOrEqualTo(900),
+    );
   });
 
   testWidgets('collapsed search button asks shell to open the pane', (
@@ -124,6 +130,7 @@ void main() {
             },
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (_) {},
           ),
         ),
@@ -135,6 +142,45 @@ void main() {
     );
 
     expect(toggleCount, 1);
+  });
+
+  testWidgets('collapsed sidebar shows Electron-style floating labels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 96,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: false,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    await tester.pump();
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('MusicLibraryItem'))),
+    );
+    await tester.pump();
+
+    expect(find.text('音乐库'), findsOneWidget);
+
+    await gesture.moveTo(const Offset(95, 895));
+    await tester.pump();
+
+    expect(find.text('音乐库'), findsNothing);
   });
 
   testWidgets('back button follows Electron sidebar title behavior', (
@@ -159,6 +205,7 @@ void main() {
             },
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (_) {},
           ),
         ),
@@ -199,6 +246,7 @@ void main() {
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (_) {},
           ),
         ),
@@ -213,6 +261,7 @@ void main() {
   ) async {
     var committedText = '';
     var changedText = '';
+    var clearCount = 0;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -230,6 +279,9 @@ void main() {
             },
             onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
               committedText = value;
+            },
+            onSearchCleared: () {
+              clearCount += 1;
             },
             onItemInvoked: (_) {},
           ),
@@ -250,6 +302,8 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
     );
     expect(changedText, '');
+    expect(committedText, '  Jazz  ');
+    expect(clearCount, 1);
   });
 
   testWidgets('sidebar renders recent searches like Electron dropdown', (
@@ -288,6 +342,7 @@ void main() {
             onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
               committedText = value;
             },
+            onSearchCleared: () {},
             onItemInvoked: (_) {},
             onRecentSearchRemove: (entryId) {
               removedId = entryId;
@@ -300,6 +355,9 @@ void main() {
       ),
     );
 
+    final libraryTop =
+        tester.getTopLeft(find.byKey(const ValueKey('MusicLibraryItem'))).dy;
+
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
@@ -308,6 +366,21 @@ void main() {
     expect(find.text('最近搜索'), findsOneWidget);
     expect(find.text('Jazz'), findsOneWidget);
     expect(find.text('Album only'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('MusicLibraryItem'))).dy,
+      libraryTop,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchDismissLayer')),
+    );
+    await tester.pump();
+    expect(find.text('最近搜索'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    await tester.pump();
 
     await tester.tap(find.text('Jazz'));
     expect(committedText, 'Jazz');
@@ -370,6 +443,7 @@ void main() {
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (target) {
               invokedTarget = target;
             },
@@ -394,6 +468,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('PlaylistItem.7')));
     expect(invokedTarget, '/playlists/7');
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer();
+    await mouse.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('PlaylistItem.7'))),
+    );
+    await tester.pump();
 
     await tester.tap(find.byTooltip('随机播放'));
     expect(randomPlaylistId, 7);
@@ -437,6 +519,7 @@ void main() {
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
             onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
             onItemInvoked: (_) {},
             onDuplicatePlaylist: (playlist) {
               duplicated = playlist;
@@ -454,6 +537,7 @@ void main() {
 
     await tester.longPress(find.byKey(const ValueKey('PlaylistItem.7')));
     await tester.pumpAndSettle();
+    expect(find.text('播放'), findsNothing);
     await tester.tap(find.text('复制播放列表'));
     await tester.pumpAndSettle();
     expect(duplicated?.id, 7);
@@ -504,6 +588,15 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     expect(textField.controller?.text, 'Jazz');
+    var preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString(SmPlayerShellStorageKeys.searchQuery), 'Jazz');
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
+    );
+    await tester.pump();
+    preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString(SmPlayerShellStorageKeys.searchQuery), '');
   });
 }
 
