@@ -1695,29 +1695,11 @@ List<int> _insertQueueEntries(
 }
 
 class _QueueEmptyState extends StatelessWidget {
-  const _QueueEmptyState({required this.i18n, required this.night});
-
-  final SmPlayerI18n i18n;
-  final bool night;
+  const _QueueEmptyState({required SmPlayerI18n i18n, required bool night});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: Text(
-          '${i18n.t('nowPlaying.queueEmpty')}\n${i18n.t('nowPlaying.queueEmptyHelp')}',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color:
-                night
-                    ? _NowPlayingFullColors.nightMuted
-                    : _NowPlayingFullColors.dayMuted,
-            height: 1.5,
-          ),
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 

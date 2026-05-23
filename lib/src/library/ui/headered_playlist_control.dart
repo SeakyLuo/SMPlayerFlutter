@@ -465,7 +465,6 @@ class _HeaderedPlaylistControlState
   ) {
     return CommandBar(
       dynamicOverflow: true,
-      overflowItems: _sortMenuItems(i18n, activeSortCriterion),
       overflowLabel: i18n.t('player.more'),
       children: [
         CommandBarButton(
@@ -500,6 +499,7 @@ class _HeaderedPlaylistControlState
           label: captionForHeaderedPlaylist(i18n, 'sort'),
           disabled: visibleSongs.isEmpty,
           active: widget.sortCriterion == activeSortCriterion,
+          overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
           onPressed: () {
             showMenuFlyout(
               context,

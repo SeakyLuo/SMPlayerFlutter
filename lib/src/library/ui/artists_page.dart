@@ -17,6 +17,7 @@ import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
 import 'artists_page_model.dart';
 import 'command_bar.dart';
+import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'music_dialog.dart';
@@ -238,6 +239,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                         _artistSearch.isEmpty
                             ? i18n.t('artists.emptyCopy')
                             : i18n.t('library.tryAnotherSearch'),
+                    detail: true,
                   ),
                 ),
               ],
@@ -1805,6 +1807,7 @@ class _ArtistsDetail extends StatelessWidget {
       return _ArtistsEmptyState(
         title: i18n.t('artists.selectArtist'),
         message: '',
+        detail: true,
       );
     }
 
@@ -2168,13 +2171,7 @@ class AlbumArtwork extends StatelessWidget {
         child:
             file != null && file.existsSync()
                 ? Image.file(file, fit: BoxFit.cover)
-                : const DecoratedBox(
-                  decoration: BoxDecoration(color: _ArtistsColors.artwork),
-                  child: Icon(
-                    FluentIcons.album_24_regular,
-                    color: _ArtistsColors.artworkIcon,
-                  ),
-                ),
+                : const DefaultAlbumArtwork(),
       ),
     );
   }
@@ -2266,18 +2263,91 @@ class _ArtistsPagePanel extends StatelessWidget {
 }
 
 class _ArtistsEmptyState extends StatelessWidget {
-  const _ArtistsEmptyState({required this.title, required this.message});
+  const _ArtistsEmptyState({
+    required this.title,
+    required this.message,
+    this.detail = false,
+  });
 
   final String title;
   final String message;
+  final bool detail;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message.isEmpty ? title : '$title\n$message',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: _ArtistsColors.textMuted, height: 1.5),
+    if (detail) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _ArtistsColors.textStrong,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (message.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _ArtistsColors.textMuted,
+                      fontSize: 14,
+                      height: 1.65,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _ArtistsColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _ArtistsColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: _ArtistsColors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (message.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: _ArtistsColors.textMuted,
+                    fontSize: 14,
+                    height: 1.65,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -2303,4 +2373,6 @@ class _ArtistsColors {
   static const disabled = Color(0x3d5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
 }

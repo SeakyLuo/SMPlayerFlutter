@@ -9,6 +9,8 @@ import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
@@ -142,7 +144,7 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/recent');
   });
 
-  testWidgets('non-settings routes show Electron missing-library-root prompt', (
+  testWidgets('rootless library tabs show missing-library-root prompt', (
     tester,
   ) async {
     final router = createSmPlayerRouter();
@@ -171,7 +173,7 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/recent');
   });
 
-  testWidgets('settings route bypasses missing-library-root prompt', (
+  testWidgets('non-library-root tabs bypass missing-library-root prompt', (
     tester,
   ) async {
     final router = createSmPlayerRouter();
@@ -194,6 +196,18 @@ void main() {
 
     expect(find.text('local.noRoot'), findsNothing);
     expect(find.byType(SettingsPage), findsOneWidget);
+
+    router.go('/now-playing');
+    await tester.pumpAndSettle();
+
+    expect(find.text('local.noRoot'), findsNothing);
+    expect(find.byType(NowPlayingPage), findsOneWidget);
+
+    router.go('/playlists');
+    await tester.pumpAndSettle();
+
+    expect(find.text('local.noRoot'), findsNothing);
+    expect(find.byType(PlaylistsPage), findsOneWidget);
   });
 
   testWidgets('SmPlayerApp provides Material localizations for zh-CN widgets', (
@@ -370,8 +384,8 @@ void main() {
     router.go('/albums?album=Missing');
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('collection.albumNotFound'), findsOneWidget);
-    expect(find.textContaining('collection.albumNotFoundCopy'), findsOneWidget);
+    expect(find.text('collection.albumNotFound'), findsOneWidget);
+    expect(find.text('collection.albumNotFoundCopy'), findsOneWidget);
   });
 
   testWidgets('sidebar back returns artist detail query to artists', (

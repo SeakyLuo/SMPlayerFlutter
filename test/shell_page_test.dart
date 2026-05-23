@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -418,6 +419,37 @@ void main() {
     expect(
       tester.getSize(reservedPlayer).height,
       SmPlayerShellMetrics.playerHeight,
+    );
+  });
+
+  testWidgets('shell renders Electron workspace title for normal routes', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 700));
+
+    await tester.pumpWidget(
+      const _ShellPageTestApp(
+        currentPath: '/settings',
+        currentLocation: '/settings',
+        messages: {'common.settings': 'Settings'},
+      ),
+    );
+
+    final title = tester.widget<Text>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.data == 'Settings' &&
+            widget.style?.fontSize == 40,
+      ),
+    );
+    expect(title.style?.fontSize, 40);
+    expect(title.style?.fontWeight, FontWeight.w800);
+    expect(
+      tester.getSize(find.byKey(SmPlayerShellKeys.workspace)).height,
+      700 -
+          SmPlayerShellMetrics.playerHeight +
+          SmPlayerShellMetrics.playerTopRadius,
     );
   });
 
@@ -852,8 +884,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
 
-    expect(find.byIcon(Icons.volume_down_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.volume_up_rounded), findsNothing);
+    expect(find.byIcon(FluentIcons.speaker_1_20_regular), findsOneWidget);
+    expect(find.byIcon(FluentIcons.speaker_2_20_regular), findsNothing);
   });
 
   testWidgets('mini mode track copy follows Electron control visibility', (
@@ -1052,6 +1084,8 @@ class _ShellPageTestApp extends StatelessWidget {
     this.repository,
     this.desktopService,
     this.initialMiniMode = false,
+    this.currentPath,
+    this.currentLocation,
   });
 
   final String? appVersion;
@@ -1059,6 +1093,8 @@ class _ShellPageTestApp extends StatelessWidget {
   final LibraryRepository? repository;
   final DesktopFeatureService? desktopService;
   final bool initialMiniMode;
+  final String? currentPath;
+  final String? currentLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -1074,6 +1110,8 @@ class _ShellPageTestApp extends StatelessWidget {
             appVersion: appVersion,
             desktopFeatureService: desktopService,
             initialMiniMode: initialMiniMode,
+            currentPath: currentPath,
+            currentLocation: currentLocation,
           ),
         ),
       ),

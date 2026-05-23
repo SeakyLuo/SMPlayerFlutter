@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,6 +9,7 @@ import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
+import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
@@ -19,26 +20,74 @@ import 'package:window_manager/window_manager.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    await windowManager.ensureInitialized();
-    await windowManager.setPreventClose(true);
+  runApp(SmPlayerBootstrap(args: args));
+}
+
+class SmPlayerBootstrap extends StatefulWidget {
+  const SmPlayerBootstrap({super.key, required this.args});
+
+  final List<String> args;
+
+  @override
+  State<SmPlayerBootstrap> createState() => _SmPlayerBootstrapState();
+}
+
+class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
+  _SmPlayerStartupState? _startupState;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initialize());
   }
-  final settingsController = SettingsController();
-  await settingsController.refresh();
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    await _restoreMainWindowState(settingsController.snapshot);
+
+  Future<void> _initialize() async {
+    final settingsController = SettingsController();
+    await settingsController.refresh();
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      await windowManager.ensureInitialized();
+      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+      await windowManager.setPreventClose(true);
+      await _restoreMainWindowState(settingsController.snapshot);
+    }
+    final initialLocation = resolveRestoredPage(
+      settingsController.snapshot.lastPage,
+    );
+    if (!mounted) {
+      settingsController.dispose();
+      return;
+    }
+    setState(() {
+      _startupState = _SmPlayerStartupState(
+        initialLocation: initialLocation,
+        settingsController: settingsController,
+      );
+    });
   }
-  final initialLocation = resolveRestoredPage(
-    settingsController.snapshot.lastPage,
-  );
-  runApp(
-    SmPlayerRoot(
-      initialLocation: initialLocation,
-      initialSettingsController: settingsController,
-      initialExternalFilePaths: externalAudioPathsFromArgs(args),
-      initialExternalCommands: externalAppCommandsFromArgs(args),
-    ),
-  );
+
+  @override
+  Widget build(BuildContext context) {
+    final startupState = _startupState;
+    if (startupState == null) {
+      return const SmPlayerSplashScreen();
+    }
+    return SmPlayerRoot(
+      initialLocation: startupState.initialLocation,
+      initialSettingsController: startupState.settingsController,
+      initialExternalFilePaths: externalAudioPathsFromArgs(widget.args),
+      initialExternalCommands: externalAppCommandsFromArgs(widget.args),
+    );
+  }
+}
+
+class _SmPlayerStartupState {
+  const _SmPlayerStartupState({
+    required this.initialLocation,
+    required this.settingsController,
+  });
+
+  final String initialLocation;
+  final SettingsController settingsController;
 }
 
 class SmPlayerRoot extends StatefulWidget {

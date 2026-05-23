@@ -14,6 +14,7 @@ import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
@@ -289,7 +290,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLibraryRootBypassedRoute(widget.path)) {
+    if (!_isLibraryRootGatedRoute(widget.path)) {
       return widget.child;
     }
 
@@ -358,72 +359,70 @@ class _MissingLibraryRootPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const DecoratedBox(
-        decoration: BoxDecoration(color: Color(0xfff6f8fb)),
-        child: SmPlayerLoadingState(),
-      );
+      return const SmPlayerLoadingState();
     }
 
     final i18n = context.smPlayerI18n;
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: Color(0xfff6f8fb)),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: LocalPageColors.panel,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: LocalPageColors.panelBorder),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox.square(
-                    dimension: 104,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: LocalPageColors.artwork,
-                        borderRadius: BorderRadius.all(Radius.circular(14)),
-                      ),
-                      child: Icon(
-                        FluentIcons.music_note_2_24_regular,
-                        color: LocalPageColors.artworkIcon,
-                        size: 62,
-                      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0x94ffffff),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0x94ffffff)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 104,
+                height: 104,
+                margin: const EdgeInsets.only(bottom: 4),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0x2e768499)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1f1f2a3a),
+                      offset: Offset(0, 8),
+                      blurRadius: 18,
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    i18n.t('local.noRoot'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: LocalPageColors.textStrong,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    i18n.t('local.noRootCopy'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: LocalPageColors.textMuted,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: onPickLibraryRoot,
-                    icon: const Icon(FluentIcons.folder_20_regular),
-                    label: Text(i18n.t('library.chooseFolder')),
-                  ),
-                ],
+                  ],
+                ),
+                child: const DefaultAlbumArtwork(logoScale: 0.72),
               ),
-            ),
+              const SizedBox(height: 10),
+              Text(
+                i18n.t('local.noRoot'),
+                style: const TextStyle(
+                  color: LocalPageColors.textStrong,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  i18n.t('local.noRootCopy'),
+                  style: const TextStyle(
+                    color: LocalPageColors.textMuted,
+                    fontSize: 14,
+                    height: 1.65,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              LocalCommandButton(
+                onPressed: onPickLibraryRoot,
+                icon: FluentIcons.folder_20_regular,
+                label: i18n.t('library.chooseFolder'),
+              ),
+            ],
           ),
         ),
       ),
@@ -431,8 +430,12 @@ class _MissingLibraryRootPage extends StatelessWidget {
   }
 }
 
-bool _isLibraryRootBypassedRoute(String path) {
-  return path == '/settings' || path.startsWith('/remote/');
+bool _isLibraryRootGatedRoute(String path) {
+  return path == '/songs' ||
+      path == '/artists' ||
+      path == '/albums' ||
+      path == '/local' ||
+      path == '/recent';
 }
 
 String _searchRouteFor(String query, SearchHistoryType type) {

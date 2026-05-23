@@ -34,12 +34,13 @@ class CommandBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (content != null) Expanded(child: content!),
+          if (content != null) Flexible(fit: FlexFit.loose, child: content!),
           if (content != null) const SizedBox(width: 8),
           Flexible(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final overflow = _resolveCommandBarOverflow(
+                  context: context,
                   maxWidth: constraints.maxWidth,
                   dynamicOverflow: dynamicOverflow,
                   overflowReserve: overflowReserve,
@@ -56,17 +57,20 @@ class CommandBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Flexible(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        reverse: true,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final child in overflow.visibleChildren) ...[
-                              child,
-                              const SizedBox(width: 4),
+                      fit: FlexFit.loose,
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final child in overflow.visibleChildren)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: child,
+                                ),
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -104,6 +108,7 @@ class CommandBarButton extends StatelessWidget {
     this.active = false,
     this.canOverflow = true,
     this.disabled = false,
+    this.overflowSubmenu = const [],
     this.showLabel = true,
     this.onOverflowPressed,
     this.onPressed,
@@ -114,6 +119,7 @@ class CommandBarButton extends StatelessWidget {
   final bool active;
   final bool canOverflow;
   final bool disabled;
+  final List<MenuFlyoutItem> overflowSubmenu;
   final bool showLabel;
   final VoidCallback? onOverflowPressed;
   final VoidCallback? onPressed;
@@ -155,6 +161,7 @@ class _CommandBarOverflowResult {
 }
 
 _CommandBarOverflowResult _resolveCommandBarOverflow({
+  required BuildContext context,
   required double maxWidth,
   required bool dynamicOverflow,
   required double overflowReserve,
@@ -168,7 +175,10 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
     );
   }
 
-  final itemWidths = children.map(_estimateCommandBarItemWidth).toList();
+  final itemWidths =
+      children
+          .map((child) => _estimateCommandBarItemWidth(context, child))
+          .toList();
   final availableWidth = (maxWidth - overflowReserve).clamp(0, maxWidth);
   final moreWidth = _commandBarMoreButtonWidth;
   final overflowedIndexes = <int>{};
@@ -179,14 +189,16 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
   final reservedMoreWidth =
       overflowItems.isNotEmpty || totalWidth > availableWidth ? moreWidth : 0;
 
-  for (var index = children.length - 1; index >= 0; index -= 1) {
+  final overflowableIndexes = [
+    for (var index = 0; index < children.length; index += 1)
+      if (children[index] is CommandBarButton &&
+          (children[index] as CommandBarButton).canOverflow)
+        index,
+  ];
+
+  for (final index in overflowableIndexes.reversed) {
     if (totalWidth + reservedMoreWidth <= availableWidth) {
       break;
-    }
-
-    final child = children[index];
-    if (child is! CommandBarButton || !child.canOverflow) {
-      continue;
     }
 
     overflowedIndexes.add(index);
@@ -213,11 +225,15 @@ MenuFlyoutItem _toMenuFlyoutItem(CommandBarButton button) {
     icon: button.icon,
     disabled: button.disabled,
     checked: button.active,
-    onPressed: button.onOverflowPressed ?? button.onPressed,
+    submenu: button.disabled ? const [] : button.overflowSubmenu,
+    onPressed:
+        button.overflowSubmenu.isEmpty
+            ? button.onOverflowPressed ?? button.onPressed
+            : null,
   );
 }
 
-double _estimateCommandBarItemWidth(Widget child) {
+double _estimateCommandBarItemWidth(BuildContext context, Widget child) {
   if (child is! CommandBarButton) {
     return 80;
   }
@@ -226,11 +242,15 @@ double _estimateCommandBarItemWidth(Widget child) {
     return _commandBarMoreButtonWidth;
   }
 
-  final labelUnits = child.label.runes.fold<int>(
-    0,
-    (total, rune) => total + (rune > 0xff ? 2 : 1),
-  );
-  return 58 + labelUnits * 7.0;
+  final labelStyle = DefaultTextStyle.of(
+    context,
+  ).style.copyWith(fontSize: 14, fontWeight: FontWeight.w700);
+  final textPainter = TextPainter(
+    text: TextSpan(text: child.label, style: labelStyle),
+    textDirection: Directionality.of(context),
+    maxLines: 1,
+  )..layout();
+  return (44 + 18 + 8 + textPainter.width).ceilToDouble();
 }
 
 const _commandBarItemGap = 4.0;

@@ -68,6 +68,27 @@ void main() {
     expect(find.text('Built in'), findsNothing);
   });
 
+  testWidgets('NowPlayingPage hides queue commands when queue is empty', (
+    tester,
+  ) async {
+    final snapshot = _snapshotWithSongs(
+      _snapshot,
+      _snapshot.songs,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    );
+
+    await tester.pumpWidget(_NowPlayingTestApp(snapshot: snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quick Play'), findsOneWidget);
+    expect(find.text('Shuffle'), findsOneWidget);
+    expect(find.text('Locate Current'), findsNothing);
+    expect(find.text('Add To').hitTestable(), findsNothing);
+    expect(find.text('Clear Queue'), findsNothing);
+    expect(find.text('Immersive mode'), findsNothing);
+    expect(find.text('Multi Select'), findsNothing);
+  });
+
   testWidgets('NowPlayingPage queue menu uses Electron Add To submenu', (
     tester,
   ) async {

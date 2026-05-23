@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -244,8 +245,9 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             SingleChildScrollView(
               controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 42),
+              padding: const EdgeInsets.fromLTRB(18, 24, 18, 42),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (widget.error != null)
                     _ErrorBanner(message: widget.error!),
@@ -281,12 +283,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 18),
                   if (_appVersion case final appVersion?)
-                    Text(
-                      '${i18n.t('app.shell')} $appVersion',
-                      style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                    Align(
+                      alignment: Alignment.center,
+                      child: Opacity(
+                        opacity: 0.82,
+                        child: Text(
+                          '${i18n.t('app.shell')} $appVersion',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 12,
+                            height: 1.4,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -922,7 +932,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
       setState(() {
-        _appVersion = '1.0.0';
+        _appVersion = smPlayerAppVersion;
       });
     }
   }
@@ -1519,9 +1529,9 @@ class _InlineSelectSettingRow<T> extends StatefulWidget {
 class _InlineSelectSettingRowState<T>
     extends State<_InlineSelectSettingRow<T>> {
   final _link = LayerLink();
-  final _targetKey = GlobalKey();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  BuildContext? _targetContext;
   OverlayEntry? _overlayEntry;
   var _open = false;
   var _openUpward = false;
@@ -1547,46 +1557,51 @@ class _InlineSelectSettingRowState<T>
       controlWidth: 210,
       child: CompositedTransformTarget(
         link: _link,
-        child: SizedBox(
-          key: _targetKey,
-          height: 38,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              alignment: Alignment.centerLeft,
-              backgroundColor:
-                  _open ? colors.selectOpenSurface : colors.inputSurface,
-              foregroundColor: _open ? colors.accentStrong : colors.textStrong,
-              side: BorderSide(
-                color: _open ? colors.selectOpenBorder : colors.inputBorder,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-            onPressed: _toggleOpen,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    selectedOption.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+        child: Builder(
+          builder: (targetContext) {
+            _targetContext = targetContext;
+            return SizedBox(
+              height: 38,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  backgroundColor:
+                      _open ? colors.selectOpenSurface : colors.inputSurface,
+                  foregroundColor:
+                      _open ? colors.accentStrong : colors.textStrong,
+                  side: BorderSide(
+                    color: _open ? colors.selectOpenBorder : colors.inputBorder,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
-                Icon(
-                  _open
-                      ? FluentIcons.chevron_up_20_regular
-                      : FluentIcons.chevron_down_20_regular,
-                  size: 16,
+                onPressed: _toggleOpen,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selectedOption.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _open
+                          ? FluentIcons.chevron_up_20_regular
+                          : FluentIcons.chevron_down_20_regular,
+                      size: 16,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1695,14 +1710,14 @@ class _InlineSelectSettingRowState<T>
   }
 
   double _overlayWidth() {
-    final box = _targetKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _targetBox();
     final triggerWidth = box?.size.width ?? 210;
     final contentWidth = widget.searchable ? 240.0 : 210.0;
     return math.min(320.0, math.max(triggerWidth, contentWidth));
   }
 
   void _updateDropdownGeometry() {
-    final box = _targetKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _targetBox();
     if (box == null) {
       return;
     }
@@ -1741,6 +1756,14 @@ class _InlineSelectSettingRowState<T>
     return widget.options
         .where((option) => option.label.toLowerCase().contains(normalizedQuery))
         .length;
+  }
+
+  RenderBox? _targetBox() {
+    final targetContext = _targetContext;
+    if (targetContext == null || !targetContext.mounted) {
+      return null;
+    }
+    return targetContext.findRenderObject() as RenderBox?;
   }
 }
 

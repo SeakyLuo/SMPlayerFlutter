@@ -84,11 +84,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             visibleQueueIndexes
                 .where((index) => _selection.isSelected(index))
                 .toList();
-        final currentSong = _resolveCurrentSong(
-          mediaControlState,
-          queueSongs,
-          songsById,
-        );
+        final currentSong = _resolveCurrentSong(mediaControlState, queueSongs);
         final folders =
             snapshot.folders
                 .map(
@@ -175,6 +171,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         icon: FluentIcons.arrow_shuffle_20_regular,
                         label: i18n.t('nowPlaying.randomPlay'),
                         disabled: snapshot.songs.isEmpty,
+                        overflowSubmenu: _buildShuffleMenuItems(
+                          snapshot: snapshot,
+                          queueSongs: queueSongs,
+                        ),
                         onPressed: () {
                           _showShuffleMenu(
                             snapshot: snapshot,
@@ -182,62 +182,59 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           );
                         },
                       ),
-                      CommandBarButton(
-                        icon: FluentIcons.music_note_2_20_regular,
-                        label: i18n.t('nowPlaying.locateCurrent'),
-                        disabled: queueSongs.isEmpty,
-                        onPressed: () {
-                          _locateCurrent(queueSongs, mediaControlState);
-                        },
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.add_20_regular,
-                        label: i18n.t('context.addToPlaylist'),
-                        disabled:
-                            queueSongIds.isEmpty || addQueueToItem == null,
-                        onPressed: () {
-                          if (addQueueToItem == null) {
-                            return;
-                          }
-                          showMenuFlyout(
-                            context,
-                            items: addQueueToItem.submenu,
-                          );
-                        },
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.dismiss_20_regular,
-                        label: i18n.t('nowPlaying.clearQueue'),
-                        disabled: queueSongs.isEmpty,
-                        onPressed: () {
-                          _clearQueue(queueSongIds);
-                        },
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.full_screen_maximize_20_regular,
-                        label: i18n.t('nowPlaying.playMode'),
-                        disabled: currentSong == null,
-                        onPressed: () {
-                          context.go('/now-playing/full');
-                        },
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.select_all_on_20_regular,
-                        label: i18n.t('common.multiSelect'),
-                        active: _selection.multiSelect,
-                        disabled: queueSongs.isEmpty,
-                        onPressed: _toggleMultiSelect,
-                      ),
+                      if (queueSongs.isNotEmpty) ...[
+                        CommandBarButton(
+                          icon: FluentIcons.music_note_2_20_regular,
+                          label: i18n.t('nowPlaying.locateCurrent'),
+                          disabled: currentSong == null,
+                          onPressed: () {
+                            _locateCurrent(queueSongs, mediaControlState);
+                          },
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.add_20_regular,
+                          label: i18n.t('context.addToPlaylist'),
+                          disabled: addQueueToItem == null,
+                          overflowSubmenu: addQueueToItem?.submenu ?? const [],
+                          onPressed: () {
+                            if (addQueueToItem == null) {
+                              return;
+                            }
+                            showMenuFlyout(
+                              context,
+                              items: addQueueToItem.submenu,
+                            );
+                          },
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.dismiss_20_regular,
+                          label: i18n.t('nowPlaying.clearQueue'),
+                          onPressed: () {
+                            _clearQueue(queueSongIds);
+                          },
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.full_screen_maximize_20_regular,
+                          label: i18n.t('nowPlaying.playMode'),
+                          disabled: currentSong == null,
+                          onPressed: () {
+                            context.go('/now-playing/full');
+                          },
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.select_all_on_20_regular,
+                          label: i18n.t('common.multiSelect'),
+                          active: _selection.multiSelect,
+                          onPressed: _toggleMultiSelect,
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 8),
                   Expanded(
                     child:
                         queueSongs.isEmpty
-                            ? _NowPlayingEmptyState(
-                              title: i18n.t('nowPlaying.queueEmpty'),
-                              message: i18n.t('nowPlaying.queueEmptyHelp'),
-                            )
+                            ? const SizedBox.shrink()
                             : visibleQueueSongs.isEmpty
                             ? _NowPlayingEmptyState(
                               title: i18n.t('nowPlaying.noQueueMatch', {
@@ -792,7 +789,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   LibrarySong? _resolveCurrentSong(
     MediaControlState mediaControlState,
     List<LibrarySong> queueSongs,
-    Map<int, LibrarySong> songsById,
   ) {
     final queueIndex = mediaControlState.selectedQueueIndex;
     if (queueIndex != null &&
@@ -802,7 +798,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     }
 
     final trackId = mediaControlState.track.id;
-    return trackId == null ? null : songsById[trackId];
+    if (trackId == null) {
+      return null;
+    }
+    return queueSongs.where((song) => song.id == trackId).firstOrNull;
   }
 
   void _showShuffleMenu({
@@ -1312,11 +1311,43 @@ class _NowPlayingEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '$title\n$message',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: _NowPlayingColors.textMuted, height: 1.5),
+    return Align(
+      alignment: Alignment.topLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _NowPlayingColors.emptyStateSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _NowPlayingColors.emptyStateBorder),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _NowPlayingColors.textStrong,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: _NowPlayingColors.textMuted,
+                    fontSize: 14,
+                    height: 1.65,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1325,5 +1356,8 @@ class _NowPlayingEmptyState extends StatelessWidget {
 class _NowPlayingColors {
   const _NowPlayingColors._();
 
+  static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
 }

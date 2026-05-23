@@ -2329,44 +2329,41 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: _LibraryColors.panel,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _LibraryColors.panelBorder),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _LibraryColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _LibraryColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: _LibraryColors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (message.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  message,
                   style: const TextStyle(
-                    color: _LibraryColors.textStrong,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                    color: _LibraryColors.textMuted,
+                    fontSize: 14,
+                    height: 1.65,
                   ),
                 ),
-                if (message.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: _LibraryColors.textMuted,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -2498,6 +2495,8 @@ class _LibraryColors {
 
   static const panel = Color(0xffffffff);
   static const panelBorder = Color(0x29677486);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
   static const panelShadow = Color(0x1f1f2a38);
   static const quickJumpPanel = Color(0xf5f4f6f9);
   static const quickJumpPanelShadow = Color(0x1f2a384e);

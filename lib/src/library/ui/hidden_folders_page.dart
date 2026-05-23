@@ -61,13 +61,29 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
 
                 final items = snapshot.data ?? const <HiddenStorageItem>[];
                 if (items.isEmpty) {
-                  return Center(
-                    child: Text(
-                      i18n.t('hiddenFolders.empty'),
-                      style: const TextStyle(
-                        color: LocalPageColors.textStrong,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: LocalPageColors.emptyStateSurface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: LocalPageColors.emptyStateBorder,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        child: Text(
+                          i18n.t('hiddenFolders.empty'),
+                          style: const TextStyle(
+                            color: LocalPageColors.textStrong,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   );

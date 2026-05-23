@@ -35,6 +35,7 @@ void main() {
       'common.myFavorites': 'My Favorites',
       'common.nowPlaying': 'Now Playing',
       'common.open': 'Open',
+      'common.recent': 'Recent',
       'common.search': 'Search',
       'common.songs': 'Songs',
       'common.undo': 'Undo',
@@ -462,6 +463,23 @@ void main() {
 
     expect(find.text('Clear History'), findsOneWidget);
   });
+
+  testWidgets('RecentPage empty state keeps the Recent header', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _emptySnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('Added  0'), findsOneWidget);
+  });
 }
 
 class _RecentTestApp extends StatelessWidget {
@@ -685,6 +703,24 @@ const _snapshot = MusicLibrarySnapshot(
     ),
   ],
   favoritePlaylistId: 3,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _emptySnapshot = MusicLibrarySnapshot(
+  songs: [],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 0,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
   hasLibrary: true,
   sortCriterion: MusicLibrarySortCriterion.title,

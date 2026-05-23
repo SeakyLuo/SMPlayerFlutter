@@ -1762,16 +1762,20 @@ class _SearchEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 320,
-      child: Center(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _SearchColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _SearchColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         child: Text(
           message,
-          textAlign: TextAlign.center,
           style: const TextStyle(
-            color: _SearchColors.textMuted,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+            color: _SearchColors.textStrong,
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -1803,6 +1807,8 @@ class _SearchColors {
   static const textMuted = Color(0xff5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
 }
 
 String _searchFolderPath(String rootPath, String? folderRelativePath) {

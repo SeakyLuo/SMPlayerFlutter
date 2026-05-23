@@ -72,11 +72,11 @@ void main() {
   });
 
   test('playerVolumeIcon mirrors Electron volume icon thresholds', () {
-    expect(playerVolumeIcon(0, false), Icons.volume_off_rounded);
-    expect(playerVolumeIcon(20, false), Icons.volume_down_rounded);
-    expect(playerVolumeIcon(50, false), Icons.volume_down_rounded);
-    expect(playerVolumeIcon(80, false), Icons.volume_up_rounded);
-    expect(playerVolumeIcon(80, true), Icons.volume_mute_rounded);
+    expect(playerVolumeIcon(0, false), FluentIcons.speaker_off_20_regular);
+    expect(playerVolumeIcon(20, false), FluentIcons.speaker_1_20_regular);
+    expect(playerVolumeIcon(50, false), FluentIcons.speaker_1_20_regular);
+    expect(playerVolumeIcon(80, false), FluentIcons.speaker_2_20_regular);
+    expect(playerVolumeIcon(80, true), FluentIcons.speaker_mute_20_regular);
   });
 
   test(
@@ -168,6 +168,40 @@ void main() {
 
     expect(title.style?.color, MediaControlColors.nightText);
     expect(artist.style?.color, MediaControlColors.nightMuted);
+  });
+
+  test('MediaControl player background constants mirror Electron CSS', () {
+    expect(MediaControlColors.playerSurfaceSolid, const Color(0xa6ffffff));
+    expect(MediaControlColors.playerSurface, const Color(0xb8ffffff));
+    expect(MediaControlColors.playerAccentWash, const Color(0x240078d7));
+    expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x120078d7));
+    expect(MediaControlColors.emptyPlayerLeftWash, const Color(0x8cffffff));
+    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x8ce5f3ff));
+    expect(MediaControlColors.compactPlayerBorder, const Color(0x9effffff));
+    expect(MediaControlColors.compactPlayerSurface, const Color(0xd1f8fbfe));
+    expect(MediaControlColors.compactPlayerTop, const Color(0xbdffffff));
+    expect(MediaControlColors.compactPlayerBottom, const Color(0xb3f6fafe));
+    expect(MediaControlColors.compactPlayerWash, const Color(0xa8ffffff));
+    expect(MediaControlColors.emptyCompactPlayerWash, const Color(0xccffffff));
+    expect(
+      MediaControlColors.compactPlayerInsetHighlight,
+      const Color(0xd1ffffff),
+    );
+    expect(MediaControlColors.nightPlayerSurface, const Color(0xe611161c));
+    expect(MediaControlColors.nightPlayerHighlight, const Color(0x0effffff));
+    expect(MediaControlColors.nightPlayerAccentWash, const Color(0x1f0078d7));
+    expect(
+      MediaControlColors.nightEmptyPlayerAccentWash,
+      const Color(0x120078d7),
+    );
+    expect(
+      MediaControlColors.nightEmptyPlayerRightWash,
+      const Color(0x18162028),
+    );
+    expect(
+      MediaControlColors.nightEmptyCompactPlayerWash,
+      const Color(0xd611161c),
+    );
   });
 
   test('resolvePlayerArtworkPath uses current song artwork like Electron', () {
@@ -335,8 +369,173 @@ void main() {
       ),
     );
     expect(volumeSlider.value, 100);
-    expect(find.byIcon(Icons.volume_up_rounded), findsWidgets);
+    expect(find.byIcon(FluentIcons.speaker_2_20_regular), findsWidgets);
   });
+
+  testWidgets('MediaControl keeps volume slider enabled when player is empty', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    var changedVolume = 0;
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack.empty(),
+              disabled: true,
+              isPlaying: false,
+              volume: 73,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 0,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (volume) {
+                changedVolume = volume;
+              },
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
+              onEnterMiniMode: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final volumeSlider = tester.widget<Slider>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MediaControl.WideVolumeSlider')),
+        matching: find.byType(Slider),
+      ),
+    );
+    expect(volumeSlider.value, 73);
+    expect(volumeSlider.onChanged, isNotNull);
+
+    volumeSlider.onChanged!(64);
+    await tester.pump();
+
+    expect(changedVolume, 64);
+  });
+
+  testWidgets(
+    'MediaControl disables transport when track is empty but keeps volume live',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 420);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      var playToggled = false;
+      var changedVolume = 0;
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack.empty(),
+                disabled: false,
+                isPlaying: false,
+                volume: 73,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 0,
+                onTogglePlayPause: () {
+                  playToggled = true;
+                },
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (volume) {
+                  changedVolume = volume;
+                },
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+      );
+      await tester.pump();
+      expect(playToggled, isFalse);
+
+      final playButton = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      final playDecoration = playButton.decoration! as BoxDecoration;
+      expect(
+        playDecoration.color,
+        MediaControlColors.disabledPrimaryButtonSurface,
+      );
+      expect(playDecoration.boxShadow, const [
+        BoxShadow(
+          color: MediaControlColors.disabledPrimaryButtonShadow,
+          offset: Offset(0, 8),
+          blurRadius: 18,
+        ),
+      ]);
+      expect(
+        playDecoration.border,
+        Border.all(color: MediaControlColors.disabledPrimaryButtonBorder),
+      );
+
+      final volumeSlider = tester.widget<Slider>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MediaControl.WideVolumeSlider')),
+          matching: find.byType(Slider),
+        ),
+      );
+      expect(volumeSlider.value, 73);
+      expect(volumeSlider.onChanged, isNotNull);
+      volumeSlider.onChanged!(64);
+      await tester.pump();
+      expect(changedVolume, 64);
+    },
+  );
 
   testWidgets(
     'MediaControl renders Electron player actions and updates state',
@@ -1789,6 +1988,57 @@ void main() {
           ),
         ),
       );
+
+      final disabledPlayButton = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      final disabledPlayButtonDecoration =
+          disabledPlayButton.decoration! as BoxDecoration;
+      expect(
+        disabledPlayButtonDecoration.color,
+        MediaControlColors.disabledPrimaryButtonSurface,
+      );
+      expect(disabledPlayButtonDecoration.boxShadow, const [
+        BoxShadow(
+          color: MediaControlColors.disabledPrimaryButtonShadow,
+          offset: Offset(0, 8),
+          blurRadius: 18,
+        ),
+      ]);
+      expect(
+        disabledPlayButtonDecoration.border,
+        Border.all(color: MediaControlColors.disabledPrimaryButtonBorder),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+        ),
+        const Size(52, 52),
+      );
+      expect(disabledPlayButton.padding, const EdgeInsets.all(13));
+      final disabledProgressTheme = tester.widget<SliderTheme>(
+        find
+            .ancestor(
+              of: find.byType(Slider).first,
+              matching: find.byType(SliderTheme),
+            )
+            .first,
+      );
+      expect(
+        disabledProgressTheme.data.disabledThumbColor,
+        MediaControlColors.accent.withValues(alpha: 0.8),
+      );
+      expect(disabledProgressTheme.data.trackHeight, 2);
+      final progressSlider = tester.widget<Slider>(find.byType(Slider).first);
+      expect(progressSlider.onChanged, isNull);
+      final defaultArtwork = tester.widget<Image>(find.byType(Image).first);
+      final defaultArtworkProvider = defaultArtwork.image as AssetImage;
+      expect(defaultArtworkProvider.assetName, 'assets/branding/app-icon.png');
 
       await tester.tap(find.byTooltip('Playback Mode: List').last);
       await tester.pump();

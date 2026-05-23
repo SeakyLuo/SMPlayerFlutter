@@ -20,6 +20,7 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
+import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart'
     show getNextPlaylistName, validatePlaylistName;
 import 'library_page_actions.dart'
@@ -142,15 +143,15 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             child: _LocalEmptyState(
               title: i18n.t('local.noRoot'),
               message: i18n.t('local.noRootCopy'),
-              action: TextButton.icon(
+              action: LocalCommandButton(
                 onPressed:
                     _rootScanRunning
                         ? null
                         : () {
                           unawaited(_pickAndScanLibraryRoot(i18n));
                         },
-                icon: const Icon(FluentIcons.folder_20_regular),
-                label: Text(i18n.t('library.chooseFolder')),
+                icon: FluentIcons.folder_20_regular,
+                label: i18n.t('library.chooseFolder'),
               ),
             ),
           ),
@@ -197,10 +198,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return _LocalScaffold(
         child: _LocalEmptyState(
           title: i18n.t('local.folderNotFound'),
-          action: TextButton.icon(
+          action: LocalCommandButton(
             onPressed: () => _openFolder(''),
-            icon: const Icon(FluentIcons.arrow_left_20_regular),
-            label: Text(i18n.t('local.backToRoot')),
+            icon: FluentIcons.arrow_left_20_regular,
+            label: i18n.t('local.backToRoot'),
           ),
         ),
       );
@@ -320,7 +321,19 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   ),
                   const SizedBox(height: 12),
                   CommandBar(
+                    overflowReserve: isCompactLayout ? 44 : 0,
                     overflowLabel: i18n.t('player.more'),
+                    overflowItems:
+                        isCompactLayout
+                            ? [
+                              MenuFlyoutItem(
+                                key: 'hidden-folders',
+                                text: i18n.t('local.viewHiddenFolders'),
+                                icon: FluentIcons.eye_off_20_regular,
+                                onPressed: () => context.go('/hidden-folders'),
+                              ),
+                            ]
+                            : const [],
                     content: Text(
                       i18n.t('local.folderCardStats', {
                         'folders': childFolders.length,
@@ -339,6 +352,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                           return CommandBarButton(
                             icon: FluentIcons.arrow_shuffle_24_regular,
                             label: i18n.t('nowPlaying.randomPlay'),
+                            overflowSubmenu:
+                                visibleSongIds.isNotEmpty && hasSubfolderSongs
+                                    ? _localShuffleMenuItems(
+                                      currentNode,
+                                      visibleSongIds,
+                                      i18n,
+                                    )
+                                    : const [],
                             onPressed:
                                 () => _playShuffledFromToolbar(
                                   buttonContext,
@@ -363,6 +384,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                           return CommandBarButton(
                             icon: FluentIcons.arrow_sort_24_regular,
                             label: i18n.t('common.sort'),
+                            overflowSubmenu: _localSortMenuItems(
+                              currentNode,
+                              i18n,
+                            ),
                             onPressed:
                                 () => _showSortMenu(context, i18n, currentNode),
                           );
@@ -896,15 +921,15 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return _LocalEmptyState(
         title: i18n.t('local.noSongsScanned'),
         message: i18n.t('local.scanPopulate'),
-        action: TextButton.icon(
+        action: LocalCommandButton(
           onPressed:
               _rootScanRunning
                   ? null
                   : () {
                     unawaited(_scanLibraryRoot(snapshot.rootPath, i18n));
                   },
-          icon: const Icon(FluentIcons.arrow_sync_20_regular),
-          label: Text(i18n.t('local.rescan')),
+          icon: FluentIcons.arrow_sync_20_regular,
+          label: i18n.t('local.rescan'),
         ),
       );
     }
@@ -926,41 +951,48 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   ) {
     showMenuFlyout(
       buttonContext,
-      items: [
-        MenuFlyoutItem(
-          key: 'toolbar-sort-reverse',
-          text: i18n.t('local.sortReverseList'),
-          icon: FluentIcons.arrow_sort_down_lines_20_regular,
-          onPressed:
-              () => _updateSortMode(currentNode, LocalSortMode.reverse, i18n),
-        ),
-        const MenuFlyoutItem.separator(key: 'toolbar-sort-separator'),
-        MenuFlyoutItem(
-          key: 'toolbar-sort-title',
-          text: i18n.t('local.sortByTitle'),
-          icon: FluentIcons.text_sort_ascending_20_regular,
-          checked: _sortMode == LocalSortMode.title,
-          onPressed:
-              () => _updateSortMode(currentNode, LocalSortMode.title, i18n),
-        ),
-        MenuFlyoutItem(
-          key: 'toolbar-sort-artist',
-          text: i18n.t('local.sortByArtist'),
-          icon: FluentIcons.person_20_regular,
-          checked: _sortMode == LocalSortMode.artist,
-          onPressed:
-              () => _updateSortMode(currentNode, LocalSortMode.artist, i18n),
-        ),
-        MenuFlyoutItem(
-          key: 'toolbar-sort-album',
-          text: i18n.t('local.sortByAlbum'),
-          icon: FluentIcons.album_20_regular,
-          checked: _sortMode == LocalSortMode.album,
-          onPressed:
-              () => _updateSortMode(currentNode, LocalSortMode.album, i18n),
-        ),
-      ],
+      items: _localSortMenuItems(currentNode, i18n),
     );
+  }
+
+  List<MenuFlyoutItem> _localSortMenuItems(
+    FolderNode currentNode,
+    SmPlayerI18n i18n,
+  ) {
+    return [
+      MenuFlyoutItem(
+        key: 'toolbar-sort-reverse',
+        text: i18n.t('local.sortReverseList'),
+        icon: FluentIcons.arrow_sort_down_lines_20_regular,
+        onPressed:
+            () => _updateSortMode(currentNode, LocalSortMode.reverse, i18n),
+      ),
+      const MenuFlyoutItem.separator(key: 'toolbar-sort-separator'),
+      MenuFlyoutItem(
+        key: 'toolbar-sort-title',
+        text: i18n.t('local.sortByTitle'),
+        icon: FluentIcons.text_sort_ascending_20_regular,
+        checked: _sortMode == LocalSortMode.title,
+        onPressed:
+            () => _updateSortMode(currentNode, LocalSortMode.title, i18n),
+      ),
+      MenuFlyoutItem(
+        key: 'toolbar-sort-artist',
+        text: i18n.t('local.sortByArtist'),
+        icon: FluentIcons.person_20_regular,
+        checked: _sortMode == LocalSortMode.artist,
+        onPressed:
+            () => _updateSortMode(currentNode, LocalSortMode.artist, i18n),
+      ),
+      MenuFlyoutItem(
+        key: 'toolbar-sort-album',
+        text: i18n.t('local.sortByAlbum'),
+        icon: FluentIcons.album_20_regular,
+        checked: _sortMode == LocalSortMode.album,
+        onPressed:
+            () => _updateSortMode(currentNode, LocalSortMode.album, i18n),
+      ),
+    ];
   }
 
   Future<void> _showFolderMenu({
@@ -1999,20 +2031,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     if (queueSongIds.isNotEmpty && hasSubfolderSongs) {
       showMenuFlyout(
         buttonContext,
-        items: [
-          MenuFlyoutItem(
-            key: 'toolbar-shuffle-current',
-            text: i18n.t('local.scopeCurrent'),
-            icon: FluentIcons.arrow_shuffle_20_regular,
-            onPressed: () => _playShuffledSongIds(queueSongIds),
-          ),
-          MenuFlyoutItem(
-            key: 'toolbar-shuffle-subtree',
-            text: i18n.t('local.scopeSubtree'),
-            icon: FluentIcons.folder_20_regular,
-            onPressed: () => _playShuffledSongIds(currentNode.subtreeSongIds),
-          ),
-        ],
+        items: _localShuffleMenuItems(currentNode, queueSongIds, i18n),
       );
       return;
     }
@@ -2020,6 +2039,27 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     _playShuffledSongIds(
       queueSongIds.isNotEmpty ? queueSongIds : currentNode.subtreeSongIds,
     );
+  }
+
+  List<MenuFlyoutItem> _localShuffleMenuItems(
+    FolderNode currentNode,
+    List<int> queueSongIds,
+    SmPlayerI18n i18n,
+  ) {
+    return [
+      MenuFlyoutItem(
+        key: 'toolbar-shuffle-current',
+        text: i18n.t('local.scopeCurrent'),
+        icon: FluentIcons.arrow_shuffle_20_regular,
+        onPressed: () => _playShuffledSongIds(queueSongIds),
+      ),
+      MenuFlyoutItem(
+        key: 'toolbar-shuffle-subtree',
+        text: i18n.t('local.scopeSubtree'),
+        icon: FluentIcons.folder_20_regular,
+        onPressed: () => _playShuffledSongIds(currentNode.subtreeSongIds),
+      ),
+    ];
   }
 
   void _playShuffledSongIds(List<int> sourceSongIds) {
@@ -2963,60 +3003,158 @@ class _LocalEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: LocalPageColors.panel,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: LocalPageColors.panelBorder),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox.square(
-                  dimension: 104,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: LocalPageColors.artwork,
-                      borderRadius: BorderRadius.all(Radius.circular(14)),
-                    ),
-                    child: Icon(
-                      FluentIcons.music_note_2_24_regular,
-                      color: LocalPageColors.artworkIcon,
-                      size: 62,
-                    ),
-                  ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: LocalPageColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: LocalPageColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 104,
+              height: 104,
+              margin: const EdgeInsets.only(bottom: 4),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: LocalPageColors.emptyStateArtworkBorder,
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: LocalPageColors.textStrong,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (message.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: LocalPageColors.textMuted,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: LocalPageColors.artworkShadow,
+                    offset: Offset(0, 8),
+                    blurRadius: 18,
                   ),
                 ],
-                if (action != null) ...[const SizedBox(height: 12), action!],
-              ],
+              ),
+              child: const DefaultAlbumArtwork(logoScale: 0.72),
             ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                color: LocalPageColors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (message.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: LocalPageColors.textMuted,
+                    fontSize: 14,
+                    height: 1.65,
+                  ),
+                ),
+              ),
+            ],
+            if (action != null) ...[const SizedBox(height: 18), action!],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LocalCommandButton extends StatefulWidget {
+  const LocalCommandButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  State<LocalCommandButton> createState() => _LocalCommandButtonState();
+}
+
+class _LocalCommandButtonState extends State<LocalCommandButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final active = enabled && _hovered;
+    final foreground =
+        active ? LocalPageColors.accentStrong : LocalPageColors.commandText;
+    final button = DecoratedBox(
+      decoration: BoxDecoration(
+        color:
+            active
+                ? LocalPageColors.surfaceControlHover
+                : LocalPageColors.surfaceControl,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: LocalPageColors.borderSubtle),
+        boxShadow: const [
+          BoxShadow(
+            color: LocalPageColors.cardShadow,
+            offset: Offset(0, 12),
+            blurRadius: 26,
           ),
+        ],
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(widget.icon, size: 18, color: foreground),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) {
+          if (enabled) {
+            setState(() {
+              _hovered = true;
+            });
+          }
+        },
+        onExit: (_) {
+          if (_hovered) {
+            setState(() {
+              _hovered = false;
+            });
+          }
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: Opacity(opacity: enabled ? 1 : 0.52, child: button),
         ),
       ),
     );

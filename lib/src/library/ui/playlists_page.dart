@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
@@ -286,7 +287,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           Expanded(
             child:
                 orderedPlaylists.isEmpty
-                    ? _PlaylistsEmptyState(i18n: i18n)
+                    ? const SizedBox.shrink()
                     : LayoutBuilder(
                       builder: (context, constraints) {
                         final columns =
@@ -821,20 +822,7 @@ class _PlaylistArtworkFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_PlaylistsColors.coverA, _PlaylistsColors.coverB],
-        ),
-      ),
-      child: Icon(
-        FluentIcons.apps_list_detail_24_regular,
-        color: Colors.white,
-        size: 56,
-      ),
-    );
+    return const DefaultAlbumArtwork();
   }
 }
 
@@ -886,23 +874,6 @@ class _PlaylistDropPlaceholder extends StatelessWidget {
   }
 }
 
-class _PlaylistsEmptyState extends StatelessWidget {
-  const _PlaylistsEmptyState({required this.i18n});
-
-  final SmPlayerI18n i18n;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '${i18n.t('playlists.none')}\n${i18n.t('playlists.noneCopy')}',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: _PlaylistsColors.textMuted, height: 1.5),
-      ),
-    );
-  }
-}
-
 class _PlaylistsColors {
   const _PlaylistsColors._();
 
@@ -910,6 +881,4 @@ class _PlaylistsColors {
   static const accentStrong = Color(0xff0063b1);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff607085);
-  static const coverA = Color(0xff6794c6);
-  static const coverB = Color(0xff6f7fc8);
 }
