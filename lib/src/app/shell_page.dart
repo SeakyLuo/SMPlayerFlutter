@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +14,8 @@ import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -244,6 +245,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   SmPlayerNavigationMode? _navigationMode;
   var _currentPath = '/songs';
   final _routeMemory = <String, String>{};
+  final _navigationHistory = <String>[];
   var _searchText = '';
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
@@ -299,6 +301,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
     _restoreSearchQuery();
+    _recordNavigationLocation(
+      widget.currentLocation ?? widget.currentPath ?? _currentPath,
+    );
     _rememberRoute(
       widget.currentLocation ?? widget.currentPath ?? _currentPath,
     );
@@ -316,6 +321,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final previousLocation =
         oldWidget.currentLocation ?? oldWidget.currentPath ?? _currentPath;
     if (currentLocation != previousLocation) {
+      _recordNavigationLocation(currentLocation);
       _rememberRoute(currentLocation);
       _persistCurrentPage(currentPath);
       if (currentPath != '/now-playing/full') {
@@ -387,8 +393,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                 end: Alignment.bottomRight,
                 colors: [
                   nightMode
-                      ? _ShellColors.nightBodyHighlight
-                      : _ShellColors.bodyHighlight,
+                      ? ShellColors.nightBodyHighlight
+                      : ShellColors.bodyHighlight,
                   Colors.transparent,
                 ],
                 stops: const [0, 0.36],
@@ -402,13 +408,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                   colors:
                       nightMode
                           ? const [
-                            _ShellColors.nightBodyTop,
-                            _ShellColors.nightBodyBottom,
+                            ShellColors.nightBodyTop,
+                            ShellColors.nightBodyBottom,
                           ]
-                          : const [
-                            _ShellColors.bodyTop,
-                            _ShellColors.bodyBottom,
-                          ],
+                          : const [ShellColors.bodyTop, ShellColors.bodyBottom],
                 ),
               ),
               child: SafeArea(
@@ -432,11 +435,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                       : MediaQuery.sizeOf(context).height -
                                           SmPlayerShellMetrics.playerHeight +
                                           SmPlayerShellMetrics.playerTopRadius,
-                              child: _Workspace(
+                              child: SmPlayerWorkspace(
                                 key: SmPlayerShellKeys.workspace,
                                 currentPath: currentPath,
                                 currentLocation:
                                     widget.currentLocation ?? currentPath,
+                                headerHeight:
+                                    SmPlayerShellMetrics.workspaceHeaderHeight,
                                 child: widget.child,
                               ),
                             ),
@@ -466,12 +471,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             locale: smPlayerFallbackLocale,
                                             messages: {},
                                           );
+                                      final canGoBack =
+                                          widget.canGoBack ||
+                                          _navigationHistory.length > 1;
                                       return MainNavigationView(
                                         isPaneOpen: isNavigationPaneVisible,
                                         currentPath: currentPath,
                                         searchText: _searchText,
                                         i18n: i18n,
-                                        canGoBack: widget.canGoBack,
+                                        canGoBack: canGoBack,
                                         playlists:
                                             snapshot?.playlists ?? const [],
                                         recentSearches:
@@ -1796,6 +1804,29 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _routeMemory[section] = section == '/artists' ? path : normalizedPath;
   }
 
+  void _recordNavigationLocation(String location) {
+    if (_navigationHistory.isEmpty) {
+      _navigationHistory.add(location);
+      return;
+    }
+
+    if (_navigationHistory.last == location) {
+      return;
+    }
+
+    if (_navigationHistory.length > 1 &&
+        _navigationHistory[_navigationHistory.length - 2] == location) {
+      _navigationHistory.removeLast();
+      return;
+    }
+
+    _navigationHistory.add(location);
+  }
+
+  String _pathFromLocation(String location) {
+    return Uri.parse(location).path;
+  }
+
   String? _routeSection(String path) {
     if (path.startsWith('/artists')) {
       return '/artists';
@@ -1852,6 +1883,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   void _goBack() {
     _closeNavigationOverlay();
+    if (_navigationHistory.length > 1) {
+      final targetLocation = _navigationHistory[_navigationHistory.length - 2];
+      setState(() {
+        _currentPath = _pathFromLocation(targetLocation);
+      });
+      widget.onNavigate?.call(targetLocation);
+      return;
+    }
+
     widget.onGoBack?.call();
   }
 
@@ -4204,204 +4244,6 @@ class _MiniModeButton extends StatelessWidget {
   }
 }
 
-class _Workspace extends ConsumerWidget {
-  const _Workspace({
-    super.key,
-    required this.currentPath,
-    required this.currentLocation,
-    this.child,
-  });
-
-  final String currentPath;
-  final String currentLocation;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final i18n =
-        ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
-    final snapshot = ref.watch(musicLibrarySnapshotProvider).valueOrNull;
-    final title = _workspaceTitle(
-      path: currentPath,
-      location: currentLocation,
-      snapshot: snapshot,
-      i18n: i18n,
-    );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color:
-            nightMode
-                ? _ShellColors.nightWorkspaceSurface
-                : _ShellColors.workspaceSurface,
-        boxShadow: [
-          BoxShadow(
-            color:
-                nightMode
-                    ? _ShellColors.nightWorkspaceShadow
-                    : _ShellColors.workspaceShadow,
-            offset: const Offset(0, 22),
-            blurRadius: 56,
-          ),
-        ],
-      ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (title.isNotEmpty) _WorkspaceHeader(title: title),
-              Expanded(child: child ?? const SizedBox.shrink()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WorkspaceHeader extends StatelessWidget {
-  const _WorkspaceHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      height: SmPlayerShellMetrics.workspaceHeaderHeight,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 142, 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color:
-                  nightMode
-                      ? _ShellColors.nightHeaderText
-                      : _ShellColors.headerText,
-              fontSize: 40,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _workspaceTitle({
-  required String path,
-  required String location,
-  required MusicLibrarySnapshot? snapshot,
-  required SmPlayerI18n i18n,
-}) {
-  final uri = Uri.parse(location);
-  final showCount = snapshot?.showCount ?? false;
-  if (path.startsWith('/artists')) {
-    if (uri.queryParameters.containsKey('artist')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('library.allArtistsWithCount', {
-          'count': _artistCount(snapshot!),
-        })
-        : i18n.t('library.allArtists');
-  }
-
-  if (path.startsWith('/albums')) {
-    if (uri.queryParameters.containsKey('album')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('library.allAlbumsWithCount', {
-          'count': _albumCount(snapshot!),
-        })
-        : i18n.t('library.allAlbums');
-  }
-
-  if (path.startsWith('/now-playing')) {
-    return showCount
-        ? i18n.t('nowPlaying.titleWithCount', {
-          'count': snapshot!.nowPlaying.songIds.length,
-        })
-        : i18n.t('common.nowPlaying');
-  }
-
-  if (path.startsWith('/hidden-folders')) {
-    return i18n.t('local.hiddenFolders');
-  }
-
-  if (path.startsWith('/recent')) {
-    return '';
-  }
-
-  if (path.startsWith('/local')) {
-    return i18n.t('common.local');
-  }
-
-  if (path.startsWith('/playlists')) {
-    if (path.startsWith('/playlists/')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('search.playlistsWithCount', {
-          'count':
-              snapshot!.playlists
-                  .where((playlist) => !playlist.isBuiltIn)
-                  .length,
-        })
-        : i18n.t('common.playlists');
-  }
-
-  if (path.startsWith('/favorites')) {
-    return '';
-  }
-
-  if (path.startsWith('/search')) {
-    final query = (uri.queryParameters['query'] ?? '').trim();
-    final folder = uri.queryParameters['folder'] ?? '';
-    if (query.isNotEmpty && folder.isNotEmpty) {
-      return i18n.t('search.directoryResultOf', {
-        'query': query,
-        'folder': folder.split('/').last,
-      });
-    }
-    return query.isNotEmpty
-        ? i18n.t('search.resultOf', {'query': query})
-        : i18n.t('search.resultTitle');
-  }
-
-  if (path.startsWith('/settings')) {
-    return i18n.t('common.settings');
-  }
-
-  return showCount
-      ? i18n.t('library.allSongsWithCount', {'count': snapshot!.songs.length})
-      : i18n.t('library.allSongs');
-}
-
-int _artistCount(MusicLibrarySnapshot snapshot) {
-  final names = <String>{};
-  for (final song in snapshot.songs) {
-    names.addAll(artists_model.getSongArtists(song));
-  }
-  return names.length;
-}
-
-int _albumCount(MusicLibrarySnapshot snapshot) {
-  return snapshot.songs
-      .map((song) => song.album.trim())
-      .where((album) => album.isNotEmpty)
-      .toSet()
-      .length;
-}
-
 class _ShellWindowDragRegion extends StatelessWidget {
   const _ShellWindowDragRegion({
     required this.child,
@@ -5422,21 +5264,4 @@ int _currentDesktopLyricIndex(
 
 Color _parseShellHexColor(String value) {
   return Color(0xff000000 + int.parse(value.substring(1), radix: 16));
-}
-
-class _ShellColors {
-  const _ShellColors._();
-
-  static const bodyHighlight = Color(0xd1ffffff);
-  static const bodyTop = Color(0xfff6f8fb);
-  static const bodyBottom = Color(0xffedf2f7);
-  static const workspaceSurface = Color(0xbdfafcff);
-  static const workspaceShadow = Color(0x2e2f425c);
-  static const headerText = Color(0xff1f2933);
-  static const nightBodyHighlight = Color(0x1a5f9ed1);
-  static const nightBodyTop = Color(0xff111317);
-  static const nightBodyBottom = Color(0xff1a2028);
-  static const nightWorkspaceSurface = Color(0xff141a21);
-  static const nightWorkspaceShadow = Color(0x66000000);
-  static const nightHeaderText = Color(0xffe8edf5);
 }

@@ -111,6 +111,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           i18n: i18n,
           songIds: queueSongIds,
           playlists: customPlaylists,
+          currentPlaylistName: i18n.t('common.nowPlaying'),
           includeFavorites: queueSongs.any((song) => !song.favorite),
           onToggleFavorite:
               queueSongs.any((song) => !song.favorite)
@@ -175,8 +176,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           snapshot: snapshot,
                           queueSongs: queueSongs,
                         ),
-                        onPressed: () {
+                        onPressedWithContext: (buttonContext) {
                           _showShuffleMenu(
+                            buttonContext: buttonContext,
                             snapshot: snapshot,
                             queueSongs: queueSongs,
                           );
@@ -196,12 +198,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           label: i18n.t('context.addToPlaylist'),
                           disabled: addQueueToItem == null,
                           overflowSubmenu: addQueueToItem?.submenu ?? const [],
-                          onPressed: () {
+                          onPressedWithContext: (buttonContext) {
                             if (addQueueToItem == null) {
                               return;
                             }
                             showMenuFlyout(
-                              context,
+                              buttonContext,
                               items: addQueueToItem.submenu,
                             );
                           },
@@ -805,11 +807,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   void _showShuffleMenu({
+    required BuildContext buttonContext,
     required MusicLibrarySnapshot snapshot,
     required List<LibrarySong> queueSongs,
   }) {
     showMenuFlyout(
-      context,
+      buttonContext,
       items: _buildShuffleMenuItems(snapshot: snapshot, queueSongs: queueSongs),
     );
   }
@@ -818,157 +821,17 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     required MusicLibrarySnapshot snapshot,
     required List<LibrarySong> queueSongs,
   }) {
-    final i18n = context.smPlayerI18n;
-    final items = <MenuFlyoutItem>[
-      MenuFlyoutItem(
-        key: 'quick',
-        text: i18n.t('nowPlaying.quickPlay'),
-        icon: FluentIcons.play_20_regular,
-        onPressed: () {
-          unawaited(_quickPlay(snapshot));
-        },
-      ),
-    ];
-
-    if (queueSongs.isNotEmpty) {
-      items.addAll([
-        const MenuFlyoutItem.separator(key: 'now-playing-separator'),
-        MenuFlyoutItem(
-          key: 'now-playing',
-          text: i18n.t('common.nowPlaying'),
-          icon: FluentIcons.music_note_2_20_regular,
-          onPressed: () {
-            _playSongIds(_shuffleSongIds(queueSongs));
-          },
-        ),
-      ]);
-    }
-
-    if (snapshot.songs.isEmpty) {
-      return items;
-    }
-
-    items.addAll([
-      const MenuFlyoutItem.separator(key: 'shuffle-library-separator'),
-      MenuFlyoutItem(
-        key: 'library',
-        text: i18n.t('random.musicLibrary'),
-        icon: FluentIcons.library_20_regular,
-        onPressed: () {
-          _playSongIds(_randomLibrary(snapshot.songs, quickPlayLimit));
-        },
-      ),
-      MenuFlyoutItem(
-        key: 'artist',
-        text: i18n.t('common.artist'),
-        icon: FluentIcons.person_20_regular,
-        onPressed: () {
-          _playSongIds(_randomArtist(snapshot.songs, quickPlayLimit));
-        },
-      ),
-      MenuFlyoutItem(
-        key: 'album',
-        text: i18n.t('common.album'),
-        icon: FluentIcons.album_20_regular,
-        onPressed: () {
-          _playSongIds(_randomAlbum(snapshot.songs, quickPlayLimit));
-        },
-      ),
-    ]);
-
-    final playablePlaylists =
-        snapshot.playlists
-            .where((playlist) => playlist.songIds.isNotEmpty)
-            .toList();
-    if (playablePlaylists.isNotEmpty) {
-      items.add(
-        MenuFlyoutItem(
-          key: 'playlist',
-          text: i18n.t('common.playlist'),
-          icon: FluentIcons.apps_list_detail_20_regular,
-          onPressed: () {
-            _playSongIds(
-              _randomPlaylist(
-                snapshot.songs,
-                playablePlaylists,
-                quickPlayLimit,
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    final playableFolders =
-        snapshot.folders
-            .where(
-              (folder) => snapshot.songs.any(
-                (song) => _isSongDirectlyInFolder(song, folder.path),
-              ),
-            )
-            .toList();
-    if (playableFolders.isNotEmpty) {
-      items.add(
-        MenuFlyoutItem(
-          key: 'folder',
-          text: i18n.t('random.localFolder'),
-          icon: FluentIcons.folder_20_regular,
-          onPressed: () {
-            _playSongIds(
-              _randomFolder(snapshot.songs, playableFolders, quickPlayLimit),
-            );
-          },
-        ),
-      );
-    }
-
-    items.add(
-      MenuFlyoutItem(
-        key: 'recent-added',
-        text: i18n.t('common.recentAdded'),
-        icon: FluentIcons.history_20_regular,
-        onPressed: () {
-          _playSongIds(_randomRecentAdded(snapshot.songs, quickPlayLimit));
-        },
-      ),
+    return buildShuffleMenuFlyoutItems(
+      i18n: context.smPlayerI18n,
+      songs: queueSongs,
+      librarySongs: snapshot.songs,
+      recentSongs: snapshot.recentSongs,
+      playlists: snapshot.playlists,
+      folders: snapshot.folders,
+      randomLimit: quickPlayLimit,
+      onPlaySongs: _playSongIds,
+      onQuickPlay: () => _quickPlay(snapshot),
     );
-
-    if (snapshot.recentSongs.isNotEmpty) {
-      items.add(
-        MenuFlyoutItem(
-          key: 'recent-played',
-          text: i18n.t('random.recentPlayed'),
-          icon: FluentIcons.history_20_regular,
-          onPressed: () {
-            _playSongIds(_shuffleSongIds(snapshot.recentSongs));
-          },
-        ),
-      );
-    }
-
-    if (snapshot.songs.length > quickPlayLimit) {
-      items.addAll([
-        const MenuFlyoutItem.separator(key: 'shuffle-history-separator'),
-        MenuFlyoutItem(
-          key: 'most-played',
-          text: i18n.t('random.mostPlayed'),
-          icon: FluentIcons.top_speed_20_regular,
-          onPressed: () {
-            _playSongIds(_randomMostPlayed(snapshot.songs, quickPlayLimit));
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'least-played',
-          text: i18n.t('random.leastPlayed'),
-          icon: FluentIcons.arrow_trending_lines_20_regular,
-          onPressed: () {
-            _playSongIds(_randomLeastPlayed(snapshot.songs, quickPlayLimit));
-          },
-        ),
-      ]);
-    }
-
-    return items;
   }
 
   void _addSongsToFavorites(
@@ -1111,150 +974,6 @@ bool _matchesSearch(LibrarySong song, String searchQuery) {
     song.album,
     song.path,
   ].join(' ').toLowerCase().contains(normalizedSearchQuery);
-}
-
-List<int> _randomLibrary(List<LibrarySong> songs, int randomLimit) {
-  return _randomItems(songs, randomLimit).map((song) => song.id).toList();
-}
-
-List<int> _shuffleSongIds(List<LibrarySong> songs) {
-  final shuffled = songs.toList()..shuffle(Random());
-  return shuffled.map((song) => song.id).toList();
-}
-
-List<int> _randomArtist(List<LibrarySong> songs, int randomLimit) {
-  final songsByArtist = <String, List<LibrarySong>>{};
-  for (final song in songs) {
-    final artists = song.artists.isEmpty ? [song.artist] : song.artists;
-    for (final artist in artists) {
-      songsByArtist[artist] = [...(songsByArtist[artist] ?? []), song];
-    }
-  }
-  final group = _randomItem(songsByArtist.values.toList());
-  return _randomItems(group, randomLimit).map((song) => song.id).toList();
-}
-
-List<int> _randomAlbum(List<LibrarySong> songs, int randomLimit) {
-  return _randomItems(
-    _randomSongGroup(songs, (song) => song.album),
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<int> _randomPlaylist(
-  List<LibrarySong> songs,
-  List<LibraryPlaylist> playlists,
-  int randomLimit,
-) {
-  final songsById = {for (final song in songs) song.id: song};
-  final playlist = _randomItem(playlists);
-  final playlistSongs =
-      playlist.songIds
-          .map((songId) => songsById[songId])
-          .whereType<LibrarySong>()
-          .toList();
-  return _randomItems(
-    playlistSongs,
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<int> _randomFolder(
-  List<LibrarySong> songs,
-  List<LibraryFolder> folders,
-  int randomLimit,
-) {
-  final playableFolders =
-      folders
-          .map(
-            (folder) => (
-              folder: folder,
-              songs:
-                  songs
-                      .where(
-                        (song) => _isSongDirectlyInFolder(song, folder.path),
-                      )
-                      .toList(),
-            ),
-          )
-          .where((entry) => entry.songs.isNotEmpty)
-          .toList();
-  if (playableFolders.isEmpty) {
-    return const [];
-  }
-  return _randomItems(
-    _randomItem(playableFolders).songs,
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<int> _randomRecentAdded(List<LibrarySong> songs, int randomLimit) {
-  final sorted =
-      songs.toList()
-        ..sort((left, right) => right.dateAdded.compareTo(left.dateAdded));
-  return _randomItems(
-    sorted.take(500).toList(),
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<int> _randomMostPlayed(List<LibrarySong> songs, int randomLimit) {
-  final sorted =
-      songs.toList()
-        ..sort((left, right) => right.playCount.compareTo(left.playCount));
-  return _randomItems(
-    sorted.take(randomLimit).toList(),
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<int> _randomLeastPlayed(List<LibrarySong> songs, int randomLimit) {
-  final sorted =
-      songs.toList()
-        ..sort((left, right) => left.playCount.compareTo(right.playCount));
-  return _randomItems(
-    sorted.take(randomLimit).toList(),
-    randomLimit,
-  ).map((song) => song.id).toList();
-}
-
-List<LibrarySong> _randomSongGroup(
-  List<LibrarySong> songs,
-  String Function(LibrarySong song) getKey,
-) {
-  final groups = <String, List<LibrarySong>>{};
-  for (final song in songs) {
-    final key = getKey(song);
-    groups[key] = [...(groups[key] ?? []), song];
-  }
-  final group = _randomItem(groups.values.toList()).toList()..shuffle(Random());
-  return group;
-}
-
-List<T> _randomItems<T>(List<T> items, int count) {
-  if (items.length <= count) {
-    return items.toList()..shuffle(Random());
-  }
-
-  final indices = <int>{};
-  final random = Random();
-  while (indices.length < count) {
-    indices.add(random.nextInt(items.length));
-  }
-  return [for (final index in indices) items[index]];
-}
-
-T _randomItem<T>(List<T> items) {
-  return items[Random().nextInt(items.length)];
-}
-
-bool _isSongDirectlyInFolder(LibrarySong song, String folderPath) {
-  return _getFileParentPath(song.path) == folderPath;
-}
-
-String _getFileParentPath(String path) {
-  final separatorIndex = max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
-  return separatorIndex > -1 ? path.substring(0, separatorIndex) : '';
 }
 
 String _displayPathName(String path) {

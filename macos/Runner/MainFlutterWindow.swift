@@ -10,14 +10,17 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   private var externalOpenObserver: NSObjectProtocol?
   private var desktopLyricsPanel: NSPanel?
   private var desktopLyricsView: DesktopLyricsNativeView?
+  private var nativeSplashView: NativeSplashView?
   private var mediaSessionCommandsInstalled = false
   private var externalOpenChannelReady = false
 
   override func awakeFromNib() {
+    configureIntegratedTitlebar()
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    installNativeSplash(on: flutterViewController.view)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     desktopFeatureChannel = FlutterMethodChannel(
@@ -29,6 +32,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     installExternalOpenObserver()
 
     super.awakeFromNib()
+  }
+
+  private func configureIntegratedTitlebar() {
+    title = ""
+    titleVisibility = .hidden
+    titlebarAppearsTransparent = true
+    styleMask.insert(.fullSizeContentView)
   }
 
   deinit {
@@ -115,6 +125,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       result(SmPlayerExternalOpenArgumentsStore.shared.takePending())
       return
     }
+    if call.method == "pickDirectory" {
+      pickDirectory(result: result)
+      return
+    }
+    if call.method == "dismissNativeSplash" {
+      dismissNativeSplash()
+      result(nil)
+      return
+    }
     if call.method == "updateDesktopLyricsWindow" {
       guard let state = call.arguments as? [String: Any] else {
         result(FlutterError(
@@ -152,6 +171,42 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       return
     }
     result(FlutterMethodNotImplemented)
+  }
+
+  private func pickDirectory(result: @escaping FlutterResult) {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = false
+    panel.canCreateDirectories = false
+    panel.showsHiddenFiles = false
+    panel.beginSheetModal(for: self) { response in
+      guard response == .OK, let url = panel.url else {
+        result(nil)
+        return
+      }
+      result(url.path)
+    }
+  }
+
+  private func installNativeSplash(on parentView: NSView) {
+    let splashView = NativeSplashView(frame: parentView.bounds)
+    splashView.autoresizingMask = [.width, .height]
+    parentView.addSubview(splashView)
+    nativeSplashView = splashView
+  }
+
+  private func dismissNativeSplash() {
+    guard let splashView = nativeSplashView else {
+      return
+    }
+    nativeSplashView = nil
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.18
+      splashView.animator().alphaValue = 0
+    } completionHandler: {
+      splashView.removeFromSuperview()
+    }
   }
 
   private func showTrackNotification(_ payload: [String: Any]) {
@@ -338,6 +393,162 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       y: visibleFrame.minY + 120,
       width: defaultSize.width,
       height: defaultSize.height)
+  }
+}
+
+private final class NativeSplashView: NSView {
+  private let iconContainer = NSView()
+  private let iconView = NSImageView()
+  private let titleLabel = NSTextField(labelWithString: NativeSplashView.appName)
+  private let progressIndicator = NSProgressIndicator()
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    setupContent()
+    applyAppearance()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    wantsLayer = true
+    setupContent()
+    applyAppearance()
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    applyAppearance()
+  }
+
+  private static var appName: String {
+    if let preferredLanguage = UserDefaults.standard.string(
+      forKey: "flutter.smplayer:settings:preferredLanguage"
+    ), preferredLanguage != "system" {
+      return appName(for: preferredLanguage)
+    }
+    if let preferredLanguage = UserDefaults.standard.string(
+      forKey: "smplayer:settings:preferredLanguage"
+    ), preferredLanguage != "system" {
+      return appName(for: preferredLanguage)
+    }
+    for language in Locale.preferredLanguages {
+      if let localizedName = appNameForChineseLocale(language) {
+        return localizedName
+      }
+    }
+
+    let locale = Locale.current
+    if locale.languageCode == "zh" {
+      if locale.scriptCode == "Hant" ||
+          locale.regionCode == "TW" ||
+          locale.regionCode == "HK" ||
+          locale.regionCode == "MO" {
+        return "簡音播放器"
+      }
+      return "简音播放器"
+    }
+    return "Simple Melody Player"
+  }
+
+  private static func appName(for language: String) -> String {
+    appNameForChineseLocale(language) ?? "Simple Melody Player"
+  }
+
+  private static func appNameForChineseLocale(_ language: String) -> String? {
+    let normalized = language.lowercased()
+    if !normalized.hasPrefix("zh") {
+      return nil
+    }
+    if normalized.contains("hant") ||
+        normalized.contains("-tw") ||
+        normalized.contains("-hk") ||
+        normalized.contains("-mo") {
+      return "簡音播放器"
+    }
+    return "简音播放器"
+  }
+
+  private var isDarkAppearance: Bool {
+    effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+  }
+
+  private func setupContent() {
+    let stackView = NSStackView()
+    stackView.orientation = .vertical
+    stackView.alignment = .centerX
+    stackView.spacing = 22
+    stackView.translatesAutoresizingMaskIntoConstraints = false
+
+    iconContainer.translatesAutoresizingMaskIntoConstraints = false
+    iconContainer.wantsLayer = true
+    iconContainer.layer?.cornerRadius = 32
+    iconContainer.layer?.masksToBounds = false
+
+    iconView.translatesAutoresizingMaskIntoConstraints = false
+    iconView.image = NativeSplashView.splashIcon
+    iconView.imageScaling = .scaleProportionallyUpOrDown
+    iconContainer.addSubview(iconView)
+
+    titleLabel.font = NSFont.systemFont(ofSize: 22, weight: .semibold)
+    titleLabel.alignment = .center
+
+    progressIndicator.style = .spinning
+    progressIndicator.controlSize = .regular
+    progressIndicator.startAnimation(nil)
+
+    addSubview(stackView)
+    stackView.addArrangedSubview(iconContainer)
+    stackView.addArrangedSubview(titleLabel)
+    stackView.addArrangedSubview(progressIndicator)
+
+    NSLayoutConstraint.activate([
+      stackView.centerXAnchor.constraint(equalTo: centerXAnchor),
+      stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+      iconContainer.widthAnchor.constraint(equalToConstant: 132),
+      iconContainer.heightAnchor.constraint(equalToConstant: 132),
+
+      iconView.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+      iconView.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+      iconView.widthAnchor.constraint(equalToConstant: 86),
+      iconView.heightAnchor.constraint(equalToConstant: 86),
+
+      progressIndicator.widthAnchor.constraint(equalToConstant: 24),
+      progressIndicator.heightAnchor.constraint(equalToConstant: 24),
+    ])
+  }
+
+  private func applyAppearance() {
+    let dark = isDarkAppearance
+    layer?.backgroundColor = dark
+      ? NSColor(calibratedRed: 0.06, green: 0.08, blue: 0.11, alpha: 1).cgColor
+      : NSColor(calibratedRed: 0.97, green: 0.98, blue: 0.99, alpha: 1).cgColor
+    iconContainer.layer?.backgroundColor = dark
+      ? NSColor(calibratedRed: 0.09, green: 0.13, blue: 0.18, alpha: 1).cgColor
+      : NSColor.white.cgColor
+    iconContainer.layer?.shadowColor = dark
+      ? NSColor.black.withAlphaComponent(0.52).cgColor
+      : NSColor(calibratedRed: 0, green: 0.47, blue: 0.84, alpha: 0.18).cgColor
+    iconContainer.layer?.shadowOpacity = 1
+    iconContainer.layer?.shadowRadius = 32
+    iconContainer.layer?.shadowOffset = NSSize(width: 0, height: -18)
+    titleLabel.textColor = dark
+      ? NSColor(calibratedRed: 0.96, green: 0.98, blue: 1, alpha: 1)
+      : NSColor(calibratedRed: 0.09, green: 0.13, blue: 0.18, alpha: 1)
+  }
+
+  private static var splashIcon: NSImage {
+    let flutterAssetPath = Bundle.main.bundleURL
+      .appendingPathComponent("Contents")
+      .appendingPathComponent("Frameworks")
+      .appendingPathComponent("App.framework")
+      .appendingPathComponent("Resources")
+      .appendingPathComponent("flutter_assets")
+      .appendingPathComponent("assets")
+      .appendingPathComponent("branding")
+      .appendingPathComponent("app-icon.png")
+    return NSImage(contentsOf: flutterAssetPath) ?? NSApp.applicationIconImage
   }
 }
 

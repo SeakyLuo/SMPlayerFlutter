@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -38,6 +39,9 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(dismissNativeSplash());
+    });
     unawaited(_initialize());
   }
 

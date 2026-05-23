@@ -44,7 +44,7 @@ class LocalFolderCard extends StatelessWidget {
   final bool treeExpandable;
   final VoidCallback? onToggleTreeExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -60,7 +60,7 @@ class LocalFolderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card =
         variant == LocalFolderCardVariant.list
-            ? _buildListCard()
+            ? _buildListCard(context)
             : _buildGridCard();
     return DragTarget<LocalItemsDragPayload>(
       onWillAcceptWithDetails:
@@ -167,7 +167,7 @@ class LocalFolderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildListCard() {
+  Widget _buildListCard(BuildContext context) {
     return GestureDetector(
       onSecondaryTapDown:
           (details) => onOpenFolderMenu(folder, details.globalPosition),
@@ -240,7 +240,10 @@ class LocalFolderCard extends StatelessWidget {
                   onPressed:
                       folder.subtreeSongIds.isEmpty
                           ? null
-                          : () => onAddFolder(folder),
+                          : () => _invokeAtButtonBottom(
+                            context,
+                            (position) => onAddFolder(folder, position),
+                          ),
                 ),
                 _LocalIconAction(
                   tooltip: i18n.t('local.updateFolder'),
@@ -363,7 +366,7 @@ class _FolderCardActions extends StatelessWidget {
   final FolderNode folder;
   final SmPlayerI18n i18n;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -386,12 +389,20 @@ class _FolderCardActions extends StatelessWidget {
             onPressed:
                 folder.subtreeSongIds.isEmpty
                     ? null
-                    : () => onAddFolder(folder),
+                    : () => _invokeAtButtonBottom(
+                      context,
+                      (position) => onAddFolder(folder, position),
+                    ),
           ),
         ],
       ),
     );
   }
+}
+
+void _invokeAtButtonBottom(BuildContext context, ValueChanged<Offset> action) {
+  final box = context.findRenderObject() as RenderBox;
+  action(box.localToGlobal(Offset(0, box.size.height + 6)));
 }
 
 class _RoundAction extends StatelessWidget {

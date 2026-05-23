@@ -1,5 +1,33 @@
 part of 'media_control.dart';
 
+class _PlayerLiquidGlassFrame extends StatelessWidget {
+  const _PlayerLiquidGlassFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final night = MediaControlColors.isNight(context);
+    return GlassContainer(
+      useOwnLayer: true,
+      quality: GlassQuality.standard,
+      shape: const LiquidRoundedRectangle(borderRadius: 0),
+      settings: LiquidGlassSettings(
+        blur: 18,
+        thickness: night ? 34 : 28,
+        lightIntensity: night ? 0.42 : 0.56,
+        chromaticAberration: 0.08,
+        saturation: night ? 1.18 : 1.34,
+        glassColor: night ? const Color(0x2411161c) : const Color(0x30ffffff),
+        standardOpacityMultiplier: 0.72,
+      ),
+      clipBehavior: Clip.hardEdge,
+      allowElevation: false,
+      child: child,
+    );
+  }
+}
+
 class _PlayerTintedFrame extends StatefulWidget {
   const _PlayerTintedFrame({required this.artworkPath, required this.child});
 
@@ -232,11 +260,27 @@ class _PlayerGlassHighlight extends StatelessWidget {
                 begin: const Alignment(-0.94, -1),
                 end: const Alignment(0.72, 1),
                 colors: [
-                  Colors.white.withValues(alpha: 0.38),
-                  Colors.white.withValues(alpha: 0.10),
+                  Colors.white.withValues(alpha: 0.46),
+                  Colors.white.withValues(alpha: 0.16),
                   Colors.white.withValues(alpha: 0.00),
                 ],
                 stops: const [0, 0.38, 1],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.34),
+                  Colors.white.withValues(alpha: 0.03),
+                  Colors.black.withValues(alpha: 0.04),
+                ],
+                stops: const [0, 0.42, 1],
               ),
             ),
           ),

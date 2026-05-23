@@ -42,6 +42,16 @@ Future<String?> pickDesktopColor(String value) async {
   return null;
 }
 
+Future<String?> pickDirectoryFromDesktopShell() {
+  return _desktopFeatureChannel.invokeMethod<String>('pickDirectory');
+}
+
+Future<void> dismissNativeSplash() async {
+  if (!kIsWeb && (Platform.isMacOS || Platform.isWindows)) {
+    await _desktopFeatureChannel.invokeMethod<void>('dismissNativeSplash');
+  }
+}
+
 Future<String?> _pickMacOsColor(String value) async {
   final rgb = _hexColorToAppleScriptRgb(value);
   if (rgb == null) {

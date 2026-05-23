@@ -63,6 +63,7 @@ class MyFavoritesPage extends ConsumerWidget {
         return SmPlayerI18nScope(
           i18n: i18n,
           child: HeaderedPlaylistControl(
+            key: const ValueKey('HeaderedPlaylist.Favorites'),
             type: HeaderedPlaylistType.favorites,
             title: i18n.t('common.myFavorites'),
             songs: songs,

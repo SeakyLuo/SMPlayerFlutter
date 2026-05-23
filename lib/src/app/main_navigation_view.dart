@@ -18,6 +18,8 @@ typedef _NavigationTooltipRequest = void Function(String label, Rect target);
 
 enum _PlaylistDropPosition { before, after }
 
+const _expandedNavigationContentMinWidth = 220.0;
+
 class _NavigationFloatingTooltipState {
   const _NavigationFloatingTooltipState({
     required this.label,
@@ -258,29 +260,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     widget.onReorderPlaylists?.call(customPlaylistIds);
   }
 
-  @override
-  void dispose() {
-    _searchFocusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final collapsed = !widget.isPaneOpen;
-    final visibleRecentSearches =
-        widget.recentSearches
-            .where((entry) => entry.type == SearchHistoryType.sidebar)
-            .take(10)
-            .toList();
-    final customPlaylists =
-        widget.playlists.where((playlist) => !playlist.isBuiltIn).toList();
-    final showRecentSearches =
-        !collapsed && _isSearchFocused && visibleRecentSearches.isNotEmpty;
-    final resolvedAppName = _navigationAppName(
-      widget.i18n,
-      View.of(context).platformDispatcher.locale,
-    );
-    final playlistSection = _MainNavigationPlaylistSection(
+  _MainNavigationPlaylistSection _buildPlaylistSection({
+    required bool collapsed,
+    required List<LibraryPlaylist> customPlaylists,
+  }) {
+    return _MainNavigationPlaylistSection(
       collapsed: collapsed,
       currentPath: widget.currentPath,
       i18n: widget.i18n,
@@ -324,6 +308,28 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       },
       onPlaylistDragEnded: _clearPlaylistDragState,
     );
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final collapsed = !widget.isPaneOpen;
+    final visibleRecentSearches =
+        widget.recentSearches
+            .where((entry) => entry.type == SearchHistoryType.sidebar)
+            .take(10)
+            .toList();
+    final customPlaylists =
+        widget.playlists.where((playlist) => !playlist.isBuiltIn).toList();
+    final resolvedAppName = _navigationAppName(
+      widget.i18n,
+      View.of(context).platformDispatcher.locale,
+    );
 
     return Material(
       key: _rootKey,
@@ -336,169 +342,196 @@ class _MainNavigationViewState extends State<MainNavigationView> {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Column(
-                crossAxisAlignment:
-                    collapsed
-                        ? CrossAxisAlignment.center
-                        : CrossAxisAlignment.start,
-                children: [
-                  _MainNavigationViewTitle(
-                    collapsed: collapsed,
-                    appName: resolvedAppName,
-                    titlebarLeadingInset:
-                        defaultTargetPlatform == TargetPlatform.macOS
-                            ? _desktopTitlebarButtonInset
-                            : 0,
-                    canGoBack: widget.canGoBack,
-                    backLabel: widget.i18n.t('sidebar.back'),
-                    onGoBack: widget.onGoBack,
-                    onWindowDragStart: widget.onWindowDragStart,
-                    onWindowDragEnd: widget.onWindowDragEnd,
-                    onTooltipRequested: collapsed ? _showFloatingTooltip : null,
-                    onTooltipDismissed: _hideFloatingTooltip,
-                  ),
-                  const SizedBox(height: 8),
-                  _NavigationIconButton(
-                    key: const ValueKey('MainNavigationView.TogglePaneButton'),
-                    icon: FluentIcons.line_horizontal_3_24_regular,
-                    tooltip:
-                        collapsed
-                            ? widget.i18n.t('sidebar.expandNavigation')
-                            : widget.i18n.t('sidebar.collapseNavigation'),
-                    collapsedContext: collapsed,
-                    onPressed: () {
-                      _hideFloatingTooltip();
-                      widget.onPaneToggle();
-                    },
-                    onTooltipRequested: collapsed ? _showFloatingTooltip : null,
-                    onTooltipDismissed: _hideFloatingTooltip,
-                  ),
-                  const SizedBox(height: 8),
-                  _MainNavigationViewSearchBox(
-                    collapsed: collapsed,
-                    value: widget.searchText,
-                    i18n: widget.i18n,
-                    focusNode: _searchFocusNode,
-                    onChanged: widget.onSearchTextChanged,
-                    onSubmitted: widget.onSearchCommitted,
-                    onCleared: widget.onSearchCleared,
-                    onFocusChanged: (focused) {
-                      setState(() {
-                        _isSearchFocused = focused;
-                      });
-                    },
-                    onCollapsedSearchPressed: () {
-                      _hideFloatingTooltip();
-                      _focusSearchAfterPaneOpen = true;
-                      widget.onPaneToggle();
-                    },
-                    onTooltipRequested: collapsed ? _showFloatingTooltip : null,
-                    onTooltipDismissed: _hideFloatingTooltip,
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final libraryAndPlayback = <Widget>[
-                              _MainNavigationSectionLabel(
-                                collapsed: collapsed,
-                                label: widget.i18n.t('sidebar.library'),
-                              ),
-                              _MainNavigationViewSection(
-                                collapsed: collapsed,
-                                items: _libraryItems,
-                                i18n: widget.i18n,
-                                currentPath: widget.currentPath,
-                                onItemInvoked: _invokeNavigationItem,
-                                onTooltipRequested:
-                                    collapsed ? _showFloatingTooltip : null,
-                                onTooltipDismissed: _hideFloatingTooltip,
-                              ),
-                              const _MainNavigationViewSeparator(),
-                              _MainNavigationSectionLabel(
-                                collapsed: collapsed,
-                                label: widget.i18n.t('sidebar.playback'),
-                              ),
-                              _MainNavigationViewSection(
-                                collapsed: collapsed,
-                                items: _playbackItems,
-                                i18n: widget.i18n,
-                                currentPath: widget.currentPath,
-                                onItemInvoked: _invokeNavigationItem,
-                                onTooltipRequested:
-                                    collapsed ? _showFloatingTooltip : null,
-                                onTooltipDismissed: _hideFloatingTooltip,
-                              ),
-                              const _MainNavigationViewSeparator(),
-                            ];
-                            if (constraints.maxHeight < 440) {
-                              return ListView(
-                                padding: EdgeInsets.zero,
-                                children: [
-                                  ...libraryAndPlayback,
-                                  playlistSection,
-                                ],
-                              );
-                            }
-                            return Column(
-                              children: [
-                                ...libraryAndPlayback,
-                                Expanded(child: playlistSection),
-                              ],
-                            );
-                          },
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final contentCollapsed =
+                      collapsed ||
+                      constraints.maxWidth < _expandedNavigationContentMinWidth;
+                  final showRecentSearches =
+                      !contentCollapsed &&
+                      _isSearchFocused &&
+                      visibleRecentSearches.isNotEmpty;
+                  final playlistSection = _buildPlaylistSection(
+                    collapsed: contentCollapsed,
+                    customPlaylists: customPlaylists,
+                  );
+                  return Column(
+                    crossAxisAlignment:
+                        contentCollapsed
+                            ? CrossAxisAlignment.center
+                            : CrossAxisAlignment.start,
+                    children: [
+                      _MainNavigationViewTitle(
+                        collapsed: contentCollapsed,
+                        hideAppName:
+                            defaultTargetPlatform == TargetPlatform.macOS,
+                        appName: resolvedAppName,
+                        titlebarLeadingInset:
+                            defaultTargetPlatform == TargetPlatform.macOS
+                                ? _desktopTitlebarButtonInset
+                                : 0,
+                        canGoBack: widget.canGoBack,
+                        backLabel: widget.i18n.t('sidebar.back'),
+                        onGoBack: widget.onGoBack,
+                        onWindowDragStart: widget.onWindowDragStart,
+                        onWindowDragEnd: widget.onWindowDragEnd,
+                        onTooltipRequested:
+                            contentCollapsed ? _showFloatingTooltip : null,
+                        onTooltipDismissed: _hideFloatingTooltip,
+                      ),
+                      const SizedBox(height: 8),
+                      _NavigationIconButton(
+                        key: const ValueKey(
+                          'MainNavigationView.TogglePaneButton',
                         ),
-                        if (showRecentSearches)
-                          Positioned.fill(
-                            child: GestureDetector(
-                              key: const ValueKey(
-                                'MainNavigationView.SearchDismissLayer',
-                              ),
-                              behavior: HitTestBehavior.translucent,
-                              onTap: _closeSearchHistory,
-                              child: const SizedBox.expand(),
-                            ),
-                          ),
-                        if (showRecentSearches)
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            child: _MainNavigationRecentSearches(
-                              entries: visibleRecentSearches,
-                              i18n: widget.i18n,
-                              onSearchSelected: (entry) {
-                                widget.onSearchTextChanged(entry.query);
-                                widget.onSearchCommitted(
-                                  entry.query,
-                                  entry.type,
+                        icon: FluentIcons.line_horizontal_3_24_regular,
+                        tooltip:
+                            contentCollapsed
+                                ? widget.i18n.t('sidebar.expandNavigation')
+                                : widget.i18n.t('sidebar.collapseNavigation'),
+                        collapsedContext: contentCollapsed,
+                        onPressed: () {
+                          _hideFloatingTooltip();
+                          widget.onPaneToggle();
+                        },
+                        onTooltipRequested:
+                            contentCollapsed ? _showFloatingTooltip : null,
+                        onTooltipDismissed: _hideFloatingTooltip,
+                      ),
+                      const SizedBox(height: 8),
+                      _MainNavigationViewSearchBox(
+                        collapsed: contentCollapsed,
+                        value: widget.searchText,
+                        i18n: widget.i18n,
+                        focusNode: _searchFocusNode,
+                        onChanged: widget.onSearchTextChanged,
+                        onSubmitted: widget.onSearchCommitted,
+                        onCleared: widget.onSearchCleared,
+                        onFocusChanged: (focused) {
+                          setState(() {
+                            _isSearchFocused = focused;
+                          });
+                        },
+                        onCollapsedSearchPressed: () {
+                          _hideFloatingTooltip();
+                          _focusSearchAfterPaneOpen = true;
+                          widget.onPaneToggle();
+                        },
+                        onTooltipRequested:
+                            contentCollapsed ? _showFloatingTooltip : null,
+                        onTooltipDismissed: _hideFloatingTooltip,
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final libraryAndPlayback = <Widget>[
+                                  _MainNavigationSectionLabel(
+                                    collapsed: contentCollapsed,
+                                    label: widget.i18n.t('sidebar.library'),
+                                  ),
+                                  _MainNavigationViewSection(
+                                    collapsed: contentCollapsed,
+                                    items: _libraryItems,
+                                    i18n: widget.i18n,
+                                    currentPath: widget.currentPath,
+                                    onItemInvoked: _invokeNavigationItem,
+                                    onTooltipRequested:
+                                        contentCollapsed
+                                            ? _showFloatingTooltip
+                                            : null,
+                                    onTooltipDismissed: _hideFloatingTooltip,
+                                  ),
+                                  const _MainNavigationViewSeparator(),
+                                  _MainNavigationSectionLabel(
+                                    collapsed: contentCollapsed,
+                                    label: widget.i18n.t('sidebar.playback'),
+                                  ),
+                                  _MainNavigationViewSection(
+                                    collapsed: contentCollapsed,
+                                    items: _playbackItems,
+                                    i18n: widget.i18n,
+                                    currentPath: widget.currentPath,
+                                    onItemInvoked: _invokeNavigationItem,
+                                    onTooltipRequested:
+                                        contentCollapsed
+                                            ? _showFloatingTooltip
+                                            : null,
+                                    onTooltipDismissed: _hideFloatingTooltip,
+                                  ),
+                                  const _MainNavigationViewSeparator(),
+                                ];
+                                if (constraints.maxHeight < 440) {
+                                  return ListView(
+                                    padding: EdgeInsets.zero,
+                                    children: [
+                                      ...libraryAndPlayback,
+                                      playlistSection,
+                                    ],
+                                  );
+                                }
+                                return Column(
+                                  children: [
+                                    ...libraryAndPlayback,
+                                    Expanded(child: playlistSection),
+                                  ],
                                 );
-                                setState(() {
-                                  _isSearchFocused = false;
-                                });
-                                _searchFocusNode.unfocus();
                               },
-                              onSearchRemoved: widget.onRecentSearchRemove,
-                              onClear: widget.onRecentSearchesClear,
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _MainNavigationViewSection(
-                    collapsed: collapsed,
-                    items: const [_settingsItem],
-                    i18n: widget.i18n,
-                    currentPath: widget.currentPath,
-                    onItemInvoked: _invokeNavigationItem,
-                    onTooltipRequested: collapsed ? _showFloatingTooltip : null,
-                    onTooltipDismissed: _hideFloatingTooltip,
-                  ),
-                ],
+                            if (showRecentSearches)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  key: const ValueKey(
+                                    'MainNavigationView.SearchDismissLayer',
+                                  ),
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: _closeSearchHistory,
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            if (showRecentSearches)
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: _MainNavigationRecentSearches(
+                                  entries: visibleRecentSearches,
+                                  i18n: widget.i18n,
+                                  onSearchSelected: (entry) {
+                                    widget.onSearchTextChanged(entry.query);
+                                    widget.onSearchCommitted(
+                                      entry.query,
+                                      entry.type,
+                                    );
+                                    setState(() {
+                                      _isSearchFocused = false;
+                                    });
+                                    _searchFocusNode.unfocus();
+                                  },
+                                  onSearchRemoved: widget.onRecentSearchRemove,
+                                  onClear: widget.onRecentSearchesClear,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _MainNavigationViewSection(
+                        collapsed: contentCollapsed,
+                        items: const [_settingsItem],
+                        i18n: widget.i18n,
+                        currentPath: widget.currentPath,
+                        onItemInvoked: _invokeNavigationItem,
+                        onTooltipRequested:
+                            contentCollapsed ? _showFloatingTooltip : null,
+                        onTooltipDismissed: _hideFloatingTooltip,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

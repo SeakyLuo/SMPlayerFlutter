@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
@@ -874,23 +875,20 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       position: position,
       items: [
         MenuFlyoutItem(
-          key: 'shuffle-selected',
+          key: 'shuffle',
           text: i18n.t('nowPlaying.randomPlay'),
           icon: FluentIcons.arrow_shuffle_20_regular,
           onPressed: () {
             _playSongIds(selectedSongIds, shuffle: true);
           },
         ),
-        const MenuFlyoutItem.separator(key: 'add-selection-separator'),
         if (addToItem != null) addToItem,
       ],
     );
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    showAppNotification(context: context, message: message);
   }
 
   void _playSongIds(List<int> songIds, {bool shuffle = false}) {

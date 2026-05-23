@@ -197,7 +197,36 @@ class _PlayerButtonIcon extends StatelessWidget {
         size: Size.square(size),
       );
     }
+    if (icon == _moreIcon) {
+      return CustomPaint(
+        painter: _MoreHorizontalIconPainter(color),
+        size: Size.square(size),
+      );
+    }
     return Icon(icon, color: color, size: size);
+  }
+}
+
+class _MoreHorizontalIconPainter extends CustomPainter {
+  const _MoreHorizontalIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 24;
+    final fillPaint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+    for (final x in [7.0, 12.0, 17.0]) {
+      canvas.drawCircle(Offset(x * scale, 12 * scale), 1.45 * scale, fillPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoreHorizontalIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 

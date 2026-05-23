@@ -33,6 +33,16 @@ ThemeData buildSmPlayerTheme(SettingsSnapshot settings) {
         brightness == Brightness.dark
             ? const Color(0xff111317)
             : const Color(0xfff5f7fb),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: _NoPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: _NoPageTransitionsBuilder(),
+        TargetPlatform.iOS: _NoPageTransitionsBuilder(),
+        TargetPlatform.linux: _NoPageTransitionsBuilder(),
+        TargetPlatform.macOS: _NoPageTransitionsBuilder(),
+        TargetPlatform.windows: _NoPageTransitionsBuilder(),
+      },
+    ),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: accent),
     sliderTheme: SliderThemeData(
       activeTrackColor: accent,
@@ -40,4 +50,19 @@ ThemeData buildSmPlayerTheme(SettingsSnapshot settings) {
       overlayColor: accent.withValues(alpha: 0.16),
     ),
   );
+}
+
+class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
 }

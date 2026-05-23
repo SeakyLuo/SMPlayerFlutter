@@ -444,7 +444,7 @@ void main() {
       ),
     );
     expect(title.style?.fontSize, 40);
-    expect(title.style?.fontWeight, FontWeight.w800);
+    expect(title.style?.fontWeight, FontWeight.w500);
     expect(
       tester.getSize(find.byKey(SmPlayerShellKeys.workspace)).height,
       700 -
@@ -475,6 +475,24 @@ void main() {
       tester.getTopLeft(workspace).dx,
       SmPlayerShellMetrics.collapsedSidebarWidth,
     );
+  });
+
+  testWidgets('navigation expands without intermediate layout overflow', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    SharedPreferences.setMockInitialValues({
+      SmPlayerShellStorageKeys.navigationCollapsed: true,
+    });
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pump(const Duration(milliseconds: 90));
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('overlay navigation opens above the 64px shell rail', (
@@ -593,6 +611,39 @@ void main() {
     await tester.pump();
 
     expect(repository.commitPendingDeletesCount, 1);
+  });
+
+  testWidgets('shell shows Recent workspace header for empty recent page', (
+    tester,
+  ) async {
+    final repository = _SnapshotRepository(
+      const MusicLibrarySnapshot(
+        songs: [],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        currentPath: '/recent',
+        currentLocation: '/recent',
+        messages: const {'common.recent': 'Recent'},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent'), findsOneWidget);
   });
 
   testWidgets('shell restores Electron playback state during startup', (

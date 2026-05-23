@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
@@ -186,6 +187,46 @@ void main() {
     expect(selected, 'mix');
   });
 
+  testWidgets('MenuFlyout closes on Escape like Electron flyouts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.text('First'), findsNothing);
+  });
+
   test(
     'MusicMenuFlyout mirrors Electron Add To filtering and View submenu',
     () {
@@ -262,4 +303,35 @@ void main() {
       ]);
     },
   );
+
+  test('MusicMenuFlyout hides View when music properties are disabled', () {
+    final items = buildMusicMenuFlyoutItems(
+      i18n: i18n,
+      songId: 1,
+      isFavorite: false,
+      isCurrentTrack: false,
+      isPlaying: true,
+      currentTrackId: 2,
+      playlists: const [],
+      showMusicProperties: false,
+      onPlay: () {},
+      onPause: () {},
+      onPlayNext: () {},
+      onAddToNowPlaying: () {},
+      onCreatePlaylist: () {},
+      onAddToPlaylist: (_) {},
+      onRemove: () {},
+      onSelect: () {},
+      onToggleFavorite: () {},
+      onSetPreference: (_) {},
+      onSeeArtist: () {},
+      onSeeAlbum: () {},
+      onSeeMusicInfo: () {},
+      onSeeLyrics: () {},
+      onSeeAlbumArt: () {},
+      onSeeLocal: () {},
+    );
+
+    expect(items.map((item) => item.key), isNot(contains('view')));
+  });
 }

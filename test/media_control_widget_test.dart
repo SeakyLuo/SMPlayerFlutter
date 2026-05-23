@@ -171,12 +171,12 @@ void main() {
   });
 
   test('MediaControl player background constants mirror Electron CSS', () {
-    expect(MediaControlColors.playerSurfaceSolid, const Color(0xa6ffffff));
-    expect(MediaControlColors.playerSurface, const Color(0xb8ffffff));
-    expect(MediaControlColors.playerAccentWash, const Color(0x240078d7));
-    expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x120078d7));
-    expect(MediaControlColors.emptyPlayerLeftWash, const Color(0x8cffffff));
-    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x8ce5f3ff));
+    expect(MediaControlColors.playerSurfaceSolid, const Color(0x82ffffff));
+    expect(MediaControlColors.playerSurface, const Color(0x96ffffff));
+    expect(MediaControlColors.playerAccentWash, const Color(0x2e0078d7));
+    expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x180078d7));
+    expect(MediaControlColors.emptyPlayerLeftWash, const Color(0x68ffffff));
+    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x6ee5f3ff));
     expect(MediaControlColors.compactPlayerBorder, const Color(0x9effffff));
     expect(MediaControlColors.compactPlayerSurface, const Color(0xd1f8fbfe));
     expect(MediaControlColors.compactPlayerTop, const Color(0xbdffffff));

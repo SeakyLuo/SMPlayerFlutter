@@ -222,10 +222,15 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
             onPressed: onOpen,
           ),
         ),
+        const SizedBox(width: 6),
         _NavigationIconButton(
           key: const ValueKey('MainNavigationView.CreatePlaylistButton'),
           icon: FluentIcons.add_24_regular,
           tooltip: i18n.t('playlists.createNew'),
+          size: 34,
+          iconSize: 16,
+          borderRadius: 10,
+          useMutedForeground: true,
           onPressed: () {
             onCreatePlaylist?.call();
             if (!expanded) {
@@ -233,6 +238,7 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
             }
           },
         ),
+        const SizedBox(width: 6),
         _NavigationIconButton(
           key: const ValueKey('MainNavigationView.TogglePlaylistSectionButton'),
           icon:
@@ -243,6 +249,10 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
               expanded
                   ? i18n.t('sidebar.collapseNavigation')
                   : i18n.t('sidebar.expandNavigation'),
+          size: 34,
+          iconSize: 16,
+          borderRadius: 10,
+          useMutedForeground: true,
           onPressed: onToggleExpanded,
         ),
       ],
@@ -341,11 +351,9 @@ class _MainNavigationPlaylistItemButtonState
             onLongPressStart: (details) {
               _showPlaylistMenu(context, details.globalPosition);
             },
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 120),
+            child: Opacity(
               opacity: widget.dragging ? 0.45 : 1,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
+              child: Container(
                 height: 40,
                 margin: const EdgeInsets.only(top: 8),
                 padding: const EdgeInsets.only(right: 10),
@@ -361,7 +369,7 @@ class _MainNavigationPlaylistItemButtonState
                       height: 40,
                       child: Center(
                         child: SizedBox.square(
-                          dimension: 19,
+                          dimension: 20,
                           child: CustomPaint(
                             painter: _PlaylistNavigationIconPainter(foreground),
                           ),
@@ -384,8 +392,7 @@ class _MainNavigationPlaylistItemButtonState
                     if (widget.onRandomPlay != null)
                       IgnorePointer(
                         ignoring: !_hovered || widget.playlist.songIds.isEmpty,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 120),
+                        child: Opacity(
                           opacity:
                               _hovered && widget.playlist.songIds.isNotEmpty
                                   ? 1

@@ -27,6 +27,7 @@ void main() {
       'common.playCount': 'Play count',
       'common.search': 'Search',
       'common.songs': 'Songs',
+      'common.sort': 'Sort',
       'context.addToPlaylist': 'Add To',
       'context.play': 'Play',
       'context.select': 'Select',
@@ -75,6 +76,26 @@ void main() {
     expect(repository.recordedSearches, [
       (query: 'song', type: SearchHistoryType.folders),
     ]);
+  });
+
+  testWidgets('SearchPage sort opens shared MenuFlyout', (tester) async {
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        child: const SearchPage(query: 'song', activeType: 'songs'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Default'), findsOneWidget);
+
+    await tester.tap(find.text('Default'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Default'), findsWidgets);
+    expect(find.text('Title'), findsOneWidget);
   });
 
   testWidgets('SearchPage multi-select Add To can append to Now Playing', (

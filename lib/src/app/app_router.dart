@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,16 +10,16 @@ import 'package:path_provider/path_provider.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
-import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
+import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
@@ -300,7 +299,8 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
           (snapshot) =>
               snapshot.rootPath.isEmpty
                   ? _MissingLibraryRootPage(
-                    loading: _scanning,
+                    loading: false,
+                    buttonLoading: _scanning,
                     onPickLibraryRoot:
                         _scanning
                             ? null
@@ -312,7 +312,8 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
       loading: () => const _MissingLibraryRootPage(loading: true),
       error:
           (_, _) => _MissingLibraryRootPage(
-            loading: _scanning,
+            loading: false,
+            buttonLoading: _scanning,
             onPickLibraryRoot:
                 _scanning
                     ? null
@@ -324,25 +325,36 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
   }
 
   Future<void> _pickLibraryRootAndScan() async {
-    final rootPath = await FilePicker.getDirectoryPath();
-    if (rootPath == null || rootPath.isEmpty) {
-      return;
-    }
-
+    final i18n = context.smPlayerI18n;
     setState(() {
       _scanning = true;
     });
+    try {
+      final rootPath =
+          Platform.isMacOS
+              ? await pickDirectoryFromDesktopShell()
+              : await FilePicker.getDirectoryPath();
+      if (rootPath == null || rootPath.isEmpty) {
+        if (mounted) {
+          showAppNotification(
+            context: context,
+            message: i18n.t('library.folderPickerUnavailable'),
+          );
+        }
+        return;
+      }
 
-    await ref.read(libraryRepositoryProvider).scanAllMusicLibrary(rootPath);
-    await widget.settingsController?.updateSettings(
-      AppSettingsUpdate(rootPath: rootPath),
-    );
-    ref.invalidate(musicLibrarySnapshotProvider);
-
-    if (mounted) {
-      setState(() {
-        _scanning = false;
-      });
+      await ref.read(libraryRepositoryProvider).scanAllMusicLibrary(rootPath);
+      await widget.settingsController?.updateSettings(
+        AppSettingsUpdate(rootPath: rootPath),
+      );
+      ref.invalidate(musicLibrarySnapshotProvider);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+        });
+      }
     }
   }
 }
@@ -350,10 +362,12 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
 class _MissingLibraryRootPage extends StatelessWidget {
   const _MissingLibraryRootPage({
     required this.loading,
+    this.buttonLoading = false,
     this.onPickLibraryRoot,
   });
 
   final bool loading;
+  final bool buttonLoading;
   final VoidCallback? onPickLibraryRoot;
 
   @override
@@ -362,70 +376,9 @@ class _MissingLibraryRootPage extends StatelessWidget {
       return const SmPlayerLoadingState();
     }
 
-    final i18n = context.smPlayerI18n;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0x94ffffff),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0x94ffffff)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 104,
-                height: 104,
-                margin: const EdgeInsets.only(bottom: 4),
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x2e768499)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x1f1f2a3a),
-                      offset: Offset(0, 8),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                child: const DefaultAlbumArtwork(logoScale: 0.72),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                i18n.t('local.noRoot'),
-                style: const TextStyle(
-                  color: LocalPageColors.textStrong,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Text(
-                  i18n.t('local.noRootCopy'),
-                  style: const TextStyle(
-                    color: LocalPageColors.textMuted,
-                    fontSize: 14,
-                    height: 1.65,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              LocalCommandButton(
-                onPressed: onPickLibraryRoot,
-                icon: FluentIcons.folder_20_regular,
-                label: i18n.t('library.chooseFolder'),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return MissingLibraryRootContent(
+      buttonLoading: buttonLoading,
+      onPickLibraryRoot: onPickLibraryRoot,
     );
   }
 }

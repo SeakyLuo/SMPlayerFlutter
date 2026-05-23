@@ -284,8 +284,17 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             _togglePlayPauseFromQueue(queueSongs);
           },
           onToggleShuffle: _toggleShufflePlayback,
-          onMoreClick: () {
-            _showMoreMenu(currentSong, snapshot, queueSongIds, customPlaylists);
+          onMoreClick: (buttonContext) {
+            unawaited(
+              _showMoreMenu(
+                buttonContext,
+                currentSong,
+                snapshot,
+                queueSongIds,
+                customPlaylists,
+                isCompact: false,
+              ),
+            );
           },
         ),
       ],
@@ -346,8 +355,17 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             _togglePlayPauseFromQueue(queueSongs);
           },
           onToggleShuffle: _toggleShufflePlayback,
-          onMoreClick: () {
-            _showMoreMenu(currentSong, snapshot, queueSongIds, customPlaylists);
+          onMoreClick: (buttonContext) {
+            unawaited(
+              _showMoreMenu(
+                buttonContext,
+                currentSong,
+                snapshot,
+                queueSongIds,
+                customPlaylists,
+                isCompact: true,
+              ),
+            );
           },
         ),
       ],
@@ -396,14 +414,34 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         .toList();
   }
 
-  void _showMoreMenu(
+  Future<void> _showMoreMenu(
+    BuildContext buttonContext,
     LibrarySong? currentSong,
     MusicLibrarySnapshot snapshot,
     List<int> queueSongIds,
-    List<MultiSelectCommandBarPlaylist> customPlaylists,
-  ) {
+    List<MultiSelectCommandBarPlaylist> customPlaylists, {
+    required bool isCompact,
+  }) async {
     final i18n = context.smPlayerI18n;
     final mediaController = ref.read(mediaControlControllerProvider);
+    final preferenceLevel =
+        currentSong == null
+            ? null
+            : await ref
+                .read(libraryRepositoryProvider)
+                .getPreferenceLevel('song', '${currentSong.id}');
+    if (!mounted) {
+      return;
+    }
+    if (!buttonContext.mounted) {
+      return;
+    }
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final queueSongs =
+        queueSongIds
+            .map((songId) => songsById[songId])
+            .whereType<LibrarySong>()
+            .toList();
     final addToItem =
         currentSong == null
             ? null
@@ -412,7 +450,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
               songIds: [currentSong.id],
               playlists: customPlaylists,
               includeNowPlaying: true,
-              includeFavorites: !currentSong.favorite,
+              includeFavorites: !isCompact && !currentSong.favorite,
               onAddToNowPlaying: () {
                 _replaceQueue([...queueSongIds, currentSong.id]);
               },
@@ -428,13 +466,13 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             );
 
     showMenuFlyout(
-      context,
+      buttonContext,
+      avoidPlayerBar: false,
       items: [
         MenuFlyoutItem(
           key: 'quick-play',
           text: i18n.t('nowPlaying.quickPlay'),
           icon: FluentIcons.play_20_regular,
-          disabled: snapshot.songs.isEmpty,
           onPressed: () {
             unawaited(_quickPlay(snapshot));
           },
@@ -443,87 +481,109 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           key: 'random-play',
           text: i18n.t('nowPlaying.randomPlay'),
           icon: FluentIcons.arrow_shuffle_20_regular,
-          disabled: snapshot.songs.isEmpty,
-          onPressed: () {
-            final shuffled = snapshot.songs.toList()..shuffle();
-            _playSongIds(
-              shuffled
-                  .take(nowPlayingQuickPlayLimit)
-                  .map((song) => song.id)
-                  .toList(),
-            );
-          },
+          disabled: queueSongIds.isEmpty && snapshot.songs.isEmpty,
+          submenu: buildShuffleMenuFlyoutItems(
+            i18n: i18n,
+            songs: queueSongs,
+            librarySongs: snapshot.songs,
+            recentSongs: snapshot.recentSongs,
+            playlists: snapshot.playlists,
+            folders: snapshot.folders,
+            randomLimit: nowPlayingQuickPlayLimit,
+            onPlaySongs: _playSongIds,
+            onQuickPlay: () => _quickPlay(snapshot),
+          ),
         ),
-        MenuFlyoutItem(
-          key: 'playback-mode',
-          text:
-              '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mediaController.state.mode)}',
-          icon: FluentIcons.music_note_2_20_regular,
-          submenu: [
-            MenuFlyoutItem(
-              key: 'playback-mode-list',
-              text: i18n.t('player.playbackModeList'),
-              icon: FluentIcons.apps_list_detail_20_regular,
-              checked: mediaController.state.mode == PlaybackMode.once,
-              onPressed: () {
-                _setPlaybackMode(PlaybackMode.once);
-              },
+        if (isCompact) ...[
+          MenuFlyoutItem(
+            key: 'playback-mode',
+            text:
+                '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mediaController.state.mode)}',
+            icon: _playbackModeMenuIcon(mediaController.state.mode),
+            submenu: [
+              MenuFlyoutItem(
+                key: 'playback-mode-list',
+                text: i18n.t('player.playbackModeList'),
+                icon: FluentIcons.music_note_2_20_regular,
+                checked: mediaController.state.mode == PlaybackMode.once,
+                onPressed: () {
+                  _setPlaybackMode(PlaybackMode.once);
+                },
+              ),
+              MenuFlyoutItem(
+                key: 'playback-mode-shuffle',
+                text: i18n.t('player.playbackModeShuffle'),
+                icon: FluentIcons.arrow_shuffle_20_regular,
+                checked: mediaController.state.mode == PlaybackMode.shuffle,
+                onPressed: () {
+                  _setPlaybackMode(PlaybackMode.shuffle);
+                },
+              ),
+              MenuFlyoutItem(
+                key: 'playback-mode-repeat',
+                text: i18n.t('player.playbackModeRepeat'),
+                icon: FluentIcons.arrow_repeat_all_20_regular,
+                checked: mediaController.state.mode == PlaybackMode.repeat,
+                onPressed: () {
+                  _setPlaybackMode(PlaybackMode.repeat);
+                },
+              ),
+              MenuFlyoutItem(
+                key: 'playback-mode-repeat-one',
+                text: i18n.t('player.playbackModeRepeatOne'),
+                icon: FluentIcons.arrow_repeat_1_20_regular,
+                checked: mediaController.state.mode == PlaybackMode.repeatOne,
+                onPressed: () {
+                  _setPlaybackMode(PlaybackMode.repeatOne);
+                },
+              ),
+            ],
+          ),
+          MenuFlyoutItem(
+            key: 'player-volume',
+            text: i18n.t('player.volume'),
+            icon: playerVolumeIcon(
+              mediaController.state.volume,
+              mediaController.state.isMuted,
             ),
-            MenuFlyoutItem(
-              key: 'playback-mode-shuffle',
-              text: i18n.t('player.playbackModeShuffle'),
-              icon: FluentIcons.arrow_shuffle_20_regular,
-              checked: mediaController.state.mode == PlaybackMode.shuffle,
-              onPressed: () {
-                _setPlaybackMode(PlaybackMode.shuffle);
-              },
+            keepOpen: true,
+            contentHeight: 52,
+            content: PlayerVolumeMenuItem(
+              label: i18n.t('player.volume'),
+              muted: mediaController.state.isMuted,
+              volumeValue: mediaController.state.volume,
+              disabled: false,
+              onToggleMute: mediaController.onToggleMute,
+              onVolumeChange: mediaController.onVolumeChange,
             ),
-            MenuFlyoutItem(
-              key: 'playback-mode-repeat',
-              text: i18n.t('player.playbackModeRepeat'),
-              icon: FluentIcons.arrow_repeat_all_20_regular,
-              checked: mediaController.state.mode == PlaybackMode.repeat,
-              onPressed: () {
-                _setPlaybackMode(PlaybackMode.repeat);
-              },
-            ),
-            MenuFlyoutItem(
-              key: 'playback-mode-repeat-one',
-              text: i18n.t('player.playbackModeRepeatOne'),
-              icon: FluentIcons.arrow_repeat_1_20_regular,
-              checked: mediaController.state.mode == PlaybackMode.repeatOne,
-              onPressed: () {
-                _setPlaybackMode(PlaybackMode.repeatOne);
-              },
-            ),
-          ],
-        ),
-        MenuFlyoutItem(
-          key: 'player-favorite',
-          text:
-              currentSong?.favorite == true
-                  ? i18n.t('player.unlike')
-                  : i18n.t('player.like'),
-          icon:
-              currentSong?.favorite == true
-                  ? FluentIcons.heart_20_filled
-                  : FluentIcons.heart_20_regular,
-          disabled: currentSong == null,
-          onPressed:
-              currentSong == null
-                  ? null
-                  : () {
-                    _toggleSongsFavorite([
-                      currentSong.id,
-                    ], !currentSong.favorite);
-                  },
-        ),
-        const MenuFlyoutItem.separator(key: 'queue-separator'),
+          ),
+          MenuFlyoutItem(
+            key: 'player-favorite',
+            text:
+                currentSong?.favorite == true
+                    ? i18n.t('player.unlike')
+                    : i18n.t('player.like'),
+            icon:
+                currentSong?.favorite == true
+                    ? FluentIcons.heart_20_filled
+                    : FluentIcons.heart_20_regular,
+            iconColor:
+                currentSong?.favorite == true ? const Color(0xffd13438) : null,
+            disabled: currentSong == null,
+            onPressed:
+                currentSong == null
+                    ? null
+                    : () {
+                      _toggleSongsFavorite([
+                        currentSong.id,
+                      ], !currentSong.favorite);
+                    },
+          ),
+        ],
         MenuFlyoutItem(
           key: 'save-playlist',
           text: i18n.t('nowPlaying.savePlaylist'),
           icon: FluentIcons.add_20_regular,
-          disabled: queueSongIds.isEmpty,
           onPressed: () {
             _createPlaylist(
               getDefaultNewPlaylistName(i18n, snapshot.playlists),
@@ -535,20 +595,38 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           key: 'clear-now-playing',
           text: i18n.t('nowPlaying.clearNowPlaying'),
           icon: FluentIcons.dismiss_20_regular,
-          disabled: queueSongIds.isEmpty,
           onPressed: () {
             _replaceQueue(const []);
           },
         ),
-        if (addToItem != null) ...[
-          const MenuFlyoutItem.separator(key: 'song-separator'),
-          addToItem,
+        if (currentSong != null) ...[
+          if (addToItem != null) ...[
+            const MenuFlyoutItem.separator(key: 'current-song-separator'),
+            addToItem,
+          ],
+          buildPreferenceMenuFlyoutItem(
+            i18n: i18n,
+            key: 'preference',
+            preferenceLevel: preferenceLevel,
+            onUndoPreference:
+                preferenceLevel == null
+                    ? null
+                    : () async {
+                      await ref
+                          .read(libraryRepositoryProvider)
+                          .removePreferenceItem('song', '${currentSong.id}');
+                      ref.invalidate(musicLibrarySnapshotProvider);
+                    },
+            onSetPreference: (level) {
+              _setSongPreference(currentSong.id, currentSong.title, level);
+            },
+          ),
           MenuFlyoutItem(
             key: 'play-artist',
             text: i18n.t('detail.playArtist'),
             icon: FluentIcons.people_20_regular,
             onPressed: () {
-              _playArtist(currentSong!, snapshot.songs);
+              _playArtist(currentSong, snapshot.songs);
             },
           ),
           MenuFlyoutItem(
@@ -556,7 +634,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             text: i18n.t('detail.playAlbum'),
             icon: FluentIcons.album_20_regular,
             onPressed: () {
-              _playAlbum(currentSong!, snapshot.songs);
+              _playAlbum(currentSong, snapshot.songs);
             },
           ),
           MenuFlyoutItem(
@@ -568,6 +646,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-music-info',
                 text: i18n.t('context.seeMusicInfo'),
                 icon: FluentIcons.info_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.properties);
                 },
@@ -576,6 +655,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-lyrics',
                 text: i18n.t('context.seeLyrics'),
                 icon: FluentIcons.text_quote_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.lyrics);
                 },
@@ -584,6 +664,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-album-art',
                 text: i18n.t('context.seeAlbumArt'),
                 icon: FluentIcons.image_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.albumArt);
                 },
@@ -653,6 +734,15 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
       PlaybackMode.repeat => i18n.t('player.playbackModeRepeat'),
       PlaybackMode.repeatOne => i18n.t('player.playbackModeRepeatOne'),
       PlaybackMode.once => i18n.t('player.playbackModeList'),
+    };
+  }
+
+  IconData _playbackModeMenuIcon(PlaybackMode mode) {
+    return switch (mode) {
+      PlaybackMode.shuffle => FluentIcons.arrow_shuffle_20_regular,
+      PlaybackMode.repeat => FluentIcons.arrow_repeat_all_20_regular,
+      PlaybackMode.repeatOne => FluentIcons.arrow_repeat_1_20_regular,
+      PlaybackMode.once => FluentIcons.music_note_2_20_regular,
     };
   }
 
@@ -1243,7 +1333,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   final VoidCallback onNext;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleShuffle;
-  final VoidCallback onMoreClick;
+  final ValueChanged<BuildContext> onMoreClick;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1290,7 +1380,9 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
               onToggleRepeat: controller.onToggleRepeat,
               onToggleRepeatOne: controller.onToggleRepeatOne,
               onToggleFavorite: controller.onToggleFavorite,
-              onMoreClick: onMoreClick,
+              onMoreClick: () {
+                onMoreClick(context);
+              },
             ),
           ),
           Builder(
@@ -1302,7 +1394,9 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
                         ? _NowPlayingFullColors.nightText
                         : _NowPlayingFullColors.dayText,
                 icon: const Icon(FluentIcons.more_horizontal_24_regular),
-                onPressed: onMoreClick,
+                onPressed: () {
+                  onMoreClick(context);
+                },
               );
             },
           ),
@@ -1561,9 +1655,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
     int queueIndex,
   ) {
     void showMessage(String message) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      showAppNotification(context: context, message: message);
     }
 
     final currentTrackId = mediaControlState.track.id;
@@ -1581,6 +1673,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
     showMenuFlyout(
       context,
       position: position,
+      avoidPlayerBar: false,
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,

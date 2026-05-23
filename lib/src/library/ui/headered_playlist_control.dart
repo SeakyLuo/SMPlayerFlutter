@@ -14,6 +14,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
@@ -464,6 +465,7 @@ class _HeaderedPlaylistControlState
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   ) {
     return CommandBar(
+      variant: CommandBarVariant.headeredPlaylist,
       dynamicOverflow: true,
       overflowLabel: i18n.t('player.more'),
       children: [
@@ -487,25 +489,31 @@ class _HeaderedPlaylistControlState
           },
         ),
         if (widget.canSetPreferred)
-          CommandBarButton(
-            icon: FluentIcons.star_20_regular,
-            label: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
-            onPressed: () {
-              unawaited(_showHeaderPreferenceMenu(context, i18n));
-            },
+          Builder(
+            builder:
+                (_) => CommandBarButton(
+                  icon: FluentIcons.star_20_regular,
+                  label: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
+                  onPressedWithContext: (buttonContext) {
+                    unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
+                  },
+                ),
           ),
-        CommandBarButton(
-          icon: FluentIcons.arrow_sort_20_regular,
-          label: captionForHeaderedPlaylist(i18n, 'sort'),
-          disabled: visibleSongs.isEmpty,
-          active: widget.sortCriterion == activeSortCriterion,
-          overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
-          onPressed: () {
-            showMenuFlyout(
-              context,
-              items: _sortMenuItems(i18n, activeSortCriterion),
-            );
-          },
+        Builder(
+          builder:
+              (buttonContext) => CommandBarButton(
+                icon: FluentIcons.arrow_sort_20_regular,
+                label: captionForHeaderedPlaylist(i18n, 'sort'),
+                disabled: visibleSongs.isEmpty,
+                active: widget.sortCriterion == activeSortCriterion,
+                overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
+                onPressed: () {
+                  showMenuFlyout(
+                    buttonContext,
+                    items: _sortMenuItems(i18n, activeSortCriterion),
+                  );
+                },
+              ),
         ),
         if (widget.canRename)
           CommandBarButton(
@@ -549,6 +557,7 @@ class _HeaderedPlaylistControlState
     PlaylistSortCriterion activeSortCriterion,
   ) {
     return CommandBar(
+      variant: CommandBarVariant.headeredPlaylistAppBar,
       dynamicOverflow: false,
       overflowItems: [
         MenuFlyoutItem(
@@ -567,8 +576,9 @@ class _HeaderedPlaylistControlState
             key: 'preference-settings',
             text: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
             icon: FluentIcons.star_20_regular,
-            onPressed: () {
-              unawaited(_showHeaderPreferenceMenu(context, i18n));
+            onPressed: () {},
+            onPressedWithContext: (buttonContext) {
+              unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
             },
           ),
         MenuFlyoutItem(
@@ -643,7 +653,10 @@ class _HeaderedPlaylistControlState
         MenuFlyoutItem(
           key: criterion.name,
           text: captionForHeaderedPlaylist(i18n, sortCaptionKey(criterion)),
-          checked: criterion == activeSortCriterion,
+          icon:
+              criterion == activeSortCriterion
+                  ? FluentIcons.checkmark_20_regular
+                  : null,
           onPressed: () {
             _commitSort(criterion, activeSortCriterion);
           },
@@ -667,45 +680,26 @@ class _HeaderedPlaylistControlState
       return;
     }
 
-    showMenuFlyout(
-      context,
-      items: [
-        if (preferenceType != null &&
-            preferenceItemId != null &&
-            preferenceLevel != null)
-          MenuFlyoutItem(
-            key: 'preference-undo',
-            text: i18n.t('preferences.undoPrefer'),
-            icon: FluentIcons.arrow_undo_20_regular,
-            onPressed: () {
-              ref
-                  .read(libraryRepositoryProvider)
-                  .removePreferenceItem(preferenceType, preferenceItemId);
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-        if (preferenceType != null &&
-            preferenceItemId != null &&
-            preferenceLevel != null)
-          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-        for (final level in const [
-          'do-not-appear',
-          'dislike',
-          'normal',
-          'high',
-          'higher',
-          'very-high',
-        ])
-          MenuFlyoutItem(
-            key: 'preference-$level',
-            text: i18n.t('preferences.level.$level'),
-            checked: preferenceLevel == level,
-            onPressed: () {
-              widget.onSetPreferred?.call(level);
-            },
-          ),
-      ],
+    final preferenceItem = buildPreferenceMenuFlyoutItem(
+      i18n: i18n,
+      key: 'preference',
+      preferenceLevel: preferenceLevel,
+      onUndoPreference:
+          preferenceType == null ||
+                  preferenceItemId == null ||
+                  preferenceLevel == null
+              ? null
+              : () {
+                ref
+                    .read(libraryRepositoryProvider)
+                    .removePreferenceItem(preferenceType, preferenceItemId);
+                ref.invalidate(musicLibrarySnapshotProvider);
+              },
+      onSetPreference: (level) {
+        widget.onSetPreferred?.call(level);
+      },
     );
+    showMenuFlyout(context, items: preferenceItem.submenu);
   }
 
   List<LibrarySong> _visibleSongs(Map<int, LibrarySong> songsById) {
@@ -1070,88 +1064,16 @@ class _HeaderedPlaylistControlState
     required String confirmText,
     required String currentName,
   }) {
-    final controller = TextEditingController(text: defaultName);
-    var errorText = '';
-    return showDialog<String>(
+    return showPopupTextDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(title),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: i18n.t('playlists.namePlaceholder'),
-                  errorText: errorText.isEmpty ? null : errorText,
-                ),
-                onSubmitted: (_) {
-                  _confirmPlaylistName(
-                    context,
-                    controller,
-                    currentName,
-                    i18n,
-                    setDialogState,
-                    (value) {
-                      errorText = value;
-                    },
-                  );
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Text(i18n.t('common.cancel')),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    _confirmPlaylistName(
-                      context,
-                      controller,
-                      currentName,
-                      i18n,
-                      setDialogState,
-                      (value) {
-                        errorText = value;
-                      },
-                    );
-                  },
-                  child: Text(confirmText),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    ).whenComplete(controller.dispose);
-  }
-
-  void _confirmPlaylistName(
-    BuildContext dialogContext,
-    TextEditingController controller,
-    String currentName,
-    SmPlayerI18n i18n,
-    StateSetter setDialogState,
-    ValueChanged<String> setErrorText,
-  ) {
-    final name = controller.text.trim();
-    final error = validatePlaylistName(
-      name,
-      widget.playlists,
-      currentName,
-      i18n,
+      title: title,
+      initialValue: defaultName,
+      confirmLabel: confirmText,
+      placeholder: i18n.t('playlists.namePlaceholder'),
+      validate:
+          (name) =>
+              validatePlaylistName(name, widget.playlists, currentName, i18n),
     );
-    if (error.isNotEmpty) {
-      setDialogState(() {
-        setErrorText(error);
-      });
-      return;
-    }
-
-    Navigator.of(dialogContext).pop(name);
   }
 
   Future<void> _requestDelete(SmPlayerI18n i18n) async {
@@ -1181,30 +1103,12 @@ class _HeaderedPlaylistControlState
     required String message,
     required String confirmText,
   }) async {
-    final i18n = context.smPlayerI18n;
-    return await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(false);
-                    },
-                    child: Text(i18n.t('common.cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(true);
-                    },
-                    child: Text(confirmText),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    return showPopupConfirmDialog(
+      context: context,
+      title: title,
+      message: message,
+      confirmLabel: confirmText,
+    );
   }
 }
 

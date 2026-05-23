@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
@@ -155,8 +156,7 @@ class MediaControl extends StatelessWidget {
       color: Colors.transparent,
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+        child: _PlayerLiquidGlassFrame(
           child: _PlayerTintedFrame(
             artworkPath: artworkPath,
             child: LayoutBuilder(

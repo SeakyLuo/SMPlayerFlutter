@@ -885,12 +885,55 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('FolderChain.Child.Sub')), findsOneWidget);
+    expect(find.text('Sub'), findsWidgets);
 
     await tester.tap(find.text('Sub').last);
     await tester.pumpAndSettle();
 
     expect(openedFolder, 'Sub');
+  });
+
+  testWidgets('FolderChainListView opens Electron context menu callback', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    String? menuFolderPath;
+    Offset? menuPosition;
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              child: FolderChainListView(
+                songs: _snapshot.songs,
+                folders: _snapshot.folders,
+                i18n: i18n,
+                rootPath: _snapshot.rootPath,
+                currentRelativePath: '',
+                onOpenFolder: (_) {},
+                onOpenFolderMenu: (folderPath, position) {
+                  menuFolderPath = folderPath;
+                  menuPosition = position;
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('FolderChain.Path.')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(menuFolderPath, '');
+    expect(menuPosition, isNotNull);
   });
 }
 
