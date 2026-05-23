@@ -48,15 +48,10 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
   Future<void> _initialize() async {
     final settingsController = SettingsController();
     await settingsController.refresh();
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      await windowManager.ensureInitialized();
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      await windowManager.setPreventClose(true);
-      await _restoreMainWindowState(settingsController.snapshot);
-    }
     final initialLocation = resolveRestoredPage(
       settingsController.snapshot.lastPage,
     );
+    final settings = settingsController.snapshot;
     if (!mounted) {
       settingsController.dispose();
       return;
@@ -67,6 +62,9 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
         settingsController: settingsController,
       );
     });
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      unawaited(_initializeDesktopWindow(settings));
+    }
   }
 
   @override
@@ -234,10 +232,13 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final i18n =
-        i18nValue.valueOrNull ??
-        const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
     final theme = buildSmPlayerTheme(widget.settingsController.snapshot);
+    final brightness = theme.colorScheme.brightness;
+    final i18n = i18nValue.valueOrNull;
+
+    if (i18n == null) {
+      return SmPlayerSplashScreen(brightness: brightness);
+    }
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -263,6 +264,15 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
       },
     );
   }
+}
+
+Future<void> _initializeDesktopWindow(SettingsSnapshot settings) async {
+  await windowManager.ensureInitialized();
+  await Future.wait([
+    windowManager.setTitleBarStyle(TitleBarStyle.hidden),
+    windowManager.setPreventClose(true),
+    _restoreMainWindowState(settings),
+  ]);
 }
 
 Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {

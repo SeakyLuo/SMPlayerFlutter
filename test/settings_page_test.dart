@@ -742,6 +742,7 @@ void main() {
 
     expect(repository.appliedSplits, [directSplit]);
     expect(find.text('歌手更新建议'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets(
@@ -796,6 +797,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.appliedSplits, [mergeSuggestion]);
+      await tester.pump(const Duration(seconds: 3));
     },
   );
 
@@ -868,6 +870,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('正在导入数据...'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('SettingsPage can pause and resume lyrics batch', (tester) async {
@@ -918,10 +921,12 @@ void main() {
 
     await tester.tap(find.text('继续'));
     repository.finish();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     expect(repository.completed, isTrue);
     expect(find.text('暂停'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('SettingsPage disables lyrics batch until songs are loaded', (
@@ -1022,6 +1027,7 @@ void main() {
     repository.releaseBeforePauseWait();
     repository.finish();
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets(

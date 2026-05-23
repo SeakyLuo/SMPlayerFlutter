@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
@@ -40,100 +41,118 @@ class CommandBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _CommandBarStyleData.forVariant(variant);
-    return ConstrainedBox(
+    final style = _CommandBarStyleData.forVariant(
+      variant,
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    final toolbar = ConstrainedBox(
       constraints: BoxConstraints(minHeight: style.toolbarMinHeight),
-      child: _CommandBarStyleScope(
-        data: style,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (content != null)
-              Flexible(
-                fit: FlexFit.loose,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: style.contentHorizontalPadding,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: content!,
+      child: Padding(
+        padding: style.toolbarPadding,
+        child: _CommandBarStyleScope(
+          data: style,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (content != null)
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: style.contentHorizontalPadding,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: content!,
+                    ),
                   ),
                 ),
-              ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final overflow = _resolveCommandBarOverflow(
-                    context: context,
-                    maxWidth: constraints.maxWidth,
-                    dynamicOverflow: dynamicOverflow,
-                    overflowReserve: overflowReserve,
-                    overflowItems: overflowItems,
-                    children: children,
-                  );
-                  final overflowMenuItems = [
-                    for (final entry in overflow.overflowedChildren.indexed)
-                      _toMenuFlyoutItem(entry.$2, entry.$1),
-                    ...overflowItems,
-                  ];
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final overflow = _resolveCommandBarOverflow(
+                      context: context,
+                      maxWidth: constraints.maxWidth,
+                      dynamicOverflow: dynamicOverflow,
+                      overflowReserve: overflowReserve,
+                      overflowItems: overflowItems,
+                      children: children,
+                    );
+                    final overflowMenuItems = [
+                      for (final entry in overflow.overflowedChildren.indexed)
+                        _toMenuFlyoutItem(entry.$2, entry.$1),
+                      ...overflowItems,
+                    ];
 
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: style.primaryAlignment,
-                    children: [
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: SizedBox(
-                          height: style.visibleRowHeight,
-                          child: ClipRect(
-                            child: Align(
-                              alignment: style.visibleAlignment,
-                              child: OverflowBox(
-                                minWidth: 0,
-                                maxWidth: double.infinity,
-                                minHeight: 0,
-                                maxHeight: style.visibleRowHeight,
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: style.primaryAlignment,
+                      children: [
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: SizedBox(
+                            height: style.visibleRowHeight,
+                            child: ClipRect(
+                              child: Align(
                                 alignment: style.visibleAlignment,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    for (final child
-                                        in overflow.visibleChildren)
-                                      child,
-                                  ],
+                                child: OverflowBox(
+                                  minWidth: 0,
+                                  maxWidth: double.infinity,
+                                  minHeight: 0,
+                                  maxHeight: style.visibleRowHeight,
+                                  alignment: style.visibleAlignment,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      for (final child
+                                          in overflow.visibleChildren)
+                                        child,
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      if (overflowMenuItems.isNotEmpty)
-                        Builder(
-                          builder: (context) {
-                            return CommandBarButton(
-                              key: const ValueKey('CommandBar.MoreButton'),
-                              icon: FluentIcons.more_horizontal_24_regular,
-                              label: overflowLabel ?? 'More',
-                              showLabel: false,
-                              canOverflow: false,
-                              onPressed: () {
-                                showMenuFlyout(
-                                  context,
-                                  items: overflowMenuItems,
-                                );
-                              },
-                            );
-                          },
-                        ),
-                    ],
-                  );
-                },
+                        if (overflowMenuItems.isNotEmpty)
+                          Builder(
+                            builder: (context) {
+                              return CommandBarButton(
+                                key: const ValueKey('CommandBar.MoreButton'),
+                                icon: FluentIcons.more_horizontal_24_regular,
+                                label: overflowLabel ?? 'More',
+                                showLabel: false,
+                                canOverflow: false,
+                                onPressed: () {
+                                  showMenuFlyout(
+                                    context,
+                                    items: overflowMenuItems,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+    if (style.toolbarBackground == Colors.transparent &&
+        style.toolbarBorderColor == Colors.transparent) {
+      return toolbar;
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: style.toolbarBackground,
+        borderRadius: BorderRadius.circular(style.toolbarRadius),
+        border: Border.all(color: style.toolbarBorderColor),
+      ),
+      child: toolbar,
     );
   }
 }
@@ -177,6 +196,28 @@ class _CommandBarButtonState extends State<CommandBarButton> {
   Widget build(BuildContext context) {
     final style = _CommandBarStyleScope.of(context);
     final enabled = !widget.disabled;
+    if (widget.showLabel) {
+      return Padding(
+        padding: style.buttonMargin,
+        child: SmPlayerTextIconButton(
+          icon: widget.icon,
+          label: widget.label,
+          active: widget.active,
+          disabled: widget.disabled,
+          tooltip: widget.label,
+          minWidth: style.minWidth,
+          maxWidth: style.maxWidth,
+          height: style.minHeight,
+          horizontalPadding: style.horizontalPadding,
+          iconSize: style.iconSize,
+          iconGap: style.iconGap,
+          opacityWhenDisabled: style.disabledOpacity,
+          onPressed: () {
+            _activate(context);
+          },
+        ),
+      );
+    }
     final foreground =
         widget.active ? CommandBarColors.accentStrong : style.foreground;
     final surface = _resolveSurface(style);
@@ -298,7 +339,6 @@ class _CommandBarButtonState extends State<CommandBarButton> {
                   alignment: Alignment.center,
                   clipBehavior: Clip.antiAlias,
                   child: Stack(
-                    fit: StackFit.expand,
                     alignment: Alignment.center,
                     children: [
                       if (style.highlightColor != Colors.transparent)
@@ -380,7 +420,7 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
   required List<MenuFlyoutItem> overflowItems,
   required List<Widget> children,
 }) {
-  if (!dynamicOverflow || maxWidth.isInfinite) {
+  if (!dynamicOverflow || maxWidth.isInfinite || maxWidth <= 0) {
     return _CommandBarOverflowResult(
       visibleChildren: children,
       overflowedChildren: const [],
@@ -411,6 +451,9 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
 
   for (final index in overflowableIndexes.reversed) {
     if (totalWidth + reservedMoreWidth <= availableWidth) {
+      break;
+    }
+    if (overflowedIndexes.length == overflowableIndexes.length - 1) {
       break;
     }
 
@@ -461,11 +504,19 @@ double _estimateCommandBarItemWidth(BuildContext context, Widget child) {
     return style.iconOnlyOuterWidth;
   }
 
-  final labelWidth = child.label.runes.fold<double>(
-    0,
-    (width, rune) =>
-        width + (rune > 0xff ? style.fontSize : style.fontSize / 2),
-  );
+  final labelPainter = TextPainter(
+    text: TextSpan(
+      text: child.label,
+      style: TextStyle(
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        fontVariations: const [FontVariation.weight(650)],
+      ),
+    ),
+    maxLines: 1,
+    textDirection: Directionality.of(context),
+  )..layout();
+  final labelWidth = labelPainter.width;
   return (style.iconSize +
           style.iconGap +
           labelWidth +
@@ -486,7 +537,10 @@ class _CommandBarStyleScope extends InheritedWidget {
     final scope =
         context.dependOnInheritedWidgetOfExactType<_CommandBarStyleScope>();
     return scope?.data ??
-        _CommandBarStyleData.forVariant(CommandBarVariant.standard);
+        _CommandBarStyleData.forVariant(
+          CommandBarVariant.standard,
+          Theme.of(context).brightness == Brightness.dark,
+        );
   }
 
   @override
@@ -499,6 +553,10 @@ class _CommandBarStyleData {
   const _CommandBarStyleData({
     required this.toolbarMinHeight,
     required this.visibleRowHeight,
+    required this.toolbarBackground,
+    required this.toolbarBorderColor,
+    required this.toolbarRadius,
+    required this.toolbarPadding,
     required this.contentHorizontalPadding,
     required this.primaryAlignment,
     required this.visibleAlignment,
@@ -526,6 +584,10 @@ class _CommandBarStyleData {
 
   final double toolbarMinHeight;
   final double visibleRowHeight;
+  final Color toolbarBackground;
+  final Color toolbarBorderColor;
+  final double toolbarRadius;
+  final EdgeInsets toolbarPadding;
   final double contentHorizontalPadding;
   final MainAxisAlignment primaryAlignment;
   final Alignment visibleAlignment;
@@ -574,12 +636,19 @@ class _CommandBarStyleData {
     return const Size(double.infinity, double.infinity);
   }
 
-  static _CommandBarStyleData forVariant(CommandBarVariant variant) {
+  static _CommandBarStyleData forVariant(
+    CommandBarVariant variant, [
+    bool nightMode = false,
+  ]) {
     switch (variant) {
       case CommandBarVariant.playlistPage:
         return const _CommandBarStyleData(
           toolbarMinHeight: 44,
           visibleRowHeight: 44,
+          toolbarBackground: Colors.transparent,
+          toolbarBorderColor: Colors.transparent,
+          toolbarRadius: 0,
+          toolbarPadding: EdgeInsets.zero,
           contentHorizontalPadding: 0,
           primaryAlignment: MainAxisAlignment.end,
           visibleAlignment: Alignment.centerRight,
@@ -605,9 +674,13 @@ class _CommandBarStyleData {
           transparent: false,
         );
       case CommandBarVariant.headeredPlaylist:
-        return const _CommandBarStyleData(
+        return _CommandBarStyleData(
           toolbarMinHeight: 48,
           visibleRowHeight: 48,
+          toolbarBackground: Colors.transparent,
+          toolbarBorderColor: Colors.transparent,
+          toolbarRadius: 0,
+          toolbarPadding: EdgeInsets.zero,
           contentHorizontalPadding: 12,
           primaryAlignment: MainAxisAlignment.start,
           visibleAlignment: Alignment.centerLeft,
@@ -618,15 +691,22 @@ class _CommandBarStyleData {
           horizontalPadding: 12,
           borderRadius: 10,
           borderWidth: 1,
-          borderColor: Color(0x2e768497),
-          surface: Color(0xa8ffffff),
-          hoverSurface: Color(0xdbffffff),
-          pressedSurface: Color(0xdbffffff),
-          foreground: CommandBarColors.textStrong,
-          highlightColor: Color(0x9effffff),
+          borderColor:
+              nightMode ? const Color(0x1fd6e0ec) : const Color(0x2e768497),
+          surface:
+              nightMode ? const Color(0x0effffff) : const Color(0xa8ffffff),
+          hoverSurface:
+              nightMode ? const Color(0x17ffffff) : const Color(0xdbffffff),
+          pressedSurface:
+              nightMode ? const Color(0x1fffffff) : const Color(0xdbffffff),
+          foreground:
+              nightMode ? const Color(0xf0f6f9fc) : CommandBarColors.textStrong,
+          highlightColor:
+              nightMode ? const Color(0x0effffff) : const Color(0x9effffff),
           shadow: [
             BoxShadow(
-              color: Color(0x142d3a4c),
+              color:
+                  nightMode ? const Color(0x38000000) : const Color(0x142d3a4c),
               offset: Offset(0, 10),
               blurRadius: 24,
             ),
@@ -639,9 +719,13 @@ class _CommandBarStyleData {
           transparent: false,
         );
       case CommandBarVariant.headeredPlaylistAppBar:
-        return const _CommandBarStyleData(
+        return _CommandBarStyleData(
           toolbarMinHeight: 40,
           visibleRowHeight: 40,
+          toolbarBackground: Colors.transparent,
+          toolbarBorderColor: Colors.transparent,
+          toolbarRadius: 0,
+          toolbarPadding: EdgeInsets.zero,
           contentHorizontalPadding: 0,
           primaryAlignment: MainAxisAlignment.end,
           visibleAlignment: Alignment.centerRight,
@@ -652,11 +736,14 @@ class _CommandBarStyleData {
           horizontalPadding: 10,
           borderRadius: 10,
           borderWidth: 0,
-          borderColor: Colors.transparent,
+          borderColor: nightMode ? const Color(0x1fd6e0ec) : Colors.transparent,
           surface: Colors.transparent,
-          hoverSurface: Color(0x12111827),
-          pressedSurface: Color(0x12111827),
-          foreground: CommandBarColors.textStrong,
+          hoverSurface:
+              nightMode ? const Color(0x17ffffff) : const Color(0x12111827),
+          pressedSurface:
+              nightMode ? const Color(0x1fffffff) : const Color(0x12111827),
+          foreground:
+              nightMode ? const Color(0xf0f6f9fc) : CommandBarColors.textStrong,
           highlightColor: Colors.transparent,
           shadow: [],
           disabledOpacity: 0.45,
@@ -670,6 +757,10 @@ class _CommandBarStyleData {
         return const _CommandBarStyleData(
           toolbarMinHeight: 40,
           visibleRowHeight: 40,
+          toolbarBackground: Colors.transparent,
+          toolbarBorderColor: Colors.transparent,
+          toolbarRadius: 0,
+          toolbarPadding: EdgeInsets.zero,
           contentHorizontalPadding: 0,
           primaryAlignment: MainAxisAlignment.end,
           visibleAlignment: Alignment.centerRight,
@@ -698,6 +789,10 @@ class _CommandBarStyleData {
         return const _CommandBarStyleData(
           toolbarMinHeight: 48,
           visibleRowHeight: 48,
+          toolbarBackground: Colors.transparent,
+          toolbarBorderColor: Colors.transparent,
+          toolbarRadius: 0,
+          toolbarPadding: EdgeInsets.zero,
           contentHorizontalPadding: 12,
           primaryAlignment: MainAxisAlignment.end,
           visibleAlignment: Alignment.centerRight,
@@ -807,12 +902,9 @@ class MultiSelectCommandBar extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final width =
-                    constraints.maxWidth.isFinite
-                        ? constraints.maxWidth
-                        : MediaQuery.sizeOf(context).width;
-                final compactSelection = width <= 760;
-                final compactPhone = width <= 520;
+                final viewportWidth = MediaQuery.sizeOf(context).width;
+                final compactSelection = viewportWidth <= 760;
+                final compactPhone = viewportWidth <= 520;
 
                 List<MenuFlyoutItem> moreItems(BuildContext anchorContext) {
                   return [
@@ -1196,6 +1288,8 @@ class MenuFlyoutItem {
   final bool separator;
 }
 
+enum MenuFlyoutLayer { defaultLayer, dialog }
+
 List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   required SmPlayerI18n i18n,
   required List<LibrarySong> songs,
@@ -1421,23 +1515,43 @@ List<int> _randomRecentAdded(List<LibrarySong> songs, int randomLimit) {
 }
 
 List<int> _randomMostPlayed(List<LibrarySong> songs, int randomLimit) {
-  final sorted =
-      songs.toList()
-        ..sort((left, right) => right.playCount.compareTo(left.playCount));
-  return _randomItems(
-    sorted.take(randomLimit).toList(),
-    randomLimit,
-  ).map((song) => song.id).toList();
+  return _shuffleSongIds(
+    _playedSongs(songs, randomLimit, descending: true),
+  ).take(randomLimit).toList();
 }
 
 List<int> _randomLeastPlayed(List<LibrarySong> songs, int randomLimit) {
-  final sorted =
-      songs.toList()
-        ..sort((left, right) => left.playCount.compareTo(right.playCount));
-  return _randomItems(
-    sorted.take(randomLimit).toList(),
-    randomLimit,
-  ).map((song) => song.id).toList();
+  return _shuffleSongIds(
+    _playedSongs(songs, randomLimit, descending: false),
+  ).take(randomLimit).toList();
+}
+
+List<LibrarySong> _playedSongs(
+  List<LibrarySong> songs,
+  int randomLimit, {
+  required bool descending,
+}) {
+  final songsByPlayCount = <int, List<LibrarySong>>{};
+  for (final song in songs) {
+    songsByPlayCount[song.playCount] = [
+      ...(songsByPlayCount[song.playCount] ?? const <LibrarySong>[]),
+      song,
+    ];
+  }
+
+  final playCounts =
+      songsByPlayCount.keys.toList()..sort(
+        (left, right) =>
+            descending ? right.compareTo(left) : left.compareTo(right),
+      );
+  final selectedSongs = <LibrarySong>[];
+  for (final playCount in playCounts) {
+    if (selectedSongs.length > randomLimit) {
+      break;
+    }
+    selectedSongs.addAll(songsByPlayCount[playCount]!);
+  }
+  return selectedSongs;
 }
 
 List<LibrarySong> _randomSongGroup(
@@ -1923,8 +2037,12 @@ Future<void> showMenuFlyout(
   required List<MenuFlyoutItem> items,
   Offset? position,
   bool avoidPlayerBar = true,
+  MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
 }) {
-  final overlay = Overlay.of(context);
+  final overlay = Overlay.of(
+    context,
+    rootOverlay: layer == MenuFlyoutLayer.dialog,
+  );
   final button = context.findRenderObject() as RenderBox;
   final resolvedPosition =
       position ?? button.localToGlobal(Offset(0, button.size.height + 4));
@@ -1942,8 +2060,9 @@ Future<void> showMenuFlyout(
 
   entry = OverlayEntry(
     builder:
-        (context) => _MenuFlyoutOverlay(
+        (overlayContext) => _MenuFlyoutOverlay(
           items: items,
+          anchorContext: context,
           requestedPosition: resolvedPosition,
           avoidPlayerBar: avoidPlayerBar,
           onClose: close,
@@ -1966,12 +2085,14 @@ const _menuFlyoutPlayerBarHeight = 120.0;
 class _MenuFlyoutOverlay extends StatefulWidget {
   const _MenuFlyoutOverlay({
     required this.items,
+    required this.anchorContext,
     required this.requestedPosition,
     required this.avoidPlayerBar,
     required this.onClose,
   });
 
   final List<MenuFlyoutItem> items;
+  final BuildContext anchorContext;
   final Offset requestedPosition;
   final bool avoidPlayerBar;
   final VoidCallback onClose;
@@ -2038,6 +2159,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay> {
                 ),
                 state: panels[index],
                 depth: index,
+                anchorContext: widget.anchorContext,
                 boundaryBottom: boundaryBottom,
                 onClose: widget.onClose,
                 onItemEntered: _clearSubmenusAfter,
@@ -2163,6 +2285,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
     super.key,
     required this.state,
     required this.depth,
+    required this.anchorContext,
     required this.boundaryBottom,
     required this.onClose,
     required this.onItemEntered,
@@ -2171,6 +2294,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
 
   final _MenuFlyoutPanelState state;
   final int depth;
+  final BuildContext anchorContext;
   final double boundaryBottom;
   final VoidCallback onClose;
   final ValueChanged<int> onItemEntered;
@@ -2218,6 +2342,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
                   _MenuFlyoutItemWidget(
                     item: item,
                     depth: depth,
+                    anchorContext: anchorContext,
                     onClose: onClose,
                     onItemEntered: onItemEntered,
                     onSubmenuEntered: onSubmenuEntered,
@@ -2235,6 +2360,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
   const _MenuFlyoutItemWidget({
     required this.item,
     required this.depth,
+    required this.anchorContext,
     required this.onClose,
     required this.onItemEntered,
     required this.onSubmenuEntered,
@@ -2242,6 +2368,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
 
   final MenuFlyoutItem item;
   final int depth;
+  final BuildContext anchorContext;
   final VoidCallback onClose;
   final ValueChanged<int> onItemEntered;
   final void Function({
@@ -2320,7 +2447,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                     return;
                   }
                   final result =
-                      item.onPressedWithContext?.call(context) ??
+                      item.onPressedWithContext?.call(widget.anchorContext) ??
                       item.onPressed?.call();
                   if (result is Future<void>) {
                     setState(() {
@@ -2334,7 +2461,11 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                           _busy = false;
                         });
                       }
+                      if (!item.keepOpen && mounted) {
+                        widget.onClose();
+                      }
                     }
+                    return;
                   }
                   if (!item.keepOpen && mounted) {
                     widget.onClose();

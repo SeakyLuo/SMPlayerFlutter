@@ -470,7 +470,57 @@ private final class NativeSplashView: NSView {
   }
 
   private var isDarkAppearance: Bool {
-    effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    if let dark = NativeSplashView.savedNightModeEnabled {
+      return dark
+    }
+    return effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+  }
+
+  private static var savedNightModeEnabled: Bool? {
+    let defaults = UserDefaults.standard
+    let nightMode = defaults.string(
+      forKey: "flutter.smplayer:settings:nightMode"
+    ) ?? defaults.string(forKey: "smplayer:settings:nightMode")
+    return switch nightMode {
+    case "on":
+      true
+    case "never":
+      false
+    case "auto":
+      isCurrentTimeInSavedNightRange(defaults)
+    default:
+      nil
+    }
+  }
+
+  private static func isCurrentTimeInSavedNightRange(_ defaults: UserDefaults) -> Bool {
+    let startTime = defaults.string(
+      forKey: "flutter.smplayer:settings:nightModeStartTime"
+    ) ?? defaults.string(forKey: "smplayer:settings:nightModeStartTime") ?? "20:00"
+    let endTime = defaults.string(
+      forKey: "flutter.smplayer:settings:nightModeEndTime"
+    ) ?? defaults.string(forKey: "smplayer:settings:nightModeEndTime") ?? "06:00"
+    let calendar = Calendar.current
+    let now = Date()
+    let currentMinute =
+      calendar.component(.hour, from: now) * 60 +
+      calendar.component(.minute, from: now)
+    return isMinuteInNightRange(
+      currentMinute,
+      start: minuteValue(startTime),
+      end: minuteValue(endTime))
+  }
+
+  private static func minuteValue(_ value: String) -> Int {
+    let parts = value.split(separator: ":").map { Int($0)! }
+    return parts[0] * 60 + parts[1]
+  }
+
+  private static func isMinuteInNightRange(_ current: Int, start: Int, end: Int) -> Bool {
+    if start < end {
+      return current >= start && current < end
+    }
+    return current >= start || current < end
   }
 
   private func setupContent() {
@@ -536,6 +586,7 @@ private final class NativeSplashView: NSView {
     titleLabel.textColor = dark
       ? NSColor(calibratedRed: 0.96, green: 0.98, blue: 1, alpha: 1)
       : NSColor(calibratedRed: 0.09, green: 0.13, blue: 0.18, alpha: 1)
+    progressIndicator.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
   }
 
   private static var splashIcon: NSImage {

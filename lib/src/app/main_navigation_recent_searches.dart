@@ -18,76 +18,75 @@ class _MainNavigationRecentSearches extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.dropdownSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: colors.searchBorder),
-          boxShadow: [
-            BoxShadow(
-              color: colors.dropdownShadow,
-              blurRadius: 36,
-              offset: const Offset(0, 18),
+    return DecoratedBox(
+      key: const ValueKey('MainNavigationView.SearchHistoryPanel'),
+      decoration: BoxDecoration(
+        color: colors.dropdownSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.searchBorder),
+        boxShadow: [
+          BoxShadow(
+            color: colors.dropdownShadow,
+            blurRadius: 36,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      i18n.t('sidebar.recentSearches'),
+                      style: TextStyle(
+                        color: colors.sectionLabel,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.textMuted,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onPressed: onClear,
+                    child: Text(i18n.t('common.clear')),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...entries.map(
+              (entry) => _MainNavigationRecentSearchItem(
+                entry: entry,
+                removeLabel: i18n.t('sidebar.removeRecentSearch', {
+                  'query': entry.query,
+                }),
+                onPressed: () {
+                  onSearchSelected(entry);
+                },
+                onRemove:
+                    onSearchRemoved == null
+                        ? null
+                        : () {
+                          onSearchRemoved!(entry.id);
+                        },
+              ),
             ),
           ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        i18n.t('sidebar.recentSearches'),
-                        style: TextStyle(
-                          color: colors.sectionLabel,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: colors.textMuted,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        minimumSize: const Size(0, 30),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        textStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      onPressed: onClear,
-                      child: Text(i18n.t('common.clear')),
-                    ),
-                  ],
-                ),
-              ),
-              ...entries.map(
-                (entry) => _MainNavigationRecentSearchItem(
-                  entry: entry,
-                  removeLabel: i18n.t('sidebar.removeRecentSearch', {
-                    'query': entry.query,
-                  }),
-                  onPressed: () {
-                    onSearchSelected(entry);
-                  },
-                  onRemove:
-                      onSearchRemoved == null
-                          ? null
-                          : () {
-                            onSearchRemoved!(entry.id);
-                          },
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -123,7 +122,7 @@ class _MainNavigationRecentSearchItem extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: TextButton.icon(
+                  child: TextButton(
                     style: TextButton.styleFrom(
                       alignment: Alignment.centerLeft,
                       foregroundColor: colors.textStrong,
@@ -133,8 +132,8 @@ class _MainNavigationRecentSearchItem extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    icon: const Icon(FluentIcons.search_20_regular, size: 16),
-                    label: Align(
+                    onPressed: onPressed,
+                    child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         entry.query,
@@ -142,7 +141,6 @@ class _MainNavigationRecentSearchItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    onPressed: onPressed,
                   ),
                 ),
                 IconButton(

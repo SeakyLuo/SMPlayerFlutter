@@ -1,0 +1,263 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+class SmPlayerTextIconButton extends StatefulWidget {
+  const SmPlayerTextIconButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.child,
+    this.icon,
+    this.loading = false,
+    this.active = false,
+    this.disabled = false,
+    this.showLabel = true,
+    this.tooltip,
+    this.minWidth = 0,
+    this.maxWidth,
+    this.height = 40,
+    this.horizontalPadding = 14,
+    this.iconSize = 18,
+    this.iconGap = 8,
+    this.opacityWhenDisabled = 0.52,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final Widget? child;
+  final IconData? icon;
+  final bool loading;
+  final bool active;
+  final bool disabled;
+  final bool showLabel;
+  final String? tooltip;
+  final double minWidth;
+  final double? maxWidth;
+  final double height;
+  final double horizontalPadding;
+  final double iconSize;
+  final double iconGap;
+  final double opacityWhenDisabled;
+
+  @override
+  State<SmPlayerTextIconButton> createState() => _SmPlayerTextIconButtonState();
+}
+
+class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
+  var _hovered = false;
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors =
+        SmPlayerTextIconButtonTheme.maybeOf(context) ??
+        SmPlayerTextIconButtonColors.resolve(
+          Theme.of(context).brightness == Brightness.dark,
+        );
+    final enabled =
+        widget.onPressed != null && !widget.disabled && !widget.loading;
+    final hovered = enabled && (_hovered || _focused);
+    final foreground = widget.active ? colors.accentStrong : colors.commandText;
+    final control = DecoratedBox(
+      decoration: BoxDecoration(
+        color:
+            widget.active
+                ? colors.controlActive
+                : hovered
+                ? colors.controlHover
+                : colors.control,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.controlBorder),
+        boxShadow: [
+          BoxShadow(
+            color: colors.cardShadow,
+            offset: const Offset(0, 12),
+            blurRadius: 26,
+          ),
+        ],
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: widget.showLabel ? widget.minWidth : widget.height,
+          minHeight: widget.height,
+          maxWidth:
+              widget.showLabel
+                  ? widget.maxWidth ?? double.infinity
+                  : widget.height,
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.showLabel ? widget.horizontalPadding : 0,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.loading)
+                SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: foreground,
+                  ),
+                )
+              else if (widget.icon case final icon?)
+                Icon(icon, size: widget.iconSize, color: foreground),
+              if (widget.showLabel) ...[
+                if (widget.loading || widget.icon != null)
+                  SizedBox(width: widget.iconGap),
+                Flexible(
+                  child: DefaultTextStyle.merge(
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontVariations: const [FontVariation.weight(650)],
+                      height: 1,
+                    ),
+                    child: widget.child ?? Text(widget.label),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    final button = Opacity(
+      opacity: enabled ? 1 : widget.opacityWhenDisabled,
+      child: FocusableActionDetector(
+        enabled: enabled,
+        mouseCursor:
+            enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              if (enabled) {
+                widget.onPressed?.call();
+              }
+              return null;
+            },
+          ),
+        },
+        onShowHoverHighlight: (value) {
+          if (_hovered != value) {
+            setState(() {
+              _hovered = value;
+            });
+          }
+        },
+        onShowFocusHighlight: (value) {
+          if (_focused != value) {
+            setState(() {
+              _focused = value;
+            });
+          }
+        },
+        child: Semantics(
+          button: true,
+          enabled: enabled,
+          label: widget.showLabel ? null : widget.label,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: enabled ? (_) => widget.onPressed?.call() : null,
+            child: control,
+          ),
+        ),
+      ),
+    );
+    final tooltip = widget.tooltip ?? widget.label;
+    return Tooltip(message: tooltip, child: button);
+  }
+}
+
+class SmPlayerTextIconButtonColors {
+  const SmPlayerTextIconButtonColors({
+    required this.commandText,
+    required this.control,
+    required this.controlHover,
+    required this.controlActive,
+    required this.controlBorder,
+    required this.cardShadow,
+    required this.accentStrong,
+  });
+
+  final Color commandText;
+  final Color control;
+  final Color controlHover;
+  final Color controlActive;
+  final Color controlBorder;
+  final Color cardShadow;
+  final Color accentStrong;
+
+  static const day = SmPlayerTextIconButtonColors(
+    commandText: Color(0xff1f252b),
+    control: Color(0x94ffffff),
+    controlHover: Color(0xbdffffff),
+    controlActive: Color(0x1a0078d7),
+    controlBorder: Color(0x2e768499),
+    cardShadow: Color(0x1f1e2a3a),
+    accentStrong: Color(0xff0063b1),
+  );
+
+  static const night = SmPlayerTextIconButtonColors(
+    commandText: Color(0xf0f6f9fc),
+    control: Color(0x0effffff),
+    controlHover: Color(0x17ffffff),
+    controlActive: Color(0x290078d7),
+    controlBorder: Color(0x1fd6e0ec),
+    cardShadow: Color(0x3d000000),
+    accentStrong: Color(0xff0063b1),
+  );
+
+  static SmPlayerTextIconButtonColors resolve(bool nightMode) {
+    return nightMode ? night : day;
+  }
+
+  SmPlayerTextIconButtonColors copyWith({
+    Color? commandText,
+    Color? control,
+    Color? controlHover,
+    Color? controlActive,
+    Color? controlBorder,
+    Color? cardShadow,
+    Color? accentStrong,
+  }) {
+    return SmPlayerTextIconButtonColors(
+      commandText: commandText ?? this.commandText,
+      control: control ?? this.control,
+      controlHover: controlHover ?? this.controlHover,
+      controlActive: controlActive ?? this.controlActive,
+      controlBorder: controlBorder ?? this.controlBorder,
+      cardShadow: cardShadow ?? this.cardShadow,
+      accentStrong: accentStrong ?? this.accentStrong,
+    );
+  }
+}
+
+class SmPlayerTextIconButtonTheme extends InheritedWidget {
+  const SmPlayerTextIconButtonTheme({
+    super.key,
+    required this.colors,
+    required super.child,
+  });
+
+  final SmPlayerTextIconButtonColors colors;
+
+  static SmPlayerTextIconButtonColors? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<SmPlayerTextIconButtonTheme>()
+        ?.colors;
+  }
+
+  @override
+  bool updateShouldNotify(SmPlayerTextIconButtonTheme oldWidget) {
+    return colors != oldWidget.colors;
+  }
+}

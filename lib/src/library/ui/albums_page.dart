@@ -1064,7 +1064,7 @@ class _AlbumsToolbar extends StatelessWidget {
             ),
             children: [
               CommandBarButton(
-                icon: FluentIcons.select_all_on_24_regular,
+                icon: FluentIcons.multiselect_ltr_24_regular,
                 label: i18n.t('common.multiSelect'),
                 active: multiSelect,
                 onPressed: onToggleMultiSelect,

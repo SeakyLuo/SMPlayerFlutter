@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -258,8 +259,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                 ),
                                 buildDefaultDragHandles: false,
                                 itemCount: visibleEntries.length,
-                                onReorder: (oldIndex, newIndex) {
-                                  _moveVisibleQueueSong(
+                                onReorderItem: (oldIndex, newIndex) {
+                                  _moveVisibleQueueSongItem(
                                     queueSongIds,
                                     visibleQueueIndexes,
                                     oldIndex,
@@ -549,30 +550,25 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     _replaceQueue(nextSongIds);
   }
 
-  void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
+  void _moveQueueSongItem(List<int> queueSongIds, int oldIndex, int newIndex) {
     final nextSongIds = queueSongIds.toList();
-    final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
     final songId = nextSongIds.removeAt(oldIndex);
-    nextSongIds.insert(insertIndex, songId);
+    nextSongIds.insert(newIndex, songId);
     _replaceQueue(nextSongIds);
   }
 
-  void _moveVisibleQueueSong(
+  void _moveVisibleQueueSongItem(
     List<int> queueSongIds,
     List<int> visibleQueueIndexes,
     int oldVisibleIndex,
     int newVisibleIndex,
   ) {
     final oldQueueIndex = visibleQueueIndexes[oldVisibleIndex];
-    final normalizedVisibleIndex =
-        newVisibleIndex > oldVisibleIndex
-            ? newVisibleIndex - 1
-            : newVisibleIndex;
     final targetQueueIndex =
-        normalizedVisibleIndex >= visibleQueueIndexes.length
+        newVisibleIndex >= visibleQueueIndexes.length
             ? queueSongIds.length
-            : visibleQueueIndexes[normalizedVisibleIndex];
-    _moveQueueSong(queueSongIds, oldQueueIndex, targetQueueIndex);
+            : visibleQueueIndexes[newVisibleIndex];
+    _moveQueueSongItem(queueSongIds, oldQueueIndex, targetQueueIndex);
   }
 
   void _toggleMultiSelect() {
@@ -658,8 +654,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         folders: folders,
         showRemove: true,
         showDelete: true,
-        showHideFile: true,
-        showMoveToFolder: true,
         preferenceLevel: preferenceLevel,
         onUndoPreference:
             preferenceLevel == null
@@ -1015,9 +1009,18 @@ class _NowPlayingPagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: SizedBox.expand(child: child),
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color:
+            nightMode
+                ? _NowPlayingColors.nightPageSurface
+                : _NowPlayingColors.pageSurface,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: SizedBox.expand(child: child),
+      ),
     );
   }
 }
@@ -1077,6 +1080,8 @@ class _NowPlayingColors {
 
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
+  static const pageSurface = ShellColors.workspaceSolidSurface;
+  static const nightPageSurface = ShellColors.nightWorkspaceSurface;
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);
 }

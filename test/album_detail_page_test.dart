@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -49,6 +52,8 @@ void main() {
       'playlists.delete': 'Delete',
       'playlists.newPlaylist': 'New Playlist',
       'playlists.removeSelected': 'Remove Selected',
+      'playlists.rename': 'Rename',
+      'playlists.save': 'Save',
       'preferences.level.dislike': 'Dislike',
       'preferences.level.do-not-appear': 'Do Not Appear',
       'preferences.level.high': 'High',
@@ -115,6 +120,9 @@ void main() {
 
     expect(repository.favoriteSongIds, [1]);
     expect(repository.favoriteValue, isTrue);
+
+    await tester.pump(undoableNotificationDuration);
+    await tester.pumpAndSettle();
   });
 
   testWidgets(
@@ -164,6 +172,162 @@ void main() {
     },
   );
 
+  testWidgets('AlbumDetailPage matches Electron headered playlist metrics', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumDetailTestApp(i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)),
+      const Size(240, 240),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.ListHeader'))),
+      const Size(1100, 42),
+    );
+    final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
+    expect(tester.getSize(firstRow), const Size(1100, 82));
+    expect(
+      tester.getRect(find.text('Blue Song')).left -
+          tester.getRect(firstRow).left,
+      92,
+    );
+    expect(
+      tester.widget<PlaylistControlItem>(firstRow).variant,
+      PlaylistControlItemVariant.headeredPlaylist,
+    );
+
+    final title = tester.widget<Text>(find.text('Blue Hour'));
+    expect(title.style?.fontSize, 48);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    expect(title.style?.fontVariations, const [FontVariation.weight(650)]);
+
+    expect(
+      tester.getRect(find.text('Edit Artwork')).right,
+      lessThanOrEqualTo(1200),
+    );
+  });
+
+  testWidgets('AlbumDetailPage matches compact Electron headered playlist', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumDetailTestApp(i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.ListHeader')),
+      findsNothing,
+    );
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)),
+      const Size(180, 180),
+    );
+    final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
+    expect(tester.getSize(firstRow), const Size(696, 78));
+    expect(
+      tester.getRect(find.text('Blue Song')).left -
+          tester.getRect(firstRow).left,
+      80,
+    );
+
+    final title = tester.widget<Text>(find.text('Blue Hour'));
+    expect(title.style?.fontSize, 24);
+  });
+
+  testWidgets('HeaderedPlaylistControl reuses Electron metrics for playlists', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: i18n,
+        type: HeaderedPlaylistType.playlist,
+        title: 'Mix',
+        removable: true,
+        canRename: true,
+        canDelete: true,
+        canClear: true,
+        showAlbum: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)),
+      const Size(240, 240),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.ListHeader'))),
+      const Size(1100, 42),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
+      const Size(1100, 82),
+    );
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+  });
+
+  testWidgets('HeaderedPlaylistControl reuses Electron metrics for favorites', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: i18n,
+        type: HeaderedPlaylistType.favorites,
+        title: 'My Favorites',
+        removable: true,
+        canClear: true,
+        showAlbum: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.ListHeader')),
+      findsNothing,
+    );
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)),
+      const Size(180, 180),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
+      const Size(696, 78),
+    );
+    expect(find.text('My Favorites'), findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+  });
+
   testWidgets('AlbumDetailPage shows Electron current preference state', (
     tester,
   ) async {
@@ -194,7 +358,7 @@ void main() {
     expect(repository.removedPreferenceItemId, 'Blue Hour');
   });
 
-  testWidgets('AlbumDetailPage shows collapsed Electron-style command bar', (
+  testWidgets('AlbumDetailPage pins collapsed Electron headered hero', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -214,15 +378,43 @@ void main() {
       findsNothing,
     );
 
-    await tester.drag(
-      find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
-      const Offset(0, -260),
-    );
+    await tester.dragFrom(const Offset(600, 340), const Offset(0, -260));
     await tester.pumpAndSettle();
 
     expect(
       find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
-      findsOneWidget,
+      findsNothing,
+    );
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)),
+      const Size(86, 86),
+    );
+    final collapsedTitle = tester.widget<Text>(find.text('Blue Hour'));
+    expect(collapsedTitle.style?.fontSize, 26);
+    expect(collapsedTitle.style?.fontWeight, FontWeight.w600);
+    expect(collapsedTitle.style?.fontVariations, const [
+      FontVariation.weight(650),
+    ]);
+
+    await tester.dragFrom(const Offset(600, 340), const Offset(0, 60));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
+      findsNothing,
+    );
+    expect(tester.getSize(find.byType(HeaderedPlaylistCover)).width, 86);
+
+    await tester.dragFrom(const Offset(600, 340), const Offset(0, 80));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
+      findsNothing,
+    );
+    expect(
+      tester.getSize(find.byType(HeaderedPlaylistCover)).width,
+      greaterThan(86),
     );
   });
 
@@ -309,6 +501,66 @@ class _AlbumDetailTestApp extends StatelessWidget {
   }
 }
 
+class _HeaderedPlaylistTestApp extends StatelessWidget {
+  const _HeaderedPlaylistTestApp({
+    required this.i18n,
+    required this.type,
+    required this.title,
+    this.removable = false,
+    this.showAlbum = false,
+    this.canRename = false,
+    this.canDelete = false,
+    this.canClear = false,
+  });
+
+  final SmPlayerI18n i18n;
+  final HeaderedPlaylistType type;
+  final String title;
+  final bool removable;
+  final bool showAlbum;
+  final bool canRename;
+  final bool canDelete;
+  final bool canClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryRepositoryProvider.overrideWithValue(_FakeLibraryRepository()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: SmPlayerI18nScope(
+            i18n: i18n,
+            child: HeaderedPlaylistControl(
+              type: type,
+              title: title,
+              songs: _snapshot.songs.take(2).toList(),
+              selectedTrackId: null,
+              playlists: _snapshot.playlists,
+              favoritePlaylistId: _snapshot.favoritePlaylistId,
+              artworkUrl: '',
+              removable: removable,
+              showAlbum: showAlbum,
+              canRename: canRename,
+              canDelete: canDelete,
+              canClear: canClear,
+              onPlayTrack: (_, _) {},
+              onAddSongToPlaylist: (_, _) {},
+              onRemoveSongs: (_) {},
+              onRename: (_) {},
+              onDelete: () {},
+              onClear: () {},
+              onPlayNext: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FakeLibraryRepository extends LibraryRepository {
   List<int> replacedNowPlaying = [];
   List<int> favoriteSongIds = [];
@@ -360,6 +612,22 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> removePreferenceItem(String type, String itemId) async {
     removedPreferenceType = type;
     removedPreferenceItemId = itemId;
+  }
+
+  @override
+  Future<List<SongArtworkSnapshot>> getSongArtworkSnapshots(
+    List<int> songIds,
+  ) async {
+    return [
+      for (final songId in songIds)
+        SongArtworkSnapshot(
+          songId: songId,
+          artworkUrl: '',
+          sourceUrl: '',
+          sourcePath: '',
+          source: SongArtworkSource.none,
+        ),
+    ];
   }
 }
 

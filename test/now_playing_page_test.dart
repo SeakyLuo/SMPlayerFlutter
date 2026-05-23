@@ -89,6 +89,30 @@ void main() {
     expect(find.text('Multi Select'), findsNothing);
   });
 
+  testWidgets('NowPlayingPage paints page surface when queue is empty', (
+    tester,
+  ) async {
+    final snapshot = _snapshotWithSongs(
+      _snapshot,
+      _snapshot.songs,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    );
+
+    await tester.pumpWidget(_NowPlayingTestApp(snapshot: snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).color ==
+                const Color(0xfffafcff),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('NowPlayingPage queue menu uses Electron Add To submenu', (
     tester,
   ) async {
@@ -160,97 +184,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.playlistSongIds[10], [1]);
-  });
 
-  testWidgets('NowPlayingPage hide file uses Electron undo prompt', (
-    tester,
-  ) async {
-    final repository = _FakeNowPlayingRepository(_snapshot);
-    await tester.pumpWidget(
-      _NowPlayingTestApp(
-        snapshot: _snapshot,
-        i18n: i18n,
-        repository: repository,
-      ),
-    );
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hide File'));
-    await tester.pumpAndSettle();
-
-    expect(repository.hiddenSongId, 1);
-    expect(find.text('Undo'), findsOneWidget);
-
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
-
-    expect(repository.hiddenSongId, isNull);
   });
 
   testWidgets(
-    'NowPlayingPage hide removes duplicate queue entries and undo restores',
+    'NowPlayingPage queue menu hides file-management actions like Electron',
     (tester) async {
-      final repository = _FakeNowPlayingRepository(_duplicateQueueSnapshot);
+      final repository = _FakeNowPlayingRepository(_snapshot);
       await tester.pumpWidget(
         _NowPlayingTestApp(
-          snapshot: _duplicateQueueSnapshot,
+          snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.text('Blue Song').first,
-        buttons: kSecondaryMouseButton,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Hide File'));
+      await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
 
-      expect(repository.hiddenSongId, 1);
-      expect(repository.snapshot.nowPlaying.songIds, [2]);
-
-      await tester.tap(find.text('Undo'));
-      await tester.pumpAndSettle();
-
-      expect(repository.hiddenSongId, isNull);
-      expect(repository.snapshot.nowPlaying.songIds, [1, 2, 1]);
+      expect(find.text('Move To Folder'), findsNothing);
+      expect(find.text('Hide File'), findsNothing);
     },
   );
-
-  testWidgets('NowPlayingPage move file uses Electron undo prompt', (
-    tester,
-  ) async {
-    final repository = _FakeNowPlayingRepository(_snapshot);
-    await tester.pumpWidget(
-      _NowPlayingTestApp(
-        snapshot: _snapshot,
-        i18n: i18n,
-        repository: repository,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Move To Folder'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Target'));
-    await tester.pumpAndSettle();
-
-    expect(repository.movedSongId, 1);
-    expect(repository.movedFolderPath, r'C:\Target');
-    expect(find.text('Undo'), findsOneWidget);
-
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
-
-    expect(repository.movedSongId, isNull);
-    expect(repository.movedFolderPath, isNull);
-  });
 
   testWidgets('NowPlayingPage filters queue like Electron search', (
     tester,
@@ -477,24 +435,6 @@ final _searchSnapshot = _snapshotWithSongs(_snapshot, [
     thumbnailPath: '',
   ),
 ], nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2]));
-
-final _duplicateQueueSnapshot = _snapshotWithSongs(_snapshot, [
-  ..._snapshot.songs,
-  const LibrarySong(
-    id: 2,
-    path: r'C:\Music\red.mp3',
-    title: 'Red Song',
-    artist: 'Artist B',
-    artists: ['Artist B'],
-    album: 'Red Hour',
-    duration: 130,
-    playCount: 0,
-    lyricsOffsetMs: 0,
-    dateAdded: '2026-05-20T00:00:00',
-    favorite: false,
-    thumbnailPath: '',
-  ),
-], nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2, 1]));
 
 MusicLibrarySnapshot _snapshotWithSongs(
   MusicLibrarySnapshot snapshot,

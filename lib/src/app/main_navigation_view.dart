@@ -155,10 +155,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     _nowPlayingItem,
     _myFavoritesItem,
   ];
+  static const _searchHistoryPanelTop = 40.0 + 8.0 + 40.0 + 8.0 + 40.0 + 8.0;
 
   final _searchFocusNode = FocusNode();
   var _focusSearchAfterPaneOpen = false;
-  var _isSearchFocused = false;
+  var _isSearchHistoryOpen = false;
   var _isPlaylistNavExpanded = false;
   int? _draggingPlaylistId;
   ({int playlistId, _PlaylistDropPosition position})? _playlistDropIndicator;
@@ -182,6 +183,13 @@ class _MainNavigationViewState extends State<MainNavigationView> {
         _searchFocusNode.requestFocus();
       });
     }
+    if (!_isSearchHistoryOpen &&
+        _searchFocusNode.hasFocus &&
+        widget.recentSearches.any(
+          (entry) => entry.type == SearchHistoryType.sidebar,
+        )) {
+      _isSearchHistoryOpen = true;
+    }
   }
 
   void _syncPlaylistExpansionWithRoute() {
@@ -198,11 +206,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   }
 
   void _closeSearchHistory() {
-    if (!_isSearchFocused) {
+    if (!_isSearchHistoryOpen && !_searchFocusNode.hasFocus) {
       return;
     }
     setState(() {
-      _isSearchFocused = false;
+      _isSearchHistoryOpen = false;
     });
     _searchFocusNode.unfocus();
   }
@@ -349,84 +357,100 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                       constraints.maxWidth < _expandedNavigationContentMinWidth;
                   final showRecentSearches =
                       !contentCollapsed &&
-                      _isSearchFocused &&
+                      (_isSearchHistoryOpen || _searchFocusNode.hasFocus) &&
                       visibleRecentSearches.isNotEmpty;
                   final playlistSection = _buildPlaylistSection(
                     collapsed: contentCollapsed,
                     customPlaylists: customPlaylists,
                   );
-                  return Column(
-                    crossAxisAlignment:
-                        contentCollapsed
-                            ? CrossAxisAlignment.center
-                            : CrossAxisAlignment.start,
+                  return Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      _MainNavigationViewTitle(
-                        collapsed: contentCollapsed,
-                        hideAppName:
-                            defaultTargetPlatform == TargetPlatform.macOS,
-                        appName: resolvedAppName,
-                        titlebarLeadingInset:
-                            defaultTargetPlatform == TargetPlatform.macOS
-                                ? _desktopTitlebarButtonInset
-                                : 0,
-                        canGoBack: widget.canGoBack,
-                        backLabel: widget.i18n.t('sidebar.back'),
-                        onGoBack: widget.onGoBack,
-                        onWindowDragStart: widget.onWindowDragStart,
-                        onWindowDragEnd: widget.onWindowDragEnd,
-                        onTooltipRequested:
-                            contentCollapsed ? _showFloatingTooltip : null,
-                        onTooltipDismissed: _hideFloatingTooltip,
-                      ),
-                      const SizedBox(height: 8),
-                      _NavigationIconButton(
-                        key: const ValueKey(
-                          'MainNavigationView.TogglePaneButton',
-                        ),
-                        icon: FluentIcons.line_horizontal_3_24_regular,
-                        tooltip:
+                      Column(
+                        crossAxisAlignment:
                             contentCollapsed
-                                ? widget.i18n.t('sidebar.expandNavigation')
-                                : widget.i18n.t('sidebar.collapseNavigation'),
-                        collapsedContext: contentCollapsed,
-                        onPressed: () {
-                          _hideFloatingTooltip();
-                          widget.onPaneToggle();
-                        },
-                        onTooltipRequested:
-                            contentCollapsed ? _showFloatingTooltip : null,
-                        onTooltipDismissed: _hideFloatingTooltip,
-                      ),
-                      const SizedBox(height: 8),
-                      _MainNavigationViewSearchBox(
-                        collapsed: contentCollapsed,
-                        value: widget.searchText,
-                        i18n: widget.i18n,
-                        focusNode: _searchFocusNode,
-                        onChanged: widget.onSearchTextChanged,
-                        onSubmitted: widget.onSearchCommitted,
-                        onCleared: widget.onSearchCleared,
-                        onFocusChanged: (focused) {
-                          setState(() {
-                            _isSearchFocused = focused;
-                          });
-                        },
-                        onCollapsedSearchPressed: () {
-                          _hideFloatingTooltip();
-                          _focusSearchAfterPaneOpen = true;
-                          widget.onPaneToggle();
-                        },
-                        onTooltipRequested:
-                            contentCollapsed ? _showFloatingTooltip : null,
-                        onTooltipDismissed: _hideFloatingTooltip,
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            LayoutBuilder(
+                                ? CrossAxisAlignment.center
+                                : CrossAxisAlignment.start,
+                        children: [
+                          _MainNavigationViewTitle(
+                            collapsed: contentCollapsed,
+                            hideAppName:
+                                defaultTargetPlatform == TargetPlatform.macOS,
+                            appName: resolvedAppName,
+                            titlebarLeadingInset:
+                                defaultTargetPlatform == TargetPlatform.macOS
+                                    ? _desktopTitlebarButtonInset
+                                    : 0,
+                            canGoBack: widget.canGoBack,
+                            backLabel: widget.i18n.t('sidebar.back'),
+                            onGoBack: widget.onGoBack,
+                            onWindowDragStart: widget.onWindowDragStart,
+                            onWindowDragEnd: widget.onWindowDragEnd,
+                            onTooltipRequested:
+                                contentCollapsed ? _showFloatingTooltip : null,
+                            onTooltipDismissed: _hideFloatingTooltip,
+                          ),
+                          const SizedBox(height: 8),
+                          _NavigationIconButton(
+                            key: const ValueKey(
+                              'MainNavigationView.TogglePaneButton',
+                            ),
+                            icon: FluentIcons.line_horizontal_3_24_regular,
+                            tooltip:
+                                contentCollapsed
+                                    ? widget.i18n.t('sidebar.expandNavigation')
+                                    : widget.i18n.t(
+                                      'sidebar.collapseNavigation',
+                                    ),
+                            collapsedContext: contentCollapsed,
+                            onPressed: () {
+                              _hideFloatingTooltip();
+                              widget.onPaneToggle();
+                            },
+                            onTooltipRequested:
+                                contentCollapsed ? _showFloatingTooltip : null,
+                            onTooltipDismissed: _hideFloatingTooltip,
+                          ),
+                          const SizedBox(height: 8),
+                          _MainNavigationViewSearchBox(
+                            collapsed: contentCollapsed,
+                            value: widget.searchText,
+                            i18n: widget.i18n,
+                            focusNode: _searchFocusNode,
+                            onChanged: widget.onSearchTextChanged,
+                            onSubmitted: (value) {
+                              widget.onSearchCommitted(value);
+                              setState(() {
+                                _isSearchHistoryOpen = false;
+                              });
+                              _searchFocusNode.unfocus();
+                            },
+                            onCleared: widget.onSearchCleared,
+                            onFocusChanged: (focused) {
+                              if (focused) {
+                                setState(() {
+                                  _isSearchHistoryOpen = true;
+                                });
+                              }
+                            },
+                            onSearchHistoryRequested: () {
+                              setState(() {
+                                _isSearchHistoryOpen = true;
+                              });
+                            },
+                            onSearchHistoryDismissed: _closeSearchHistory,
+                            onCollapsedSearchPressed: () {
+                              _hideFloatingTooltip();
+                              _focusSearchAfterPaneOpen = true;
+                              widget.onPaneToggle();
+                            },
+                            onTooltipRequested:
+                                contentCollapsed ? _showFloatingTooltip : null,
+                            onTooltipDismissed: _hideFloatingTooltip,
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: LayoutBuilder(
                               builder: (context, constraints) {
                                 final libraryAndPlayback = <Widget>[
                                   _MainNavigationSectionLabel(
@@ -481,54 +505,56 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 );
                               },
                             ),
-                            if (showRecentSearches)
-                              Positioned.fill(
-                                child: GestureDetector(
-                                  key: const ValueKey(
-                                    'MainNavigationView.SearchDismissLayer',
-                                  ),
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: _closeSearchHistory,
-                                  child: const SizedBox.expand(),
-                                ),
-                              ),
-                            if (showRecentSearches)
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                child: _MainNavigationRecentSearches(
-                                  entries: visibleRecentSearches,
-                                  i18n: widget.i18n,
-                                  onSearchSelected: (entry) {
-                                    widget.onSearchTextChanged(entry.query);
-                                    widget.onSearchCommitted(
-                                      entry.query,
-                                      entry.type,
-                                    );
-                                    setState(() {
-                                      _isSearchFocused = false;
-                                    });
-                                    _searchFocusNode.unfocus();
-                                  },
-                                  onSearchRemoved: widget.onRecentSearchRemove,
-                                  onClear: widget.onRecentSearchesClear,
-                                ),
-                              ),
-                          ],
+                          ),
+                          const SizedBox(height: 8),
+                          _MainNavigationViewSection(
+                            collapsed: contentCollapsed,
+                            items: const [_settingsItem],
+                            i18n: widget.i18n,
+                            currentPath: widget.currentPath,
+                            onItemInvoked: _invokeNavigationItem,
+                            onTooltipRequested:
+                                contentCollapsed ? _showFloatingTooltip : null,
+                            onTooltipDismissed: _hideFloatingTooltip,
+                          ),
+                        ],
+                      ),
+                      if (showRecentSearches)
+                        Positioned.fill(
+                          child: GestureDetector(
+                            key: const ValueKey(
+                              'MainNavigationView.SearchDismissLayer',
+                            ),
+                            behavior: HitTestBehavior.translucent,
+                            onTap: _closeSearchHistory,
+                            child: const SizedBox.expand(),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      _MainNavigationViewSection(
-                        collapsed: contentCollapsed,
-                        items: const [_settingsItem],
-                        i18n: widget.i18n,
-                        currentPath: widget.currentPath,
-                        onItemInvoked: _invokeNavigationItem,
-                        onTooltipRequested:
-                            contentCollapsed ? _showFloatingTooltip : null,
-                        onTooltipDismissed: _hideFloatingTooltip,
-                      ),
+                      if (showRecentSearches)
+                        Positioned(
+                          top: _searchHistoryPanelTop,
+                          left: 0,
+                          right: 0,
+                          child: TextFieldTapRegion(
+                            child: _MainNavigationRecentSearches(
+                              entries: visibleRecentSearches,
+                              i18n: widget.i18n,
+                              onSearchSelected: (entry) {
+                                widget.onSearchTextChanged(entry.query);
+                                widget.onSearchCommitted(
+                                  entry.query,
+                                  entry.type,
+                                );
+                                setState(() {
+                                  _isSearchHistoryOpen = false;
+                                });
+                                _searchFocusNode.unfocus();
+                              },
+                              onSearchRemoved: widget.onRecentSearchRemove,
+                              onClear: widget.onRecentSearchesClear,
+                            ),
+                          ),
+                        ),
                     ],
                   );
                 },

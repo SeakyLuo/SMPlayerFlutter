@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,12 +8,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/main.dart' as app;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
+import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show NightMode, SettingsSnapshot;
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 void main() {
@@ -255,13 +261,61 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sidebar search commits to the search route', (tester) async {
+  testWidgets('SmPlayerApp keeps splash visible until i18n is ready', (
+    tester,
+  ) async {
+    final i18nCompleter = Completer<SmPlayerI18n>();
+    final settingsController = SettingsController(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, _) => const Text('app.shell')),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) => i18nCompleter.future),
+        ],
+        child: app.SmPlayerApp(
+          router: router,
+          settingsController: settingsController,
+        ),
+      ),
+    );
+
+    expect(find.byType(SmPlayerSplashScreen), findsOneWidget);
+    expect(
+      tester.widget<SmPlayerSplashScreen>(find.byType(SmPlayerSplashScreen)),
+      isA<SmPlayerSplashScreen>().having(
+        (screen) => screen.brightness,
+        'brightness',
+        Brightness.dark,
+      ),
+    );
+    expect(find.text('app.shell'), findsNothing);
+
+    i18nCompleter.complete(
+      const SmPlayerI18n(locale: 'en-US', messages: {'app.shell': 'SMPlayer'}),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SmPlayerSplashScreen), findsNothing);
+  });
+
+  testWidgets('sidebar search commits to search route and recent history', (
+    tester,
+  ) async {
     final router = createSmPlayerRouter();
+    final repository = _RecordingRouterRepository();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryRepositoryProvider.overrideWithValue(repository),
           musicLibrarySnapshotProvider.overrideWith(
             (ref) async => emptyLibrarySnapshot,
           ),
@@ -281,6 +335,9 @@ void main() {
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/search');
     expect(uri.queryParameters['query'], 'Jazz');
+    expect(repository.recordedSearches, [
+      (query: 'Jazz', type: SearchHistoryType.sidebar),
+    ]);
   });
 
   testWidgets('sidebar back returns playlist details to playlists', (
@@ -485,5 +542,17 @@ class _RouterTestApp extends StatelessWidget {
       i18n: i18n,
       child: MaterialApp.router(routerConfig: router),
     );
+  }
+}
+
+class _RecordingRouterRepository extends LibraryRepository {
+  final recordedSearches = <({String query, SearchHistoryType type})>[];
+
+  @override
+  Future<void> addRecentSearch(
+    String query, [
+    SearchHistoryType type = SearchHistoryType.sidebar,
+  ]) async {
+    recordedSearches.add((query: query.trim(), type: type));
   }
 }

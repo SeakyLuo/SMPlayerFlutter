@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
+import '../data/library_providers.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
+import 'playlist_artwork.dart';
 
 class LocalFolderCard extends StatelessWidget {
   const LocalFolderCard({
@@ -114,7 +118,11 @@ class LocalFolderCard extends StatelessWidget {
             children: [
               Stack(
                 children: [
-                  _FolderArtwork(folder: folder, songsById: songsById),
+                  _FolderArtwork(
+                    folder: folder,
+                    nodes: nodes,
+                    songsById: songsById,
+                  ),
                   if (multiSelect)
                     Positioned(
                       top: 8,
@@ -312,27 +320,50 @@ class _FolderDropTargetFrame extends StatelessWidget {
   }
 }
 
-class _FolderArtwork extends StatelessWidget {
-  const _FolderArtwork({required this.folder, required this.songsById});
+class _FolderArtwork extends ConsumerStatefulWidget {
+  const _FolderArtwork({
+    required this.folder,
+    required this.nodes,
+    required this.songsById,
+  });
 
   final FolderNode folder;
+  final Map<String, FolderNode> nodes;
   final Map<int, LibrarySong> songsById;
 
   @override
-  Widget build(BuildContext context) {
-    final thumbnailPaths =
-        folder.thumbnailSubtreeSongIds
-            .map((songId) => songsById[songId]!.thumbnailPath)
-            .where((path) => path.isNotEmpty)
-            .take(4)
-            .toList();
+  ConsumerState<_FolderArtwork> createState() => _FolderArtworkState();
+}
 
+class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
+  var _signature = '';
+  List<String> _thumbnailPaths = const [];
+  var _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshArtwork();
+  }
+
+  @override
+  void didUpdateWidget(_FolderArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.folder != widget.folder ||
+        oldWidget.nodes != widget.nodes ||
+        oldWidget.songsById != widget.songsById) {
+      _refreshArtwork();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: 160,
         child:
-            thumbnailPaths.isEmpty
+            _thumbnailPaths.isEmpty
                 ? const DecoratedBox(
                   decoration: BoxDecoration(color: LocalPageColors.artwork),
                   child: Icon(
@@ -342,15 +373,54 @@ class _FolderArtwork extends StatelessWidget {
                   ),
                 )
                 : GridView.count(
-                  crossAxisCount: thumbnailPaths.length == 1 ? 1 : 2,
+                  crossAxisCount: _thumbnailPaths.length == 1 ? 1 : 2,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
                   children: [
-                    for (final path in thumbnailPaths)
+                    for (final path in _thumbnailPaths)
                       Image.file(File(path), fit: BoxFit.cover),
                   ],
                 ),
       ),
+    );
+  }
+
+  void _refreshArtwork() {
+    final candidateGroups = getOriginalFolderThumbnailCandidateGroups(
+      widget.folder,
+      widget.nodes,
+      widget.songsById,
+    );
+    final signature = getFolderThumbnailSignature(
+      widget.folder,
+      candidateGroups,
+    );
+    if (signature == _signature) {
+      return;
+    }
+
+    _signature = signature;
+    final cachedArtworkUrls = getCachedOriginalFolderThumbnailUrls(signature);
+    if (cachedArtworkUrls != null) {
+      _thumbnailPaths = cachedArtworkUrls;
+      return;
+    }
+
+    _thumbnailPaths = const [];
+    final generation = ++_generation;
+    unawaited(
+      resolveOriginalFolderThumbnailUrls(
+        candidateGroups,
+        ref.read(libraryRepositoryProvider),
+      ).then((artworkUrls) {
+        cacheOriginalFolderThumbnailUrls(signature, artworkUrls);
+        if (!mounted || generation != _generation || signature != _signature) {
+          return;
+        }
+        setState(() {
+          _thumbnailPaths = artworkUrls;
+        });
+      }),
     );
   }
 }

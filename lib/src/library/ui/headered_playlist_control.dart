@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
@@ -10,10 +12,13 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
@@ -29,6 +34,83 @@ typedef HeaderedPlaylistSortHandler =
       List<int> songIds,
       PlaylistSortCriterion sortCriterion,
     );
+
+const _defaultHeaderArtworkColor = Color(0xff5b87b6);
+const _headerArtworkColorMinValue = 10;
+const _headerArtworkColorMaxValue = 205;
+const _headerArtworkColorGridDivisions = 16;
+
+@visibleForTesting
+Color selectHeaderArtworkColorFromRgba(
+  Uint8List rgbaPixels,
+  int width,
+  int height,
+) {
+  var selected = _defaultHeaderArtworkColor;
+  var selectedDistance = -1;
+  for (var xIndex = 1; xIndex < _headerArtworkColorGridDivisions; xIndex += 1) {
+    for (
+      var yIndex = 1;
+      yIndex < _headerArtworkColorGridDivisions;
+      yIndex += 1
+    ) {
+      final x = min(
+        width - 1,
+        (width * xIndex) ~/ _headerArtworkColorGridDivisions,
+      );
+      final y = min(
+        height - 1,
+        (height * yIndex) ~/ _headerArtworkColorGridDivisions,
+      );
+      final offset = (y * width + x) * 4;
+      final red = rgbaPixels[offset];
+      final green = rgbaPixels[offset + 1];
+      final blue = rgbaPixels[offset + 2];
+      final alpha = rgbaPixels[offset + 3];
+
+      if (alpha == 0 ||
+          red < _headerArtworkColorMinValue ||
+          red > _headerArtworkColorMaxValue ||
+          green < _headerArtworkColorMinValue ||
+          green > _headerArtworkColorMaxValue ||
+          blue < _headerArtworkColorMinValue ||
+          blue > _headerArtworkColorMaxValue) {
+        continue;
+      }
+
+      final distance =
+          pow(red - _headerArtworkColorMinValue, 2) +
+          pow(green - _headerArtworkColorMinValue, 2) +
+          pow(blue - _headerArtworkColorMinValue, 2);
+      if (distance > selectedDistance) {
+        selected = Color.fromARGB(255, red, green, blue);
+        selectedDistance = distance.toInt();
+      }
+    }
+  }
+  return selected;
+}
+
+@visibleForTesting
+Color mixHeaderArtworkColors(List<Color> colors) {
+  if (colors.isEmpty) {
+    return _defaultHeaderArtworkColor;
+  }
+  var red = 0;
+  var green = 0;
+  var blue = 0;
+  for (final color in colors) {
+    red += (color.r * 255).round().clamp(0, 255);
+    green += (color.g * 255).round().clamp(0, 255);
+    blue += (color.b * 255).round().clamp(0, 255);
+  }
+  return Color.fromARGB(
+    255,
+    (red / colors.length).round(),
+    (green / colors.length).round(),
+    (blue / colors.length).round(),
+  );
+}
 
 class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   const HeaderedPlaylistControl({
@@ -119,35 +201,122 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
 
 class _HeaderedPlaylistControlState
     extends ConsumerState<HeaderedPlaylistControl> {
-  final _selection = PageSelectionController<int>();
+  late PageSelectionController<int> _selection;
   final _scrollController = ScrollController();
   List<int>? _orderedSongIds;
   PlaylistSortCriterion? _selectedSortCriterion;
   LibrarySong? _dialogSong;
   SongDialogMode? _dialogMode;
+  List<String> _resolvedPlaylistArtworkUrls = const [];
+  String _playlistArtworkSignature = '';
+  var _playlistArtworkGeneration = 0;
+  var _headerArtworkColorSignature = '';
+  var _headerArtworkColorGeneration = 0;
+  var _headerCoverColor = _defaultHeaderArtworkColor;
   var _scrollTop = 0.0;
+  var _headerCollapsed = false;
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
 
   @override
   void initState() {
     super.initState();
+    _selection = PageSelectionController<int>.stored(
+      _selectionStorageKeyFor(widget),
+    );
     _scrollController.addListener(_handleScroll);
+    _refreshPlaylistArtwork();
+    _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
   }
 
   @override
   void didUpdateWidget(HeaderedPlaylistControl oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_selectionStorageKeyFor(oldWidget) != _selectionStorageKeyFor(widget)) {
+      _selection = PageSelectionController<int>.stored(
+        _selectionStorageKeyFor(widget),
+      );
+    }
     if (oldWidget.songs != widget.songs) {
       _orderedSongIds = null;
       _selectedSortCriterion = null;
-      _selection.clearSelection();
     }
+    if (oldWidget.songs != widget.songs ||
+        oldWidget.headerSongs != widget.headerSongs ||
+        oldWidget.type != widget.type ||
+        oldWidget.artworkUrl != widget.artworkUrl) {
+      _refreshPlaylistArtwork();
+      _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
+    }
+  }
+
+  String _selectionStorageKeyFor(HeaderedPlaylistControl widget) {
+    return 'headered-playlist:${widget.preferenceType ?? widget.type.name}:${widget.preferenceItemId ?? widget.title}';
   }
 
   @override
   void dispose() {
+    _clearAppBarPortal();
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _syncAppBarPortal({
+    required bool compact,
+    required List<LibrarySong> visibleSongs,
+    required List<int> queueSongIds,
+    required PlaylistSortCriterion activeSortCriterion,
+    required SmPlayerI18n i18n,
+  }) {
+    final showPortal = compact && _headerCollapsed;
+    final playlistSignature = widget.playlists
+        .map(
+          (playlist) =>
+              '${playlist.id}:${playlist.name}:${playlist.songIds.length}',
+        )
+        .join('|');
+    final signature =
+        '$showPortal:${widget.title}:$activeSortCriterion:${_selection.multiSelect}:'
+        '${queueSongIds.join(',')}:$playlistSignature:'
+        '${widget.canRename}:${widget.canDelete}:${widget.canClear}:'
+        '${widget.canEditArtwork}:${widget.canSetPreferred}';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(headeredPlaylistAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        final current = notifier.state;
+        if (current?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = HeaderedPlaylistAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        title: widget.title,
+        commandBar: _buildShyCommandBar(
+          context,
+          i18n,
+          visibleSongs,
+          queueSongIds,
+          activeSortCriterion,
+        ),
+      );
+    });
+  }
+
+  void _clearAppBarPortal() {
+    final notifier = ref.read(headeredPlaylistAppBarPortalProvider.notifier);
+    if (notifier.state?.owner == _appBarPortalOwner) {
+      notifier.state = null;
+    }
   }
 
   @override
@@ -156,9 +325,6 @@ class _HeaderedPlaylistControlState
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final collapseDistance = compact ? 136.0 : 210.0;
     final collapseProgress = (_scrollTop / collapseDistance).clamp(0.0, 1.0);
-    final headerCollapsed =
-        _scrollTop >= (compact ? 112.0 : 224.0) ||
-        (collapseProgress == 1.0 && _scrollTop > 0);
     final songsById = {for (final song in widget.songs) song.id: song};
     final visibleSongs = _visibleSongs(songsById);
     final queueSongIds = visibleSongs.map((song) => song.id).toList();
@@ -167,6 +333,7 @@ class _HeaderedPlaylistControlState
         widget.sortCriterion ??
         inferSortCriterion(widget.songs);
     final headerSongs = widget.headerSongs ?? widget.songs;
+    final headerArtworkUrls = _currentHeaderArtworkUrls();
     final customPlaylists =
         widget.playlists
             .where((playlist) => !playlist.isBuiltIn)
@@ -191,21 +358,193 @@ class _HeaderedPlaylistControlState
             ? currentSavedPlaylist!.name
             : widget.title;
 
-    return Stack(
-      children: [
-        CustomScrollView(
-          key: const ValueKey('HeaderedPlaylist.ScrollView'),
-          controller: _scrollController,
-          slivers: [
-            SliverToBoxAdapter(
+    final colors = _HeaderedPlaylistColors.resolve(
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    _syncAppBarPortal(
+      compact: compact,
+      visibleSongs: visibleSongs,
+      queueSongIds: queueSongIds,
+      activeSortCriterion: activeSortCriterion,
+      i18n: i18n,
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(color: colors.pageSurface),
+      child: Stack(
+        children: [
+          ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: CustomScrollView(
+              key: const ValueKey('HeaderedPlaylist.ScrollView'),
+              controller: _scrollController,
+              slivers: [
+                if (compact)
+                  SliverToBoxAdapter(
+                    child: _HeaderHero(
+                      type: widget.type,
+                      title: widget.title,
+                      subtitle: widget.subtitle,
+                      caption: widget.caption,
+                      info: getHeaderPlaylistInfo(headerSongs, i18n),
+                      artworkUrls: headerArtworkUrls,
+                      coverColor: _headerCoverColor,
+                      collapseProgress: collapseProgress,
+                      commandBar: _buildCommandBar(
+                        context,
+                        i18n,
+                        visibleSongs,
+                        queueSongIds,
+                        activeSortCriterion,
+                        customPlaylists,
+                      ),
+                    ),
+                  )
+                else
+                  const SliverToBoxAdapter(child: SizedBox(height: 344)),
+                _HeaderedPlaylistListSliver(
+                  showAlbum: widget.showAlbum,
+                  itemCount: visibleSongs.length,
+                  bottomPadding:
+                      _selection.multiSelect
+                          ? multiSelectCommandBarScrollSpacer
+                          : 56,
+                  itemBuilder: (context, index) {
+                    final song = visibleSongs[index];
+                    final current = song.id == widget.selectedTrackId;
+                    return PlaylistControlItem(
+                      key: ValueKey('HeaderedPlaylist.Row.${song.id}'),
+                      song: song,
+                      current: current,
+                      playing: current && widget.isPlaying,
+                      selected: _selection.isSelected(song.id),
+                      selectionMode: _selection.multiSelect,
+                      showAlbum: widget.showAlbum,
+                      variant: PlaylistControlItemVariant.headeredPlaylist,
+                      playNextLabel: i18n.t('context.playNext'),
+                      removeLabel:
+                          widget.type == HeaderedPlaylistType.favorites
+                              ? i18n.t('context.removeFavorite')
+                              : i18n.t('context.removeFromList'),
+                      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+                      favoriteLabel: i18n.t('common.favorite'),
+                      moreLabel: i18n.t('player.more'),
+                      onPlayTrack: () {
+                        _playSong(song, queueSongIds);
+                      },
+                      onTogglePlayPause:
+                          widget.onTogglePlayPause ??
+                          () {
+                            _playSong(song, queueSongIds);
+                          },
+                      onToggleSelection: () {
+                        setState(() {
+                          _selection.toggle(song.id);
+                        });
+                      },
+                      onToggleFavoriteClick:
+                          widget.onToggleFavorite == null
+                              ? null
+                              : () {
+                                widget.onToggleFavorite!(
+                                  song.id,
+                                  !song.favorite,
+                                );
+                              },
+                      onAddToPlaylistClick: (buttonContext) {
+                        final item = buildAddToPlaylistMenuFlyoutItem(
+                          i18n: i18n,
+                          songIds: [song.id],
+                          playlists: customPlaylists,
+                          currentPlaylistName: currentPlaylistName,
+                          excludePlaylistName: currentSavedPlaylist?.name,
+                          includeNowPlaying: true,
+                          includeFavorites:
+                              widget.type != HeaderedPlaylistType.favorites,
+                          onAddToNowPlaying: () {
+                            _addSongsToNowPlaying([song.id]);
+                          },
+                          onToggleFavorite:
+                              widget.onToggleFavorite == null
+                                  ? null
+                                  : () {
+                                    widget.onToggleFavorite!(song.id, true);
+                                  },
+                          onCreatePlaylist: () {
+                            unawaited(
+                              _createPlaylistFromSongs(i18n, [song.id]),
+                            );
+                          },
+                          onAddToPlaylist: (playlistId) {
+                            unawaited(
+                              addSongsToPlaylistWithUndo(
+                                context: context,
+                                ref: ref,
+                                i18n: i18n,
+                                playlistId: playlistId,
+                                songIds: [song.id],
+                              ),
+                            );
+                          },
+                        );
+                        if (item != null) {
+                          showMenuFlyout(buttonContext, items: item.submenu);
+                        }
+                      },
+                      onRemoveFromListClick:
+                          widget.removable
+                              ? () {
+                                unawaited(
+                                  _removeSongsFromCurrentPlaylist([song.id]),
+                                );
+                              }
+                              : null,
+                      onPlayNextClick: () {
+                        widget.onPlayNext?.call(song.id);
+                      },
+                      onOpenContextMenu: (position) {
+                        unawaited(
+                          _showSongMenu(context, i18n, position, song, index),
+                        );
+                      },
+                      onSeeArtist: widget.onArtistClick,
+                      onSeeAlbum:
+                          widget.onAlbumClick == null
+                              ? null
+                              : () {
+                                widget.onAlbumClick!(
+                                  song.album.isEmpty
+                                      ? i18n.t('common.albumUnknown')
+                                      : song.album,
+                                );
+                              },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          _HeaderedPlaylistScrollbar(
+            controller: _scrollController,
+            collapseProgress: collapseProgress,
+          ),
+          if (!compact)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
               child: _HeaderHero(
                 type: widget.type,
                 title: widget.title,
                 subtitle: widget.subtitle,
                 caption: widget.caption,
                 info: getHeaderPlaylistInfo(headerSongs, i18n),
-                artworkUrls: _headerArtworkUrls(headerSongs),
+                artworkUrls: headerArtworkUrls,
+                coverColor: _headerCoverColor,
                 collapseProgress: collapseProgress,
+                extendBackdrop: false,
                 commandBar: _buildCommandBar(
                   context,
                   i18n,
@@ -216,233 +555,115 @@ class _HeaderedPlaylistControlState
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
-                child: _HeaderedPlaylistListHeader(showAlbum: widget.showAlbum),
-              ),
-            ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                0,
-                20,
-                _selection.multiSelect ? multiSelectCommandBarScrollSpacer : 28,
-              ),
-              sliver: SliverList.builder(
-                itemCount: visibleSongs.length,
-                itemBuilder: (context, index) {
-                  final song = visibleSongs[index];
-                  final current = song.id == widget.selectedTrackId;
-                  return PlaylistControlItem(
-                    song: song,
-                    current: current,
-                    playing: current && widget.isPlaying,
-                    selected: _selection.isSelected(song.id),
-                    selectionMode: _selection.multiSelect,
-                    showAlbum: widget.showAlbum,
-                    playNextLabel: i18n.t('context.playNext'),
-                    removeLabel:
-                        widget.type == HeaderedPlaylistType.favorites
-                            ? i18n.t('context.removeFavorite')
-                            : i18n.t('context.removeFromList'),
-                    addToPlaylistLabel: i18n.t('context.addToPlaylist'),
-                    favoriteLabel: i18n.t('common.favorite'),
-                    moreLabel: i18n.t('player.more'),
-                    onPlayTrack: () {
-                      _playSong(song, queueSongIds);
-                    },
-                    onTogglePlayPause:
-                        widget.onTogglePlayPause ??
-                        () {
-                          _playSong(song, queueSongIds);
-                        },
-                    onToggleSelection: () {
-                      setState(() {
-                        _selection.toggle(song.id);
-                      });
-                    },
-                    onToggleFavoriteClick:
-                        widget.onToggleFavorite == null
-                            ? null
-                            : () {
-                              widget.onToggleFavorite!(song.id, !song.favorite);
-                            },
-                    onAddToPlaylistClick: (buttonContext) {
-                      final item = buildAddToPlaylistMenuFlyoutItem(
-                        i18n: i18n,
-                        songIds: [song.id],
-                        playlists: customPlaylists,
-                        currentPlaylistName: currentPlaylistName,
-                        excludePlaylistName: currentSavedPlaylist?.name,
-                        includeNowPlaying: true,
-                        includeFavorites:
-                            widget.type != HeaderedPlaylistType.favorites,
-                        onAddToNowPlaying: () {
-                          _addSongsToNowPlaying([song.id]);
-                        },
-                        onToggleFavorite:
-                            widget.onToggleFavorite == null
-                                ? null
-                                : () {
-                                  widget.onToggleFavorite!(song.id, true);
-                                },
-                        onCreatePlaylist: () {
-                          unawaited(_createPlaylistFromSongs(i18n, [song.id]));
-                        },
-                        onAddToPlaylist: (playlistId) {
-                          widget.onAddSongToPlaylist(playlistId, song.id);
-                        },
-                      );
-                      if (item != null) {
-                        showMenuFlyout(buttonContext, items: item.submenu);
-                      }
-                    },
-                    onRemoveFromListClick:
-                        widget.removable
-                            ? () {
-                              unawaited(
-                                _removeSongsFromCurrentPlaylist([song.id]),
-                              );
-                            }
-                            : null,
-                    onPlayNextClick: () {
-                      widget.onPlayNext?.call(song.id);
-                    },
-                    onOpenContextMenu: (position) {
-                      unawaited(
-                        _showSongMenu(context, i18n, position, song, index),
-                      );
-                    },
-                    onSeeArtist: widget.onArtistClick,
-                    onSeeAlbum:
-                        widget.onAlbumClick == null
-                            ? null
-                            : () {
-                              widget.onAlbumClick!(
-                                song.album.isEmpty
-                                    ? i18n.t('common.albumUnknown')
-                                    : song.album,
-                              );
-                            },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        if (headerCollapsed)
-          _CollapsedHeaderCommandBar(
-            title: widget.title,
-            i18n: i18n,
-            commandBar: _buildShyCommandBar(
-              context,
-              i18n,
-              visibleSongs,
-              queueSongIds,
-              activeSortCriterion,
-            ),
-          ),
-        MultiSelectCommandBar(
-          visible: _selection.multiSelect,
-          selectedCount: _effectiveSelectedSongIds(queueSongIds).length,
-          playlists: customPlaylists,
-          addToSongIds: _effectiveSelectedSongIds(queueSongIds),
-          includeNowPlayingInAddTo: true,
-          includeFavoritesInAddTo:
-              widget.type != HeaderedPlaylistType.favorites,
-          currentPlaylistName: currentPlaylistName,
-          excludePlaylistName: currentSavedPlaylist?.name,
-          onAddToNowPlaying: () {
-            _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
-            _hideSelectionAfterOperation();
-          },
-          onToggleFavorite:
-              widget.type == HeaderedPlaylistType.favorites
-                  ? null
-                  : () {
-                    final songIds = _effectiveSelectedSongIds(queueSongIds);
-                    unawaited(
-                      setSongsFavoriteWithUndo(
-                        context: context,
-                        ref: ref,
-                        i18n: i18n,
-                        songIds: songIds,
-                        favorite: true,
-                      ),
-                    );
-                    _hideSelectionAfterOperation();
-                  },
-          onCreatePlaylist: () {
-            unawaited(
-              _createPlaylistFromSongs(
-                i18n,
-                _effectiveSelectedSongIds(queueSongIds),
-              ),
-            );
-            _hideSelectionAfterOperation();
-          },
-          removeLabel:
-              widget.type == HeaderedPlaylistType.favorites
-                  ? i18n.t('context.removeFavorite')
-                  : i18n.t('playlists.removeSelected'),
-          onPlay: () {
-            final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
-            widget.onPlayTrack(selectedSongIds.first, selectedSongIds);
-            _hideSelectionAfterOperation();
-          },
-          onAddToPlaylist: (playlistId) {
-            final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
-            widget.onAddSongsToPlaylist?.call(playlistId, selectedSongIds);
-            _hideSelectionAfterOperation();
-          },
-          onRemove: () {
-            unawaited(
-              _removeSongsFromCurrentPlaylist(
-                _effectiveSelectedSongIds(queueSongIds),
-              ),
-            );
-          },
-          onSelectAll: () {
-            setState(() {
-              _selection.selectAll(queueSongIds);
-            });
-          },
-          onReverseSelection: () {
-            setState(() {
-              _selection.reverseSelection(queueSongIds);
-            });
-          },
-          onClearSelection: () {
-            setState(() {
-              _selection.clearSelection();
-            });
-          },
-          onCancel: () {
-            setState(() {
-              _selection.cancel();
-            });
-          },
-        ),
-        if (_dialogSong != null && _dialogMode != null)
-          MusicDialog(
-            song: _dialogSong!,
-            initialMode: _dialogMode!,
-            canPause:
-                widget.isPlaying && widget.selectedTrackId == _dialogSong!.id,
-            onPlay: widget.onTogglePlayPause,
-            onReveal: _revealPath,
-            onSaved: () {
-              ref.invalidate(musicLibrarySnapshotProvider);
+          MultiSelectCommandBar(
+            visible: _selection.multiSelect,
+            selectedCount: _effectiveSelectedSongIds(queueSongIds).length,
+            playlists: customPlaylists,
+            addToSongIds: _effectiveSelectedSongIds(queueSongIds),
+            includeNowPlayingInAddTo: true,
+            includeFavoritesInAddTo:
+                widget.type != HeaderedPlaylistType.favorites,
+            currentPlaylistName: currentPlaylistName,
+            excludePlaylistName: currentSavedPlaylist?.name,
+            onAddToNowPlaying: () {
+              _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
+              _hideSelectionAfterOperation();
             },
-            onClose: () {
+            onToggleFavorite:
+                widget.type == HeaderedPlaylistType.favorites
+                    ? null
+                    : () {
+                      final songIds = _effectiveSelectedSongIds(queueSongIds);
+                      unawaited(
+                        setSongsFavoriteWithUndo(
+                          context: context,
+                          ref: ref,
+                          i18n: i18n,
+                          songIds: songIds,
+                          favorite: true,
+                        ),
+                      );
+                      _hideSelectionAfterOperation();
+                    },
+            onCreatePlaylist: () {
+              unawaited(
+                _createPlaylistFromSongs(
+                  i18n,
+                  _effectiveSelectedSongIds(queueSongIds),
+                ),
+              );
+              _hideSelectionAfterOperation();
+            },
+            removeLabel:
+                widget.type == HeaderedPlaylistType.favorites
+                    ? i18n.t('context.removeFavorite')
+                    : i18n.t('playlists.removeSelected'),
+            onPlay: () {
+              final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
+              widget.onPlayTrack(selectedSongIds.first, selectedSongIds);
+              _hideSelectionAfterOperation();
+            },
+            onAddToPlaylist: (playlistId) {
+              final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
+              unawaited(
+                addSongsToPlaylistWithUndo(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  playlistId: playlistId,
+                  songIds: selectedSongIds,
+                ),
+              );
+              _hideSelectionAfterOperation();
+            },
+            onRemove: () {
+              unawaited(
+                _removeSongsFromCurrentPlaylist(
+                  _effectiveSelectedSongIds(queueSongIds),
+                ),
+              );
+            },
+            onSelectAll: () {
               setState(() {
-                _dialogSong = null;
-                _dialogMode = null;
+                _selection.selectAll(queueSongIds);
+              });
+            },
+            onReverseSelection: () {
+              setState(() {
+                _selection.reverseSelection(queueSongIds);
+              });
+            },
+            onClearSelection: () {
+              setState(() {
+                _selection.clearSelection();
+              });
+            },
+            onCancel: () {
+              setState(() {
+                _selection.cancel();
               });
             },
           ),
-      ],
+          if (_dialogSong != null && _dialogMode != null)
+            MusicDialog(
+              song: _dialogSong!,
+              initialMode: _dialogMode!,
+              canPause:
+                  widget.isPlaying && widget.selectedTrackId == _dialogSong!.id,
+              onPlay: widget.onTogglePlayPause,
+              onReveal: _revealPath,
+              onSaved: () {
+                ref.invalidate(musicLibrarySnapshotProvider);
+              },
+              onClose: () {
+                setState(() {
+                  _dialogSong = null;
+                  _dialogMode = null;
+                });
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -451,8 +672,14 @@ class _HeaderedPlaylistControlState
     if ((nextScrollTop - _scrollTop).abs() < 0.5) {
       return;
     }
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final nextHeaderCollapsed =
+        _headerCollapsed
+            ? nextScrollTop > (compact ? 76.0 : 186.0)
+            : nextScrollTop >= (compact ? 112.0 : 224.0);
     setState(() {
       _scrollTop = nextScrollTop;
+      _headerCollapsed = nextHeaderCollapsed;
     });
   }
 
@@ -478,7 +705,7 @@ class _HeaderedPlaylistControlState
           },
         ),
         CommandBarButton(
-          icon: FluentIcons.checkbox_checked_20_regular,
+          icon: FluentIcons.multiselect_ltr_20_regular,
           label: captionForHeaderedPlaylist(i18n, 'multiSelect'),
           active: _selection.multiSelect,
           disabled: visibleSongs.isEmpty,
@@ -488,7 +715,7 @@ class _HeaderedPlaylistControlState
             });
           },
         ),
-        if (widget.canSetPreferred)
+        if (widget.canSetPreferred && widget.onSetPreferred != null)
           Builder(
             builder:
                 (_) => CommandBarButton(
@@ -505,7 +732,6 @@ class _HeaderedPlaylistControlState
                 icon: FluentIcons.arrow_sort_20_regular,
                 label: captionForHeaderedPlaylist(i18n, 'sort'),
                 disabled: visibleSongs.isEmpty,
-                active: widget.sortCriterion == activeSortCriterion,
                 overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
                 onPressed: () {
                   showMenuFlyout(
@@ -535,11 +761,12 @@ class _HeaderedPlaylistControlState
           CommandBarButton(
             icon: FluentIcons.dismiss_circle_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'clear'),
+            disabled: visibleSongs.isEmpty,
             onPressed: () {
               unawaited(_requestClear(i18n));
             },
           ),
-        if (widget.canEditArtwork)
+        if (widget.canEditArtwork && widget.onEditArtwork != null)
           CommandBarButton(
             icon: FluentIcons.image_edit_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'editArtwork'),
@@ -563,7 +790,7 @@ class _HeaderedPlaylistControlState
         MenuFlyoutItem(
           key: 'multi-select',
           text: captionForHeaderedPlaylist(i18n, 'multiSelect'),
-          icon: FluentIcons.checkbox_checked_20_regular,
+          icon: FluentIcons.multiselect_ltr_20_regular,
           disabled: visibleSongs.isEmpty,
           onPressed: () {
             setState(() {
@@ -571,7 +798,7 @@ class _HeaderedPlaylistControlState
             });
           },
         ),
-        if (widget.canSetPreferred)
+        if (widget.canSetPreferred && widget.onSetPreferred != null)
           MenuFlyoutItem(
             key: 'preference-settings',
             text: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
@@ -616,7 +843,7 @@ class _HeaderedPlaylistControlState
               unawaited(_requestDelete(i18n));
             },
           ),
-        if (widget.canEditArtwork)
+        if (widget.canEditArtwork && widget.onEditArtwork != null)
           MenuFlyoutItem(
             key: 'edit-artwork',
             text: captionForHeaderedPlaylist(i18n, 'editArtwork'),
@@ -717,21 +944,120 @@ class _HeaderedPlaylistControlState
     ];
   }
 
-  List<String> _headerArtworkUrls(List<LibrarySong> headerSongs) {
+  void _refreshPlaylistArtwork() {
+    if (widget.type == HeaderedPlaylistType.album) {
+      _playlistArtworkSignature = '';
+      _resolvedPlaylistArtworkUrls = const [];
+      _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
+      return;
+    }
+
+    final songs = widget.headerSongs ?? widget.songs;
+    final signature = getPlaylistArtworkSignature(songs);
+    if (signature == _playlistArtworkSignature) {
+      return;
+    }
+
+    _playlistArtworkSignature = signature;
+    final cachedArtworkUrls = getCachedPlaylistArtworkUrls(signature);
+    if (cachedArtworkUrls != null) {
+      _resolvedPlaylistArtworkUrls = cachedArtworkUrls;
+      _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
+      return;
+    }
+
+    _resolvedPlaylistArtworkUrls = const [];
+    _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
+    final generation = ++_playlistArtworkGeneration;
+    unawaited(
+      resolvePlaylistArtworkUrls(
+        songs,
+        ref.read(libraryRepositoryProvider),
+      ).then((artworkUrls) {
+        cachePlaylistArtworkUrls(signature, artworkUrls);
+        if (!mounted ||
+            generation != _playlistArtworkGeneration ||
+            signature != _playlistArtworkSignature) {
+          return;
+        }
+        _refreshHeaderArtworkColor(getPlaylistArtworkDisplayUrls(artworkUrls));
+        setState(() {
+          _resolvedPlaylistArtworkUrls = artworkUrls;
+        });
+      }),
+    );
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _playlistArtworkSignature = '';
+    _refreshPlaylistArtwork();
+  }
+
+  List<String> _currentHeaderArtworkUrls() {
     if (widget.type == HeaderedPlaylistType.album) {
       return widget.artworkUrl.isEmpty ? const [] : [widget.artworkUrl];
     }
+    return getPlaylistArtworkDisplayUrls(_resolvedPlaylistArtworkUrls);
+  }
 
-    final urls = <String>[];
-    for (final song in headerSongs) {
-      if (song.thumbnailPath.isNotEmpty && !urls.contains(song.thumbnailPath)) {
-        urls.add(song.thumbnailPath);
+  void _refreshHeaderArtworkColor(List<String> artworkUrls) {
+    final signature = artworkUrls.take(4).join('\n');
+    if (signature == _headerArtworkColorSignature) {
+      return;
+    }
+    _headerArtworkColorSignature = signature;
+    if (signature.isEmpty) {
+      _headerCoverColor = _defaultHeaderArtworkColor;
+      return;
+    }
+
+    final generation = ++_headerArtworkColorGeneration;
+    unawaited(
+      Future.wait(artworkUrls.take(4).map(_extractHeaderArtworkColor)).then((
+        colors,
+      ) {
+        if (!mounted ||
+            generation != _headerArtworkColorGeneration ||
+            signature != _headerArtworkColorSignature) {
+          return;
+        }
+        final nextColor = mixHeaderArtworkColors(colors);
+        if (nextColor == _headerCoverColor) {
+          return;
+        }
+        setState(() {
+          _headerCoverColor = nextColor;
+        });
+      }),
+    );
+  }
+
+  Future<Color> _extractHeaderArtworkColor(String artworkPath) async {
+    try {
+      final bytes = await File(artworkPath).readAsBytes();
+      final codec = await instantiateImageCodec(
+        bytes,
+      ).timeout(const Duration(seconds: 2));
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final byteData = await image.toByteData(format: ImageByteFormat.rawRgba);
+      final width = image.width;
+      final height = image.height;
+      image.dispose();
+      codec.dispose();
+      if (byteData == null) {
+        return _defaultHeaderArtworkColor;
       }
+      return selectHeaderArtworkColorFromRgba(
+        byteData.buffer.asUint8List(),
+        width,
+        height,
+      );
+    } on Object {
+      return _defaultHeaderArtworkColor;
     }
-    if (urls.isEmpty && widget.artworkUrl.isNotEmpty) {
-      urls.add(widget.artworkUrl);
-    }
-    return urls;
   }
 
   void _playSong(LibrarySong song, List<int> queueSongIds) {
@@ -811,34 +1137,52 @@ class _HeaderedPlaylistControlState
     if (songIds.isEmpty) {
       return;
     }
+    final i18n = context.smPlayerI18n;
+    final songsById = {for (final song in widget.songs) song.id: song};
     if (widget.type == HeaderedPlaylistType.favorites) {
-      _showUndoSnackBar(() async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .setSongsFavorite(songIds, true);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      });
+      _showUndoSnackBar(
+        () async {
+          await ref
+              .read(libraryRepositoryProvider)
+              .setSongsFavorite(songIds, true);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        songsRemovedUndoMessage(
+          i18n: i18n,
+          songIds: songIds,
+          songsById: songsById,
+          target: i18n.t('common.myFavorites'),
+        ),
+      );
       return;
     }
     if (widget.type == HeaderedPlaylistType.playlist) {
       final playlist = widget.playlists.firstWhere(
         (playlist) => playlist.name == widget.title,
       );
-      _showUndoSnackBar(() async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .addSongsToPlaylist(playlist.id, songIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
-      });
+      _showUndoSnackBar(
+        () async {
+          await ref
+              .read(libraryRepositoryProvider)
+              .addSongsToPlaylist(playlist.id, songIds);
+          ref.invalidate(musicLibrarySnapshotProvider);
+        },
+        songsRemovedUndoMessage(
+          i18n: i18n,
+          songIds: songIds,
+          songsById: songsById,
+          target: playlist.name,
+        ),
+      );
     }
   }
 
-  void _showUndoSnackBar(FutureOr<void> Function() onUndo) {
+  void _showUndoSnackBar(FutureOr<void> Function() onUndo, String message) {
     final i18n = context.smPlayerI18n;
     showUndoableSnackBar(
       context: context,
       i18n: i18n,
-      message: i18n.t('notification.operationDone'),
+      message: message,
       onUndo: onUndo,
     );
   }
@@ -866,6 +1210,7 @@ class _HeaderedPlaylistControlState
     if (!context.mounted) {
       return;
     }
+    final folders = _menuFolders(snapshot.folders);
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
             ? widget.playlists.firstWhere(
@@ -917,7 +1262,17 @@ class _HeaderedPlaylistControlState
           widget.onTogglePlayPause?.call();
         },
         onPlayNext: () {
-          widget.onPlayNext?.call(song.id);
+          if (widget.onPlayNext != null) {
+            widget.onPlayNext!(song.id);
+            return;
+          }
+          final nextQueue = snapshot.nowPlaying.songIds.toList();
+          final currentIndex =
+              widget.selectedTrackId == null
+                  ? -1
+                  : nextQueue.indexOf(widget.selectedTrackId!);
+          nextQueue.insert(currentIndex < 0 ? 0 : currentIndex + 1, song.id);
+          widget.onPlayTrack(widget.selectedTrackId ?? song.id, nextQueue);
         },
         onAddToNowPlaying: () {
           _addSongsToNowPlaying([song.id]);
@@ -930,7 +1285,15 @@ class _HeaderedPlaylistControlState
           );
         },
         onAddToPlaylist: (playlistId) {
-          widget.onAddSongToPlaylist(playlistId, song.id);
+          unawaited(
+            addSongsToPlaylistWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              playlistId: playlistId,
+              songIds: [song.id],
+            ),
+          );
         },
         onRemove: () {
           unawaited(_removeSongsFromCurrentPlaylist([song.id]));
@@ -946,7 +1309,15 @@ class _HeaderedPlaylistControlState
             unawaited(_removeSongsFromCurrentPlaylist([song.id]));
             return;
           }
-          widget.onToggleFavorite?.call(song.id, !song.favorite);
+          unawaited(
+            setSongsFavoriteWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              songIds: [song.id],
+              favorite: !song.favorite,
+            ),
+          );
         },
         onSetPreference: (level) async {
           await ref
@@ -967,6 +1338,30 @@ class _HeaderedPlaylistControlState
         onDelete: () {
           unawaited(
             requestDeleteSongFromDisk(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              song: song,
+            ),
+          );
+        },
+        folders: folders,
+        showMoveToFolder: folders.isNotEmpty,
+        onMoveToFolder: (folderPath) {
+          unawaited(
+            moveSongToFolderWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              song: song,
+              folderPath: folderPath,
+            ),
+          );
+        },
+        showHideFile: true,
+        onHide: () {
+          unawaited(
+            hideSongFileWithUndo(
               context: context,
               ref: ref,
               i18n: i18n,
@@ -996,6 +1391,25 @@ class _HeaderedPlaylistControlState
         },
       ),
     );
+  }
+
+  List<MenuFlyoutFolder> _menuFolders(List<LibraryFolder> folders) {
+    return folders
+        .map(
+          (folder) => MenuFlyoutFolder(
+            id: folder.id,
+            name: _displayPathName(folder.path),
+            path: folder.path,
+            parentId: folder.parentId,
+          ),
+        )
+        .toList();
+  }
+
+  String _displayPathName(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final index = normalized.lastIndexOf('/');
+    return index < 0 ? normalized : normalized.substring(index + 1);
   }
 
   Future<void> _createPlaylistFromSongs(
@@ -1112,55 +1526,114 @@ class _HeaderedPlaylistControlState
   }
 }
 
-class _CollapsedHeaderCommandBar extends StatelessWidget {
-  const _CollapsedHeaderCommandBar({
-    required this.title,
-    required this.i18n,
-    required this.commandBar,
+class _HeaderedPlaylistScrollbar extends StatefulWidget {
+  const _HeaderedPlaylistScrollbar({
+    required this.controller,
+    required this.collapseProgress,
   });
 
-  final String title;
-  final SmPlayerI18n i18n;
-  final Widget commandBar;
+  final ScrollController controller;
+  final double collapseProgress;
+
+  @override
+  State<_HeaderedPlaylistScrollbar> createState() =>
+      _HeaderedPlaylistScrollbarState();
+}
+
+class _HeaderedPlaylistScrollbarState
+    extends State<_HeaderedPlaylistScrollbar> {
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final colors = _HeaderedPlaylistColors.resolve(
+      Theme.of(context).brightness == Brightness.dark,
+    );
     return Positioned(
-      key: const ValueKey('HeaderedPlaylist.CollapsedBar'),
-      left: 16,
-      top: 12,
-      right: 16,
-      child: Material(
-        elevation: 10,
-        shadowColor: const Color(0x1f000000),
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _HeaderedPlaylistColors.textStrong,
-                        fontWeight: FontWeight.w800,
+      key: const ValueKey('HeaderedPlaylist.Scrollbar'),
+      top:
+          lerpDouble(
+            compact ? 324 : 330,
+            compact ? 142 : 130,
+            widget.collapseProgress,
+          )! +
+          4,
+      right: 2,
+      bottom: 10,
+      width: 10,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return AnimatedBuilder(
+            animation: widget.controller,
+            builder: (context, _) {
+              if (!widget.controller.hasClients) {
+                return const SizedBox.shrink();
+              }
+              final position = widget.controller.position;
+              final maxScrollExtent = position.maxScrollExtent;
+              if (maxScrollExtent <= 0) {
+                return const SizedBox.shrink();
+              }
+
+              final scrollbarHeight = max(48.0, constraints.maxHeight);
+              final contentHeight = scrollbarHeight + maxScrollExtent;
+              final thumbHeight = max(
+                38.0,
+                (scrollbarHeight / contentHeight) * scrollbarHeight,
+              );
+              final thumbTop =
+                  (position.pixels / maxScrollExtent) *
+                  (scrollbarHeight - thumbHeight);
+              final thumbColor =
+                  _hovered ? colors.scrollbarThumbHover : colors.scrollbarThumb;
+
+              return MouseRegion(
+                onEnter: (_) {
+                  setState(() {
+                    _hovered = true;
+                  });
+                },
+                onExit: (_) {
+                  setState(() {
+                    _hovered = false;
+                  });
+                },
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: thumbTop.clamp(0.0, scrollbarHeight - thumbHeight),
+                      right: 2,
+                      width: 4,
+                      height: thumbHeight,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragUpdate: (details) {
+                          final trackDistance = scrollbarHeight - thumbHeight;
+                          final scrollDelta =
+                              details.delta.dy *
+                              (maxScrollExtent / trackDistance);
+                          widget.controller.jumpTo(
+                            (position.pixels + scrollDelta).clamp(
+                              0.0,
+                              maxScrollExtent,
+                            ),
+                          );
+                        },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: thumbColor,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 220, child: commandBar),
-                ],
-              ),
-            ),
-          ),
-        ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -1172,8 +1645,10 @@ class _HeaderHero extends StatelessWidget {
     required this.title,
     required this.info,
     required this.artworkUrls,
+    required this.coverColor,
     required this.collapseProgress,
     required this.commandBar,
+    this.extendBackdrop = true,
     this.subtitle,
     this.caption,
   });
@@ -1184,118 +1659,196 @@ class _HeaderHero extends StatelessWidget {
   final String? caption;
   final String info;
   final List<String> artworkUrls;
+  final Color coverColor;
   final double collapseProgress;
   final Widget commandBar;
+  final bool extendBackdrop;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final colors = _HeaderedPlaylistColors.resolve(nightMode);
     final heroHeight =
         lerpDouble(compact ? 320 : 326, compact ? 138 : 126, collapseProgress)!;
     final coverSize =
         lerpDouble(compact ? 180 : 240, compact ? 68 : 86, collapseProgress)!;
     final titleSize =
-        lerpDouble(compact ? 30 : 46, compact ? 20 : 26, collapseProgress)!;
-    final commandMargin = lerpDouble(30, 8, collapseProgress)!;
-    return Container(
-      constraints: BoxConstraints(minHeight: heroHeight),
-      padding: EdgeInsets.fromLTRB(32, compact ? 24 : 58, 32, 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _HeaderedPlaylistColors.heroTint,
-            _HeaderedPlaylistColors.heroSurface,
-          ],
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final copy = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
+        lerpDouble(compact ? 24 : 48, compact ? 20 : 26, collapseProgress)!;
+    final commandMargin =
+        lerpDouble(compact ? 8 : 30, compact ? 4 : 8, collapseProgress)!;
+    final heroPaddingTop =
+        compact ? 0.0 : lerpDouble(50, 24, collapseProgress)!;
+    final horizontalPadding = compact ? 4.0 : 40.0;
+    final gap =
+        lerpDouble(compact ? 12 : 42, compact ? 12 : 18, collapseProgress)!;
+    return SizedBox(
+      height: heroHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            bottom: extendBackdrop ? -110 : 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: colors.pageSurface),
+            ),
+          ),
+          Positioned.fill(
+            bottom: extendBackdrop ? -110 : 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-0.6, -0.56),
+                  radius: 0.86,
+                  colors:
+                      nightMode
+                          ? [
+                            coverColor.withValues(alpha: 0.20),
+                            coverColor.withValues(alpha: 0),
+                          ]
+                          : [
+                            coverColor.withValues(alpha: 0.32),
+                            coverColor.withValues(alpha: 0),
+                          ],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            bottom: extendBackdrop ? -110 : 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.78, -0.8),
+                  radius: 1.0,
+                  colors:
+                      nightMode
+                          ? [
+                            coverColor.withValues(alpha: 0.10),
+                            coverColor.withValues(alpha: 0),
+                          ]
+                          : [
+                            coverColor.withValues(alpha: 0.16),
+                            coverColor.withValues(alpha: 0),
+                          ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              heroPaddingTop,
+              horizontalPadding,
+              compact ? 4 : lerpDouble(10, 4, collapseProgress)!,
+            ),
+            child: Flex(
+              direction: compact ? Axis.vertical : Axis.horizontal,
+              crossAxisAlignment:
+                  compact
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.center,
+              children: [
+                HeaderedPlaylistCover(
+                  artworkUrls: artworkUrls,
+                  title: title,
+                  type: type,
+                  size: coverSize,
+                  collapseProgress: collapseProgress,
+                ),
+                SizedBox(width: compact ? 0 : gap, height: compact ? gap : 0),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment:
+                        compact
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.center,
+                    crossAxisAlignment:
+                        compact
+                            ? CrossAxisAlignment.center
+                            : CrossAxisAlignment.start,
                     children: [
                       if (caption != null) ...[
                         Text(
                           caption!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _HeaderedPlaylistColors.textMuted,
+                          style: TextStyle(
+                            color: colors.textMuted,
                             fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 8),
                       ],
                       Text(
                         title,
-                        maxLines: compact ? 2 : 1,
+                        maxLines: compact ? 2 : 3,
+                        textAlign: compact ? TextAlign.center : TextAlign.start,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: _HeaderedPlaylistColors.textStrong,
+                          color: colors.textStrong,
                           fontSize: titleSize,
-                          height: 1.05,
-                          fontWeight: FontWeight.w800,
+                          height: 1.08,
+                          fontWeight: FontWeight.w600,
+                          fontVariations: const [FontVariation.weight(650)],
                         ),
                       ),
                       if (subtitle != null) ...[
-                        const SizedBox(height: 8),
+                        SizedBox(height: lerpDouble(8, 4, collapseProgress)!),
                         Text(
                           subtitle!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _HeaderedPlaylistColors.textMuted,
-                            fontSize: 15,
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: lerpDouble(17, 14, collapseProgress)!,
+                            fontWeight: FontWeight.w600,
+                            fontVariations: const [FontVariation.weight(650)],
                           ),
                         ),
                       ],
-                      const SizedBox(height: 8),
-                      Text(
-                        info,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _HeaderedPlaylistColors.textMuted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      SizedBox(height: lerpDouble(8, 4, collapseProgress)!),
+                      ClipRect(
+                        child: Align(
+                          heightFactor: (1 - collapseProgress).clamp(0.0, 1.0),
+                          child: Opacity(
+                            opacity: (1 - collapseProgress).clamp(0.0, 1.0),
+                            child: Text(
+                              info,
+                              maxLines: 1,
+                              textAlign:
+                                  compact ? TextAlign.center : TextAlign.start,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: lerpDouble(17, 14, collapseProgress)!,
+                                fontWeight: FontWeight.w600,
+                                fontVariations: const [
+                                  FontVariation.weight(650),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: commandMargin),
+                      Align(
+                        alignment:
+                            compact ? Alignment.center : Alignment.centerLeft,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: commandBar,
                         ),
                       ),
                     ],
-                  );
-                  return Flex(
-                    direction: compact ? Axis.vertical : Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      HeaderedPlaylistCover(
-                        artworkUrls: artworkUrls,
-                        title: title,
-                        type: type,
-                        size: coverSize,
-                      ),
-                      SizedBox(
-                        width: compact ? 0 : 28,
-                        height: compact ? 18 : 0,
-                      ),
-                      if (compact) copy else Expanded(child: copy),
-                    ],
-                  );
-                },
-              ),
-              SizedBox(height: commandMargin),
-              commandBar,
-            ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1308,42 +1861,54 @@ class HeaderedPlaylistCover extends StatelessWidget {
     required this.title,
     required this.type,
     this.size = 240,
+    this.collapseProgress = 0,
   });
 
   final List<String> artworkUrls;
   final String title;
   final HeaderedPlaylistType type;
   final double size;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
-    if (artworkUrls.length >= 3 && type != HeaderedPlaylistType.album) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: SizedBox.square(
-          dimension: size,
-          child: GridView.count(
-            crossAxisCount: 2,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            children: [
-              for (final artworkUrl in artworkUrls.take(4))
-                _CoverImage(artworkUrl: artworkUrl),
-              if (artworkUrls.length == 3) const _CoverFallback(),
-            ],
-          ),
+    final colors = _HeaderedPlaylistColors.resolve(
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    final radius = lerpDouble(14, 8, collapseProgress)!;
+    final decoration = BoxDecoration(
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: [
+        BoxShadow(
+          color: colors.coverShadow,
+          offset: const Offset(0, 26),
+          blurRadius: 58,
         ),
-      );
-    }
+      ],
+      border: Border.all(color: colors.coverInset),
+    );
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox.square(
-        dimension: size,
-        child:
-            artworkUrls.isEmpty
-                ? const _CoverFallback()
-                : _CoverImage(artworkUrl: artworkUrls.first),
+    final child =
+        artworkUrls.length >= 3 && type != HeaderedPlaylistType.album
+            ? GridView.count(
+              crossAxisCount: 2,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: [
+                for (final artworkUrl in artworkUrls.take(4))
+                  _CoverImage(artworkUrl: artworkUrl),
+                if (artworkUrls.length == 3) const _CoverMosaicFallback(),
+              ],
+            )
+            : artworkUrls.isEmpty
+            ? const _CoverFallback()
+            : _CoverImage(artworkUrl: artworkUrls.first);
+
+    return DecoratedBox(
+      decoration: decoration,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox.square(dimension: size, child: child),
       ),
     );
   }
@@ -1370,21 +1935,82 @@ class _CoverFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _HeaderedPlaylistColors.coverA,
-            _HeaderedPlaylistColors.coverB,
+    return const DefaultAlbumArtwork();
+  }
+}
+
+class _CoverMosaicFallback extends StatelessWidget {
+  const _CoverMosaicFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xff11161c)),
+      child: Image.asset(
+        'assets/branding/colorful_bg_wide.png',
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}
+
+class _HeaderedPlaylistListSliver extends StatelessWidget {
+  const _HeaderedPlaylistListSliver({
+    required this.showAlbum,
+    required this.itemCount,
+    required this.itemBuilder,
+    required this.bottomPadding,
+  });
+
+  final bool showAlbum;
+  final int itemCount;
+  final NullableIndexedWidgetBuilder itemBuilder;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final colors = _HeaderedPlaylistColors.resolve(
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 2 : 40,
+        compact ? 0 : 18,
+        compact ? 2 : 40,
+        bottomPadding,
+      ),
+      sliver: DecoratedSliver(
+        decoration: BoxDecoration(
+          color: colors.listSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.listBorder),
+          boxShadow: [
+            BoxShadow(
+              color: colors.listShadow,
+              offset: const Offset(0, 14),
+              blurRadius: 34,
+            ),
           ],
         ),
-      ),
-      child: Icon(
-        FluentIcons.music_note_2_24_regular,
-        color: Colors.white,
-        size: 58,
+        sliver: SliverMainAxisGroup(
+          slivers: [
+            if (!compact)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: _HeaderedPlaylistListHeader(showAlbum: showAlbum),
+                ),
+              ),
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 10),
+              sliver: SliverList.builder(
+                itemCount: itemCount,
+                itemBuilder: itemBuilder,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1398,68 +2024,132 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: _HeaderedPlaylistColors.listBorder),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 12,
-            child: Text(
-              i18n.t('headeredPlaylist.songArtist'),
-              style: const TextStyle(
-                color: _HeaderedPlaylistColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          if (showAlbum) ...[
+    final colors = _HeaderedPlaylistColors.resolve(
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    return SizedBox(
+      key: const ValueKey('HeaderedPlaylist.ListHeader'),
+      height: 42,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            const SizedBox(width: 64),
             const SizedBox(width: 14),
             Expanded(
-              flex: 5,
+              flex: 12,
               child: Text(
-                i18n.t('table.album'),
-                style: const TextStyle(
-                  color: _HeaderedPlaylistColors.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                i18n.t('headeredPlaylist.songArtist'),
+                style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  fontVariations: const [FontVariation.weight(750)],
+                ),
+              ),
+            ),
+            if (showAlbum) ...[
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 5,
+                child: Text(
+                  i18n.t('table.album'),
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontVariations: const [FontVariation.weight(750)],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(width: 14),
+            const SizedBox(width: 170),
+            const SizedBox(width: 18),
+            SizedBox(
+              width: 74,
+              child: Text(
+                i18n.t('table.duration'),
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  fontVariations: const [FontVariation.weight(750)],
                 ),
               ),
             ),
           ],
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 148,
-            child: Text(
-              i18n.t('table.duration'),
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                color: _HeaderedPlaylistColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _HeaderedPlaylistColors {
-  const _HeaderedPlaylistColors._();
+  const _HeaderedPlaylistColors({
+    required this.pageSurface,
+    required this.heroCover,
+    required this.textStrong,
+    required this.textMuted,
+    required this.listSurface,
+    required this.listBorder,
+    required this.listShadow,
+    required this.scrollbarThumb,
+    required this.scrollbarThumbHover,
+    required this.coverInset,
+    required this.coverShadow,
+    required this.coverA,
+    required this.coverB,
+  });
 
-  static const heroTint = Color(0xeaf1f7ff);
-  static const heroSurface = Color(0xdffafcff);
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff607085);
-  static const listBorder = Color(0x297e8b9a);
-  static const coverA = Color(0xff6794c6);
-  static const coverB = Color(0xff6f7fc8);
+  final Color pageSurface;
+  final Color heroCover;
+  final Color textStrong;
+  final Color textMuted;
+  final Color listSurface;
+  final Color listBorder;
+  final Color listShadow;
+  final Color scrollbarThumb;
+  final Color scrollbarThumbHover;
+  final Color coverInset;
+  final Color coverShadow;
+  final Color coverA;
+  final Color coverB;
+
+  static const day = _HeaderedPlaylistColors(
+    pageSurface: Color(0xfff6f9fc),
+    heroCover: Color(0xff5b87b6),
+    textStrong: Color(0xff1f252b),
+    textMuted: Color(0xff5f625f),
+    listSurface: Color(0xc2ffffff),
+    listBorder: Color(0x2e7e8b9a),
+    listShadow: Color(0x14685870),
+    scrollbarThumb: Color(0x705b697a),
+    scrollbarThumbHover: Color(0xa6435060),
+    coverInset: Color(0x9effffff),
+    coverShadow: Color(0x38364456),
+    coverA: Color(0xff6794c6),
+    coverB: Color(0xff6f7fc8),
+  );
+
+  static const night = _HeaderedPlaylistColors(
+    pageSurface: Color(0xff0f1318),
+    heroCover: Color(0xff5b87b6),
+    textStrong: Color(0xf0f6f9fc),
+    textMuted: Color(0xadcbd5e1),
+    listSurface: Color(0xc7171c22),
+    listBorder: Color(0x1fd6e0ec),
+    listShadow: Color(0x3d000000),
+    scrollbarThumb: Color(0x5cd0dbe8),
+    scrollbarThumbHover: Color(0x94dee7f2),
+    coverInset: Color(0x1affffff),
+    coverShadow: Color(0x61000000),
+    coverA: Color(0xff2d4f72),
+    coverB: Color(0xff33406d),
+  );
+
+  static _HeaderedPlaylistColors resolve(bool nightMode) {
+    return nightMode ? night : day;
+  }
 }

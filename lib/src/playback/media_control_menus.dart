@@ -130,8 +130,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         key: 'player-volume',
         text: i18n.t('player.volume'),
         icon: playerVolumeIcon(volumeValue, isMuted),
-        checked: isMuted,
-        contentHeight: 52,
+        contentHeight: 42,
         content: PlayerVolumeMenuItem(
           label: i18n.t('player.volume'),
           muted: isMuted,

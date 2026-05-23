@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
+import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
@@ -527,9 +528,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           text: i18n.t('playlists.duplicate'),
           icon: FluentIcons.copy_20_regular,
           onPressed: () {
-            unawaited(
-              _createPlaylist(context, i18n, snapshot, playlist.songIds),
-            );
+            unawaited(_duplicatePlaylist(snapshot, playlist));
           },
         ),
         MenuFlyoutItem(
@@ -542,6 +541,19 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         ),
       ],
     );
+  }
+
+  Future<void> _duplicatePlaylist(
+    MusicLibrarySnapshot snapshot,
+    LibraryPlaylist playlist,
+  ) async {
+    await ref
+        .read(libraryRepositoryProvider)
+        .createPlaylist(
+          getNextPlaylistName(playlist.name, snapshot.playlists),
+          playlist.songIds,
+        );
+    ref.invalidate(musicLibrarySnapshotProvider);
   }
 
   void _previewPlaylistMove(
@@ -760,31 +772,44 @@ class _PlaylistCard extends StatelessWidget {
   }
 }
 
-class _PlaylistArtwork extends StatelessWidget {
+class _PlaylistArtwork extends ConsumerStatefulWidget {
   const _PlaylistArtwork({required this.songs});
 
   final List<LibrarySong> songs;
 
   @override
-  Widget build(BuildContext context) {
-    final thumbnailPaths = <String>[];
-    for (final song in songs) {
-      if (song.thumbnailPath.isNotEmpty &&
-          File(song.thumbnailPath).existsSync() &&
-          !thumbnailPaths.contains(song.thumbnailPath)) {
-        thumbnailPaths.add(song.thumbnailPath);
-      }
-      if (thumbnailPaths.length == 4) {
-        break;
-      }
-    }
+  ConsumerState<_PlaylistArtwork> createState() => _PlaylistArtworkState();
+}
 
-    if (thumbnailPaths.isEmpty) {
+class _PlaylistArtworkState extends ConsumerState<_PlaylistArtwork> {
+  var _signature = '';
+  List<String> _artworkUrls = const [];
+  var _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshArtwork();
+  }
+
+  @override
+  void didUpdateWidget(_PlaylistArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.songs != widget.songs) {
+      _refreshArtwork();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final artworkUrls = getPlaylistArtworkDisplayUrls(_artworkUrls);
+
+    if (artworkUrls.isEmpty) {
       return const _PlaylistArtworkFallback();
     }
 
-    if (thumbnailPaths.length == 1) {
-      return Image.file(File(thumbnailPaths.first), fit: BoxFit.cover);
+    if (artworkUrls.length == 1) {
+      return Image.file(File(artworkUrls.first), fit: BoxFit.cover);
     }
 
     return GridView.count(
@@ -792,10 +817,41 @@ class _PlaylistArtwork extends StatelessWidget {
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        for (final thumbnailPath in thumbnailPaths)
-          Image.file(File(thumbnailPath), fit: BoxFit.cover),
-        if (thumbnailPaths.length == 3) const _PlaylistArtworkFallback(),
+        for (final artworkUrl in artworkUrls)
+          Image.file(File(artworkUrl), fit: BoxFit.cover),
+        if (artworkUrls.length == 3) const _PlaylistArtworkFallback(),
       ],
+    );
+  }
+
+  void _refreshArtwork() {
+    final signature = getPlaylistArtworkSignature(widget.songs);
+    if (signature == _signature) {
+      return;
+    }
+
+    _signature = signature;
+    final cachedArtworkUrls = getCachedPlaylistArtworkUrls(signature);
+    if (cachedArtworkUrls != null) {
+      _artworkUrls = cachedArtworkUrls;
+      return;
+    }
+
+    _artworkUrls = const [];
+    final generation = ++_generation;
+    unawaited(
+      resolvePlaylistArtworkUrls(
+        widget.songs,
+        ref.read(libraryRepositoryProvider),
+      ).then((artworkUrls) {
+        cachePlaylistArtworkUrls(signature, artworkUrls);
+        if (!mounted || generation != _generation || signature != _signature) {
+          return;
+        }
+        setState(() {
+          _artworkUrls = artworkUrls;
+        });
+      }),
     );
   }
 }

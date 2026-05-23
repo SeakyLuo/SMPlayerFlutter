@@ -662,26 +662,21 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     _showSongContextMenu(position, song, customPlaylists);
   }
 
-  void _showSongContextMenu(
+  Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
-    final folders =
-        snapshot.folders
-            .map(
-              (folder) => MenuFlyoutFolder(
-                id: folder.id,
-                name: _displayFolderName(folder.path),
-                path: folder.path,
-                parentId: folder.parentId,
-              ),
-            )
-            .toList();
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+    if (!mounted) {
+      return;
+    }
     showMenuFlyout(
       context,
       position: position,
@@ -694,9 +689,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         currentTrackId: currentTrackId,
         songPath: song.path,
         playlists: playlists,
-        folders: folders,
-        showMoveToFolder: folders.isNotEmpty,
-        showHideFile: true,
         onPlay: () {
           _selection.selectSingle(song.id);
           _playSongIds([song.id]);
@@ -764,6 +756,16 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
               .addPreferenceItem('song', '${song.id}', song.title, level);
           ref.invalidate(musicLibrarySnapshotProvider);
         },
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removePreferenceItem('song', '${song.id}');
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
             context: context,
@@ -2453,12 +2455,6 @@ String _displayArtists(LibrarySong song, SmPlayerI18n i18n) {
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
-}
-
-String _displayFolderName(String path) {
-  final normalized = path.replaceAll('\\', '/');
-  final index = normalized.lastIndexOf('/');
-  return index >= 0 ? normalized.substring(index + 1) : normalized;
 }
 
 String _formatDuration(int seconds) {

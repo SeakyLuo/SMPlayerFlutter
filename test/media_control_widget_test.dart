@@ -171,12 +171,12 @@ void main() {
   });
 
   test('MediaControl player background constants mirror Electron CSS', () {
-    expect(MediaControlColors.playerSurfaceSolid, const Color(0x82ffffff));
-    expect(MediaControlColors.playerSurface, const Color(0x96ffffff));
-    expect(MediaControlColors.playerAccentWash, const Color(0x2e0078d7));
-    expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x180078d7));
-    expect(MediaControlColors.emptyPlayerLeftWash, const Color(0x68ffffff));
-    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x6ee5f3ff));
+    expect(MediaControlColors.playerSurfaceSolid, const Color(0xd1ffffff));
+    expect(MediaControlColors.playerSurface, const Color(0xe0ffffff));
+    expect(MediaControlColors.playerAccentWash, const Color(0x1a0078d7));
+    expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x100078d7));
+    expect(MediaControlColors.emptyPlayerLeftWash, const Color(0xe0ffffff));
+    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x1a0078d7));
     expect(MediaControlColors.compactPlayerBorder, const Color(0x9effffff));
     expect(MediaControlColors.compactPlayerSurface, const Color(0xd1f8fbfe));
     expect(MediaControlColors.compactPlayerTop, const Color(0xbdffffff));
@@ -520,7 +520,13 @@ void main() {
       ]);
       expect(
         playDecoration.border,
-        Border.all(color: MediaControlColors.disabledPrimaryButtonBorder),
+        Border.all(
+          color: MediaControlColors.disabledPrimaryButtonBorderFor(
+            tester.element(
+              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+            ),
+          ),
+        ),
       );
 
       final volumeSlider = tester.widget<Slider>(
@@ -1561,20 +1567,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Undo Preference'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.widgetWithText(PopupMenuItem<void>, 'Higher'),
-        matching: find.byIcon(Icons.check_rounded),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: find.widgetWithText(PopupMenuItem<void>, 'Higher'),
-        matching: find.byIcon(FluentIcons.checkmark_20_regular),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byIcon(Icons.check_rounded), findsNothing);
+    expect(find.byIcon(FluentIcons.checkmark_20_regular), findsOneWidget);
 
     await tester.tap(find.text('Undo Preference'));
     await tester.pumpAndSettle();
@@ -2012,7 +2006,13 @@ void main() {
       ]);
       expect(
         disabledPlayButtonDecoration.border,
-        Border.all(color: MediaControlColors.disabledPrimaryButtonBorder),
+        Border.all(
+          color: MediaControlColors.disabledPrimaryButtonBorderFor(
+            tester.element(
+              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+            ),
+          ),
+        ),
       );
       expect(
         tester.getSize(

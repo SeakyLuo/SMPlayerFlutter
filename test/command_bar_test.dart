@@ -2,8 +2,11 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -35,6 +38,8 @@ void main() {
       'preferences.level.normal': 'Normal',
       'preferences.level.very-high': 'Very High',
       'preferences.undoPrefer': 'Undo Prefer',
+      'notification.removedFrom': 'Removed {title} from {target}',
+      'notification.songsRemovedFrom': 'Removed {count} songs from {target}',
       'settings.preferenceSettings': 'Preference Settings',
     },
   );
@@ -71,6 +76,58 @@ void main() {
     expect(find.byKey(const ValueKey('first-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('second-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('CommandBar.MoreButton')), findsNothing);
+  });
+
+  testWidgets(
+    'CommandBar standard text buttons use the shared text icon button',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommandBar(
+              children: [
+                CommandBarButton(
+                  icon: FluentIcons.play_24_regular,
+                  label: 'Play',
+                  onPressed: () {},
+                ),
+                CommandBarButton(
+                  icon: FluentIcons.more_horizontal_24_regular,
+                  label: 'More',
+                  showLabel: false,
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SmPlayerTextIconButton), findsOneWidget);
+    },
+  );
+
+  testWidgets('HeaderedPlaylist CommandBar keeps the shared text icon button', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommandBar(
+            variant: CommandBarVariant.headeredPlaylist,
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.play_24_regular,
+                label: 'Play',
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(SmPlayerTextIconButton), findsOneWidget);
   });
 
   testWidgets('CommandBar moves rightmost overflowable buttons into More', (
@@ -227,6 +284,52 @@ void main() {
     expect(find.text('First'), findsNothing);
   });
 
+  testWidgets('MenuFlyout item actions receive the source anchor context', (
+    tester,
+  ) async {
+    BuildContext? sourceContext;
+    BuildContext? actionContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: Builder(
+              builder: (context) {
+                sourceContext = context;
+                return TextButton(
+                  onPressed: () {
+                    showMenuFlyout(
+                      context,
+                      items: [
+                        MenuFlyoutItem(
+                          key: 'anchor-action',
+                          text: 'Anchor Action',
+                          onPressedWithContext: (context) {
+                            actionContext = context;
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                  child: const Text('Open'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Anchor Action'));
+    await tester.pumpAndSettle();
+
+    expect(actionContext, same(sourceContext));
+  });
+
   test(
     'MusicMenuFlyout mirrors Electron Add To filtering and View submenu',
     () {
@@ -301,6 +404,18 @@ void main() {
         'See Album Art',
         'See In File Explorer',
       ]);
+      expect(
+        viewItem.submenu
+            .where(
+              (item) => {
+                'see-music-info',
+                'see-lyrics',
+                'see-album-art',
+              }.contains(item.key),
+            )
+            .map((item) => item.keepOpen),
+        everyElement(isTrue),
+      );
     },
   );
 
@@ -334,4 +449,59 @@ void main() {
 
     expect(items.map((item) => item.key), isNot(contains('view')));
   });
+
+  test(
+    'songsRemovedUndoMessage mirrors Electron single and count messages',
+    () {
+      const songsById = {
+        1: LibrarySong(
+          id: 1,
+          path: '/music/first.mp3',
+          title: 'First',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album',
+          duration: 100,
+          playCount: 1,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-01-01',
+          favorite: true,
+          thumbnailPath: '',
+        ),
+        2: LibrarySong(
+          id: 2,
+          path: '/music/second.mp3',
+          title: 'Second',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album',
+          duration: 100,
+          playCount: 1,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-01-01',
+          favorite: true,
+          thumbnailPath: '',
+        ),
+      };
+
+      expect(
+        songsRemovedUndoMessage(
+          i18n: i18n,
+          songIds: const [1],
+          songsById: songsById,
+          target: 'My Favorites',
+        ),
+        'Removed First from My Favorites',
+      );
+      expect(
+        songsRemovedUndoMessage(
+          i18n: i18n,
+          songIds: const [1, 2],
+          songsById: songsById,
+          target: 'Mix',
+        ),
+        'Removed 2 songs from Mix',
+      );
+    },
+  );
 }

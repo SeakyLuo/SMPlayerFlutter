@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
 
+enum PlaylistControlItemVariant { standard, headeredPlaylist }
+
 class PlaylistControlItem extends StatefulWidget {
   const PlaylistControlItem({
     super.key,
@@ -29,6 +31,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.onSeeAlbum,
     this.onSeeArtist,
     this.onOpenContextMenu,
+    this.variant = PlaylistControlItemVariant.standard,
   });
 
   final LibrarySong song;
@@ -52,6 +55,7 @@ class PlaylistControlItem extends StatefulWidget {
   final VoidCallback? onSeeAlbum;
   final ValueChanged<String>? onSeeArtist;
   final ValueChanged<Offset>? onOpenContextMenu;
+  final PlaylistControlItemVariant variant;
 
   @override
   State<PlaylistControlItem> createState() => _PlaylistControlItemState();
@@ -63,6 +67,17 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   @override
   Widget build(BuildContext context) {
     final hasAlbumColumn = widget.showAlbum && widget.song.album.isNotEmpty;
+    final headeredPlaylist =
+        widget.variant == PlaylistControlItemVariant.headeredPlaylist;
+    final compact = MediaQuery.sizeOf(context).width <= 720;
+    final rowHeight = headeredPlaylist && compact ? 78.0 : 82.0;
+    final rowPadding =
+        headeredPlaylist
+            ? compact
+                ? const EdgeInsets.fromLTRB(10, 10, 12, 10)
+                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+            : const EdgeInsets.fromLTRB(18, 10, 22, 10);
+    final artworkGap = headeredPlaylist && !compact ? 22.0 : 14.0;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -87,9 +102,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          height: 82,
+          height: rowHeight,
           margin: EdgeInsets.zero,
-          padding: const EdgeInsets.fromLTRB(18, 10, 22, 10),
+          padding: rowPadding,
           decoration: BoxDecoration(
             color:
                 widget.current
@@ -125,7 +140,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     selected: widget.selected,
                     onPlayTrack: widget.onPlayTrack,
                   ),
-                  const SizedBox(width: 14),
+                  SizedBox(width: artworkGap),
                   Expanded(
                     flex: compact ? 1 : 12,
                     child: _QueueCopy(

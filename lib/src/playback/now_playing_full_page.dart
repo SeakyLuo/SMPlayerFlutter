@@ -200,6 +200,8 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                       onAddToNowPlaying: (song) {
                         _addSongToNowPlaying(song, queueSongIds);
                       },
+                      onGetPreferenceLevel: _getSongPreferenceLevel,
+                      onUndoPreference: _undoSongPreference,
                       onSetPreference: _setSongPreference,
                       onDeleteSongFromDisk: _deleteSongFromDisk,
                       onHideSongFile:
@@ -547,7 +549,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
               mediaController.state.isMuted,
             ),
             keepOpen: true,
-            contentHeight: 52,
+            contentHeight: 42,
             content: PlayerVolumeMenuItem(
               label: i18n.t('player.volume'),
               muted: mediaController.state.isMuted,
@@ -596,6 +598,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           text: i18n.t('nowPlaying.clearNowPlaying'),
           icon: FluentIcons.dismiss_20_regular,
           onPressed: () {
+            context.go('/now-playing');
             _replaceQueue(const []);
           },
         ),
@@ -922,9 +925,8 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
     final nextSongIds = queueSongIds.toList();
-    final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
     final songId = nextSongIds.removeAt(oldIndex);
-    nextSongIds.insert(insertIndex, songId);
+    nextSongIds.insert(newIndex, songId);
     _replaceQueue(nextSongIds);
   }
 
@@ -991,6 +993,19 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addPreferenceItem('song', '$songId', title, level);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<String?> _getSongPreferenceLevel(int songId) {
+    return ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '$songId');
+  }
+
+  Future<void> _undoSongPreference(int songId) async {
+    await ref
+        .read(libraryRepositoryProvider)
+        .removePreferenceItem('song', '$songId');
     ref.invalidate(musicLibrarySnapshotProvider);
   }
 
@@ -1430,6 +1445,8 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
     required this.onAddToNowPlaying,
+    required this.onGetPreferenceLevel,
+    required this.onUndoPreference,
     required this.onSetPreference,
     required this.onDeleteSongFromDisk,
     required this.onHideSongFile,
@@ -1460,6 +1477,8 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
   final Future<void> Function(List<int>, bool) onToggleFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
   final ValueChanged<LibrarySong> onAddToNowPlaying;
+  final Future<String?> Function(int) onGetPreferenceLevel;
+  final Future<void> Function(int) onUndoPreference;
   final Future<void> Function(int, String, String) onSetPreference;
   final Future<void> Function(LibrarySong) onDeleteSongFromDisk;
   final Future<void> Function(LibrarySong) onHideSongFile;
@@ -1536,7 +1555,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
                             ),
                             buildDefaultDragHandles: false,
                             itemCount: songs.length,
-                            onReorder: (oldIndex, newIndex) {
+                            onReorderItem: (oldIndex, newIndex) {
                               onReorder(songIds, oldIndex, newIndex);
                             },
                             itemBuilder: (context, index) {
@@ -1648,17 +1667,21 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
     ];
   }
 
-  void _showQueueContextMenu(
+  Future<void> _showQueueContextMenu(
     BuildContext context,
     Offset position,
     LibrarySong song,
     int queueIndex,
-  ) {
+  ) async {
     void showMessage(String message) {
       showAppNotification(context: context, message: message);
     }
 
     final currentTrackId = mediaControlState.track.id;
+    final preferenceLevel = await onGetPreferenceLevel(song.id);
+    if (!context.mounted) {
+      return;
+    }
     final menuFolders =
         folders
             .map(
@@ -1686,6 +1709,14 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
         playlists: playlists,
         folders: menuFolders,
         showRemove: true,
+        showAlbumArt: false,
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () {
+                  onUndoPreference(song.id);
+                },
         onPlay: () {
           onPlayTrack(song, songIds, queueIndex);
         },

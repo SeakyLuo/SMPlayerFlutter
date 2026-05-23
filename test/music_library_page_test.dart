@@ -537,7 +537,8 @@ void main() {
     expect(find.text('Add To'), findsAtLeastNWidgets(1));
     expect(find.text('Preference Settings'), findsOneWidget);
     expect(find.text('Delete From Disk'), findsOneWidget);
-    expect(find.text('Hide File'), findsOneWidget);
+    expect(find.text('Move To Folder'), findsNothing);
+    expect(find.text('Hide File'), findsNothing);
     expect(find.text('View'), findsOneWidget);
     expect(find.text('Mix'), findsNothing);
 
@@ -795,27 +796,6 @@ void main() {
     expect(repository.preferenceLevel, 'high');
   });
 
-  testWidgets('MusicLibraryPage right menu hides a song file', (tester) async {
-    final repository = _FakeLibraryRepository();
-
-    await tester.pumpWidget(
-      _MusicLibraryTestApp(
-        snapshot: _foldersSnapshot,
-        i18n: i18n,
-        repository: repository,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hide File'));
-    await tester.pump();
-
-    expect(repository.hiddenSongId, 1);
-    expect(find.text('Undo'), findsOneWidget);
-  });
-
   testWidgets('MusicLibraryPage right menu uses pending delete undo flow', (
     tester,
   ) async {
@@ -839,31 +819,6 @@ void main() {
 
     expect(repository.pendingDeletedSongId, 1);
     expect(find.text('Undo'), findsOneWidget);
-  });
-
-  testWidgets('MusicLibraryPage Move To Folder passes Electron folder path', (
-    tester,
-  ) async {
-    final repository = _FakeLibraryRepository();
-
-    await tester.pumpWidget(
-      _MusicLibraryTestApp(
-        snapshot: _foldersSnapshot,
-        i18n: i18n,
-        repository: repository,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Move To Folder'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Target'));
-    await tester.pumpAndSettle();
-
-    expect(repository.movedSongId, 1);
-    expect(repository.movedFolderPath, r'C:\Music\Target');
   });
 
   testWidgets('MusicLibraryPage artist link opens the Electron artist route', (
