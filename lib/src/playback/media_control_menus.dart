@@ -103,11 +103,11 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onSeeMusicInfo,
   required VoidCallback onSeeLyrics,
   required VoidCallback onSeeAlbumArt,
-  required VoidCallback onSeeLocal,
+  required FutureOr<void> Function() onSeeLocal,
 }) {
   final items = [
     MenuFlyoutItem(
-      key: 'quick',
+      key: 'quick-play',
       text: i18n.t('nowPlaying.quickPlay'),
       icon: _playIcon,
       onPressed: onQuickPlay,
@@ -132,7 +132,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         icon: playerVolumeIcon(volumeValue, isMuted),
         checked: isMuted,
         contentHeight: 52,
-        content: _PlayerVolumeMenuItem(
+        content: PlayerVolumeMenuItem(
           label: i18n.t('player.volume'),
           muted: isMuted,
           volumeValue: volumeValue,
@@ -151,6 +151,8 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
             currentSong?.favorite == true
                 ? Icons.favorite_rounded
                 : Icons.favorite_border_rounded,
+        iconColor:
+            currentSong?.favorite == true ? const Color(0xffd13438) : null,
         disabled: currentSong == null,
         onPressed: onToggleFavorite,
       ),
@@ -187,37 +189,12 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
 
   if (onSetPreference != null) {
     items.add(
-      MenuFlyoutItem(
+      buildPreferenceMenuFlyoutItem(
+        i18n: i18n,
         key: 'preference',
-        text: i18n.t('settings.preferenceSettings'),
-        icon: Icons.star_border_rounded,
-        submenu: [
-          if (preferenceLevel != null && onUndoPreference != null) ...[
-            MenuFlyoutItem(
-              key: 'preference-undo',
-              text: i18n.t('preferences.undoPrefer'),
-              icon: Icons.undo_rounded,
-              onPressed: onUndoPreference,
-            ),
-            const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-          ],
-          for (final level in const [
-            'do-not-appear',
-            'dislike',
-            'normal',
-            'high',
-            'higher',
-            'very-high',
-          ])
-            MenuFlyoutItem(
-              key: 'preference-$level',
-              text: i18n.t('preferences.level.$level'),
-              checked: preferenceLevel == level,
-              onPressed: () {
-                onSetPreference(level);
-              },
-            ),
-        ],
+        preferenceLevel: preferenceLevel,
+        onUndoPreference: onUndoPreference,
+        onSetPreference: onSetPreference,
       ),
     );
   }
@@ -244,24 +221,28 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           key: 'see-music-info',
           text: i18n.t('context.seeMusicInfo'),
           icon: Icons.info_outline_rounded,
+          keepOpen: true,
           onPressed: onSeeMusicInfo,
         ),
         MenuFlyoutItem(
           key: 'see-lyrics',
           text: i18n.t('context.seeLyrics'),
           icon: Icons.lyrics_rounded,
+          keepOpen: true,
           onPressed: onSeeLyrics,
         ),
         MenuFlyoutItem(
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
           icon: Icons.image_rounded,
+          keepOpen: true,
           onPressed: onSeeAlbumArt,
         ),
         MenuFlyoutItem(
           key: 'see-local-file',
           text: i18n.t('context.seeLocalFile'),
           icon: Icons.folder_open_rounded,
+          pendingText: i18n.t('context.openingLocal'),
           onPressed: onSeeLocal,
         ),
       ],

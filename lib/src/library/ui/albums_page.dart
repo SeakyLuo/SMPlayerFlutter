@@ -315,8 +315,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                             .recordAlbumPlayed(album.name);
                                         _playSongIds(album.songIds);
                                       },
-                                      onAddAlbum: () {
+                                      onAddAlbum: (position) {
                                         _showAlbumAddToMenu(
+                                          position,
                                           album,
                                           customPlaylists,
                                           snapshot,
@@ -687,49 +688,30 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     AlbumView album,
     String? preferenceLevel,
   ) {
-    return MenuFlyoutItem(
+    return buildPreferenceMenuFlyoutItem(
+      i18n: i18n,
       key: 'preference',
-      text: i18n.t('settings.preferenceSettings'),
-      icon: FluentIcons.star_20_regular,
-      submenu: [
-        if (preferenceLevel != null) ...[
-          MenuFlyoutItem(
-            key: 'preference-undo',
-            text: i18n.t('preferences.undoPrefer'),
-            icon: FluentIcons.arrow_undo_20_regular,
-            onPressed: () {
-              ref
-                  .read(libraryRepositoryProvider)
-                  .removePreferenceItem('album', album.name);
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-        ],
-        for (final level in const [
-          'do-not-appear',
-          'dislike',
-          'normal',
-          'high',
-          'higher',
-          'very-high',
-        ])
-          MenuFlyoutItem(
-            key: 'preference-$level',
-            text: i18n.t('preferences.level.$level'),
-            checked: preferenceLevel == level,
-            onPressed: () {
-              ref
-                  .read(libraryRepositoryProvider)
-                  .addPreferenceItem('album', album.name, album.name, level);
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-      ],
+      preferenceLevel: preferenceLevel,
+      onUndoPreference:
+          preferenceLevel == null
+              ? null
+              : () {
+                ref
+                    .read(libraryRepositoryProvider)
+                    .removePreferenceItem('album', album.name);
+                ref.invalidate(musicLibrarySnapshotProvider);
+              },
+      onSetPreference: (level) {
+        ref
+            .read(libraryRepositoryProvider)
+            .addPreferenceItem('album', album.name, album.name, level);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
     );
   }
 
   void _showAlbumAddToMenu(
+    Offset position,
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
     MusicLibrarySnapshot snapshot,
@@ -774,7 +756,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    showMenuFlyout(context, items: addToItem.submenu);
+    showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
   void _playSongIds(List<int> songIds, {bool shuffle = false}) {
@@ -1241,64 +1223,11 @@ class _AlbumsAppBarActions extends StatelessWidget {
                             onPressed: () {
                               showMenuFlyout(
                                 context,
-                                items: [
-                                  MenuFlyoutItem(
-                                    key: 'reverse',
-                                    text: i18n.t('local.sortReverseList'),
-                                    icon:
-                                        FluentIcons
-                                            .arrow_sort_down_lines_20_regular,
-                                    checked:
-                                        sortCriterion ==
-                                        AlbumSortCriterion.reverse,
-                                    onPressed: () {
-                                      onChangeAlbumSort(
-                                        AlbumSortCriterion.reverse,
-                                      );
-                                    },
-                                  ),
-                                  MenuFlyoutItem(
-                                    key: 'default',
-                                    text: i18n.t('albums.sort.default'),
-                                    icon: FluentIcons.arrow_sort_20_regular,
-                                    checked:
-                                        sortCriterion ==
-                                        AlbumSortCriterion.defaultSort,
-                                    onPressed: () {
-                                      onChangeAlbumSort(
-                                        AlbumSortCriterion.defaultSort,
-                                      );
-                                    },
-                                  ),
-                                  MenuFlyoutItem(
-                                    key: 'name',
-                                    text: i18n.t('albums.sort.name'),
-                                    icon:
-                                        FluentIcons
-                                            .text_sort_ascending_20_regular,
-                                    checked:
-                                        sortCriterion ==
-                                        AlbumSortCriterion.name,
-                                    onPressed: () {
-                                      onChangeAlbumSort(
-                                        AlbumSortCriterion.name,
-                                      );
-                                    },
-                                  ),
-                                  MenuFlyoutItem(
-                                    key: 'artist',
-                                    text: i18n.t('albums.sort.artist'),
-                                    icon: FluentIcons.person_20_regular,
-                                    checked:
-                                        sortCriterion ==
-                                        AlbumSortCriterion.artist,
-                                    onPressed: () {
-                                      onChangeAlbumSort(
-                                        AlbumSortCriterion.artist,
-                                      );
-                                    },
-                                  ),
-                                ],
+                                items: _albumSortMenuItems(
+                                  i18n,
+                                  sortCriterion,
+                                  onChangeAlbumSort,
+                                ),
                               );
                             },
                           );
@@ -1641,37 +1570,41 @@ List<MenuFlyoutItem> _albumSortMenuItems(
 ) {
   return [
     MenuFlyoutItem(
-      key: 'reverse',
+      key: 'albums-sort-reverse',
       text: i18n.t('local.sortReverseList'),
-      icon: FluentIcons.arrow_sort_down_lines_20_regular,
-      checked: sortCriterion == AlbumSortCriterion.reverse,
       onPressed: () {
         onChangeAlbumSort(AlbumSortCriterion.reverse);
       },
     ),
     MenuFlyoutItem(
-      key: 'default',
+      key: 'albums-sort-default',
       text: i18n.t('albums.sort.default'),
-      icon: FluentIcons.arrow_sort_20_regular,
-      checked: sortCriterion == AlbumSortCriterion.defaultSort,
+      icon:
+          sortCriterion == AlbumSortCriterion.defaultSort
+              ? FluentIcons.checkmark_20_regular
+              : null,
       onPressed: () {
         onChangeAlbumSort(AlbumSortCriterion.defaultSort);
       },
     ),
     MenuFlyoutItem(
-      key: 'name',
+      key: 'albums-sort-name',
       text: i18n.t('albums.sort.name'),
-      icon: FluentIcons.text_sort_ascending_20_regular,
-      checked: sortCriterion == AlbumSortCriterion.name,
+      icon:
+          sortCriterion == AlbumSortCriterion.name
+              ? FluentIcons.checkmark_20_regular
+              : null,
       onPressed: () {
         onChangeAlbumSort(AlbumSortCriterion.name);
       },
     ),
     MenuFlyoutItem(
-      key: 'artist',
+      key: 'albums-sort-artist',
       text: i18n.t('albums.sort.artist'),
-      icon: FluentIcons.person_20_regular,
-      checked: sortCriterion == AlbumSortCriterion.artist,
+      icon:
+          sortCriterion == AlbumSortCriterion.artist
+              ? FluentIcons.checkmark_20_regular
+              : null,
       onPressed: () {
         onChangeAlbumSort(AlbumSortCriterion.artist);
       },

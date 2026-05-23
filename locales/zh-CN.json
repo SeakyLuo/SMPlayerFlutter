@@ -211,6 +211,8 @@
   "library.allSongs": "所有歌曲",
   "library.allSongsWithCount": "所有歌曲（{count}）",
   "library.chooseFolder": "选择文件夹",
+  "library.folderPickerUnavailable": "文件夹选择器没有打开，请再试一次。",
+  "library.openingFolderPicker": "正在打开...",
   "library.refreshing": "正在刷新音乐库...",
   "library.root": "音乐文件夹",
   "library.scanHelp": "选择文件夹并扫描到本地音乐库数据库。",

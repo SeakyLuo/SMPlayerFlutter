@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart' hide formatDuration;
 import '../../playback/media_control_provider.dart';
@@ -130,8 +131,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               if (!mounted) {
                 return;
               }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(i18n.t('collection.artistNotFound'))),
+              showAppNotification(
+                context: context,
+                message: i18n.t('collection.artistNotFound'),
               );
             });
           }
@@ -963,45 +965,25 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   ) {
     final preferenceType =
         type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
-    return MenuFlyoutItem(
+    return buildPreferenceMenuFlyoutItem(
+      i18n: i18n,
       key: 'preference',
-      text: i18n.t('settings.preferenceSettings'),
-      icon: FluentIcons.star_20_regular,
-      submenu: [
-        if (preferenceLevel != null) ...[
-          MenuFlyoutItem(
-            key: 'preference-undo',
-            text: i18n.t('preferences.undoPrefer'),
-            icon: FluentIcons.arrow_undo_20_regular,
-            onPressed: () async {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .removePreferenceItem(preferenceType, label);
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-        ],
-        for (final level in const [
-          'do-not-appear',
-          'dislike',
-          'normal',
-          'high',
-          'higher',
-          'very-high',
-        ])
-          MenuFlyoutItem(
-            key: 'preference-$level',
-            text: i18n.t('preferences.level.$level'),
-            checked: preferenceLevel == level,
-            onPressed: () async {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .addPreferenceItem(preferenceType, label, label, level);
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-      ],
+      preferenceLevel: preferenceLevel,
+      onUndoPreference:
+          preferenceLevel == null
+              ? null
+              : () async {
+                await ref
+                    .read(libraryRepositoryProvider)
+                    .removePreferenceItem(preferenceType, label);
+                ref.invalidate(musicLibrarySnapshotProvider);
+              },
+      onSetPreference: (level) async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .addPreferenceItem(preferenceType, label, label, level);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
     );
   }
 

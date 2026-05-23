@@ -6,9 +6,11 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1079,9 +1081,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAppNotification(context: context, message: message);
   }
 }
 
@@ -2140,8 +2140,6 @@ class _LyricsTimestampToggle extends StatelessWidget {
   }
 }
 
-enum _ArtworkSource { local, library }
-
 class _ArtworkSourceButton extends StatelessWidget {
   const _ArtworkSourceButton({
     required this.disabled,
@@ -2157,35 +2155,35 @@ class _ArtworkSourceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
 
-    return PopupMenuButton<_ArtworkSource>(
-      enabled: !disabled,
-      onSelected: (source) {
-        switch (source) {
-          case _ArtworkSource.local:
-            onChangeArtwork();
-          case _ArtworkSource.library:
-            onChooseArtworkFromLibrary();
-        }
-      },
-      itemBuilder:
-          (context) => [
-            PopupMenuItem(
-              value: _ArtworkSource.local,
-              child: Text(i18n.t('song.chooseArtworkFromLocal')),
-            ),
-            PopupMenuItem(
-              value: _ArtworkSource.library,
-              child: Text(i18n.t('song.chooseArtworkFromLibrary')),
-            ),
-          ],
-      child: IgnorePointer(
-        child: _MusicDialogCommandButton(
-          icon: FluentIcons.edit_20_regular,
-          label: i18n.t('song.changeArtwork'),
-          disabled: disabled,
-          onPressed: () {},
-        ),
-      ),
+    return Builder(
+      builder:
+          (buttonContext) => _MusicDialogCommandButton(
+            icon: FluentIcons.edit_20_regular,
+            label: i18n.t('song.changeArtwork'),
+            disabled: disabled,
+            onPressed:
+                disabled
+                    ? null
+                    : () {
+                      showMenuFlyout(
+                        buttonContext,
+                        items: [
+                          MenuFlyoutItem(
+                            key: 'local',
+                            text: i18n.t('song.chooseArtworkFromLocal'),
+                            icon: FluentIcons.image_20_regular,
+                            onPressed: onChangeArtwork,
+                          ),
+                          MenuFlyoutItem(
+                            key: 'library',
+                            text: i18n.t('song.chooseArtworkFromLibrary'),
+                            icon: FluentIcons.music_note_2_20_regular,
+                            onPressed: onChooseArtworkFromLibrary,
+                          ),
+                        ],
+                      );
+                    },
+          ),
     );
   }
 }

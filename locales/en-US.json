@@ -211,6 +211,8 @@
   "library.allSongs": "All Songs",
   "library.allSongsWithCount": "All Songs ({count})",
   "library.chooseFolder": "Choose Folder",
+  "library.folderPickerUnavailable": "Folder picker did not open. Try again.",
+  "library.openingFolderPicker": "Opening...",
   "library.refreshing": "Refreshing music library...",
   "library.root": "Music Folder",
   "library.scanHelp": "Choose a folder and scan it into the local library database.",

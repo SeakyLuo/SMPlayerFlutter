@@ -47,6 +47,8 @@ class FlutterWindow : public Win32Window {
   void HideDesktopLyricsWindow();
   void DestroyDesktopLyricsWindow();
   void PaintDesktopLyricsWindow();
+  void DismissNativeSplash();
+  void PaintNativeSplash();
   static LRESULT CALLBACK DesktopLyricsWindowProc(HWND hwnd, UINT message,
                                                   WPARAM wparam,
                                                   LPARAM lparam);
@@ -59,6 +61,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_feature_channel_;
   std::unique_ptr<WindowsMediaSessionState> media_session_;
+  bool native_splash_visible_ = false;
   HWND hot_key_window_ = nullptr;
   HWND desktop_lyrics_window_ = nullptr;
   std::wstring desktop_lyrics_text_;

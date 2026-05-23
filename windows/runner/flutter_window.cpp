@@ -23,6 +23,7 @@
 #include <winrt/base.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "resource.h"
 #include "utils.h"
 
 namespace {
@@ -34,6 +35,9 @@ constexpr int kHotKeyStop = 5004;
 constexpr wchar_t kWindowsAppUserModelId[] = L"com.seaky.simplemelodyplayer";
 constexpr ULONG_PTR kOpenExternalArgumentsCopyDataType = 0x534D504F;
 constexpr wchar_t kDesktopLyricsWindowClass[] = L"SMPlayerDesktopLyricsWindow";
+constexpr wchar_t kGetPreferredBrightnessRegKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+constexpr wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -128,6 +132,16 @@ COLORREF ColorFromHex(const std::wstring& value, COLORREF fallback) {
   const int green = std::wcstol(value.substr(3, 2).c_str(), nullptr, 16);
   const int blue = std::wcstol(value.substr(5, 2).c_str(), nullptr, 16);
   return RGB(red, green, blue);
+}
+
+bool IsDarkModePreferred() {
+  DWORD value = 1;
+  DWORD value_size = sizeof(value);
+  const LSTATUS result = ::RegGetValueW(
+      HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
+      kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD, nullptr, &value,
+      &value_size);
+  return result == ERROR_SUCCESS && value == 0;
 }
 
 RECT ResolveDesktopLyricsBounds(HWND owner, const std::wstring& raw_bounds) {
@@ -337,9 +351,13 @@ bool FlutterWindow::OnCreate() {
   RegisterDesktopFeatureChannel();
   RegisterGlobalMediaHotkeys();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  native_splash_visible_ = true;
+  ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_HIDE);
+  this->Show();
+  ::InvalidateRect(GetHandle(), nullptr, TRUE);
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    DismissNativeSplash();
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -395,6 +413,12 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
             return;
           }
           UpdateMediaSession(*arguments);
+          result->Success();
+          return;
+        }
+
+        if (call.method_name() == "dismissNativeSplash") {
+          DismissNativeSplash();
           result->Success();
           return;
         }
@@ -766,6 +790,79 @@ void FlutterWindow::DestroyDesktopLyricsWindow() {
   }
 }
 
+void FlutterWindow::DismissNativeSplash() {
+  if (!native_splash_visible_) {
+    return;
+  }
+  native_splash_visible_ = false;
+  if (flutter_controller_ && flutter_controller_->view()) {
+    ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_SHOW);
+    ::SetFocus(flutter_controller_->view()->GetNativeWindow());
+  }
+  ::InvalidateRect(GetHandle(), nullptr, TRUE);
+}
+
+void FlutterWindow::PaintNativeSplash() {
+  PAINTSTRUCT paint;
+  HDC hdc = ::BeginPaint(GetHandle(), &paint);
+  RECT client_rect = GetClientArea();
+  const bool dark = IsDarkModePreferred();
+
+  HBRUSH background_brush =
+      ::CreateSolidBrush(dark ? RGB(15, 19, 25) : RGB(247, 249, 252));
+  ::FillRect(hdc, &client_rect, background_brush);
+  ::DeleteObject(background_brush);
+
+  const int center_x = (client_rect.right - client_rect.left) / 2;
+  const int center_y = (client_rect.bottom - client_rect.top) / 2;
+  RECT plate_rect{center_x - 66, center_y - 96, center_x + 66, center_y + 36};
+
+  HBRUSH shadow_brush =
+      ::CreateSolidBrush(dark ? RGB(5, 7, 10) : RGB(210, 230, 250));
+  RECT shadow_rect = plate_rect;
+  ::OffsetRect(&shadow_rect, 0, 12);
+  ::FillRect(hdc, &shadow_rect, shadow_brush);
+  ::DeleteObject(shadow_brush);
+
+  HBRUSH plate_brush =
+      ::CreateSolidBrush(dark ? RGB(24, 34, 48) : RGB(255, 255, 255));
+  HPEN plate_pen =
+      ::CreatePen(PS_SOLID, 1, dark ? RGB(38, 52, 70) : RGB(220, 232, 244));
+  HGDIOBJ old_brush = ::SelectObject(hdc, plate_brush);
+  HGDIOBJ old_pen = ::SelectObject(hdc, plate_pen);
+  ::RoundRect(hdc, plate_rect.left, plate_rect.top, plate_rect.right,
+              plate_rect.bottom, 32, 32);
+  ::SelectObject(hdc, old_pen);
+  ::SelectObject(hdc, old_brush);
+  ::DeleteObject(plate_pen);
+  ::DeleteObject(plate_brush);
+
+  HICON icon = static_cast<HICON>(
+      ::LoadImageW(::GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON),
+                   IMAGE_ICON, 86, 86, LR_DEFAULTCOLOR));
+  if (icon != nullptr) {
+    ::DrawIconEx(hdc, center_x - 43, center_y - 73, icon, 86, 86, 0, nullptr,
+                 DI_NORMAL);
+    ::DestroyIcon(icon);
+  }
+
+  HFONT title_font = ::CreateFontW(
+      22, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+      OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+      DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+  HGDIOBJ old_font = ::SelectObject(hdc, title_font);
+  ::SetBkMode(hdc, TRANSPARENT);
+  ::SetTextColor(hdc, dark ? RGB(244, 248, 255) : RGB(24, 32, 43));
+  RECT title_rect{client_rect.left, center_y + 62, client_rect.right,
+                  center_y + 96};
+  ::DrawTextW(hdc, L"Simple Melody Player", -1, &title_rect,
+              DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+  ::SelectObject(hdc, old_font);
+  ::DeleteObject(title_font);
+
+  ::EndPaint(GetHandle(), &paint);
+}
+
 void FlutterWindow::PaintDesktopLyricsWindow() {
   PAINTSTRUCT paint;
   HDC hdc = ::BeginPaint(desktop_lyrics_window_, &paint);
@@ -966,6 +1063,16 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (native_splash_visible_) {
+    switch (message) {
+      case WM_ERASEBKGND:
+        return 1;
+      case WM_PAINT:
+        PaintNativeSplash();
+        return 0;
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

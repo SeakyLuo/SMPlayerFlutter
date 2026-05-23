@@ -94,6 +94,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     return SmPlayerI18nScope(
       i18n: i18n,
       child: HeaderedPlaylistControl(
+        key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
         type:
             selectedPlaylist.isBuiltIn
                 ? HeaderedPlaylistType.favorites
@@ -271,6 +272,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       child: Column(
         children: [
           CommandBar(
+            variant: CommandBarVariant.playlistPage,
             overflowLabel: i18n.t('player.more'),
             children: [
               CommandBarButton(
@@ -395,7 +397,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                         i18n,
                                         snapshot,
                                         playlist,
-                                        playlistSongs,
                                         position,
                                       );
                                     },
@@ -507,7 +508,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     SmPlayerI18n i18n,
     MusicLibrarySnapshot snapshot,
     LibraryPlaylist playlist,
-    List<LibrarySong> songs,
     Offset position,
   ) {
     showMenuFlyout(
@@ -515,24 +515,15 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       position: position,
       items: [
         MenuFlyoutItem(
-          key: 'play',
-          text: i18n.t('context.play'),
-          icon: FluentIcons.play_20_regular,
-          disabled: songs.isEmpty,
+          key: 'rename-playlist',
+          text: i18n.t('playlists.rename'),
+          icon: FluentIcons.edit_20_regular,
           onPressed: () {
-            ref
-                .read(libraryRepositoryProvider)
-                .recordPlaylistPlayed(playlist.id);
-            _playTrack(
-              ref,
-              snapshot,
-              songs.first.id,
-              songs.map((song) => song.id).toList(),
-            );
+            unawaited(_renamePlaylist(context, i18n, snapshot, playlist));
           },
         ),
         MenuFlyoutItem(
-          key: 'duplicate',
+          key: 'duplicate-playlist',
           text: i18n.t('playlists.duplicate'),
           icon: FluentIcons.copy_20_regular,
           onPressed: () {
@@ -542,15 +533,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           },
         ),
         MenuFlyoutItem(
-          key: 'rename',
-          text: i18n.t('playlists.rename'),
-          icon: FluentIcons.edit_20_regular,
-          onPressed: () {
-            unawaited(_renamePlaylist(context, i18n, snapshot, playlist));
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'delete',
+          key: 'delete-playlist',
           text: i18n.t('playlists.delete'),
           icon: FluentIcons.delete_20_regular,
           onPressed: () {

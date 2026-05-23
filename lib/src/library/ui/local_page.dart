@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
@@ -34,6 +35,7 @@ import 'library_page_actions.dart'
         setSongsFavoriteWithUndo;
 import 'local_folder_model.dart';
 import 'local_grid_content.dart';
+import 'missing_library_root_content.dart';
 import 'local_page_model.dart';
 import 'local_page_quick_jump.dart';
 import 'local_table_content.dart';
@@ -83,6 +85,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   LocalFolderScanCancellation? _scanCancellation;
   ({LibrarySong song, SongDialogMode mode})? _musicDialog;
   var _rootScanRunning = false;
+  var _pickingLibraryRoot = false;
 
   @override
   void didUpdateWidget(LocalPage oldWidget) {
@@ -139,21 +142,19 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     if (snapshot.rootPath.isEmpty) {
       return Stack(
         children: [
-          _LocalScaffold(
-            child: _LocalEmptyState(
-              title: i18n.t('local.noRoot'),
-              message: i18n.t('local.noRootCopy'),
-              action: LocalCommandButton(
-                onPressed:
-                    _rootScanRunning
-                        ? null
-                        : () {
-                          unawaited(_pickAndScanLibraryRoot(i18n));
-                        },
-                icon: FluentIcons.folder_20_regular,
-                label: i18n.t('library.chooseFolder'),
-              ),
-            ),
+          MissingLibraryRootContent(
+            topPadding: 18,
+            buttonLoading: _pickingLibraryRoot,
+            buttonLabel:
+                _pickingLibraryRoot
+                    ? i18n.t('library.openingFolderPicker')
+                    : null,
+            onPickLibraryRoot:
+                _rootScanRunning || _pickingLibraryRoot
+                    ? null
+                    : () {
+                      unawaited(_pickAndScanLibraryRoot(i18n));
+                    },
           ),
           if (_refreshProgress case final progress?)
             _LocalProgressOverlay(
@@ -318,6 +319,16 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     onHiddenFoldersListButtonClick:
                         () => context.go('/hidden-folders'),
                     onOpenFolder: _openFolder,
+                    onOpenFolderMenu:
+                        (targetRelativePath, position) => _showFolderChainMenu(
+                          position: position,
+                          folder: nodes[targetRelativePath]!,
+                          nodes: nodes,
+                          songsById: songsById,
+                          playlists: customPlaylists,
+                          snapshot: snapshot,
+                          i18n: i18n,
+                        ),
                   ),
                   const SizedBox(height: 12),
                   CommandBar(
@@ -505,7 +516,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     }),
                                 onPlayFolder: (folder) => _playShuffled(folder),
                                 onAddFolder:
-                                    (folder) => _showAddToMenu(
+                                    (folder, position) => _showAddToMenu(
+                                      position: position,
                                       songIds: folder.subtreeSongIds,
                                       defaultPlaylistName: folder.name,
                                       playlists: customPlaylists,
@@ -551,7 +563,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 onToggleSongSelection: _toggleSongSelection,
                                 onPlayNext: (songId) => _playNext(songId),
                                 onAddSong:
-                                    (song) => _showAddToMenu(
+                                    (song, position) => _showAddToMenu(
+                                      position: position,
                                       songIds: [song.id],
                                       defaultPlaylistName: song.title,
                                       playlists: customPlaylists,
@@ -630,7 +643,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     }),
                                 onPlayFolder: (folder) => _playShuffled(folder),
                                 onAddFolder:
-                                    (folder) => _showAddToMenu(
+                                    (folder, position) => _showAddToMenu(
+                                      position: position,
                                       songIds: folder.subtreeSongIds,
                                       defaultPlaylistName: folder.name,
                                       playlists: customPlaylists,
@@ -680,7 +694,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                       songId,
                                     ], favorite),
                                 onAddSong:
-                                    (song) => _showAddToMenu(
+                                    (song, position) => _showAddToMenu(
+                                      position: position,
                                       songIds: [song.id],
                                       defaultPlaylistName: song.title,
                                       playlists: customPlaylists,
@@ -810,8 +825,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     text: i18n.t('context.moveToFolder'),
                     icon: FluentIcons.folder_20_regular,
                     disabled: selectedLocalItemCount == 0,
-                    onPressed:
-                        () => _showSelectedMoveToFolderMenu(
+                    onPressed: () {},
+                    onPressedWithContext:
+                        (buttonContext) => _showSelectedMoveToFolderMenu(
+                          buttonContext: buttonContext,
                           nodes: nodes,
                           songsById: songsById,
                           songIds: effectiveSelectedSongIds,
@@ -963,7 +980,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       MenuFlyoutItem(
         key: 'toolbar-sort-reverse',
         text: i18n.t('local.sortReverseList'),
-        icon: FluentIcons.arrow_sort_down_lines_20_regular,
         onPressed:
             () => _updateSortMode(currentNode, LocalSortMode.reverse, i18n),
       ),
@@ -971,24 +987,30 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       MenuFlyoutItem(
         key: 'toolbar-sort-title',
         text: i18n.t('local.sortByTitle'),
-        icon: FluentIcons.text_sort_ascending_20_regular,
-        checked: _sortMode == LocalSortMode.title,
+        icon:
+            _sortMode == LocalSortMode.title
+                ? FluentIcons.checkmark_20_regular
+                : null,
         onPressed:
             () => _updateSortMode(currentNode, LocalSortMode.title, i18n),
       ),
       MenuFlyoutItem(
         key: 'toolbar-sort-artist',
         text: i18n.t('local.sortByArtist'),
-        icon: FluentIcons.person_20_regular,
-        checked: _sortMode == LocalSortMode.artist,
+        icon:
+            _sortMode == LocalSortMode.artist
+                ? FluentIcons.checkmark_20_regular
+                : null,
         onPressed:
             () => _updateSortMode(currentNode, LocalSortMode.artist, i18n),
       ),
       MenuFlyoutItem(
         key: 'toolbar-sort-album',
         text: i18n.t('local.sortByAlbum'),
-        icon: FluentIcons.album_20_regular,
-        checked: _sortMode == LocalSortMode.album,
+        icon:
+            _sortMode == LocalSortMode.album
+                ? FluentIcons.checkmark_20_regular
+                : null,
         onPressed:
             () => _updateSortMode(currentNode, LocalSortMode.album, i18n),
       ),
@@ -1038,6 +1060,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       songIds: const [],
       folderPaths: [folder.path],
       i18n: i18n,
+      key: 'move-folder-to-folder',
       onMoveToFolder: (targetFolder) {
         _moveLocalItemsToFolder(
           songIds: const [],
@@ -1069,6 +1092,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         MenuFlyoutItem(
           key: 'show-in-explorer',
           text: i18n.t('context.reveal'),
+          pendingText: i18n.t('context.openingLocal'),
           icon: FluentIcons.folder_open_20_regular,
           onPressed: () => _revealFolder(folder),
         ),
@@ -1120,6 +1144,94 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           text: i18n.t('local.hideFolder'),
           icon: FluentIcons.eye_off_20_regular,
           onPressed: () => _hideFolder(folder),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showFolderChainMenu({
+    required Offset position,
+    required FolderNode folder,
+    required Map<String, FolderNode> nodes,
+    required Map<int, LibrarySong> songsById,
+    required List<MultiSelectCommandBarPlaylist> playlists,
+    required MusicLibrarySnapshot snapshot,
+    required SmPlayerI18n i18n,
+  }) async {
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('folder', '${folder.id}');
+    if (!mounted) {
+      return;
+    }
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: folder.subtreeSongIds,
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
+      onAddToNowPlaying: () {
+        _addSongsToNowPlaying(folder.subtreeSongIds);
+      },
+      onToggleFavorite: () {
+        _toggleSongsFavorite(
+          _notFavoriteSongIds(folder.subtreeSongIds, songsById),
+          true,
+        );
+      },
+      onCreatePlaylist: () {
+        _createPlaylist(folder.name, folder.subtreeSongIds, snapshot, i18n);
+      },
+      onAddToPlaylist: (playlistId) {
+        _addSongsToPlaylist(playlistId, folder.subtreeSongIds);
+      },
+    );
+    final moveToFolderItem = _buildMoveToFolderMenuItem(
+      nodes: nodes,
+      songsById: songsById,
+      songIds: const [],
+      folderPaths: [folder.path],
+      i18n: i18n,
+      key: 'chain-move-to-folder',
+      onMoveToFolder: (targetFolder) {
+        _moveLocalItemsToFolder(
+          songIds: const [],
+          folderPaths: [folder.path],
+          targetFolderPath: targetFolder.path,
+        );
+      },
+    );
+
+    showMenuFlyout(
+      context,
+      position: position,
+      items: [
+        MenuFlyoutItem(
+          key: 'chain-shuffle-folder',
+          text: i18n.t('nowPlaying.randomPlay'),
+          icon: FluentIcons.arrow_shuffle_20_regular,
+          onPressed: () => _playShuffled(folder),
+        ),
+        if (addToItem != null) addToItem,
+        if (moveToFolderItem != null) moveToFolderItem,
+        _buildFolderPreferenceMenuItem(
+          i18n,
+          folder,
+          preferenceLevel,
+          key: 'chain-folder-preference',
+        ),
+        MenuFlyoutItem(
+          key: 'chain-show-in-explorer',
+          text: i18n.t('context.reveal'),
+          pendingText: i18n.t('context.openingLocal'),
+          icon: FluentIcons.folder_open_20_regular,
+          onPressed: () => _revealFolder(folder),
+        ),
+        MenuFlyoutItem(
+          key: 'chain-search-directory',
+          text: i18n.t('local.searchDirectory'),
+          icon: FluentIcons.search_20_regular,
+          onPressed: () => _searchDirectory(folder, i18n),
         ),
       ],
     );
@@ -1255,7 +1367,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         MenuFlyoutItem(
           key: 'folder-sort-reverse',
           text: i18n.t('local.sortReverseList'),
-          icon: FluentIcons.arrow_sort_down_lines_20_regular,
           onPressed:
               () => _updateFolderSortMode(folder, LocalSortMode.reverse, i18n),
         ),
@@ -1265,26 +1376,25 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             key: 'folder-sort-title',
             text: i18n.t('local.sortByTitle'),
             mode: LocalSortMode.title,
-            icon: FluentIcons.text_sort_ascending_20_regular,
           ),
           (
             key: 'folder-sort-artist',
             text: i18n.t('local.sortByArtist'),
             mode: LocalSortMode.artist,
-            icon: FluentIcons.person_20_regular,
           ),
           (
             key: 'folder-sort-album',
             text: i18n.t('local.sortByAlbum'),
             mode: LocalSortMode.album,
-            icon: FluentIcons.album_20_regular,
           ),
         ])
           MenuFlyoutItem(
             key: item.key,
             text: item.text,
-            icon: item.icon,
-            checked: folderSortMode == item.mode,
+            icon:
+                folderSortMode == item.mode
+                    ? FluentIcons.checkmark_20_regular
+                    : null,
             onPressed: () => _updateFolderSortMode(folder, item.mode, i18n),
           ),
       ],
@@ -1294,52 +1404,28 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   MenuFlyoutItem _buildFolderPreferenceMenuItem(
     SmPlayerI18n i18n,
     FolderNode folder,
-    String? preferenceLevel,
-  ) {
-    return MenuFlyoutItem(
-      key: 'preference',
-      text: i18n.t('settings.preferenceSettings'),
-      icon: FluentIcons.star_20_regular,
-      submenu: [
-        if (preferenceLevel != null) ...[
-          MenuFlyoutItem(
-            key: 'preference-undo',
-            text: i18n.t('preferences.undoPrefer'),
-            icon: FluentIcons.arrow_undo_20_regular,
-            onPressed: () async {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .removePreferenceItem('folder', '${folder.id}');
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-        ],
-        for (final level in const [
-          'do-not-appear',
-          'dislike',
-          'normal',
-          'high',
-          'higher',
-          'very-high',
-        ])
-          MenuFlyoutItem(
-            key: 'preference-$level',
-            text: i18n.t('preferences.level.$level'),
-            checked: preferenceLevel == level,
-            onPressed: () async {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .addPreferenceItem(
-                    'folder',
-                    '${folder.id}',
-                    folder.name,
-                    level,
-                  );
-              ref.invalidate(musicLibrarySnapshotProvider);
-            },
-          ),
-      ],
+    String? preferenceLevel, {
+    String key = 'folder-folder-preference',
+  }) {
+    return buildPreferenceMenuFlyoutItem(
+      i18n: i18n,
+      key: key,
+      preferenceLevel: preferenceLevel,
+      onUndoPreference:
+          preferenceLevel == null
+              ? null
+              : () async {
+                await ref
+                    .read(libraryRepositoryProvider)
+                    .removePreferenceItem('folder', '${folder.id}');
+                ref.invalidate(musicLibrarySnapshotProvider);
+              },
+      onSetPreference: (level) async {
+        await ref
+            .read(libraryRepositoryProvider)
+            .addPreferenceItem('folder', '${folder.id}', folder.name, level);
+        ref.invalidate(musicLibrarySnapshotProvider);
+      },
     );
   }
 
@@ -1531,6 +1617,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   void _showSelectedMoveToFolderMenu({
+    required BuildContext buttonContext,
     required Map<String, FolderNode> nodes,
     required Map<int, LibrarySong> songsById,
     required List<int> songIds,
@@ -1563,7 +1650,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return;
     }
 
-    showMenuFlyout(context, items: moveItems);
+    showMenuFlyout(buttonContext, items: moveItems);
   }
 
   MenuFlyoutItem? _buildMoveToFolderMenuItem({
@@ -1572,6 +1659,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required List<int> songIds,
     required List<String> folderPaths,
     required SmPlayerI18n i18n,
+    String key = 'move-to-folder',
     required ValueChanged<FolderNode> onMoveToFolder,
   }) {
     final moveItems = _buildLocalMoveToFolderMenuItems(
@@ -1587,7 +1675,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     return MenuFlyoutItem(
-      key: 'move-to-folder',
+      key: key,
       text: i18n.t('context.moveToFolder'),
       icon: FluentIcons.folder_20_regular,
       submenu: moveItems,
@@ -1641,7 +1729,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         key:
             'move-folder-${folder.relativePath.isEmpty ? 'root' : folder.relativePath}-target',
         text: folderMenuText(folder),
-        icon: FluentIcons.folder_20_regular,
         onPressed: () => onMoveToFolder(folder),
       );
     }
@@ -1659,7 +1746,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         key:
             'move-folder-${folder.relativePath.isEmpty ? 'root' : folder.relativePath}',
         text: folderMenuText(folder),
-        icon: FluentIcons.folder_20_regular,
         submenu:
             isTargetFolder(folder)
                 ? [
@@ -1799,11 +1885,31 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   Future<void> _pickAndScanLibraryRoot(SmPlayerI18n i18n) async {
-    final selectedRootPath =
-        widget.onPickLibraryRoot == null
-            ? await FilePicker.getDirectoryPath()
-            : await widget.onPickLibraryRoot!();
+    if (_pickingLibraryRoot || _rootScanRunning) {
+      return;
+    }
+    setState(() {
+      _pickingLibraryRoot = true;
+    });
+    final String? selectedRootPath;
+    try {
+      selectedRootPath =
+          widget.onPickLibraryRoot == null
+              ? Platform.isMacOS
+                  ? await pickDirectoryFromDesktopShell()
+                  : await FilePicker.getDirectoryPath()
+              : await widget.onPickLibraryRoot!();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pickingLibraryRoot = false;
+        });
+      }
+    }
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
+      if (mounted) {
+        _showMessage(i18n.t('library.folderPickerUnavailable'));
+      }
       return;
     }
     await _scanLibraryRoot(selectedRootPath, i18n);
@@ -2253,6 +2359,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   void _showAddToMenu({
+    required Offset position,
     required List<int> songIds,
     required String defaultPlaylistName,
     required List<MultiSelectCommandBarPlaylist> playlists,
@@ -2284,7 +2391,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return;
     }
 
-    showMenuFlyout(context, items: addToItem.submenu);
+    showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
   Future<void> _createPlaylist(
@@ -2405,9 +2512,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showAppNotification(context: context, message: message);
   }
 }
 
@@ -3069,14 +3174,16 @@ class _LocalEmptyState extends StatelessWidget {
 class LocalCommandButton extends StatefulWidget {
   const LocalCommandButton({
     super.key,
-    required this.icon,
+    this.icon,
     required this.label,
     required this.onPressed,
+    this.loading = false,
   });
 
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool loading;
 
   @override
   State<LocalCommandButton> createState() => _LocalCommandButtonState();
@@ -3084,50 +3191,70 @@ class LocalCommandButton extends StatefulWidget {
 
 class _LocalCommandButtonState extends State<LocalCommandButton> {
   var _hovered = false;
+  var _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
-    final active = enabled && _hovered;
-    final foreground =
-        active ? LocalPageColors.accentStrong : LocalPageColors.commandText;
-    final button = DecoratedBox(
+    final enabled = widget.onPressed != null && !widget.loading;
+    final foreground = CommandBarColors.textStrong;
+    final surface =
+        _pressed
+            ? CommandBarColors.buttonPressedSurface
+            : _hovered
+            ? CommandBarColors.buttonHoverSurface
+            : CommandBarColors.buttonSurface;
+    final button = Container(
       decoration: BoxDecoration(
-        color:
-            active
-                ? LocalPageColors.surfaceControlHover
-                : LocalPageColors.surfaceControl,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: LocalPageColors.borderSubtle),
-        boxShadow: const [
-          BoxShadow(
-            color: LocalPageColors.cardShadow,
-            offset: Offset(0, 12),
-            blurRadius: 26,
-          ),
-        ],
+        color: surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: CommandBarColors.buttonBorder),
       ),
+      clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 40),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(widget.icon, size: 18, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  height: 1,
-                ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              child: ColoredBox(
+                color: CommandBarColors.buttonInsetHighlight,
+                child: SizedBox(height: 1),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (widget.loading)
+                    SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: foreground,
+                      ),
+                    )
+                  else if (widget.icon case final icon?)
+                    Icon(icon, size: 20, color: foreground),
+                  if (widget.loading || widget.icon != null)
+                    const SizedBox(width: 8),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -3153,8 +3280,32 @@ class _LocalCommandButtonState extends State<LocalCommandButton> {
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onTapDown:
+              enabled
+                  ? (_) {
+                    setState(() {
+                      _pressed = true;
+                    });
+                  }
+                  : null,
+          onTapCancel:
+              enabled
+                  ? () {
+                    setState(() {
+                      _pressed = false;
+                    });
+                  }
+                  : null,
+          onTapUp:
+              enabled
+                  ? (_) {
+                    setState(() {
+                      _pressed = false;
+                    });
+                  }
+                  : null,
           onTap: widget.onPressed,
-          child: Opacity(opacity: enabled ? 1 : 0.52, child: button),
+          child: Opacity(opacity: enabled ? 1 : 0.45, child: button),
         ),
       ),
     );

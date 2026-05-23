@@ -42,7 +42,7 @@ class AlbumTile extends StatefulWidget {
   final bool selected;
   final VoidCallback onOpenAlbum;
   final VoidCallback onPlayAlbum;
-  final VoidCallback onAddAlbum;
+  final ValueChanged<Offset> onAddAlbum;
   final VoidCallback onToggleSelection;
   final ValueChanged<Offset>? onOpenContextMenu;
 
@@ -132,7 +132,7 @@ class _AlbumTileState extends State<AlbumTile> {
                     children: [
                       _AlbumHoverAction(
                         icon: FluentIcons.play_20_filled,
-                        onPressed: widget.onPlayAlbum,
+                        onPressed: (_) => widget.onPlayAlbum(),
                       ),
                       const SizedBox(width: 6),
                       _AlbumHoverAction(
@@ -209,21 +209,24 @@ class _AlbumHoverAction extends StatelessWidget {
   const _AlbumHoverAction({required this.icon, required this.onPressed});
 
   final IconData icon;
-  final VoidCallback onPressed;
+  final ValueChanged<Offset> onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: 34,
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: _AlbumTileColors.actionSurface,
-          foregroundColor: Colors.white,
-          shape: const CircleBorder(),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        onPressed(details.globalPosition);
+      },
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: _AlbumTileColors.actionSurface,
+          shape: BoxShape.circle,
         ),
-        icon: Icon(icon, size: 17),
-        onPressed: onPressed,
+        child: SizedBox.square(
+          dimension: 34,
+          child: Icon(icon, size: 17, color: Colors.white),
+        ),
       ),
     );
   }

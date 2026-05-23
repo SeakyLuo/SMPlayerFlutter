@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -209,6 +210,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         onGetPreferenceLevel: _getSearchResultPreferenceLevel,
                         onSetPreference: _setSearchResultPreference,
                         onUndoPreference: _undoSearchResultPreference,
+                        onGetSongPreferenceLevel: _getSongPreferenceLevel,
+                        onSetSongPreference: _setSongPreference,
+                        onUndoSongPreference: _undoSongPreference,
                         onSelectionChanged: () {
                           setState(() {});
                         },
@@ -258,6 +262,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           );
                         },
                         onCreatePlaylist: _createPlaylist,
+                        onDeleteSong: _deleteSong,
+                        onOpenArtist: _openArtist,
+                        onOpenAlbum: _openAlbum,
                         onOpenMusicDialog: _openMusicDialog,
                         onPreviewAlbumArt: _showAlbumArtPreview,
                         onSearchDirectory: _searchDirectory,
@@ -590,6 +597,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref.invalidate(musicLibrarySnapshotProvider);
   }
 
+  Future<String?> _getSongPreferenceLevel(LibrarySong song) {
+    return ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+  }
+
+  Future<void> _setSongPreference(LibrarySong song, String level) async {
+    await ref
+        .read(libraryRepositoryProvider)
+        .addPreferenceItem('song', '${song.id}', song.title, level);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
+  Future<void> _undoSongPreference(LibrarySong song) async {
+    await ref
+        .read(libraryRepositoryProvider)
+        .removePreferenceItem('song', '${song.id}');
+    ref.invalidate(musicLibrarySnapshotProvider);
+  }
+
   void _recordRecentSearch() {
     final query = widget.query.trim();
     if (query.isEmpty) {
@@ -813,6 +840,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     await revealItemInFolder(songPath);
   }
 
+  void _deleteSong(LibrarySong song) {
+    unawaited(
+      requestDeleteSongFromDisk(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        song: song,
+      ),
+    );
+  }
+
+  void _openArtist(String artist) {
+    context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+  }
+
+  void _openAlbum(String album) {
+    final albumName =
+        album.isEmpty ? context.smPlayerI18n.t('common.albumUnknown') : album;
+    context.go('/albums?album=${Uri.encodeQueryComponent(albumName)}');
+  }
+
   List<MultiSelectCommandBarPlaylist> _customPlaylists(
     List<LibraryPlaylist> playlists,
   ) {
@@ -1005,6 +1053,9 @@ class _SearchResultSection extends StatelessWidget {
     required this.onGetPreferenceLevel,
     required this.onSetPreference,
     required this.onUndoPreference,
+    required this.onGetSongPreferenceLevel,
+    required this.onSetSongPreference,
+    required this.onUndoSongPreference,
     required this.onSelectionChanged,
     required this.onOpenCard,
     required this.onPlaySongs,
@@ -1016,6 +1067,9 @@ class _SearchResultSection extends StatelessWidget {
     required this.onAddSongsToPlaylist,
     required this.onToggleSongsFavorite,
     required this.onCreatePlaylist,
+    required this.onDeleteSong,
+    required this.onOpenArtist,
+    required this.onOpenAlbum,
     required this.onOpenMusicDialog,
     required this.onPreviewAlbumArt,
     required this.onSearchDirectory,
@@ -1039,6 +1093,9 @@ class _SearchResultSection extends StatelessWidget {
   final Future<void> Function(SearchResultType, SearchResult, String)
   onSetPreference;
   final Future<void> Function(SearchResultType, SearchResult) onUndoPreference;
+  final Future<String?> Function(LibrarySong) onGetSongPreferenceLevel;
+  final Future<void> Function(LibrarySong, String) onSetSongPreference;
+  final Future<void> Function(LibrarySong) onUndoSongPreference;
   final VoidCallback onSelectionChanged;
   final ValueChanged<SearchResult> onOpenCard;
   final ValueChanged<List<int>> onPlaySongs;
@@ -1050,11 +1107,14 @@ class _SearchResultSection extends StatelessWidget {
   final Future<void> Function(int, List<int>) onAddSongsToPlaylist;
   final Future<void> Function(List<int>, bool) onToggleSongsFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
+  final ValueChanged<LibrarySong> onDeleteSong;
+  final ValueChanged<String> onOpenArtist;
+  final ValueChanged<String> onOpenAlbum;
   final void Function(LibrarySong, SongDialogMode) onOpenMusicDialog;
   final ValueChanged<SearchResult> onPreviewAlbumArt;
   final ValueChanged<SearchResult> onSearchDirectory;
-  final ValueChanged<SearchResult> onRevealCard;
-  final ValueChanged<LibrarySong> onRevealSong;
+  final Future<void> Function(SearchResult) onRevealCard;
+  final Future<void> Function(LibrarySong) onRevealSong;
 
   @override
   Widget build(BuildContext context) {
@@ -1077,34 +1137,49 @@ class _SearchResultSection extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            PopupMenuButton<SearchSortCriterion>(
-              tooltip: i18n.t('common.sort'),
-              onSelected: onSortChanged,
-              itemBuilder:
-                  (context) => [
-                    for (final option in sortOptions)
-                      PopupMenuItem<SearchSortCriterion>(
-                        value: option.value,
-                        child: Text(option.label),
-                      ),
-                  ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(FluentIcons.arrow_sort_20_regular, size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      _activeSortLabel(sortOptions, section.criterion),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+            Builder(
+              builder: (buttonContext) {
+                return TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: _SearchColors.textStrong,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
                     ),
-                  ],
-                ),
-              ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  onPressed: () {
+                    showMenuFlyout(
+                      buttonContext,
+                      items: [
+                        for (final option in sortOptions)
+                          MenuFlyoutItem(
+                            key: 'search-sort-${section.type}-${option.value}',
+                            text: option.label,
+                            icon:
+                                option.value == section.criterion
+                                    ? FluentIcons.checkmark_20_regular
+                                    : null,
+                            onPressed: () => onSortChanged(option.value),
+                          ),
+                      ],
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(FluentIcons.arrow_sort_20_regular, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        _activeSortLabel(sortOptions, section.criterion),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
             if (showViewToggle)
               TextButton(
@@ -1201,7 +1276,7 @@ class _SearchResultSection extends StatelessWidget {
               onPlayAlbum: () {
                 onPlayCard(card);
               },
-              onAddAlbum: () {
+              onAddAlbum: (_) {
                 onPlaySongs(card.songIds);
               },
               onToggleSelection: () {
@@ -1246,105 +1321,88 @@ class _SearchResultSection extends StatelessWidget {
     );
   }
 
-  void _showSongContextMenu(
+  Future<void> _showSongContextMenu(
     BuildContext context,
     Offset position,
     LibrarySong song,
-  ) {
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: [song.id],
-      playlists: playlists,
-      includeNowPlaying: true,
-      includeFavorites: !song.favorite,
-      onAddToNowPlaying: () {
-        onAddSongsToNowPlaying([song.id]);
-      },
-      onToggleFavorite: () {
-        onToggleSongsFavorite([song.id], true);
-      },
-      onCreatePlaylist: () {
-        onCreatePlaylist(song.title, [song.id]);
-      },
-      onAddToPlaylist: (playlistId) {
-        onAddSongsToPlaylist(playlistId, [song.id]);
-      },
-    );
-
+  ) async {
+    final mediaState = mediaControlState;
+    final preferenceLevel = await onGetSongPreferenceLevel(song);
+    if (!context.mounted) {
+      return;
+    }
     showMenuFlyout(
       context,
       position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'play',
-          text: i18n.t('context.play'),
-          icon: FluentIcons.play_20_regular,
-          onPressed: () {
-            onPlaySongs([song.id]);
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'play-next',
-          text: i18n.t('context.playNext'),
-          icon: FluentIcons.next_20_regular,
-          onPressed: () {
-            onPlayNext(song);
-          },
-        ),
-        if (addToItem != null) addToItem,
-        MenuFlyoutItem(
-          key: 'view',
-          text: i18n.t('context.view'),
-          icon: FluentIcons.eye_20_regular,
-          submenu: [
-            MenuFlyoutItem(
-              key: 'see-music-info',
-              text: i18n.t('context.seeMusicInfo'),
-              icon: FluentIcons.info_20_regular,
-              onPressed: () {
-                onOpenMusicDialog(song, SongDialogMode.properties);
-              },
-            ),
-            MenuFlyoutItem(
-              key: 'see-lyrics',
-              text: i18n.t('context.seeLyrics'),
-              icon: FluentIcons.text_quote_20_regular,
-              onPressed: () {
-                onOpenMusicDialog(song, SongDialogMode.lyrics);
-              },
-            ),
-            MenuFlyoutItem(
-              key: 'see-album-art',
-              text: i18n.t('context.seeAlbumArt'),
-              icon: FluentIcons.image_20_regular,
-              onPressed: () {
-                onOpenMusicDialog(song, SongDialogMode.albumArt);
-              },
-            ),
-            MenuFlyoutItem(
-              key: 'see-local-file',
-              text: i18n.t('context.seeLocalFile'),
-              icon: FluentIcons.folder_open_20_regular,
-              onPressed: () {
-                onRevealSong(song);
-              },
-            ),
-          ],
-        ),
-        const MenuFlyoutItem.separator(key: 'selection-separator'),
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
-          onPressed: () {
-            selection.enterMultiSelect();
-            if (!selection.isSelected(_songSelectionKey(song))) {
-              selection.toggle(_songSelectionKey(song));
-            }
-            onSelectionChanged();
-          },
-        ),
-      ],
+      items: buildMusicMenuFlyoutItems(
+        i18n: i18n,
+        songId: song.id,
+        isFavorite: song.favorite,
+        isCurrentTrack: song.id == mediaState.track.id,
+        isPlaying: mediaState.isPlaying,
+        currentTrackId: mediaState.track.id,
+        songPath: song.path,
+        playlists: playlists,
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () {
+                  unawaited(onUndoSongPreference(song));
+                },
+        onPlay: () {
+          onPlaySongs([song.id]);
+        },
+        onPause: onTogglePlayPause,
+        onPlayNext: () {
+          onPlayNext(song);
+        },
+        onAddToNowPlaying: () {
+          unawaited(onAddSongsToNowPlaying([song.id]));
+        },
+        onCreatePlaylist: () {
+          unawaited(onCreatePlaylist(song.title, [song.id]));
+        },
+        onAddToPlaylist: (playlistId) {
+          unawaited(onAddSongsToPlaylist(playlistId, [song.id]));
+        },
+        onRemove: () {},
+        onSelect: () {
+          selection.enterMultiSelect();
+          if (!selection.isSelected(_songSelectionKey(song))) {
+            selection.toggle(_songSelectionKey(song));
+          }
+          onSelectionChanged();
+        },
+        onToggleFavorite: () {
+          unawaited(onToggleSongsFavorite([song.id], true));
+        },
+        onSetPreference: (level) {
+          unawaited(onSetSongPreference(song, level));
+        },
+        onDelete: () {
+          onDeleteSong(song);
+        },
+        onHide: () {},
+        onSeeArtist: () {
+          final artist =
+              song.artists.isEmpty ? song.artist : song.artists.first;
+          onOpenArtist(artist);
+        },
+        onSeeAlbum: () {
+          onOpenAlbum(song.album);
+        },
+        onSeeMusicInfo: () {
+          onOpenMusicDialog(song, SongDialogMode.properties);
+        },
+        onSeeLyrics: () {
+          onOpenMusicDialog(song, SongDialogMode.lyrics);
+        },
+        onSeeAlbumArt: () {
+          onOpenMusicDialog(song, SongDialogMode.albumArt);
+        },
+        onSeeLocal: () => onRevealSong(song),
+      ),
     );
   }
 
@@ -1358,17 +1416,21 @@ class _SearchResultSection extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
+    final favoriteSongIds = [
+      for (final songId in card.songIds)
+        if (songsById[songId]?.favorite != true) songId,
+    ];
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: card.songIds,
       playlists: playlists,
       includeNowPlaying: true,
-      includeFavorites: true,
+      includeFavorites: favoriteSongIds.isNotEmpty,
       onAddToNowPlaying: () {
         onAddSongsToNowPlaying(card.songIds);
       },
       onToggleFavorite: () {
-        onToggleSongsFavorite(card.songIds, true);
+        onToggleSongsFavorite(favoriteSongIds, true);
       },
       onCreatePlaylist: () {
         onCreatePlaylist(card.title, card.songIds);
@@ -1383,14 +1445,24 @@ class _SearchResultSection extends StatelessWidget {
       position: position,
       items: [
         MenuFlyoutItem(
-          key: 'play',
-          text: i18n.t('context.play'),
-          icon: FluentIcons.play_20_regular,
+          key: 'shuffle',
+          text: i18n.t('nowPlaying.randomPlay'),
+          icon: FluentIcons.arrow_shuffle_20_regular,
           onPressed: () {
             onPlayCard(card);
           },
         ),
         if (addToItem != null) addToItem,
+        MenuFlyoutItem(
+          key: 'select',
+          text: i18n.t('context.select'),
+          icon: FluentIcons.select_all_on_20_regular,
+          onPressed: () {
+            selection.enterMultiSelect();
+            selection.selectSingle(cardKey);
+            onSelectionChanged();
+          },
+        ),
         if (_searchResultPreferenceType(section.type) != null)
           _buildSearchResultPreferenceMenuItem(card, preferenceLevel),
         if (section.type == SearchResultType.albums)
@@ -1404,6 +1476,13 @@ class _SearchResultSection extends StatelessWidget {
           ),
         if (section.type == SearchResultType.folders) ...[
           MenuFlyoutItem(
+            key: 'show-in-explorer',
+            text: i18n.t('context.reveal'),
+            pendingText: i18n.t('context.openingLocal'),
+            icon: FluentIcons.folder_open_20_regular,
+            onPressed: () => onRevealCard(card),
+          ),
+          MenuFlyoutItem(
             key: 'search-directory',
             text: i18n.t('local.searchDirectory'),
             icon: FluentIcons.search_20_regular,
@@ -1411,26 +1490,7 @@ class _SearchResultSection extends StatelessWidget {
               onSearchDirectory(card);
             },
           ),
-          MenuFlyoutItem(
-            key: 'reveal',
-            text: i18n.t('context.reveal'),
-            icon: FluentIcons.folder_open_20_regular,
-            onPressed: () {
-              onRevealCard(card);
-            },
-          ),
         ],
-        const MenuFlyoutItem.separator(key: 'selection-separator'),
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
-          onPressed: () {
-            selection.enterMultiSelect();
-            selection.selectSingle(cardKey);
-            onSelectionChanged();
-          },
-        ),
       ],
     );
   }
@@ -1439,39 +1499,19 @@ class _SearchResultSection extends StatelessWidget {
     SearchResult card,
     String? preferenceLevel,
   ) {
-    return MenuFlyoutItem(
+    return buildPreferenceMenuFlyoutItem(
+      i18n: i18n,
       key: 'preference',
-      text: i18n.t('settings.preferenceSettings'),
-      icon: FluentIcons.star_20_regular,
-      submenu: [
-        if (preferenceLevel != null) ...[
-          MenuFlyoutItem(
-            key: 'preference-undo',
-            text: i18n.t('preferences.undoPrefer'),
-            icon: FluentIcons.arrow_undo_20_regular,
-            onPressed: () {
-              onUndoPreference(section.type, card);
-            },
-          ),
-          const MenuFlyoutItem.separator(key: 'preference-undo-separator'),
-        ],
-        for (final level in const [
-          'do-not-appear',
-          'dislike',
-          'normal',
-          'high',
-          'higher',
-          'very-high',
-        ])
-          MenuFlyoutItem(
-            key: 'preference-$level',
-            text: i18n.t('preferences.level.$level'),
-            checked: preferenceLevel == level,
-            onPressed: () {
-              onSetPreference(section.type, card, level);
-            },
-          ),
-      ],
+      preferenceLevel: preferenceLevel,
+      onUndoPreference:
+          preferenceLevel == null
+              ? null
+              : () {
+                onUndoPreference(section.type, card);
+              },
+      onSetPreference: (level) {
+        onSetPreference(section.type, card, level);
+      },
     );
   }
 }

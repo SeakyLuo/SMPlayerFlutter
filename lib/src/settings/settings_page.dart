@@ -8,9 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -131,6 +133,7 @@ class _SettingsPageState extends State<SettingsPage> {
   ArtistSplitAnalysisResult? _artistSplitAnalysisResult;
   var _dataTransferState = DataTransferState.idle;
   var _scanRunning = false;
+  var _pickingLibraryRoot = false;
   LocalFolderRefreshProgress? _scanProgress;
   LocalFolderScanCancellation? _scanCancellation;
   var _systemFonts = const <String>[];
@@ -421,9 +424,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: _SettingsIconButton(
                   icon: FluentIcons.folder_24_regular,
                   tooltip: i18n.t('common.folders'),
-                  onPressed: () {
-                    unawaited(_pickLibraryRoot());
-                  },
+                  busy: _pickingLibraryRoot,
+                  onPressed:
+                      widget.loading || _isScanning || _pickingLibraryRoot
+                          ? null
+                          : () {
+                            unawaited(_pickLibraryRoot());
+                          },
                 ),
               ),
             ],
@@ -967,11 +974,30 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _pickLibraryRoot() async {
-    final selectedRootPath =
-        widget.onPickLibraryRoot == null
-            ? await FilePicker.getDirectoryPath()
-            : await widget.onPickLibraryRoot!();
+    if (_pickingLibraryRoot || _isScanning) {
+      return;
+    }
+    final i18n = context.smPlayerI18n;
+    setState(() {
+      _pickingLibraryRoot = true;
+    });
+    final String? selectedRootPath;
+    try {
+      selectedRootPath =
+          widget.onPickLibraryRoot == null
+              ? Platform.isMacOS
+                  ? await pickDirectoryFromDesktopShell()
+                  : await FilePicker.getDirectoryPath()
+              : await widget.onPickLibraryRoot!();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pickingLibraryRoot = false;
+        });
+      }
+    }
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
+      _showMessage(i18n.t('library.folderPickerUnavailable'));
       return;
     }
 
@@ -1336,9 +1362,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    showAppNotification(context: context, message: message);
   }
 }
 
@@ -4490,11 +4514,13 @@ class _SettingsIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.busy = false,
   });
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -4503,7 +4529,14 @@ class _SettingsIconButton extends StatelessWidget {
       message: tooltip,
       child: IconButton(
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon:
+            busy
+                ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                : Icon(icon),
         style: IconButton.styleFrom(
           backgroundColor: colors.buttonSurface,
           side: BorderSide(color: colors.inputBorder),
@@ -4855,23 +4888,26 @@ class ReleaseNotesDialog extends StatelessWidget {
     final i18n = context.smPlayerI18n;
     final releaseNotes = getReleaseNotes(i18n);
 
-    return _DialogOverlay(
-      child: _DialogBox(
-        title: i18n.t('settings.releaseNotes'),
-        onClose: onClose,
-        width: 640,
-        child: SizedBox(
-          height: 480,
-          child: Scrollbar(
-            child: ListView.separated(
-              primary: false,
-              padding: const EdgeInsets.only(right: 14),
-              itemCount: releaseNotes.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 18),
-              itemBuilder: (context, index) {
-                return _ReleaseNoteVersion(entry: releaseNotes[index]);
-              },
-            ),
+    return PopupDialog(
+      navLabel: i18n.t('settings.releaseNotes'),
+      ariaLabel: i18n.t('settings.releaseNotes'),
+      width: 640,
+      height: 600,
+      onClose: onClose,
+      navChildren: [
+        Expanded(child: PopupDialogTitle(i18n.t('settings.releaseNotes'))),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 44),
+        child: Scrollbar(
+          child: ListView.separated(
+            primary: false,
+            padding: const EdgeInsets.only(right: 14),
+            itemCount: releaseNotes.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 18),
+            itemBuilder: (context, index) {
+              return _ReleaseNoteVersion(entry: releaseNotes[index]);
+            },
           ),
         ),
       ),
@@ -4970,13 +5006,39 @@ class ArtistSplitReviewDialog extends StatelessWidget {
     final colors = SettingsPageColors.of(context);
     final splitItems = _splitItems(result);
 
-    return _DialogOverlay(
-      child: _DialogBox(
-        width: 640,
-        title: i18n.t('local.startupArtistSplitSuggestionsTitle'),
-        onClose: onCancel,
+    return PopupDialog(
+      navLabel: i18n.t('local.startupArtistSplitSuggestionsTitle'),
+      ariaLabel: i18n.t('local.startupArtistSplitSuggestionsTitle'),
+      width: 760,
+      height: 640,
+      onClose: applying ? () {} : onCancel,
+      navChildren: [
+        Expanded(
+          child: PopupDialogTitle(
+            i18n.t('local.startupArtistSplitSuggestionsTitle'),
+          ),
+        ),
+      ],
+      footer: PopupDialogActions(
+        children: [
+          PopupDialogActionButton(
+            label:
+                applying
+                    ? i18n.t('local.applyingArtistSplits')
+                    : i18n.t('local.applyArtistSplits'),
+            primary: true,
+            loading: applying,
+            onPressed: applying ? null : onApply,
+          ),
+          PopupDialogActionButton(
+            label: i18n.t('local.keepArtistSplits'),
+            onPressed: applying ? null : onCancel,
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
@@ -4989,8 +5051,7 @@ class ArtistSplitReviewDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 390),
+            Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5020,25 +5081,18 @@ class ArtistSplitReviewDialog extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: applying ? null : onCancel,
-                  child: Text(i18n.t('local.keepArtistSplits')),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: applying ? null : onApply,
-                  child: Text(
-                    applying
-                        ? i18n.t('local.applyingArtistSplits')
-                        : i18n.t('local.applyArtistSplits'),
+            if (applying)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  i18n.t('local.applyingArtistSplits'),
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: PopupDialogColors.resolve(context).textMuted,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
@@ -5188,73 +5242,43 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
 
-    return _DialogOverlay(
-      child: _DialogBox(
-        title: title,
-        onClose: onCancel,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(message),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: busy ? null : onCancel,
-                  child: Text(i18n.t('common.cancel')),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: busy ? null : onConfirm,
-                  child: Text(
-                    busy
-                        ? i18n.t('settings.smartMultiArtistFixPending')
-                        : confirmText ?? i18n.t('common.confirm'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogBox extends StatelessWidget {
-  const _DialogBox({
-    required this.title,
-    required this.onClose,
-    required this.child,
-    this.width = 460,
-  });
-
-  final String title;
-  final VoidCallback onClose;
-  final Widget child;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return Container(
-      width: width,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-      decoration: BoxDecoration(
-        color: colors.dialogSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.cardBorder),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return PopupDialog(
+      navLabel: title,
+      ariaLabel: title,
+      width: 480,
+      height: 230,
+      onClose: busy ? () {} : onCancel,
+      navChildren: [Expanded(child: PopupDialogTitle(title))],
+      footer: PopupDialogActions(
         children: [
-          _DialogHeader(title: title, onClose: onClose),
-          const SizedBox(height: 12),
-          child,
+          PopupDialogActionButton(
+            label:
+                busy
+                    ? i18n.t('settings.smartMultiArtistFixPending')
+                    : confirmText ?? i18n.t('common.confirm'),
+            primary: true,
+            loading: busy,
+            onPressed: busy ? null : onConfirm,
+          ),
+          PopupDialogActionButton(
+            label: i18n.t('common.cancel'),
+            onPressed: busy ? null : onCancel,
+          ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: Center(
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: PopupDialogColors.resolve(context).text,
+              fontSize: 15,
+              height: 1.55,
+            ),
+          ),
+        ),
       ),
     );
   }

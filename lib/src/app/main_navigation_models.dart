@@ -39,6 +39,7 @@ class MainNavigationViewItem {
 class _MainNavigationViewTitle extends StatelessWidget {
   const _MainNavigationViewTitle({
     required this.collapsed,
+    required this.hideAppName,
     required this.appName,
     required this.titlebarLeadingInset,
     required this.canGoBack,
@@ -51,6 +52,7 @@ class _MainNavigationViewTitle extends StatelessWidget {
   });
 
   final bool collapsed;
+  final bool hideAppName;
   final String appName;
   final double titlebarLeadingInset;
   final bool canGoBack;
@@ -101,16 +103,19 @@ class _MainNavigationViewTitle extends StatelessWidget {
                     child: _WindowDragRegion(
                       onWindowDragStart: onWindowDragStart,
                       onWindowDragEnd: onWindowDragEnd,
-                      child: Text(
-                        appName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textStrong,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child:
+                          hideAppName
+                              ? const SizedBox.expand()
+                              : Text(
+                                appName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.textStrong,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                     ),
                   ),
                 ],

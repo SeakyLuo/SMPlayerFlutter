@@ -77,7 +77,7 @@ class LocalTableContent extends StatelessWidget {
   final VoidCallback onToggleSongsExpanded;
   final ValueChanged<String> onToggleTreeFolderExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -94,7 +94,7 @@ class LocalTableContent extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
-  final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onAddSong;
   final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
@@ -516,7 +516,11 @@ class LocalTableContent extends StatelessWidget {
                 IconButton(
                   tooltip: i18n.t('context.addToPlaylist'),
                   icon: const Icon(FluentIcons.add_20_regular),
-                  onPressed: () => onAddSong(song),
+                  onPressed:
+                      () => _invokeAtButtonBottom(
+                        context,
+                        (position) => onAddSong(song, position),
+                      ),
                 ),
                 IconButton(
                   tooltip: i18n.t('context.playNext'),
@@ -598,7 +602,11 @@ class LocalTableContent extends StatelessWidget {
                           IconButton(
                             tooltip: i18n.t('context.addToPlaylist'),
                             icon: const Icon(FluentIcons.add_20_regular),
-                            onPressed: () => onAddFolder(folder),
+                            onPressed:
+                                () => _invokeAtButtonBottom(
+                                  context,
+                                  (position) => onAddFolder(folder, position),
+                                ),
                           ),
                           IconButton(
                             tooltip: i18n.t('local.updateFolder'),
@@ -708,7 +716,11 @@ class LocalTableContent extends StatelessWidget {
                           IconButton(
                             tooltip: i18n.t('context.addToPlaylist'),
                             icon: const Icon(FluentIcons.add_20_regular),
-                            onPressed: () => onAddSong(song),
+                            onPressed:
+                                () => _invokeAtButtonBottom(
+                                  context,
+                                  (position) => onAddSong(song, position),
+                                ),
                           ),
                           IconButton(
                             tooltip: i18n.t('context.playNext'),
@@ -902,4 +914,9 @@ class _LocalTableCheckMark extends StatelessWidget {
               : null,
     );
   }
+}
+
+void _invokeAtButtonBottom(BuildContext context, ValueChanged<Offset> action) {
+  final box = context.findRenderObject() as RenderBox;
+  action(box.localToGlobal(Offset(0, box.size.height + 6)));
 }

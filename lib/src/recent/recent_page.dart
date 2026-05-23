@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
@@ -143,11 +144,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   ),
                 )
                 .toList();
-        final showEmptyHeader =
-            addedSongs.isEmpty &&
-            recentPlayedCount == 0 &&
-            snapshot.recentSearches.isEmpty;
-
         return _RecentPagePanel(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -163,8 +159,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 children: [
                   Column(
                     children: [
-                      if (showEmptyHeader)
-                        _RecentPageHeader(title: i18n.t('common.recent')),
                       if (useAppBarTabs)
                         _RecentAppBarTabs(
                           i18n: i18n,
@@ -332,6 +326,23 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                       title,
                                       songIds,
                                       customPlaylists,
+                                    );
+                                  },
+                                  onOpenAlbumAddMenu: (position, album) {
+                                    _showCollectionAddToMenu(
+                                      position,
+                                      album.name,
+                                      album.songIds,
+                                      customPlaylists,
+                                    );
+                                  },
+                                  onOpenArtistContextMenu: (position, artist) {
+                                    unawaited(
+                                      _showArtistContextMenu(
+                                        position,
+                                        artist,
+                                        customPlaylists,
+                                      ),
                                     );
                                   },
                                   onTimelineLabelChange:
@@ -613,32 +624,23 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     _playSong(songsById[songIds.first]!, songIds, 0);
   }
 
+  void _playShuffledSongIds(List<int> songIds) {
+    _playSongIds(songIds.toList()..shuffle());
+  }
+
   Future<void> _confirmClearHistory() async {
     final i18n = context.smPlayerI18n;
     final message =
         _activeTab == RecentTab.played
             ? i18n.t('recent.clearPlayedConfirm')
             : i18n.t('recent.clearSearchesConfirm');
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (dialogContext) => AlertDialog(
-                title: Text(i18n.t('common.confirm')),
-                content: Text(message),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: Text(i18n.t('common.cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: Text(i18n.t('common.confirm')),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await showPopupConfirmDialog(
+      context: context,
+      title: i18n.t('common.confirm'),
+      message: message,
+      confirmLabel: i18n.t('common.confirm'),
+      destructive: false,
+    );
     if (!confirmed) {
       return;
     }
@@ -1126,6 +1128,185 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     );
   }
 
+  void _showCollectionAddToMenu(
+    Offset position,
+    String title,
+    List<int> songIds,
+    List<MultiSelectCommandBarPlaylist> playlists,
+  ) {
+    final i18n = context.smPlayerI18n;
+    final songsById = {
+      for (final song in ref.read(musicLibrarySnapshotProvider).value!.songs)
+        song.id: song,
+    };
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: songIds,
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: hasNotFavoriteSongs(songIds, songsById),
+      onAddToNowPlaying: () {
+        addSongsToNowPlayingWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: songIds,
+        );
+      },
+      onToggleFavorite: () {
+        setSongsFavoriteWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: notFavoriteSongIds(songIds, songsById),
+          favorite: true,
+        );
+      },
+      onCreatePlaylist: () async {
+        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        await createPlaylistWithSongs(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlists: snapshot.playlists,
+          defaultName: getNextPlaylistName(title, snapshot.playlists),
+          songIds: songIds,
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        addSongsToPlaylistWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlistId: playlistId,
+          songIds: songIds,
+        );
+      },
+    );
+    if (addToItem == null) {
+      return;
+    }
+
+    showMenuFlyout(context, position: position, items: addToItem.submenu);
+  }
+
+  Future<void> _showArtistContextMenu(
+    Offset position,
+    RecentArtistView artist,
+    List<MultiSelectCommandBarPlaylist> playlists,
+  ) async {
+    final i18n = context.smPlayerI18n;
+    final songIds = artist.songs.map((song) => song.id).toList();
+    final favoriteSongIds =
+        artist.songs
+            .where((song) => !song.favorite)
+            .map((song) => song.id)
+            .toList();
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('artist', artist.name);
+    if (!mounted) {
+      return;
+    }
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: songIds,
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: favoriteSongIds.isNotEmpty,
+      onAddToNowPlaying: () {
+        addSongsToNowPlayingWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: songIds,
+        );
+      },
+      onToggleFavorite:
+          favoriteSongIds.isEmpty
+              ? null
+              : () {
+                setSongsFavoriteWithUndo(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  songIds: favoriteSongIds,
+                  favorite: true,
+                );
+              },
+      onCreatePlaylist: () async {
+        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        await createPlaylistWithSongs(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlists: snapshot.playlists,
+          defaultName: getNextPlaylistName(artist.name, snapshot.playlists),
+          songIds: songIds,
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        addSongsToPlaylistWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlistId: playlistId,
+          songIds: songIds,
+        );
+      },
+    );
+
+    showMenuFlyout(
+      context,
+      position: position,
+      items: [
+        MenuFlyoutItem(
+          key: 'shuffle',
+          text: i18n.t('nowPlaying.randomPlay'),
+          icon: FluentIcons.arrow_shuffle_20_regular,
+          onPressed: () {
+            _recordRecentCollectionPlayed(
+              (repository) => repository.recordArtistPlayed(artist.name),
+            );
+            _playShuffledSongIds(songIds);
+          },
+        ),
+        if (addToItem != null) addToItem,
+        MenuFlyoutItem(
+          key: 'multi-select',
+          text: i18n.t('common.multiSelect'),
+          icon: FluentIcons.select_all_on_20_regular,
+          onPressed: () {
+            setState(() {
+              _multiSelect = true;
+              _selectedCollectionKeys.add('artists:${artist.name}');
+            });
+          },
+        ),
+        buildPreferenceMenuFlyoutItem(
+          i18n: i18n,
+          key: 'preference',
+          preferenceLevel: preferenceLevel,
+          onUndoPreference:
+              preferenceLevel == null
+                  ? null
+                  : () async {
+                    await ref
+                        .read(libraryRepositoryProvider)
+                        .removePreferenceItem('artist', artist.name);
+                    ref.invalidate(musicLibrarySnapshotProvider);
+                  },
+          onSetPreference: (level) async {
+            await ref
+                .read(libraryRepositoryProvider)
+                .addPreferenceItem('artist', artist.name, artist.name, level);
+            ref.invalidate(musicLibrarySnapshotProvider);
+          },
+        ),
+      ],
+    );
+  }
+
   void _recordRecentCollectionPlayed(
     Future<void> Function(LibraryRepository repository) record,
   ) {
@@ -1570,6 +1751,8 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onTimelineLabelChange,
     required this.onOpenSongContextMenu,
     required this.onOpenCollectionContextMenu,
+    required this.onOpenAlbumAddMenu,
+    required this.onOpenArtistContextMenu,
   });
 
   final RecentPlayedFilter filter;
@@ -1606,6 +1789,10 @@ class _RecentPlayedPanel extends StatelessWidget {
     List<int> songIds,
   )
   onOpenCollectionContextMenu;
+  final void Function(Offset position, RecentAlbumView album)
+  onOpenAlbumAddMenu;
+  final void Function(Offset position, RecentArtistView artist)
+  onOpenArtistContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -1636,14 +1823,6 @@ class _RecentPlayedPanel extends StatelessWidget {
         },
         onToggleSelection: onToggleCollectionSelection,
         onTimelineLabelChange: onTimelineLabelChange,
-        onOpenContextMenu: (position, playlist) {
-          onOpenCollectionContextMenu(
-            position,
-            'playlists:${playlist.playlist.id}',
-            playlist.playlist.name,
-            playlist.songs.map((song) => song.id).toList(),
-          );
-        },
       ),
       RecentPlayedFilter.albums => _RecentAlbumGrid(
         albums: albums,
@@ -1657,12 +1836,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onToggleSelection: onToggleCollectionSelection,
         onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, album) {
-          onOpenCollectionContextMenu(
-            position,
-            'albums:${album.name}',
-            album.name,
-            album.songIds,
-          );
+          onOpenAlbumAddMenu(position, album);
         },
       ),
       RecentPlayedFilter.artists => _RecentArtistList(
@@ -1672,17 +1846,12 @@ class _RecentPlayedPanel extends StatelessWidget {
         onOpen: onOpenArtist,
         onPlay: (artist) {
           onRecordArtistPlayed(artist.name);
-          onPlaySongs(artist.songs.map((song) => song.id).toList());
+          onPlaySongs(artist.songs.map((song) => song.id).toList()..shuffle());
         },
         onToggleSelection: onToggleCollectionSelection,
         onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, artist) {
-          onOpenCollectionContextMenu(
-            position,
-            'artists:${artist.name}',
-            artist.name,
-            artist.songs.map((song) => song.id).toList(),
-          );
+          onOpenArtistContextMenu(position, artist);
         },
       ),
     };
@@ -2004,7 +2173,6 @@ class _RecentPlaylistGrid extends StatelessWidget {
     required this.onPlay,
     required this.onToggleSelection,
     required this.onTimelineLabelChange,
-    required this.onOpenContextMenu,
   });
 
   final List<RecentPlaylistView> playlists;
@@ -2014,8 +2182,6 @@ class _RecentPlaylistGrid extends StatelessWidget {
   final ValueChanged<RecentPlaylistView> onPlay;
   final ValueChanged<String> onToggleSelection;
   final ValueChanged<String> onTimelineLabelChange;
-  final void Function(Offset position, RecentPlaylistView playlist)
-  onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -2039,9 +2205,6 @@ class _RecentPlaylistGrid extends StatelessWidget {
             }
           },
           onPlay: () => onPlay(playlist),
-          onOpenContextMenu: (position) {
-            onOpenContextMenu(position, playlist);
-          },
         );
       },
     );
@@ -2282,7 +2445,7 @@ class _CollectionCard extends StatefulWidget {
     required this.multiSelect,
     required this.onOpen,
     required this.onPlay,
-    required this.onOpenContextMenu,
+    this.onOpenContextMenu,
     this.imagePath,
   });
 
@@ -2294,7 +2457,7 @@ class _CollectionCard extends StatefulWidget {
   final bool multiSelect;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final ValueChanged<Offset>? onOpenContextMenu;
 
   @override
   State<_CollectionCard> createState() => _CollectionCardState();
@@ -2323,7 +2486,7 @@ class _CollectionCardState extends State<_CollectionCard> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          widget.onOpenContextMenu?.call(details.globalPosition);
         },
         onTap: widget.onOpen,
         child: AnimatedContainer(
@@ -2542,33 +2705,6 @@ class _RecentPagePanel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 18, 0),
       child: SizedBox.expand(child: child),
-    );
-  }
-}
-
-class _RecentPageHeader extends StatelessWidget {
-  const _RecentPageHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 72,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: _RecentColors.textStrong,
-            fontSize: 40,
-            height: 1.1,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
     );
   }
 }

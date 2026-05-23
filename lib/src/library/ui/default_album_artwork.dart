@@ -10,6 +10,7 @@ class DefaultAlbumArtwork extends StatelessWidget {
     this.darkShadowOffset = 10,
     this.lightShadowBlur = 8,
     this.darkShadowBlur = 10,
+    this.logoOpacity = 1,
   });
 
   final double logoScale;
@@ -17,6 +18,7 @@ class DefaultAlbumArtwork extends StatelessWidget {
   final double darkShadowOffset;
   final double lightShadowBlur;
   final double darkShadowBlur;
+  final double logoOpacity;
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +110,12 @@ class DefaultAlbumArtwork extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Image.asset(
-                    'assets/branding/app-icon.png',
-                    fit: BoxFit.contain,
+                  Opacity(
+                    opacity: logoOpacity,
+                    child: Image.asset(
+                      'assets/branding/app-icon.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ],
               ),

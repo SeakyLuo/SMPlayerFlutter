@@ -324,8 +324,8 @@ class _PlayerCompactVolumeActionState
   }
 }
 
-class _PlayerVolumeMenuItem extends StatefulWidget {
-  const _PlayerVolumeMenuItem({
+class PlayerVolumeMenuItem extends StatefulWidget {
+  const PlayerVolumeMenuItem({
     required this.label,
     required this.muted,
     required this.volumeValue,
@@ -342,14 +342,14 @@ class _PlayerVolumeMenuItem extends StatefulWidget {
   final ValueChanged<int> onVolumeChange;
 
   @override
-  State<_PlayerVolumeMenuItem> createState() => _PlayerVolumeMenuItemState();
+  State<PlayerVolumeMenuItem> createState() => _PlayerVolumeMenuItemState();
 }
 
-class _PlayerVolumeMenuItemState extends State<_PlayerVolumeMenuItem> {
+class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
   late var _liveValue = widget.volumeValue;
 
   @override
-  void didUpdateWidget(covariant _PlayerVolumeMenuItem oldWidget) {
+  void didUpdateWidget(covariant PlayerVolumeMenuItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.volumeValue != widget.volumeValue) {
       _liveValue = widget.volumeValue;

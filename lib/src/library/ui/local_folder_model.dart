@@ -119,6 +119,9 @@ FolderNode createFolderNode(String relativePath, String rootPath) {
 String getParentPath(String relativePath) {
   final parts =
       relativePath.split('/').where((segment) => segment.isNotEmpty).toList();
+  if (parts.isEmpty) {
+    return '';
+  }
   return parts.take(parts.length - 1).join('/');
 }
 

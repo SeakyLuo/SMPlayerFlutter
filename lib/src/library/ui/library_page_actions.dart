@@ -5,6 +5,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
 import 'headered_playlist_model.dart';
@@ -217,28 +218,12 @@ Future<void> requestDeleteSongFromDisk({
   required SmPlayerI18n i18n,
   required LibrarySong song,
 }) async {
-  final confirmed =
-      await showDialog<bool>(
-        context: context,
-        builder:
-            (dialogContext) => AlertDialog(
-              title: Text(i18n.t('playlists.delete')),
-              content: Text(
-                i18n.t('context.deleteSongConfirm', {'title': song.title}),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: Text(i18n.t('common.cancel')),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: Text(i18n.t('playlists.delete')),
-                ),
-              ],
-            ),
-      ) ??
-      false;
+  final confirmed = await showPopupConfirmDialog(
+    context: context,
+    title: i18n.t('playlists.delete'),
+    message: i18n.t('context.deleteSongConfirm', {'title': song.title}),
+    confirmLabel: i18n.t('playlists.delete'),
+  );
 
   if (!confirmed) {
     return;
@@ -354,35 +339,58 @@ Future<LocalMoveConflictResolution> requestLocalMoveConflictResolution({
 }) async {
   final result = await showDialog<LocalMoveConflictResolution>(
     context: context,
+    barrierColor: Colors.transparent,
+    barrierDismissible: false,
     builder: (dialogContext) {
-      return AlertDialog(
-        title: Text(i18n.t('local.moveConflictTitle')),
-        content: Text(
-          '${i18n.t('local.moveConflictMessage', {'name': _localMoveFileName(targetPath)})}\n\n$sourcePath',
-        ),
-        actions: [
-          TextButton(
-            onPressed:
-                () => Navigator.of(
-                  dialogContext,
-                ).pop(LocalMoveConflictResolution.replace),
-            child: Text(i18n.t('local.moveConflictReplace')),
-          ),
-          TextButton(
-            onPressed:
-                () => Navigator.of(
-                  dialogContext,
-                ).pop(LocalMoveConflictResolution.keepBoth),
-            child: Text(i18n.t('local.moveConflictKeepBoth')),
-          ),
-          TextButton(
-            onPressed:
-                () => Navigator.of(
-                  dialogContext,
-                ).pop(LocalMoveConflictResolution.skip),
-            child: Text(i18n.t('local.moveConflictSkip')),
-          ),
+      final colors = PopupDialogColors.resolve(dialogContext);
+      return PopupDialog(
+        navLabel: i18n.t('local.moveConflictTitle'),
+        ariaLabel: i18n.t('local.moveConflictTitle'),
+        width: 520,
+        height: 270,
+        onClose: () {
+          Navigator.of(dialogContext).pop(LocalMoveConflictResolution.skip);
+        },
+        navChildren: [
+          Expanded(child: PopupDialogTitle(i18n.t('local.moveConflictTitle'))),
         ],
+        footer: PopupDialogActions(
+          children: [
+            PopupDialogActionButton(
+              label: i18n.t('local.moveConflictReplace'),
+              primary: true,
+              destructive: true,
+              onPressed:
+                  () => Navigator.of(
+                    dialogContext,
+                  ).pop(LocalMoveConflictResolution.replace),
+            ),
+            PopupDialogActionButton(
+              label: i18n.t('local.moveConflictKeepBoth'),
+              onPressed:
+                  () => Navigator.of(
+                    dialogContext,
+                  ).pop(LocalMoveConflictResolution.keepBoth),
+            ),
+            PopupDialogActionButton(
+              label: i18n.t('local.moveConflictSkip'),
+              onPressed:
+                  () => Navigator.of(
+                    dialogContext,
+                  ).pop(LocalMoveConflictResolution.skip),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          child: Center(
+            child: Text(
+              '${i18n.t('local.moveConflictMessage', {'name': _localMoveFileName(targetPath)})}\n\n$sourcePath',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.text, fontSize: 15, height: 1.55),
+            ),
+          ),
+        ),
       );
     },
   );
@@ -401,52 +409,12 @@ Future<String?> requestPlaylistName({
   required List<LibraryPlaylist> playlists,
   required String defaultName,
 }) async {
-  final controller = TextEditingController(text: defaultName);
-  String? errorText;
-  final result = await showDialog<String>(
+  return showPopupTextDialog(
     context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          void submit() {
-            final name = controller.text.trim();
-            final validation = validatePlaylistName(name, playlists, '', i18n);
-            if (validation.isNotEmpty) {
-              setDialogState(() {
-                errorText = validation;
-              });
-              return;
-            }
-
-            Navigator.of(dialogContext).pop(name);
-          }
-
-          return AlertDialog(
-            title: Text(i18n.t('playlists.createNew')),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: i18n.t('playlists.namePlaceholder'),
-                errorText: errorText,
-              ),
-              onSubmitted: (_) => submit(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text(i18n.t('common.cancel')),
-              ),
-              FilledButton(
-                onPressed: submit,
-                child: Text(i18n.t('playlists.create')),
-              ),
-            ],
-          );
-        },
-      );
-    },
+    title: i18n.t('playlists.createNew'),
+    initialValue: defaultName,
+    confirmLabel: i18n.t('playlists.create'),
+    placeholder: i18n.t('playlists.namePlaceholder'),
+    validate: (name) => validatePlaylistName(name, playlists, '', i18n),
   );
-  controller.dispose();
-  return result;
 }

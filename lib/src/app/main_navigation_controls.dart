@@ -100,9 +100,7 @@ class _MainNavigationViewItemButtonState
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: widget.onPressed,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              curve: Curves.easeOut,
+            child: Container(
               decoration: BoxDecoration(
                 color: background,
                 borderRadius: BorderRadius.circular(16),
@@ -225,7 +223,7 @@ class _MainNavigationItemIcon extends StatelessWidget {
         child: Transform.translate(
           offset: const Offset(0, -1),
           child: SizedBox.square(
-            dimension: 19,
+            dimension: 21,
             child: CustomPaint(
               key: const ValueKey('MainNavigationView.AlbumsConcentricIcon'),
               painter: _AlbumNavigationIconPainter(color),
@@ -237,7 +235,7 @@ class _MainNavigationItemIcon extends StatelessWidget {
     if (item.name == 'PlaylistsItem') {
       return Center(
         child: SizedBox.square(
-          dimension: 19,
+          dimension: 21,
           child: CustomPaint(
             key: const ValueKey('MainNavigationView.PlaylistsMusicListIcon'),
             painter: _PlaylistNavigationIconPainter(color),
@@ -245,8 +243,12 @@ class _MainNavigationItemIcon extends StatelessWidget {
         ),
       );
     }
-    return Icon(item.icon, size: 19, color: color);
+    return Icon(_navigationItemIcon(item), size: 21, color: color);
   }
+}
+
+IconData _navigationItemIcon(MainNavigationViewItem item) {
+  return item.icon;
 }
 
 class _AlbumNavigationIconPainter extends CustomPainter {
@@ -262,7 +264,7 @@ class _AlbumNavigationIconPainter extends CustomPainter {
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.45 * scale;
+          ..strokeWidth = 1.65 * scale;
     canvas.drawCircle(center, 8 * scale, paint);
     canvas.drawCircle(center, 3 * scale, paint);
     canvas.drawCircle(
@@ -292,7 +294,7 @@ class _PlaylistNavigationIconPainter extends CustomPainter {
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5 * scale
+          ..strokeWidth = 1.65 * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
 
@@ -312,26 +314,17 @@ class _PlaylistNavigationIconPainter extends CustomPainter {
       paint,
     );
 
-    final notePath =
-        Path()
-          ..moveTo(17 * scale, 8 * scale)
-          ..lineTo(17 * scale, 17 * scale);
-    canvas.drawPath(notePath, paint);
-
-    final flagPaint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.35 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
+    canvas.drawLine(
+      Offset(17 * scale, 8 * scale),
+      Offset(17 * scale, 17 * scale),
+      paint,
+    );
     canvas.drawPath(
       Path()
         ..moveTo(17 * scale, 8 * scale)
         ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
-      flagPaint,
+      paint,
     );
-
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(15.4 * scale, 18.1 * scale),
@@ -355,6 +348,10 @@ class _NavigationIconButton extends StatefulWidget {
     required this.tooltip,
     required this.onPressed,
     this.collapsedContext = false,
+    this.size = 40,
+    this.iconSize = 20,
+    this.borderRadius = 14,
+    this.useMutedForeground = false,
     this.onTooltipRequested,
     this.onTooltipDismissed,
   });
@@ -363,6 +360,10 @@ class _NavigationIconButton extends StatefulWidget {
   final String tooltip;
   final VoidCallback onPressed;
   final bool collapsedContext;
+  final double size;
+  final double iconSize;
+  final double borderRadius;
+  final bool useMutedForeground;
   final _NavigationTooltipRequest? onTooltipRequested;
   final VoidCallback? onTooltipDismissed;
 
@@ -395,8 +396,8 @@ class _NavigationIconButtonState extends State<_NavigationIconButton> {
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 40,
-          height: 40,
+          width: widget.size,
+          height: widget.size,
           decoration: BoxDecoration(
             color:
                 _hovered
@@ -404,12 +405,17 @@ class _NavigationIconButtonState extends State<_NavigationIconButton> {
                         ? colors.collapsedHover
                         : colors.iconButtonHover
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
           child: Icon(
             widget.icon,
-            size: 18,
-            color: _hovered ? colors.highlightText : colors.textStrong,
+            size: widget.iconSize,
+            color:
+                _hovered
+                    ? colors.highlightText
+                    : widget.useMutedForeground
+                    ? colors.textMuted
+                    : colors.textStrong,
           ),
         ),
       ),

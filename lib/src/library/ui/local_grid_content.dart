@@ -83,7 +83,7 @@ class LocalGridContent extends StatelessWidget {
   final VoidCallback onToggleSongsExpanded;
   final ValueChanged<String> onToggleTreeFolderExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -101,7 +101,7 @@ class LocalGridContent extends StatelessWidget {
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onAddSong;
   final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
@@ -251,7 +251,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
   final SmPlayerI18n i18n;
   final ValueChanged<String> onToggleTreeFolderExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -269,7 +269,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onAddSong;
   final void Function(LibrarySong song, Offset position) onOpenSongMenu;
 
   @override
@@ -327,7 +327,7 @@ class _LocalCompactTreeContent extends StatelessWidget {
                             row.song!.id,
                             !row.song!.favorite,
                           ),
-                      onAddSong: () => onAddSong(row.song!),
+                      onAddSong: (position) => onAddSong(row.song!, position),
                       onOpenMenu:
                           (position) => onOpenSongMenu(row.song!, position),
                     ),
@@ -393,7 +393,7 @@ class _LocalFolderGrid extends StatelessWidget {
   final bool isCompactLayout;
   final SmPlayerI18n i18n;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -533,7 +533,7 @@ class _DraggableLocalFolderCard extends StatelessWidget {
   final bool treeExpandable;
   final VoidCallback? onToggleTreeExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final ValueChanged<FolderNode> onAddFolder;
+  final void Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -625,7 +625,7 @@ class _LocalSongGrid extends StatelessWidget {
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final ValueChanged<LibrarySong> onAddSong;
+  final void Function(LibrarySong song, Offset position) onAddSong;
   final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
@@ -655,7 +655,7 @@ class _LocalSongGrid extends StatelessWidget {
                       onPlayNext: () => onPlayNext(song.id),
                       onToggleFavorite:
                           () => onToggleFavorite(song.id, !song.favorite),
-                      onAddSong: () => onAddSong(song),
+                      onAddSong: (position) => onAddSong(song, position),
                       onOpenMenu: (position) => onOpenSongMenu(song, position),
                     ),
                   ),
@@ -685,7 +685,7 @@ class _LocalSongGrid extends StatelessWidget {
                       onPlay: () => onPlayTrack(song.id, queueSongIds),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
-                      onAddSong: () => onAddSong(song),
+                      onAddSong: (position) => onAddSong(song, position),
                       onOpenMenu: (position) => onOpenSongMenu(song, position),
                     ),
                   ),
@@ -781,7 +781,7 @@ class _LocalSongGridItem extends StatelessWidget {
   final VoidCallback onPlay;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
-  final VoidCallback onAddSong;
+  final ValueChanged<Offset> onAddSong;
   final ValueChanged<Offset> onOpenMenu;
 
   @override
@@ -844,7 +844,7 @@ class _LocalSongGridItem extends StatelessWidget {
                             _RoundSongAction(
                               tooltip: i18n.t('context.addToPlaylist'),
                               icon: FluentIcons.add_20_regular,
-                              onPressed: onAddSong,
+                              onPressedAt: onAddSong,
                             ),
                           ],
                         ),
@@ -931,7 +931,7 @@ class _CompactLocalSongRow extends StatelessWidget {
   final VoidCallback onToggleSelection;
   final VoidCallback onPlayNext;
   final VoidCallback onToggleFavorite;
-  final VoidCallback onAddSong;
+  final ValueChanged<Offset> onAddSong;
   final ValueChanged<Offset> onOpenMenu;
 
   @override
@@ -1029,7 +1029,7 @@ class _CompactLocalSongRow extends StatelessWidget {
               IconButton(
                 tooltip: i18n.t('context.addToPlaylist'),
                 icon: const Icon(FluentIcons.add_20_regular, size: 18),
-                onPressed: onAddSong,
+                onPressed: () => _invokeAtButtonBottom(context, onAddSong),
               ),
             ],
           ),
@@ -1043,12 +1043,14 @@ class _RoundSongAction extends StatelessWidget {
   const _RoundSongAction({
     required this.tooltip,
     required this.icon,
-    required this.onPressed,
+    this.onPressed,
+    this.onPressedAt,
   });
 
   final String tooltip;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final ValueChanged<Offset>? onPressedAt;
 
   @override
   Widget build(BuildContext context) {
@@ -1060,11 +1062,19 @@ class _RoundSongAction extends StatelessWidget {
           backgroundColor: const Color(0xb81e2228),
           foregroundColor: Colors.white,
         ),
-        onPressed: onPressed,
+        onPressed:
+            onPressedAt == null
+                ? onPressed
+                : () => _invokeAtButtonBottom(context, onPressedAt!),
         icon: Icon(icon, size: 20),
       ),
     );
   }
+}
+
+void _invokeAtButtonBottom(BuildContext context, ValueChanged<Offset> action) {
+  final box = context.findRenderObject() as RenderBox;
+  action(box.localToGlobal(Offset(0, box.size.height + 6)));
 }
 
 class _LocalCheckMark extends StatelessWidget {
