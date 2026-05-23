@@ -6,6 +6,8 @@ import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 
 void main() {
@@ -107,27 +109,29 @@ void main() {
     },
   );
 
-  testWidgets('HeaderedPlaylist CommandBar keeps the shared text icon button', (
+  testWidgets('SmPlayerTextIconButton does not render a box shadow', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: CommandBar(
-            variant: CommandBarVariant.headeredPlaylist,
-            children: [
-              CommandBarButton(
-                icon: FluentIcons.play_24_regular,
-                label: 'Play',
-                onPressed: () {},
-              ),
-            ],
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            onPressed: () {},
           ),
         ),
       ),
     );
 
-    expect(find.byType(SmPlayerTextIconButton), findsOneWidget);
+    final decoratedBox = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: find.byType(SmPlayerTextIconButton),
+        matching: find.byType(DecoratedBox),
+      ),
+    );
+    final decoration = decoratedBox.decoration as BoxDecoration;
+    expect(decoration.boxShadow, isNull);
   });
 
   testWidgets('CommandBar moves rightmost overflowable buttons into More', (
@@ -174,7 +178,7 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey('first-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('first-button')), findsNothing);
     expect(find.byKey(const ValueKey('second-button')), findsNothing);
     expect(find.byKey(const ValueKey('third-button')), findsNothing);
     expect(find.byKey(const ValueKey('CommandBar.MoreButton')), findsOneWidget);
@@ -182,10 +186,61 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('CommandBar.MoreButton')));
     await tester.pumpAndSettle();
 
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('Second'), findsOneWidget);
+    expect(find.text('Third'), findsOneWidget);
+
     await tester.tap(find.text('Third'));
     await tester.pumpAndSettle();
 
     expect(invoked, 'third');
+  });
+
+  testWidgets('CommandBar overflow click can open a new root flyout', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 96,
+            child: CommandBar(
+              overflowLabel: 'More',
+              children: [
+                CommandBarButton(
+                  icon: FluentIcons.arrow_shuffle_24_regular,
+                  label: 'Random',
+                  onPressed: () {},
+                  onOverflowPressedWithContext: (context) {
+                    showMenuFlyout(
+                      context,
+                      items: [
+                        MenuFlyoutItem(
+                          key: 'library',
+                          text: 'Library',
+                          onPressed: () {},
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('CommandBar.MoreButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Random'), findsOneWidget);
+    expect(find.text('Library'), findsNothing);
+
+    await tester.tap(find.text('Random'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Library'), findsOneWidget);
   });
 
   testWidgets('MenuFlyout opens submenu items like Electron flyouts', (
@@ -393,7 +448,11 @@ void main() {
 
       expect(
         items.map((item) => item.key),
-        containsAll(['preference', 'delete', 'hide-file', 'view']),
+        containsAll(['select', 'preference', 'delete', 'hide-file', 'view']),
+      );
+      expect(
+        items.singleWhere((item) => item.key == 'select').icon,
+        FluentIcons.multiselect_ltr_20_regular,
       );
       final viewItem = items.singleWhere((item) => item.key == 'view');
       expect(viewItem.submenu.map((item) => item.text), [

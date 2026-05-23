@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -52,6 +54,8 @@ bool isMinuteInNightRange(int current, int start, int end) {
 
 bool isNowPlayingFullNightMode(SettingsSnapshot settings) {
   return switch (settings.nightMode) {
+    NightMode.system =>
+      PlatformDispatcher.instance.platformBrightness == Brightness.dark,
     NightMode.onMode => true,
     NightMode.never => false,
     NightMode.auto => isMinuteInNightRange(

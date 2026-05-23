@@ -641,6 +641,7 @@
   "settings.notificationSendMusicChanged": "При смене музыки",
   "settings.notificationSendNever": "Никогда",
   "settings.nightMode": "Ночной режим",
+  "settings.nightModeSystem": "Как в системе",
   "settings.nightModeAuto": "Авто",
   "settings.nightModeNever": "никогда",
   "settings.nightModeOn": "Включено",

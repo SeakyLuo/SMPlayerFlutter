@@ -20,6 +20,10 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.iconSize = 18,
     this.iconGap = 8,
     this.opacityWhenDisabled = 0.52,
+    this.borderRadius = 8,
+    this.fontSize = 14,
+    this.fontWeight = FontWeight.w600,
+    this.fontVariations = const [FontVariation.weight(650)],
   });
 
   final String label;
@@ -38,6 +42,10 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final double iconSize;
   final double iconGap;
   final double opacityWhenDisabled;
+  final double borderRadius;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final List<FontVariation> fontVariations;
 
   @override
   State<SmPlayerTextIconButton> createState() => _SmPlayerTextIconButtonState();
@@ -66,15 +74,8 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                 : hovered
                 ? colors.controlHover
                 : colors.control,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
         border: Border.all(color: colors.controlBorder),
-        boxShadow: [
-          BoxShadow(
-            color: colors.cardShadow,
-            offset: const Offset(0, 12),
-            blurRadius: 26,
-          ),
-        ],
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -112,9 +113,9 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                     maxLines: 1,
                     style: TextStyle(
                       color: foreground,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      fontVariations: const [FontVariation.weight(650)],
+                      fontSize: widget.fontSize,
+                      fontWeight: widget.fontWeight,
+                      fontVariations: widget.fontVariations,
                       height: 1,
                     ),
                     child: widget.child ?? Text(widget.label),
@@ -184,7 +185,6 @@ class SmPlayerTextIconButtonColors {
     required this.controlHover,
     required this.controlActive,
     required this.controlBorder,
-    required this.cardShadow,
     required this.accentStrong,
   });
 
@@ -193,7 +193,6 @@ class SmPlayerTextIconButtonColors {
   final Color controlHover;
   final Color controlActive;
   final Color controlBorder;
-  final Color cardShadow;
   final Color accentStrong;
 
   static const day = SmPlayerTextIconButtonColors(
@@ -202,7 +201,6 @@ class SmPlayerTextIconButtonColors {
     controlHover: Color(0xbdffffff),
     controlActive: Color(0x1a0078d7),
     controlBorder: Color(0x2e768499),
-    cardShadow: Color(0x1f1e2a3a),
     accentStrong: Color(0xff0063b1),
   );
 
@@ -212,7 +210,6 @@ class SmPlayerTextIconButtonColors {
     controlHover: Color(0x17ffffff),
     controlActive: Color(0x290078d7),
     controlBorder: Color(0x1fd6e0ec),
-    cardShadow: Color(0x3d000000),
     accentStrong: Color(0xff0063b1),
   );
 
@@ -226,7 +223,6 @@ class SmPlayerTextIconButtonColors {
     Color? controlHover,
     Color? controlActive,
     Color? controlBorder,
-    Color? cardShadow,
     Color? accentStrong,
   }) {
     return SmPlayerTextIconButtonColors(
@@ -235,7 +231,6 @@ class SmPlayerTextIconButtonColors {
       controlHover: controlHover ?? this.controlHover,
       controlActive: controlActive ?? this.controlActive,
       controlBorder: controlBorder ?? this.controlBorder,
-      cardShadow: cardShadow ?? this.cardShadow,
       accentStrong: accentStrong ?? this.accentStrong,
     );
   }

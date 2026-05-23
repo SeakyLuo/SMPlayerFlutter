@@ -100,6 +100,15 @@ class PageSelectionController<T> {
     _save();
   }
 
+  void replaceSelection(Iterable<T> items, {T? selectionAnchor}) {
+    _state = _state.copyWith(
+      multiSelect: true,
+      selectedItems: items.toSet(),
+      selectionAnchor: selectionAnchor,
+    );
+    _save();
+  }
+
   void selectWithModifiers(
     T item,
     Iterable<T> orderedItems, {

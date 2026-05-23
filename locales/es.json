@@ -641,6 +641,7 @@
   "settings.notificationSendMusicChanged": "Cuando cambia la música",
   "settings.notificationSendNever": "Nunca",
   "settings.nightMode": "Modo nocturno",
+  "settings.nightModeSystem": "Seguir el sistema",
   "settings.nightModeAuto": "Automático",
   "settings.nightModeNever": "nunca",
   "settings.nightModeOn": "Activado",

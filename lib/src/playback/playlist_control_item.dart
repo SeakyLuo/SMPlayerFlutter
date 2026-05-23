@@ -70,7 +70,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final headeredPlaylist =
         widget.variant == PlaylistControlItemVariant.headeredPlaylist;
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final rowHeight = headeredPlaylist && compact ? 78.0 : 82.0;
+    final rowHeight = headeredPlaylist ? (compact ? 86.0 : 88.0) : 82.0;
     final rowPadding =
         headeredPlaylist
             ? compact
@@ -151,10 +151,48 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       onSeeArtist: widget.onSeeArtist,
                     ),
                   ),
+                  if (!compact) ...[
+                    const SizedBox(width: 14),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 170),
+                      child: Center(
+                        child: _QueueActions(
+                          favorite: widget.song.favorite,
+                          compact: compact,
+                          playNextLabel: widget.playNextLabel,
+                          removeLabel: widget.removeLabel,
+                          addToPlaylistLabel: widget.addToPlaylistLabel,
+                          favoriteLabel: widget.favoriteLabel,
+                          moreLabel: widget.moreLabel,
+                          onToggleFavoriteClick: widget.onToggleFavoriteClick,
+                          onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                          onPlayNextClick: widget.onPlayNextClick,
+                          onRemoveFromListClick: widget.onRemoveFromListClick,
+                          onOpenContextMenu: widget.onOpenContextMenu,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 14),
+                    _QueueActions(
+                      favorite: widget.song.favorite,
+                      compact: compact,
+                      playNextLabel: widget.playNextLabel,
+                      removeLabel: widget.removeLabel,
+                      addToPlaylistLabel: widget.addToPlaylistLabel,
+                      favoriteLabel: widget.favoriteLabel,
+                      moreLabel: widget.moreLabel,
+                      onToggleFavoriteClick: widget.onToggleFavoriteClick,
+                      onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                      onPlayNextClick: widget.onPlayNextClick,
+                      onRemoveFromListClick: widget.onRemoveFromListClick,
+                      onOpenContextMenu: widget.onOpenContextMenu,
+                    ),
+                  ],
                   if (!compact && hasAlbumColumn) ...[
                     const SizedBox(width: 14),
                     Expanded(
-                      flex: 5,
+                      flex: 7,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(4),
                         onTap: widget.onSeeAlbum,
@@ -173,24 +211,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       ),
                     ),
                   ],
-                  const SizedBox(width: 14),
-                  _QueueActions(
-                    favorite: widget.song.favorite,
-                    compact: compact,
-                    playNextLabel: widget.playNextLabel,
-                    removeLabel: widget.removeLabel,
-                    addToPlaylistLabel: widget.addToPlaylistLabel,
-                    favoriteLabel: widget.favoriteLabel,
-                    moreLabel: widget.moreLabel,
-                    onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                    onAddToPlaylistClick: widget.onAddToPlaylistClick,
-                    onPlayNextClick: widget.onPlayNextClick,
-                    onRemoveFromListClick: widget.onRemoveFromListClick,
-                    onOpenContextMenu: widget.onOpenContextMenu,
-                  ),
                   const SizedBox(width: 18),
                   SizedBox(
-                    width: 42,
+                    width: headeredPlaylist && !compact ? 74 : 42,
                     child: Text(
                       formatDuration(widget.song.duration),
                       textAlign: TextAlign.end,

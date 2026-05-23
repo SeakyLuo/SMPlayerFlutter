@@ -3,14 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 void main() {
+  setUp(PageSelectionController.clearStoredStates);
+
   const i18n = SmPlayerI18n(
     locale: 'en-US',
     messages: {
@@ -193,8 +198,9 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.ListHeader'))),
       const Size(1100, 42),
     );
+    expect(tester.getSize(find.text('Duration')).width, greaterThan(50));
     final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
-    expect(tester.getSize(firstRow), const Size(1100, 82));
+    expect(tester.getSize(firstRow), const Size(1100, 88));
     expect(
       tester.getRect(find.text('Blue Song')).left -
           tester.getRect(firstRow).left,
@@ -220,7 +226,7 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(700, 800);
+    tester.view.physicalSize = const Size(700, 360);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -238,7 +244,7 @@ void main() {
       const Size(180, 180),
     );
     final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
-    expect(tester.getSize(firstRow), const Size(696, 78));
+    expect(tester.getSize(firstRow), const Size(696, 86));
     expect(
       tester.getRect(find.text('Blue Song')).left -
           tester.getRect(firstRow).left,
@@ -247,6 +253,8 @@ void main() {
 
     final title = tester.widget<Text>(find.text('Blue Hour'));
     expect(title.style?.fontSize, 24);
+    expect(title.style?.fontWeight, FontWeight.w800);
+    expect(title.style?.fontVariations, const [FontVariation.weight(800)]);
   });
 
   testWidgets('HeaderedPlaylistControl reuses Electron metrics for playlists', (
@@ -283,11 +291,26 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
-      const Size(1100, 82),
+      const Size(1100, 88),
     );
     expect(find.text('Rename'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
-    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Clear', skipOffstage: false), findsWidgets);
+    final commandBar = find.byKey(
+      const ValueKey('HeaderedPlaylist.CommandBar'),
+    );
+    final commandClear = find.descendant(
+      of: commandBar,
+      matching: find.text('Clear'),
+    );
+    final commandDelete = find.descendant(
+      of: commandBar,
+      matching: find.text('Delete'),
+    );
+    expect(
+      tester.getRect(commandClear).top,
+      lessThanOrEqualTo(tester.getRect(commandDelete).top),
+    );
   });
 
   testWidgets('HeaderedPlaylistControl reuses Electron metrics for favorites', (
@@ -322,11 +345,215 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
-      const Size(696, 78),
+      const Size(696, 86),
     );
     expect(find.text('My Favorites'), findsOneWidget);
     expect(find.text('Clear'), findsOneWidget);
   });
+
+  testWidgets(
+    'HeaderedPlaylistControl publishes collapsed compact appbar portal',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(700, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          removable: true,
+          canRename: true,
+          canDelete: true,
+          canClear: true,
+          showAlbum: true,
+          showPortalProbe: true,
+          songCount: 12,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+        const Offset(0, -180),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('HeaderedPlaylist.CollapsedBar')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('HeaderedPlaylist.PortalProbe')),
+        findsOneWidget,
+      );
+      expect(find.text('portal:Mix'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl header starts desktop drag outside buttons',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      var dragStarts = 0;
+      var dragEnds = 0;
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+          onWindowDragStart: () {
+            dragStarts += 1;
+          },
+          onWindowDragEnd: () {
+            dragEnds += 1;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final titleGesture = await tester.startGesture(
+        tester.getCenter(find.text('Mix')),
+      );
+      await tester.pump();
+      await titleGesture.up();
+      await tester.pump();
+
+      expect(dragStarts, 1);
+      expect(dragEnds, 1);
+
+      final shuffleGesture = await tester.startGesture(
+        tester.getCenter(find.text('Shuffle')),
+      );
+      await tester.pump();
+      await shuffleGesture.up();
+      await tester.pump();
+
+      expect(dragStarts, 1);
+      expect(dragEnds, 1);
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl keeps multi-select after operation when setting is off',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+          snapshot: _snapshotWithHideAfterOperation(false),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Multi Select'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Song'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Play Selected'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(find.text('Play Selected'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl hides multi-select after operation when setting is on',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Multi Select'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Song'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Play Selected'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsNothing);
+      expect(find.text('Play Selected'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl filters stored selected IDs by visible queue',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final storedSelection = PageSelectionController<int>.stored(
+        'headered-playlist:playlist:Mix',
+      );
+      storedSelection.selectAll([1, 999]);
+
+      List<int>? playedSongIds;
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+          onPlayTrack: (_, songIds) {
+            playedSongIds = songIds;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Play Selected'));
+      await tester.pumpAndSettle();
+
+      expect(playedSongIds, [1]);
+    },
+  );
 
   testWidgets('AlbumDetailPage shows Electron current preference state', (
     tester,
@@ -483,14 +710,14 @@ class _AlbumDetailTestApp extends StatelessWidget {
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final String albumName;
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -511,6 +738,12 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
     this.canRename = false,
     this.canDelete = false,
     this.canClear = false,
+    this.showPortalProbe = false,
+    this.songCount = 2,
+    this.snapshot = _snapshot,
+    this.onWindowDragStart,
+    this.onWindowDragEnd,
+    this.onPlayTrack,
   });
 
   final SmPlayerI18n i18n;
@@ -521,44 +754,101 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
   final bool canRename;
   final bool canDelete;
   final bool canClear;
+  final bool showPortalProbe;
+  final int songCount;
+  final LibraryViewData snapshot;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+  final HeaderedPlaylistTrackHandler? onPlayTrack;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(_FakeLibraryRepository()),
+        if (onWindowDragStart != null && onWindowDragEnd != null)
+          smPlayerWindowDragProvider.overrideWithValue(
+            SmPlayerWindowDragCallbacks(
+              onStart: onWindowDragStart!,
+              onEnd: onWindowDragEnd!,
+            ),
+          ),
       ],
       child: MaterialApp(
         home: Scaffold(
           body: SmPlayerI18nScope(
             i18n: i18n,
-            child: HeaderedPlaylistControl(
-              type: type,
-              title: title,
-              songs: _snapshot.songs.take(2).toList(),
-              selectedTrackId: null,
-              playlists: _snapshot.playlists,
-              favoritePlaylistId: _snapshot.favoritePlaylistId,
-              artworkUrl: '',
-              removable: removable,
-              showAlbum: showAlbum,
-              canRename: canRename,
-              canDelete: canDelete,
-              canClear: canClear,
-              onPlayTrack: (_, _) {},
-              onAddSongToPlaylist: (_, _) {},
-              onRemoveSongs: (_) {},
-              onRename: (_) {},
-              onDelete: () {},
-              onClear: () {},
-              onPlayNext: (_) {},
+            child: Stack(
+              children: [
+                HeaderedPlaylistControl(
+                  type: type,
+                  title: title,
+                  songs: _headeredPlaylistSongs(songCount),
+                  selectedTrackId: null,
+                  playlists: snapshot.playlists,
+                  favoritePlaylistId: snapshot.favoritePlaylistId,
+                  artworkUrl: '',
+                  removable: removable,
+                  showAlbum: showAlbum,
+                  canRename: canRename,
+                  canDelete: canDelete,
+                  canClear: canClear,
+                  onPlayTrack: onPlayTrack ?? (_, _) {},
+                  onAddSongToPlaylist: (_, _) {},
+                  onRemoveSongs: (_) {},
+                  onRename: (_) {},
+                  onDelete: () {},
+                  onClear: () {},
+                  onPlayNext: (_) {},
+                ),
+                if (showPortalProbe)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final entry = ref.watch(
+                        headeredPlaylistAppBarPortalProvider,
+                      );
+                      if (entry == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        'portal:${entry.title}',
+                        key: const ValueKey('HeaderedPlaylist.PortalProbe'),
+                      );
+                    },
+                  ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
+
+List<LibrarySong> _headeredPlaylistSongs(int count) {
+  if (count <= 2) {
+    return _snapshot.songs.take(count).toList();
+  }
+  return [
+    ..._snapshot.songs.take(2),
+    for (var index = 2; index < count; index += 1)
+      LibrarySong(
+        id: index + 100,
+        path: 'C:\\Music\\song-$index.mp3',
+        title: 'Song $index',
+        artist: 'Artist $index',
+        artists: ['Artist $index'],
+        album: 'Album $index',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+  ];
 }
 
 class _FakeLibraryRepository extends LibraryRepository {
@@ -631,7 +921,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -702,7 +992,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-final _longAlbumSnapshot = MusicLibrarySnapshot(
+final _longAlbumSnapshot = LibraryViewData(
   songs: [
     ..._snapshot.songs,
     for (var index = 0; index < 16; index += 1)
@@ -736,3 +1026,26 @@ final _longAlbumSnapshot = MusicLibrarySnapshot(
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
 );
+
+LibraryViewData _snapshotWithHideAfterOperation(bool value) {
+  return LibraryViewData(
+    songs: _snapshot.songs,
+    recentSongs: _snapshot.recentSongs,
+    recentPlaylists: _snapshot.recentPlaylists,
+    recentAlbums: _snapshot.recentAlbums,
+    recentArtists: _snapshot.recentArtists,
+    recentSearches: _snapshot.recentSearches,
+    playlists: _snapshot.playlists,
+    folders: _snapshot.folders,
+    favoritePlaylistId: _snapshot.favoritePlaylistId,
+    nowPlaying: _snapshot.nowPlaying,
+    hasLibrary: _snapshot.hasLibrary,
+    sortCriterion: _snapshot.sortCriterion,
+    albumsSort: _snapshot.albumsSort,
+    showCount: _snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation: value,
+    localViewMode: _snapshot.localViewMode,
+    rootPath: _snapshot.rootPath,
+    databasePath: _snapshot.databasePath,
+  );
+}

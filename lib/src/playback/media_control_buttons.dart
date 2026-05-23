@@ -143,6 +143,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 duration: const Duration(milliseconds: 140),
                 width: size,
                 height: size,
+                alignment: Alignment.center,
                 padding: EdgeInsets.all(padding),
                 decoration: BoxDecoration(
                   color: background,
@@ -160,7 +161,6 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                           icon: widget.icon,
                           color: color,
                           size: iconSize,
-                          primary: widget.primary,
                           hidden: primaryDisabled && !night,
                         ),
               ),
@@ -177,24 +177,18 @@ class _PlayerButtonIcon extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.size,
-    required this.primary,
     required this.hidden,
   });
 
   final IconData icon;
   final Color color;
   final double size;
-  final bool primary;
   final bool hidden;
 
   @override
   Widget build(BuildContext context) {
     if (hidden) {
       return const SizedBox.expand();
-    }
-    final iconWidget = Icon(icon, color: color, size: size);
-    if (primary && icon == _playIcon) {
-      return Transform.translate(offset: const Offset(-1, -3), child: iconWidget);
     }
     if (icon == _previousIcon || icon == _nextIcon) {
       return CustomPaint(
@@ -205,12 +199,19 @@ class _PlayerButtonIcon extends StatelessWidget {
         size: Size.square(size),
       );
     }
+    if (icon == _playIcon) {
+      return CustomPaint(
+        painter: _PlayTransportIconPainter(color),
+        size: Size.square(size),
+      );
+    }
     if (icon == _moreIcon) {
       return CustomPaint(
         painter: _MoreHorizontalIconPainter(color),
         size: Size.square(size),
       );
     }
+    final iconWidget = Icon(icon, color: color, size: size);
     return iconWidget;
   }
 }
@@ -234,6 +235,35 @@ class _MoreHorizontalIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MoreHorizontalIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _PlayTransportIconPainter extends CustomPainter {
+  const _PlayTransportIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+    final points = [
+      Offset(6.5 * scale, 5.25 * scale),
+      Offset(19.8 * scale, 12 * scale),
+      Offset(6.5 * scale, 18.75 * scale),
+    ];
+    canvas.drawPath(_roundedTrianglePath(points, 1.5 * scale), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlayTransportIconPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }
@@ -282,35 +312,33 @@ class _SkipTransportIconPainter extends CustomPainter {
     canvas.drawPath(_roundedTrianglePath(points, 1.25 * scale), paint);
   }
 
-  Path _roundedTrianglePath(List<Offset> points, double radius) {
-    final path = Path();
-    for (var index = 0; index < points.length; index += 1) {
-      final current = points[index];
-      final previousPoint = points[(index + points.length - 1) % points.length];
-      final nextPoint = points[(index + 1) % points.length];
-      final start =
-          current +
-          (previousPoint - current) /
-              (previousPoint - current).distance *
-              radius;
-      final end =
-          current +
-          (nextPoint - current) / (nextPoint - current).distance * radius;
-
-      if (index == 0) {
-        path.moveTo(start.dx, start.dy);
-      } else {
-        path.lineTo(start.dx, start.dy);
-      }
-      path.quadraticBezierTo(current.dx, current.dy, end.dx, end.dy);
-    }
-    return path..close();
-  }
-
   @override
   bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.previous != previous;
   }
+}
+
+Path _roundedTrianglePath(List<Offset> points, double radius) {
+  final path = Path();
+  for (var index = 0; index < points.length; index += 1) {
+    final current = points[index];
+    final previousPoint = points[(index + points.length - 1) % points.length];
+    final nextPoint = points[(index + 1) % points.length];
+    final start =
+        current +
+        (previousPoint - current) / (previousPoint - current).distance * radius;
+    final end =
+        current +
+        (nextPoint - current) / (nextPoint - current).distance * radius;
+
+    if (index == 0) {
+      path.moveTo(start.dx, start.dy);
+    } else {
+      path.lineTo(start.dx, start.dy);
+    }
+    path.quadraticBezierTo(current.dx, current.dy, end.dx, end.dy);
+  }
+  return path..close();
 }
 
 class _PlayerArtwork extends StatelessWidget {

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 void main() {
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
   });
 
   testWidgets('PlaylistsPage writes Electron playlist preference', (
@@ -128,7 +128,7 @@ class _PlaylistTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => _i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => _snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => _snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -240,7 +240,7 @@ const _i18n = SmPlayerI18n(
   },
 );
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,

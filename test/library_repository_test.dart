@@ -11,6 +11,34 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 void main() {
+  test('defaultSmPlayerUserDataPath uses the canonical app data directory', () {
+    if (Platform.isMacOS) {
+      expect(
+        defaultSmPlayerUserDataPath(),
+        p.join(
+          Platform.environment['HOME']!,
+          'Library',
+          'Application Support',
+          'Simple Melody Player',
+        ),
+      );
+    } else if (Platform.isWindows) {
+      expect(
+        defaultSmPlayerUserDataPath(),
+        p.join(Platform.environment['APPDATA']!, 'simple-melody-player'),
+      );
+    } else {
+      expect(
+        defaultSmPlayerUserDataPath(),
+        p.join(
+          Platform.environment['HOME']!,
+          '.config',
+          'simple-melody-player',
+        ),
+      );
+    }
+  });
+
   test('detectMovedLocalAudioFiles mirrors Electron refresh result rules', () {
     final movedFiles = detectMovedLocalAudioFiles(
       addedPaths: const [
@@ -36,6 +64,142 @@ void main() {
 
     expect(movedFiles, isEmpty);
   });
+
+  test('addRecentSearch persists and returns the inserted entry', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_recent_search_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, ['${directory.path}/Song.mp3']);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final entry = await repository.addRecentSearch(
+      '  Jazz  ',
+      SearchHistoryType.sidebar,
+    );
+
+    expect(entry, isNotNull);
+    expect(entry!.query, 'Jazz');
+    expect(entry.type, SearchHistoryType.sidebar);
+    expect(entry.id, greaterThan(0));
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final rows = db.select('''
+        SELECT Id AS id, Query AS query, Type AS type, SearchedAt AS searchedAt
+        FROM SearchHistory
+      ''');
+      expect(rows, hasLength(1));
+      expect(rows.single['id'], entry.id);
+      expect(rows.single['query'], 'Jazz');
+      expect(rows.single['type'], 'sidebar');
+      expect(rows.single['searchedAt'], entry.searchedAt);
+    } finally {
+      db.dispose();
+    }
+  });
+
+  test('addRecentSearch initializes a new macOS-style data store', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_new_data_store_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final entry = await repository.addRecentSearch('Jazz');
+    final snapshot = await repository.getLibraryViewData();
+
+    expect(entry, isNotNull);
+    expect(databaseFile.existsSync(), isTrue);
+    expect(snapshot.recentSearches.map((search) => search.query), ['Jazz']);
+    expect(snapshot.rootPath, '');
+  });
+
+  test('initializeLibraryDatabase adds missing schema columns', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_schema_migration_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    await databaseFile.parent.create(recursive: true);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('''
+        CREATE TABLE Settings (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          RootPath TEXT DEFAULT ''
+        )
+      ''');
+      db.execute('''
+        CREATE TABLE SearchHistory (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Query TEXT NOT NULL
+        )
+      ''');
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    await repository.initializeLibraryDatabase();
+
+    final migrated = sqlite3.open(databaseFile.path);
+    try {
+      final settingsColumns =
+          migrated
+              .select("PRAGMA table_info('Settings')")
+              .map((row) => row['name'])
+              .toSet();
+      final searchHistoryColumns =
+          migrated
+              .select("PRAGMA table_info('SearchHistory')")
+              .map((row) => row['name'])
+              .toSet();
+      expect(settingsColumns, contains('SmartMultiArtistRecognition'));
+      expect(settingsColumns, contains('DesktopLyricsEnabled'));
+      expect(searchHistoryColumns, contains('Type'));
+      expect(searchHistoryColumns, contains('SearchedAt'));
+    } finally {
+      migrated.dispose();
+    }
+  });
+
+  test(
+    'initializeLibraryDatabase creates the settings singleton row',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer_empty_store_test_',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
+
+      await repository.initializeLibraryDatabase();
+      await repository.updateSettings(
+        const AppSettingsUpdate(nightMode: NightMode.auto),
+      );
+      final snapshot = await repository.getSettingsSnapshot();
+
+      expect(snapshot!.nightMode, NightMode.auto);
+    },
+  );
 
   test(
     'selectWindowsUwpDatabaseCandidate mirrors Electron library scoring',
@@ -531,7 +695,7 @@ void main() {
     },
   );
 
-  test('getMusicLibrarySnapshot cleans invalid recent played records', () async {
+  test('getLibraryViewData cleans invalid recent played records', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-recent-cleanup-',
     );
@@ -559,7 +723,7 @@ void main() {
       databaseFileResolver: () async => databaseFile,
     );
 
-    final snapshot = await repository.getMusicLibrarySnapshot();
+    final snapshot = await repository.getLibraryViewData();
 
     expect(snapshot.recentSongs.map((song) => song.id), [1]);
     final checkDb = sqlite3.open(databaseFile.path);
@@ -575,7 +739,7 @@ void main() {
     }
   });
 
-  test('getMusicLibrarySnapshot cleans invalid playlist items', () async {
+  test('getLibraryViewData cleans invalid playlist items', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-playlist-cleanup-',
     );
@@ -617,7 +781,7 @@ void main() {
       databaseFileResolver: () async => databaseFile,
     );
 
-    final snapshot = await repository.getMusicLibrarySnapshot();
+    final snapshot = await repository.getLibraryViewData();
 
     expect(snapshot.playlists.single.songIds, [1]);
     final checkDb = sqlite3.open(databaseFile.path);
@@ -2391,7 +2555,7 @@ void _createSettingsDatabase(File databaseFile) {
         Mode INTEGER DEFAULT 0,
         Volume REAL DEFAULT 50,
         ThemeColor TEXT DEFAULT '#0078D7',
-        NightMode INTEGER DEFAULT 2,
+        NightMode INTEGER DEFAULT 3,
         NightModeStartTime TEXT DEFAULT '20:00',
         NightModeEndTime TEXT DEFAULT '06:00',
         NotificationSend INTEGER DEFAULT 1,

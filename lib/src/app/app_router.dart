@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
@@ -14,6 +13,7 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
@@ -180,11 +180,7 @@ GoRouter createSmPlayerRouter({
                         controller: settingsController,
                         initialFragment: state.uri.fragment,
                         lyricsBatchSongCount:
-                            ref
-                                .watch(musicLibrarySnapshotProvider)
-                                .valueOrNull
-                                ?.songs
-                                .length,
+                            ref.watch(librarySongCountProvider).valueOrNull,
                         libraryRepository: ref.read(libraryRepositoryProvider),
                         onScanLibrary: (
                           rootPath, {
@@ -198,14 +194,14 @@ GoRouter createSmPlayerRouter({
                                 cancellation: cancellation,
                                 onProgress: onProgress,
                               );
-                          ref.invalidate(musicLibrarySnapshotProvider);
+                          _invalidateLibraryData(ref);
                         },
                         onDataImported: () async {
                           if (onDataImported != null) {
                             await onDataImported();
                           } else {
                             await settingsController?.refresh();
-                            ref.invalidate(musicLibrarySnapshotProvider);
+                            _invalidateLibraryData(ref);
                           }
                         },
                         onSendFeedbackEmail: () {
@@ -224,11 +220,14 @@ GoRouter createSmPlayerRouter({
           ),
           GoRoute(
             path: '/search',
-            builder:
-                (_, state) => SearchPage(
-                  query: state.uri.queryParameters['query'] ?? '',
-                  activeType: state.uri.queryParameters['type'],
-                  folderRelativePath: state.uri.queryParameters['folder'],
+            pageBuilder:
+                (_, state) => _noTransitionPage(
+                  state,
+                  SearchPage(
+                    query: state.uri.queryParameters['query'] ?? '',
+                    activeType: state.uri.queryParameters['type'],
+                    folderRelativePath: state.uri.queryParameters['folder'],
+                  ),
                 ),
           ),
           GoRoute(
@@ -278,8 +277,9 @@ Future<void> _sendFeedbackEmail(String locale) async {
 }
 
 Future<void> _revealSystemLogs() async {
-  final supportDirectory = await getApplicationSupportDirectory();
-  final logsDirectory = Directory(p.join(supportDirectory.path, 'Logs'));
+  final logsDirectory = Directory(
+    p.join(defaultSmPlayerUserDataPath(), 'Logs'),
+  );
   await logsDirectory.create(recursive: true);
   await openFolderInShell(logsDirectory.path);
 }
@@ -308,11 +308,11 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
       return widget.child;
     }
 
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
-    return snapshotValue.when(
+    final libraryValue = ref.watch(shellNavigationDataProvider);
+    return libraryValue.when(
       data:
-          (snapshot) =>
-              snapshot.rootPath.isEmpty
+          (library) =>
+              library.rootPath.isEmpty
                   ? _MissingLibraryRootPage(
                     loading: false,
                     buttonLoading: _scanning,
@@ -363,7 +363,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
       await widget.settingsController?.updateSettings(
         AppSettingsUpdate(rootPath: rootPath),
       );
-      ref.invalidate(musicLibrarySnapshotProvider);
+      _invalidateLibraryData(ref);
     } finally {
       if (mounted) {
         setState(() {
@@ -402,8 +402,7 @@ bool _isLibraryRootGatedRoute(String path) {
   return path == '/songs' ||
       path == '/artists' ||
       path == '/albums' ||
-      path == '/local' ||
-      path == '/recent';
+      path == '/local';
 }
 
 String _searchRouteFor(String query, SearchHistoryType type) {
@@ -416,4 +415,11 @@ String _searchRouteFor(String query, SearchHistoryType type) {
     SearchHistoryType.playlists => '/playlists?search=$encodedQuery',
     SearchHistoryType.folders => '/search?query=$encodedQuery&type=folders',
   };
+}
+
+void _invalidateLibraryData(WidgetRef ref) {
+  ref.invalidate(librarySongCountProvider);
+  ref.invalidate(recentPageDataProvider);
+  ref.invalidate(shellNavigationDataProvider);
+  ref.invalidate(recentSearchesProvider);
 }

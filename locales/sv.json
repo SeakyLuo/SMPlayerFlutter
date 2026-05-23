@@ -641,6 +641,7 @@
   "settings.notificationSendMusicChanged": "När musiken ändras",
   "settings.notificationSendNever": "Aldrig",
   "settings.nightMode": "Nattläge",
+  "settings.nightModeSystem": "Folj systemet",
   "settings.nightModeAuto": "Automatiskt",
   "settings.nightModeNever": "aldrig",
   "settings.nightModeOn": "På",

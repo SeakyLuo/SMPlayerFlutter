@@ -17,7 +17,6 @@ dependencies:
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   path: ^1.9.1
-  path_provider: ^2.1.5
   drift: ^2.31.0
   sqlite3: ^2.9.4
   sqlite3_flutter_libs: ^0.5.42
@@ -37,7 +36,6 @@ dependencies:
   url_launcher: ^6.3.2
   fluentui_system_icons: ^1.1.273
   lpinyin: ^2.0.3
-  shared_preferences: ^2.5.3
   speech_to_text: ^7.4.0
   flutter_tts: ^4.2.5
   liquid_glass_widgets: ^0.12.3
@@ -55,3 +53,7 @@ flutter:
   assets:
     - assets/branding/
     - locales/
+  fonts:
+    - family: FluentSystemIcons
+      fonts:
+        - asset: packages/fluentui_system_icons/fonts/FluentSystemIcons-Resizable.ttf

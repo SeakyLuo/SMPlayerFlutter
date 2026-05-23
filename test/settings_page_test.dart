@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
@@ -93,6 +93,7 @@ void main() {
       'settings.lyricsBatchTaskDetails': '歌词任务详情',
       'settings.musicFolderPlaceholder': '音乐库根目录路径',
       'settings.nightMode': '夜间模式',
+      'settings.nightModeSystem': '跟随系统',
       'settings.nightModeAuto': '自动',
       'settings.nightModeEndTime': '到',
       'settings.nightModeNever': '永不',
@@ -191,7 +192,7 @@ void main() {
   );
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
   });
 
   testWidgets('SettingsPage renders Electron cards and emits updates', (

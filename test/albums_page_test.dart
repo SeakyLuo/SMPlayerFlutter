@@ -74,11 +74,16 @@ void main() {
   testWidgets('AlbumsPage uses shared multi-select command bar', (
     tester,
   ) async {
-    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(i18n.t('common.multiSelect')));
-    await tester.pumpAndSettle();
+    await _tapAlbumsCommand(tester, i18n.t('common.multiSelect'));
     await tester.tap(find.text('Blue Hour'));
     await tester.pumpAndSettle();
 
@@ -94,7 +99,13 @@ void main() {
   testWidgets('AlbumsPage context menu can enter selection mode', (
     tester,
   ) async {
-    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
@@ -108,7 +119,13 @@ void main() {
   testWidgets('AlbumsPage context menu uses Electron Add To submenu', (
     tester,
   ) async {
-    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
@@ -183,7 +200,13 @@ void main() {
   testWidgets('AlbumsPage context menu opens Electron album art preview', (
     tester,
   ) async {
-    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
@@ -227,7 +250,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(i18n.t('common.multiSelect')));
+    await _tapAlbumsCommand(tester, i18n.t('common.multiSelect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Blue Hour'));
     await tester.pumpAndSettle();
@@ -249,8 +272,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(i18n.t('common.multiSelect')));
-    await tester.pumpAndSettle();
+    await _tapAlbumsCommand(tester, i18n.t('common.multiSelect'));
     await tester.tap(find.text('Blue Hour'));
     await tester.pumpAndSettle();
 
@@ -281,9 +303,6 @@ void main() {
     });
 
     await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(i18n.t('common.multiSelect')));
     await tester.pumpAndSettle();
 
     expect(
@@ -550,6 +569,27 @@ Color? _quickJumpBackground(WidgetTester tester, String key) {
   return button.style?.backgroundColor?.resolve({});
 }
 
+Future<void> _tapAlbumsCommand(WidgetTester tester, String label) async {
+  final direct = find.text(label).hitTestable();
+  if (direct.evaluate().isNotEmpty) {
+    await tester.tap(direct.first);
+    await tester.pumpAndSettle();
+    return;
+  }
+  final tooltip = find.byTooltip(label).hitTestable();
+  if (tooltip.evaluate().isNotEmpty) {
+    await tester.tap(tooltip.first);
+    await tester.pumpAndSettle();
+    return;
+  }
+  await tester.tap(
+    find.byKey(const ValueKey('CommandBar.MoreButton')).hitTestable().last,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
 class _AlbumsRouterTestApp extends StatelessWidget {
   const _AlbumsRouterTestApp({
     required this.snapshot,
@@ -557,7 +597,7 @@ class _AlbumsRouterTestApp extends StatelessWidget {
     required this.router,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
 
@@ -566,7 +606,7 @@ class _AlbumsRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -584,7 +624,7 @@ class _AlbumsTestApp extends StatelessWidget {
     this.mediaController,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
@@ -594,7 +634,7 @@ class _AlbumsTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
         if (mediaController != null)
@@ -617,7 +657,7 @@ class _AlbumsSnapshotListenableTestApp extends StatelessWidget {
     required this.repository,
   });
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
   final SmPlayerI18n i18n;
   final _ValueListenableAlbumsRepository repository;
 
@@ -639,7 +679,7 @@ class _AlbumsSnapshotListenableTestApp extends StatelessWidget {
 class _AlbumsSnapshotInvalidator extends ConsumerStatefulWidget {
   const _AlbumsSnapshotInvalidator({required this.snapshot});
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
 
   @override
   ConsumerState<_AlbumsSnapshotInvalidator> createState() =>
@@ -675,7 +715,7 @@ class _AlbumsSnapshotInvalidatorState
   }
 
   void _invalidateSnapshot() {
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 }
 
@@ -729,11 +769,17 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> addRecentSearch(
+  Future<SearchHistoryEntry?> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query, type: type));
+    return SearchHistoryEntry(
+      id: recordedSearches.length,
+      query: query.trim(),
+      type: type,
+      searchedAt: '2026-05-23T00:00:00Z',
+    );
   }
 
   @override
@@ -764,15 +810,15 @@ class _FakeLibraryRepository extends LibraryRepository {
 class _ValueListenableAlbumsRepository extends _FakeLibraryRepository {
   _ValueListenableAlbumsRepository(this.snapshot);
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
+  Future<LibraryViewData> getLibraryViewData() async {
     return snapshot.value;
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -845,7 +891,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _albumSortDefaultSnapshot = MusicLibrarySnapshot(
+const _albumSortDefaultSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 20,
@@ -892,7 +938,7 @@ const _albumSortDefaultSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-final _albumSortArtistSnapshot = MusicLibrarySnapshot(
+final _albumSortArtistSnapshot = LibraryViewData(
   songs: _albumSortDefaultSnapshot.songs,
   recentSongs: _albumSortDefaultSnapshot.recentSongs,
   recentPlaylists: _albumSortDefaultSnapshot.recentPlaylists,

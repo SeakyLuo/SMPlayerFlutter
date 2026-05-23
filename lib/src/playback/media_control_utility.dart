@@ -33,7 +33,7 @@ class _PlayerUtilityRows extends StatelessWidget {
   final VoidCallback onToggleFavorite;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
-  final VoidCallback onMoreClick;
+  final ValueChanged<BuildContext> onMoreClick;
 
   @override
   Widget build(BuildContext context) {
@@ -213,10 +213,17 @@ class _PlayerUtilityRows extends StatelessWidget {
                       ),
                       const SizedBox(width: 14),
                     ],
-                    _PlayerIconButton(
-                      tooltip: i18n.t('player.more'),
-                      icon: _moreIcon,
-                      onPressed: onMoreClick,
+                    Builder(
+                      builder: (moreButtonContext) {
+                        return _PlayerIconButton(
+                          key: const ValueKey('MediaControl.MoreButton'),
+                          tooltip: i18n.t('player.more'),
+                          icon: _moreIcon,
+                          onPressed: () {
+                            onMoreClick(moreButtonContext);
+                          },
+                        );
+                      },
                     ),
                   ],
                 ),

@@ -16,6 +16,9 @@ import '../data/library_providers.dart';
 import 'album_tile.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
+import 'menu_flyout.dart';
+import 'menu_flyout_helpers.dart';
+import 'multi_select_command_bar.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'page_search_history_panel.dart';
@@ -88,7 +91,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
 
     if (i18nValue.isLoading) {
       return const _AlbumsPagePanel(child: SmPlayerLoadingState());
@@ -497,7 +500,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(query, SearchHistoryType.albums);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
     _scrollAlbumsToTop();
   }
@@ -512,7 +515,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     ref
         .read(libraryRepositoryProvider)
         .addRecentSearch(query, SearchHistoryType.albums);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _scrollAlbumsToTop();
   }
 
@@ -537,18 +540,18 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   void _removeRecentSearch(int entryId) {
     ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _clearRecentSearches() {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final entryIds =
         snapshot.recentSearches
             .where((entry) => entry.type == SearchHistoryType.albums)
             .map((entry) => entry.id)
             .toList();
     ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _changeAlbumSort(AlbumSortCriterion criterion) {
@@ -630,7 +633,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        final snapshot = ref.read(libraryViewDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -660,7 +663,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         MenuFlyoutItem(
           key: 'select',
           text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
+          icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () {
             setState(() {
               _selection.enterMultiSelect();
@@ -699,13 +702,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('album', album.name);
-                ref.invalidate(musicLibrarySnapshotProvider);
+                ref.invalidate(libraryViewDataProvider);
               },
       onSetPreference: (level) {
         ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('album', album.name, album.name, level);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -714,7 +717,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     Offset position,
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     SmPlayerI18n i18n,
   ) {
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
@@ -768,7 +771,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     if (shuffle) {
       queueSongIds.shuffle(Random());
     }
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -786,7 +789,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
@@ -794,7 +797,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final insertedIndex = snapshot.nowPlaying.songIds.length;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
@@ -802,7 +805,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ...snapshot.nowPlaying.songIds,
       ...songIds,
     ]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _showUndoSnackBar(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -815,11 +818,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           }),
       () async {
         final currentSongIds =
-            ref
-                .read(musicLibrarySnapshotProvider)
-                .valueOrNull
-                ?.nowPlaying
-                .songIds ??
+            ref.read(libraryViewDataProvider).valueOrNull?.nowPlaying.songIds ??
             [...snapshot.nowPlaying.songIds, ...songIds];
         final nextSongIds =
             currentSongIds.toList()..removeRange(
@@ -829,7 +828,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         await ref
             .read(libraryRepositoryProvider)
             .replaceNowPlaying(nextSongIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -842,7 +841,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final targetPlaylist = snapshot.playlists.firstWhere(
       (playlist) => playlist.id == playlistId,
@@ -851,7 +850,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _showUndoSnackBar(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -866,7 +865,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -879,7 +878,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
     await setSongsFavorite(ref, songIds, favorite);
@@ -1079,9 +1078,13 @@ class _AlbumsToolbar extends StatelessWidget {
                   return CommandBarButton(
                     icon: FluentIcons.arrow_sort_24_regular,
                     label: _albumSortLabel(i18n, sortCriterion),
-                    overflowSubmenu: sortItems,
                     onPressed: () {
                       showMenuFlyout(context, items: sortItems);
+                    },
+                    onOverflowPressedWithContext: (buttonContext) {
+                      unawaited(
+                        showMenuFlyout(buttonContext, items: sortItems),
+                      );
                     },
                   );
                 },

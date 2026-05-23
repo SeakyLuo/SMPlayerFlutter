@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:window_manager/window_manager.dart';
@@ -14,7 +13,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setTitle('SMPlayer Headered Verify');
-  await windowManager.setSize(const Size(1200, 800));
+  const verifyWidth = int.fromEnvironment(
+    'SMPLAYER_HEADERED_VERIFY_WIDTH',
+    defaultValue: 1200,
+  );
+  const verifyHeight = int.fromEnvironment(
+    'SMPLAYER_HEADERED_VERIFY_HEIGHT',
+    defaultValue: 800,
+  );
+  await windowManager.setSize(
+    const Size(verifyWidth + 0.0, verifyHeight + 0.0),
+  );
   await windowManager.center();
   await windowManager.show();
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -28,10 +37,14 @@ class _VerifyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const dark = bool.fromEnvironment('SMPLAYER_HEADERED_VERIFY_DARK');
     return ProviderScope(
       overrides: [smPlayerI18nProvider.overrideWith((ref) async => _i18n)],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
+        theme: ThemeData.light(),
+        darkTheme: ThemeData.dark(),
+        themeMode: dark ? ThemeMode.dark : ThemeMode.light,
         home: Scaffold(
           body: SmPlayerI18nScope(
             i18n: _i18n,

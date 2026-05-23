@@ -22,12 +22,13 @@ bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
 }
 
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
-  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final snapshot = await _readLibraryViewData(ref);
   await ref.read(libraryRepositoryProvider).replaceNowPlaying([
     ...snapshot.nowPlaying.songIds,
     ...songIds,
   ]);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(recentPageDataProvider);
 }
 
 Future<void> addSongsToNowPlayingWithUndo({
@@ -39,14 +40,15 @@ Future<void> addSongsToNowPlayingWithUndo({
   if (songIds.isEmpty) {
     return;
   }
-  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final snapshot = await _readLibraryViewData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final insertedIndex = snapshot.nowPlaying.songIds.length;
   await ref.read(libraryRepositoryProvider).replaceNowPlaying([
     ...snapshot.nowPlaying.songIds,
     ...songIds,
   ]);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(recentPageDataProvider);
   if (!context.mounted) {
     return;
   }
@@ -61,11 +63,7 @@ Future<void> addSongsToNowPlayingWithUndo({
     ),
     onUndo: () async {
       final currentSongIds =
-          ref
-              .read(musicLibrarySnapshotProvider)
-              .valueOrNull
-              ?.nowPlaying
-              .songIds ??
+          ref.read(libraryViewDataProvider).valueOrNull?.nowPlaying.songIds ??
           [...snapshot.nowPlaying.songIds, ...songIds];
       final nextSongIds =
           currentSongIds.toList()..removeRange(
@@ -75,9 +73,14 @@ Future<void> addSongsToNowPlayingWithUndo({
                 : insertedIndex + songIds.length,
           );
       await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     },
   );
+}
+
+Future<LibraryViewData> _readLibraryViewData(WidgetRef ref) async {
+  return ref.read(libraryViewDataProvider).valueOrNull ??
+      await ref.read(libraryViewDataProvider.future);
 }
 
 Future<void> addSongsToPlaylist(
@@ -88,7 +91,7 @@ Future<void> addSongsToPlaylist(
   await ref
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 Future<void> addSongsToPlaylistWithUndo({
@@ -102,7 +105,7 @@ Future<void> addSongsToPlaylistWithUndo({
   if (songIds.isEmpty) {
     return;
   }
-  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final snapshot = ref.read(libraryViewDataProvider).value!;
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final playlist = snapshot.playlists.firstWhere(
     (playlist) => playlist.id == playlistId,
@@ -111,7 +114,7 @@ Future<void> addSongsToPlaylistWithUndo({
     await ref
         .read(libraryRepositoryProvider)
         .addSongToPlaylist(playlistId, songIds.first);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   } else {
     await addSongsToPlaylist(ref, playlistId, songIds);
   }
@@ -131,7 +134,7 @@ Future<void> addSongsToPlaylistWithUndo({
       await ref
           .read(libraryRepositoryProvider)
           .removeSongsFromPlaylist(playlistId, songIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     },
   );
 }
@@ -147,7 +150,7 @@ Future<void> setSongsFavorite(
       mediaController.state.track.favorite != favorite) {
     mediaController.onToggleFavorite();
   }
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 Future<void> setSongsFavoriteWithUndo({
@@ -160,7 +163,7 @@ Future<void> setSongsFavoriteWithUndo({
   if (songIds.isEmpty) {
     return;
   }
-  final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+  final snapshot = ref.read(libraryViewDataProvider).value!;
   final songsById = {for (final song in snapshot.songs) song.id: song};
   await setSongsFavorite(ref, songIds, favorite);
   if (!context.mounted) {
@@ -242,7 +245,7 @@ Future<void> createPlaylistWithSongs({
   }
 
   await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 Future<void> requestDeleteSongFromDisk({
@@ -265,7 +268,7 @@ Future<void> requestDeleteSongFromDisk({
   final pendingDelete = await ref
       .read(libraryRepositoryProvider)
       .beginDeleteSongFromDisk(song.id);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
   if (!context.mounted) {
     await ref
         .read(libraryRepositoryProvider)
@@ -281,7 +284,7 @@ Future<void> requestDeleteSongFromDisk({
       await ref
           .read(libraryRepositoryProvider)
           .undoDeleteSongFromDisk(pendingDelete.id);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     },
   );
   if (closedReason != SnackBarClosedReason.action) {
@@ -293,7 +296,7 @@ Future<void> requestDeleteSongFromDisk({
 
 Future<void> hideSongFile(WidgetRef ref, int songId) async {
   await ref.read(libraryRepositoryProvider).hideSong(songId);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 Future<void> hideSongFileWithUndo({
@@ -303,7 +306,7 @@ Future<void> hideSongFileWithUndo({
   required LibrarySong song,
 }) async {
   await ref.read(libraryRepositoryProvider).hideSong(song.id);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
   if (!context.mounted) {
     return;
   }
@@ -313,7 +316,7 @@ Future<void> hideSongFileWithUndo({
     message: i18n.t('notification.hiddenStorageItem', {'name': song.title}),
     onUndo: () async {
       await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     },
   );
 }
@@ -326,7 +329,7 @@ Future<void> moveSongToFolder(
   await ref
       .read(libraryRepositoryProvider)
       .moveSongToFolder(songId, folderPath);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 Future<void> moveSongToFolderWithUndo({
@@ -349,7 +352,7 @@ Future<void> moveSongToFolderWithUndo({
               targetPath: targetPath,
             ),
       );
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
   if (!context.mounted || result.itemCount == 0) {
     return;
   }
@@ -359,7 +362,7 @@ Future<void> moveSongToFolderWithUndo({
     message: i18n.t('notification.movedSong', {'title': song.title}),
     onUndo: () async {
       await ref.read(libraryRepositoryProvider).undoMoveLocalItems(result);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     },
   );
 }

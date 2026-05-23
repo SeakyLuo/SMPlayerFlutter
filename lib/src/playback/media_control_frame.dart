@@ -62,18 +62,9 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
       builder: (context, constraints) {
         final compact = constraints.maxWidth <= _playerCompactBreakpoint;
         final night = MediaControlColors.isNight(context);
-        final hasArtwork = widget.artworkPath?.isNotEmpty == true;
-        final coverWash =
-            hasArtwork
-                ? _accentColor.withValues(alpha: 0.24)
-                : Colors.transparent;
+        final coverWash = _accentColor.withValues(alpha: 0.24);
         final nightCoverWash = _accentColor.withValues(
-          alpha:
-              hasArtwork
-                  ? compact
-                      ? 0.20
-                      : 0.22
-                  : 0.10,
+          alpha: compact ? 0.20 : 0.22,
         );
         final borderColor =
             compact
@@ -110,13 +101,11 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
               compact
                   ? _PlayerCompactTintedBackground(
                     night: night,
-                    hasArtwork: hasArtwork,
                     coverWash: night ? nightCoverWash : coverWash,
                     child: widget.child,
                   )
                   : _PlayerWideTintedBackground(
                     night: night,
-                    hasArtwork: hasArtwork,
                     coverWash: night ? nightCoverWash : coverWash,
                     child: widget.child,
                   ),
@@ -157,48 +146,16 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
 class _PlayerWideTintedBackground extends StatelessWidget {
   const _PlayerWideTintedBackground({
     required this.night,
-    required this.hasArtwork,
     required this.coverWash,
     required this.child,
   });
 
   final bool night;
-  final bool hasArtwork;
   final Color coverWash;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    if (!hasArtwork) {
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color:
-              night
-                  ? MediaControlColors.nightPlayerSurface
-                  : MediaControlColors.playerSurfaceSolid,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors:
-                  night
-                      ? [
-                        MediaControlColors.nightPlayerHighlight,
-                        MediaControlColors.nightEmptyPlayerRightWash,
-                      ]
-                      : [
-                        MediaControlColors.emptyPlayerLeftWash,
-                        MediaControlColors.emptyPlayerRightWash,
-                      ],
-            ),
-          ),
-          child: _PlayerGlassHighlight(night: night, child: child),
-        ),
-      );
-    }
-
     return DecoratedBox(
       decoration: BoxDecoration(
         color:
@@ -224,86 +181,17 @@ class _PlayerWideTintedBackground extends StatelessWidget {
                   night
                       ? [
                         MediaControlColors.nightPlayerHighlight,
-                        hasArtwork
-                            ? MediaControlColors.nightPlayerAccentWash
-                            : MediaControlColors.nightEmptyPlayerAccentWash,
+                        MediaControlColors.nightPlayerAccentWash,
                       ]
                       : [
                         MediaControlColors.playerSurface,
-                        hasArtwork
-                            ? MediaControlColors.playerAccentWash
-                            : MediaControlColors.emptyPlayerAccentWash,
+                        MediaControlColors.playerAccentWash,
                       ],
             ),
           ),
-          child: _PlayerGlassHighlight(night: night, child: child),
+          child: child,
         ),
       ),
-    );
-  }
-}
-
-class _PlayerGlassHighlight extends StatelessWidget {
-  const _PlayerGlassHighlight({required this.night, required this.child});
-
-  final bool night;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final diagonalHighlight =
-        night
-            ? [
-              Colors.white.withValues(alpha: 0.055),
-              Colors.white.withValues(alpha: 0.018),
-              Colors.white.withValues(alpha: 0.00),
-            ]
-            : [
-              Colors.white.withValues(alpha: 0.46),
-              Colors.white.withValues(alpha: 0.16),
-              Colors.white.withValues(alpha: 0.00),
-            ];
-    final verticalHighlight =
-        night
-            ? [
-              Colors.white.withValues(alpha: 0.045),
-              Colors.white.withValues(alpha: 0.00),
-              Colors.black.withValues(alpha: 0.06),
-            ]
-            : [
-              Colors.white.withValues(alpha: 0.34),
-              Colors.white.withValues(alpha: 0.03),
-              Colors.black.withValues(alpha: 0.04),
-            ];
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: const Alignment(-0.94, -1),
-                end: const Alignment(0.72, 1),
-                colors: diagonalHighlight,
-                stops: const [0, 0.38, 1],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: verticalHighlight,
-                stops: const [0, 0.42, 1],
-              ),
-            ),
-          ),
-        ),
-        child,
-      ],
     );
   }
 }
@@ -311,13 +199,11 @@ class _PlayerGlassHighlight extends StatelessWidget {
 class _PlayerCompactTintedBackground extends StatelessWidget {
   const _PlayerCompactTintedBackground({
     required this.night,
-    required this.hasArtwork,
     required this.coverWash,
     required this.child,
   });
 
   final bool night;
-  final bool hasArtwork;
   final Color coverWash;
   final Widget child;
 
@@ -359,17 +245,9 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
                       night
                           ? [
                             coverWash,
-                            hasArtwork
-                                ? MediaControlColors.nightCompactPlayerWash
-                                : MediaControlColors
-                                    .nightEmptyCompactPlayerWash,
+                            MediaControlColors.nightCompactPlayerWash,
                           ]
-                          : [
-                            coverWash,
-                            hasArtwork
-                                ? MediaControlColors.compactPlayerWash
-                                : MediaControlColors.emptyCompactPlayerWash,
-                          ],
+                          : [coverWash, MediaControlColors.compactPlayerWash],
                   stops: [0, night ? 0.56 : 0.54],
                 ),
               ),

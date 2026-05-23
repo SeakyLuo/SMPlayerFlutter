@@ -27,7 +27,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const _AlbumDetailPanel(child: SmPlayerLoadingState());
@@ -112,19 +112,19 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   ref
                       .read(libraryRepositoryProvider)
                       .addSongToPlaylist(playlistId, songId);
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
                 onAddSongsToPlaylist: (playlistId, songIds) {
                   ref
                       .read(libraryRepositoryProvider)
                       .addSongsToPlaylist(playlistId, songIds);
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
                 onToggleFavorite: (songId, favorite) {
                   ref
                       .read(libraryRepositoryProvider)
                       .setSongFavorite(songId, favorite);
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
                 onRecordPlay: () {
                   ref
@@ -173,7 +173,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                     });
                   },
                   onSaved: () {
-                    ref.invalidate(musicLibrarySnapshotProvider);
+                    ref.invalidate(libraryViewDataProvider);
                   },
                 ),
             ],
@@ -256,7 +256,7 @@ class _AlbumDetailColors {
 
 void _playTrack(
   WidgetRef ref,
-  MusicLibrarySnapshot snapshot,
+  LibraryViewData snapshot,
   int trackId,
   List<int> queueSongIds,
 ) {
@@ -277,10 +277,10 @@ void _playTrack(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
-void _playNext(WidgetRef ref, MusicLibrarySnapshot snapshot, int songId) {
+void _playNext(WidgetRef ref, LibraryViewData snapshot, int songId) {
   final queueSongIds = snapshot.nowPlaying.songIds.toList();
   final selectedQueueIndex =
       ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -290,5 +290,5 @@ void _playNext(WidgetRef ref, MusicLibrarySnapshot snapshot, int songId) {
           : queueSongIds.length;
   queueSongIds.insert(insertIndex, songId);
   ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+
+import '../library/ui/menu_flyout.dart';
 
 part 'main_navigation_models.dart';
 part 'main_navigation_search.dart';

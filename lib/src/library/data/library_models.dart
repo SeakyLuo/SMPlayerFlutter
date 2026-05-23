@@ -484,8 +484,54 @@ class NowPlayingSnapshot {
   final List<int> songIds;
 }
 
-class MusicLibrarySnapshot {
-  const MusicLibrarySnapshot({
+class RecentPageData {
+  const RecentPageData({
+    required this.songs,
+    required this.recentSongs,
+    required this.recentPlaylists,
+    required this.recentAlbums,
+    required this.recentArtists,
+    required this.recentSearches,
+    required this.playlists,
+    required this.favoritePlaylistId,
+    required this.nowPlaying,
+    required this.showCount,
+    required this.hideMultiSelectCommandBarAfterOperation,
+  });
+
+  final List<LibrarySong> songs;
+  final List<RecentLibrarySong> recentSongs;
+  final List<RecentPlaylistPlayback> recentPlaylists;
+  final List<RecentAlbumPlayback> recentAlbums;
+  final List<RecentArtistPlayback> recentArtists;
+  final List<SearchHistoryEntry> recentSearches;
+  final List<LibraryPlaylist> playlists;
+  final int favoritePlaylistId;
+  final NowPlayingSnapshot nowPlaying;
+  final bool showCount;
+  final bool hideMultiSelectCommandBarAfterOperation;
+}
+
+class ShellNavigationData {
+  const ShellNavigationData({
+    required this.songs,
+    required this.playlists,
+    required this.folders,
+    required this.recentSearches,
+    required this.nowPlaying,
+    required this.rootPath,
+  });
+
+  final List<LibrarySong> songs;
+  final List<LibraryPlaylist> playlists;
+  final List<LibraryFolder> folders;
+  final List<SearchHistoryEntry> recentSearches;
+  final NowPlayingSnapshot nowPlaying;
+  final String rootPath;
+}
+
+class LibraryViewData {
+  const LibraryViewData({
     required this.songs,
     required this.hasLibrary,
     required this.sortCriterion,

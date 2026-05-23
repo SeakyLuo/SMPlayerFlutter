@@ -1,7 +1,6 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
-import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 enum SearchResultType { artists, albums, songs, playlists, folders }
@@ -56,11 +55,7 @@ AlbumTileData getSearchAlbumTileData(
 
 String getSearchAlbumArtistLabel(List<LibrarySong> songs, SmPlayerI18n i18n) {
   final artists =
-      songs
-          .expand((song) => song.artists.isEmpty ? [song.artist] : song.artists)
-          .where((artist) => artist.isNotEmpty)
-          .toSet()
-          .toList();
+      songs.expand((song) => _searchSongArtists(song, i18n)).toSet().toList();
   if (artists.length >= 3) {
     return i18n.t('albums.artistsAndMore', {
       'first': artists[0],
@@ -69,7 +64,7 @@ String getSearchAlbumArtistLabel(List<LibrarySong> songs, SmPlayerI18n i18n) {
     });
   }
 
-  return artists.join(i18n.t('albums.artistSeparator'));
+  return artists.join(', ');
 }
 
 class SearchResults {
@@ -326,7 +321,7 @@ List<LibrarySong> sortSearchSongs(
     case SearchSortCriterion.artist:
       sorted.sort(
         (left, right) => _compareMany([
-          displayArtists(left).compareTo(displayArtists(right)),
+          _searchPrimaryArtist(left).compareTo(_searchPrimaryArtist(right)),
           right.playCount.compareTo(left.playCount),
         ]),
       );
@@ -420,7 +415,7 @@ List<SearchResult> _buildArtistResults(
 ) {
   final groups = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    for (final artist in song.artists.isEmpty ? [song.artist] : song.artists) {
+    for (final artist in _searchSongArtists(song, i18n)) {
       if (artist.toLowerCase().contains(normalizedQuery)) {
         final artistSongs = groups[artist] ?? <LibrarySong>[];
         artistSongs.add(song);
@@ -484,7 +479,7 @@ List<SearchResult> _buildAlbumResults(
   for (final song in songs) {
     final album =
         song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
-    final artists = song.artists.isEmpty ? [song.artist] : song.artists;
+    final artists = _searchSongArtists(song, i18n);
     if (album.toLowerCase().contains(normalizedQuery) ||
         artists.any(
           (artist) => artist.toLowerCase().contains(normalizedQuery),
@@ -500,10 +495,7 @@ List<SearchResult> _buildAlbumResults(
           .map((entry) {
             final artists =
                 entry.value
-                    .expand(
-                      (song) =>
-                          song.artists.isEmpty ? [song.artist] : song.artists,
-                    )
+                    .expand((song) => _searchSongArtists(song, i18n))
                     .toSet();
             final artistScore = artists
                 .map((artist) => evaluateString(artist, normalizedQuery) - 10)
@@ -653,7 +645,7 @@ List<SearchResult> _buildFolderResults(
 }
 
 int matchSong(LibrarySong song, String normalizedQuery, SmPlayerI18n i18n) {
-  final artists = song.artists.isEmpty ? [song.artist] : song.artists;
+  final artists = _searchSongArtists(song, i18n);
   final artistScore = artists
       .map((artist) => evaluateString(artist, normalizedQuery))
       .fold(0, (best, score) => score > best ? score : best);
@@ -706,6 +698,21 @@ int evaluateString(String value, String normalizedQuery, [int offset = 0]) {
   return ratio <= 60 ? 70 - ratio + offset : 0;
 }
 
+List<String> _searchSongArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
+  final artists =
+      (song.artists.isNotEmpty ? song.artists : _splitArtistValue(song.artist))
+          .map((artist) => artist.trim())
+          .where((artist) => artist.isNotEmpty)
+          .toList();
+  return artists.isEmpty
+      ? [i18n?.t('common.artistUnknown') ?? 'Unknown artist']
+      : artists;
+}
+
+String _searchPrimaryArtist(LibrarySong song) {
+  return _searchSongArtists(song).first;
+}
+
 int getEditDistance(String target, String given) {
   final dp = List.generate(
     target.length + 1,
@@ -733,6 +740,14 @@ int getEditDistance(String target, String given) {
   }
 
   return dp[target.length][given.length];
+}
+
+List<String> _splitArtistValue(String value) {
+  return value
+      .split(RegExp(r'\s*(?:;|；|、|\|)\s*'))
+      .map((artist) => artist.trim())
+      .where((artist) => artist.isNotEmpty)
+      .toList();
 }
 
 String getFolderPath(String filePath) {

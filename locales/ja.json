@@ -641,6 +641,7 @@
   "settings.notificationSendMusicChanged": "曲の変更時",
   "settings.notificationSendNever": "送信しない",
   "settings.nightMode": "ナイトモード",
+  "settings.nightModeSystem": "システムに従う",
   "settings.nightModeAuto": "自動",
   "settings.nightModeNever": "なし",
   "settings.nightModeOn": "オン",

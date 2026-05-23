@@ -21,8 +21,8 @@ IconData playerVolumeIcon(int volume, bool isMuted) {
 }
 
 const IconData _previousIcon = FluentIcons.previous_20_regular;
-const IconData _playIcon = FluentIcons.play_20_regular;
-const IconData _pauseIcon = FluentIcons.pause_20_regular;
+const IconData _playIcon = IconData(0xed79, fontFamily: 'FluentSystemIcons');
+const IconData _pauseIcon = IconData(0xec59, fontFamily: 'FluentSystemIcons');
 const IconData _nextIcon = FluentIcons.next_20_regular;
 const IconData _shuffleIcon = FluentIcons.arrow_shuffle_20_regular;
 const IconData _repeatIcon = FluentIcons.arrow_repeat_all_20_regular;

@@ -210,7 +210,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Searches  1'));
+    await tester.tap(find.text('Searches'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Clear History'));
     await tester.pumpAndSettle();
@@ -242,7 +242,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Searches  1'));
+    await tester.tap(find.text('Searches'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Remove').first);
     await tester.pumpAndSettle();
@@ -298,7 +298,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Searches  1'));
+    await tester.tap(find.text('Searches'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Artist A'));
     await tester.pumpAndSettle();
@@ -321,7 +321,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Searches  1'));
+    await tester.tap(find.text('Searches'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(FluentIcons.people_20_regular), findsOneWidget);
@@ -343,7 +343,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Played  2'));
+    await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Albums'));
     await tester.pumpAndSettle();
@@ -370,10 +370,13 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => i18n),
-          musicLibrarySnapshotProvider.overrideWith((ref) async {
+          recentPageDataProvider.overrideWith((ref) async {
             snapshotLoads += 1;
-            return _snapshotWithRecentAlbums;
+            return _recentPageData(_snapshotWithRecentAlbums);
           }),
+          libraryViewDataProvider.overrideWith(
+            (ref) async => _snapshotWithRecentAlbums,
+          ),
           libraryRepositoryProvider.overrideWithValue(repository),
         ],
         child: SmPlayerI18nScope(
@@ -384,7 +387,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Played  2'));
+    await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Albums'));
     await tester.pumpAndSettle();
@@ -425,7 +428,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Played  1'));
+    await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
     await tester.pumpAndSettle();
@@ -456,10 +459,26 @@ void main() {
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
     expect(find.text('Clear History'), findsNothing);
 
-    await tester.tap(find.text('Played  0'));
+    await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
 
     expect(find.text('Songs'), findsOneWidget);
+  });
+
+  testWidgets('RecentPage keeps Electron appbar tabs through minimal width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_RecentTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
   });
 }
 
@@ -470,7 +489,7 @@ class _RecentTestApp extends StatelessWidget {
     this.repository,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
 
@@ -479,9 +498,13 @@ class _RecentTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
-        if (repository != null)
-          libraryRepositoryProvider.overrideWithValue(repository!),
+        recentPageDataProvider.overrideWith(
+          (ref) async => _recentPageData(snapshot),
+        ),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryRepositoryProvider.overrideWithValue(
+          repository ?? _FakeLibraryRepository(),
+        ),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -489,6 +512,23 @@ class _RecentTestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+RecentPageData _recentPageData(LibraryViewData data) {
+  return RecentPageData(
+    songs: data.songs,
+    recentSongs: data.recentSongs,
+    recentPlaylists: data.recentPlaylists,
+    recentAlbums: data.recentAlbums,
+    recentArtists: data.recentArtists,
+    recentSearches: data.recentSearches,
+    playlists: data.playlists,
+    favoritePlaylistId: data.favoritePlaylistId,
+    nowPlaying: data.nowPlaying,
+    showCount: data.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        data.hideMultiSelectCommandBarAfterOperation,
+  );
 }
 
 class _RecentRouterTestApp extends StatelessWidget {
@@ -499,7 +539,7 @@ class _RecentRouterTestApp extends StatelessWidget {
   });
 
   final GoRouter router;
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
 
   @override
@@ -507,7 +547,10 @@ class _RecentRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        recentPageDataProvider.overrideWith(
+          (ref) async => _recentPageData(snapshot),
+        ),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -531,6 +574,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
     replacedNowPlaying = songIds.toList();
+  }
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return null;
   }
 
   @override
@@ -641,7 +689,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -693,7 +741,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _snapshotWithSearches = MusicLibrarySnapshot(
+const _snapshotWithSearches = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -729,7 +777,7 @@ const _snapshotWithSearches = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _snapshotWithArtistSearch = MusicLibrarySnapshot(
+const _snapshotWithArtistSearch = LibraryViewData(
   songs: [],
   recentSearches: [
     SearchHistoryEntry(
@@ -750,7 +798,7 @@ const _snapshotWithArtistSearch = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _snapshotWithRecentPlayed = MusicLibrarySnapshot(
+const _snapshotWithRecentPlayed = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -796,7 +844,7 @@ const _snapshotWithRecentPlayed = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _snapshotWithRecentAlbums = MusicLibrarySnapshot(
+const _snapshotWithRecentAlbums = LibraryViewData(
   songs: [
     LibrarySong(
       id: 21,

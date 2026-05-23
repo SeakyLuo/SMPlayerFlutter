@@ -190,8 +190,8 @@ class _FakeMusicDialogRepository extends LibraryRepository {
   bool internetLyricsRequested = false;
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
-    return MusicLibrarySnapshot(
+  Future<LibraryViewData> getLibraryViewData() async {
+    return LibraryViewData(
       songs: [
         _currentSong,
         LibrarySong(

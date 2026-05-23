@@ -22,6 +22,9 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
+import 'menu_flyout.dart';
+import 'menu_flyout_helpers.dart';
+import 'multi_select_command_bar.dart';
 import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart'
     show getNextPlaylistName, validatePlaylistName;
@@ -106,7 +109,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
 
     if (i18nValue.isLoading) {
       return const _LocalScaffold(child: SmPlayerLoadingState());
@@ -137,7 +140,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   Widget _buildPage(
     BuildContext context,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     SmPlayerI18n i18n,
   ) {
     if (snapshot.rootPath.isEmpty) {
@@ -919,7 +922,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     unawaited(revealItemInFolder(path));
                   },
                   onSaved: () {
-                    ref.invalidate(musicLibrarySnapshotProvider);
+                    ref.invalidate(libraryViewDataProvider);
                   },
                   onClose: () {
                     setState(() {
@@ -934,7 +937,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     );
   }
 
-  Widget _buildEmptyContent(SmPlayerI18n i18n, MusicLibrarySnapshot snapshot) {
+  Widget _buildEmptyContent(SmPlayerI18n i18n, LibraryViewData snapshot) {
     if (snapshot.songs.isEmpty) {
       return _LocalEmptyState(
         title: i18n.t('local.noSongsScanned'),
@@ -1024,7 +1027,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required Map<String, FolderNode> nodes,
     required Map<int, LibrarySong> songsById,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required MusicLibrarySnapshot snapshot,
+    required LibraryViewData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final preferenceLevel = await ref
@@ -1085,7 +1088,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         MenuFlyoutItem(
           key: 'select-folder',
           text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
+          icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () => _selectFolder(folder),
         ),
         if (moveToFolderItem != null) moveToFolderItem,
@@ -1156,7 +1159,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required Map<String, FolderNode> nodes,
     required Map<int, LibrarySong> songsById,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required MusicLibrarySnapshot snapshot,
+    required LibraryViewData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final preferenceLevel = await ref
@@ -1243,7 +1246,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required LibrarySong song,
     required List<int> queueSongIds,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required MusicLibrarySnapshot snapshot,
+    required LibraryViewData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final mediaState = ref.read(mediaControlControllerProvider).state;
@@ -1293,7 +1296,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         preferenceLevel: preferenceLevel,
         onUndoPreference:
@@ -1303,7 +1306,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -1419,13 +1422,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('folder', '${folder.id}');
-                ref.invalidate(musicLibrarySnapshotProvider);
+                ref.invalidate(libraryViewDataProvider);
               },
       onSetPreference: (level) async {
         await ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('folder', '${folder.id}', folder.name, level);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -1447,7 +1450,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       await ref
           .read(libraryRepositoryProvider)
           .updateLocalFolderSort(folder.path, sortMode);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
   }
 
@@ -1459,7 +1462,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     await ref
         .read(libraryRepositoryProvider)
         .updateSettings(AppSettingsUpdate(localViewMode: nextMode));
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _updateFolderSortMode(
@@ -1476,7 +1479,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       await ref
           .read(libraryRepositoryProvider)
           .updateLocalFolderSort(folder.path, sortMode);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
     if (folder.relativePath == widget.currentRelativePath) {
       setState(() {
@@ -1586,7 +1589,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     await ref.read(libraryRepositoryProvider).renameFolder(folder.path, name);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
 
     if (folder.relativePath == widget.currentRelativePath && mounted) {
       final parentPath = getParentPath(folder.relativePath);
@@ -1597,7 +1600,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   Future<void> _hideFolder(FolderNode folder) async {
     await ref.read(libraryRepositoryProvider).hideFolder(folder.path);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     if (mounted) {
       setState(_clearMultiSelectStatus);
       showUndoableSnackBar(
@@ -1611,7 +1614,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         }),
         onUndo: () async {
           await ref.read(libraryRepositoryProvider).unhideFolder(folder.path);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
       );
     }
@@ -1717,7 +1720,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return sourceFolders.every(
         (sourceFolder) =>
             folder.relativePath != sourceFolder.relativePath &&
-            folder.relativePath != getParentPath(sourceFolder.relativePath),
+            (folder.relativePath.isEmpty ||
+                !folder.relativePath.startsWith(
+                  '${sourceFolder.relativePath}/',
+                )),
       );
     }
 
@@ -1799,7 +1805,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       if (!mounted) {
         return;
       }
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
       if (result.itemCount > 0) {
         showUndoableSnackBar(
           context: context,
@@ -1811,7 +1817,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             await ref
                 .read(libraryRepositoryProvider)
                 .undoMoveLocalItems(result);
-            ref.invalidate(musicLibrarySnapshotProvider);
+            ref.invalidate(libraryViewDataProvider);
           },
         );
       }
@@ -1857,7 +1863,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       if (!mounted) {
         return;
       }
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
       setState(() {
         _refreshProgress = null;
         _localOperationTitle = null;
@@ -1948,7 +1954,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 cancellation: cancellation,
                 onProgress: _setScanProgress,
               );
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
       if (mounted) {
         setState(() {
           _refreshResultDialog = (
@@ -2065,7 +2071,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     String deleteId,
     String message,
   ) async {
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     if (!mounted) {
       await ref
           .read(libraryRepositoryProvider)
@@ -2081,7 +2087,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         await ref
             .read(libraryRepositoryProvider)
             .undoDeleteLocalItems(deleteId);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
     if (closedReason != SnackBarClosedReason.action) {
@@ -2181,7 +2187,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   void _playTrack(int trackId, List<int> queueSongIds) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[trackId]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -2199,7 +2205,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: max(0, queueSongIds.indexOf(trackId)),
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     setState(() {
       _selectedSongIds
         ..clear()
@@ -2211,7 +2217,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -2221,7 +2227,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _createFolder({
@@ -2257,7 +2263,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     setState(() {
       _createdFolderPaths.add(relativePath);
     });
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   String _nextFolderName(
@@ -2364,7 +2370,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     required List<int> songIds,
     required String defaultPlaylistName,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required MusicLibrarySnapshot snapshot,
+    required LibraryViewData snapshot,
     required SmPlayerI18n i18n,
   }) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
@@ -2398,7 +2404,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   Future<void> _createPlaylist(
     String defaultName,
     List<int> songIds,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     SmPlayerI18n i18n,
   ) async {
     final name = await _requestPlaylistName(
@@ -2411,7 +2417,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<String?> _requestPlaylistName({
@@ -2678,7 +2684,7 @@ class _LocalProgressOverlay extends StatelessWidget {
                       style: const TextStyle(
                         color: LocalPageColors.textStrong,
                         fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -2852,7 +2858,7 @@ class _LocalRefreshResultDialogState extends State<_LocalRefreshResultDialog> {
                       style: const TextStyle(
                         color: LocalPageColors.textStrong,
                         fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -2991,7 +2997,7 @@ class _LocalRefreshTabButton extends StatelessWidget {
                       selected
                           ? LocalPageColors.textStrong
                           : LocalPageColors.textMuted,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 10),
@@ -3080,7 +3086,7 @@ class _LocalArtistRefreshSection extends StatelessWidget {
             i18n.t('local.refreshArtistUpdatesTab'),
             style: const TextStyle(
               color: LocalPageColors.textStrong,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
