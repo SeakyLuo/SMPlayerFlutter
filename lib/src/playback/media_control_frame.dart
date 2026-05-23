@@ -194,7 +194,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
                       ],
             ),
           ),
-          child: _PlayerGlassHighlight(child: child),
+          child: _PlayerGlassHighlight(night: night, child: child),
         ),
       );
     }
@@ -236,7 +236,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
                       ],
             ),
           ),
-          child: _PlayerGlassHighlight(child: child),
+          child: _PlayerGlassHighlight(night: night, child: child),
         ),
       ),
     );
@@ -244,12 +244,37 @@ class _PlayerWideTintedBackground extends StatelessWidget {
 }
 
 class _PlayerGlassHighlight extends StatelessWidget {
-  const _PlayerGlassHighlight({required this.child});
+  const _PlayerGlassHighlight({required this.night, required this.child});
 
+  final bool night;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final diagonalHighlight =
+        night
+            ? [
+              Colors.white.withValues(alpha: 0.055),
+              Colors.white.withValues(alpha: 0.018),
+              Colors.white.withValues(alpha: 0.00),
+            ]
+            : [
+              Colors.white.withValues(alpha: 0.46),
+              Colors.white.withValues(alpha: 0.16),
+              Colors.white.withValues(alpha: 0.00),
+            ];
+    final verticalHighlight =
+        night
+            ? [
+              Colors.white.withValues(alpha: 0.045),
+              Colors.white.withValues(alpha: 0.00),
+              Colors.black.withValues(alpha: 0.06),
+            ]
+            : [
+              Colors.white.withValues(alpha: 0.34),
+              Colors.white.withValues(alpha: 0.03),
+              Colors.black.withValues(alpha: 0.04),
+            ];
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -259,11 +284,7 @@ class _PlayerGlassHighlight extends StatelessWidget {
               gradient: LinearGradient(
                 begin: const Alignment(-0.94, -1),
                 end: const Alignment(0.72, 1),
-                colors: [
-                  Colors.white.withValues(alpha: 0.46),
-                  Colors.white.withValues(alpha: 0.16),
-                  Colors.white.withValues(alpha: 0.00),
-                ],
+                colors: diagonalHighlight,
                 stops: const [0, 0.38, 1],
               ),
             ),
@@ -275,11 +296,7 @@ class _PlayerGlassHighlight extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.34),
-                  Colors.white.withValues(alpha: 0.03),
-                  Colors.black.withValues(alpha: 0.04),
-                ],
+                colors: verticalHighlight,
                 stops: const [0, 0.42, 1],
               ),
             ),

@@ -97,6 +97,7 @@ Future<void> addSongsToPlaylistWithUndo({
   required SmPlayerI18n i18n,
   required int playlistId,
   required List<int> songIds,
+  bool useSingleSongCall = false,
 }) async {
   if (songIds.isEmpty) {
     return;
@@ -106,7 +107,14 @@ Future<void> addSongsToPlaylistWithUndo({
   final playlist = snapshot.playlists.firstWhere(
     (playlist) => playlist.id == playlistId,
   );
-  await addSongsToPlaylist(ref, playlistId, songIds);
+  if (useSingleSongCall && songIds.length == 1) {
+    await ref
+        .read(libraryRepositoryProvider)
+        .addSongToPlaylist(playlistId, songIds.first);
+    ref.invalidate(musicLibrarySnapshotProvider);
+  } else {
+    await addSongsToPlaylist(ref, playlistId, songIds);
+  }
   if (!context.mounted) {
     return;
   }
@@ -161,12 +169,20 @@ Future<void> setSongsFavoriteWithUndo({
   showUndoableSnackBar(
     context: context,
     i18n: i18n,
-    message: songsAddedUndoMessage(
-      i18n: i18n,
-      songIds: songIds,
-      songsById: songsById,
-      target: i18n.t('common.myFavorites'),
-    ),
+    message:
+        favorite
+            ? songsAddedUndoMessage(
+              i18n: i18n,
+              songIds: songIds,
+              songsById: songsById,
+              target: i18n.t('common.myFavorites'),
+            )
+            : songsRemovedUndoMessage(
+              i18n: i18n,
+              songIds: songIds,
+              songsById: songsById,
+              target: i18n.t('common.myFavorites'),
+            ),
     onUndo: () async {
       await setSongsFavorite(ref, songIds, !favorite);
     },
@@ -185,6 +201,23 @@ String songsAddedUndoMessage({
         'target': target,
       })
       : i18n.t('notification.songsAddedTo', {
+        'count': songIds.length,
+        'target': target,
+      });
+}
+
+String songsRemovedUndoMessage({
+  required SmPlayerI18n i18n,
+  required List<int> songIds,
+  required Map<int, LibrarySong> songsById,
+  required String target,
+}) {
+  return songIds.length == 1
+      ? i18n.t('notification.removedFrom', {
+        'title': songsById[songIds.first]!.title,
+        'target': target,
+      })
+      : i18n.t('notification.songsRemovedFrom', {
         'count': songIds.length,
         'target': target,
       });

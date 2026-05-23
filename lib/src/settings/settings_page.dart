@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -243,7 +245,10 @@ class _SettingsPageState extends State<SettingsPage> {
     return _settingsNoTextScaling(
       context,
       Material(
-        color: Colors.transparent,
+        color:
+            Theme.of(context).brightness == Brightness.dark
+                ? ShellColors.nightWorkspaceSurface
+                : ShellColors.workspaceSolidSurface,
         child: Stack(
           children: [
             SingleChildScrollView(
@@ -521,14 +526,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     widget.lyricsBatchSongCount == 0,
                 onClick: _handleLyricsBatchPrimaryAction,
                 child: Text(_lyricsBatchPrimaryLabel(i18n)),
-              ),
-              Tooltip(
-                message: i18n.t('settings.batchAddLyricsCopy'),
-                child: Icon(
-                  FluentIcons.info_24_regular,
-                  color: colors.textMuted,
-                  size: 16,
-                ),
               ),
               if (_lyricsBatchRunning)
                 SettingsActionButton(
@@ -2318,62 +2315,28 @@ class SettingsActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    final foreground =
-        disabled ? colors.textMuted : (primary ? Colors.white : colors.accent);
-    final background =
-        disabled
-            ? Colors.transparent
-            : (primary ? colors.accent : colors.buttonSurface);
-    final borderColor = primary ? Colors.transparent : const Color(0x1f0e1927);
-    final content = _settingsNoTextScaling(
+    final label =
+        tooltip ??
+        switch (child) {
+          Text(:final data?) => data,
+          _ => '',
+        };
+    final button = _settingsNoTextScaling(
       context,
-      IconTheme(
-        data: IconThemeData(color: foreground, size: compact ? 14 : 16),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(
-            color: foreground,
-            fontSize: compact ? 12 : 13,
-            fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
-            height: 1.0,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[Icon(icon), const SizedBox(width: 7)],
-              Flexible(child: child),
-            ],
-          ),
-        ),
+      SmPlayerTextIconButton(
+        icon: icon,
+        label: label,
+        disabled: disabled,
+        active: primary,
+        minWidth: compact ? 0 : 0,
+        height: 40,
+        horizontalPadding: compact ? 12 : 14,
+        iconSize: compact ? 16 : 18,
+        onPressed: onClick,
+        child: child,
       ),
     );
-    final button = Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: disabled ? null : onClick,
-        borderRadius: BorderRadius.circular(6),
-        hoverColor: primary ? Colors.transparent : colors.accentHover,
-        child: Ink(
-          height: compact ? 32 : 36,
-          padding: EdgeInsets.only(
-            left: icon == null ? 14 : (compact ? 10 : 12),
-            right: compact ? 12 : 14,
-          ),
-          decoration: BoxDecoration(
-            color: background,
-            border: Border.all(color: borderColor),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(widthFactor: 1, child: content),
-        ),
-      ),
-    );
-    final tooltip = this.tooltip;
-    if (tooltip == null || tooltip.isEmpty) {
-      return button;
-    }
-    return Tooltip(message: tooltip, child: button);
+    return button;
   }
 }
 

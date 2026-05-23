@@ -3,18 +3,30 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class SmPlayerSplashScreen extends StatelessWidget {
-  const SmPlayerSplashScreen({super.key});
+  const SmPlayerSplashScreen({super.key, this.brightness, this.locale});
+
+  final Brightness? brightness;
+  final Locale? locale;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedBrightness =
+        brightness ?? PlatformDispatcher.instance.platformBrightness;
+    final colors = SmPlayerSplashColors.resolve(resolvedBrightness);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: resolvedBrightness,
+        progressIndicatorTheme: ProgressIndicatorThemeData(
+          color: colors.accent,
+          linearTrackColor: colors.progressTrack,
+          circularTrackColor: colors.progressTrack,
+        ),
+      ),
       home: Builder(
         builder: (context) {
-          final brightness = PlatformDispatcher.instance.platformBrightness;
-          final colors = SmPlayerSplashColors.resolve(brightness);
           final appName = SmPlayerSplashAppName.resolve(
-            PlatformDispatcher.instance.locale,
+            locale ?? PlatformDispatcher.instance.locale,
           );
           return Scaffold(
             backgroundColor: colors.background,

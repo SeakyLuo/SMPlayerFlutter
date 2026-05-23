@@ -202,7 +202,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                         ),
                         children: [
                           CommandBarButton(
-                            icon: FluentIcons.select_all_on_20_regular,
+                            icon: FluentIcons.multiselect_ltr_20_regular,
                             label: i18n.t('albums.multiSelect'),
                             active: _multiSelect,
                             disabled:
@@ -249,9 +249,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                     unawaited(
                                       _removeRecentSearchesWithUndo([entryId]),
                                     );
-                                  },
-                                  onOpenContextMenu: (position, entry) {
-                                    _showSearchContextMenu(position, entry);
                                   },
                                 )
                                 : _activeTab == RecentTab.played
@@ -311,20 +308,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                       position,
                                       song,
                                       queueSongIds,
-                                      customPlaylists,
-                                    );
-                                  },
-                                  onOpenCollectionContextMenu: (
-                                    position,
-                                    key,
-                                    title,
-                                    songIds,
-                                  ) {
-                                    _showCollectionContextMenu(
-                                      position,
-                                      key,
-                                      title,
-                                      songIds,
                                       customPlaylists,
                                     );
                                   },
@@ -853,27 +836,22 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     });
   }
 
-  void _showSongContextMenu(
+  Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = context.smPlayerI18n;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
-    final folders =
-        snapshot.folders
-            .map(
-              (folder) => MenuFlyoutFolder(
-                id: folder.id,
-                name: _displayFolderName(folder.path),
-                path: folder.path,
-                parentId: folder.parentId,
-              ),
-            )
-            .toList();
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+    if (!mounted) {
+      return;
+    }
     final canRemove =
         _activeTab == RecentTab.played &&
         _activePlayedFilter == RecentPlayedFilter.songs;
@@ -889,10 +867,17 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         currentTrackId: currentTrackId,
         songPath: song.path,
         playlists: playlists,
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removePreferenceItem('song', '${song.id}');
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
         showRemove: canRemove,
-        folders: folders,
-        showMoveToFolder: folders.isNotEmpty,
-        showHideFile: true,
         onPlay: () {
           _playSong(song, queueSongIds, queueSongIds.indexOf(song.id));
         },
@@ -937,7 +922,15 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           });
         },
         onToggleFavorite: () {
-          setSongsFavorite(ref, [song.id], !song.favorite);
+          unawaited(
+            setSongsFavoriteWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              songIds: [song.id],
+              favorite: !song.favorite,
+            ),
+          );
         },
         onSetPreference: (level) async {
           await ref
@@ -1000,132 +993,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     setState(() {
       _musicDialog = (song: song, mode: mode);
     });
-  }
-
-  void _showCollectionContextMenu(
-    Offset position,
-    String key,
-    String title,
-    List<int> songIds,
-    List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
-    final i18n = context.smPlayerI18n;
-    final songsById = {
-      for (final song in ref.read(musicLibrarySnapshotProvider).value!.songs)
-        song.id: song,
-    };
-    final hasNotFavoriteSong = songIds.any(
-      (songId) => songsById[songId]!.favorite == false,
-    );
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: songIds,
-      playlists: playlists,
-      includeNowPlaying: true,
-      includeFavorites: hasNotFavoriteSong,
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          songIds: songIds,
-        );
-      },
-      onToggleFavorite:
-          hasNotFavoriteSong
-              ? () {
-                setSongsFavoriteWithUndo(
-                  context: context,
-                  ref: ref,
-                  i18n: i18n,
-                  songIds: notFavoriteSongIds(songIds, songsById),
-                  favorite: true,
-                );
-              }
-              : null,
-      onCreatePlaylist: () async {
-        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
-        await createPlaylistWithSongs(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(title, snapshot.playlists),
-          songIds: songIds,
-        );
-      },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlistId: playlistId,
-          songIds: songIds,
-        );
-      },
-    );
-    showMenuFlyout(
-      context,
-      position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'play',
-          text:
-              key.startsWith('artists:')
-                  ? i18n.t('nowPlaying.randomPlay')
-                  : i18n.t('context.play'),
-          icon:
-              key.startsWith('artists:')
-                  ? FluentIcons.arrow_shuffle_20_regular
-                  : FluentIcons.play_20_regular,
-          onPressed: () {
-            if (key.startsWith('playlists:')) {
-              _recordRecentCollectionPlayed(
-                (repository) => repository.recordPlaylistPlayed(
-                  int.parse(key.substring(10)),
-                ),
-              );
-            } else if (key.startsWith('albums:')) {
-              _recordRecentCollectionPlayed(
-                (repository) => repository.recordAlbumPlayed(title),
-              );
-            } else {
-              _recordRecentCollectionPlayed(
-                (repository) => repository.recordArtistPlayed(title),
-              );
-            }
-            _playSongIds(songIds);
-          },
-        ),
-        if (addToItem != null) addToItem,
-        MenuFlyoutItem.separator(key: 'collection-actions-separator'),
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
-          onPressed: () {
-            setState(() {
-              _multiSelect = true;
-              _selectedCollectionKeys.add(key);
-            });
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'open',
-          text: i18n.t('common.open'),
-          icon: FluentIcons.open_20_regular,
-          onPressed: () {
-            if (key.startsWith('playlists:')) {
-              context.go('/playlists/${key.substring('playlists:'.length)}');
-            } else if (key.startsWith('albums:')) {
-              context.go('/albums?album=${Uri.encodeQueryComponent(title)}');
-            } else {
-              context.go('/artists?artist=${Uri.encodeQueryComponent(title)}');
-            }
-          },
-        ),
-      ],
-    );
   }
 
   void _showCollectionAddToMenu(
@@ -1275,7 +1142,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         MenuFlyoutItem(
           key: 'multi-select',
           text: i18n.t('common.multiSelect'),
-          icon: FluentIcons.select_all_on_20_regular,
+          icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () {
             setState(() {
               _multiSelect = true;
@@ -1321,43 +1188,6 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       return;
     }
     ref.invalidate(musicLibrarySnapshotProvider);
-  }
-
-  void _showSearchContextMenu(Offset position, SearchHistoryEntry entry) {
-    final i18n = context.smPlayerI18n;
-    showMenuFlyout(
-      context,
-      position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'search',
-          text: i18n.t('common.search'),
-          icon: FluentIcons.search_20_regular,
-          onPressed: () {
-            context.go(_routeForSearchHistory(entry));
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
-          onPressed: () {
-            setState(() {
-              _multiSelect = true;
-              _selectedSearchIds.add(entry.id);
-            });
-          },
-        ),
-        MenuFlyoutItem(
-          key: 'remove-from-list',
-          text: i18n.t('context.removeFromList'),
-          icon: FluentIcons.delete_20_regular,
-          onPressed: () {
-            unawaited(_removeRecentSearchesWithUndo([entry.id]));
-          },
-        ),
-      ],
-    );
   }
 
   Future<void> _removeRecentSearchesWithUndo(List<int> entryIds) async {
@@ -1452,40 +1282,39 @@ class _RecentTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: Row(
-        children: [
-          Expanded(
-            child: _RecentTabButton(
-              active: activeTab == RecentTab.added,
-              label: i18n.t('recent.added'),
-              count: addedCount,
-              showCount: showCount,
-              onPressed: () => onChanged(RecentTab.added),
-            ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, right: 18),
+      child: SizedBox(
+        height: 54,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            spacing: 34,
+            children: [
+              _RecentTabButton(
+                active: activeTab == RecentTab.added,
+                label: i18n.t('recent.added'),
+                count: addedCount,
+                showCount: showCount,
+                onPressed: () => onChanged(RecentTab.added),
+              ),
+              _RecentTabButton(
+                active: activeTab == RecentTab.played,
+                label: i18n.t('recent.played'),
+                count: playedCount,
+                showCount: showCount,
+                onPressed: () => onChanged(RecentTab.played),
+              ),
+              _RecentTabButton(
+                active: activeTab == RecentTab.searches,
+                label: i18n.t('recent.searches'),
+                count: searchesCount,
+                showCount: showCount,
+                onPressed: () => onChanged(RecentTab.searches),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _RecentTabButton(
-              active: activeTab == RecentTab.played,
-              label: i18n.t('recent.played'),
-              count: playedCount,
-              showCount: showCount,
-              onPressed: () => onChanged(RecentTab.played),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _RecentTabButton(
-              active: activeTab == RecentTab.searches,
-              label: i18n.t('recent.searches'),
-              count: searchesCount,
-              showCount: showCount,
-              onPressed: () => onChanged(RecentTab.searches),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1658,6 +1487,7 @@ class _RecentPlayedFilterBar extends StatelessWidget {
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(right: 14, bottom: 2),
         children: [
           _FilterButton(
             active: activeFilter == RecentPlayedFilter.songs,
@@ -1750,7 +1580,6 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onRecordArtistPlayed,
     required this.onTimelineLabelChange,
     required this.onOpenSongContextMenu,
-    required this.onOpenCollectionContextMenu,
     required this.onOpenAlbumAddMenu,
     required this.onOpenArtistContextMenu,
   });
@@ -1782,13 +1611,6 @@ class _RecentPlayedPanel extends StatelessWidget {
   final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenSongContextMenu;
-  final void Function(
-    Offset position,
-    String key,
-    String title,
-    List<int> songIds,
-  )
-  onOpenCollectionContextMenu;
   final void Function(Offset position, RecentAlbumView album)
   onOpenAlbumAddMenu;
   final void Function(Offset position, RecentArtistView artist)
@@ -2868,10 +2690,4 @@ class _RecentColors {
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
-}
-
-String _displayFolderName(String path) {
-  final normalized = path.replaceAll('\\', '/');
-  final index = normalized.lastIndexOf('/');
-  return index >= 0 ? normalized.substring(index + 1) : normalized;
 }

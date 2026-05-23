@@ -2167,6 +2167,7 @@ class _ArtworkSourceButton extends StatelessWidget {
                     : () {
                       showMenuFlyout(
                         buttonContext,
+                        layer: MenuFlyoutLayer.dialog,
                         items: [
                           MenuFlyoutItem(
                             key: 'local',

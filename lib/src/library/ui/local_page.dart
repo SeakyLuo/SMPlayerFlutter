@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/input_dialog.dart';
 import '../../app/loading_state.dart';
+import '../../app/text_icon_button.dart';
 import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
@@ -428,7 +429,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                             ),
                       ),
                       CommandBarButton(
-                        icon: FluentIcons.select_all_on_24_regular,
+                        icon: FluentIcons.multiselect_ltr_24_regular,
                         label: i18n.t('albums.multiSelect'),
                         active: _multiSelect,
                         onPressed: _enableMultiSelect,
@@ -3171,7 +3172,7 @@ class _LocalEmptyState extends StatelessWidget {
   }
 }
 
-class LocalCommandButton extends StatefulWidget {
+class LocalCommandButton extends StatelessWidget {
   const LocalCommandButton({
     super.key,
     this.icon,
@@ -3186,128 +3187,12 @@ class LocalCommandButton extends StatefulWidget {
   final bool loading;
 
   @override
-  State<LocalCommandButton> createState() => _LocalCommandButtonState();
-}
-
-class _LocalCommandButtonState extends State<LocalCommandButton> {
-  var _hovered = false;
-  var _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null && !widget.loading;
-    final foreground = CommandBarColors.textStrong;
-    final surface =
-        _pressed
-            ? CommandBarColors.buttonPressedSurface
-            : _hovered
-            ? CommandBarColors.buttonHoverSurface
-            : CommandBarColors.buttonSurface;
-    final button = Container(
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: CommandBarColors.buttonBorder),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 40),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Positioned(
-              left: 0,
-              top: 0,
-              right: 0,
-              child: ColoredBox(
-                color: CommandBarColors.buttonInsetHighlight,
-                child: SizedBox(height: 1),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (widget.loading)
-                    SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: foreground,
-                      ),
-                    )
-                  else if (widget.icon case final icon?)
-                    Icon(icon, size: 20, color: foreground),
-                  if (widget.loading || widget.icon != null)
-                    const SizedBox(width: 8),
-                  Text(
-                    widget.label,
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) {
-          if (enabled) {
-            setState(() {
-              _hovered = true;
-            });
-          }
-        },
-        onExit: (_) {
-          if (_hovered) {
-            setState(() {
-              _hovered = false;
-            });
-          }
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown:
-              enabled
-                  ? (_) {
-                    setState(() {
-                      _pressed = true;
-                    });
-                  }
-                  : null,
-          onTapCancel:
-              enabled
-                  ? () {
-                    setState(() {
-                      _pressed = false;
-                    });
-                  }
-                  : null,
-          onTapUp:
-              enabled
-                  ? (_) {
-                    setState(() {
-                      _pressed = false;
-                    });
-                  }
-                  : null,
-          onTap: widget.onPressed,
-          child: Opacity(opacity: enabled ? 1 : 0.45, child: button),
-        ),
-      ),
+    return SmPlayerTextIconButton(
+      icon: icon,
+      label: label,
+      loading: loading,
+      onPressed: onPressed,
     );
   }
 }

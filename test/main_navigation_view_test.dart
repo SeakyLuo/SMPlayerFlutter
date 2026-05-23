@@ -366,6 +366,46 @@ void main() {
     expect(find.text('最近搜索'), findsOneWidget);
     expect(find.text('Jazz'), findsOneWidget);
     expect(find.text('Album only'), findsNothing);
+    final searchFieldSize = tester.getSize(
+      find.byKey(const ValueKey('MainNavigationView.SearchFieldShell')),
+    );
+    expect(searchFieldSize.height, 40);
+    expect(
+      tester
+              .getTopLeft(
+                find.byKey(
+                  const ValueKey('MainNavigationView.SearchHistoryPanel'),
+                ),
+              )
+              .dy -
+          tester
+              .getBottomLeft(
+                find.byKey(const ValueKey('MainNavigationView.SearchForm')),
+              )
+              .dy,
+      8,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
+          )
+          .width,
+      searchFieldSize.width,
+    );
+    final historyPanel = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
+    );
+    final historyDecoration = historyPanel.decoration as BoxDecoration;
+    expect(historyDecoration.color, MainNavigationViewColors.dropdownSurface);
+    expect(historyDecoration.borderRadius, BorderRadius.circular(14));
+    expect(historyDecoration.boxShadow, const [
+      BoxShadow(
+        color: MainNavigationViewColors.dropdownShadow,
+        blurRadius: 36,
+        offset: Offset(0, 18),
+      ),
+    ]);
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('MusicLibraryItem'))).dy,
       libraryTop,
@@ -383,6 +423,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.text('Jazz'));
+    await tester.pump();
     expect(committedText, 'Jazz');
 
     await tester.tap(
@@ -394,6 +435,71 @@ void main() {
 
     await tester.tap(find.text('清空'));
     expect(cleared, isTrue);
+  });
+
+  testWidgets('sidebar search dropdown mirrors Electron night colors', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(brightness: Brightness.dark),
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            recentSearches: const [
+              SearchHistoryEntry(
+                id: 7,
+                query: 'Jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-20T00:00:00Z',
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    await tester.pump();
+
+    final colors = MainNavigationViewColors.of(
+      tester.element(find.byType(MainNavigationView)),
+    );
+    final searchForm = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('MainNavigationView.SearchForm')),
+    );
+    final searchDecoration = searchForm.decoration as BoxDecoration;
+    expect(searchDecoration.color, colors.focusedSearchSurface);
+    expect(
+      searchDecoration.border,
+      Border.all(color: colors.focusedSearchBorder),
+    );
+
+    final historyPanel = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
+    );
+    final historyDecoration = historyPanel.decoration as BoxDecoration;
+    expect(historyDecoration.color, colors.dropdownSurface);
+    expect(historyDecoration.border, Border.all(color: colors.searchBorder));
+    expect(historyDecoration.boxShadow, [
+      BoxShadow(
+        color: colors.dropdownShadow,
+        blurRadius: 36,
+        offset: const Offset(0, 18),
+      ),
+    ]);
   });
 
   testWidgets('sidebar playlist group expands and invokes playlist actions', (
@@ -555,65 +661,177 @@ void main() {
     expect(deleted?.id, 7);
   });
 
-  testWidgets('shell trims committed sidebar searches', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1300, 600);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
+  testWidgets(
+    'shell trims committed sidebar searches without retaining input',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1300, 600);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _MainNavigationShellRepository();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          libraryRepositoryProvider.overrideWithValue(
-            const _MainNavigationShellRepository(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(repository),
+            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          ],
+          child: const SmPlayerI18nScope(
+            i18n: testI18n,
+            child: MaterialApp(home: SmPlayerShellPage()),
           ),
-        ],
-        child: const SmPlayerI18nScope(
-          i18n: testI18n,
-          child: MaterialApp(home: SmPlayerShellPage()),
         ),
-      ),
-    );
+      );
 
-    await tester.enterText(
-      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-      '  Jazz  ',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+        '  Jazz  ',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
 
-    final textField = tester.widget<TextField>(
-      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-    );
-    expect(textField.controller?.text, 'Jazz');
-    var preferences = await SharedPreferences.getInstance();
-    expect(preferences.getString(SmPlayerShellStorageKeys.searchQuery), 'Jazz');
+      final textField = tester.widget<TextField>(
+        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      );
+      expect(textField.controller?.text, '');
+      expect(
+        find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
+        findsNothing,
+      );
+      final preferences = await SharedPreferences.getInstance();
+      expect(
+        preferences.getString(SmPlayerShellStorageKeys.searchQuery),
+        isNull,
+      );
+      expect(repository.recordedSearches, [
+        (query: 'Jazz', type: SearchHistoryType.sidebar),
+      ]);
+      final navigationView = tester.widget<MainNavigationView>(
+        find.byType(MainNavigationView),
+      );
+      expect(navigationView.recentSearches.map((entry) => entry.query), [
+        'Jazz',
+      ]);
 
-    await tester.tap(
-      find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
-    );
-    await tester.pump();
-    preferences = await SharedPreferences.getInstance();
-    expect(preferences.getString(SmPlayerShellStorageKeys.searchQuery), '');
-  });
+      await tester.tap(
+        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find
+            .byKey(const ValueKey('MainNavigationView.SearchTextField'))
+            .hitTestable(),
+        findsOneWidget,
+      );
+      final navigationViewAfterTap = tester.widget<MainNavigationView>(
+        find.byType(MainNavigationView),
+      );
+      expect(
+        navigationViewAfterTap.recentSearches.map((entry) => entry.query),
+        ['Jazz'],
+      );
+      expect(
+        find.byKey(const ValueKey('MainNavigationView.SearchDismissLayer')),
+        findsOneWidget,
+      );
+      expect(find.text('最近搜索'), findsOneWidget);
+      expect(find.text('Jazz'), findsOneWidget);
+
+      await tester.tap(find.byKey(SmPlayerShellKeys.workspace));
+      await tester.pumpAndSettle();
+      expect(find.text('最近搜索'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'shell keeps sidebar dropdown visible before snapshot catches up',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1300, 600);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _MainNavigationShellRepository(
+        includeRecordedSearchesInSnapshot: false,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(repository),
+            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          ],
+          child: const SmPlayerI18nScope(
+            i18n: testI18n,
+            child: MaterialApp(home: SmPlayerShellPage()),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+        '  Jazz  ',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(repository.recordedSearches, [
+        (query: 'Jazz', type: SearchHistoryType.sidebar),
+      ]);
+      await tester.tap(
+        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('最近搜索'), findsOneWidget);
+      expect(find.text('Jazz'), findsOneWidget);
+    },
+  );
 }
 
 class _MainNavigationShellRepository extends LibraryRepository {
-  const _MainNavigationShellRepository();
+  _MainNavigationShellRepository({
+    this.includeRecordedSearchesInSnapshot = true,
+  });
+
+  final bool includeRecordedSearchesInSnapshot;
+  final recordedSearches = <({String query, SearchHistoryType type})>[];
 
   @override
   Future<void> commitPendingDeletes() async {}
 
   @override
   Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
-    return const MusicLibrarySnapshot(
+    return MusicLibrarySnapshot(
       songs: [],
+      recentSearches:
+          includeRecordedSearchesInSnapshot
+              ? [
+                for (final entry in recordedSearches.indexed)
+                  SearchHistoryEntry(
+                    id: entry.$1 + 1,
+                    query: entry.$2.query,
+                    type: entry.$2.type,
+                    searchedAt: '2026-05-23T00:00:00Z',
+                  ),
+              ]
+              : const [],
       hasLibrary: false,
       sortCriterion: MusicLibrarySortCriterion.title,
       albumsSort: AlbumSortCriterion.defaultSort,
       databasePath: '',
     );
+  }
+
+  @override
+  Future<void> addRecentSearch(
+    String query, [
+    SearchHistoryType type = SearchHistoryType.sidebar,
+  ]) async {
+    recordedSearches.add((query: query.trim(), type: type));
   }
 }

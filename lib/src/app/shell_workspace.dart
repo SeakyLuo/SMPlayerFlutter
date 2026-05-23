@@ -1,11 +1,10 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
 
@@ -35,60 +34,139 @@ class SmPlayerWorkspace extends ConsumerWidget {
       snapshot: snapshot,
       i18n: i18n,
     );
+    final headeredPlaylistAppBar = ref.watch(
+      headeredPlaylistAppBarPortalProvider,
+    );
+    final routeSurface = _workspaceRouteSurfaceColor(nightMode);
     final page = _WorkspacePageSurface(
       title: title,
       headerHeight: headerHeight,
-      child: child ?? const SizedBox.shrink(),
-    );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color:
-            nightMode
-                ? ShellColors.nightWorkspaceSurface
-                : ShellColors.workspaceSurface,
-        boxShadow: [
-          BoxShadow(
-            color:
-                nightMode
-                    ? ShellColors.nightWorkspaceShadow
-                    : ShellColors.workspaceShadow,
-            offset: const Offset(0, 22),
-            blurRadius: 56,
-          ),
-        ],
+      routeSurface: routeSurface,
+      headeredPlaylistAppBar: headeredPlaylistAppBar,
+      child: KeyedSubtree(
+        key: ValueKey(currentLocation),
+        child: child ?? const SizedBox.shrink(),
       ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: page,
-        ),
+    );
+    final workspace = DecoratedBox(
+      decoration: _workspaceDecoration(
+        nightMode: nightMode,
+        routeSurface: routeSurface,
+      ),
+      child: ClipRect(child: page),
+    );
+    return RepaintBoundary(
+      child: KeyedSubtree(
+        key: ValueKey('SmPlayerWorkspace.$currentLocation'),
+        child: workspace,
       ),
     );
   }
+}
+
+BoxDecoration _workspaceDecoration({
+  required bool nightMode,
+  required Color routeSurface,
+}) {
+  return BoxDecoration(
+    color: routeSurface,
+    boxShadow: [
+      BoxShadow(
+        color:
+            nightMode
+                ? ShellColors.nightWorkspaceShadow
+                : ShellColors.workspaceShadow,
+        offset: const Offset(0, 22),
+        blurRadius: 56,
+      ),
+    ],
+  );
 }
 
 class _WorkspacePageSurface extends StatelessWidget {
   const _WorkspacePageSurface({
     required this.title,
     required this.headerHeight,
+    required this.routeSurface,
+    required this.headeredPlaylistAppBar,
     required this.child,
   });
 
   final String title;
   final double headerHeight;
+  final Color routeSurface;
+  final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (title.isNotEmpty)
-          _WorkspaceHeader(title: title, height: headerHeight),
-        Expanded(child: SizedBox.expand(child: child)),
-      ],
+    return ColoredBox(
+      color: routeSurface,
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (title.isNotEmpty)
+                _WorkspaceHeader(title: title, height: headerHeight),
+              Expanded(child: SizedBox.expand(child: child)),
+            ],
+          ),
+          if (headeredPlaylistAppBar != null)
+            _HeaderedPlaylistAppBarPortal(entry: headeredPlaylistAppBar!),
+        ],
+      ),
     );
   }
+}
+
+class _HeaderedPlaylistAppBarPortal extends StatelessWidget {
+  const _HeaderedPlaylistAppBarPortal({required this.entry});
+
+  final HeaderedPlaylistAppBarPortalEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    return Positioned(
+      key: const ValueKey('HeaderedPlaylist.AppBarPortal'),
+      top: 8,
+      left: 16,
+      right: 8,
+      height: 44,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              entry.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    nightMode
+                        ? ShellColors.nightHeaderText
+                        : ShellColors.headerText,
+                fontSize: 18,
+                height: 1.1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: entry.commandBar,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _workspaceRouteSurfaceColor(bool nightMode) {
+  return nightMode
+      ? ShellColors.nightWorkspaceSurface
+      : ShellColors.workspaceSolidSurface;
 }
 
 class _WorkspaceHeader extends StatelessWidget {

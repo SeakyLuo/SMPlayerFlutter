@@ -45,12 +45,15 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final textStrong = MediaControlColors.textStrongFor(context);
     final accentStrong = MediaControlColors.accentStrongFor(context);
     final accentHover = MediaControlColors.accentHoverFor(context);
+    final night = MediaControlColors.isNight(context);
     final hovered = !widget.disabled && _hovered;
     final primaryDisabled = widget.primary && widget.disabled;
     final color =
         widget.disabled
             ? widget.primary
-                ? Colors.transparent
+                ? night
+                    ? Colors.white
+                    : Colors.transparent
                 : textStrong
             : widget.favorite
             ? MediaControlColors.favorite
@@ -62,7 +65,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final background =
         widget.disabled
             ? widget.primary
-                ? MediaControlColors.disabledPrimaryButtonSurface
+                ? MediaControlColors.disabledPrimaryButtonSurfaceFor(context)
                 : MediaControlColors.disabledButtonSurface
             : widget.primary
             ? hovered
@@ -76,20 +79,30 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             ? Border.all(
               color:
                   widget.disabled
-                      ? MediaControlColors.disabledPrimaryButtonBorder
+                      ? MediaControlColors.disabledPrimaryButtonBorderFor(
+                        context,
+                      )
                       : MediaControlColors.accentBorder,
             )
             : null;
     final shadow =
         widget.primary
             ? widget.disabled
-                ? const [
-                  BoxShadow(
-                    color: MediaControlColors.disabledPrimaryButtonShadow,
-                    offset: Offset(0, 8),
-                    blurRadius: 18,
-                  ),
-                ]
+                ? night
+                    ? const [
+                      BoxShadow(
+                        color: MediaControlColors.accentShadow,
+                        offset: Offset(0, 12),
+                        blurRadius: 24,
+                      ),
+                    ]
+                    : const [
+                      BoxShadow(
+                        color: MediaControlColors.disabledPrimaryButtonShadow,
+                        offset: Offset(0, 8),
+                        blurRadius: 18,
+                      ),
+                    ]
                 : const [
                   BoxShadow(
                     color: MediaControlColors.accentShadow,
@@ -125,7 +138,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             curve: Curves.easeOut,
             offset: hovered ? Offset(0, -1 / size) : Offset.zero,
             child: Opacity(
-              opacity: widget.disabled && !widget.primary ? 0.65 : 1,
+              opacity: widget.disabled && (!widget.primary || night) ? 0.65 : 1,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
                 width: size,
@@ -148,7 +161,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                           color: color,
                           size: iconSize,
                           primary: widget.primary,
-                          hidden: primaryDisabled,
+                          hidden: primaryDisabled && !night,
                         ),
               ),
             ),
@@ -179,14 +192,9 @@ class _PlayerButtonIcon extends StatelessWidget {
     if (hidden) {
       return const SizedBox.expand();
     }
-    if (primary && (icon == _playIcon || icon == _pauseIcon)) {
-      return CustomPaint(
-        painter: _PrimaryTransportIconPainter(
-          color: color,
-          pause: icon == _pauseIcon,
-        ),
-        size: Size.square(size),
-      );
+    final iconWidget = Icon(icon, color: color, size: size);
+    if (primary && icon == _playIcon) {
+      return Transform.translate(offset: const Offset(-1, -3), child: iconWidget);
     }
     if (icon == _previousIcon || icon == _nextIcon) {
       return CustomPaint(
@@ -203,7 +211,7 @@ class _PlayerButtonIcon extends StatelessWidget {
         size: Size.square(size),
       );
     }
-    return Icon(icon, color: color, size: size);
+    return iconWidget;
   }
 }
 
@@ -302,55 +310,6 @@ class _SkipTransportIconPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.previous != previous;
-  }
-}
-
-class _PrimaryTransportIconPainter extends CustomPainter {
-  const _PrimaryTransportIconPainter({
-    required this.color,
-    required this.pause,
-  });
-
-  final Color color;
-  final bool pause;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    if (pause) {
-      final radius = Radius.circular(size.width * 0.07);
-      final barWidth = size.width * 0.16;
-      final top = size.height * 0.22;
-      final height = size.height * 0.56;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(size.width * 0.30, top, barWidth, height),
-          radius,
-        ),
-        paint,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(size.width * 0.54, top, barWidth, height),
-          radius,
-        ),
-        paint,
-      );
-      return;
-    }
-
-    final path =
-        Path()
-          ..moveTo(size.width * 0.34, size.height * 0.22)
-          ..lineTo(size.width * 0.34, size.height * 0.78)
-          ..lineTo(size.width * 0.74, size.height * 0.50)
-          ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PrimaryTransportIconPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.pause != pause;
   }
 }
 

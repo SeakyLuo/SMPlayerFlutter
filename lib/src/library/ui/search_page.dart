@@ -5,13 +5,17 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
+import 'package:smplayer_flutter/src/library/ui/local_folder_card.dart';
+import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -51,6 +55,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   LibrarySong? _dialogSong;
   SongDialogMode? _dialogMode;
   SearchResult? _albumArtPreview;
+  final _expandedSections = <SearchResultType>{};
 
   @override
   void initState() {
@@ -72,8 +77,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.didUpdateWidget(oldWidget);
     final nextFilter = searchFilterKeyFromType(widget.activeType);
     if (oldWidget.query != widget.query ||
-        oldWidget.folderRelativePath != widget.folderRelativePath ||
-        nextFilter != _activeFilter) {
+        oldWidget.folderRelativePath != widget.folderRelativePath) {
+      _expandedSections.clear();
+      _selection.cancel();
+      _activeFilter = SearchFilterKey.all;
+      _dialogSong = null;
+      _dialogMode = null;
+      _albumArtPreview = null;
+      _recordRecentSearch();
+      return;
+    }
+    if (nextFilter != _activeFilter) {
       _activeFilter = nextFilter;
       _selection.cancel();
       _recordRecentSearch();
@@ -96,8 +110,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final query = widget.query.trim();
 
     return snapshotValue.when(
-      loading: () => const SmPlayerLoadingState(),
-      error: (_, _) => _SearchEmptyState(message: i18n.t('search.noResult')),
+      loading:
+          () => _SearchPageSurface(
+            child:
+                query.isEmpty
+                    ? Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+                      child: _SearchEmptyState(
+                        message: i18n.t('search.enterKeyword'),
+                      ),
+                    )
+                    : _SearchLoadingState(
+                      message: i18n.t('nowPlaying.loading'),
+                    ),
+          ),
+      error:
+          (_, _) => _SearchPageSurface(
+            child: _SearchEmptyState(message: i18n.t('search.noResult')),
+          ),
       data: (snapshot) {
         final normalizedQuery = query.toLowerCase();
         final searchFolderPath = _searchFolderPath(
@@ -129,6 +159,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           normalizedQuery,
           i18n,
         );
+        final hasResults = _totalCount(results) > 0;
         final criteria = SearchCriteria(
           artists: _settings.searchArtistsCriterion,
           albums: _settings.searchAlbumsCriterion,
@@ -141,285 +172,278 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         final selectedSongIds = _selectedSongIds(results);
         final selectedItemCount = _selectedItemCount(results);
         final selectedKeys = _selectableKeys(sections);
+        final folderIndex = buildFolderIndex(
+          snapshot.songs,
+          snapshot.folders,
+          snapshot.rootPath,
+        );
 
         return SmPlayerI18nScope(
           i18n: i18n,
-          child: Stack(
-            children: [
-              ListView(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  18,
-                  24,
-                  _selection.multiSelect
-                      ? multiSelectCommandBarScrollSpacer
-                      : 28,
-                ),
-                children: [
-                  _SearchHeader(
-                    title:
-                        query.isEmpty
-                            ? i18n.t('search.resultTitle')
-                            : widget.folderRelativePath?.isNotEmpty == true
-                            ? i18n.t('search.directoryResultOf', {
-                              'query': query,
-                              'folder': _searchFolderName(
-                                snapshot.rootPath,
-                                widget.folderRelativePath!,
-                              ),
-                            })
-                            : i18n.t('search.resultOf', {'query': query}),
-                    summary: i18n.t('search.resultSummary', {
-                      'count': _totalCount(results),
-                    }),
+          child: _SearchPageSurface(
+            child: Stack(
+              children: [
+                ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    6,
+                    24,
+                    _selection.multiSelect
+                        ? multiSelectCommandBarScrollSpacer
+                        : 22,
                   ),
-                  const SizedBox(height: 16),
-                  _SearchFilterTabs(
-                    i18n: i18n,
-                    activeFilter: _activeFilter,
-                    results: results,
-                    onChanged: _changeFilter,
-                  ),
-                  const SizedBox(height: 18),
-                  if (query.isEmpty)
-                    _SearchEmptyState(message: i18n.t('search.enterKeyword'))
-                  else if (_totalCount(results) == 0)
-                    _SearchEmptyState(message: i18n.t('search.noResult'))
-                  else
-                    for (final section in visibleSections) ...[
-                      _SearchResultSection(
-                        section: section,
+                  children: [
+                    if (query.isEmpty)
+                      _SearchEmptyState(message: i18n.t('search.enterKeyword'))
+                    else if (!hasResults)
+                      _SearchEmptyState(message: i18n.t('search.noResult'))
+                    else ...[
+                      _SearchFilterTabs(
                         i18n: i18n,
                         activeFilter: _activeFilter,
-                        showCount: snapshot.showCount,
-                        mediaControlState: mediaControlState,
-                        selection: _selection,
-                        playlists: _customPlaylists(snapshot.playlists),
-                        songsById: {
-                          for (final song in snapshot.songs) song.id: song,
-                        },
-                        onViewAll: () {
-                          _changeFilter(_filterForSection(section.type));
-                        },
-                        onViewLess: () {
-                          _changeFilter(SearchFilterKey.all);
-                        },
-                        onSortChanged: (criterion) {
-                          _updateSort(section.type, criterion);
-                        },
-                        onGetPreferenceLevel: _getSearchResultPreferenceLevel,
-                        onSetPreference: _setSearchResultPreference,
-                        onUndoPreference: _undoSearchResultPreference,
-                        onGetSongPreferenceLevel: _getSongPreferenceLevel,
-                        onSetSongPreference: _setSongPreference,
-                        onUndoSongPreference: _undoSongPreference,
-                        onSelectionChanged: () {
-                          setState(() {});
-                        },
-                        onOpenCard: (card) {
-                          _openCard(section.type, card, query);
-                        },
-                        onPlaySongs: _playSongIds,
-                        onPlayCard: (card) {
-                          _playCard(section.type, card);
-                        },
-                        onPlayTrack: (song, index) {
-                          _playTrack(
-                            song,
-                            index,
-                            results.songs.map((item) => item.id).toList(),
-                          );
-                        },
-                        onTogglePlayPause:
-                            ref
-                                .read(mediaControlControllerProvider)
-                                .onTogglePlayPause,
-                        onPlayNext: _playNext,
-                        onAddSongsToNowPlaying: (songIds) {
-                          return addSongsToNowPlayingWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: songIds,
-                          );
-                        },
-                        onAddSongsToPlaylist: (playlistId, songIds) {
-                          return addSongsToPlaylistWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            playlistId: playlistId,
-                            songIds: songIds,
-                          );
-                        },
-                        onToggleSongsFavorite: (songIds, favorite) {
-                          return setSongsFavoriteWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: songIds,
-                            favorite: favorite,
-                          );
-                        },
-                        onCreatePlaylist: _createPlaylist,
-                        onDeleteSong: _deleteSong,
-                        onOpenArtist: _openArtist,
-                        onOpenAlbum: _openAlbum,
-                        onOpenMusicDialog: _openMusicDialog,
-                        onPreviewAlbumArt: _showAlbumArtPreview,
-                        onSearchDirectory: _searchDirectory,
-                        onRevealCard: _revealSearchCard,
-                        onRevealSong: _revealSong,
+                        results: results,
+                        onChanged: _changeFilter,
                       ),
-                      const SizedBox(height: 24),
-                    ],
-                ],
-              ),
-              MultiSelectCommandBar(
-                visible: _selection.multiSelect,
-                selectedCount: selectedItemCount,
-                playlists: _customPlaylists(snapshot.playlists),
-                showAddTo: true,
-                addToSongIds: selectedSongIds,
-                includeNowPlayingInAddTo: true,
-                includeFavoritesInAddTo: hasNotFavoriteSongs(selectedSongIds, {
-                  for (final song in snapshot.songs) song.id: song,
-                }),
-                onPlay:
-                    selectedSongIds.isEmpty
-                        ? null
-                        : () {
-                          _playSongIds(shuffleSearchSongIds(selectedSongIds));
-                          _selection.hideAfterOperation(
-                            snapshot.hideMultiSelectCommandBarAfterOperation,
-                          );
-                          setState(() {});
-                        },
-                onAddToNowPlaying:
-                    selectedSongIds.isEmpty
-                        ? null
-                        : () {
-                          addSongsToNowPlayingWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: selectedSongIds,
-                          );
-                          _selection.hideAfterOperation(
-                            snapshot.hideMultiSelectCommandBarAfterOperation,
-                          );
-                          setState(() {});
-                        },
-                onToggleFavorite:
-                    selectedSongIds.isEmpty
-                        ? null
-                        : () {
-                          final songsById = {
+                      const SizedBox(height: 18),
+                      for (final section in visibleSections) ...[
+                        _SearchResultSection(
+                          section: section,
+                          i18n: i18n,
+                          activeFilter: _activeFilter,
+                          showCount: snapshot.showCount,
+                          mediaControlState: mediaControlState,
+                          selection: _selection,
+                          playlists: _customPlaylists(snapshot.playlists),
+                          songsById: {
                             for (final song in snapshot.songs) song.id: song,
-                          };
-                          setSongsFavoriteWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: notFavoriteSongIds(
-                              selectedSongIds,
-                              songsById,
-                            ),
-                            favorite: true,
-                          );
-                          _selection.hideAfterOperation(
-                            snapshot.hideMultiSelectCommandBarAfterOperation,
-                          );
-                          setState(() {});
-                        },
-                onCreatePlaylist:
-                    selectedSongIds.isEmpty
-                        ? null
-                        : () async {
-                          await createPlaylistWithSongs(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            playlists: snapshot.playlists,
-                            defaultName:
-                                query.isEmpty ? i18n.t('common.songs') : query,
-                            songIds: selectedSongIds,
-                          );
-                          if (!mounted) {
-                            return;
-                          }
-                          _selection.hideAfterOperation(
-                            snapshot.hideMultiSelectCommandBarAfterOperation,
-                          );
-                          setState(() {});
-                        },
-                onAddToPlaylist:
-                    selectedSongIds.isEmpty
-                        ? null
-                        : (playlistId) {
-                          addSongsToPlaylistWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            playlistId: playlistId,
-                            songIds: selectedSongIds,
-                          );
-                          _selection.hideAfterOperation(
-                            snapshot.hideMultiSelectCommandBarAfterOperation,
-                          );
-                          setState(() {});
-                        },
-                onSelectAll: () {
-                  setState(() {
-                    _selection.selectAll(selectedKeys);
-                  });
-                },
-                onReverseSelection: () {
-                  setState(() {
-                    _selection.reverseSelection(selectedKeys);
-                  });
-                },
-                onClearSelection: () {
-                  setState(_selection.clearSelection);
-                },
-                onCancel: () {
-                  setState(_selection.cancel);
-                },
-              ),
-              if (_dialogSong != null && _dialogMode != null)
-                MusicDialog(
-                  song: _dialogSong!,
-                  initialMode: _dialogMode!,
-                  canPause:
-                      mediaControlState.isPlaying &&
-                      mediaControlState.track.id == _dialogSong!.id,
-                  onPlay: () {
-                    if (mediaControlState.track.id == _dialogSong!.id) {
-                      ref
-                          .read(mediaControlControllerProvider)
-                          .onTogglePlayPause();
-                      return;
-                    }
-                    _playSongIds([_dialogSong!.id]);
-                  },
-                  onReveal: _revealSongPath,
-                  onClose: () {
+                          },
+                          folderNodes: folderIndex.nodes,
+                          allPlaylists: snapshot.playlists,
+                          expanded: _isSectionExpanded(section.type),
+                          onToggleExpanded: _toggleExpandedSection,
+                          onSortChanged: (criterion) {
+                            _updateSort(section.type, criterion);
+                          },
+                          onGetPreferenceLevel: _getSearchResultPreferenceLevel,
+                          onSetPreference: _setSearchResultPreference,
+                          onUndoPreference: _undoSearchResultPreference,
+                          onGetSongPreferenceLevel: _getSongPreferenceLevel,
+                          onSetSongPreference: _setSongPreference,
+                          onUndoSongPreference: _undoSongPreference,
+                          onSelectionChanged: () {
+                            setState(() {});
+                          },
+                          onOpenCard: (card) {
+                            _openCard(section.type, card, query);
+                          },
+                          onPlaySongs: _playSongIds,
+                          onPlayCard: (card) {
+                            _playCard(section.type, card);
+                          },
+                          onPlayTrack: (song, index) {
+                            _playTrack(
+                              song,
+                              index,
+                              results.songs.map((item) => item.id).toList(),
+                            );
+                          },
+                          onTogglePlayPause:
+                              ref
+                                  .read(mediaControlControllerProvider)
+                                  .onTogglePlayPause,
+                          onPlayNext: _playNext,
+                          onAddSongsToNowPlaying: (songIds) {
+                            return addSongsToNowPlayingWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              songIds: songIds,
+                            );
+                          },
+                          onAddSongsToPlaylist: (playlistId, songIds) {
+                            return addSongsToPlaylistWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              playlistId: playlistId,
+                              songIds: songIds,
+                              useSingleSongCall: true,
+                            );
+                          },
+                          onToggleSongsFavorite: (songIds, favorite) {
+                            return setSongsFavoriteWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              songIds: songIds,
+                              favorite: favorite,
+                            );
+                          },
+                          onCreatePlaylist: _createPlaylist,
+                          onDeleteSong: _deleteSong,
+                          onOpenArtist: _openArtist,
+                          onOpenAlbum: _openAlbum,
+                          onOpenMusicDialog: _openMusicDialog,
+                          onPreviewAlbumArt: _showAlbumArtPreview,
+                          onSearchDirectory: _searchDirectory,
+                          onRevealCard: _revealSearchCard,
+                          onRevealSong: _revealSong,
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                    ],
+                  ],
+                ),
+                MultiSelectCommandBar(
+                  visible: _selection.multiSelect,
+                  selectedCount: selectedItemCount,
+                  playlists: _customPlaylists(snapshot.playlists),
+                  showAddTo: true,
+                  addToSongIds: selectedSongIds,
+                  includeNowPlayingInAddTo: true,
+                  includeFavoritesInAddTo: hasNotFavoriteSongs(
+                    selectedSongIds,
+                    {for (final song in snapshot.songs) song.id: song},
+                  ),
+                  onPlay:
+                      selectedSongIds.isEmpty
+                          ? null
+                          : () {
+                            _playSongIds(shuffleSearchSongIds(selectedSongIds));
+                            _selection.hideAfterOperation(
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                            );
+                            setState(() {});
+                          },
+                  onAddToNowPlaying:
+                      selectedSongIds.isEmpty
+                          ? null
+                          : () {
+                            addSongsToNowPlayingWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              songIds: selectedSongIds,
+                            );
+                            _selection.hideAfterOperation(
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                            );
+                            setState(() {});
+                          },
+                  onToggleFavorite:
+                      selectedSongIds.isEmpty
+                          ? null
+                          : () {
+                            final songsById = {
+                              for (final song in snapshot.songs) song.id: song,
+                            };
+                            setSongsFavoriteWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              songIds: notFavoriteSongIds(
+                                selectedSongIds,
+                                songsById,
+                              ),
+                              favorite: true,
+                            );
+                            _selection.hideAfterOperation(
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                            );
+                            setState(() {});
+                          },
+                  onCreatePlaylist:
+                      selectedSongIds.isEmpty
+                          ? null
+                          : () async {
+                            await createPlaylistWithSongs(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              playlists: snapshot.playlists,
+                              defaultName:
+                                  query.isEmpty
+                                      ? i18n.t('common.songs')
+                                      : query,
+                              songIds: selectedSongIds,
+                            );
+                            if (!mounted) {
+                              return;
+                            }
+                            _selection.hideAfterOperation(
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                            );
+                            setState(() {});
+                          },
+                  onAddToPlaylist:
+                      selectedSongIds.isEmpty
+                          ? null
+                          : (playlistId) {
+                            addSongsToPlaylistWithUndo(
+                              context: context,
+                              ref: ref,
+                              i18n: i18n,
+                              playlistId: playlistId,
+                              songIds: selectedSongIds,
+                              useSingleSongCall: true,
+                            );
+                            _selection.hideAfterOperation(
+                              snapshot.hideMultiSelectCommandBarAfterOperation,
+                            );
+                            setState(() {});
+                          },
+                  onSelectAll: () {
                     setState(() {
-                      _dialogSong = null;
-                      _dialogMode = null;
+                      _selection.selectAll(selectedKeys);
                     });
                   },
-                ),
-              if (_albumArtPreview != null)
-                _SearchAlbumArtPreviewDialog(
-                  card: _albumArtPreview!,
-                  onClose: () {
+                  onReverseSelection: () {
                     setState(() {
-                      _albumArtPreview = null;
+                      _selection.reverseSelection(selectedKeys);
                     });
                   },
+                  onClearSelection: () {
+                    setState(_selection.clearSelection);
+                  },
+                  onCancel: () {
+                    setState(_selection.cancel);
+                  },
                 ),
-            ],
+                if (_dialogSong != null && _dialogMode != null)
+                  MusicDialog(
+                    song: _dialogSong!,
+                    initialMode: _dialogMode!,
+                    canPause:
+                        mediaControlState.isPlaying &&
+                        mediaControlState.track.id == _dialogSong!.id,
+                    onPlay: () {
+                      if (mediaControlState.track.id == _dialogSong!.id) {
+                        ref
+                            .read(mediaControlControllerProvider)
+                            .onTogglePlayPause();
+                        return;
+                      }
+                      _playSongIds([_dialogSong!.id]);
+                    },
+                    onReveal: _revealSongPath,
+                    onClose: () {
+                      setState(() {
+                        _dialogSong = null;
+                        _dialogMode = null;
+                      });
+                    },
+                  ),
+                if (_albumArtPreview != null)
+                  _SearchAlbumArtPreviewDialog(
+                    card: _albumArtPreview!,
+                    onClose: () {
+                      setState(() {
+                        _albumArtPreview = null;
+                      });
+                    },
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -469,7 +493,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ? sections.where((section) => section.count > 0).toList()
             : sections
                 .where(
-                  (section) => _filterForSection(section.type) == _activeFilter,
+                  (section) =>
+                      section.count > 0 &&
+                      _filterForSection(section.type) == _activeFilter,
                 )
                 .toList();
     if (_activeFilter == SearchFilterKey.all) {
@@ -500,6 +526,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ).toString(),
     );
     _recordRecentSearch();
+  }
+
+  bool _isSectionExpanded(SearchResultType type) {
+    return _activeFilter != SearchFilterKey.all ||
+        _expandedSections.contains(type);
+  }
+
+  void _toggleExpandedSection(SearchResultType type) {
+    setState(() {
+      if (_expandedSections.contains(type)) {
+        _expandedSections.remove(type);
+      } else {
+        _expandedSections.add(type);
+      }
+    });
   }
 
   Future<void> _restoreSettings() async {
@@ -877,6 +918,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
+class _SearchPageSurface extends StatelessWidget {
+  const _SearchPageSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    return ColoredBox(
+      color:
+          nightMode
+              ? ShellColors.nightWorkspaceSurface
+              : ShellColors.workspaceSolidSurface,
+      child: SizedBox.expand(child: child),
+    );
+  }
+}
+
 class _SearchSectionData {
   const _SearchSectionData.cards({
     required this.type,
@@ -911,38 +970,6 @@ class _SearchSectionData {
   }
 }
 
-class _SearchHeader extends StatelessWidget {
-  const _SearchHeader({required this.title, required this.summary});
-
-  final String title;
-  final String summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: _SearchColors.textStrong,
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          summary,
-          style: const TextStyle(
-            color: _SearchColors.textMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _SearchFilterTabs extends StatelessWidget {
   const _SearchFilterTabs({
     required this.i18n,
@@ -958,47 +985,84 @@ class _SearchFilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = [
-      (SearchFilterKey.all, i18n.t('common.all')),
+    final tabs = <({SearchFilterKey key, String label, int count, int order})>[
       (
-        SearchFilterKey.artists,
-        i18n.t('search.artistsWithCount', {'count': results.artists.length}),
+        key: SearchFilterKey.all,
+        label: i18n.t('common.all'),
+        count:
+            results.artists.length +
+            results.albums.length +
+            results.songs.length +
+            results.playlists.length +
+            results.folders.length,
+        order: 0,
       ),
       (
-        SearchFilterKey.albums,
-        i18n.t('search.albumsWithCount', {'count': results.albums.length}),
+        key: SearchFilterKey.artists,
+        label: i18n.t('common.artists'),
+        count: results.artists.length,
+        order: 1,
       ),
       (
-        SearchFilterKey.songs,
-        i18n.t('search.songsWithCount', {'count': results.songs.length}),
+        key: SearchFilterKey.albums,
+        label: i18n.t('common.albums'),
+        count: results.albums.length,
+        order: 2,
       ),
       (
-        SearchFilterKey.playlists,
-        i18n.t('search.playlistsWithCount', {
-          'count': results.playlists.length,
-        }),
+        key: SearchFilterKey.songs,
+        label: i18n.t('common.songs'),
+        count: results.songs.length,
+        order: 3,
       ),
       (
-        SearchFilterKey.folders,
-        i18n.t('search.foldersWithCount', {'count': results.folders.length}),
+        key: SearchFilterKey.playlists,
+        label: i18n.t('common.playlists'),
+        count: results.playlists.length,
+        order: 4,
       ),
+      (
+        key: SearchFilterKey.folders,
+        label: i18n.t('common.folders'),
+        count: results.folders.length,
+        order: 5,
+      ),
+    ];
+    final orderedTabs = [
+      tabs.first,
+      ...tabs.skip(1).toList()..sort((left, right) {
+        final leftEmpty = left.count == 0;
+        final rightEmpty = right.count == 0;
+        if (leftEmpty != rightEmpty) {
+          return leftEmpty ? 1 : -1;
+        }
+        return left.order.compareTo(right.order);
+      }),
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final tab in tabs) ...[
-            _SearchFilterTab(
-              label: tab.$2,
-              selected: tab.$1 == activeFilter,
-              onPressed: () {
-                onChanged(tab.$1);
-              },
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 38),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(2, 4, 2, 8),
+          child: Row(
+            children: [
+              for (final tab in orderedTabs) ...[
+                _SearchFilterTab(
+                  label: tab.label,
+                  count: tab.count,
+                  selected: tab.key == activeFilter,
+                  enabled: tab.key == SearchFilterKey.all || tab.count > 0,
+                  onPressed: () {
+                    onChanged(tab.key);
+                  },
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1007,25 +1071,62 @@ class _SearchFilterTabs extends StatelessWidget {
 class _SearchFilterTab extends StatelessWidget {
   const _SearchFilterTab({
     required this.label,
+    required this.count,
     required this.selected,
+    required this.enabled,
     required this.onPressed,
   });
 
   final String label;
+  final int count;
   final bool selected;
+  final bool enabled;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final colors = _SearchThemeColors.of(context);
     return TextButton(
-      style: TextButton.styleFrom(
-        backgroundColor: selected ? _SearchColors.accentSoft : Colors.white,
-        foregroundColor: selected ? _SearchColors.accent : _SearchColors.text,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(0, 30)),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 13, vertical: 0),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+            side: BorderSide(
+              color: selected ? Colors.transparent : colors.controlBorder,
+            ),
+          ),
+        ),
+        backgroundColor: WidgetStatePropertyAll(
+          selected ? _SearchColors.accent : Colors.transparent,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              selected
+                  ? Colors.white
+                  : states.contains(WidgetState.disabled)
+                  ? colors.textStrong.withValues(alpha: 0.46)
+                  : colors.textStrong,
+        ),
+        overlayColor: WidgetStatePropertyAll(_SearchColors.accentSoft),
       ),
-      onPressed: onPressed,
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      onPressed: enabled ? onPressed : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(width: 7),
+          Text(
+            '$count',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1047,8 +1148,10 @@ class _SearchResultSection extends StatelessWidget {
     required this.selection,
     required this.playlists,
     required this.songsById,
-    required this.onViewAll,
-    required this.onViewLess,
+    required this.folderNodes,
+    required this.allPlaylists,
+    required this.expanded,
+    required this.onToggleExpanded,
     required this.onSortChanged,
     required this.onGetPreferenceLevel,
     required this.onSetPreference,
@@ -1085,8 +1188,10 @@ class _SearchResultSection extends StatelessWidget {
   final PageSelectionController<String> selection;
   final List<MultiSelectCommandBarPlaylist> playlists;
   final Map<int, LibrarySong> songsById;
-  final VoidCallback onViewAll;
-  final VoidCallback onViewLess;
+  final Map<String, FolderNode> folderNodes;
+  final List<LibraryPlaylist> allPlaylists;
+  final bool expanded;
+  final ValueChanged<SearchResultType> onToggleExpanded;
   final ValueChanged<SearchSortCriterion> onSortChanged;
   final Future<String?> Function(SearchResultType, SearchResult)
   onGetPreferenceLevel;
@@ -1119,78 +1224,67 @@ class _SearchResultSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final preview = activeFilter == SearchFilterKey.all;
-    final visibleCount = preview ? section.previewLimit : section.count;
-    final showViewToggle = section.count > section.previewLimit;
+    final visibleCount =
+        preview && !expanded ? section.previewLimit : section.count;
+    final showViewToggle = preview && section.count > section.previewLimit;
     final sortOptions = getSortOptions(section.type, i18n);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              _sectionTitle(section.type, section.count),
-              style: const TextStyle(
-                color: _SearchColors.textStrong,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const Spacer(),
-            Builder(
-              builder: (buttonContext) {
-                return TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: _SearchColors.textStrong,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  onPressed: () {
-                    showMenuFlyout(
-                      buttonContext,
-                      items: [
-                        for (final option in sortOptions)
-                          MenuFlyoutItem(
-                            key: 'search-sort-${section.type}-${option.value}',
-                            text: option.label,
-                            icon:
-                                option.value == section.criterion
-                                    ? FluentIcons.checkmark_20_regular
-                                    : null,
-                            onPressed: () => onSortChanged(option.value),
-                          ),
-                      ],
-                    );
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(FluentIcons.arrow_sort_20_regular, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        _activeSortLabel(sortOptions, section.criterion),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            if (showViewToggle)
-              TextButton(
-                onPressed: preview ? onViewAll : onViewLess,
-                child: Text(
-                  preview
-                      ? i18n.t('search.viewAll')
-                      : i18n.t('search.viewLess'),
+        SizedBox(
+          height: 40,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                _sectionTitle(section.type, section.count),
+                style: const TextStyle(
+                  color: _SearchColors.textStrong,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-          ],
+              const Spacer(),
+              if (showViewToggle) ...[
+                _SearchSectionActionButton(
+                  icon: FluentIcons.grid_20_regular,
+                  label:
+                      expanded
+                          ? i18n.t('search.viewLess')
+                          : i18n.t('search.viewAll'),
+                  onPressed: () => onToggleExpanded(section.type),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Builder(
+                builder: (buttonContext) {
+                  return _SearchSectionActionButton(
+                    icon: FluentIcons.arrow_sort_20_regular,
+                    label: _activeSortLabel(sortOptions, section.criterion),
+                    onPressed: () {
+                      showMenuFlyout(
+                        buttonContext,
+                        items: [
+                          for (final option in sortOptions)
+                            MenuFlyoutItem(
+                              key:
+                                  'search-sort-${section.type}-${option.value}',
+                              text: option.label,
+                              icon:
+                                  option.value == section.criterion
+                                      ? FluentIcons.checkmark_20_regular
+                                      : null,
+                              onPressed: () => onSortChanged(option.value),
+                            ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         if (section.type == SearchResultType.songs)
@@ -1202,6 +1296,16 @@ class _SearchResultSection extends StatelessWidget {
   }
 
   String _sectionTitle(SearchResultType type, int count) {
+    if (!showCount) {
+      return switch (type) {
+        SearchResultType.artists => i18n.t('common.artists'),
+        SearchResultType.albums => i18n.t('common.albums'),
+        SearchResultType.songs => i18n.t('common.songs'),
+        SearchResultType.playlists => i18n.t('common.playlists'),
+        SearchResultType.folders => i18n.t('common.folders'),
+      };
+    }
+
     return switch (type) {
       SearchResultType.artists => i18n.t('search.artistsWithCount', {
         'count': count,
@@ -1260,8 +1364,8 @@ class _SearchResultSection extends StatelessWidget {
   Widget _buildCards(BuildContext context, int visibleCount) {
     if (section.type == SearchResultType.albums) {
       return Wrap(
-        spacing: 10,
-        runSpacing: 12,
+        spacing: 30,
+        runSpacing: 26,
         children: [
           for (final card in section.cards.take(visibleCount))
             AlbumTile(
@@ -1276,8 +1380,8 @@ class _SearchResultSection extends StatelessWidget {
               onPlayAlbum: () {
                 onPlayCard(card);
               },
-              onAddAlbum: (_) {
-                onPlaySongs(card.songIds);
+              onAddAlbum: (position) {
+                _showCardAddToMenu(context, position, card);
               },
               onToggleSelection: () {
                 selection.toggle(getSearchResultCardKey(section.type, card));
@@ -1291,30 +1395,113 @@ class _SearchResultSection extends StatelessWidget {
       );
     }
 
-    return Wrap(
-      spacing: 10,
-      runSpacing: 12,
-      children: [
-        for (final card in section.cards.take(visibleCount))
-          _SearchResultCard(
-            card: card,
-            type: section.type,
-            selected: selection.isSelected(
-              getSearchResultCardKey(section.type, card),
+    if (section.type == SearchResultType.playlists) {
+      return _SearchResultCardGrid(
+        type: section.type,
+        children: [
+          for (final card in section.cards.take(visibleCount))
+            _SearchPlaylistGridCard(
+              card: card,
+              playlist: allPlaylists.firstWhere(
+                (playlist) => playlist.id.toString() == card.sourceId,
+              ),
+              songsById: songsById,
+              selected: selection.isSelected(
+                getSearchResultCardKey(section.type, card),
+              ),
+              multiSelect: selection.multiSelect,
+              i18n: i18n,
+              onOpen: () {
+                onOpenCard(card);
+              },
+              onPlay: () {
+                onPlayCard(card);
+              },
+              onToggleSelection: () {
+                selection.toggle(getSearchResultCardKey(section.type, card));
+                onSelectionChanged();
+              },
+              onOpenContextMenu: (position) {
+                _showCardContextMenu(context, position, card);
+              },
             ),
-            multiSelect: selection.multiSelect,
-            onOpen: () {
-              onOpenCard(card);
-            },
-            onPlay: () {
-              onPlayCard(card);
-            },
-            onToggleSelection: () {
-              selection.toggle(getSearchResultCardKey(section.type, card));
-              onSelectionChanged();
-            },
-            onOpenContextMenu: (position) {
-              _showCardContextMenu(context, position, card);
+        ],
+      );
+    }
+
+    if (section.type == SearchResultType.folders) {
+      return Wrap(
+        spacing: 30,
+        runSpacing: 26,
+        children: [
+          for (final card in section.cards.take(visibleCount))
+            if (folderNodes[card.localFolderRelativePath ?? '']
+                case final folder?)
+              LocalFolderCard(
+                folder: folder,
+                selected: selection.isSelected(
+                  getSearchResultCardKey(section.type, card),
+                ),
+                multiSelect: selection.multiSelect,
+                nodes: folderNodes,
+                songsById: songsById,
+                i18n: i18n,
+                onPlayFolder: (_) {
+                  onPlayCard(card);
+                },
+                onAddFolder: (_, position) {
+                  _showCardAddToMenu(context, position, card);
+                },
+                onRefreshFolder: (_) {},
+                onSearchFolder: (_) {
+                  onSearchDirectory(card);
+                },
+                onRevealFolder: (_) {
+                  unawaited(onRevealCard(card));
+                },
+                onOpenFolder: (_) {
+                  onOpenCard(card);
+                },
+                onOpenFolderMenu: (_, position) {
+                  _showCardContextMenu(context, position, card);
+                },
+                onToggleSelection: (_) {
+                  selection.toggle(getSearchResultCardKey(section.type, card));
+                  onSelectionChanged();
+                },
+              ),
+        ],
+      );
+    }
+
+    final cards = section.cards.take(visibleCount).toList();
+    return _SearchResultCardGrid(
+      type: section.type,
+      children: [
+        for (final card in cards)
+          Builder(
+            builder: (context) {
+              return _SearchResultCard(
+                card: card,
+                type: section.type,
+                selected: selection.isSelected(
+                  getSearchResultCardKey(section.type, card),
+                ),
+                multiSelect: selection.multiSelect,
+                onOpen: () {
+                  onOpenCard(card);
+                },
+                onPlay: () {
+                  onPlayCard(card);
+                },
+                onToggleSelection: () {
+                  selection.toggle(getSearchResultCardKey(section.type, card));
+                  onSelectionChanged();
+                },
+                onOpenContextMenu: (position) {
+                  _showCardContextMenu(context, position, card);
+                },
+              );
             },
           ),
       ],
@@ -1375,7 +1562,7 @@ class _SearchResultSection extends StatelessWidget {
           onSelectionChanged();
         },
         onToggleFavorite: () {
-          unawaited(onToggleSongsFavorite([song.id], true));
+          unawaited(onToggleSongsFavorite([song.id], !song.favorite));
         },
         onSetPreference: (level) {
           unawaited(onSetSongPreference(song, level));
@@ -1495,6 +1682,41 @@ class _SearchResultSection extends StatelessWidget {
     );
   }
 
+  void _showCardAddToMenu(
+    BuildContext context,
+    Offset position,
+    SearchResult card,
+  ) {
+    final favoriteSongIds = [
+      for (final songId in card.songIds)
+        if (songsById[songId]?.favorite != true) songId,
+    ];
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: card.songIds,
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: favoriteSongIds.isNotEmpty,
+      onAddToNowPlaying: () {
+        onAddSongsToNowPlaying(card.songIds);
+      },
+      onToggleFavorite: () {
+        onToggleSongsFavorite(favoriteSongIds, true);
+      },
+      onCreatePlaylist: () {
+        onCreatePlaylist(card.title, card.songIds);
+      },
+      onAddToPlaylist: (playlistId) {
+        onAddSongsToPlaylist(playlistId, card.songIds);
+      },
+    );
+    if (addToItem == null) {
+      return;
+    }
+
+    showMenuFlyout(context, position: position, items: addToItem.submenu);
+  }
+
   MenuFlyoutItem _buildSearchResultPreferenceMenuItem(
     SearchResult card,
     String? preferenceLevel,
@@ -1512,6 +1734,45 @@ class _SearchResultSection extends StatelessWidget {
       onSetPreference: (level) {
         onSetPreference(section.type, card, level);
       },
+    );
+  }
+}
+
+class _SearchSectionActionButton extends StatelessWidget {
+  const _SearchSectionActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final base = SmPlayerTextIconButtonColors.resolve(nightMode);
+    return SmPlayerTextIconButtonTheme(
+      colors: base.copyWith(
+        control: _SearchColors.controlSurface,
+        controlHover: _SearchColors.accentSoft,
+        controlBorder: _SearchColors.subtleBorder,
+        cardShadow: const Color(0x147288a0),
+      ),
+      child: SmPlayerTextIconButton(
+        label: label,
+        icon: icon,
+        iconSize: 16,
+        iconGap: 6,
+        height: 36,
+        horizontalPadding: 12,
+        onPressed: onPressed,
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }
@@ -1619,6 +1880,253 @@ class _SearchAlbumArtPreviewDialog extends StatelessWidget {
   }
 }
 
+class _SearchResultCardGrid extends StatelessWidget {
+  const _SearchResultCardGrid({required this.type, required this.children});
+
+  final SearchResultType type;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final isArtist = type == SearchResultType.artists;
+    final spacing = isArtist ? 12.0 : 30.0;
+    final runSpacing = isArtist ? 2.0 : 26.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final itemWidth =
+            isArtist && maxWidth.isFinite
+                ? _stretchedGridWidth(maxWidth, 260, spacing)
+                : 180.0;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: runSpacing,
+          children: [
+            for (final child in children)
+              SizedBox(width: itemWidth, child: child),
+          ],
+        );
+      },
+    );
+  }
+}
+
+double _stretchedGridWidth(double maxWidth, double minWidth, double spacing) {
+  final rawColumns = ((maxWidth + spacing) / (minWidth + spacing)).floor();
+  final columns = rawColumns < 1 ? 1 : rawColumns;
+  return (maxWidth - spacing * (columns - 1)) / columns;
+}
+
+class _SearchPlaylistGridCard extends StatefulWidget {
+  const _SearchPlaylistGridCard({
+    required this.card,
+    required this.playlist,
+    required this.songsById,
+    required this.selected,
+    required this.multiSelect,
+    required this.i18n,
+    required this.onOpen,
+    required this.onPlay,
+    required this.onToggleSelection,
+    required this.onOpenContextMenu,
+  });
+
+  final SearchResult card;
+  final LibraryPlaylist playlist;
+  final Map<int, LibrarySong> songsById;
+  final bool selected;
+  final bool multiSelect;
+  final SmPlayerI18n i18n;
+  final VoidCallback onOpen;
+  final VoidCallback onPlay;
+  final VoidCallback onToggleSelection;
+  final ValueChanged<Offset> onOpenContextMenu;
+
+  @override
+  State<_SearchPlaylistGridCard> createState() =>
+      _SearchPlaylistGridCardState();
+}
+
+class _SearchPlaylistGridCardState extends State<_SearchPlaylistGridCard> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final songs =
+        widget.playlist.songIds
+            .map((songId) => widget.songsById[songId])
+            .whereType<LibrarySong>()
+            .toList();
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: GestureDetector(
+        onTap: widget.multiSelect ? widget.onToggleSelection : widget.onOpen,
+        onSecondaryTapDown: (details) {
+          widget.onOpenContextMenu(details.globalPosition);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: 180,
+          constraints: const BoxConstraints(minHeight: 232),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                widget.selected || _hovered
+                    ? _SearchColors.cardHover
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow:
+                widget.selected
+                    ? const [
+                      BoxShadow(
+                        color: Color(0x141e2a3a),
+                        blurRadius: 34,
+                        offset: Offset(0, 16),
+                      ),
+                    ]
+                    : null,
+          ),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox.square(
+                      dimension: 160,
+                      child: _SearchPlaylistArtwork(songs: songs),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.playlist.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _SearchColors.textStrong,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.i18n.t('playlists.songCount', {
+                      'count': widget.playlist.songCount,
+                    }),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _SearchColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              if (_hovered && !widget.multiSelect)
+                Positioned(
+                  right: 8,
+                  bottom: 60,
+                  child: _SearchCardPlayButton(onPressed: widget.onPlay),
+                ),
+              if (widget.multiSelect || widget.selected)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: _SearchSelectionMark(selected: widget.selected),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchPlaylistArtwork extends StatelessWidget {
+  const _SearchPlaylistArtwork({required this.songs});
+
+  final List<LibrarySong> songs;
+
+  @override
+  Widget build(BuildContext context) {
+    final artworkUrls =
+        songs
+            .where((song) => song.thumbnailPath.isNotEmpty)
+            .map((song) => song.thumbnailPath)
+            .toSet()
+            .take(4)
+            .toList();
+    if (artworkUrls.isEmpty) {
+      return const DefaultAlbumArtwork();
+    }
+    if (artworkUrls.length == 1) {
+      return Image.file(File(artworkUrls.first), fit: BoxFit.cover);
+    }
+    return GridView.count(
+      crossAxisCount: 2,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        for (final artworkUrl in artworkUrls)
+          Image.file(File(artworkUrl), fit: BoxFit.cover),
+        if (artworkUrls.length == 3) const DefaultAlbumArtwork(),
+      ],
+    );
+  }
+}
+
+class _SearchSelectionMark extends StatelessWidget {
+  const _SearchSelectionMark({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _SearchThemeColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: selected ? _SearchColors.accent : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? Colors.transparent : colors.selectionMarkBorder,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1f485870),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: SizedBox.square(
+        dimension: 23,
+        child:
+            selected
+                ? const Icon(
+                  FluentIcons.checkmark_16_regular,
+                  color: Colors.white,
+                  size: 16,
+                )
+                : null,
+      ),
+    );
+  }
+}
+
 class _SearchResultCard extends StatefulWidget {
   const _SearchResultCard({
     required this.card,
@@ -1649,6 +2157,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isArtist = widget.type == SearchResultType.artists;
     final artworkFile =
         widget.card.artworkUrl.isEmpty ? null : File(widget.card.artworkUrl);
 
@@ -1671,111 +2180,71 @@ class _SearchResultCardState extends State<_SearchResultCard> {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 190,
-          padding: const EdgeInsets.all(12),
+          width: double.infinity,
+          constraints: BoxConstraints(minHeight: isArtist ? 86 : 0),
+          padding:
+              isArtist
+                  ? const EdgeInsets.symmetric(horizontal: 14, vertical: 11)
+                  : const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color:
-                widget.selected || _hovered ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow:
-                widget.selected
-                    ? const [
-                      BoxShadow(
-                        color: Color(0x1f1f2a38),
-                        blurRadius: 18,
-                        offset: Offset(0, 10),
-                      ),
-                    ]
+            color: _cardSurface(isArtist),
+            border:
+                isArtist
+                    ? Border.all(
+                      color:
+                          widget.selected
+                              ? _SearchColors.accentSelectedBorder
+                              : Colors.transparent,
+                    )
                     : null,
+            borderRadius: BorderRadius.circular(isArtist ? 10 : 14),
+            boxShadow: _cardShadow(isArtist),
           ),
           child: Stack(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox.square(
-                      dimension: 166,
-                      child:
-                          artworkFile != null && artworkFile.existsSync()
-                              ? Image.file(artworkFile, fit: BoxFit.cover)
-                              : DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  color: _SearchColors.artwork,
-                                ),
-                                child: Icon(
-                                  _cardIcon(widget.type),
-                                  color: _SearchColors.artworkIcon,
-                                  size: 42,
-                                ),
-                              ),
-                    ),
+              if (isArtist)
+                _SearchCompactCardBody(
+                  title: widget.card.title,
+                  subtitle: widget.card.subtitle,
+                  artwork: _SearchCardArtwork(
+                    file: artworkFile,
+                    size: 64,
+                    radius: 8,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    widget.card.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _SearchColors.textStrong,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                    ),
+                )
+              else
+                _SearchGridCardBody(
+                  title: widget.card.title,
+                  subtitle: widget.card.subtitle,
+                  artwork: _SearchCardArtwork(
+                    file: artworkFile,
+                    size: 156,
+                    radius: 12,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.card.subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _SearchColors.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              if (_hovered && !widget.multiSelect)
-                Positioned(
-                  top: 116,
-                  right: 8,
-                  child: SizedBox.square(
-                    dimension: 34,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xb81e2228),
-                        foregroundColor: Colors.white,
-                        shape: const CircleBorder(),
-                      ),
-                      icon: const Icon(FluentIcons.play_20_filled, size: 17),
-                      onPressed: widget.onPlay,
+                ),
+              if (isArtist && _hovered && !widget.multiSelect)
+                Positioned.fill(
+                  left: 14,
+                  right: null,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 30),
+                      child: _SearchCardPlayButton(onPressed: widget.onPlay),
                     ),
                   ),
                 ),
+              if (!isArtist && _hovered && !widget.multiSelect)
+                Positioned(
+                  top: 116,
+                  right: 8,
+                  child: _SearchCardPlayButton(onPressed: widget.onPlay),
+                ),
               if (widget.multiSelect || widget.selected)
                 Positioned(
-                  top: 8,
-                  right: 8,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color:
-                          widget.selected ? _SearchColors.accent : Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: SizedBox.square(
-                      dimension: 24,
-                      child:
-                          widget.selected
-                              ? const Icon(
-                                FluentIcons.checkmark_16_regular,
-                                color: Colors.white,
-                                size: 16,
-                              )
-                              : null,
-                    ),
-                  ),
+                  top: isArtist ? 9 : 8,
+                  right: isArtist ? 9 : 8,
+                  child: _SearchSelectionMark(selected: widget.selected),
                 ),
             ],
           ),
@@ -1784,14 +2253,216 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     );
   }
 
-  IconData _cardIcon(SearchResultType type) {
-    return switch (type) {
-      SearchResultType.artists => FluentIcons.people_24_regular,
-      SearchResultType.playlists => FluentIcons.apps_list_detail_24_regular,
-      SearchResultType.folders => FluentIcons.folder_24_regular,
-      SearchResultType.albums => FluentIcons.album_24_regular,
-      SearchResultType.songs => FluentIcons.music_note_2_24_regular,
-    };
+  Color _cardSurface(bool isArtist) {
+    if (widget.selected) {
+      return _SearchColors.cardSelected;
+    }
+    if (_hovered) {
+      return isArtist ? _SearchColors.cardHover : Colors.white;
+    }
+    return Colors.transparent;
+  }
+
+  List<BoxShadow>? _cardShadow(bool isArtist) {
+    if (isArtist) {
+      if (!widget.selected && !_hovered) {
+        return null;
+      }
+      return const [
+        BoxShadow(
+          color: Color(0x141e2a3a),
+          blurRadius: 26,
+          offset: Offset(0, 12),
+        ),
+      ];
+    }
+    if (!widget.selected) {
+      return null;
+    }
+    return const [
+      BoxShadow(
+        color: Color(0x1f1f2a38),
+        blurRadius: 18,
+        offset: Offset(0, 10),
+      ),
+    ];
+  }
+}
+
+class _SearchCompactCardBody extends StatelessWidget {
+  const _SearchCompactCardBody({
+    required this.title,
+    required this.subtitle,
+    required this.artwork,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget artwork;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        artwork,
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _SearchColors.textStrong,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _SearchColors.textMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchGridCardBody extends StatelessWidget {
+  const _SearchGridCardBody({
+    required this.title,
+    required this.subtitle,
+    required this.artwork,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget artwork;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        artwork,
+        const SizedBox(height: 12),
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: _SearchColors.textStrong,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _SearchColors.textMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchCardArtwork extends StatelessWidget {
+  const _SearchCardArtwork({
+    required this.file,
+    required this.size,
+    required this.radius,
+  });
+
+  final File? file;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox.square(
+        dimension: size,
+        child:
+            file != null && file!.existsSync()
+                ? Image.file(file!, fit: BoxFit.cover)
+                : const DefaultAlbumArtwork(),
+      ),
+    );
+  }
+}
+
+class _SearchCardPlayButton extends StatelessWidget {
+  const _SearchCardPlayButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 34,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: const Color(0xb81e2228),
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+        ),
+        icon: const Icon(FluentIcons.play_20_filled, size: 17),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _SearchLoadingState extends StatelessWidget {
+  const _SearchLoadingState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _SearchColors.accent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              message,
+              style: const TextStyle(
+                color: _SearchColors.textStrong,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1810,13 +2481,20 @@ class _SearchEmptyState extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Text(
-          message,
-          style: const TextStyle(
-            color: _SearchColors.textStrong,
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: const TextStyle(
+                color: _SearchColors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
         ),
       ),
     );
@@ -1837,16 +2515,47 @@ String _songSelectionKey(LibrarySong song) {
   return 'songs:${song.id}';
 }
 
+class _SearchThemeColors {
+  const _SearchThemeColors({
+    required this.textStrong,
+    required this.controlBorder,
+    required this.selectionMarkBorder,
+  });
+
+  final Color textStrong;
+  final Color controlBorder;
+  final Color selectionMarkBorder;
+
+  static _SearchThemeColors of(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    if (nightMode) {
+      return const _SearchThemeColors(
+        textStrong: Color(0xeff6f9fc),
+        controlBorder: Color(0x29d6e0ec),
+        selectionMarkBorder: Color(0x6bdce6f2),
+      );
+    }
+    return const _SearchThemeColors(
+      textStrong: _SearchColors.textStrong,
+      controlBorder: _SearchColors.controlBorder,
+      selectionMarkBorder: Color(0x52768499),
+    );
+  }
+}
+
 class _SearchColors {
   const _SearchColors._();
 
   static const accent = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
-  static const text = Color(0xff344054);
+  static const controlBorder = Color(0x3d7e8b9a);
+  static const subtleBorder = Color(0x2e768499);
+  static const controlSurface = Color(0x94ffffff);
+  static const cardHover = Color(0x140078d7);
+  static const cardSelected = Color(0x1f0078d7);
+  static const accentSelectedBorder = Color(0x6b0078d7);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);
 }
@@ -1860,17 +2569,4 @@ String _searchFolderPath(String rootPath, String? folderRelativePath) {
   final separator = rootPath.contains('\\') ? '\\' : '/';
   final normalizedRoot = rootPath.replaceFirst(RegExp(r'[\\/]+$'), '');
   return '$normalizedRoot$separator${relativePath.split('/').join(separator)}';
-}
-
-String _searchFolderName(String rootPath, String folderRelativePath) {
-  final segments =
-      folderRelativePath
-          .split('/')
-          .where((segment) => segment.isNotEmpty)
-          .toList();
-  if (segments.isNotEmpty) {
-    return segments.last;
-  }
-
-  return getPathLabel(rootPath);
 }

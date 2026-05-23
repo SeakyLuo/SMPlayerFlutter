@@ -326,6 +326,7 @@ class _PlayerCompactVolumeActionState
 
 class PlayerVolumeMenuItem extends StatefulWidget {
   const PlayerVolumeMenuItem({
+    super.key,
     required this.label,
     required this.muted,
     required this.volumeValue,
@@ -360,7 +361,7 @@ class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
   Widget build(BuildContext context) {
     return Padding(
       key: const ValueKey('MediaControl.VolumeMenuItem'),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         children: [
           _PlayerIconButton(
@@ -368,6 +369,9 @@ class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
             icon: playerVolumeIcon(_liveValue, widget.muted),
             active: widget.muted,
             disabled: widget.disabled,
+            buttonSize: 32,
+            padding: 7,
+            iconSize: 18,
             onPressed: widget.onToggleMute,
           ),
           const SizedBox(width: 10),

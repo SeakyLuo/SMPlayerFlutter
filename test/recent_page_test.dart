@@ -135,32 +135,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Blue Song'), findsWidgets);
-    expect(find.text('See Lyrics'), findsOneWidget);
-    expect(find.text('See Album Art'), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Album Art'), findsOneWidget);
   });
 
-  testWidgets('RecentPage hide file uses Electron undo prompt', (tester) async {
-    final repository = _FakeLibraryRepository();
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 800);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
+  testWidgets(
+    'RecentPage song menu hides file-management actions like Electron',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    await tester.pumpWidget(
-      _RecentTestApp(snapshot: _snapshot, i18n: i18n, repository: repository),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(_RecentTestApp(snapshot: _snapshot, i18n: i18n));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hide File'));
-    await tester.pump();
+      await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
 
-    expect(repository.hiddenSongId, 1);
-    expect(find.text('Undo'), findsOneWidget);
-  });
+      expect(find.text('Move To Folder'), findsNothing);
+      expect(find.text('Hide File'), findsNothing);
+    },
+  );
 
   testWidgets('RecentPage multi-select Add To writes to now playing', (
     tester,
@@ -189,6 +187,7 @@ void main() {
 
     expect(repository.replacedNowPlaying, [1]);
     expect(find.text('1 selected'), findsNothing);
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('RecentPage confirms before clearing recent searches', (
@@ -460,7 +459,7 @@ void main() {
     await tester.tap(find.text('Played  0'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Clear History'), findsOneWidget);
+    expect(find.text('Songs'), findsOneWidget);
   });
 }
 

@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 import 'default_album_artwork.dart';
@@ -122,7 +123,7 @@ class MissingLibraryRootContent extends StatelessWidget {
   }
 }
 
-class _MissingLibraryRootButton extends StatefulWidget {
+class _MissingLibraryRootButton extends StatelessWidget {
   const _MissingLibraryRootButton({
     this.icon,
     required this.label,
@@ -136,94 +137,12 @@ class _MissingLibraryRootButton extends StatefulWidget {
   final bool loading;
 
   @override
-  State<_MissingLibraryRootButton> createState() =>
-      _MissingLibraryRootButtonState();
-}
-
-class _MissingLibraryRootButtonState extends State<_MissingLibraryRootButton> {
-  var _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final colors = _MissingLibraryRootColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
-    final enabled = widget.onPressed != null && !widget.loading;
-    final active = enabled && _hovered;
-    final foreground = active ? colors.accentStrong : colors.commandText;
-    final button = DecoratedBox(
-      decoration: BoxDecoration(
-        color: active ? colors.controlHover : colors.control,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: colors.controlBorder),
-        boxShadow: [
-          BoxShadow(
-            color: colors.cardShadow,
-            offset: const Offset(0, 12),
-            blurRadius: 26,
-          ),
-        ],
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 40),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.loading)
-                SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: foreground,
-                  ),
-                )
-              else if (widget.icon case final icon?)
-                Icon(icon, size: 18, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  fontVariations: const [FontVariation.weight(650)],
-                  height: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) {
-          if (enabled) {
-            setState(() {
-              _hovered = true;
-            });
-          }
-        },
-        onExit: (_) {
-          if (_hovered) {
-            setState(() {
-              _hovered = false;
-            });
-          }
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Opacity(opacity: enabled ? 1 : 0.52, child: button),
-        ),
-      ),
+    return SmPlayerTextIconButton(
+      icon: icon,
+      label: label,
+      loading: loading,
+      onPressed: onPressed,
     );
   }
 }

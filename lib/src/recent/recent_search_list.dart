@@ -16,7 +16,6 @@ class RecentSearchList extends StatelessWidget {
     required this.onSearch,
     required this.onToggleSelection,
     required this.onRemove,
-    required this.onOpenContextMenu,
   });
 
   final List<SearchHistoryEntry> entries;
@@ -26,16 +25,15 @@ class RecentSearchList extends StatelessWidget {
   final ValueChanged<SearchHistoryEntry> onSearch;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onRemove;
-  final void Function(Offset position, SearchHistoryEntry entry)
-  onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
+    final colors = _RecentSearchColors.of(context);
     if (entries.isEmpty) {
       return Center(
         child: Text(
           i18n.t('recent.noSearches'),
-          style: const TextStyle(color: _RecentSearchColors.textMuted),
+          style: TextStyle(color: colors.textMuted),
         ),
       );
     }
@@ -63,9 +61,6 @@ class RecentSearchList extends StatelessWidget {
                 onRemove: () {
                   onRemove(entry.id);
                 },
-                onOpenContextMenu: (position) {
-                  onOpenContextMenu(position, entry);
-                },
               );
             },
           ),
@@ -82,7 +77,6 @@ class _RecentSearchRow extends StatefulWidget {
     required this.onSearch,
     required this.onToggleSelection,
     required this.onRemove,
-    required this.onOpenContextMenu,
   });
 
   final SearchHistoryEntry entry;
@@ -92,7 +86,6 @@ class _RecentSearchRow extends StatefulWidget {
   final VoidCallback onSearch;
   final VoidCallback onToggleSelection;
   final VoidCallback onRemove;
-  final ValueChanged<Offset> onOpenContextMenu;
 
   @override
   State<_RecentSearchRow> createState() => _RecentSearchRowState();
@@ -103,6 +96,7 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _RecentSearchColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: MouseRegion(
@@ -117,108 +111,128 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
             _hovered = false;
           });
         },
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onSecondaryTapDown: (details) {
-            widget.onOpenContextMenu(details.globalPosition);
-          },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color:
-                  widget.selected || _hovered
-                      ? _RecentSearchColors.hoverSurface
-                      : _RecentSearchColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _RecentSearchColors.border),
-              boxShadow: const [
-                BoxShadow(
-                  color: _RecentSearchColors.shadow,
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
+        child: Stack(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color:
+                    widget.selected || _hovered
+                        ? colors.hoverSurface
+                        : colors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color:
+                      widget.selected || _hovered
+                          ? colors.hoverBorder
+                          : colors.border,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap:
-                        widget.multiSelect
-                            ? widget.onToggleSelection
-                            : widget.onSearch,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 0, 12, 0),
-                      child: Row(
-                        children: [
-                          if (widget.multiSelect)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: Icon(
-                                widget.selected
-                                    ? FluentIcons.checkmark_circle_20_filled
-                                    : FluentIcons.circle_20_regular,
-                                color:
-                                    widget.selected
-                                        ? _RecentSearchColors.accentStrong
-                                        : _RecentSearchColors.textMuted,
-                                size: 20,
+                boxShadow:
+                    widget.selected
+                        ? colors.selectedShadow
+                        : _hovered
+                        ? colors.hoverShadow
+                        : colors.shadow,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap:
+                          widget.multiSelect
+                              ? widget.onToggleSelection
+                              : widget.onSearch,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 0, 12, 0),
+                        child: Row(
+                          children: [
+                            if (widget.multiSelect)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: Icon(
+                                  widget.selected
+                                      ? FluentIcons.checkmark_circle_20_filled
+                                      : FluentIcons.circle_20_regular,
+                                  color:
+                                      widget.selected
+                                          ? colors.accentStrong
+                                          : colors.textMuted,
+                                  size: 20,
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: Icon(
+                                  _searchHistoryTypeIcon(widget.entry.type),
+                                  size: 18,
+                                  color: colors.textMuted,
+                                ),
                               ),
-                            )
-                          else
-                            Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: Icon(
-                                _searchHistoryTypeIcon(widget.entry.type),
-                                size: 18,
-                                color: _RecentSearchColors.textMuted,
+                            Expanded(
+                              child: Text(
+                                widget.entry.query,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.textStrong,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          Expanded(
-                            child: Text(
-                              widget.entry.query,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _RecentSearchColors.textStrong,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(width: 8),
+                            Text(
+                              searchHistoryTypeLabel(
+                                widget.entry.type,
+                                widget.i18n,
+                              ),
+                              style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            searchHistoryTypeLabel(
-                              widget.entry.type,
-                              widget.i18n,
+                            const SizedBox(width: 8),
+                            Text(
+                              formatRecentDateTime(widget.entry.searchedAt),
+                              style: TextStyle(
+                                color: colors.textSoft,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                            style: const TextStyle(
-                              color: _RecentSearchColors.textMuted,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            formatRecentDateTime(widget.entry.searchedAt),
-                            style: const TextStyle(
-                              color: _RecentSearchColors.textSoft,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                IconButton(
-                  tooltip: widget.i18n.t('context.removeFromList'),
-                  icon: const Icon(FluentIcons.dismiss_16_regular, size: 15),
-                  color: _RecentSearchColors.textMuted,
-                  onPressed: widget.onRemove,
-                ),
-                const SizedBox(width: 8),
-              ],
+                  IconButton(
+                    tooltip: widget.i18n.t('context.removeFromList'),
+                    icon: const Icon(FluentIcons.dismiss_16_regular, size: 15),
+                    color: colors.textMuted,
+                    hoverColor: colors.removeHoverSurface,
+                    onPressed: widget.onRemove,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
             ),
-          ),
+            if (widget.selected)
+              Positioned(
+                left: 0,
+                top: 1,
+                bottom: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(10),
+                    ),
+                  ),
+                  child: const SizedBox(width: 3),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -237,14 +251,95 @@ IconData _searchHistoryTypeIcon(SearchHistoryType type) {
 }
 
 class _RecentSearchColors {
-  const _RecentSearchColors._();
+  const _RecentSearchColors({
+    required this.surface,
+    required this.hoverSurface,
+    required this.border,
+    required this.hoverBorder,
+    required this.shadow,
+    required this.hoverShadow,
+    required this.selectedShadow,
+    required this.accent,
+    required this.accentStrong,
+    required this.textStrong,
+    required this.textMuted,
+    required this.textSoft,
+    required this.removeHoverSurface,
+  });
 
-  static const surface = Color(0x9effffff);
-  static const hoverSurface = Color(0x1f0078d7);
-  static const border = Color(0x1f7e8b9a);
-  static const shadow = Color(0x0a273446);
-  static const accentStrong = Color(0xff0063b1);
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff5b697a);
-  static const textSoft = Color(0xff8290a1);
+  final Color surface;
+  final Color hoverSurface;
+  final Color border;
+  final Color hoverBorder;
+  final List<BoxShadow> shadow;
+  final List<BoxShadow> hoverShadow;
+  final List<BoxShadow> selectedShadow;
+  final Color accent;
+  final Color accentStrong;
+  final Color textStrong;
+  final Color textMuted;
+  final Color textSoft;
+  final Color removeHoverSurface;
+
+  static _RecentSearchColors of(BuildContext context) {
+    final night = Theme.of(context).brightness == Brightness.dark;
+    if (night) {
+      return const _RecentSearchColors(
+        surface: Color(0x0cffffff),
+        hoverSurface: Color(0x210078d7),
+        border: Color(0x1fd6e0ec),
+        hoverBorder: Color(0x470078d7),
+        shadow: [
+          BoxShadow(
+            color: Color(0x24000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+        hoverShadow: [
+          BoxShadow(color: Color(0x290078d7), blurRadius: 0, spreadRadius: 1),
+        ],
+        selectedShadow: [],
+        accent: Color(0xff0078d7),
+        accentStrong: Color(0xff7fc4ff),
+        textStrong: Color(0xebffffff),
+        textMuted: Color(0xc7ffffff),
+        textSoft: Color(0x94ffffff),
+        removeHoverSurface: Color(0x2e0078d7),
+      );
+    }
+    return const _RecentSearchColors(
+      surface: Color(0x9effffff),
+      hoverSurface: Color(0x1f0078d7),
+      border: Color(0x1f7e8b9a),
+      hoverBorder: Color(0x3d0078d7),
+      shadow: [
+        BoxShadow(
+          color: Color(0x0a273446),
+          blurRadius: 18,
+          offset: Offset(0, 8),
+        ),
+      ],
+      hoverShadow: [
+        BoxShadow(
+          color: Color(0x210078d7),
+          blurRadius: 26,
+          offset: Offset(0, 12),
+        ),
+      ],
+      selectedShadow: [
+        BoxShadow(
+          color: Color(0x0f273446),
+          blurRadius: 22,
+          offset: Offset(0, 10),
+        ),
+      ],
+      accent: Color(0xff0078d7),
+      accentStrong: Color(0xff0063b1),
+      textStrong: Color(0xff111827),
+      textMuted: Color(0xff5b697a),
+      textSoft: Color(0xff8290a1),
+      removeHoverSurface: Color(0x1a0078d7),
+    );
+  }
 }

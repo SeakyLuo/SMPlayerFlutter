@@ -25,39 +25,11 @@ class DefaultAlbumArtwork extends StatelessWidget {
     final night = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors:
-              night
-                  ? const [Color(0xf01f2732), Color(0xf50f141b)]
-                  : const [Color(0xf0f7f9fc), Color(0xe6e3eaf2)],
-        ),
+        color: night ? const Color(0xf511161c) : const Color(0xf0f7f9fc),
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: const Alignment(-0.47, -1),
-                end: const Alignment(0.47, 1),
-                colors:
-                    night
-                        ? const [
-                          Color(0x3d417c9a),
-                          Color(0x4234465c),
-                          Color(0x06ffffff),
-                        ]
-                        : const [
-                          Color(0x4f9fd8d7),
-                          Color(0x33cfe0ee),
-                          Color(0x12ffffff),
-                        ],
-                stops: const [0.0, 0.44, 0.62],
-              ),
-            ),
-          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
@@ -76,6 +48,18 @@ class DefaultAlbumArtwork extends StatelessWidget {
                           Color(0x00ffffff),
                         ],
                 stops: const [0.0, 0.26, 0.72],
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors:
+                    night
+                        ? const [Color(0x0affffff), Color(0x00000000)]
+                        : const [Color(0x24ffffff), Color(0x00ffffff)],
               ),
             ),
           ),

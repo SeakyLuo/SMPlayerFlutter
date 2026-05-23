@@ -21,6 +21,25 @@ void main() {
     );
   });
 
+  testWidgets('splash applies night brightness to loading theme', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const SmPlayerSplashScreen(brightness: Brightness.dark),
+    );
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.theme!.brightness, Brightness.dark);
+    expect(
+      app.theme!.progressIndicatorTheme.color,
+      SmPlayerSplashColors.night.accent,
+    );
+    expect(
+      app.theme!.progressIndicatorTheme.linearTrackColor,
+      SmPlayerSplashColors.night.progressTrack,
+    );
+  });
+
   test('splash app name follows the platform locale family', () {
     expect(SmPlayerSplashAppName.resolve(const Locale('zh', 'CN')), '简音播放器');
     expect(

@@ -149,9 +149,12 @@ GoRouter createSmPlayerRouter({
           GoRoute(path: '/recent', builder: (_, _) => const RecentPage()),
           GoRoute(
             path: '/now-playing',
-            builder:
-                (_, state) => NowPlayingPage(
-                  searchQuery: state.uri.queryParameters['search'] ?? '',
+            pageBuilder:
+                (_, state) => _noTransitionPage(
+                  state,
+                  NowPlayingPage(
+                    searchQuery: state.uri.queryParameters['search'] ?? '',
+                  ),
                 ),
           ),
           GoRoute(
@@ -160,9 +163,14 @@ GoRouter createSmPlayerRouter({
           ),
           GoRoute(
             path: '/favorites',
-            builder: (_, _) => const MyFavoritesPage(),
+            pageBuilder:
+                (_, state) => _noTransitionPage(state, const MyFavoritesPage()),
           ),
-          GoRoute(path: '/playlists', builder: (_, _) => const PlaylistsPage()),
+          GoRoute(
+            path: '/playlists',
+            pageBuilder:
+                (_, state) => _noTransitionPage(state, const PlaylistsPage()),
+          ),
           GoRoute(
             path: '/settings',
             builder:
@@ -225,10 +233,13 @@ GoRouter createSmPlayerRouter({
           ),
           GoRoute(
             path: '/playlists/:playlistId',
-            builder:
-                (_, state) => PlaylistsPage(
-                  selectedPlaylistId: int.parse(
-                    state.pathParameters['playlistId']!,
+            pageBuilder:
+                (_, state) => _noTransitionPage(
+                  state,
+                  PlaylistsPage(
+                    selectedPlaylistId: int.parse(
+                      state.pathParameters['playlistId']!,
+                    ),
                   ),
                 ),
           ),
@@ -246,6 +257,10 @@ const _feedbackEmailSubjects = {
   'zh-Hant': '簡音播放器反饋',
   'en-US': 'Simple Melody Player Feedback',
 };
+
+Page<void> _noTransitionPage(GoRouterState state, Widget child) {
+  return NoTransitionPage<void>(key: state.pageKey, child: child);
+}
 
 Future<void> _sendFeedbackEmail(String locale) async {
   final subject =

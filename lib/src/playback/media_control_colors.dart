@@ -15,12 +15,12 @@ class MediaControlColors {
   static const accentBorder = Color(0x2e0078d7);
   static const accentShadow = Color(0x330078d7);
   static const favorite = Color(0xffd83b7d);
-  static const playerSurface = Color(0x96ffffff);
-  static const playerAccentWash = Color(0x2e0078d7);
-  static const emptyPlayerAccentWash = Color(0x180078d7);
-  static const emptyPlayerLeftWash = Color(0x68ffffff);
-  static const emptyPlayerRightWash = Color(0x6ed6f1ff);
-  static const playerSurfaceSolid = Color(0x82ffffff);
+  static const playerSurface = Color(0xe0ffffff);
+  static const playerAccentWash = Color(0x1a0078d7);
+  static const emptyPlayerAccentWash = Color(0x100078d7);
+  static const emptyPlayerLeftWash = Color(0xe0ffffff);
+  static const emptyPlayerRightWash = Color(0x1a0078d7);
+  static const playerSurfaceSolid = Color(0xd1ffffff);
   static const playerBorder = Color(0xd6ffffff);
   static const compactPlayerBorder = Color(0x9effffff);
   static const compactPlayerSurface = Color(0xd1f8fbfe);
@@ -52,6 +52,7 @@ class MediaControlColors {
   static const disabledPrimaryButtonSurface = Color(0xccffffff);
   static const disabledPrimaryButtonBorder = Color(0x4dd6eaff);
   static const disabledPrimaryButtonShadow = Color(0x120078d7);
+  static const nightDisabledPrimaryButtonSurface = Color(0x14ffffff);
 
   static bool isNight(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
@@ -70,6 +71,14 @@ class MediaControlColors {
 
   static Color sliderInactiveFor(BuildContext context) =>
       isNight(context) ? nightSliderInactive : sliderInactive;
+
+  static Color disabledPrimaryButtonSurfaceFor(BuildContext context) =>
+      isNight(context)
+          ? nightDisabledPrimaryButtonSurface
+          : disabledPrimaryButtonSurface;
+
+  static Color disabledPrimaryButtonBorderFor(BuildContext context) =>
+      isNight(context) ? accentBorder : disabledPrimaryButtonBorder;
 
   static Color playerBorderFor(bool night) =>
       night ? nightPlayerBorder : playerBorder;

@@ -247,6 +247,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   final _routeMemory = <String, String>{};
   final _navigationHistory = <String>[];
   var _searchText = '';
+  var _sidebarRecentSearches = const <SearchHistoryEntry>[];
+  var _optimisticRecentSearchId = 0;
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
   int? _finishingAudioTrackId;
@@ -300,7 +302,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
-    _restoreSearchQuery();
     _recordNavigationLocation(
       widget.currentLocation ?? widget.currentPath ?? _currentPath,
     );
@@ -474,6 +475,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                       final canGoBack =
                                           widget.canGoBack ||
                                           _navigationHistory.length > 1;
+                                      final recentSearches =
+                                          _sidebarRecentSearches.isNotEmpty
+                                              ? _sidebarRecentSearches
+                                              : snapshot?.recentSearches ??
+                                                  const <SearchHistoryEntry>[];
                                       return MainNavigationView(
                                         isPaneOpen: isNavigationPaneVisible,
                                         currentPath: currentPath,
@@ -482,9 +488,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                         canGoBack: canGoBack,
                                         playlists:
                                             snapshot?.playlists ?? const [],
-                                        recentSearches:
-                                            snapshot?.recentSearches ??
-                                            const [],
+                                        recentSearches: recentSearches,
                                         onPaneToggle: _toggleNavigationPane,
                                         onGoBack: _goBack,
                                         onSearchTextChanged: (value) {
@@ -492,10 +496,35 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             _searchText = value;
                                           });
                                         },
-                                        onSearchCommitted: _commitSearch,
+                                        onSearchCommitted: (
+                                          value, [
+                                          type = SearchHistoryType.sidebar,
+                                        ]) {
+                                          _commitSearchWithRepository(
+                                            value,
+                                            type,
+                                            repository: ref.read(
+                                              libraryRepositoryProvider,
+                                            ),
+                                            onRecentSearchRecorded: () {
+                                              ref.invalidate(
+                                                musicLibrarySnapshotProvider,
+                                              );
+                                            },
+                                          );
+                                        },
                                         onSearchCleared: _clearSearch,
                                         onItemInvoked: _navigateTo,
                                         onRecentSearchRemove: (entryId) {
+                                          setState(() {
+                                            _sidebarRecentSearches =
+                                                _sidebarRecentSearches
+                                                    .where(
+                                                      (entry) =>
+                                                          entry.id != entryId,
+                                                    )
+                                                    .toList();
+                                          });
                                           ref
                                               .read(libraryRepositoryProvider)
                                               .removeRecentSearches([entryId]);
@@ -504,6 +533,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                           );
                                         },
                                         onRecentSearchesClear: () {
+                                          setState(() {
+                                            _sidebarRecentSearches = const [];
+                                          });
                                           ref
                                               .read(libraryRepositoryProvider)
                                               .clearRecentSearches();
@@ -1929,6 +1961,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     if (navigationMode == SmPlayerNavigationMode.minimal) {
       setState(() {
         _isMinimalNavigationOpen = !_isMinimalNavigationOpen;
+        if (!_isMinimalNavigationOpen) {
+          _searchText = '';
+        }
       });
       return;
     }
@@ -1936,6 +1971,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final nextIsPaneOpen = !_isNavigationPaneOpen;
     setState(() {
       _isNavigationPaneOpen = nextIsPaneOpen;
+      if (!nextIsPaneOpen) {
+        _searchText = '';
+      }
     });
     _saveNavigationCollapsed(!nextIsPaneOpen);
   }
@@ -1946,6 +1984,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _isMinimalNavigationOpen) {
       setState(() {
         _isMinimalNavigationOpen = false;
+        _searchText = '';
       });
       return;
     }
@@ -1954,6 +1993,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _isNavigationPaneOpen) {
       setState(() {
         _isNavigationPaneOpen = false;
+        _searchText = '';
       });
       _saveNavigationCollapsed(true);
     }
@@ -2712,15 +2752,67 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     String value, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) {
+    _commitSearchWithRepository(value, type);
+  }
+
+  void _commitSearchWithRepository(
+    String value,
+    SearchHistoryType type, {
+    LibraryRepository? repository,
+    VoidCallback? onRecentSearchRecorded,
+  }) {
     final nextSearchText = value.trim();
+    final nextRecentSearch =
+        nextSearchText.isEmpty
+            ? null
+            : SearchHistoryEntry(
+              id: --_optimisticRecentSearchId,
+              query: nextSearchText,
+              type: type,
+              searchedAt: DateTime.now().toUtc().toIso8601String(),
+            );
     setState(() {
-      _searchText = nextSearchText;
+      _searchText = '';
       if (nextSearchText.isNotEmpty) {
         _currentPath = '/search';
+        _sidebarRecentSearches = [
+          nextRecentSearch!,
+          ..._sidebarRecentSearches.where(
+            (entry) =>
+                entry.type != type ||
+                entry.query.toLowerCase() != nextSearchText.toLowerCase(),
+          ),
+        ];
       }
     });
-    unawaited(_saveSearchQuery(nextSearchText));
     if (nextSearchText.isNotEmpty) {
+      final LibraryRepository searchRepository =
+          repository ??
+          widget.settingsRepository ??
+          ref.read(libraryRepositoryProvider);
+      unawaited(
+        searchRepository.addRecentSearch(nextSearchText, type).then((_) async {
+          final nextSnapshot = await searchRepository.getMusicLibrarySnapshot();
+          if (mounted) {
+            setState(() {
+              final savedRecentSearches = nextSnapshot.recentSearches;
+              final savedNextSearch = savedRecentSearches.any(
+                (entry) =>
+                    entry.type == type &&
+                    entry.query.toLowerCase() == nextSearchText.toLowerCase(),
+              );
+              if (savedNextSearch) {
+                _sidebarRecentSearches = savedRecentSearches;
+              }
+            });
+          }
+          if (onRecentSearchRecorded != null) {
+            onRecentSearchRecorded();
+          } else {
+            ref.invalidate(musicLibrarySnapshotProvider);
+          }
+        }),
+      );
       _closeNavigationOverlay();
       widget.onSearchCommit?.call(nextSearchText, type);
     }
@@ -2730,24 +2822,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     setState(() {
       _searchText = '';
     });
-    unawaited(_saveSearchQuery(''));
-  }
-
-  Future<void> _restoreSearchQuery() async {
-    final preferences = await SharedPreferences.getInstance();
-    final query =
-        preferences.getString(SmPlayerShellStorageKeys.searchQuery) ?? '';
-    if (!mounted || query.isEmpty) {
-      return;
-    }
-    setState(() {
-      _searchText = query;
-    });
-  }
-
-  Future<void> _saveSearchQuery(String query) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(SmPlayerShellStorageKeys.searchQuery, query);
   }
 
   Future<void> _showVoiceAssistantDialog(

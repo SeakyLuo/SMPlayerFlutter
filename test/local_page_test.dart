@@ -242,6 +242,7 @@ void main() {
 
     expect(find.text('Old Song'), findsOneWidget);
     expect(find.textContaining(r'C:\Music'), findsNothing);
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage list view mirrors Electron table columns', (
@@ -333,6 +334,7 @@ void main() {
     expect(repository.movedSongIds, [1]);
     expect(repository.movedFolderPaths, isEmpty);
     expect(repository.movedTargetFolderPath, r'C:\Music\Target');
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage list view virtualizes offscreen rows like Electron', (
@@ -518,6 +520,7 @@ void main() {
 
     expect(repository.addedPlaylistId, 30);
     expect(repository.addedSongIds, [2]);
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage song add menu supports now playing and favorites', (
@@ -550,6 +553,7 @@ void main() {
 
     expect(repository.favoriteSongIds, [1]);
     expect(repository.favoriteValue, isTrue);
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage new folder creates directory and shows it', (
@@ -583,9 +587,9 @@ void main() {
 
     _pressCommandBarButton(tester, 'New Folder');
     await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'New Folder');
-    tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed!();
+    await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
     for (
       var attempt = 0;
@@ -629,6 +633,7 @@ void main() {
 
     expect(find.text('Exit multi-select mode first.'), findsOneWidget);
     expect(repository.updatedSortFolderPath, isNull);
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage search folder uses Electron input dialog', (
@@ -788,6 +793,7 @@ void main() {
     expect(repository.deletedSongIds, isEmpty);
     expect(repository.deletedFolderPaths, [r'C:\Music\Sub']);
     expect(find.text('Undo'), findsOneWidget);
+    await _dismissTransientNotifications(tester);
   });
 
   testWidgets('LocalPage song context menu exposes Electron song actions', (
@@ -957,6 +963,11 @@ void _setCompactSurface(WidgetTester tester) {
 
 Future<void> _pressTextButtonByLabel(WidgetTester tester, String label) async {
   _pressCommandBarButton(tester, label);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _dismissTransientNotifications(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 6));
   await tester.pumpAndSettle();
 }
 

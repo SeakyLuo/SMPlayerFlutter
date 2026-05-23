@@ -116,6 +116,45 @@ FolderNode createFolderNode(String relativePath, String rootPath) {
   );
 }
 
+List<List<LibrarySong>> getOriginalFolderThumbnailCandidateGroups(
+  FolderNode node,
+  Map<String, FolderNode> nodes,
+  Map<int, LibrarySong> songsById,
+) {
+  final candidateGroups = _getAlbumSongGroups(
+    node.thumbnailDirectSongIds,
+    songsById,
+  );
+
+  for (final childPath in node.thumbnailChildPaths) {
+    final childNode = nodes[childPath]!;
+    candidateGroups.addAll(
+      _getAlbumSongGroups(childNode.thumbnailSubtreeSongIds, songsById),
+    );
+  }
+
+  return candidateGroups;
+}
+
+List<List<LibrarySong>> _getAlbumSongGroups(
+  List<int> songIds,
+  Map<int, LibrarySong> songsById,
+) {
+  final albumSongs = <String, List<LibrarySong>>{};
+
+  for (final songId in songIds) {
+    final song = songsById[songId]!;
+    final groupSongs = albumSongs[song.album];
+    if (groupSongs == null) {
+      albumSongs[song.album] = [song];
+    } else {
+      groupSongs.add(song);
+    }
+  }
+
+  return albumSongs.values.toList();
+}
+
 String getParentPath(String relativePath) {
   final parts =
       relativePath.split('/').where((segment) => segment.isNotEmpty).toList();

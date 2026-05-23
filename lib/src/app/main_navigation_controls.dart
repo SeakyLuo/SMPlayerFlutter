@@ -201,7 +201,7 @@ class _SearchCommitButtonState extends State<_SearchCommitButton> {
           onTap: widget.onPressed,
           child: Icon(
             FluentIcons.search_24_regular,
-            size: 18,
+            size: 19,
             color: _hovered ? colors.accentStrong : colors.textMuted,
           ),
         ),

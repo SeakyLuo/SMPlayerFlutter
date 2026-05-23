@@ -7,6 +7,7 @@ class ShellColors {
   static const bodyTop = Color(0xfff6f8fb);
   static const bodyBottom = Color(0xffedf2f7);
   static const workspaceSurface = Color(0xbdfafcff);
+  static const workspaceSolidSurface = Color(0xfffafcff);
   static const workspaceShadow = Color(0x2e2f425c);
   static const headerText = Color(0xff1f2933);
   static const nightBodyHighlight = Color(0x1a5f9ed1);

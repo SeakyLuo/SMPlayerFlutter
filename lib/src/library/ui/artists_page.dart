@@ -922,7 +922,10 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               type == _ArtistGroupMenuType.artist
                   ? i18n.t('common.multiSelect')
                   : i18n.t('context.select'),
-          icon: FluentIcons.select_all_on_20_regular,
+          icon:
+              type == _ArtistGroupMenuType.artist
+                  ? FluentIcons.multiselect_ltr_20_regular
+                  : FluentIcons.select_all_on_20_regular,
           onPressed: () {
             setState(() {
               if (type == _ArtistGroupMenuType.artist) {
@@ -987,16 +990,22 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     );
   }
 
-  void _showSongContextMenu(
+  Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = context.smPlayerI18n;
     final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('song', '${song.id}');
+    if (!mounted) {
+      return;
+    }
     showMenuFlyout(
       context,
       position: position,
@@ -1009,6 +1018,16 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         currentTrackId: currentTrackId,
         songPath: song.path,
         playlists: playlists,
+        preferenceLevel: preferenceLevel,
+        onUndoPreference:
+            preferenceLevel == null
+                ? null
+                : () async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removePreferenceItem('song', '${song.id}');
+                  ref.invalidate(musicLibrarySnapshotProvider);
+                },
         onPlay: () {
           _playSongIds(queueSongIds);
         },
