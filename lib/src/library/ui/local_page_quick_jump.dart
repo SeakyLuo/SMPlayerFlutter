@@ -168,6 +168,12 @@ class LocalPageColors {
   static const panel = Color(0xffffffff);
   static const panelBorder = Color(0x29677486);
   static const panelShadow = Color(0x1f1f2a38);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
+  static const emptyStateArtworkBorder = Color(0x2e768499);
+  static const surfaceControl = Color(0x94ffffff);
+  static const surfaceControlHover = Color(0x1a0078d7);
+  static const borderSubtle = Color(0x2e768499);
   static const surfaceCard = Color(0x00ffffff);
   static const surfaceCardHover = Color(0xffffffff);
   static const rowBorder = Color(0x21727e8c);
@@ -175,11 +181,14 @@ class LocalPageColors {
   static const rowSelected = Color(0xf5ffffff);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
+  static const commandText = Color(0xff1f252b);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
   static const disabled = Color(0x3d5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
+  static const artworkShadow = Color(0x211f2a38);
+  static const cardShadow = Color(0x1f1e2a3a);
   static const favorite = Color(0xffd13438);
   static const selectionMark = Color(0xdfffffff);
   static const selectionBorder = Color(0x55677486);

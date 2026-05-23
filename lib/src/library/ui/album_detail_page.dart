@@ -193,7 +193,7 @@ class _AlbumDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: SizedBox.expand(child: Center(child: child)),
+      child: SizedBox.expand(child: child),
     );
   }
 }
@@ -206,12 +206,52 @@ class _AlbumDetailEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      '$title\n$message',
-      textAlign: TextAlign.center,
-      style: const TextStyle(color: Color(0xff5b697a), height: 1.5),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _AlbumDetailColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _AlbumDetailColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: _AlbumDetailColors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: _AlbumDetailColors.textMuted,
+                  fontSize: 14,
+                  height: 1.65,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+class _AlbumDetailColors {
+  const _AlbumDetailColors._();
+
+  static const textStrong = Color(0xff111827);
+  static const textMuted = Color(0xff5b697a);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
 }
 
 void _playTrack(

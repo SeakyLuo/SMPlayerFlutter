@@ -32,7 +32,7 @@ ThemeData buildSmPlayerTheme(SettingsSnapshot settings) {
     scaffoldBackgroundColor:
         brightness == Brightness.dark
             ? const Color(0xff111317)
-            : const Color(0xfff7f9fc),
+            : const Color(0xfff5f7fb),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: accent),
     sliderTheme: SliderThemeData(
       activeTrackColor: accent,

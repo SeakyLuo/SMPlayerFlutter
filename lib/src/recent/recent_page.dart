@@ -40,6 +40,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   var _activeTab = RecentTab.added;
   var _activePlayedFilter = RecentPlayedFilter.songs;
   var _multiSelect = false;
+  var _recentAddedTimelineLabel = '';
+  var _recentPlayedTimelineLabel = '';
   final _selectedSongIds = <int>{};
   final _selectedCollectionKeys = <String>{};
   final _selectedSearchIds = <int>{};
@@ -141,6 +143,10 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   ),
                 )
                 .toList();
+        final showEmptyHeader =
+            addedSongs.isEmpty &&
+            recentPlayedCount == 0 &&
+            snapshot.recentSearches.isEmpty;
 
         return _RecentPagePanel(
           child: LayoutBuilder(
@@ -157,6 +163,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 children: [
                   Column(
                     children: [
+                      if (showEmptyHeader)
+                        _RecentPageHeader(title: i18n.t('common.recent')),
                       if (useAppBarTabs)
                         _RecentAppBarTabs(
                           i18n: i18n,
@@ -189,6 +197,15 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                           },
                         ),
                       CommandBar(
+                        overflowLabel: i18n.t('player.more'),
+                        content: _RecentCommandBarTimelineLabel(
+                          label:
+                              _activeTab == RecentTab.added
+                                  ? _recentAddedTimelineLabel
+                                  : _activeTab == RecentTab.played
+                                  ? _recentPlayedTimelineLabel
+                                  : '',
+                        ),
                         children: [
                           CommandBarButton(
                             icon: FluentIcons.select_all_on_20_regular,
@@ -317,6 +334,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                       customPlaylists,
                                     );
                                   },
+                                  onTimelineLabelChange:
+                                      _setRecentPlayedTimelineLabel,
                                 )
                                 : _RecentSongGrid(
                                   songs: addedSongs,
@@ -345,6 +364,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                       customPlaylists,
                                     );
                                   },
+                                  onTimelineLabelChange:
+                                      _setRecentAddedTimelineLabel,
                                 ),
                       ),
                       if (_multiSelect)
@@ -810,6 +831,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     if (hideMultiSelectCommandBarAfterOperation) {
       _multiSelect = false;
     }
+  }
+
+  void _setRecentAddedTimelineLabel(String label) {
+    if (_recentAddedTimelineLabel == label) {
+      return;
+    }
+    setState(() {
+      _recentAddedTimelineLabel = label;
+    });
+  }
+
+  void _setRecentPlayedTimelineLabel(String label) {
+    if (_recentPlayedTimelineLabel == label) {
+      return;
+    }
+    setState(() {
+      _recentPlayedTimelineLabel = label;
+    });
   }
 
   void _showSongContextMenu(
@@ -1528,6 +1567,7 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onRecordPlaylistPlayed,
     required this.onRecordAlbumPlayed,
     required this.onRecordArtistPlayed,
+    required this.onTimelineLabelChange,
     required this.onOpenSongContextMenu,
     required this.onOpenCollectionContextMenu,
   });
@@ -1556,6 +1596,7 @@ class _RecentPlayedPanel extends StatelessWidget {
   final ValueChanged<int> onRecordPlaylistPlayed;
   final ValueChanged<String> onRecordAlbumPlayed;
   final ValueChanged<String> onRecordArtistPlayed;
+  final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenSongContextMenu;
   final void Function(
@@ -1582,6 +1623,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onPlaySong: onPlaySong,
         onToggleSelection: onToggleSongSelection,
         onOpenContextMenu: onOpenSongContextMenu,
+        onTimelineLabelChange: onTimelineLabelChange,
       ),
       RecentPlayedFilter.playlists => _RecentPlaylistGrid(
         playlists: playlists,
@@ -1593,6 +1635,7 @@ class _RecentPlayedPanel extends StatelessWidget {
           onPlaySongs(playlist.songs.map((song) => song.id).toList());
         },
         onToggleSelection: onToggleCollectionSelection,
+        onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, playlist) {
           onOpenCollectionContextMenu(
             position,
@@ -1612,6 +1655,7 @@ class _RecentPlayedPanel extends StatelessWidget {
           onPlaySongs(album.songIds);
         },
         onToggleSelection: onToggleCollectionSelection,
+        onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, album) {
           onOpenCollectionContextMenu(
             position,
@@ -1631,6 +1675,7 @@ class _RecentPlayedPanel extends StatelessWidget {
           onPlaySongs(artist.songs.map((song) => song.id).toList());
         },
         onToggleSelection: onToggleCollectionSelection,
+        onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, artist) {
           onOpenCollectionContextMenu(
             position,
@@ -1656,6 +1701,7 @@ class _RecentSongGrid extends StatelessWidget {
     required this.onPlaySong,
     required this.onToggleSelection,
     required this.onOpenContextMenu,
+    required this.onTimelineLabelChange,
   });
 
   final List<LibrarySong> songs;
@@ -1672,6 +1718,7 @@ class _RecentSongGrid extends StatelessWidget {
   ])
   onPlaySong;
   final ValueChanged<int> onToggleSelection;
+  final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenContextMenu;
 
@@ -1696,8 +1743,14 @@ class _RecentSongGrid extends StatelessWidget {
             .clamp(1, 8);
         return RecentScrollbar(
           builder:
-              (controller) => CustomScrollView(
+              (controller) => _RecentTimelineScrollView(
                 controller: controller,
+                groups: groups,
+                contentExtentForGroup:
+                    (group) =>
+                        ((group.items.length + columns - 1) ~/ columns) *
+                        (constraints.maxWidth <= 520 ? 104.0 : 136.0),
+                onTimelineLabelChange: onTimelineLabelChange,
                 slivers: [
                   for (final group in groups) ...[
                     SliverToBoxAdapter(
@@ -1950,6 +2003,7 @@ class _RecentPlaylistGrid extends StatelessWidget {
     required this.onOpen,
     required this.onPlay,
     required this.onToggleSelection,
+    required this.onTimelineLabelChange,
     required this.onOpenContextMenu,
   });
 
@@ -1959,6 +2013,7 @@ class _RecentPlaylistGrid extends StatelessWidget {
   final ValueChanged<int> onOpen;
   final ValueChanged<RecentPlaylistView> onPlay;
   final ValueChanged<String> onToggleSelection;
+  final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, RecentPlaylistView playlist)
   onOpenContextMenu;
 
@@ -1967,6 +2022,7 @@ class _RecentPlaylistGrid extends StatelessWidget {
     return _RecentCollectionGrid<RecentPlaylistView>(
       items: playlists,
       playedAt: (playlist) => playlist.playedAt,
+      onTimelineLabelChange: onTimelineLabelChange,
       itemBuilder: (context, playlist) {
         final key = 'playlists:${playlist.playlist.id}';
         return _CollectionCard(
@@ -2000,6 +2056,7 @@ class _RecentAlbumGrid extends StatelessWidget {
     required this.onOpen,
     required this.onPlay,
     required this.onToggleSelection,
+    required this.onTimelineLabelChange,
     required this.onOpenContextMenu,
   });
 
@@ -2009,6 +2066,7 @@ class _RecentAlbumGrid extends StatelessWidget {
   final ValueChanged<String> onOpen;
   final ValueChanged<RecentAlbumView> onPlay;
   final ValueChanged<String> onToggleSelection;
+  final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, RecentAlbumView album) onOpenContextMenu;
 
   @override
@@ -2016,6 +2074,7 @@ class _RecentAlbumGrid extends StatelessWidget {
     return _RecentCollectionGrid<RecentAlbumView>(
       items: albums,
       playedAt: (album) => album.playedAt,
+      onTimelineLabelChange: onTimelineLabelChange,
       itemBuilder: (context, album) {
         final key = 'albums:${album.name}';
         final firstSong = album.songs.first;
@@ -2051,6 +2110,7 @@ class _RecentArtistList extends StatelessWidget {
     required this.onOpen,
     required this.onPlay,
     required this.onToggleSelection,
+    required this.onTimelineLabelChange,
     required this.onOpenContextMenu,
   });
 
@@ -2060,6 +2120,7 @@ class _RecentArtistList extends StatelessWidget {
   final ValueChanged<String> onOpen;
   final ValueChanged<RecentArtistView> onPlay;
   final ValueChanged<String> onToggleSelection;
+  final ValueChanged<String> onTimelineLabelChange;
   final void Function(Offset position, RecentArtistView artist)
   onOpenContextMenu;
 
@@ -2079,8 +2140,11 @@ class _RecentArtistList extends StatelessWidget {
     );
     return RecentScrollbar(
       builder:
-          (controller) => CustomScrollView(
+          (controller) => _RecentTimelineScrollView(
             controller: controller,
+            groups: groups,
+            contentExtentForGroup: (group) => group.items.length * 72.0,
+            onTimelineLabelChange: onTimelineLabelChange,
             slivers: [
               for (final group in groups) ...[
                 _RecentTimeGroupHeader(label: group.label),
@@ -2124,11 +2188,13 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
   const _RecentCollectionGrid({
     required this.items,
     required this.playedAt,
+    required this.onTimelineLabelChange,
     required this.itemBuilder,
   });
 
   final List<T> items;
   final String Function(T item) playedAt;
+  final ValueChanged<String> onTimelineLabelChange;
   final Widget Function(BuildContext context, T item) itemBuilder;
 
   @override
@@ -2141,33 +2207,45 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
     }
 
     final groups = _groupRecentItems(items, playedAt, context.smPlayerI18n);
-    return RecentScrollbar(
-      builder:
-          (controller) => CustomScrollView(
-            controller: controller,
-            slivers: [
-              for (final group in groups) ...[
-                _RecentTimeGroupHeader(label: group.label),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
-                  sliver: SliverGrid.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 210,
-                          mainAxisExtent: 242,
-                          crossAxisSpacing: 30,
-                          mainAxisSpacing: 26,
-                        ),
-                    itemCount: group.items.length,
-                    itemBuilder:
-                        (context, index) =>
-                            itemBuilder(context, group.items[index]),
-                  ),
-                ),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 70)),
-            ],
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / 210).floor().clamp(1, 8);
+        return RecentScrollbar(
+          builder:
+              (controller) => _RecentTimelineScrollView(
+                controller: controller,
+                groups: groups,
+                contentExtentForGroup:
+                    (group) =>
+                        ((group.items.length + columns - 1) ~/ columns) *
+                            (242.0 + 26.0) +
+                        22,
+                onTimelineLabelChange: onTimelineLabelChange,
+                slivers: [
+                  for (final group in groups) ...[
+                    _RecentTimeGroupHeader(label: group.label),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
+                      sliver: SliverGrid.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 210,
+                              mainAxisExtent: 242,
+                              crossAxisSpacing: 30,
+                              mainAxisSpacing: 26,
+                            ),
+                        itemCount: group.items.length,
+                        itemBuilder:
+                            (context, index) =>
+                                itemBuilder(context, group.items[index]),
+                      ),
+                    ),
+                  ],
+                  const SliverToBoxAdapter(child: SizedBox(height: 70)),
+                ],
+              ),
+        );
+      },
     );
   }
 }
@@ -2468,19 +2546,143 @@ class _RecentPagePanel extends StatelessWidget {
   }
 }
 
-class _RecentEmptyState extends StatelessWidget {
-  const _RecentEmptyState({required this.title, required this.message});
+class _RecentPageHeader extends StatelessWidget {
+  const _RecentPageHeader({required this.title});
 
   final String title;
-  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message.isEmpty ? title : '$title\n$message',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: _RecentColors.textMuted, height: 1.5),
+    return SizedBox(
+      height: 72,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: _RecentColors.textStrong,
+            fontSize: 40,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentCommandBarTimelineLabel extends StatelessWidget {
+  const _RecentCommandBarTimelineLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 120),
+      child:
+          label.isEmpty
+              ? const SizedBox(height: 20)
+              : Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _RecentColors.textStrong,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+    );
+  }
+}
+
+class _RecentEmptyState extends StatelessWidget {
+  const _RecentEmptyState({required String title, required String message});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+class _RecentTimelineScrollView<T> extends StatefulWidget {
+  const _RecentTimelineScrollView({
+    required this.controller,
+    required this.groups,
+    required this.contentExtentForGroup,
+    required this.onTimelineLabelChange,
+    required this.slivers,
+  });
+
+  final ScrollController controller;
+  final List<_RecentTimeGroup<T>> groups;
+  final double Function(_RecentTimeGroup<T> group) contentExtentForGroup;
+  final ValueChanged<String> onTimelineLabelChange;
+  final List<Widget> slivers;
+
+  @override
+  State<_RecentTimelineScrollView<T>> createState() =>
+      _RecentTimelineScrollViewState<T>();
+}
+
+class _RecentTimelineScrollViewState<T>
+    extends State<_RecentTimelineScrollView<T>> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _syncTimelineLabel();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_RecentTimelineScrollView<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _syncTimelineLabel();
+      }
+    });
+  }
+
+  void _syncTimelineLabel() {
+    final offset =
+        widget.controller.hasClients ? widget.controller.position.pixels : 0.0;
+    widget.onTimelineLabelChange(_timelineLabelForOffset(offset + 1));
+  }
+
+  String _timelineLabelForOffset(double offset) {
+    var groupStart = 0.0;
+    for (final group in widget.groups) {
+      final headerEnd = groupStart + _recentTimeGroupHeaderExtent;
+      final groupEnd = headerEnd + widget.contentExtentForGroup(group);
+      if (offset < headerEnd) {
+        return '';
+      }
+      if (offset < groupEnd) {
+        return group.label;
+      }
+      groupStart = groupEnd;
+    }
+    return widget.groups.isEmpty ? '' : widget.groups.last.label;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis == Axis.vertical) {
+          _syncTimelineLabel();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        controller: widget.controller,
+        slivers: widget.slivers,
       ),
     );
   }
@@ -2510,6 +2712,8 @@ List<_RecentTimeGroup<T>> _groupRecentItems<T>(
   }
   return groups;
 }
+
+const _recentTimeGroupHeaderExtent = 36.0;
 
 class _RecentColors {
   const _RecentColors._();

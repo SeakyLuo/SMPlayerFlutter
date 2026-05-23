@@ -1089,53 +1089,17 @@ class _AlbumsToolbar extends StatelessWidget {
               ),
               Builder(
                 builder: (context) {
+                  final sortItems = _albumSortMenuItems(
+                    i18n,
+                    sortCriterion,
+                    onChangeAlbumSort,
+                  );
                   return CommandBarButton(
                     icon: FluentIcons.arrow_sort_24_regular,
                     label: _albumSortLabel(i18n, sortCriterion),
+                    overflowSubmenu: sortItems,
                     onPressed: () {
-                      showMenuFlyout(
-                        context,
-                        items: [
-                          MenuFlyoutItem(
-                            key: 'reverse',
-                            text: i18n.t('local.sortReverseList'),
-                            icon: FluentIcons.arrow_sort_down_lines_20_regular,
-                            checked:
-                                sortCriterion == AlbumSortCriterion.reverse,
-                            onPressed: () {
-                              onChangeAlbumSort(AlbumSortCriterion.reverse);
-                            },
-                          ),
-                          MenuFlyoutItem(
-                            key: 'default',
-                            text: i18n.t('albums.sort.default'),
-                            icon: FluentIcons.arrow_sort_20_regular,
-                            checked:
-                                sortCriterion == AlbumSortCriterion.defaultSort,
-                            onPressed: () {
-                              onChangeAlbumSort(AlbumSortCriterion.defaultSort);
-                            },
-                          ),
-                          MenuFlyoutItem(
-                            key: 'name',
-                            text: i18n.t('albums.sort.name'),
-                            icon: FluentIcons.text_sort_ascending_20_regular,
-                            checked: sortCriterion == AlbumSortCriterion.name,
-                            onPressed: () {
-                              onChangeAlbumSort(AlbumSortCriterion.name);
-                            },
-                          ),
-                          MenuFlyoutItem(
-                            key: 'artist',
-                            text: i18n.t('albums.sort.artist'),
-                            icon: FluentIcons.person_20_regular,
-                            checked: sortCriterion == AlbumSortCriterion.artist,
-                            onPressed: () {
-                              onChangeAlbumSort(AlbumSortCriterion.artist);
-                            },
-                          ),
-                        ],
-                      );
+                      showMenuFlyout(context, items: sortItems);
                     },
                   );
                 },
@@ -1442,11 +1406,40 @@ class _AlbumsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '$title\n$message',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: _AlbumsColors.textMuted, height: 1.5),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _AlbumsColors.emptyStateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _AlbumsColors.emptyStateBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: _AlbumsColors.textStrong,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: _AlbumsColors.textMuted,
+                  fontSize: 14,
+                  height: 1.65,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1641,12 +1634,60 @@ String _albumSortLabel(SmPlayerI18n i18n, AlbumSortCriterion criterion) {
   }
 }
 
+List<MenuFlyoutItem> _albumSortMenuItems(
+  SmPlayerI18n i18n,
+  AlbumSortCriterion sortCriterion,
+  ValueChanged<AlbumSortCriterion> onChangeAlbumSort,
+) {
+  return [
+    MenuFlyoutItem(
+      key: 'reverse',
+      text: i18n.t('local.sortReverseList'),
+      icon: FluentIcons.arrow_sort_down_lines_20_regular,
+      checked: sortCriterion == AlbumSortCriterion.reverse,
+      onPressed: () {
+        onChangeAlbumSort(AlbumSortCriterion.reverse);
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'default',
+      text: i18n.t('albums.sort.default'),
+      icon: FluentIcons.arrow_sort_20_regular,
+      checked: sortCriterion == AlbumSortCriterion.defaultSort,
+      onPressed: () {
+        onChangeAlbumSort(AlbumSortCriterion.defaultSort);
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'name',
+      text: i18n.t('albums.sort.name'),
+      icon: FluentIcons.text_sort_ascending_20_regular,
+      checked: sortCriterion == AlbumSortCriterion.name,
+      onPressed: () {
+        onChangeAlbumSort(AlbumSortCriterion.name);
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'artist',
+      text: i18n.t('albums.sort.artist'),
+      icon: FluentIcons.person_20_regular,
+      checked: sortCriterion == AlbumSortCriterion.artist,
+      onPressed: () {
+        onChangeAlbumSort(AlbumSortCriterion.artist);
+      },
+    ),
+  ];
+}
+
 class _AlbumsColors {
   const _AlbumsColors._();
 
   static const commandSurface = Color(0xd9ffffff);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
+  static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
   static const disabled = Color(0x3d5b697a);
+  static const emptyStateSurface = Color(0x94ffffff);
+  static const emptyStateBorder = Color(0x94ffffff);
 }

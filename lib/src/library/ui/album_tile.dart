@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
 import '../data/library_models.dart';
+import 'default_album_artwork.dart';
 
 class AlbumTileData {
   const AlbumTileData({
@@ -192,14 +193,7 @@ class AlbumArtControl extends StatelessWidget {
         child:
             file != null && file.existsSync()
                 ? Image.file(file, fit: BoxFit.cover)
-                : const DecoratedBox(
-                  decoration: BoxDecoration(color: _AlbumTileColors.artwork),
-                  child: Icon(
-                    FluentIcons.album_24_regular,
-                    color: _AlbumTileColors.artworkIcon,
-                    size: 42,
-                  ),
-                ),
+                : const DefaultAlbumArtwork(),
       ),
     );
   }
@@ -245,6 +239,4 @@ class _AlbumTileColors {
   static const actionSurface = Color(0xb81e2228);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
 }

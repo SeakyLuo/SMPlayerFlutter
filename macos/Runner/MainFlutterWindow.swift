@@ -1,8 +1,9 @@
 import Cocoa
 import FlutterMacOS
 import MediaPlayer
+import UserNotifications
 
-class MainFlutterWindow: NSWindow, NSWindowDelegate, NSUserNotificationCenterDelegate {
+class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
   private var desktopFeatureChannel: FlutterMethodChannel?
   private var globalMediaEventMonitor: Any?
   private var localMediaEventMonitor: Any?
@@ -23,7 +24,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, NSUserNotificationCenterDel
       name: "smplayer_flutter/desktop_features",
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     desktopFeatureChannel?.setMethodCallHandler(handleDesktopFeatureMethodCall)
-    NSUserNotificationCenter.default.delegate = self
+    UNUserNotificationCenter.current().delegate = self
     installMediaKeyMonitor()
     installExternalOpenObserver()
 
@@ -154,32 +155,45 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, NSUserNotificationCenterDel
   }
 
   private func showTrackNotification(_ payload: [String: Any]) {
-    let notification = NSUserNotification()
-    notification.title = (payload["title"] as? String) ?? ""
-    notification.informativeText = (payload["body"] as? String) ?? ""
-    notification.soundName = ((payload["silent"] as? Bool) ?? false)
-      ? nil
-      : NSUserNotificationDefaultSoundName
-    notification.userInfo = ["songId": payload["songId"] ?? 0]
-    NSUserNotificationCenter.default.deliver(notification)
+    let content = UNMutableNotificationContent()
+    content.title = (payload["title"] as? String) ?? ""
+    content.body = (payload["body"] as? String) ?? ""
+    if !((payload["silent"] as? Bool) ?? false) {
+      content.sound = .default
+    }
+    content.userInfo = ["songId": payload["songId"] ?? 0]
+
+    let request = UNNotificationRequest(
+      identifier: "smplayer-track-\(payload["songId"] ?? 0)-\(Date().timeIntervalSince1970)",
+      content: content,
+      trigger: nil)
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+      if !granted {
+        return
+      }
+      UNUserNotificationCenter.current().add(request)
+    }
   }
 
   func userNotificationCenter(
-    _ center: NSUserNotificationCenter,
-    shouldPresent notification: NSUserNotification
-  ) -> Bool {
-    return true
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound])
   }
 
   func userNotificationCenter(
-    _ center: NSUserNotificationCenter,
-    didActivate notification: NSUserNotification
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     if isMiniaturized {
       deminiaturize(nil)
     }
     makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+    completionHandler()
   }
 
   private func updateMediaSession(_ state: [String: Any]) {

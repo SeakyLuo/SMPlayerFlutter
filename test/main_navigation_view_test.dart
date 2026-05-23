@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,6 +218,45 @@ void main() {
     );
 
     expect(backCount, 1);
+  });
+
+  testWidgets('back button stays before title and outside macOS controls', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 320,
+            height: 900,
+            child: MainNavigationView(
+              isPaneOpen: true,
+              currentPath: '/playlists/7',
+              searchText: '',
+              i18n: testI18n,
+              canGoBack: true,
+              onPaneToggle: () {},
+              onGoBack: () {},
+              onSearchTextChanged: (_) {},
+              onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+              onSearchCleared: () {},
+              onItemInvoked: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      final backRect = tester.getRect(
+        find.byKey(const ValueKey('MainNavigationView.BackButton')),
+      );
+      final titleRect = tester.getRect(find.text('简音播放器'));
+
+      expect(backRect.left, greaterThanOrEqualTo(78));
+      expect(backRect.right, lessThan(titleRect.left));
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('playlist route expands sidebar playlist group like Electron', (

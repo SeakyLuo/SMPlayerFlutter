@@ -21,6 +21,7 @@ void main() {
       'common.clear': '清除',
       'common.detail': '详情',
       'common.folders': '音乐文件夹',
+      'common.settings': '设置',
       'library.root': '音乐文件夹',
       'library.refreshing': '正在刷新音乐库...',
       'common.pause': '暂停',
@@ -231,6 +232,37 @@ void main() {
     await tester.pump();
 
     expect(lastUpdate?.autoPlay, isTrue);
+  });
+
+  testWidgets('SettingsPage app version mirrors Electron footer alignment', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: SettingsPage(
+            appVersion: '3.0.2',
+            onLoadSystemFonts: () async => const [],
+          ),
+        ),
+      ),
+    );
+
+    final footer = find.text('简音播放器 3.0.2');
+    expect(footer, findsOneWidget);
+    expect(tester.getCenter(footer).dx, closeTo(600, 1));
+    final footerText = tester.widget<Text>(footer);
+    expect(footerText.textAlign, TextAlign.center);
+    expect(footerText.style?.fontSize, 12);
+    expect(footerText.style?.height, 1.4);
   });
 
   testWidgets('SettingsPage lyrics rows mirror Electron order and hints', (
