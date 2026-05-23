@@ -12,6 +12,9 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
@@ -27,6 +30,8 @@ import 'recent_search_list.dart';
 enum RecentTab { added, played, searches }
 
 enum RecentPlayedFilter { songs, artists, albums, playlists }
+
+const _recentMinimalContentBreakpoint = 656.0;
 
 class RecentPage extends ConsumerStatefulWidget {
   const RecentPage({super.key});
@@ -51,7 +56,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(recentPageDataProvider);
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
 
     if (i18nValue.isLoading) {
@@ -147,7 +152,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         return _RecentPagePanel(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final useAppBarTabs = constraints.maxWidth < 560;
+              final useAppBarTabs =
+                  constraints.maxWidth < _recentMinimalContentBreakpoint;
               void switchTab(RecentTab tab) {
                 setState(() {
                   _activeTab = tab;
@@ -158,6 +164,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
               return Stack(
                 children: [
                   Column(
+                    spacing: 4,
                     children: [
                       if (useAppBarTabs)
                         _RecentAppBarTabs(
@@ -481,9 +488,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                             selectedVisibleSongIds,
                                           );
                                     }
-                                    ref.invalidate(
-                                      musicLibrarySnapshotProvider,
-                                    );
+                                    ref.invalidate(recentPageDataProvider);
                                     setState(() {
                                       _hideAfterOperation(
                                         snapshot
@@ -539,7 +544,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                         unawaited(revealItemInFolder(path));
                       },
                       onSaved: () {
-                        ref.invalidate(musicLibrarySnapshotProvider);
+                        ref.invalidate(recentPageDataProvider);
                       },
                       onClose: () {
                         setState(() {
@@ -557,7 +562,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   bool _canSelectVisibleItems(
-    MusicLibrarySnapshot snapshot,
+    RecentPageData snapshot,
     List<LibrarySong> visibleSongs,
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
@@ -593,7 +598,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           queueIndex: queueIndex,
         );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
   }
 
   void _playSongIds(List<int> songIds) {
@@ -601,8 +606,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       return;
     }
 
-    final songs =
-        ref.read(musicLibrarySnapshotProvider).value?.songs ?? const [];
+    final songs = ref.read(recentPageDataProvider).value?.songs ?? const [];
     final songsById = {for (final song in songs) song.id: song};
     _playSong(songsById[songIds.first]!, songIds, 0);
   }
@@ -636,7 +640,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     } else if (_activeTab == RecentTab.searches) {
       ref.read(libraryRepositoryProvider).clearRecentSearches();
     }
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
     setState(_clearSelection);
   }
 
@@ -677,7 +681,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   void _selectAll(
-    MusicLibrarySnapshot snapshot,
+    RecentPageData snapshot,
     List<LibrarySong> visibleSongs,
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
@@ -702,7 +706,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   void _reverseSelection(
-    MusicLibrarySnapshot snapshot,
+    RecentPageData snapshot,
     List<LibrarySong> visibleSongs,
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
@@ -845,7 +849,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     final i18n = context.smPlayerI18n;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(recentPageDataProvider).value!;
     final preferenceLevel = await ref
         .read(libraryRepositoryProvider)
         .getPreferenceLevel('song', '${song.id}');
@@ -875,7 +879,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(recentPageDataProvider);
                 },
         showRemove: canRemove,
         onPlay: () {
@@ -936,7 +940,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(recentPageDataProvider);
         },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -1003,7 +1007,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   ) {
     final i18n = context.smPlayerI18n;
     final songsById = {
-      for (final song in ref.read(musicLibrarySnapshotProvider).value!.songs)
+      for (final song in ref.read(recentPageDataProvider).value!.songs)
         song.id: song,
     };
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
@@ -1030,7 +1034,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         );
       },
       onCreatePlaylist: () async {
-        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        final snapshot = ref.read(recentPageDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -1102,7 +1106,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 );
               },
       onCreatePlaylist: () async {
-        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        final snapshot = ref.read(recentPageDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -1161,13 +1165,13 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                     await ref
                         .read(libraryRepositoryProvider)
                         .removePreferenceItem('artist', artist.name);
-                    ref.invalidate(musicLibrarySnapshotProvider);
+                    ref.invalidate(recentPageDataProvider);
                   },
           onSetPreference: (level) async {
             await ref
                 .read(libraryRepositoryProvider)
                 .addPreferenceItem('artist', artist.name, artist.name, level);
-            ref.invalidate(musicLibrarySnapshotProvider);
+            ref.invalidate(recentPageDataProvider);
           },
         ),
       ],
@@ -1187,20 +1191,20 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     if (!mounted) {
       return;
     }
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
   }
 
   Future<void> _removeRecentSearchesWithUndo(List<int> entryIds) async {
     final entryIdSet = entryIds.toSet();
     final entries =
         ref
-            .read(musicLibrarySnapshotProvider)
+            .read(recentPageDataProvider)
             .value!
             .recentSearches
             .where((entry) => entryIdSet.contains(entry.id))
             .toList();
     await ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
     if (!mounted) {
       return;
     }
@@ -1212,14 +1216,14 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         await ref
             .read(libraryRepositoryProvider)
             .restoreRecentSearches(entries);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(recentPageDataProvider);
       },
     );
   }
 
   Future<void> _removeRecentPlayedWithUndo(List<int> songIds) async {
     await ref.read(libraryRepositoryProvider).removeRecentPlayed(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
     if (!mounted) {
       return;
     }
@@ -1229,7 +1233,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       message: context.smPlayerI18n.t('notification.operationDone'),
       onUndo: () async {
         await ref.read(libraryRepositoryProvider).restoreRecentPlayed(songIds);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(recentPageDataProvider);
       },
     );
   }
@@ -1247,7 +1251,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(recentPageDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -1257,7 +1261,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(recentPageDataProvider);
   }
 }
 
@@ -1282,14 +1286,17 @@ class _RecentTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final height = nightMode ? 46.0 : 54.0;
+    final spacing = nightMode ? 10.0 : 34.0;
     return Padding(
       padding: const EdgeInsets.only(top: 12, right: 18),
       child: SizedBox(
-        height: 54,
+        height: height,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            spacing: 34,
+            spacing: spacing,
             children: [
               _RecentTabButton(
                 active: activeTab == RecentTab.added,
@@ -1341,38 +1348,117 @@ class _RecentAppBarTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return LayoutBuilder(
       key: const ValueKey('Recent.AppBarTabs'),
-      height: 46,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(2, 4, 2, 8),
-        children: [
-          _RecentAppBarTabButton(
-            active: activeTab == RecentTab.added,
-            label: i18n.t('recent.added'),
-            count: addedCount,
-            showCount: showCount,
-            onPressed: () => onChanged(RecentTab.added),
+      builder: (context, constraints) {
+        final hideCount = constraints.maxWidth <= 520;
+        return SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            children: [
+              _RecentAppBarTabButton(
+                active: activeTab == RecentTab.added,
+                label: i18n.t('recent.added'),
+                count: addedCount,
+                showCount: showCount && !hideCount,
+                onPressed: () => onChanged(RecentTab.added),
+              ),
+              _RecentAppBarTabButton(
+                active: activeTab == RecentTab.played,
+                label: i18n.t('recent.played'),
+                count: playedCount,
+                showCount: showCount && !hideCount,
+                onPressed: () => onChanged(RecentTab.played),
+              ),
+              _RecentAppBarTabButton(
+                active: activeTab == RecentTab.searches,
+                label: i18n.t('recent.searches'),
+                count: searchesCount,
+                showCount: showCount && !hideCount,
+                onPressed: () => onChanged(RecentTab.searches),
+              ),
+            ],
           ),
-          _RecentAppBarTabButton(
-            active: activeTab == RecentTab.played,
-            label: i18n.t('recent.played'),
-            count: playedCount,
-            showCount: showCount,
-            onPressed: () => onChanged(RecentTab.played),
-          ),
-          _RecentAppBarTabButton(
-            active: activeTab == RecentTab.searches,
-            label: i18n.t('recent.searches'),
-            count: searchesCount,
-            showCount: showCount,
-            onPressed: () => onChanged(RecentTab.searches),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
+}
+
+class _RecentTabContent extends StatelessWidget {
+  const _RecentTabContent({
+    required this.label,
+    required this.count,
+    required this.showCount,
+    required this.labelStyle,
+    required this.countStyle,
+  });
+
+  final String label;
+  final int count;
+  final bool showCount;
+  final TextStyle labelStyle;
+  final TextStyle countStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 7,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: labelStyle,
+          ),
+        ),
+        if (showCount)
+          Text(
+            count.toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: countStyle,
+          ),
+      ],
+    );
+  }
+}
+
+ButtonStyle _recentTextButtonStyle({
+  required Color foregroundColor,
+  required Color backgroundColor,
+  required Color borderColor,
+  required double minHeight,
+  required EdgeInsets padding,
+  required double radius,
+}) {
+  return TextButton.styleFrom(
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: Size(0, minHeight),
+    padding: padding,
+    foregroundColor: foregroundColor,
+    backgroundColor: backgroundColor,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(color: borderColor),
+    ),
+    shadowColor: Colors.transparent,
+  ).copyWith(
+    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    elevation: const WidgetStatePropertyAll(0),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    side: WidgetStatePropertyAll(BorderSide(color: borderColor)),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: BorderSide(color: borderColor),
+      ),
+    ),
+  );
 }
 
 class _RecentAppBarTabButton extends StatelessWidget {
@@ -1392,27 +1478,52 @@ class _RecentAppBarTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightAccentText
+                : _RecentColors.nightText
+            : active
+            ? _RecentColors.accentStrong
+            : _RecentColors.textStrong;
+    final backgroundColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightAppBarTabActiveSurface
+                : _RecentColors.nightControlSurface
+            : active
+            ? _RecentColors.accentSoft
+            : _RecentColors.appBarTabSurface;
+    final borderColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightAppBarTabActiveBorder
+                : _RecentColors.nightBorder
+            : active
+            ? _RecentColors.appBarTabActiveBorder
+            : _RecentColors.appBarTabBorder;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: TextButton(
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 34),
+        style: _recentTextButtonStyle(
+          foregroundColor: foregroundColor,
+          backgroundColor: backgroundColor,
+          borderColor: borderColor,
+          minHeight: 34,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          foregroundColor:
-              active ? _RecentColors.accent : _RecentColors.textStrong,
-          backgroundColor:
-              active ? _RecentColors.accentSoft : _RecentColors.commandSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: _RecentColors.commandBorder),
-          ),
+          radius: nightMode ? 999 : 10,
         ),
         onPressed: onPressed,
-        child: Text(
-          showCount ? '$label  $count' : label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        child: _RecentTabContent(
+          label: label,
+          count: count,
+          showCount: showCount,
+          labelStyle: const TextStyle(fontSize: 13),
+          countStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
@@ -1436,35 +1547,85 @@ class _RecentTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    if (nightMode) {
+      return TextButton(
+        style: _recentTextButtonStyle(
+          foregroundColor:
+              active ? _RecentColors.nightAccentText : _RecentColors.nightMuted,
+          backgroundColor:
+              active
+                  ? _RecentColors.nightRecentTabActiveSurface
+                  : _RecentColors.nightRecentTabSurface,
+          borderColor:
+              active
+                  ? _RecentColors.nightRecentTabActiveBorder
+                  : _RecentColors.nightBorder,
+          minHeight: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          radius: 999,
+        ),
+        onPressed: onPressed,
+        child: _RecentTabContent(
+          label: label,
+          count: count,
+          showCount: showCount,
+          labelStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+          countStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+    }
+
     return TextButton(
-      style: TextButton.styleFrom(
+      style: _recentTextButtonStyle(
         foregroundColor:
-            active ? _RecentColors.accent : _RecentColors.textMuted,
+            active ? _RecentColors.accent : _RecentColors.textRootMuted,
+        backgroundColor: Colors.transparent,
+        borderColor: Colors.transparent,
+        minHeight: 54,
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        shape: const RoundedRectangleBorder(),
+        radius: 0,
       ),
       onPressed: onPressed,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            showCount ? '$label  $count' : label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 3,
-            width: 58,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: active ? _RecentColors.accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        height: 54,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            _RecentTabContent(
+              label: label,
+              count: count,
+              showCount: showCount,
+              labelStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              countStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-        ],
+            Positioned(
+              left: -8,
+              right: -8,
+              bottom: 5,
+              height: 3,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: active ? _RecentColors.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1534,24 +1695,62 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightAccentText
+                : _RecentColors.nightText
+            : active
+            ? _RecentColors.accent
+            : _RecentColors.textStrong;
+    final backgroundColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightPlayedFilterActiveSurface
+                : _RecentColors.nightControlSurface
+            : active
+            ? _RecentColors.playedFilterActiveSurface
+            : _RecentColors.appBarTabSurface;
+    final borderColor =
+        nightMode
+            ? active
+                ? _RecentColors.nightPlayedFilterActiveBorder
+                : _RecentColors.nightBorder
+            : active
+            ? _RecentColors.playedFilterActiveBorder
+            : _RecentColors.playedFilterBorder;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: TextButton.icon(
-        style: TextButton.styleFrom(
-          minimumSize: const Size(72, 36),
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          foregroundColor:
-              active ? _RecentColors.accent : _RecentColors.textStrong,
-          backgroundColor:
-              active ? _RecentColors.accentSoft : _RecentColors.commandSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: _RecentColors.commandBorder),
-          ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          boxShadow:
+              !nightMode && active
+                  ? const [
+                    BoxShadow(
+                      color: _RecentColors.playedFilterActiveRing,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                  : const [],
         ),
-        icon: Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        onPressed: onPressed,
+        child: TextButton.icon(
+          style: _recentTextButtonStyle(
+            foregroundColor: foregroundColor,
+            backgroundColor: backgroundColor,
+            borderColor: borderColor,
+            minHeight: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            radius: 10,
+          ),
+          icon: Icon(icon, size: 18),
+          label: Text(
+            label,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          onPressed: onPressed,
+        ),
       ),
     );
   }
@@ -2524,9 +2723,17 @@ class _RecentPagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 18, 0),
-      child: SizedBox.expand(child: child),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minimal = constraints.maxWidth < _recentMinimalContentBreakpoint;
+        return Padding(
+          padding:
+              minimal
+                  ? const EdgeInsets.fromLTRB(8, 6, 8, 0)
+                  : const EdgeInsets.fromLTRB(24, 24, 18, 0),
+          child: SizedBox.expand(child: child),
+        );
+      },
     );
   }
 }
@@ -2549,7 +2756,7 @@ class _RecentCommandBarTimelineLabel extends StatelessWidget {
                 style: const TextStyle(
                   color: _RecentColors.textStrong,
                   fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
     );
@@ -2677,15 +2884,34 @@ class _RecentColors {
   const _RecentColors._();
 
   static const accent = Color(0xff0078d7);
+  static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1f0078d7);
   static const textStrong = Color(0xff111827);
+  static const textRootMuted = Color(0xff5f625f);
   static const textMuted = Color(0xff5b697a);
   static const textSoft = Color(0xff8290a1);
-  static const commandSurface = Color(0x8fffffff);
-  static const commandBorder = Color(0x1f536379);
+  static const appBarTabSurface = Color(0x80ffffff);
+  static const appBarTabBorder = Color(0x24536379);
+  static const appBarTabActiveBorder = Color(0x380078d7);
+  static const playedFilterBorder = Color(0x1f536379);
+  static const playedFilterActiveBorder = Color(0x6b0078d7);
+  static const playedFilterActiveSurface = Color(0x240078d7);
+  static const playedFilterActiveRing = Color(0x140078d7);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
   static const overlay = Color(0xb81e2228);
+  static const nightText = Color(0xfff6f9fc);
+  static const nightMuted = Color(0xadcbd5e1);
+  static const nightBorder = Color(0x1fd6e0ec);
+  static const nightAccentText = Color(0xff459de2);
+  static const nightControlSurface = Color(0x0effffff);
+  static const nightRecentTabSurface = Color(0x09ffffff);
+  static const nightAppBarTabActiveSurface = Color(0x290078d7);
+  static const nightAppBarTabActiveBorder = Color(0x570078d7);
+  static const nightRecentTabActiveSurface = Color(0x3d0078d7);
+  static const nightRecentTabActiveBorder = Color(0x7a0078d7);
+  static const nightPlayedFilterActiveSurface = Color(0x2e0078d7);
+  static const nightPlayedFilterActiveBorder = Color(0x610078d7);
 }
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {

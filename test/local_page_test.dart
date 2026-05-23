@@ -585,7 +585,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    _pressCommandBarButton(tester, 'New Folder');
+    await _pressCommandBarButton(tester, 'New Folder');
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'New Folder');
@@ -624,9 +624,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    _pressCommandBarButton(tester, 'Multi Select');
+    await _pressCommandBarButton(tester, 'Multi Select');
     await tester.pumpAndSettle();
-    _pressCommandBarButton(tester, 'Sort');
+    await _pressCommandBarButton(tester, 'Sort');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Album').last);
     await tester.pumpAndSettle();
@@ -687,7 +687,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    _pressCommandBarButton(tester, 'Multi Select');
+    await _pressCommandBarButton(tester, 'Multi Select');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sub'));
     await tester.pumpAndSettle();
@@ -757,7 +757,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    _pressCommandBarButton(tester, 'Multi Select');
+    await _pressCommandBarButton(tester, 'Multi Select');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sub'));
     await tester.pumpAndSettle();
@@ -780,7 +780,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    _pressCommandBarButton(tester, 'Multi Select');
+    await _pressCommandBarButton(tester, 'Multi Select');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sub'));
     await tester.pumpAndSettle();
@@ -962,7 +962,7 @@ void _setCompactSurface(WidgetTester tester) {
 }
 
 Future<void> _pressTextButtonByLabel(WidgetTester tester, String label) async {
-  _pressCommandBarButton(tester, label);
+  await _pressCommandBarButton(tester, label);
   await tester.pumpAndSettle();
 }
 
@@ -971,11 +971,18 @@ Future<void> _dismissTransientNotifications(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-void _pressCommandBarButton(WidgetTester tester, String label) {
+Future<void> _pressCommandBarButton(WidgetTester tester, String label) async {
   final button = find.byWidgetPredicate(
     (widget) => widget is CommandBarButton && widget.label == label,
   );
-  tester.widget<CommandBarButton>(button.first).onPressed!();
+  if (button.evaluate().isNotEmpty) {
+    tester.widget<CommandBarButton>(button.first).onPressed!();
+    return;
+  }
+
+  await tester.tap(find.byTooltip('More').first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).first);
 }
 
 class _LocalPageTestApp extends StatelessWidget {
@@ -988,7 +995,7 @@ class _LocalPageTestApp extends StatelessWidget {
     this.onScanLibrary,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1000,7 +1007,7 @@ class _LocalPageTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1027,7 +1034,7 @@ class _LocalPageRouterTestApp extends StatelessWidget {
     required this.mediaController,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1064,7 +1071,7 @@ class _LocalPageRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1085,7 +1092,7 @@ class _LocalPageSearchQueryTestApp extends StatelessWidget {
     required this.searchQuery,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1096,7 +1103,7 @@ class _LocalPageSearchQueryTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1179,12 +1186,18 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> addRecentSearch(
+  Future<SearchHistoryEntry?> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recentSearchQuery = query;
     recentSearchType = type;
+    return SearchHistoryEntry(
+      id: 1,
+      query: query.trim(),
+      type: type,
+      searchedAt: '2026-05-23T00:00:00Z',
+    );
   }
 
   @override
@@ -1417,7 +1430,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1487,7 +1500,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _snapshotWithTargetFolder = MusicLibrarySnapshot(
+const _snapshotWithTargetFolder = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1558,8 +1571,8 @@ const _snapshotWithTargetFolder = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-MusicLibrarySnapshot _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
-  return MusicLibrarySnapshot(
+LibraryViewData _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
+  return LibraryViewData(
     songs: _snapshot.songs,
     recentSongs: _snapshot.recentSongs,
     recentPlaylists: _snapshot.recentPlaylists,
@@ -1582,10 +1595,10 @@ MusicLibrarySnapshot _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
   );
 }
 
-MusicLibrarySnapshot _snapshotWithTargetFolderAndLocalViewMode(
+LibraryViewData _snapshotWithTargetFolderAndLocalViewMode(
   LocalViewMode localViewMode,
 ) {
-  return MusicLibrarySnapshot(
+  return LibraryViewData(
     songs: _snapshotWithTargetFolder.songs,
     recentSongs: _snapshotWithTargetFolder.recentSongs,
     recentPlaylists: _snapshotWithTargetFolder.recentPlaylists,
@@ -1608,11 +1621,11 @@ MusicLibrarySnapshot _snapshotWithTargetFolderAndLocalViewMode(
   );
 }
 
-MusicLibrarySnapshot _manyLocalSongsSnapshot(
+LibraryViewData _manyLocalSongsSnapshot(
   LocalViewMode localViewMode,
   int count,
 ) {
-  return MusicLibrarySnapshot(
+  return LibraryViewData(
     songs: [
       for (var index = 0; index < count; index += 1)
         LibrarySong(
@@ -1652,8 +1665,8 @@ MusicLibrarySnapshot _manyLocalSongsSnapshot(
   );
 }
 
-MusicLibrarySnapshot _snapshotWithRoot(String rootPath) {
-  return MusicLibrarySnapshot(
+LibraryViewData _snapshotWithRoot(String rootPath) {
+  return LibraryViewData(
     songs: [
       LibrarySong(
         id: 1,
@@ -1699,8 +1712,8 @@ MusicLibrarySnapshot _snapshotWithRoot(String rootPath) {
   );
 }
 
-MusicLibrarySnapshot _emptySnapshotWithRoot(String rootPath) {
-  return MusicLibrarySnapshot(
+LibraryViewData _emptySnapshotWithRoot(String rootPath) {
+  return LibraryViewData(
     songs: const [],
     recentSongs: const [],
     recentPlaylists: const [],

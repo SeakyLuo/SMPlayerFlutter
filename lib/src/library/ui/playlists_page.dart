@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
@@ -36,7 +37,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const SmPlayerLoadingState();
@@ -75,7 +76,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     BuildContext context,
     WidgetRef ref,
     SmPlayerI18n i18n,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     LibraryPlaylist selectedPlaylist,
   ) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
@@ -171,25 +172,25 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             return;
           }
           ref.read(libraryRepositoryProvider).setSongFavorite(songId, false);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onRemoveSongs: (songIds) async {
           await ref
               .read(libraryRepositoryProvider)
               .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onRename: (name) {
           ref
               .read(libraryRepositoryProvider)
               .renamePlaylist(selectedPlaylist.id, name);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onDelete: () {
           ref
               .read(libraryRepositoryProvider)
               .deletePlaylist(selectedPlaylist.id);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
           context.go('/playlists');
         },
         onClear: () {
@@ -199,7 +200,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 selectedPlaylist.id,
                 songs.map((song) => song.id).toList(),
               );
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onSetPreferred: (level) {
           ref
@@ -214,7 +215,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                     : selectedPlaylist.name,
                 level,
               );
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onRecordPlay: () {
           ref
@@ -229,7 +230,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 songIds,
                 sortCriterion,
               );
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onArtistClick: (artist) {
           context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
@@ -244,7 +245,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   Widget _buildGrid(
     BuildContext context,
     SmPlayerI18n i18n,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
   ) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final customPlaylists =
@@ -273,7 +274,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       child: Column(
         children: [
           CommandBar(
-            variant: CommandBarVariant.playlistPage,
             overflowLabel: i18n.t('player.more'),
             children: [
               CommandBarButton(
@@ -418,7 +418,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   Future<void> _createPlaylist(
     BuildContext context,
     SmPlayerI18n i18n,
-    MusicLibrarySnapshot snapshot, [
+    LibraryViewData snapshot, [
     List<int> songIds = const [],
   ]) async {
     final name = await _requestPlaylistName(
@@ -440,7 +440,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final playlist = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(name, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     if (context.mounted) {
       _persistLastPlaylist(playlist.id);
       context.go('/playlists/${playlist.id}');
@@ -464,7 +464,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   Future<void> _renamePlaylist(
     BuildContext context,
     SmPlayerI18n i18n,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     LibraryPlaylist playlist,
   ) async {
     final name = await _requestPlaylistName(
@@ -480,7 +480,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       await ref
           .read(libraryRepositoryProvider)
           .renamePlaylist(playlist.id, name);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
   }
 
@@ -500,14 +500,14 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     );
     if (confirmed) {
       await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
   }
 
   void _showPlaylistMenu(
     BuildContext context,
     SmPlayerI18n i18n,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     LibraryPlaylist playlist,
     Offset position,
   ) {
@@ -544,7 +544,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   }
 
   Future<void> _duplicatePlaylist(
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     LibraryPlaylist playlist,
   ) async {
     await ref
@@ -553,7 +553,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           getNextPlaylistName(playlist.name, snapshot.playlists),
           playlist.songIds,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _previewPlaylistMove(
@@ -584,7 +584,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final nextPlaylistIds = _previewPlaylistIds;
     if (nextPlaylistIds != null) {
       ref.read(libraryRepositoryProvider).reorderPlaylists(nextPlaylistIds);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
     _clearPlaylistDrag();
   }
@@ -621,7 +621,7 @@ Future<String?> _requestPlaylistName({
 
 void _playTrack(
   WidgetRef ref,
-  MusicLibrarySnapshot snapshot,
+  LibraryViewData snapshot,
   int trackId,
   List<int> queueSongIds,
 ) {
@@ -642,10 +642,10 @@ void _playTrack(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
-void _playNext(WidgetRef ref, MusicLibrarySnapshot snapshot, int songId) {
+void _playNext(WidgetRef ref, LibraryViewData snapshot, int songId) {
   final queueSongIds = snapshot.nowPlaying.songIds.toList();
   final currentTrackId =
       ref.read(mediaControlControllerProvider).state.track.id;
@@ -653,7 +653,7 @@ void _playNext(WidgetRef ref, MusicLibrarySnapshot snapshot, int songId) {
       currentTrackId == null ? -1 : queueSongIds.indexOf(currentTrackId);
   queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
   ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-  ref.invalidate(musicLibrarySnapshotProvider);
+  ref.invalidate(libraryViewDataProvider);
 }
 
 bool _idsEqual(List<int> left, List<int> right) {

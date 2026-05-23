@@ -1,11 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 void main() {
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
   });
 
   test(
@@ -200,13 +199,13 @@ void main() {
   );
 
   test(
-    'SettingsController refresh keeps Electron defaults when storage is empty',
+    'SettingsController refresh keeps Flutter defaults when memory is empty',
     () async {
       final controller = SettingsController();
 
       await controller.refresh();
 
-      expect(controller.snapshot.nightMode, NightMode.never);
+      expect(controller.snapshot.nightMode, NightMode.system);
       expect(controller.snapshot.nightModeStartTime, '20:00');
       expect(controller.snapshot.nightModeEndTime, '06:00');
       expect(controller.snapshot.notificationSend, NotificationSendMode.never);

@@ -149,7 +149,13 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_ArtistsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _ArtistsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
@@ -259,6 +265,8 @@ void main() {
 
     expect(repository.addedPlaylistId, 10);
     expect(repository.addedSongIds, [1]);
+
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('ArtistsPage keeps selection when Electron setting is off', (
@@ -392,7 +400,12 @@ void main() {
     final router = _createArtistsRouter();
 
     await tester.pumpWidget(
-      _ArtistsRouterTestApp(snapshot: _snapshot, i18n: i18n, router: router),
+      _ArtistsRouterTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        router: router,
+        repository: _FakeLibraryRepository(),
+      ),
     );
     router.go('/artists?artist=Artist%20A');
     await tester.pumpAndSettle();
@@ -478,6 +491,8 @@ void main() {
 
     expect(repository.addedPlaylistId, 10);
     expect(repository.addedSongIds, [1]);
+
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets(
@@ -734,6 +749,7 @@ void main() {
           snapshot: _unknownAlbumSnapshot,
           i18n: i18n,
           router: router,
+          repository: _FakeLibraryRepository(),
         ),
       );
       router.go('/artists?artist=Artist%20A');
@@ -773,6 +789,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Artist not found'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
     },
   );
 
@@ -833,6 +850,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Artist not found'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
 
       snapshot.value = _twoArtistSnapshot;
       await tester.pumpAndSettle();
@@ -920,7 +938,7 @@ class _ArtistsRouterTestApp extends StatelessWidget {
     this.repository,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
   final LibraryRepository? repository;
@@ -930,7 +948,7 @@ class _ArtistsRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -951,7 +969,7 @@ class _ArtistsTestApp extends StatelessWidget {
     this.searchQuery = '',
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
@@ -962,7 +980,7 @@ class _ArtistsTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
         if (mediaController != null)
@@ -988,7 +1006,7 @@ class _ArtistsSnapshotRouterTestApp extends StatelessWidget {
     required this.repository,
   });
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
   final _ValueListenableArtistsRepository repository;
@@ -1014,7 +1032,7 @@ class _ArtistsSnapshotInvalidator extends ConsumerStatefulWidget {
     required this.router,
   });
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
   final GoRouter router;
 
   @override
@@ -1051,7 +1069,7 @@ class _ArtistsSnapshotInvalidatorState
   }
 
   void _invalidateSnapshot() {
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 }
 
@@ -1087,6 +1105,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return null;
+  }
+
+  @override
   Future<void> recordArtistPlayed(String artist) async {
     recordedArtists.add(artist);
   }
@@ -1097,11 +1120,17 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> addRecentSearch(
+  Future<SearchHistoryEntry?> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query, type: type));
+    return SearchHistoryEntry(
+      id: recordedSearches.length,
+      query: query.trim(),
+      type: type,
+      searchedAt: '2026-05-23T00:00:00Z',
+    );
   }
 
   @override
@@ -1187,15 +1216,15 @@ class _FakeLibraryRepository extends LibraryRepository {
 class _ValueListenableArtistsRepository extends _FakeLibraryRepository {
   _ValueListenableArtistsRepository(this.snapshot);
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
+  Future<LibraryViewData> getLibraryViewData() async {
     return snapshot.value;
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1254,7 +1283,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _twoArtistSnapshot = MusicLibrarySnapshot(
+const _twoArtistSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1394,7 +1423,7 @@ const _artistUnknownAlbumOrderSongs = [
   ),
 ];
 
-final _keepSelectionSnapshot = MusicLibrarySnapshot(
+final _keepSelectionSnapshot = LibraryViewData(
   songs: _snapshot.songs,
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1412,7 +1441,7 @@ final _keepSelectionSnapshot = MusicLibrarySnapshot(
   databasePath: _snapshot.databasePath,
 );
 
-const _unknownAlbumSnapshot = MusicLibrarySnapshot(
+const _unknownAlbumSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 2,
@@ -1445,8 +1474,8 @@ const _unknownAlbumSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-MusicLibrarySnapshot _manyArtistsSnapshot() {
-  return MusicLibrarySnapshot(
+LibraryViewData _manyArtistsSnapshot() {
+  return LibraryViewData(
     songs: [
       for (var index = 0; index < 36; index += 1)
         LibrarySong(

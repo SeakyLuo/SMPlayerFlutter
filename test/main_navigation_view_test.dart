@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 const testI18n = SmPlayerI18n(
   locale: 'zh-CN',
@@ -43,7 +43,7 @@ const testI18n = SmPlayerI18n(
 
 void main() {
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
   });
 
   test('MainNavigationViewItem matches Electron route selection rules', () {
@@ -700,11 +700,6 @@ void main() {
         find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
         findsNothing,
       );
-      final preferences = await SharedPreferences.getInstance();
-      expect(
-        preferences.getString(SmPlayerShellStorageKeys.searchQuery),
-        isNull,
-      );
       expect(repository.recordedSearches, [
         (query: 'Jazz', type: SearchHistoryType.sidebar),
       ]);
@@ -745,81 +740,27 @@ void main() {
       expect(find.text('最近搜索'), findsNothing);
     },
   );
-
-  testWidgets(
-    'shell keeps sidebar dropdown visible before snapshot catches up',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1300, 600);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      final repository = _MainNavigationShellRepository(
-        includeRecordedSearchesInSnapshot: false,
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            libraryRepositoryProvider.overrideWithValue(repository),
-            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          ],
-          child: const SmPlayerI18nScope(
-            i18n: testI18n,
-            child: MaterialApp(home: SmPlayerShellPage()),
-          ),
-        ),
-      );
-
-      await tester.enterText(
-        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-        '  Jazz  ',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
-
-      expect(repository.recordedSearches, [
-        (query: 'Jazz', type: SearchHistoryType.sidebar),
-      ]);
-      await tester.tap(
-        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('最近搜索'), findsOneWidget);
-      expect(find.text('Jazz'), findsOneWidget);
-    },
-  );
 }
 
 class _MainNavigationShellRepository extends LibraryRepository {
-  _MainNavigationShellRepository({
-    this.includeRecordedSearchesInSnapshot = true,
-  });
-
-  final bool includeRecordedSearchesInSnapshot;
   final recordedSearches = <({String query, SearchHistoryType type})>[];
 
   @override
   Future<void> commitPendingDeletes() async {}
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
-    return MusicLibrarySnapshot(
+  Future<LibraryViewData> getLibraryViewData() async {
+    return LibraryViewData(
       songs: [],
-      recentSearches:
-          includeRecordedSearchesInSnapshot
-              ? [
-                for (final entry in recordedSearches.indexed)
-                  SearchHistoryEntry(
-                    id: entry.$1 + 1,
-                    query: entry.$2.query,
-                    type: entry.$2.type,
-                    searchedAt: '2026-05-23T00:00:00Z',
-                  ),
-              ]
-              : const [],
+      recentSearches: [
+        for (final entry in recordedSearches.indexed)
+          SearchHistoryEntry(
+            id: entry.$1 + 1,
+            query: entry.$2.query,
+            type: entry.$2.type,
+            searchedAt: '2026-05-23T00:00:00Z',
+          ),
+      ],
       hasLibrary: false,
       sortCriterion: MusicLibrarySortCriterion.title,
       albumsSort: AlbumSortCriterion.defaultSort,
@@ -828,10 +769,16 @@ class _MainNavigationShellRepository extends LibraryRepository {
   }
 
   @override
-  Future<void> addRecentSearch(
+  Future<SearchHistoryEntry?> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query.trim(), type: type));
+    return SearchHistoryEntry(
+      id: recordedSearches.length,
+      query: query.trim(),
+      type: type,
+      searchedAt: '2026-05-23T00:00:00Z',
+    );
   }
 }

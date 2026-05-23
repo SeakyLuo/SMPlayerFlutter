@@ -17,7 +17,9 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
 import 'artists_page_model.dart';
-import 'command_bar.dart';
+import 'menu_flyout.dart';
+import 'menu_flyout_helpers.dart';
+import 'multi_select_command_bar.dart';
 import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
@@ -78,7 +80,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
     final mediaState = ref.watch(mediaControlControllerProvider).state;
 
     if (i18nValue.isLoading) {
@@ -119,7 +121,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               ref
                   .read(libraryRepositoryProvider)
                   .addRecentSearch(target, SearchHistoryType.artists);
-              ref.invalidate(musicLibrarySnapshotProvider);
+              ref.invalidate(libraryViewDataProvider);
               if (_artistListController.hasClients) {
                 _artistListController.jumpTo(targetIndex * artistRowHeight);
               }
@@ -564,7 +566,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   unawaited(revealItemInFolder(path));
                 },
                 onSaved: () {
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
                 onClose: () {
                   setState(() {
@@ -597,7 +599,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       return;
     }
 
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final suggestions = searchArtists(artistGroups, query);
@@ -611,7 +613,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(targetArtist.name, SearchHistoryType.artists);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
       setState(() {
         _artistSearch = targetArtist.name;
       });
@@ -620,7 +622,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(query, SearchHistoryType.artists);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
     }
   }
 
@@ -632,8 +634,8 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     ref
         .read(libraryRepositoryProvider)
         .addRecentSearch(query, SearchHistoryType.artists);
-    ref.invalidate(musicLibrarySnapshotProvider);
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    ref.invalidate(libraryViewDataProvider);
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final exactMatches =
@@ -656,18 +658,18 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
   void _removeArtistRecentSearch(int entryId) {
     ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _clearArtistRecentSearches() {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final entryIds =
         snapshot.recentSearches
             .where((entry) => entry.type == SearchHistoryType.artists)
             .map((entry) => entry.id)
             .toList();
     ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _returnToArtistList() {
@@ -692,7 +694,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _scrollToArtist(String artistName) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final artistIndex = artistGroups.indexWhere(
@@ -743,8 +745,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       return;
     }
 
-    final songs =
-        ref.read(musicLibrarySnapshotProvider).value?.songs ?? const [];
+    final songs = ref.read(libraryViewDataProvider).value?.songs ?? const [];
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     ref
@@ -762,11 +763,11 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           queueIndex: 0,
         );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _playTrackInQueue(int songId, List<int> queueSongIds) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId]!;
     final queueIndex = queueSongIds.indexOf(songId);
@@ -785,11 +786,11 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -799,7 +800,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _playShuffledSongIds(
@@ -837,7 +838,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     if (!mounted) {
       return;
     }
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songIds = songs.map((song) => song.id).toList();
     final customPlaylists =
         snapshot.playlists
@@ -925,7 +926,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           icon:
               type == _ArtistGroupMenuType.artist
                   ? FluentIcons.multiselect_ltr_20_regular
-                  : FluentIcons.select_all_on_20_regular,
+                  : FluentIcons.multiselect_ltr_20_regular,
           onPressed: () {
             setState(() {
               if (type == _ArtistGroupMenuType.artist) {
@@ -979,13 +980,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem(preferenceType, label);
-                ref.invalidate(musicLibrarySnapshotProvider);
+                ref.invalidate(libraryViewDataProvider);
               },
       onSetPreference: (level) async {
         await ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem(preferenceType, label, label, level);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -997,7 +998,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final preferenceLevel = await ref
@@ -1026,7 +1027,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
         onPlay: () {
           _playSongIds(queueSongIds);
@@ -1084,7 +1085,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -1128,7 +1129,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _showSongAddToMenu(BuildContext buttonContext, LibrarySong song) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final i18n = context.smPlayerI18n;
     final playlists =
         snapshot.playlists
@@ -1915,7 +1916,7 @@ class _ArtistDetailHeader extends StatelessWidget {
                       style: const TextStyle(
                         color: _ArtistsColors.textStrong,
                         fontSize: 30,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -2111,7 +2112,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
                       style: const TextStyle(
                         color: _ArtistsColors.textStrong,
                         fontSize: 17,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),

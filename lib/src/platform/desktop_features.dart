@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as path;
 import 'package:screen_retriever/screen_retriever.dart' as screen;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -1401,17 +1400,12 @@ class TrayWindowDesktopFeatureService
     }
     final maximized = await windowManager.isMaximized();
     final bounds = await windowManager.getBounds();
-    final preferences = await SharedPreferences.getInstance();
-    await Future.wait([
-      preferences.setString(
-        SmPlayerSettingsStorageKeys.mainWindowBounds,
-        serializeMainWindowBounds(bounds),
+    setSmPlayerGlobalSettingsSnapshot(
+      smPlayerGlobalSettingsSnapshot.copyWith(
+        mainWindowBounds: serializeMainWindowBounds(bounds),
+        mainWindowMaximized: maximized,
       ),
-      preferences.setBool(
-        SmPlayerSettingsStorageKeys.mainWindowMaximized,
-        maximized,
-      ),
-    ]);
+    );
   }
 
   Future<void> _enterMiniMode() async {

@@ -3,7 +3,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 export 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show PlaybackMode, PlaybackRuntimeSettings, PlaybackSettingsUpdate;
 
-enum NightMode { auto, onMode, never }
+enum NightMode { system, auto, onMode, never }
 
 enum NotificationSendMode { musicChanged, never }
 
@@ -129,7 +129,7 @@ class SettingsSnapshot {
       smartMultiArtistRecognition = true,
       showCount = true,
       themeColor = '#0078D7',
-      nightMode = NightMode.never,
+      nightMode = NightMode.system,
       nightModeStartTime = '20:00',
       nightModeEndTime = '06:00',
       notificationSend = NotificationSendMode.never,
@@ -629,6 +629,7 @@ class PreferenceSettingsSnapshot {
 
 String nightModeLabel(NightMode mode) {
   return switch (mode) {
+    NightMode.system => '跟随系统',
     NightMode.auto => '自动',
     NightMode.onMode => '开启',
     NightMode.never => '永不',

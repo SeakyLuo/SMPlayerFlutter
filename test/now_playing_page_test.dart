@@ -55,12 +55,15 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+      ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add To').first);
-    await tester.pumpAndSettle();
+    await _openAddToMenu(tester);
 
     expect(find.text('My Favorites'), findsOneWidget);
     expect(find.text('New Playlist'), findsOneWidget);
@@ -150,8 +153,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add To').first);
-    await tester.pumpAndSettle();
+    await _openAddToMenu(tester);
     await tester.tap(find.text('My Favorites'));
     await tester.pumpAndSettle();
 
@@ -178,8 +180,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add To').first);
-    await tester.pumpAndSettle();
+    await _openAddToMenu(tester);
     await tester.tap(find.text('Mix'));
     await tester.pumpAndSettle();
 
@@ -235,7 +236,7 @@ class _NowPlayingTestApp extends StatelessWidget {
     this.searchQuery = '',
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final _FakeNowPlayingRepository? repository;
   final String searchQuery;
@@ -246,7 +247,7 @@ class _NowPlayingTestApp extends StatelessWidget {
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
         if (repository == null)
-          musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot)
+          libraryViewDataProvider.overrideWith((ref) async => snapshot)
         else
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -263,7 +264,7 @@ class _NowPlayingTestApp extends StatelessWidget {
 class _FakeNowPlayingRepository extends LibraryRepository {
   _FakeNowPlayingRepository(this.snapshot);
 
-  MusicLibrarySnapshot snapshot;
+  LibraryViewData snapshot;
   final favoriteSongIds = <int>[];
   final playlistSongIds = <int, List<int>>{};
   int? hiddenSongId;
@@ -271,7 +272,12 @@ class _FakeNowPlayingRepository extends LibraryRepository {
   String? movedFolderPath;
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async => snapshot;
+  Future<LibraryViewData> getLibraryViewData() async => snapshot;
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return null;
+  }
 
   @override
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
@@ -363,7 +369,7 @@ class _FakeNowPlayingRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -436,12 +442,12 @@ final _searchSnapshot = _snapshotWithSongs(_snapshot, [
   ),
 ], nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2]));
 
-MusicLibrarySnapshot _snapshotWithSongs(
-  MusicLibrarySnapshot snapshot,
+LibraryViewData _snapshotWithSongs(
+  LibraryViewData snapshot,
   List<LibrarySong> songs, {
   NowPlayingSnapshot? nowPlaying,
 }) {
-  return MusicLibrarySnapshot(
+  return LibraryViewData(
     songs: songs,
     recentSongs: snapshot.recentSongs,
     recentPlaylists: snapshot.recentPlaylists,
@@ -478,4 +484,18 @@ LibrarySong _songWithFavorite(LibrarySong song, bool favorite) {
     favorite: favorite,
     thumbnailPath: song.thumbnailPath,
   );
+}
+
+Future<void> _openAddToMenu(WidgetTester tester) async {
+  final inlineAddTo = find.text('Add To');
+  if (inlineAddTo.evaluate().isNotEmpty) {
+    await tester.tap(inlineAddTo.first);
+    await tester.pumpAndSettle();
+    return;
+  }
+
+  await tester.tap(find.byTooltip('More').first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Add To').first);
+  await tester.pumpAndSettle();
 }

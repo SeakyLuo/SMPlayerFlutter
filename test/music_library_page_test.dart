@@ -145,7 +145,11 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
-    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Shuffle'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     await tester.tap(find.text('Green Song'));
@@ -153,7 +157,9 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await tester.pumpAndSettle();
 
-    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(find.text('Green Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Shuffle'), findsOneWidget);
   });
 
   testWidgets('MusicLibraryPage empty search state includes route query', (
@@ -445,7 +451,7 @@ void main() {
     final repository = _ValueListenableLibraryRepository(snapshot);
 
     await tester.pumpWidget(
-      _MusicLibrarySnapshotListenableTestApp(
+      _LibraryViewDataListenableTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -472,7 +478,7 @@ void main() {
     final repository = _ValueListenableLibraryRepository(snapshot);
 
     await tester.pumpWidget(
-      _MusicLibrarySnapshotListenableTestApp(
+      _LibraryViewDataListenableTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -480,15 +486,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.tap(find.text('Blue Song'));
     await tester.pump(kDoubleTapTimeout);
-    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.text('Red Song'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Shuffle'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
 
     snapshot.value = _snapshotWithoutBlue;
     await tester.pumpAndSettle();
 
-    expect(find.text('1 selected'), findsNothing);
     expect(find.text('Play Selected'), findsNothing);
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Shuffle'), findsNothing);
     expect(repository.replacedNowPlaying, isEmpty);
   });
 
@@ -527,7 +544,11 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -586,7 +607,7 @@ void main() {
     expect(find.text('See Album Art'), findsOneWidget);
   });
 
-  testWidgets('MusicLibraryPage multi-select play replaces Now Playing', (
+  testWidgets('MusicLibraryPage selection menu shuffle replaces Now Playing', (
     tester,
   ) async {
     final repository = _FakeLibraryRepository();
@@ -609,26 +630,24 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Play Selected'));
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shuffle'));
     await tester.pumpAndSettle();
 
-    expect(repository.replacedNowPlaying, [1, 2]);
-    expect(mediaController.state.track.id, 1);
+    expect(repository.replacedNowPlaying.toSet(), {1, 2});
+    expect(mediaController.state.track.id, isIn({1, 2}));
     expect(mediaController.state.isPlaying, isTrue);
   });
 
-  testWidgets('MusicLibraryPage keeps selection when Electron setting is off', (
+  testWidgets('MusicLibraryPage normal click collapses Electron selection', (
     tester,
   ) async {
-    final repository = _FakeLibraryRepository();
-    final mediaController = MediaControlController();
-
     await tester.pumpWidget(
       _MusicLibraryTestApp(
-        snapshot: _keepSelectionSnapshot,
+        snapshot: _snapshot,
         i18n: i18n,
-        repository: repository,
-        mediaController: mediaController,
+        repository: _FakeLibraryRepository(),
       ),
     );
     await tester.pumpAndSettle();
@@ -639,13 +658,15 @@ void main() {
     await tester.tap(find.text('Red Song'));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
-    expect(find.text('2 selected'), findsOneWidget);
 
-    await tester.tap(find.text('Play Selected'));
+    await tester.tap(find.text('Green Song'));
     await tester.pumpAndSettle();
 
-    expect(repository.replacedNowPlaying, [1, 2]);
-    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Shuffle'), findsNothing);
+    expect(find.text('Play'), findsOneWidget);
   });
 
   testWidgets('MusicLibraryPage double click adds next and starts playback', (
@@ -726,6 +747,8 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Red Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add To').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mix'));
@@ -767,6 +790,8 @@ void main() {
 
     expect(repository.favoriteSongIds, [1]);
     expect(repository.favoriteValue, isTrue);
+
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('MusicLibraryPage preference menu writes song preference', (
@@ -814,11 +839,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete From Disk'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(TextButton, 'Delete').last);
     await tester.pumpAndSettle();
 
     expect(repository.pendingDeletedSongId, 1);
     expect(find.text('Undo'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('MusicLibraryPage artist link opens the Electron artist route', (
@@ -915,7 +942,7 @@ class _MusicLibraryRouterTestApp extends StatelessWidget {
     required this.router,
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
 
@@ -924,7 +951,7 @@ class _MusicLibraryRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -943,7 +970,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
     this.searchQuery = '',
   });
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
@@ -954,7 +981,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        musicLibrarySnapshotProvider.overrideWith((ref) async => snapshot),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
         if (mediaController != null)
@@ -972,14 +999,14 @@ class _MusicLibraryTestApp extends StatelessWidget {
   }
 }
 
-class _MusicLibrarySnapshotListenableTestApp extends StatelessWidget {
-  const _MusicLibrarySnapshotListenableTestApp({
+class _LibraryViewDataListenableTestApp extends StatelessWidget {
+  const _LibraryViewDataListenableTestApp({
     required this.snapshot,
     required this.i18n,
     required this.repository,
   });
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
   final SmPlayerI18n i18n;
   final _ValueListenableLibraryRepository repository;
 
@@ -992,24 +1019,24 @@ class _MusicLibrarySnapshotListenableTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: _MusicLibrarySnapshotInvalidator(snapshot: snapshot),
+        child: _LibraryViewDataInvalidator(snapshot: snapshot),
       ),
     );
   }
 }
 
-class _MusicLibrarySnapshotInvalidator extends ConsumerStatefulWidget {
-  const _MusicLibrarySnapshotInvalidator({required this.snapshot});
+class _LibraryViewDataInvalidator extends ConsumerStatefulWidget {
+  const _LibraryViewDataInvalidator({required this.snapshot});
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
 
   @override
-  ConsumerState<_MusicLibrarySnapshotInvalidator> createState() =>
-      _MusicLibrarySnapshotInvalidatorState();
+  ConsumerState<_LibraryViewDataInvalidator> createState() =>
+      _LibraryViewDataInvalidatorState();
 }
 
-class _MusicLibrarySnapshotInvalidatorState
-    extends ConsumerState<_MusicLibrarySnapshotInvalidator> {
+class _LibraryViewDataInvalidatorState
+    extends ConsumerState<_LibraryViewDataInvalidator> {
   @override
   void initState() {
     super.initState();
@@ -1017,7 +1044,7 @@ class _MusicLibrarySnapshotInvalidatorState
   }
 
   @override
-  void didUpdateWidget(_MusicLibrarySnapshotInvalidator oldWidget) {
+  void didUpdateWidget(_LibraryViewDataInvalidator oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.snapshot != widget.snapshot) {
       oldWidget.snapshot.removeListener(_invalidateSnapshot);
@@ -1037,7 +1064,7 @@ class _MusicLibrarySnapshotInvalidatorState
   }
 
   void _invalidateSnapshot() {
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 }
 
@@ -1073,6 +1100,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     favoriteSongIds = songIds.toList();
     favoriteValue = favorite;
+  }
+
+  @override
+  Future<String?> getPreferenceLevel(String type, String itemId) async {
+    return null;
   }
 
   @override
@@ -1210,15 +1242,15 @@ class _FakeLibraryRepository extends LibraryRepository {
 class _ValueListenableLibraryRepository extends _FakeLibraryRepository {
   _ValueListenableLibraryRepository(this.snapshot);
 
-  final ValueNotifier<MusicLibrarySnapshot> snapshot;
+  final ValueNotifier<LibraryViewData> snapshot;
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
+  Future<LibraryViewData> getLibraryViewData() async {
     return snapshot.value;
   }
 }
 
-const _snapshot = MusicLibrarySnapshot(
+const _snapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1289,7 +1321,7 @@ const _snapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-final _snapshotWithoutBlue = MusicLibrarySnapshot(
+final _snapshotWithoutBlue = LibraryViewData(
   songs: _snapshot.songs.where((song) => song.id != 1).toList(),
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1308,25 +1340,7 @@ final _snapshotWithoutBlue = MusicLibrarySnapshot(
   databasePath: _snapshot.databasePath,
 );
 
-final _keepSelectionSnapshot = MusicLibrarySnapshot(
-  songs: _snapshot.songs,
-  recentSongs: _snapshot.recentSongs,
-  recentPlaylists: _snapshot.recentPlaylists,
-  recentAlbums: _snapshot.recentAlbums,
-  recentArtists: _snapshot.recentArtists,
-  recentSearches: _snapshot.recentSearches,
-  playlists: _snapshot.playlists,
-  favoritePlaylistId: _snapshot.favoritePlaylistId,
-  nowPlaying: _snapshot.nowPlaying,
-  hasLibrary: _snapshot.hasLibrary,
-  sortCriterion: _snapshot.sortCriterion,
-  albumsSort: _snapshot.albumsSort,
-  showCount: _snapshot.showCount,
-  hideMultiSelectCommandBarAfterOperation: false,
-  databasePath: _snapshot.databasePath,
-);
-
-final _quickJumpSnapshot = MusicLibrarySnapshot(
+final _quickJumpSnapshot = LibraryViewData(
   songs: _quickJumpSongs,
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1366,7 +1380,7 @@ final _quickJumpSongs = List.generate(40, (index) {
   );
 });
 
-const _accentQuickJumpSnapshot = MusicLibrarySnapshot(
+const _accentQuickJumpSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 200,
@@ -1399,7 +1413,7 @@ const _accentQuickJumpSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _longDurationSnapshot = MusicLibrarySnapshot(
+const _longDurationSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 300,
@@ -1432,7 +1446,7 @@ const _longDurationSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _unknownAlbumSortSnapshot = MusicLibrarySnapshot(
+const _unknownAlbumSortSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 30,
@@ -1479,7 +1493,7 @@ const _unknownAlbumSortSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-final _unknownAlbumTitleSortSnapshot = MusicLibrarySnapshot(
+final _unknownAlbumTitleSortSnapshot = LibraryViewData(
   songs: _unknownAlbumSortSnapshot.songs,
   recentSongs: _unknownAlbumSortSnapshot.recentSongs,
   recentPlaylists: _unknownAlbumSortSnapshot.recentPlaylists,
@@ -1498,7 +1512,7 @@ final _unknownAlbumTitleSortSnapshot = MusicLibrarySnapshot(
   databasePath: _unknownAlbumSortSnapshot.databasePath,
 );
 
-final _foldersSnapshot = MusicLibrarySnapshot(
+final _foldersSnapshot = LibraryViewData(
   songs: _snapshot.songs,
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1521,7 +1535,7 @@ final _foldersSnapshot = MusicLibrarySnapshot(
   databasePath: _snapshot.databasePath,
 );
 
-const _favoriteSnapshot = MusicLibrarySnapshot(
+const _favoriteSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1554,7 +1568,7 @@ const _favoriteSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _emptySearchSnapshot = MusicLibrarySnapshot(
+const _emptySearchSnapshot = LibraryViewData(
   songs: [],
   recentSongs: [],
   recentPlaylists: [],
@@ -1572,7 +1586,7 @@ const _emptySearchSnapshot = MusicLibrarySnapshot(
   databasePath: '',
 );
 
-const _artistFallbackSnapshot = MusicLibrarySnapshot(
+const _artistFallbackSnapshot = LibraryViewData(
   songs: [
     LibrarySong(
       id: 4,

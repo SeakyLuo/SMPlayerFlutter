@@ -110,7 +110,7 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
 
   Future<void> _resumeItem(HiddenStorageItem item) async {
     await ref.read(libraryRepositoryProvider).resumeHiddenStorageItem(item);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     setState(() {
       _itemsFuture = _loadItems();
     });

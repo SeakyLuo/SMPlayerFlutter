@@ -23,4 +23,13 @@ void main() {
       expect(theme.progressIndicatorTheme.color, const Color(0xff112233));
     },
   );
+
+  test('resolveSmPlayerThemeMode supports following the system theme', () {
+    expect(
+      resolveSmPlayerThemeMode(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.system),
+      ),
+      ThemeMode.system,
+    );
+  });
 }

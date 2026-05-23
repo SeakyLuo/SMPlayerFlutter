@@ -50,6 +50,8 @@ class MainNavigationViewColors {
         sectionLabel: sectionLabel,
         dropdownSurface: dropdownSurface,
         dropdownShadow: dropdownShadow,
+        searchHistoryHeader: Color(0x945f625f),
+        searchHistoryItemHover: accentHover,
       );
     }
     return const MainNavigationPalette(
@@ -75,6 +77,8 @@ class MainNavigationViewColors {
       sectionLabel: Color(0x9ecbd5e1),
       dropdownSurface: Color(0xfa1d232b),
       dropdownShadow: Color(0x5c000000),
+      searchHistoryHeader: Color(0x7acbd5e1),
+      searchHistoryItemHover: Color(0x290078d7),
     );
   }
 }
@@ -103,6 +107,8 @@ class MainNavigationPalette {
     required this.sectionLabel,
     required this.dropdownSurface,
     required this.dropdownShadow,
+    required this.searchHistoryHeader,
+    required this.searchHistoryItemHover,
   });
 
   final Color textStrong;
@@ -127,4 +133,6 @@ class MainNavigationPalette {
   final Color sectionLabel;
   final Color dropdownSurface;
   final Color dropdownShadow;
+  final Color searchHistoryHeader;
+  final Color searchHistoryItemHover;
 }

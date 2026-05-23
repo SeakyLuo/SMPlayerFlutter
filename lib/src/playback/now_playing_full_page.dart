@@ -10,7 +10,9 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
@@ -59,7 +61,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   @override
   Widget build(BuildContext context) {
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
     final i18n = context.smPlayerI18n;
 
@@ -245,7 +247,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     List<LibrarySong> queueSongs,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     bool night,
     SmPlayerI18n i18n,
   ) {
@@ -309,7 +311,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     List<LibrarySong> queueSongs,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     bool night,
     SmPlayerI18n i18n,
   ) {
@@ -419,7 +421,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   Future<void> _showMoreMenu(
     BuildContext buttonContext,
     LibrarySong? currentSong,
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> customPlaylists, {
     required bool isCompact,
@@ -618,7 +620,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                       await ref
                           .read(libraryRepositoryProvider)
                           .removePreferenceItem('song', '${currentSong.id}');
-                      ref.invalidate(musicLibrarySnapshotProvider);
+                      ref.invalidate(libraryViewDataProvider);
                     },
             onSetPreference: (level) {
               _setSongPreference(currentSong.id, currentSong.title, level);
@@ -711,7 +713,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     final mediaController = ref.read(mediaControlControllerProvider);
     final enablingShuffle = mediaController.state.mode != PlaybackMode.shuffle;
     if (enablingShuffle) {
-      final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+      final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
       final songIds = snapshot?.nowPlaying.songIds ?? const <int>[];
       if (songIds.isNotEmpty) {
         final nextSongIds = shufflePlaybackQueueForCurrentTrack(
@@ -776,7 +778,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
       return;
     }
 
-    final songs = ref.read(musicLibrarySnapshotProvider).value!.songs;
+    final songs = ref.read(libraryViewDataProvider).value!.songs;
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     ref
@@ -796,7 +798,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     _replaceQueue(songIds);
   }
 
-  Future<void> _quickPlay(MusicLibrarySnapshot snapshot) async {
+  Future<void> _quickPlay(LibraryViewData snapshot) async {
     final preferences =
         await ref.read(libraryRepositoryProvider).getPreferenceSettings();
     _playSongIds(
@@ -899,7 +901,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             .toList();
     ref.read(libraryRepositoryProvider).recordAlbumPlayed(currentSong.album);
     _playSongIds(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _playArtist(LibrarySong currentSong, List<LibrarySong> songs) {
@@ -915,12 +917,12 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             .toList();
     ref.read(libraryRepositoryProvider).recordArtistPlayed(artist);
     _playSongIds(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _replaceQueue(List<int> songIds) {
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
@@ -951,14 +953,14 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
     await ref
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _toggleSongsFavorite(List<int> songIds, bool favorite) async {
@@ -970,7 +972,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         mediaController.state.track.favorite != favorite) {
       mediaController.onToggleFavorite();
     }
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _addSongToNowPlaying(LibrarySong song, List<int> queueSongIds) {
@@ -993,7 +995,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addPreferenceItem('song', '$songId', title, level);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<String?> _getSongPreferenceLevel(int songId) {
@@ -1006,7 +1008,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await ref
         .read(libraryRepositoryProvider)
         .removePreferenceItem('song', '$songId');
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _deleteSongFromDisk(LibrarySong song) async {
@@ -1021,7 +1023,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   Future<void> _hideSongFile(LibrarySong song, List<int> queueSongIds) async {
     final removedEntries = _queueEntriesForSong(queueSongIds, song.id);
     await ref.read(libraryRepositoryProvider).hideSong(song.id);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _replaceQueue([
       for (final songId in queueSongIds)
         if (songId != song.id) songId,
@@ -1035,9 +1037,9 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
       }),
       () async {
         await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
         final snapshot =
-            await ref.read(libraryRepositoryProvider).getMusicLibrarySnapshot();
+            await ref.read(libraryRepositoryProvider).getLibraryViewData();
         _replaceQueue(
           _insertQueueEntries(snapshot.nowPlaying.songIds, removedEntries),
         );
@@ -1241,7 +1243,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
                     ? _NowPlayingFullColors.nightText
                     : _NowPlayingFullColors.dayText,
             fontSize: 24,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             height: 1.15,
           ),
         ),
@@ -1300,7 +1302,7 @@ class _NowPlayingFullLyricsStage extends StatelessWidget {
                       ? _NowPlayingFullColors.nightText
                       : _NowPlayingFullColors.dayText,
               fontSize: 32,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
@@ -1527,7 +1529,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
                                   ? _NowPlayingFullColors.nightText
                                   : _NowPlayingFullColors.dayText,
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const Spacer(),

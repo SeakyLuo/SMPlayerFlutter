@@ -105,172 +105,187 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityPadding = narrow ? 5.0 : 6.0;
     final utilityIconSize = utilitySize - utilityPadding * 2;
 
+    final transportControls = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _PlayerIconButton(
+          key: const ValueKey('MediaControl.PreviousButton'),
+          tooltip: i18n.t('player.previous'),
+          icon: _previousIcon,
+          buttonSize: 40,
+          padding: 8,
+          iconSize: 24,
+          disabled: disabled,
+          onPressed: onPrevious,
+        ),
+        const SizedBox(width: 16),
+        _PlayerIconButton(
+          key: const ValueKey('MediaControl.PlayPauseButton'),
+          tooltip: isPlaying ? i18n.t('player.pause') : i18n.t('player.play'),
+          icon: isPlaying ? _pauseIcon : _playIcon,
+          primary: true,
+          buttonSize: primarySize,
+          padding: primaryPadding,
+          iconSize: primaryIconSize,
+          loading: track.isLoading,
+          disabled: disabled,
+          onPressed: onTogglePlayPause,
+        ),
+        const SizedBox(width: 16),
+        _PlayerIconButton(
+          key: const ValueKey('MediaControl.NextButton'),
+          tooltip: i18n.t('player.next'),
+          icon: _nextIcon,
+          buttonSize: 40,
+          padding: 8,
+          iconSize: 24,
+          disabled: disabled,
+          onPressed: onNext,
+        ),
+      ],
+    );
+
+    final utilityControls = Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (onOpenVoiceAssistant == null)
+          Builder(
+            builder: (modeButtonContext) {
+              return _PlayerIconButton(
+                key: const ValueKey('MediaControl.CompactModeButton'),
+                tooltip:
+                    '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+                icon: _playbackModeIcon(mode),
+                buttonSize: utilitySize,
+                padding: utilityPadding,
+                iconSize: utilityIconSize,
+                active: mode != PlaybackMode.once,
+                disabled: disabled,
+                onPressed: () {
+                  switch (getNextPlaybackMode(mode)) {
+                    case PlaybackMode.shuffle:
+                      onToggleShuffle();
+                    case PlaybackMode.repeat:
+                      onToggleRepeat();
+                    case PlaybackMode.repeatOne:
+                      onToggleRepeatOne();
+                    case PlaybackMode.once:
+                      if (mode == PlaybackMode.shuffle) {
+                        onToggleShuffle();
+                      } else if (mode == PlaybackMode.repeat) {
+                        onToggleRepeat();
+                      } else {
+                        onToggleRepeatOne();
+                      }
+                  }
+                },
+                onLongPress: () {
+                  _showCompactPlaybackModeMenu(
+                    modeButtonContext,
+                    i18n: i18n,
+                    mode: mode,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                  );
+                },
+              );
+            },
+          )
+        else
+          _PlayerIconButton(
+            tooltip: i18n.t('player.voiceAssistant'),
+            icon: Icons.mic_rounded,
+            buttonSize: utilitySize,
+            padding: utilityPadding,
+            iconSize: utilityIconSize,
+            disabled: false,
+            onPressed: onOpenVoiceAssistant!,
+          ),
+        Builder(
+          builder: (moreButtonContext) {
+            return _PlayerIconButton(
+              key: const ValueKey('MediaControl.MoreButton'),
+              tooltip: i18n.t('player.more'),
+              icon: _moreIcon,
+              buttonSize: utilitySize,
+              padding: utilityPadding,
+              iconSize: utilityIconSize,
+              onPressed: () {
+                _showCompactMoreMenu(
+                  moreButtonContext,
+                  i18n: i18n,
+                  disabled: disabled,
+                  trackId: track.id,
+                  mode: mode,
+                  isMuted: isMuted,
+                  volumeValue: volume,
+                  onQuickPlay: onQuickPlay,
+                  onToggleMute: onToggleMute,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                  onOpenNowPlaying: onOpenNowPlaying,
+                  onToggleWindowFullScreen: onToggleWindowFullScreen,
+                  isWindowFullScreen: isWindowFullScreen,
+                  onEnterMiniMode: onEnterMiniMode,
+                  currentSong: currentSong,
+                  playlists: playlists,
+                  preferenceLevel: preferenceLevel,
+                  onResolvePreferenceLevel: onResolvePreferenceLevel,
+                  onAddToNowPlaying: onAddToNowPlaying,
+                  onCreatePlaylist: onCreatePlaylist,
+                  onAddToPlaylist: onAddToPlaylist,
+                  onUndoPreference: onUndoPreference,
+                  onSetPreference: onSetPreference,
+                  onSeeArtist: onSeeArtist,
+                  onSeeAlbum: onSeeAlbum,
+                  onSeeMusicInfo: onSeeMusicInfo,
+                  onSeeLyrics: onSeeLyrics,
+                  onSeeAlbumArt: onSeeAlbumArt,
+                  onSeeLocal: onSeeLocal,
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+
     return Column(
       children: [
         Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: _PlayerTrack(
-                  track: track,
-                  artworkPath: resolvePlayerArtworkPath(track, currentSong),
-                  playbackNoticeKey: playbackNoticeKey,
-                  currentLyricsLine: currentLyricsLine,
-                  onArtworkError: onArtworkError,
-                  disabled: track.id == null,
-                  compact: true,
-                  onOpenNowPlaying: onOpenNowPlaying,
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final utilityWidth = narrow ? 72.0 : 80.0;
+              final transportWidth = narrow ? 176.0 : 208.0;
+              final availableTrackWidth =
+                  constraints.maxWidth - utilityWidth - transportWidth;
+              final trackWidth = availableTrackWidth.clamp(
+                112.0,
+                double.infinity,
+              );
+
+              return Row(
                 children: [
-                  _PlayerIconButton(
-                    key: const ValueKey('MediaControl.PreviousButton'),
-                    tooltip: i18n.t('player.previous'),
-                    icon: _previousIcon,
-                    buttonSize: 40,
-                    padding: 8,
-                    iconSize: 24,
-                    disabled: disabled,
-                    onPressed: onPrevious,
-                  ),
-                  const SizedBox(width: 16),
-                  _PlayerIconButton(
-                    key: const ValueKey('MediaControl.PlayPauseButton'),
-                    tooltip:
-                        isPlaying
-                            ? i18n.t('player.pause')
-                            : i18n.t('player.play'),
-                    icon: isPlaying ? _pauseIcon : _playIcon,
-                    primary: true,
-                    buttonSize: primarySize,
-                    padding: primaryPadding,
-                    iconSize: primaryIconSize,
-                    loading: track.isLoading,
-                    disabled: disabled,
-                    onPressed: onTogglePlayPause,
-                  ),
-                  const SizedBox(width: 16),
-                  _PlayerIconButton(
-                    key: const ValueKey('MediaControl.NextButton'),
-                    tooltip: i18n.t('player.next'),
-                    icon: _nextIcon,
-                    buttonSize: 40,
-                    padding: 8,
-                    iconSize: 24,
-                    disabled: disabled,
-                    onPressed: onNext,
-                  ),
-                ],
-              ),
-              SizedBox(
-                width: narrow ? 72 : 80,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (onOpenVoiceAssistant == null)
-                      Builder(
-                        builder: (modeButtonContext) {
-                          return _PlayerIconButton(
-                            key: const ValueKey(
-                              'MediaControl.CompactModeButton',
-                            ),
-                            tooltip:
-                                '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-                            icon: _playbackModeIcon(mode),
-                            buttonSize: utilitySize,
-                            padding: utilityPadding,
-                            iconSize: utilityIconSize,
-                            active: mode != PlaybackMode.once,
-                            disabled: disabled,
-                            onPressed: () {
-                              switch (getNextPlaybackMode(mode)) {
-                                case PlaybackMode.shuffle:
-                                  onToggleShuffle();
-                                case PlaybackMode.repeat:
-                                  onToggleRepeat();
-                                case PlaybackMode.repeatOne:
-                                  onToggleRepeatOne();
-                                case PlaybackMode.once:
-                                  if (mode == PlaybackMode.shuffle) {
-                                    onToggleShuffle();
-                                  } else if (mode == PlaybackMode.repeat) {
-                                    onToggleRepeat();
-                                  } else {
-                                    onToggleRepeatOne();
-                                  }
-                              }
-                            },
-                            onLongPress: () {
-                              _showCompactPlaybackModeMenu(
-                                modeButtonContext,
-                                i18n: i18n,
-                                mode: mode,
-                                onToggleShuffle: onToggleShuffle,
-                                onToggleRepeat: onToggleRepeat,
-                                onToggleRepeatOne: onToggleRepeatOne,
-                              );
-                            },
-                          );
-                        },
-                      )
-                    else
-                      _PlayerIconButton(
-                        tooltip: i18n.t('player.voiceAssistant'),
-                        icon: Icons.mic_rounded,
-                        buttonSize: utilitySize,
-                        padding: utilityPadding,
-                        iconSize: utilityIconSize,
-                        disabled: false,
-                        onPressed: onOpenVoiceAssistant!,
-                      ),
-                    _PlayerIconButton(
-                      tooltip: i18n.t('player.more'),
-                      icon: _moreIcon,
-                      buttonSize: utilitySize,
-                      padding: utilityPadding,
-                      iconSize: utilityIconSize,
-                      onPressed: () {
-                        _showCompactMoreMenu(
-                          context,
-                          i18n: i18n,
-                          disabled: disabled,
-                          trackId: track.id,
-                          mode: mode,
-                          isMuted: isMuted,
-                          volumeValue: volume,
-                          onQuickPlay: onQuickPlay,
-                          onToggleMute: onToggleMute,
-                          onToggleShuffle: onToggleShuffle,
-                          onToggleRepeat: onToggleRepeat,
-                          onToggleRepeatOne: onToggleRepeatOne,
-                          onOpenNowPlaying: onOpenNowPlaying,
-                          onToggleWindowFullScreen: onToggleWindowFullScreen,
-                          isWindowFullScreen: isWindowFullScreen,
-                          onEnterMiniMode: onEnterMiniMode,
-                          currentSong: currentSong,
-                          playlists: playlists,
-                          preferenceLevel: preferenceLevel,
-                          onResolvePreferenceLevel: onResolvePreferenceLevel,
-                          onAddToNowPlaying: onAddToNowPlaying,
-                          onCreatePlaylist: onCreatePlaylist,
-                          onAddToPlaylist: onAddToPlaylist,
-                          onUndoPreference: onUndoPreference,
-                          onSetPreference: onSetPreference,
-                          onSeeArtist: onSeeArtist,
-                          onSeeAlbum: onSeeAlbum,
-                          onSeeMusicInfo: onSeeMusicInfo,
-                          onSeeLyrics: onSeeLyrics,
-                          onSeeAlbumArt: onSeeAlbumArt,
-                          onSeeLocal: onSeeLocal,
-                        );
-                      },
+                  SizedBox(
+                    width: trackWidth,
+                    child: _PlayerTrack(
+                      track: track,
+                      artworkPath: resolvePlayerArtworkPath(track, currentSong),
+                      playbackNoticeKey: playbackNoticeKey,
+                      currentLyricsLine: currentLyricsLine,
+                      onArtworkError: onArtworkError,
+                      disabled: track.id == null,
+                      compact: true,
+                      onOpenNowPlaying: onOpenNowPlaying,
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                  SizedBox(width: transportWidth, child: transportControls),
+                  SizedBox(width: utilityWidth, child: utilityControls),
+                ],
+              );
+            },
           ),
         ),
         _CompactMediaProgressRow(
@@ -326,6 +341,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
     }
     showMenuFlyout(
       context,
+      position: _menuFlyoutPositionAboveAnchor(context),
+      avoidPlayerBar: false,
       items: _buildPlayerMoreMenuItems(
         i18n: i18n,
         disabled: disabled,
@@ -392,6 +409,8 @@ void _showPlaybackModeMenu(
 }) {
   showMenuFlyout(
     context,
+    position: _menuFlyoutPositionAboveAnchor(context),
+    avoidPlayerBar: false,
     items: _buildPlaybackModeMenuItems(
       i18n: i18n,
       mode: mode,
@@ -400,6 +419,11 @@ void _showPlaybackModeMenu(
       onToggleRepeatOne: onToggleRepeatOne,
     ),
   );
+}
+
+Offset _menuFlyoutPositionAboveAnchor(BuildContext context) {
+  final box = context.findRenderObject() as RenderBox;
+  return box.localToGlobal(const Offset(0, -8));
 }
 
 class _CompactMediaProgressRow extends StatefulWidget {

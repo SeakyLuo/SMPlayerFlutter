@@ -243,7 +243,7 @@ class LocalTableContent extends StatelessWidget {
                     '$title ($count)',
                     style: const TextStyle(
                       color: LocalPageColors.accentStrong,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -804,7 +804,7 @@ class _HeaderCell extends StatelessWidget {
         style: const TextStyle(
           color: LocalPageColors.textMuted,
           fontSize: 12,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

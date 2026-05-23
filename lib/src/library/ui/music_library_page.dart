@@ -17,7 +17,8 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart'
     show compareArtistText, getArtistQuickJumpBucket, getSongArtists;
-import 'command_bar.dart';
+import 'menu_flyout.dart';
+import 'menu_flyout_helpers.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'music_dialog.dart';
@@ -115,7 +116,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(musicLibrarySnapshotProvider);
+    final snapshotValue = ref.watch(libraryViewDataProvider);
 
     if (i18nValue.isLoading) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
@@ -190,19 +191,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                         ),
                       )
                       .toList();
-              final songsById = {
-                for (final song in snapshot.songs) song.id: song,
-              };
               final activeQuickJumpKey = _activeQuickJumpKey(
                 sortedSongs,
                 compact,
                 i18n,
               );
-              final selectedSongIds =
-                  sortedSongs
-                      .map((song) => song.id)
-                      .where(_selection.selectedItems.contains)
-                      .toList();
               return _LibraryScaffold(
                 child: CallbackShortcuts(
                   bindings: {
@@ -386,106 +379,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                               });
                             },
                           ),
-                        MultiSelectCommandBar(
-                          visible: _selection.multiSelect,
-                          selectedCount: selectedSongIds.length,
-                          playlists: customPlaylists,
-                          addToSongIds: selectedSongIds,
-                          includeNowPlayingInAddTo: true,
-                          includeFavoritesInAddTo: hasNotFavoriteSongs(
-                            selectedSongIds,
-                            songsById,
-                          ),
-                          onAddToNowPlaying:
-                              selectedSongIds.isEmpty
-                                  ? null
-                                  : () {
-                                    addSongsToNowPlaying(ref, selectedSongIds);
-                                    _hideSelectionAfterOperation(
-                                      snapshot
-                                          .hideMultiSelectCommandBarAfterOperation,
-                                    );
-                                  },
-                          onToggleFavorite:
-                              selectedSongIds.isEmpty
-                                  ? null
-                                  : () {
-                                    setSongsFavorite(
-                                      ref,
-                                      notFavoriteSongIds(
-                                        selectedSongIds,
-                                        songsById,
-                                      ),
-                                      true,
-                                    );
-                                    _hideSelectionAfterOperation(
-                                      snapshot
-                                          .hideMultiSelectCommandBarAfterOperation,
-                                    );
-                                  },
-                          onCreatePlaylist:
-                              selectedSongIds.isEmpty
-                                  ? null
-                                  : () async {
-                                    await createPlaylistWithSongs(
-                                      context: context,
-                                      ref: ref,
-                                      i18n: i18n,
-                                      playlists: snapshot.playlists,
-                                      defaultName: getNextPlaylistName(
-                                        i18n.t('common.songs'),
-                                        snapshot.playlists,
-                                      ),
-                                      songIds: selectedSongIds,
-                                    );
-                                    if (mounted) {
-                                      _hideSelectionAfterOperation(
-                                        snapshot
-                                            .hideMultiSelectCommandBarAfterOperation,
-                                      );
-                                    }
-                                  },
-                          onPlay:
-                              selectedSongIds.isEmpty
-                                  ? null
-                                  : () {
-                                    _playSongIds(selectedSongIds);
-                                    _hideSelectionAfterOperation(
-                                      snapshot
-                                          .hideMultiSelectCommandBarAfterOperation,
-                                    );
-                                  },
-                          onAddToPlaylist: (playlistId) {
-                            addSongsToPlaylist(
-                              ref,
-                              playlistId,
-                              selectedSongIds,
-                            );
-                            _hideSelectionAfterOperation(
-                              snapshot.hideMultiSelectCommandBarAfterOperation,
-                            );
-                          },
-                          onSelectAll: () {
-                            setState(() {
-                              _selection.selectAll(
-                                sortedSongs.map((song) => song.id),
-                              );
-                            });
-                          },
-                          onReverseSelection: () {
-                            setState(() {
-                              _selection.reverseSelection(
-                                sortedSongs.map((song) => song.id),
-                              );
-                            });
-                          },
-                          onClearSelection: () {
-                            setState(_selection.clearSelection);
-                          },
-                          onCancel: () {
-                            setState(_selection.cancel);
-                          },
-                        ),
                         if (_musicDialog case final dialog?)
                           MusicDialog(
                             song: dialog.song,
@@ -508,7 +401,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                               unawaited(revealItemInFolder(path));
                             },
                             onSaved: () {
-                              ref.invalidate(musicLibrarySnapshotProvider);
+                              ref.invalidate(libraryViewDataProvider);
                             },
                             onClose: () {
                               setState(() {
@@ -610,8 +503,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           extendSelection: extendSelection,
           rangeSelection: rangeSelection,
         );
-      } else if (_selection.multiSelect) {
-        _selection.toggle(songId);
       } else {
         _selection.selectSingle(songId);
       }
@@ -621,14 +512,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   void _toggleSongSelection(int songId) {
     setState(() {
       _selection.toggle(songId);
-    });
-  }
-
-  void _hideSelectionAfterOperation(
-    bool hideMultiSelectCommandBarAfterOperation,
-  ) {
-    setState(() {
-      _selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
     });
   }
 
@@ -668,7 +551,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final preferenceLevel = await ref
@@ -754,9 +637,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(musicLibrarySnapshotProvider);
+          ref.invalidate(libraryViewDataProvider);
         },
         preferenceLevel: preferenceLevel,
+        showSelect: false,
         onUndoPreference:
             preferenceLevel == null
                 ? null
@@ -764,7 +648,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(musicLibrarySnapshotProvider);
+                  ref.invalidate(libraryViewDataProvider);
                 },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -855,7 +739,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+        final snapshot = ref.read(libraryViewDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -902,7 +786,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     if (shuffle) {
       queueSongIds.shuffle(Random());
     }
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -920,11 +804,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -934,11 +818,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _addNextAndPlay(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId]!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
@@ -969,7 +853,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   void _jumpToKey(Map<String, int> quickJumpMap, String key, bool compact) {
@@ -2241,7 +2125,7 @@ class _QuickJumpPanel extends StatelessWidget {
                             key,
                             style: const TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),

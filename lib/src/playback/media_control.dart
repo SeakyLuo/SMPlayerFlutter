@@ -9,7 +9,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -300,9 +301,9 @@ class MediaControl extends StatelessWidget {
                             onToggleFavorite: onToggleFavorite,
                             onOpenVoiceAssistant: onOpenVoiceAssistant,
                             condensed: condensedUtility,
-                            onMoreClick: () {
+                            onMoreClick: (moreButtonContext) {
                               _showPlayerMoreMenu(
-                                context,
+                                moreButtonContext,
                                 i18n: _mediaControlI18n(context),
                               );
                             },
@@ -331,6 +332,8 @@ class MediaControl extends StatelessWidget {
     }
     return showMenuFlyout(
       context,
+      position: _menuFlyoutPositionAboveAnchor(context),
+      avoidPlayerBar: false,
       items: _buildPlayerMoreMenuItems(
         i18n: i18n,
         disabled: disabled || track.id == null,

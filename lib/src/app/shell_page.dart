@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_version.dart';
@@ -18,6 +17,7 @@ import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_model.dart';
+import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -25,6 +25,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
@@ -177,11 +178,16 @@ class SmPlayerShellKeys {
   static const reservedPlayer = ValueKey('SmPlayerShell.ReservedPlayer');
 }
 
-class SmPlayerShellStorageKeys {
-  const SmPlayerShellStorageKeys._();
+bool _globalNavigationCollapsed = false;
 
-  static const navigationCollapsed = 'smplayer:navigation-collapsed';
-  static const searchQuery = 'smplayer:search-query';
+@visibleForTesting
+void resetSmPlayerShellGlobalStateForTest() {
+  _globalNavigationCollapsed = false;
+}
+
+@visibleForTesting
+void setSmPlayerShellNavigationCollapsedForTest(bool collapsed) {
+  _globalNavigationCollapsed = collapsed;
 }
 
 class SmPlayerShellPage extends ConsumerStatefulWidget {
@@ -248,7 +254,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   final _navigationHistory = <String>[];
   var _searchText = '';
   var _sidebarRecentSearches = const <SearchHistoryEntry>[];
-  var _optimisticRecentSearchId = 0;
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
   int? _finishingAudioTrackId;
@@ -276,13 +281,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   var _startupArtistSplitApplying = false;
   int? _lastNotifiedSongId;
   String? _lastPersistedPage;
-  late final Future<SharedPreferences> _preferencesFuture;
 
   @override
   void initState() {
     super.initState();
     _settingsController = SettingsController(null, widget.settingsRepository);
-    _preferencesFuture = SharedPreferences.getInstance();
     _mediaControlController = MediaControlController(
       null,
       _settingsController.savePlaybackSettingsImmediate,
@@ -366,7 +369,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
             ? _isMinimalNavigationOpen
             : _isNavigationPaneOpen;
     final shellSidebarWidth =
-        navigationMode == SmPlayerNavigationMode.overlay
+        navigationMode != SmPlayerNavigationMode.wide
             ? SmPlayerShellMetrics.collapsedSidebarWidth
             : isNavigationPaneVisible
             ? SmPlayerShellMetrics.sidebarWidth
@@ -376,12 +379,34 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
             ? SmPlayerShellMetrics.sidebarWidth
             : shellSidebarWidth;
     final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final isNavigationOverlaySurface =
+        isNavigationPaneVisible &&
+        navigationMode != SmPlayerNavigationMode.wide;
+    final navigationOverlayShadow =
+        navigationMode == SmPlayerNavigationMode.minimal
+            ? nightMode
+                ? ShellColors.nightNavigationMinimalShadow
+                : ShellColors.navigationMinimalShadow
+            : nightMode
+            ? ShellColors.nightNavigationOverlayShadow
+            : ShellColors.navigationOverlayShadow;
 
     return ProviderScope(
       overrides: [
         mediaControlControllerProvider.overrideWith((ref) {
           return _mediaControlController;
         }),
+        smPlayerWindowDragProvider.overrideWithValue(
+          SmPlayerWindowDragCallbacks(
+            onStart: _startWindowDrag,
+            onEnd: _stopWindowDrag,
+          ),
+        ),
+        headeredPlaylistScrollbarBottomProvider.overrideWithValue(
+          isNowPlayingFullRoute
+              ? 10
+              : SmPlayerShellMetrics.playerTopRadius + 10,
+        ),
       ],
       child: Focus(
         autofocus: true,
@@ -454,152 +479,182 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                 top: 0,
                                 bottom: SmPlayerShellMetrics.playerHeight,
                                 width: sidebarSurfaceWidth,
-                                child: SizedBox.expand(
+                                child: DecoratedBox(
                                   key: SmPlayerShellKeys.sidebar,
-                                  child: Consumer(
-                                    builder: (context, ref, _) {
-                                      final snapshot =
-                                          ref
-                                              .watch(
-                                                musicLibrarySnapshotProvider,
-                                              )
-                                              .valueOrNull;
-                                      final i18n =
-                                          ref
-                                              .watch(smPlayerI18nProvider)
-                                              .value ??
-                                          const SmPlayerI18n(
-                                            locale: smPlayerFallbackLocale,
-                                            messages: {},
-                                          );
-                                      final canGoBack =
-                                          widget.canGoBack ||
-                                          _navigationHistory.length > 1;
-                                      final recentSearches =
-                                          _sidebarRecentSearches.isNotEmpty
-                                              ? _sidebarRecentSearches
-                                              : snapshot?.recentSearches ??
-                                                  const <SearchHistoryEntry>[];
-                                      return MainNavigationView(
-                                        isPaneOpen: isNavigationPaneVisible,
-                                        currentPath: currentPath,
-                                        searchText: _searchText,
-                                        i18n: i18n,
-                                        canGoBack: canGoBack,
-                                        playlists:
-                                            snapshot?.playlists ?? const [],
-                                        recentSearches: recentSearches,
-                                        onPaneToggle: _toggleNavigationPane,
-                                        onGoBack: _goBack,
-                                        onSearchTextChanged: (value) {
-                                          setState(() {
-                                            _searchText = value;
-                                          });
-                                        },
-                                        onSearchCommitted: (
-                                          value, [
-                                          type = SearchHistoryType.sidebar,
-                                        ]) {
-                                          _commitSearchWithRepository(
-                                            value,
-                                            type,
-                                            repository: ref.read(
-                                              libraryRepositoryProvider,
-                                            ),
-                                            onRecentSearchRecorded: () {
-                                              ref.invalidate(
-                                                musicLibrarySnapshotProvider,
-                                              );
-                                            },
-                                          );
-                                        },
-                                        onSearchCleared: _clearSearch,
-                                        onItemInvoked: _navigateTo,
-                                        onRecentSearchRemove: (entryId) {
-                                          setState(() {
-                                            _sidebarRecentSearches =
-                                                _sidebarRecentSearches
-                                                    .where(
-                                                      (entry) =>
-                                                          entry.id != entryId,
-                                                    )
-                                                    .toList();
-                                          });
-                                          ref
-                                              .read(libraryRepositoryProvider)
-                                              .removeRecentSearches([entryId]);
-                                          ref.invalidate(
-                                            musicLibrarySnapshotProvider,
-                                          );
-                                        },
-                                        onRecentSearchesClear: () {
-                                          setState(() {
-                                            _sidebarRecentSearches = const [];
-                                          });
-                                          ref
-                                              .read(libraryRepositoryProvider)
-                                              .clearRecentSearches();
-                                          ref.invalidate(
-                                            musicLibrarySnapshotProvider,
-                                          );
-                                        },
-                                        onCreatePlaylist: () {
-                                          unawaited(
-                                            _createPlaylistFromNavigation(
-                                              context: context,
-                                              ref: ref,
-                                              i18n: i18n,
-                                              snapshot: snapshot,
-                                            ),
-                                          );
-                                        },
-                                        onDuplicatePlaylist: (playlist) {
-                                          unawaited(
-                                            _duplicatePlaylistFromNavigation(
-                                              ref: ref,
-                                              snapshot: snapshot,
-                                              playlist: playlist,
-                                            ),
-                                          );
-                                        },
-                                        onRenamePlaylist: (playlist) {
-                                          unawaited(
-                                            _renamePlaylistFromNavigation(
-                                              context: context,
-                                              ref: ref,
-                                              i18n: i18n,
-                                              snapshot: snapshot,
-                                              playlist: playlist,
-                                            ),
-                                          );
-                                        },
-                                        onDeletePlaylist: (playlist) {
-                                          unawaited(
-                                            _deletePlaylistFromNavigation(
-                                              ref: ref,
-                                              i18n: i18n,
-                                              snapshot: snapshot,
-                                              playlist: playlist,
-                                            ),
-                                          );
-                                        },
-                                        onReorderPlaylists: (playlistIds) {
-                                          unawaited(
+                                  decoration: BoxDecoration(
+                                    color:
+                                        isNavigationOverlaySurface
+                                            ? nightMode
+                                                ? ShellColors
+                                                    .nightNavigationOverlaySurface
+                                                : ShellColors
+                                                    .navigationOverlaySurface
+                                            : Colors.transparent,
+                                    boxShadow:
+                                        isNavigationOverlaySurface
+                                            ? [
+                                              BoxShadow(
+                                                color: navigationOverlayShadow,
+                                                blurRadius:
+                                                    navigationMode ==
+                                                            SmPlayerNavigationMode
+                                                                .minimal
+                                                        ? 42
+                                                        : 48,
+                                                offset: const Offset(18, 0),
+                                              ),
+                                            ]
+                                            : const [],
+                                  ),
+                                  child: SizedBox.expand(
+                                    child: Consumer(
+                                      builder: (context, ref, _) {
+                                        final snapshot =
+                                            ref
+                                                .watch(libraryViewDataProvider)
+                                                .valueOrNull;
+                                        final i18n =
+                                            ref
+                                                .watch(smPlayerI18nProvider)
+                                                .value ??
+                                            const SmPlayerI18n(
+                                              locale: smPlayerFallbackLocale,
+                                              messages: {},
+                                            );
+                                        final canGoBack =
+                                            widget.canGoBack ||
+                                            _navigationHistory.length > 1;
+                                        final recentSearches =
+                                            _sidebarRecentSearches.isNotEmpty
+                                                ? _sidebarRecentSearches
+                                                : snapshot?.recentSearches ??
+                                                    const <
+                                                      SearchHistoryEntry
+                                                    >[];
+                                        return MainNavigationView(
+                                          isPaneOpen: isNavigationPaneVisible,
+                                          currentPath: currentPath,
+                                          searchText: _searchText,
+                                          i18n: i18n,
+                                          canGoBack: canGoBack,
+                                          playlists:
+                                              snapshot?.playlists ?? const [],
+                                          recentSearches: recentSearches,
+                                          onPaneToggle: _toggleNavigationPane,
+                                          onGoBack: _goBack,
+                                          onSearchTextChanged: (value) {
+                                            setState(() {
+                                              _searchText = value;
+                                            });
+                                          },
+                                          onSearchCommitted: (
+                                            value, [
+                                            type = SearchHistoryType.sidebar,
+                                          ]) {
+                                            _commitSearchWithRepository(
+                                              value,
+                                              type,
+                                              repository: ref.read(
+                                                libraryRepositoryProvider,
+                                              ),
+                                              onRecentSearchRecorded: () {
+                                                _invalidateRecentSearchData();
+                                              },
+                                            );
+                                          },
+                                          onSearchCleared: _clearSearch,
+                                          onItemInvoked: _navigateTo,
+                                          onRecentSearchRemove: (entryId) {
+                                            setState(() {
+                                              _sidebarRecentSearches =
+                                                  _sidebarRecentSearches
+                                                      .where(
+                                                        (entry) =>
+                                                            entry.id != entryId,
+                                                      )
+                                                      .toList();
+                                            });
                                             ref
                                                 .read(libraryRepositoryProvider)
-                                                .reorderPlaylists(playlistIds),
-                                          );
-                                          ref.invalidate(
-                                            musicLibrarySnapshotProvider,
-                                          );
-                                        },
-                                        onPlaylistRandomPlay: (playlistId) {
-                                          _randomPlayPlaylist(ref, playlistId);
-                                        },
-                                        onWindowDragStart: _startWindowDrag,
-                                        onWindowDragEnd: _stopWindowDrag,
-                                      );
-                                    },
+                                                .removeRecentSearches([
+                                                  entryId,
+                                                ]);
+                                            _invalidateRecentSearchData();
+                                          },
+                                          onRecentSearchesClear: () {
+                                            setState(() {
+                                              _sidebarRecentSearches = const [];
+                                            });
+                                            ref
+                                                .read(libraryRepositoryProvider)
+                                                .clearRecentSearches();
+                                            _invalidateRecentSearchData();
+                                          },
+                                          onCreatePlaylist: () {
+                                            unawaited(
+                                              _createPlaylistFromNavigation(
+                                                context: context,
+                                                ref: ref,
+                                                i18n: i18n,
+                                                snapshot: snapshot,
+                                              ),
+                                            );
+                                          },
+                                          onDuplicatePlaylist: (playlist) {
+                                            unawaited(
+                                              _duplicatePlaylistFromNavigation(
+                                                ref: ref,
+                                                snapshot: snapshot,
+                                                playlist: playlist,
+                                              ),
+                                            );
+                                          },
+                                          onRenamePlaylist: (playlist) {
+                                            unawaited(
+                                              _renamePlaylistFromNavigation(
+                                                context: context,
+                                                ref: ref,
+                                                i18n: i18n,
+                                                snapshot: snapshot,
+                                                playlist: playlist,
+                                              ),
+                                            );
+                                          },
+                                          onDeletePlaylist: (playlist) {
+                                            unawaited(
+                                              _deletePlaylistFromNavigation(
+                                                ref: ref,
+                                                i18n: i18n,
+                                                snapshot: snapshot,
+                                                playlist: playlist,
+                                              ),
+                                            );
+                                          },
+                                          onReorderPlaylists: (playlistIds) {
+                                            unawaited(
+                                              ref
+                                                  .read(
+                                                    libraryRepositoryProvider,
+                                                  )
+                                                  .reorderPlaylists(
+                                                    playlistIds,
+                                                  ),
+                                            );
+                                            ref.invalidate(
+                                              libraryViewDataProvider,
+                                            );
+                                          },
+                                          onPlaylistRandomPlay: (playlistId) {
+                                            _randomPlayPlaylist(
+                                              ref,
+                                              playlistId,
+                                            );
+                                          },
+                                          onWindowDragStart: _startWindowDrag,
+                                          onWindowDragEnd: _stopWindowDrag,
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),
@@ -621,7 +676,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                           final snapshot =
                                               ref
                                                   .watch(
-                                                    musicLibrarySnapshotProvider,
+                                                    libraryViewDataProvider,
                                                   )
                                                   .valueOrNull;
                                           _scheduleRestorePlaybackTrack(
@@ -933,7 +988,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                 builder: (context, ref, _) {
                                   final snapshot =
                                       ref
-                                          .watch(musicLibrarySnapshotProvider)
+                                          .watch(libraryViewDataProvider)
                                           .valueOrNull;
                                   final state = _mediaControlController.state;
                                   final currentSong = _resolvePlayerSong(
@@ -1045,7 +1100,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   LibrarySong? _resolvePlayerSong(
     MediaControlState mediaControlState,
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
   ) {
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     final songsById = {for (final song in songs) song.id: song};
@@ -1130,7 +1185,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _mediaControlController.onSeek(state.progressSeconds + deltaSeconds);
   }
 
-  bool _isPlaybackQueueEmpty(MusicLibrarySnapshot? snapshot) {
+  bool _isPlaybackQueueEmpty(LibraryViewData? snapshot) {
     return snapshot == null || _playbackSongIds(snapshot).isEmpty;
   }
 
@@ -1141,7 +1196,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return true;
     }
 
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     if (_isPlaybackQueueEmpty(snapshot)) {
       return false;
     }
@@ -1159,7 +1214,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _shuffleCurrentPlaybackQueue() {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     if (snapshot == null) {
       return;
     }
@@ -1174,7 +1229,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     final nextQueueIndex = currentPlaybackQueueIndex(
       nextSongIds,
       _mediaControlController.state.track.id,
@@ -1202,7 +1257,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
     final song = _resolvePlayerSong(
       state,
-      ref.read(musicLibrarySnapshotProvider).valueOrNull,
+      ref.read(libraryViewDataProvider).valueOrNull,
     );
     if (song == null) {
       return;
@@ -1407,7 +1462,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         if (!mounted) {
           return;
         }
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       } finally {
         if (_finishingAudioTrackId == activeTrackId) {
           _finishingAudioTrackId = null;
@@ -1521,8 +1576,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         return Consumer(
           builder: (context, ref, _) {
             final mediaControlState = _mediaControlController.state;
-            final snapshot =
-                ref.watch(musicLibrarySnapshotProvider).valueOrNull;
+            final snapshot = ref.watch(libraryViewDataProvider).valueOrNull;
             final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
             final settings = _settingsController.snapshot;
             final i18n =
@@ -1582,7 +1636,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   Future<void> _quickPlayLibraryAsync(WidgetRef ref) async {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     if (songs.isEmpty) {
       return;
@@ -1602,7 +1656,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     await repository.replaceNowPlaying(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
       MediaControlTrack(
         id: firstSong.id,
@@ -1627,11 +1681,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     final before = snapshot?.nowPlaying.songIds ?? const <int>[];
     final insertedIndex = before.length;
     ref.read(libraryRepositoryProvider).replaceNowPlaying([...before, song.id]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -1639,18 +1693,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       }),
       () {
         final current =
-            ref
-                .read(musicLibrarySnapshotProvider)
-                .valueOrNull
-                ?.nowPlaying
-                .songIds ??
+            ref.read(libraryViewDataProvider).valueOrNull?.nowPlaying.songIds ??
             before;
         ref
             .read(libraryRepositoryProvider)
             .replaceNowPlaying(
               removePlaybackQueueRange(current, insertedIndex, 1),
             );
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -1667,7 +1717,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     ref.read(libraryRepositoryProvider).addSongsToPlaylist(playlistId, [
       song.id,
     ]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -1677,7 +1727,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         ref
             .read(libraryRepositoryProvider)
             .removeSongFromPlaylist(playlistId, song.id);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -1699,10 +1749,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     required BuildContext context,
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required MusicLibrarySnapshot? snapshot,
+    required LibraryViewData? snapshot,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+        snapshot ?? await ref.read(libraryViewDataProvider.future);
     if (!context.mounted || currentSnapshot == null) {
       return;
     }
@@ -1729,7 +1779,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
     await _settingsController.saveViewState(lastPlaylistId: playlist.id);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     if (!mounted) {
       return;
     }
@@ -1738,11 +1788,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   Future<void> _duplicatePlaylistFromNavigation({
     required WidgetRef ref,
-    required MusicLibrarySnapshot? snapshot,
+    required LibraryViewData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+        snapshot ?? await ref.read(libraryViewDataProvider.future);
     if (currentSnapshot == null) {
       return;
     }
@@ -1752,18 +1802,18 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           getNextPlaylistName(playlist.name, currentSnapshot.playlists),
           playlist.songIds,
         );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _renamePlaylistFromNavigation({
     required BuildContext context,
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required MusicLibrarySnapshot? snapshot,
+    required LibraryViewData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+        snapshot ?? await ref.read(libraryViewDataProvider.future);
     if (currentSnapshot == null || !context.mounted) {
       return;
     }
@@ -1789,27 +1839,27 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     }
 
     await ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _deletePlaylistFromNavigation({
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required MusicLibrarySnapshot? snapshot,
+    required LibraryViewData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(musicLibrarySnapshotProvider.future);
+        snapshot ?? await ref.read(libraryViewDataProvider.future);
     if (currentSnapshot == null) {
       return;
     }
     await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _showUndo(
       i18n.t('notification.playlistRemoved', {'name': playlist.name}),
       () async {
         await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
-        ref.invalidate(musicLibrarySnapshotProvider);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
   }
@@ -2000,16 +2050,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   Future<void> _restoreNavigationPaneState() async {
-    final preferences = await _preferencesFuture;
-    final navigationCollapsed =
-        preferences.getBool(SmPlayerShellStorageKeys.navigationCollapsed) ??
-        false;
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _isNavigationPaneOpen = !navigationCollapsed;
+      _isNavigationPaneOpen = !_globalNavigationCollapsed;
     });
   }
 
@@ -2036,12 +2082,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     );
     _playbackRuntimeSettingsRestored = true;
     _scheduleRestorePlaybackTrack(
-      ref.read(musicLibrarySnapshotProvider).valueOrNull,
+      ref.read(libraryViewDataProvider).valueOrNull,
     );
     unawaited(_checkReleaseNotesVersion());
   }
 
-  void _scheduleRestorePlaybackTrack(MusicLibrarySnapshot? snapshot) {
+  void _scheduleRestorePlaybackTrack(LibraryViewData? snapshot) {
     if (_playbackTrackRestored ||
         _playbackTrackRestoreScheduled ||
         !_playbackRuntimeSettingsRestored ||
@@ -2054,7 +2100,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       if (!mounted || _playbackTrackRestored) {
         return;
       }
-      final latestSnapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+      final latestSnapshot = ref.read(libraryViewDataProvider).valueOrNull;
       if (latestSnapshot == null) {
         return;
       }
@@ -2062,7 +2108,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     });
   }
 
-  void _restorePlaybackTrackFromSnapshot(MusicLibrarySnapshot snapshot) {
+  void _restorePlaybackTrackFromSnapshot(LibraryViewData snapshot) {
     if (_playbackTrackRestored) {
       return;
     }
@@ -2193,7 +2239,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         ...result.possibleSplits,
         ...result.mergeSuggestions,
       ]);
-      ref.invalidate(musicLibrarySnapshotProvider);
+      ref.invalidate(libraryViewDataProvider);
       if (!mounted) {
         return;
       }
@@ -2211,7 +2257,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   void _syncDesktopFeatures({
     required SmPlayerI18n i18n,
-    required MusicLibrarySnapshot? snapshot,
+    required LibraryViewData? snapshot,
     required MediaControlState mediaControlState,
     required LibrarySong? currentSong,
   }) {
@@ -2304,7 +2350,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           .getSongArtworkSnapshot(currentSong.id)
           .then((snapshot) {
             if (mounted && snapshot.artworkUrl.isNotEmpty) {
-              ref.invalidate(musicLibrarySnapshotProvider);
+              ref.invalidate(libraryViewDataProvider);
             }
           })
           .whenComplete(() {
@@ -2328,7 +2374,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           .getSongArtworkSnapshot(song.id)
           .then((snapshot) {
             if (mounted && snapshot.artworkUrl.isNotEmpty) {
-              ref.invalidate(musicLibrarySnapshotProvider);
+              ref.invalidate(libraryViewDataProvider);
             }
           })
           .whenComplete(() {
@@ -2582,7 +2628,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _executeExternalVoiceCommand(String command) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     final i18n =
         ref.read(smPlayerI18nProvider).valueOrNull ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
@@ -2596,7 +2642,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return;
     }
 
-    final snapshot = await repository.getMusicLibrarySnapshot();
+    final snapshot = await repository.getLibraryViewData();
     final openedSongIdSet = openedSongIds.toSet();
     final queueWithoutOpened =
         snapshot.nowPlaying.songIds
@@ -2616,7 +2662,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       return;
     }
 
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _settingsController.savePlaybackSettingsImmediate(
       PlaybackSettingsUpdate(lastMusicIndex: insertIndex, musicProgress: 0),
     );
@@ -2653,7 +2699,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _playRecentSongFromPlatform(int songId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     final songsById = {
       for (final song in snapshot?.songs ?? const <LibrarySong>[])
         song.id: song,
@@ -2664,7 +2710,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     }
 
     ref.read(libraryRepositoryProvider).replaceNowPlaying([song.id]);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
       MediaControlTrack(
         id: song.id,
@@ -2721,7 +2767,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   LibrarySong? _currentDesktopLyricsSong() {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     return _resolvePlayerSong(_mediaControlController.state, snapshot);
   }
 
@@ -2731,7 +2777,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           .read(libraryRepositoryProvider)
           .updateLyricsOffset(song.id, offsetMs)
           .then((_) {
-            ref.invalidate(musicLibrarySnapshotProvider);
+            ref.invalidate(libraryViewDataProvider);
             _lastDesktopLyricsSignature = null;
             if (mounted) {
               setState(() {});
@@ -2740,12 +2786,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     );
   }
 
-  Future<void> _saveNavigationCollapsed(bool collapsed) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(
-      SmPlayerShellStorageKeys.navigationCollapsed,
-      collapsed,
-    );
+  void _saveNavigationCollapsed(bool collapsed) {
+    _globalNavigationCollapsed = collapsed;
   }
 
   void _commitSearch(
@@ -2762,27 +2804,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     VoidCallback? onRecentSearchRecorded,
   }) {
     final nextSearchText = value.trim();
-    final nextRecentSearch =
-        nextSearchText.isEmpty
-            ? null
-            : SearchHistoryEntry(
-              id: --_optimisticRecentSearchId,
-              query: nextSearchText,
-              type: type,
-              searchedAt: DateTime.now().toUtc().toIso8601String(),
-            );
     setState(() {
       _searchText = '';
       if (nextSearchText.isNotEmpty) {
         _currentPath = '/search';
-        _sidebarRecentSearches = [
-          nextRecentSearch!,
-          ..._sidebarRecentSearches.where(
-            (entry) =>
-                entry.type != type ||
-                entry.query.toLowerCase() != nextSearchText.toLowerCase(),
-          ),
-        ];
       }
     });
     if (nextSearchText.isNotEmpty) {
@@ -2791,25 +2816,24 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           widget.settingsRepository ??
           ref.read(libraryRepositoryProvider);
       unawaited(
-        searchRepository.addRecentSearch(nextSearchText, type).then((_) async {
-          final nextSnapshot = await searchRepository.getMusicLibrarySnapshot();
-          if (mounted) {
+        searchRepository.addRecentSearch(nextSearchText, type).then((entry) {
+          if (mounted && entry != null) {
             setState(() {
-              final savedRecentSearches = nextSnapshot.recentSearches;
-              final savedNextSearch = savedRecentSearches.any(
-                (entry) =>
-                    entry.type == type &&
-                    entry.query.toLowerCase() == nextSearchText.toLowerCase(),
-              );
-              if (savedNextSearch) {
-                _sidebarRecentSearches = savedRecentSearches;
-              }
+              _sidebarRecentSearches = [
+                entry,
+                ..._sidebarRecentSearches.where(
+                  (recentSearch) =>
+                      recentSearch.type != entry.type ||
+                      recentSearch.query.toLowerCase() !=
+                          entry.query.toLowerCase(),
+                ),
+              ];
             });
           }
           if (onRecentSearchRecorded != null) {
             onRecentSearchRecorded();
           } else {
-            ref.invalidate(musicLibrarySnapshotProvider);
+            _invalidateRecentSearchData();
           }
         }),
       );
@@ -2824,8 +2848,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     });
   }
 
+  void _invalidateRecentSearchData() {
+    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(shellNavigationDataProvider);
+    ref.invalidate(recentPageDataProvider);
+    ref.invalidate(recentSearchesProvider);
+  }
+
   Future<void> _showVoiceAssistantDialog(
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
   ) async {
     await showDialog<void>(
@@ -2842,10 +2873,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     );
   }
 
-  String _getVoiceAssistantHint(
-    MusicLibrarySnapshot? snapshot,
-    SmPlayerI18n i18n,
-  ) {
+  String _getVoiceAssistantHint(LibraryViewData? snapshot, SmPlayerI18n i18n) {
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     final song = songs.isEmpty ? null : songs[Random().nextInt(songs.length)];
     final hintType = Random().nextInt(3);
@@ -2866,7 +2894,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   String _executeVoiceAssistantCommand(
     String rawCommand,
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
   ) {
     final command = rawCommand.trim();
@@ -3030,7 +3058,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   String? _executeVoiceAssistantCommandResult(
     VoiceAssistantCommandResult result,
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
   ) {
     switch (result.type) {
@@ -3267,7 +3295,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   String _playPlaylistByName(
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
     String query,
   ) {
@@ -3294,7 +3322,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   String _playMatchingSongsInPlaylist(
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
     String playlistQuery,
     String songQuery,
@@ -3317,7 +3345,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   String _playMatchedSongs(
-    MusicLibrarySnapshot? snapshot,
+    LibraryViewData? snapshot,
     SmPlayerI18n i18n,
     String query,
     bool Function(LibrarySong song, String query) matches,
@@ -3338,7 +3366,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final songIds = songs.map((song) => song.id).toList();
     final firstSong = songs.first;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
       MediaControlTrack(
         id: firstSong.id,
@@ -3358,7 +3386,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   bool _playPreviousFromCurrentQueue() {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     if (snapshot == null) {
       return false;
     }
@@ -3387,7 +3415,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   bool _playQueueDirection({required bool forward, required bool automatic}) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     if (snapshot == null) {
       return false;
     }
@@ -3421,7 +3449,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   bool _shuffleAndPlayNextRound(
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     List<int> playbackSongIds,
   ) {
     final nextSongIds = shuffleNextRoundSongIds(
@@ -3431,11 +3459,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     return _playQueueSong(snapshot, nextSongIds.first, 0);
   }
 
-  List<int> _playbackSongIds(MusicLibrarySnapshot snapshot) {
+  List<int> _playbackSongIds(LibraryViewData snapshot) {
     return normalizePlaybackQueueSongIds(
       snapshot.nowPlaying.songIds,
       snapshot.songs.map((song) => song.id),
@@ -3443,7 +3471,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   int _currentQueueIndex(
-    MusicLibrarySnapshot snapshot, [
+    LibraryViewData snapshot, [
     List<int>? playbackSongIds,
   ]) {
     return currentPlaybackQueueIndex(
@@ -3454,7 +3482,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _playQueueIndex(
-    MusicLibrarySnapshot snapshot,
+    LibraryViewData snapshot,
     List<int> playbackSongIds,
     int queueIndex,
   ) {
@@ -3468,11 +3496,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     }
   }
 
-  bool _playQueueSong(
-    MusicLibrarySnapshot snapshot,
-    int songId,
-    int queueIndex,
-  ) {
+  bool _playQueueSong(LibraryViewData snapshot, int songId, int queueIndex) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId];
     if (song == null) {
@@ -3507,7 +3531,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _randomPlayPlaylist(WidgetRef ref, int playlistId) {
-    final snapshot = ref.read(musicLibrarySnapshotProvider).value!;
+    final snapshot = ref.read(libraryViewDataProvider).value!;
     final playlist = snapshot.playlists.firstWhere(
       (playlist) => playlist.id == playlistId,
     );
@@ -3527,7 +3551,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
   }
 }
 
@@ -3800,7 +3824,7 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 22,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -4436,7 +4460,7 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
                         style: const TextStyle(
                           color: Color(0xff111827),
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -4807,7 +4831,7 @@ class _VoiceCommandHelp extends StatelessWidget {
               i18n.t('voiceAssistant.supportedCommands'),
               style: const TextStyle(
                 color: Color(0xff111827),
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -5005,7 +5029,7 @@ class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
                             ? null
                             : settings.desktopLyricsFontFamily,
                     fontSize: settings.desktopLyricsFontSize.toDouble(),
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                   ),
                   if (nextLyricText.isNotEmpty) ...[
                     const SizedBox(height: 4),

@@ -10,7 +10,7 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -189,7 +189,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final librarySongs =
-        ref.watch(musicLibrarySnapshotProvider).valueOrNull?.songs ??
+        ref.watch(libraryViewDataProvider).valueOrNull?.songs ??
         const <LibrarySong>[];
     if (_artworkMissing &&
         !_artworkRecommendationLoading &&
@@ -442,7 +442,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
 
     final i18n = context.smPlayerI18n;
-    final songs = ref.read(musicLibrarySnapshotProvider).valueOrNull?.songs;
+    final songs = ref.read(libraryViewDataProvider).valueOrNull?.songs;
     if (songs == null) {
       return;
     }
@@ -1031,7 +1031,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   }
 
   void _notifySaved() {
-    ref.invalidate(musicLibrarySnapshotProvider);
+    ref.invalidate(libraryViewDataProvider);
     widget.onSaved?.call();
   }
 
@@ -2383,7 +2383,7 @@ class _AlbumArtLibraryPickerDialogState
             style: const TextStyle(
               color: PopupDialogColors.textStrong,
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -2534,7 +2534,7 @@ class _AlbumArtChoiceTile extends StatelessWidget {
                     choice.song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   Text(
                     _getDisplayArtists(choice.song, i18n),
@@ -2578,7 +2578,7 @@ class _AlbumArtChoicePreview extends StatelessWidget {
           choice.song.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
         Text(

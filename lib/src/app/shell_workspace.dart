@@ -27,7 +27,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final nightMode = Theme.of(context).brightness == Brightness.dark;
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
-    final snapshot = ref.watch(musicLibrarySnapshotProvider).valueOrNull;
+    final snapshot = ref.watch(libraryViewDataProvider).valueOrNull;
     final title = _workspaceTitle(
       path: currentPath,
       location: currentLocation,
@@ -207,7 +207,7 @@ class _WorkspaceHeader extends StatelessWidget {
 String _workspaceTitle({
   required String path,
   required String location,
-  required MusicLibrarySnapshot? snapshot,
+  required LibraryViewData? snapshot,
   required SmPlayerI18n i18n,
 }) {
   final uri = Uri.parse(location);
@@ -247,6 +247,9 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/recent')) {
+    if (snapshot != null && _hasRecentContent(snapshot)) {
+      return '';
+    }
     return i18n.t('common.recent');
   }
 
@@ -295,7 +298,16 @@ String _workspaceTitle({
       : i18n.t('library.allSongs');
 }
 
-int _artistCount(MusicLibrarySnapshot snapshot) {
+bool _hasRecentContent(LibraryViewData snapshot) {
+  return snapshot.songs.isNotEmpty ||
+      snapshot.recentSongs.isNotEmpty ||
+      snapshot.recentPlaylists.isNotEmpty ||
+      snapshot.recentAlbums.isNotEmpty ||
+      snapshot.recentArtists.isNotEmpty ||
+      snapshot.recentSearches.isNotEmpty;
+}
+
+int _artistCount(LibraryViewData snapshot) {
   final names = <String>{};
   for (final song in snapshot.songs) {
     names.addAll(artists_model.getSongArtists(song));
@@ -303,7 +315,7 @@ int _artistCount(MusicLibrarySnapshot snapshot) {
   return names.length;
 }
 
-int _albumCount(MusicLibrarySnapshot snapshot) {
+int _albumCount(LibraryViewData snapshot) {
   return snapshot.songs
       .map((song) => song.album.trim())
       .where((album) => album.isNotEmpty)

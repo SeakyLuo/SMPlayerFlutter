@@ -2390,7 +2390,7 @@ class _LyricsBatchOptions extends StatelessWidget {
             i18n.t('settings.lyricsBatchWriteStrategy'),
             style: TextStyle(
               color: colors.textStrong,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
@@ -3934,6 +3934,7 @@ enum DataTransferState {
 
 String _nightModeLabel(SmPlayerI18n i18n, NightMode mode) {
   return switch (mode) {
+    NightMode.system => i18n.t('settings.nightModeSystem'),
     NightMode.auto => i18n.t('settings.nightModeAuto'),
     NightMode.onMode => i18n.t('settings.nightModeOn'),
     NightMode.never => i18n.t('settings.nightModeNever'),
@@ -4769,7 +4770,7 @@ class _SettingsScanProgressOverlay extends StatelessWidget {
                     style: TextStyle(
                       color: colors.textStrong,
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -4900,7 +4901,7 @@ class _ReleaseNoteVersion extends StatelessWidget {
           style: TextStyle(
             color: colors.textStrong,
             fontSize: 16,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 10),
@@ -5087,7 +5088,7 @@ class _ArtistSplitGroup extends StatelessWidget {
             style: TextStyle(
               color: colors.textStrong,
               fontSize: 15,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
@@ -5138,7 +5139,7 @@ class _ArtistSplitTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: colors.textStrong,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -5175,7 +5176,7 @@ class _ArtistSplitLine extends StatelessWidget {
         children: [
           TextSpan(
             text: '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           TextSpan(text: text),
         ],

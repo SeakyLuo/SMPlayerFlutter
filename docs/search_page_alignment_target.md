@@ -7,14 +7,21 @@ Source of truth: `/Users/luohaitian/Desktop/Projects/SMPlayerElectron/src/pages/
 
 - Query scope: when `folder` is present, search only songs and folders under that folder; playlists still participate by containing matched scoped songs.
 - Filter tabs: tabs are `All`, `Artists`, `Albums`, `Songs`, `Playlists`, `Folders`; non-All empty tabs are disabled and sorted after non-empty tabs.
+- Filter tab visuals: tabs are custom controls, not `SmPlayerTextIconButton`; in the current shell they follow Electron nav-minimal sizing with 34px height, 10px radius, surface-control background, and subtle accent selected tint.
 - Filter tabs visibility: tabs render only when there are search results. Empty query, loading without query, and no-result states do not show result tabs.
+- Empty state colors: dark search empty/loading states must use Electron night-mode surfaces and text, not fixed light-mode grey cards.
 - Typed filters: if the current `type` has zero results, Electron renders the tabs but no empty section header for that type.
-- Filter navigation: changing a tab updates `/search?query=...&type=...` with `type` omitted for All, preserves `folder`, clears selection, and records recent search as `sidebar` for All or the concrete type otherwise.
+- Filter navigation: changing a tab updates `/search?query=...&type=...` with `type` omitted for All, preserves `folder`, preserves selection mode, and records recent search as `sidebar` for All or the concrete type otherwise.
 - Query/folder change: reset active filter to All, clear expanded sections, clear selection, close transient menus/dialogs.
 - Preview mode: All tab uses preview limits. Artists preview limit is 10; other sections preview limit is 5.
 - View all/view less: expands or collapses the current section inside All. It does not switch to the section filter route.
 - Sorting: each section uses the Electron sort options and persists to the matching `search*Criterion` setting.
+- Song artist sorting: uses Electron primary-artist ordering, with play count as the tie-breaker when primary artists match.
+- Artist matching: search uses Electron `getSongArtists` behavior, including separator splitting and localized unknown-artist fallback.
 - Selection: songs and cards are selected separately but command actions operate on the union of selected song ids plus selected card song ids.
+- Context-menu Select: selecting a song from the menu replaces only the song-selection bucket and keeps selected cards; selecting a card replaces only the card-selection bucket and keeps selected songs.
+- Add To paths: song Add To menus and multi-select Add To use Electron's single-song add path when exactly one song is selected; search result card context Add To always uses grouped add.
+- Song row play queue: playing a search song uses the current sorted song results as the queue, not the unsorted default search order.
 - Card play: artist card play records artist played before replacing the queue; other card play shuffles card song ids and starts the first song.
 - Folder open: folder search result opens the local page for that relative folder; folder context menu supports reveal and search directory.
 

@@ -2,77 +2,71 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 void main() {
-  test(
-    'SettingsSnapshot defaults match Electron libraryStoreModel defaults',
-    () {
-      const snapshot = SettingsSnapshot.defaults();
+  test('SettingsSnapshot defaults use Flutter startup defaults', () {
+    const snapshot = SettingsSnapshot.defaults();
 
-      expect(snapshot.rootPath, '');
-      expect(snapshot.useFilenameNotMusicName, isFalse);
-      expect(snapshot.smartMultiArtistRecognition, isTrue);
-      expect(snapshot.showCount, isTrue);
-      expect(snapshot.themeColor, '#0078D7');
-      expect(snapshot.nightMode, NightMode.never);
-      expect(snapshot.nightModeStartTime, '20:00');
-      expect(snapshot.nightModeEndTime, '06:00');
-      expect(snapshot.notificationSend, NotificationSendMode.never);
-      expect(snapshot.notificationDisplay, NotificationDisplayMode.normal);
-      expect(snapshot.showNotifications, isFalse);
-      expect(snapshot.autoLyrics, isTrue);
-      expect(snapshot.showLyricsInNotification, isFalse);
-      expect(snapshot.notificationLyricsSource, LyricsRequestMode.internet);
-      expect(snapshot.playerLyricsSource, LyricsRequestMode.auto);
-      expect(snapshot.saveLyricsImmediately, isTrue);
-      expect(snapshot.preserveInternetLyricsTimestamps, isTrue);
-      expect(snapshot.desktopLyricsEnabled, isFalse);
-      expect(snapshot.desktopLyricsLocked, isFalse);
-      expect(snapshot.desktopLyricsColor, '#4aa8ff');
-      expect(snapshot.desktopLyricsStrokeColor, '#111111');
-      expect(snapshot.desktopLyricsFontSize, 28);
-      expect(snapshot.desktopLyricsFontFamily, 'system');
-      expect(snapshot.desktopLyricsOpacity, 88);
-      expect(snapshot.desktopLyricsBounds, '');
-      expect(snapshot.mainWindowBounds, '');
-      expect(snapshot.mainWindowMaximized, isFalse);
-      expect(snapshot.preferredLanguage, PreferredLanguage.system);
-      expect(snapshot.musicLibrarySort, MusicLibrarySortCriterion.title);
-      expect(snapshot.albumsSort, AlbumSortCriterion.defaultCriterion);
-      expect(
-        snapshot.searchArtistsCriterion,
-        SearchSortCriterion.defaultCriterion,
-      );
-      expect(
-        snapshot.searchAlbumsCriterion,
-        SearchSortCriterion.defaultCriterion,
-      );
-      expect(
-        snapshot.searchSongsCriterion,
-        SearchSortCriterion.defaultCriterion,
-      );
-      expect(
-        snapshot.searchPlaylistsCriterion,
-        SearchSortCriterion.defaultCriterion,
-      );
-      expect(
-        snapshot.searchFoldersCriterion,
-        SearchSortCriterion.defaultCriterion,
-      );
-      expect(snapshot.lastMusicIndex, -1);
-      expect(snapshot.volume, 50);
-      expect(snapshot.isMuted, isFalse);
-      expect(snapshot.mode, PlaybackMode.once);
-      expect(snapshot.musicProgress, 0);
-      expect(snapshot.autoPlay, isFalse);
-      expect(snapshot.shuffleAfterOneRound, isTrue);
-      expect(snapshot.saveMusicProgress, isTrue);
-      expect(snapshot.hideMultiSelectCommandBarAfterOperation, isTrue);
-      expect(snapshot.localViewMode, LocalViewMode.grid);
-      expect(snapshot.quitOnClose, isTrue);
-      expect(snapshot.lastPage, '/songs');
-      expect(snapshot.lastPlaylistId, 0);
-      expect(snapshot.lastReleaseNotesVersion, '');
-    },
-  );
+    expect(snapshot.rootPath, '');
+    expect(snapshot.useFilenameNotMusicName, isFalse);
+    expect(snapshot.smartMultiArtistRecognition, isTrue);
+    expect(snapshot.showCount, isTrue);
+    expect(snapshot.themeColor, '#0078D7');
+    expect(snapshot.nightMode, NightMode.system);
+    expect(snapshot.nightModeStartTime, '20:00');
+    expect(snapshot.nightModeEndTime, '06:00');
+    expect(snapshot.notificationSend, NotificationSendMode.never);
+    expect(snapshot.notificationDisplay, NotificationDisplayMode.normal);
+    expect(snapshot.showNotifications, isFalse);
+    expect(snapshot.autoLyrics, isTrue);
+    expect(snapshot.showLyricsInNotification, isFalse);
+    expect(snapshot.notificationLyricsSource, LyricsRequestMode.internet);
+    expect(snapshot.playerLyricsSource, LyricsRequestMode.auto);
+    expect(snapshot.saveLyricsImmediately, isTrue);
+    expect(snapshot.preserveInternetLyricsTimestamps, isTrue);
+    expect(snapshot.desktopLyricsEnabled, isFalse);
+    expect(snapshot.desktopLyricsLocked, isFalse);
+    expect(snapshot.desktopLyricsColor, '#4aa8ff');
+    expect(snapshot.desktopLyricsStrokeColor, '#111111');
+    expect(snapshot.desktopLyricsFontSize, 28);
+    expect(snapshot.desktopLyricsFontFamily, 'system');
+    expect(snapshot.desktopLyricsOpacity, 88);
+    expect(snapshot.desktopLyricsBounds, '');
+    expect(snapshot.mainWindowBounds, '');
+    expect(snapshot.mainWindowMaximized, isFalse);
+    expect(snapshot.preferredLanguage, PreferredLanguage.system);
+    expect(snapshot.musicLibrarySort, MusicLibrarySortCriterion.title);
+    expect(snapshot.albumsSort, AlbumSortCriterion.defaultCriterion);
+    expect(
+      snapshot.searchArtistsCriterion,
+      SearchSortCriterion.defaultCriterion,
+    );
+    expect(
+      snapshot.searchAlbumsCriterion,
+      SearchSortCriterion.defaultCriterion,
+    );
+    expect(snapshot.searchSongsCriterion, SearchSortCriterion.defaultCriterion);
+    expect(
+      snapshot.searchPlaylistsCriterion,
+      SearchSortCriterion.defaultCriterion,
+    );
+    expect(
+      snapshot.searchFoldersCriterion,
+      SearchSortCriterion.defaultCriterion,
+    );
+    expect(snapshot.lastMusicIndex, -1);
+    expect(snapshot.volume, 50);
+    expect(snapshot.isMuted, isFalse);
+    expect(snapshot.mode, PlaybackMode.once);
+    expect(snapshot.musicProgress, 0);
+    expect(snapshot.autoPlay, isFalse);
+    expect(snapshot.shuffleAfterOneRound, isTrue);
+    expect(snapshot.saveMusicProgress, isTrue);
+    expect(snapshot.hideMultiSelectCommandBarAfterOperation, isTrue);
+    expect(snapshot.localViewMode, LocalViewMode.grid);
+    expect(snapshot.quitOnClose, isTrue);
+    expect(snapshot.lastPage, '/songs');
+    expect(snapshot.lastPlaylistId, 0);
+    expect(snapshot.lastReleaseNotesVersion, '');
+  });
 
   test('SettingsSnapshot applies Electron AppSettingsUpdate fields', () {
     final snapshot = const SettingsSnapshot.defaults().apply(
@@ -200,6 +194,7 @@ void main() {
   );
 
   test('settings labels mirror Electron zh-CN translations', () {
+    expect(nightModeLabel(NightMode.system), '跟随系统');
     expect(nightModeLabel(NightMode.auto), '自动');
     expect(nightModeLabel(NightMode.onMode), '开启');
     expect(nightModeLabel(NightMode.never), '永不');

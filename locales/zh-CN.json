@@ -643,6 +643,7 @@
   "settings.notificationSendMusicChanged": "音乐变更",
   "settings.notificationSendNever": "永不发送",
   "settings.nightMode": "夜间模式",
+  "settings.nightModeSystem": "跟随系统",
   "settings.nightModeAuto": "自动",
   "settings.nightModeNever": "永不",
   "settings.nightModeOn": "开启",

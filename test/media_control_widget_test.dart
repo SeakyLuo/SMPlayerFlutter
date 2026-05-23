@@ -1270,6 +1270,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Quick Play'), findsOneWidget);
+    final moreButtonCenter = tester.getCenter(
+      find.byKey(const ValueKey('MediaControl.MoreButton')),
+    );
+    final quickPlayLeft = tester.getTopLeft(find.text('Quick Play')).dx;
+    final quickPlayBottom = tester.getBottomLeft(find.text('Quick Play')).dy;
+    final moreButtonTop = tester.getTopLeft(
+      find.byKey(const ValueKey('MediaControl.MoreButton')),
+    ).dy;
+    expect(moreButtonCenter.dx, greaterThan(1100));
+    expect(quickPlayLeft, greaterThan(900));
+    expect(moreButtonCenter.dx - quickPlayLeft, lessThan(260));
+    expect(quickPlayBottom, lessThan(moreButtonTop));
     expect(find.text('Playback Mode: List'), findsNothing);
     expect(find.text('View'), findsNothing);
     expect(find.text('Full Screen'), findsNothing);
@@ -1449,6 +1461,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add To'), findsOneWidget);
+    final moreButtonCenter = tester.getCenter(
+      find.byKey(const ValueKey('MediaControl.MoreButton')),
+    );
+    final addToLeft = tester.getTopLeft(find.text('Add To')).dx;
+    final addToBottom = tester.getBottomLeft(find.text('Add To')).dy;
+    final moreButtonTop = tester.getTopLeft(
+      find.byKey(const ValueKey('MediaControl.MoreButton')),
+    ).dy;
+    expect(moreButtonCenter.dx, greaterThan(720));
+    expect(addToLeft, greaterThan(480));
+    expect(moreButtonCenter.dx - addToLeft, lessThan(260));
+    expect(addToBottom, lessThan(moreButtonTop));
     expect(find.text('Preference Settings'), findsOneWidget);
     expect(find.text('View'), findsOneWidget);
     expect(

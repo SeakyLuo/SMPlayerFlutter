@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -46,7 +47,9 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
   }
 
   Future<void> _initialize() async {
-    final settingsController = SettingsController();
+    const repository = LibraryRepository();
+    await repository.initializeLibraryDatabase();
+    final settingsController = SettingsController(null, repository);
     await settingsController.refresh();
     final initialLocation = resolveRestoredPage(
       settingsController.snapshot.lastPage,
@@ -153,7 +156,10 @@ class _SmPlayerRootState extends State<SmPlayerRoot> {
   }
 
   Future<void> _reloadAfterDataImport() async {
-    final nextSettingsController = SettingsController();
+    final nextSettingsController = SettingsController(
+      null,
+      const LibraryRepository(),
+    );
     await nextSettingsController.refresh();
     final nextLocation = resolveRestoredPage(
       nextSettingsController.snapshot.lastPage,
@@ -232,8 +238,15 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final theme = buildSmPlayerTheme(widget.settingsController.snapshot);
-    final brightness = theme.colorScheme.brightness;
+    final settings = widget.settingsController.snapshot;
+    final lightTheme = buildSmPlayerTheme(
+      settings,
+      brightness: Brightness.light,
+    );
+    final darkTheme = buildSmPlayerTheme(settings, brightness: Brightness.dark);
+    final themeMode = resolveSmPlayerThemeMode(settings);
+    final brightness =
+        isAppNightMode(settings) ? Brightness.dark : lightTheme.brightness;
     final i18n = i18nValue.valueOrNull;
 
     if (i18n == null) {
@@ -250,9 +263,9 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
-      theme: theme,
-      darkTheme: theme,
-      themeMode: ThemeMode.light,
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       routerConfig: widget.router,
       builder: (context, child) {
         return SmPlayerI18nScope(

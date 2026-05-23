@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smplayer_flutter/main.dart' as app;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
@@ -15,13 +14,14 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show NightMode, SettingsSnapshot;
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 void main() {
-  const emptyLibrarySnapshot = MusicLibrarySnapshot(
+  const emptyLibraryData = LibraryViewData(
     songs: [],
     recentSongs: [],
     recentPlaylists: [],
@@ -39,7 +39,7 @@ void main() {
     databasePath: '',
     rootPath: r'C:\Music',
   );
-  const rootlessLibrarySnapshot = MusicLibrarySnapshot(
+  const rootlessLibraryData = LibraryViewData(
     songs: [],
     recentSongs: [],
     recentPlaylists: [],
@@ -56,7 +56,7 @@ void main() {
     hideMultiSelectCommandBarAfterOperation: true,
     databasePath: '',
   );
-  const albumLibrarySnapshot = MusicLibrarySnapshot(
+  const albumLibraryData = LibraryViewData(
     songs: [
       LibrarySong(
         id: 1,
@@ -92,7 +92,7 @@ void main() {
   const testI18n = SmPlayerI18n(locale: 'en-US', messages: {});
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
   });
 
   testWidgets('sidebar navigation changes the app route', (tester) async {
@@ -102,9 +102,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -115,11 +113,7 @@ void main() {
 
     expect(router.routeInformationProvider.value.uri.path, '/recent');
 
-    final preferences = await SharedPreferences.getInstance();
-    expect(
-      preferences.getString(SmPlayerSettingsStorageKeys.lastPage),
-      '/recent',
-    );
+    expect(smPlayerGlobalSettingsSnapshot.lastPage, '/recent');
   });
 
   test('restored page follows Electron restorable route list', () {
@@ -138,9 +132,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -159,8 +151,11 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => rootlessLibrarySnapshot,
+          libraryViewDataProvider.overrideWith(
+            (ref) async => rootlessLibraryData,
+          ),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(rootlessLibraryData),
           ),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
@@ -173,9 +168,11 @@ void main() {
     expect(find.text('library.chooseFolder'), findsOneWidget);
 
     router.go('/recent');
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('local.noRoot'), findsOneWidget);
+    expect(find.text('local.noRoot'), findsNothing);
+    expect(find.byType(RecentPage), findsOneWidget);
     expect(router.routeInformationProvider.value.uri.path, '/recent');
   });
 
@@ -188,8 +185,8 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => rootlessLibrarySnapshot,
+          libraryViewDataProvider.overrideWith(
+            (ref) async => rootlessLibraryData,
           ),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
@@ -244,8 +241,8 @@ void main() {
               messages: {'app.shell': '简音播放器'},
             ),
           ),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => rootlessLibrarySnapshot,
+          libraryViewDataProvider.overrideWith(
+            (ref) async => rootlessLibraryData,
           ),
         ],
         child: app.SmPlayerApp(
@@ -316,9 +313,7 @@ void main() {
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
           libraryRepositoryProvider.overrideWithValue(repository),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -349,9 +344,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -377,9 +370,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -407,9 +398,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => albumLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => albumLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -430,9 +419,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => albumLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => albumLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -454,9 +441,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -484,9 +469,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -512,9 +495,7 @@ void main() {
       ProviderScope(
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
-          musicLibrarySnapshotProvider.overrideWith(
-            (ref) async => emptyLibrarySnapshot,
-          ),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -545,14 +526,31 @@ class _RouterTestApp extends StatelessWidget {
   }
 }
 
+ShellNavigationData _shellNavigationData(LibraryViewData data) {
+  return ShellNavigationData(
+    songs: data.songs,
+    playlists: data.playlists,
+    folders: data.folders,
+    recentSearches: data.recentSearches,
+    nowPlaying: data.nowPlaying,
+    rootPath: data.rootPath,
+  );
+}
+
 class _RecordingRouterRepository extends LibraryRepository {
   final recordedSearches = <({String query, SearchHistoryType type})>[];
 
   @override
-  Future<void> addRecentSearch(
+  Future<SearchHistoryEntry?> addRecentSearch(
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
     recordedSearches.add((query: query.trim(), type: type));
+    return SearchHistoryEntry(
+      id: recordedSearches.length,
+      query: query.trim(),
+      type: type,
+      searchedAt: '2026-05-23T00:00:00Z',
+    );
   }
 }

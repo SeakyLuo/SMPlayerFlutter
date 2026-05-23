@@ -5,21 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode;
+    show LyricsRequestMode, NightMode, SettingsSnapshot;
 
 void main() {
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    resetSmPlayerGlobalSettingsSnapshot();
+    resetSmPlayerShellGlobalStateForTest();
   });
 
   test('shell matches Electron navigation breakpoints', () {
@@ -422,6 +424,31 @@ void main() {
     );
   });
 
+  testWidgets(
+    'shell provides Electron player-relative headered scrollbar inset',
+    (tester) async {
+      _setViewSize(tester, const Size(1300, 600));
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          child: Consumer(
+            builder: (context, ref, _) {
+              return Text(
+                '${ref.watch(headeredPlaylistScrollbarBottomProvider)}',
+                key: const ValueKey('HeaderedPlaylist.ScrollbarBottomProbe'),
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(
+        find.text('${SmPlayerShellMetrics.playerTopRadius + 10}'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('shell renders Electron workspace title for normal routes', (
     tester,
   ) async {
@@ -481,9 +508,6 @@ void main() {
     tester,
   ) async {
     _setViewSize(tester, const Size(1300, 600));
-    SharedPreferences.setMockInitialValues({
-      SmPlayerShellStorageKeys.navigationCollapsed: true,
-    });
 
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pumpAndSettle();
@@ -511,6 +535,13 @@ void main() {
       tester.getTopLeft(workspace).dx,
       SmPlayerShellMetrics.collapsedSidebarWidth,
     );
+    final sidebarSurface = tester.widget<DecoratedBox>(sidebar);
+    final decoration = sidebarSurface.decoration as BoxDecoration;
+    expect(decoration.color, ShellColors.navigationOverlaySurface);
+    expect(
+      decoration.boxShadow?.single.color,
+      ShellColors.navigationOverlayShadow,
+    );
   });
 
   testWidgets('minimal navigation starts as Electron rail layout', (
@@ -524,6 +555,28 @@ void main() {
     expect(
       tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
       SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+    expect(
+      tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+  });
+
+  testWidgets('minimal navigation expands as a floating pane over the rail', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(600, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
+      SmPlayerShellMetrics.sidebarWidth,
     );
     expect(
       tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx,
@@ -558,12 +611,10 @@ void main() {
     );
   });
 
-  testWidgets('shell restores Electron navigation collapsed storage state', (
+  testWidgets('shell restores Electron navigation collapsed memory state', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerShellStorageKeys.navigationCollapsed: true,
-    });
+    setSmPlayerShellNavigationCollapsedForTest(true);
     _setViewSize(tester, const Size(800, 600));
 
     await tester.pumpWidget(const _ShellPageTestApp());
@@ -585,13 +636,33 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final preferences = await SharedPreferences.getInstance();
     expect(
-      preferences.getBool(SmPlayerShellStorageKeys.navigationCollapsed),
-      isTrue,
+      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
     );
   });
 
+  testWidgets('shell restores in-memory navigation collapsed state', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(800, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+  });
   testWidgets('release notes do not open on first install', (tester) async {
     await tester.pumpWidget(
       const _ShellPageTestApp(
@@ -617,7 +688,7 @@ void main() {
     tester,
   ) async {
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [],
         recentSongs: [],
         recentPlaylists: [],
@@ -646,17 +717,76 @@ void main() {
     expect(find.text('Recent'), findsOneWidget);
   });
 
+  testWidgets(
+    'shell hides Recent workspace header when recent page has content',
+    (tester) async {
+      final repository = _SnapshotRepository(
+        const LibraryViewData(
+          songs: [
+            LibrarySong(
+              id: 1,
+              path: '/tmp/first.mp3',
+              title: 'First Song',
+              artist: 'First Artist',
+              artists: ['First Artist'],
+              album: 'First Album',
+              duration: 180,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '2026-05-24T00:00:00Z',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+          ],
+          recentSongs: [],
+          recentPlaylists: [],
+          recentAlbums: [],
+          recentArtists: [],
+          recentSearches: [],
+          playlists: [],
+          hasLibrary: true,
+          sortCriterion: MusicLibrarySortCriterion.title,
+          albumsSort: AlbumSortCriterion.defaultSort,
+          databasePath: '',
+          nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          repository: repository,
+          currentPath: '/recent',
+          currentLocation: '/recent',
+          messages: const {'common.recent': 'Recent'},
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.data == 'Recent' &&
+              widget.style?.fontSize == 40,
+        ),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('shell restores Electron playback state during startup', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 1,
-      SmPlayerSettingsStorageKeys.musicProgress: 42.0,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-      SmPlayerSettingsStorageKeys.saveMusicProgress: true,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 1,
+        musicProgress: 42,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 10,
@@ -715,14 +845,16 @@ void main() {
   testWidgets('shell restores playback from normalized Electron queue', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 0,
-      SmPlayerSettingsStorageKeys.musicProgress: 24.0,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-      SmPlayerSettingsStorageKeys.saveMusicProgress: true,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        musicProgress: 24,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 20,
@@ -766,14 +898,16 @@ void main() {
   testWidgets('shell resolves missing player artwork once like Electron', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 0,
-      SmPlayerSettingsStorageKeys.musicProgress: 0.0,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-      SmPlayerSettingsStorageKeys.saveMusicProgress: true,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        musicProgress: 0,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 10,
@@ -816,14 +950,16 @@ void main() {
     tester,
   ) async {
     _setViewSize(tester, const Size(1300, 720));
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 0,
-      SmPlayerSettingsStorageKeys.musicProgress: 10.0,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-      SmPlayerSettingsStorageKeys.saveMusicProgress: true,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        musicProgress: 10,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 10,
@@ -892,14 +1028,16 @@ void main() {
     tester,
   ) async {
     _setViewSize(tester, const Size(1300, 720));
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 0,
-      SmPlayerSettingsStorageKeys.volume: 20,
-      SmPlayerSettingsStorageKeys.isMuted: false,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        volume: 20,
+        isMuted: false,
+        autoPlay: false,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 10,
@@ -943,12 +1081,14 @@ void main() {
     tester,
   ) async {
     _setViewSize(tester, const Size(1300, 720));
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastMusicIndex: 0,
-      SmPlayerSettingsStorageKeys.autoPlay: false,
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        autoPlay: false,
+      ),
+    );
     final repository = _SnapshotRepository(
-      const MusicLibrarySnapshot(
+      const LibraryViewData(
         songs: [
           LibrarySong(
             id: 10,
@@ -1056,9 +1196,9 @@ void main() {
   testWidgets('shell syncs light window controls for night mode', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.nightMode: 'on',
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
+    );
     final desktopService = _ShellDesktopFeatureService();
 
     await tester.pumpWidget(_ShellPageTestApp(desktopService: desktopService));
@@ -1099,9 +1239,11 @@ void main() {
   });
 
   testWidgets('release notes open after app version upgrade', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      SmPlayerSettingsStorageKeys.lastReleaseNotesVersion: '0.9.0',
-    });
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastReleaseNotesVersion: '0.9.0',
+      ),
+    );
 
     await tester.pumpWidget(
       const _ShellPageTestApp(
@@ -1117,13 +1259,7 @@ void main() {
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
 
-    final preferences = await SharedPreferences.getInstance();
-    expect(
-      preferences.getString(
-        SmPlayerSettingsStorageKeys.lastReleaseNotesVersion,
-      ),
-      '1.0.0',
-    );
+    expect(smPlayerGlobalSettingsSnapshot.lastReleaseNotesVersion, '1.0.0');
     expect(find.text('Release Notes'), findsNothing);
   });
 }
@@ -1137,6 +1273,7 @@ class _ShellPageTestApp extends StatelessWidget {
     this.initialMiniMode = false,
     this.currentPath,
     this.currentLocation,
+    this.child,
   });
 
   final String? appVersion;
@@ -1146,6 +1283,7 @@ class _ShellPageTestApp extends StatelessWidget {
   final bool initialMiniMode;
   final String? currentPath;
   final String? currentLocation;
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1301,7 @@ class _ShellPageTestApp extends StatelessWidget {
             initialMiniMode: initialMiniMode,
             currentPath: currentPath,
             currentLocation: currentLocation,
+            child: child,
           ),
         ),
       ),
@@ -1182,12 +1321,12 @@ class _StartupRepository extends LibraryRepository {
 class _SnapshotRepository extends _StartupRepository {
   _SnapshotRepository(this.snapshot);
 
-  final MusicLibrarySnapshot snapshot;
+  final LibraryViewData snapshot;
   var artworkSnapshotRequestCount = 0;
   final artworkSnapshotSongIds = <int>[];
 
   @override
-  Future<MusicLibrarySnapshot> getMusicLibrarySnapshot() async {
+  Future<LibraryViewData> getLibraryViewData() async {
     return snapshot;
   }
 
