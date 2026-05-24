@@ -8,12 +8,14 @@ import 'package:smplayer_flutter/main.dart' as app;
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
+import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -212,6 +214,120 @@ void main() {
 
     expect(find.text('local.noRoot'), findsNothing);
     expect(find.byType(PlaylistsPage), findsOneWidget);
+  });
+
+  testWidgets('minimal navigation renders settings title in the app bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    router.go('/settings');
+    await _pumpRouter(tester);
+
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(
+      find.byKey(SmPlayerShellWorkspaceKeys.navigationMenuButton),
+      findsOneWidget,
+    );
+    final title = tester.widget<Text>(find.text('common.settings'));
+    expect(title.style?.fontSize, 18);
+  });
+
+  testWidgets(
+    'minimal navigation clears recent app bar tabs after route change',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(600, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final router = createSmPlayerRouter(initialLocation: '/recent');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+            libraryViewDataProvider.overrideWith(
+              (ref) async => albumLibraryData,
+            ),
+            recentPageDataProvider.overrideWith((ref) async {
+              return RecentPageData(
+                songs: albumLibraryData.songs,
+                recentSongs: albumLibraryData.recentSongs,
+                recentPlaylists: albumLibraryData.recentPlaylists,
+                recentAlbums: albumLibraryData.recentAlbums,
+                recentArtists: albumLibraryData.recentArtists,
+                recentSearches: albumLibraryData.recentSearches,
+                playlists: albumLibraryData.playlists,
+                favoritePlaylistId: albumLibraryData.favoritePlaylistId,
+                nowPlaying: albumLibraryData.nowPlaying,
+                showCount: albumLibraryData.showCount,
+                hideMultiSelectCommandBarAfterOperation:
+                    albumLibraryData.hideMultiSelectCommandBarAfterOperation,
+              );
+            }),
+          ],
+          child: _RouterTestApp(router: router, i18n: testI18n),
+        ),
+      );
+      await _pumpRouter(tester);
+
+      expect(find.byType(RecentPage), findsOneWidget);
+      expect(find.text('recent.added'), findsOneWidget);
+
+      router.go('/settings');
+      await _pumpRouter(tester);
+
+      expect(find.byType(SettingsPage), findsOneWidget);
+      expect(find.text('recent.added'), findsNothing);
+      expect(find.text('common.settings'), findsOneWidget);
+    },
+  );
+
+  testWidgets('minimal navigation moves search tabs into the app bar bottom', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final router = createSmPlayerRouter(initialLocation: '/search?query=Blue');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryViewDataProvider.overrideWith((ref) async => albumLibraryData),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    expect(find.byType(SearchPage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('WorkspaceNavigationAppBar.Bottom')),
+      findsOneWidget,
+    );
+    expect(find.text('common.all'), findsOneWidget);
   });
 
   testWidgets('SmPlayerApp provides Material localizations for zh-CN widgets', (

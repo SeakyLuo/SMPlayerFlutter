@@ -14,10 +14,15 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
-import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/remove_dialog.dart';
+import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
+import 'package:smplayer_flutter/src/settings/lyrics_batch_details_dialog.dart';
+import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
+import 'package:smplayer_flutter/src/settings/settings_colors.dart';
+import 'package:smplayer_flutter/src/settings/settings_dialog_shell.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
-import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_formatters.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 typedef SettingsScanLibraryCallback =
@@ -29,14 +34,6 @@ typedef SettingsScanLibraryCallback =
 typedef SettingsPickColorCallback = FutureOr<String?> Function(String value);
 
 final _sharedLyricsBatchState = _SharedLyricsBatchState();
-const _lyricsBatchDetailResultOrder = [
-  LyricsBatchDetailResult.overwritten,
-  LyricsBatchDetailResult.saved,
-  LyricsBatchDetailResult.skipped,
-  LyricsBatchDetailResult.missing,
-  LyricsBatchDetailResult.failed,
-];
-
 Widget _settingsNoTextScaling(BuildContext context, Widget child) {
   return MediaQuery(
     data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
@@ -376,12 +373,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     _artistSplitAnalysisResult = null;
                   });
                 },
-                onApply: () {
-                  unawaited(_applySmartArtistFix(result, i18n));
+                onApply: (splits) {
+                  unawaited(_applySmartArtistFix(splits, i18n));
                 },
               ),
             if (_showLyricsBatchDetails && _lyricsBatchResult != null)
-              _LyricsBatchDetailsDialog(
+              LyricsBatchDetailsDialog(
                 result: _lyricsBatchResult!,
                 onClose: () {
                   setState(() {
@@ -1180,7 +1177,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _applySmartArtistFix(
-    ArtistSplitAnalysisResult result,
+    List<ArtistSplitResultItem> splits,
     SmPlayerI18n i18n,
   ) async {
     setState(() {
@@ -1188,7 +1185,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      await widget.libraryRepository.applyArtistSplits(_splitItems(result));
+      await widget.libraryRepository.applyArtistSplits(splits);
       if (!mounted) {
         return;
       }
@@ -1247,7 +1244,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final backupSummary =
           _lyricsBatchOverwrite
               ? '，${i18n.t('settings.lyricsBatchBackedUp')} '
-                  '${result.backedUp}（${_formatBytes(result.backupBytes)}）'
+                  '${result.backedUp}（${formatSettingsBytes(result.backupBytes)}）'
               : '';
       _showMessage(
         '$message: ${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
@@ -1358,14 +1355,6 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showMessage(String message) {
     showAppNotification(context: context, message: message);
   }
-}
-
-List<ArtistSplitResultItem> _splitItems(ArtistSplitAnalysisResult result) {
-  return [
-    ...result.directSplits,
-    ...result.possibleSplits,
-    ...result.mergeSuggestions,
-  ];
 }
 
 class ToggleSettingRow extends StatelessWidget {
@@ -2081,8 +2070,7 @@ class RangeSettingRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          SizedBox(
-            width: 220,
+          Expanded(
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 2,
@@ -2157,6 +2145,7 @@ class _ColorSettingRowState extends State<ColorSettingRow> {
     return _SettingsRowFrame(
       label: widget.label,
       controlWidth: 112,
+      keepInlineWhenNarrow: true,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: _pickColor,
@@ -2501,7 +2490,7 @@ class _LyricsBatchProgressPanel extends StatelessWidget {
                 '${i18n.t('settings.lyricsBatchFailed')} ${progress.failed}',
               ),
               _LyricsBatchStat(
-                '${i18n.t('settings.lyricsBatchBackedUp')} ${progress.backedUp}（${_formatBytes(progress.backupBytes)}）',
+                '${i18n.t('settings.lyricsBatchBackedUp')} ${progress.backedUp}（${formatSettingsBytes(progress.backupBytes)}）',
               ),
             ],
           ),
@@ -2521,711 +2510,6 @@ class _LyricsBatchStat extends StatelessWidget {
     final colors = SettingsPageColors.of(context);
     return Text(label, style: TextStyle(color: colors.textMuted, fontSize: 12));
   }
-}
-
-class _LyricsBatchDetailsDialog extends StatefulWidget {
-  const _LyricsBatchDetailsDialog({
-    required this.result,
-    required this.onClose,
-  });
-
-  final LyricsBatchResult result;
-  final VoidCallback onClose;
-
-  @override
-  State<_LyricsBatchDetailsDialog> createState() =>
-      _LyricsBatchDetailsDialogState();
-}
-
-class _LyricsBatchDetailsDialogState extends State<_LyricsBatchDetailsDialog> {
-  String? _selectedDetailId;
-  final _collapsedResults = <LyricsBatchDetailResult>{};
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    final groups =
-        _lyricsBatchDetailResultOrder
-            .map(
-              (result) => (
-                result: result,
-                details:
-                    widget.result.details
-                        .where((detail) => detail.result == result)
-                        .toList(),
-              ),
-            )
-            .where((group) => group.details.isNotEmpty)
-            .toList();
-
-    return _DialogOverlay(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = math.min(1180.0, constraints.maxWidth - 64.0);
-          final height = math.min(860.0, constraints.maxHeight - 64.0);
-          return Container(
-            width: math.max(360.0, width),
-            height: math.max(360.0, height),
-            decoration: BoxDecoration(
-              color: colors.dialogSurface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: colors.cardBorder),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  offset: const Offset(0, 28),
-                  blurRadius: 80,
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 10, 28, 0),
-                  child: _DialogHeader(
-                    title: i18n.t('settings.lyricsBatchTaskDetails'),
-                    onClose: widget.onClose,
-                  ),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(28, 18, 28, 28),
-                    itemBuilder: (context, index) {
-                      final group = groups[index];
-                      final collapsed = _collapsedResults.contains(
-                        group.result,
-                      );
-                      return _LyricsBatchDetailGroup(
-                        result: group.result,
-                        details: group.details,
-                        collapsed: collapsed,
-                        selectedDetailId: _selectedDetailId,
-                        onToggleGroup: () {
-                          setState(() {
-                            if (collapsed) {
-                              _collapsedResults.remove(group.result);
-                            } else {
-                              _collapsedResults.add(group.result);
-                            }
-                          });
-                        },
-                        onToggleDetail: (id) {
-                          setState(() {
-                            _selectedDetailId =
-                                _selectedDetailId == id ? null : id;
-                          });
-                        },
-                      );
-                    },
-                    separatorBuilder: (_, _) => const SizedBox(height: 18),
-                    itemCount: groups.length,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _LyricsBatchDetailGroup extends StatelessWidget {
-  const _LyricsBatchDetailGroup({
-    required this.result,
-    required this.details,
-    required this.collapsed,
-    required this.selectedDetailId,
-    required this.onToggleGroup,
-    required this.onToggleDetail,
-  });
-
-  final LyricsBatchDetailResult result;
-  final List<LyricsBatchDetail> details;
-  final bool collapsed;
-  final String? selectedDetailId;
-  final VoidCallback onToggleGroup;
-  final ValueChanged<String> onToggleDetail;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Column(
-      children: [
-        SizedBox(
-          height: 36,
-          child: Row(
-            children: [
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: colors.textStrong,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: onToggleGroup,
-                icon: Icon(
-                  collapsed
-                      ? FluentIcons.chevron_right_24_regular
-                      : FluentIcons.chevron_down_24_regular,
-                  size: 16,
-                  color: colors.textMuted,
-                ),
-                label: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _lyricsBatchResultLabel(i18n, result),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _LyricsBatchHeaderCountPill(
-                      result: result,
-                      count: details.length,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!collapsed)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.cardSurface.withValues(alpha: 0.72),
-                border: Border.all(color: colors.cardBorder),
-              ),
-              child: Column(
-                children: [
-                  for (var index = 0; index < details.length; index++) ...[
-                    _LyricsBatchDetailTile(
-                      detail: details[index],
-                      expanded:
-                          selectedDetailId ==
-                          _lyricsBatchDetailId(details[index]),
-                      onToggle:
-                          () => onToggleDetail(
-                            _lyricsBatchDetailId(details[index]),
-                          ),
-                    ),
-                    if (index != details.length - 1)
-                      Divider(height: 1, color: colors.cardBorder),
-                  ],
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _LyricsBatchDetailTile extends StatelessWidget {
-  const _LyricsBatchDetailTile({
-    required this.detail,
-    required this.expanded,
-    required this.onToggle,
-  });
-
-  final LyricsBatchDetail detail;
-  final bool expanded;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    final reason = _lyricsBatchReasonLabel(i18n, detail.reason);
-    return DecoratedBox(
-      decoration: const BoxDecoration(),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  _LyricsBatchArtwork(thumbnailPath: detail.thumbnailPath),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          detail.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        if (detail.artist.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            detail.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _LyricsBatchStatusPill(
-                        result: detail.result,
-                        label: [
-                          _lyricsBatchResultLabel(i18n, detail.result),
-                          if (reason.isNotEmpty) '($reason)',
-                        ].join(' '),
-                      ),
-                      const SizedBox(width: 10),
-                      Icon(
-                        expanded
-                            ? FluentIcons.chevron_down_24_regular
-                            : FluentIcons.chevron_right_24_regular,
-                        size: 16,
-                        color: colors.textMuted,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (expanded) _LyricsBatchExpandedDetail(detail: detail),
-        ],
-      ),
-    );
-  }
-}
-
-class _LyricsBatchArtwork extends StatelessWidget {
-  const _LyricsBatchArtwork({required this.thumbnailPath});
-
-  final String thumbnailPath;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    final image =
-        thumbnailPath.isEmpty
-            ? null
-            : Image.file(
-              File(thumbnailPath),
-              width: 44,
-              height: 44,
-              fit: BoxFit.cover,
-              errorBuilder:
-                  (_, _, _) => Icon(
-                    FluentIcons.music_note_2_24_regular,
-                    size: 24,
-                    color: colors.textMuted,
-                  ),
-            );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(color: colors.inputSurface),
-        child: SizedBox.square(
-          dimension: 44,
-          child:
-              image ??
-              Icon(
-                FluentIcons.music_note_2_24_regular,
-                size: 24,
-                color: colors.textMuted,
-              ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LyricsBatchStatusPill extends StatelessWidget {
-  const _LyricsBatchStatusPill({required this.result, required this.label});
-
-  final LyricsBatchDetailResult result;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColors = _lyricsBatchStatusColors(result);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 28),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: statusColors.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: statusColors.$2,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _LyricsBatchHeaderCountPill extends StatelessWidget {
-  const _LyricsBatchHeaderCountPill({
-    required this.result,
-    required this.count,
-  });
-
-  final LyricsBatchDetailResult result;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColors = _lyricsBatchStatusColors(result);
-    return Container(
-      constraints: const BoxConstraints(minWidth: 24, minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: statusColors.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '$count',
-        style: TextStyle(
-          color: statusColors.$2,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-(Color, Color) _lyricsBatchStatusColors(LyricsBatchDetailResult result) {
-  return switch (result) {
-    LyricsBatchDetailResult.overwritten => (
-      const Color(0xffffedd5),
-      const Color(0xffc2410c),
-    ),
-    LyricsBatchDetailResult.saved => (
-      const Color(0xffdcfce7),
-      const Color(0xff15803d),
-    ),
-    LyricsBatchDetailResult.skipped => (
-      const Color(0xfff1f5f9),
-      const Color(0xff64748b),
-    ),
-    LyricsBatchDetailResult.missing || LyricsBatchDetailResult.failed => (
-      const Color(0xfffee2e2),
-      const Color(0xffb91c1c),
-    ),
-  };
-}
-
-class _LyricsBatchExpandedDetail extends StatelessWidget {
-  const _LyricsBatchExpandedDetail({required this.detail});
-
-  final LyricsBatchDetail detail;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final source = detail.sourceRawLyrics;
-    final target = detail.targetRawLyrics;
-    if (detail.result == LyricsBatchDetailResult.overwritten) {
-      return _LyricsBatchOverwriteDetail(source: source, target: target);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-      child: _LyricsTextPreview(
-        title:
-            target.trim().isNotEmpty
-                ? i18n.t('settings.lyricsBatchDetailWrittenLyrics')
-                : i18n.t('settings.lyricsBatchCurrentLyrics'),
-        text: target.trim().isNotEmpty ? target : source,
-      ),
-    );
-  }
-}
-
-class _LyricsBatchOverwriteDetail extends StatefulWidget {
-  const _LyricsBatchOverwriteDetail({
-    required this.source,
-    required this.target,
-  });
-
-  final String source;
-  final String target;
-
-  @override
-  State<_LyricsBatchOverwriteDetail> createState() =>
-      _LyricsBatchOverwriteDetailState();
-}
-
-class _LyricsBatchOverwriteDetailState
-    extends State<_LyricsBatchOverwriteDetail> {
-  var _canceled = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.cardSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0x9efdbA74)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: const BoxDecoration(
-                color: Color(0xfffff7ed),
-                border: Border(bottom: BorderSide(color: Color(0x73fdba74))),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    FluentIcons.info_24_regular,
-                    size: 16,
-                    color: Color(0xfff97316),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      i18n.t('settings.lyricsBatchOverwriteWarning'),
-                      style: const TextStyle(
-                        color: Color(0xff9a3412),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          _canceled
-                              ? const Color(0xff2563eb)
-                              : const Color(0xff334155),
-                      backgroundColor:
-                          _canceled
-                              ? const Color(0xffeff6ff)
-                              : const Color(0xe6ffffff),
-                      side: BorderSide(
-                        color:
-                            _canceled
-                                ? const Color(0xff93c5fd)
-                                : const Color(0xffcbd5e1),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _canceled = !_canceled;
-                      });
-                    },
-                    child: Text(
-                      _canceled
-                          ? i18n.t('settings.lyricsBatchAgainOverwrite')
-                          : i18n.t('settings.lyricsBatchCancelOverwrite'),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _LyricsTextPreview(
-                      title: i18n.t('settings.lyricsBatchCurrentLyrics'),
-                      badge: i18n.t('settings.lyricsBatchOldVersion'),
-                      text: widget.source,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 72),
-                    child: CircleAvatar(
-                      radius: 15,
-                      backgroundColor: Color(0xffeff6ff),
-                      child: Icon(
-                        FluentIcons.arrow_right_20_regular,
-                        size: 16,
-                        color: Color(0xff2563eb),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: _LyricsTextPreview(
-                      title: i18n.t('settings.lyricsBatchNewLyrics'),
-                      badge: i18n.t('settings.lyricsBatchNewVersion'),
-                      newBadge: true,
-                      text: widget.target,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LyricsTextPreview extends StatelessWidget {
-  const _LyricsTextPreview({
-    required this.title,
-    required this.text,
-    this.badge,
-    this.newBadge = false,
-  });
-
-  final String title;
-  final String text;
-  final String? badge;
-  final bool newBadge;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 120),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.cardSurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: colors.textStrong,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (badge case final badge?) ...[
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color:
-                      newBadge
-                          ? const Color(0xffdbeafe)
-                          : const Color(0xffe2e8f0),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badge,
-                  style: TextStyle(
-                    color:
-                        newBadge
-                            ? const Color(0xff2563eb)
-                            : const Color(0xff64748b),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            text.trim().isEmpty
-                ? i18n.t('settings.lyricsBatchDetailNoLyrics')
-                : text,
-            maxLines: 10,
-            overflow: TextOverflow.fade,
-            style: TextStyle(color: colors.textStrong, height: 1.35),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _lyricsBatchDetailId(LyricsBatchDetail detail) {
-  return '${detail.songId}-${detail.result.index}-${detail.reason?.index ?? -1}';
-}
-
-String _lyricsBatchResultLabel(
-  SmPlayerI18n i18n,
-  LyricsBatchDetailResult result,
-) {
-  return switch (result) {
-    LyricsBatchDetailResult.saved => i18n.t('settings.lyricsBatchSaved'),
-    LyricsBatchDetailResult.overwritten => i18n.t(
-      'settings.lyricsBatchOverwritten',
-    ),
-    LyricsBatchDetailResult.skipped => i18n.t('settings.lyricsBatchSkipped'),
-    LyricsBatchDetailResult.missing => i18n.t('settings.lyricsBatchMissing'),
-    LyricsBatchDetailResult.failed => i18n.t('settings.lyricsBatchFailed'),
-  };
-}
-
-String _lyricsBatchReasonLabel(
-  SmPlayerI18n i18n,
-  LyricsBatchSkipReason? reason,
-) {
-  return switch (reason) {
-    LyricsBatchSkipReason.alreadyExists => i18n.t(
-      'settings.lyricsBatchReasonAlreadyExists',
-    ),
-    LyricsBatchSkipReason.sameContent => i18n.t(
-      'settings.lyricsBatchReasonSameContent',
-    ),
-    null => '',
-  };
-}
-
-String _formatBytes(int size) {
-  if (size <= 0) {
-    return '0 B';
-  }
-  if (size < 1024) {
-    return '$size B';
-  }
-  if (size < 1024 * 1024) {
-    return '${(size / 1024).toStringAsFixed(1)} KB';
-  }
-  return '${(size / (1024 * 1024)).toStringAsFixed(2)} MB';
 }
 
 class PreferenceSettingsPage extends StatefulWidget {
@@ -3265,7 +2549,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
 
-    return _DialogOverlay(
+    return SettingsDialogOverlay(
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact =
@@ -3290,7 +2574,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
             ),
             child: Column(
               children: [
-                _DialogHeader(
+                SettingsDialogHeader(
                   title: i18n.t('settings.preferenceSettings'),
                   onClose: widget.onClose,
                 ),
@@ -4088,11 +3372,13 @@ class _SettingsRowFrame extends StatelessWidget {
     required this.label,
     required this.child,
     this.controlWidth = 300,
+    this.keepInlineWhenNarrow = false,
   });
 
   final String label;
   final Widget child;
   final double controlWidth;
+  final bool keepInlineWhenNarrow;
 
   @override
   Widget build(BuildContext context) {
@@ -4109,7 +3395,7 @@ class _SettingsRowFrame extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 38),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth < 430) {
+          if (constraints.maxWidth < 430 && !keepInlineWhenNarrow) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4679,7 +3965,7 @@ class _SettingsProgressOverlay extends StatelessWidget {
       DataTransferState.idle => '',
     };
 
-    return _DialogOverlay(
+    return SettingsDialogOverlay(
       child: Container(
         width: 260,
         padding: const EdgeInsets.all(18),
@@ -4746,7 +4032,7 @@ class _SettingsScanProgressOverlay extends StatelessWidget {
       ),
     };
 
-    return _DialogOverlay(
+    return SettingsDialogOverlay(
       child: Container(
         width: 440,
         padding: const EdgeInsets.all(20),
@@ -4834,354 +4120,6 @@ String _settingsFileTitle(String path) {
   return index < 0 ? normalized : normalized.substring(index + 1);
 }
 
-class ReleaseNotesDialog extends StatelessWidget {
-  const ReleaseNotesDialog({
-    super.key,
-    required this.version,
-    required this.onClose,
-  });
-
-  final String? version;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final releaseNotes = getReleaseNotes(i18n);
-
-    return PopupDialog(
-      navLabel: i18n.t('settings.releaseNotes'),
-      ariaLabel: i18n.t('settings.releaseNotes'),
-      width: 640,
-      height: 600,
-      onClose: onClose,
-      navChildren: [
-        Expanded(child: PopupDialogTitle(i18n.t('settings.releaseNotes'))),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 44),
-        child: Scrollbar(
-          child: ListView.separated(
-            primary: false,
-            padding: const EdgeInsets.only(right: 14),
-            itemCount: releaseNotes.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 18),
-            itemBuilder: (context, index) {
-              return _ReleaseNoteVersion(entry: releaseNotes[index]);
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReleaseNoteVersion extends StatelessWidget {
-  const _ReleaseNoteVersion({required this.entry});
-
-  final ReleaseNoteEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    final title =
-        entry.version == 'History Updates'
-            ? i18n.t('settings.releaseNotesIntro')
-            : '${i18n.t('settings.releaseNotesVersion')} ${entry.version}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: colors.textStrong,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...entry.items.map((item) => _ReleaseNoteItem(text: item)),
-      ],
-    );
-  }
-}
-
-class _ReleaseNoteItem extends StatelessWidget {
-  const _ReleaseNoteItem({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: SizedBox(
-              width: 5,
-              height: 5,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: SettingsPageColors.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: colors.textStrong, height: 1.35),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ArtistSplitReviewDialog extends StatelessWidget {
-  const ArtistSplitReviewDialog({
-    super.key,
-    required this.result,
-    required this.applying,
-    required this.onCancel,
-    required this.onApply,
-  });
-
-  final ArtistSplitAnalysisResult result;
-  final bool applying;
-  final VoidCallback onCancel;
-  final VoidCallback onApply;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    final splitItems = _splitItems(result);
-
-    return PopupDialog(
-      navLabel: i18n.t('local.startupArtistSplitSuggestionsTitle'),
-      ariaLabel: i18n.t('local.startupArtistSplitSuggestionsTitle'),
-      width: 760,
-      height: 640,
-      onClose: applying ? () {} : onCancel,
-      navChildren: [
-        Expanded(
-          child: PopupDialogTitle(
-            i18n.t('local.startupArtistSplitSuggestionsTitle'),
-          ),
-        ),
-      ],
-      footer: PopupDialogActions(
-        children: [
-          PopupDialogActionButton(
-            label:
-                applying
-                    ? i18n.t('local.applyingArtistSplits')
-                    : i18n.t('local.applyArtistSplits'),
-            primary: true,
-            loading: applying,
-            onPressed: applying ? null : onApply,
-          ),
-          PopupDialogActionButton(
-            label: i18n.t('local.keepArtistSplits'),
-            onPressed: applying ? null : onCancel,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              i18n.t('local.artistSplitReviewTotal', {
-                'count': splitItems.length,
-              }),
-              style: TextStyle(
-                color: colors.textMuted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (result.directSplits.isNotEmpty)
-                      _ArtistSplitGroup(
-                        title: i18n.t('local.directArtistSplitsGroup', {
-                          'count': result.directSplits.length,
-                        }),
-                        items: result.directSplits,
-                      ),
-                    if (result.possibleSplits.isNotEmpty)
-                      _ArtistSplitGroup(
-                        title: i18n.t(
-                          'local.refreshArtistSplitSuggestionsGroup',
-                          {'count': result.possibleSplits.length},
-                        ),
-                        items: result.possibleSplits,
-                      ),
-                    if (result.mergeSuggestions.isNotEmpty)
-                      _ArtistSplitGroup(
-                        title: i18n.t('local.artistMergeSuggestionsTitle'),
-                        items: result.mergeSuggestions,
-                        afterLabelKey: 'local.artistMergeAfter',
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            if (applying)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  i18n.t('local.applyingArtistSplits'),
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    color: PopupDialogColors.resolve(context).textMuted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ArtistSplitGroup extends StatelessWidget {
-  const _ArtistSplitGroup({
-    required this.title,
-    required this.items,
-    this.afterLabelKey = 'local.artistSplitAfter',
-  });
-
-  final String title;
-  final List<ArtistSplitResultItem> items;
-  final String afterLabelKey;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: colors.textStrong,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final item in items)
-            _ArtistSplitTile(item: item, afterLabelKey: afterLabelKey),
-        ],
-      ),
-    );
-  }
-}
-
-class _ArtistSplitTile extends StatelessWidget {
-  const _ArtistSplitTile({required this.item, required this.afterLabelKey});
-
-  final ArtistSplitResultItem item;
-  final String afterLabelKey;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    final separator = i18n.t('common.artistSeparator');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.cardSurface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.cardBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            FluentIcons.people_24_regular,
-            color: SettingsPageColors.accent,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.textStrong,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                _ArtistSplitLine(
-                  label: i18n.t('local.artistSplitOriginal'),
-                  text: item.artist,
-                ),
-                const SizedBox(height: 4),
-                _ArtistSplitLine(
-                  label: i18n.t(afterLabelKey),
-                  text: item.artists.join(separator),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ArtistSplitLine extends StatelessWidget {
-  const _ArtistSplitLine({required this.label, required this.text});
-
-  final String label;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(color: colors.textMuted, fontSize: 13, height: 1.3),
-        children: [
-          TextSpan(
-            text: '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          TextSpan(text: text),
-        ],
-      ),
-    );
-  }
-}
-
 class _ConfirmSettingsDialog extends StatelessWidget {
   const _ConfirmSettingsDialog({
     required this.title,
@@ -5202,93 +4140,15 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-
-    return PopupDialog(
-      navLabel: title,
-      ariaLabel: title,
-      width: 480,
-      height: 230,
-      onClose: busy ? () {} : onCancel,
-      navChildren: [Expanded(child: PopupDialogTitle(title))],
-      footer: PopupDialogActions(
-        children: [
-          PopupDialogActionButton(
-            label:
-                busy
-                    ? i18n.t('settings.smartMultiArtistFixPending')
-                    : confirmText ?? i18n.t('common.confirm'),
-            primary: true,
-            loading: busy,
-            onPressed: busy ? null : onConfirm,
-          ),
-          PopupDialogActionButton(
-            label: i18n.t('common.cancel'),
-            onPressed: busy ? null : onCancel,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-        child: Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: PopupDialogColors.resolve(context).text,
-              fontSize: 15,
-              height: 1.55,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogHeader extends StatelessWidget {
-  const _DialogHeader({required this.title, required this.onClose});
-
-  final String title;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return SizedBox(
-      height: 48,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: colors.textStrong,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: context.smPlayerI18n.t('common.close'),
-            onPressed: onClose,
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DialogOverlay extends StatelessWidget {
-  const _DialogOverlay({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return SizedBox.expand(
-      child: Material(color: colors.overlay, child: Center(child: child)),
+    return RemoveDialog(
+      title: title,
+      message: message,
+      confirmText: confirmText,
+      pendingText: i18n.t('settings.smartMultiArtistFixPending'),
+      destructive: false,
+      submitting: busy,
+      onCancel: onCancel,
+      onConfirm: onConfirm,
     );
   }
 }
@@ -5464,6 +4324,7 @@ class _PreferenceSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return Switch(
       value: checked,
+      // ignore: deprecated_member_use
       activeColor: SettingsPageColors.accent,
       onChanged: onChanged,
     );
@@ -5491,148 +4352,5 @@ class _ErrorBanner extends StatelessWidget {
         style: const TextStyle(color: SettingsPageColors.danger),
       ),
     );
-  }
-}
-
-class SettingsPageColors {
-  const SettingsPageColors._();
-
-  static const textStrong = Color(0xff1f252b);
-  static const textMuted = Color(0xff5f625f);
-  static const accent = Color(0xff0078d7);
-  static const accentStrong = Color(0xff0063b1);
-  static const accentHover = Color(0x1a0078d7);
-  static const cardSurface = Color(0x9effffff);
-  static const cardBorder = Color(0x9eccd5e0);
-  static const cardShadow = Color(0x14445870);
-  static const inputSurface = Color(0xf4ffffff);
-  static const inputBorder = Color(0x387e8b9a);
-  static const selectOpenSurface = Color(0x140078d7);
-  static const selectOpenBorder = Color(0x570078d7);
-  static const dropdownSurface = Color(0xfaffffff);
-  static const dropdownShadow = Color(0x2e263344);
-  static const colorSwatchInset = Color(0xb8ffffff);
-  static const buttonSurface = Color(0xb8ffffff);
-  static const dialogSurface = Color(0xfffbfdff);
-  static const overlay = Color(0x47202b36);
-  static const preferenceHeader = Color(0x7affffff);
-  static const danger = Color(0xffb42318);
-
-  static SettingsPalette of(BuildContext context) {
-    return Theme.of(context).extension<SettingsPalette>() ??
-        SettingsPalette.light;
-  }
-}
-
-class SettingsPalette extends ThemeExtension<SettingsPalette> {
-  const SettingsPalette({
-    required this.textStrong,
-    required this.textMuted,
-    required this.accent,
-    required this.accentStrong,
-    required this.accentHover,
-    required this.cardSurface,
-    required this.cardBorder,
-    required this.cardShadow,
-    required this.inputSurface,
-    required this.inputBorder,
-    required this.selectOpenSurface,
-    required this.selectOpenBorder,
-    required this.dropdownSurface,
-    required this.dropdownShadow,
-    required this.colorSwatchInset,
-    required this.buttonSurface,
-    required this.progressPanelSurface,
-    required this.progressPanelBorder,
-    required this.progressTrack,
-    required this.dialogSurface,
-    required this.overlay,
-    required this.preferenceHeader,
-  });
-
-  static const light = SettingsPalette(
-        textStrong: SettingsPageColors.textStrong,
-        textMuted: SettingsPageColors.textMuted,
-        accent: SettingsPageColors.accent,
-        accentStrong: SettingsPageColors.accentStrong,
-        accentHover: SettingsPageColors.accentHover,
-        cardSurface: SettingsPageColors.cardSurface,
-        cardBorder: SettingsPageColors.cardBorder,
-        cardShadow: SettingsPageColors.cardShadow,
-        inputSurface: SettingsPageColors.inputSurface,
-        inputBorder: SettingsPageColors.inputBorder,
-        selectOpenSurface: SettingsPageColors.selectOpenSurface,
-        selectOpenBorder: SettingsPageColors.selectOpenBorder,
-        dropdownSurface: SettingsPageColors.dropdownSurface,
-        dropdownShadow: SettingsPageColors.dropdownShadow,
-        colorSwatchInset: SettingsPageColors.colorSwatchInset,
-        buttonSurface: SettingsPageColors.buttonSurface,
-        progressPanelSurface: Color(0xc2ffffff),
-        progressPanelBorder: Color(0x247e8b9a),
-        progressTrack: Color(0x297e8b9a),
-        dialogSurface: SettingsPageColors.dialogSurface,
-        overlay: SettingsPageColors.overlay,
-        preferenceHeader: SettingsPageColors.preferenceHeader,
-      );
-
-  static const dark = SettingsPalette(
-      textStrong: Color(0xeff6f9fc),
-      textMuted: Color(0xadCBD5E1),
-      accent: SettingsPageColors.accent,
-      accentStrong: Color(0xff7fc4ff),
-      accentHover: Color(0x2e0078d7),
-      cardSurface: Color(0x0cffffff),
-      cardBorder: Color(0x1fd6e0ec),
-      cardShadow: Color(0x33000000),
-      inputSurface: Color(0x11ffffff),
-      inputBorder: Color(0x1fd6e0ec),
-      selectOpenSurface: Color(0x290078d7),
-      selectOpenBorder: Color(0x570078d7),
-      dropdownSurface: Color(0xfa181e26),
-      dropdownShadow: Color(0x5c000000),
-      colorSwatchInset: Color(0x1fffffff),
-      buttonSurface: Color(0x11ffffff),
-      progressPanelSurface: Color(0x11ffffff),
-      progressPanelBorder: Color(0x1fd6e0ec),
-      progressTrack: Color(0x2ecbd5e1),
-      dialogSurface: Color(0xff181e26),
-      overlay: Color(0x7a05070a),
-      preferenceHeader: Color(0x14ffffff),
-    );
-
-  final Color textStrong;
-  final Color textMuted;
-  final Color accent;
-  final Color accentStrong;
-  final Color accentHover;
-  final Color cardSurface;
-  final Color cardBorder;
-  final Color cardShadow;
-  final Color inputSurface;
-  final Color inputBorder;
-  final Color selectOpenSurface;
-  final Color selectOpenBorder;
-  final Color dropdownSurface;
-  final Color dropdownShadow;
-  final Color colorSwatchInset;
-  final Color buttonSurface;
-  final Color progressPanelSurface;
-  final Color progressPanelBorder;
-  final Color progressTrack;
-  final Color dialogSurface;
-  final Color overlay;
-  final Color preferenceHeader;
-
-  @override
-  SettingsPalette copyWith() {
-    return this;
-  }
-
-  @override
-  SettingsPalette lerp(
-    covariant ThemeExtension<SettingsPalette>? other,
-    double t,
-  ) {
-    return this;
   }
 }

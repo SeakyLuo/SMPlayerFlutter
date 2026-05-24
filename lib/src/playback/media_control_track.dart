@@ -7,7 +7,6 @@ class _PlayerTrack extends StatefulWidget {
     required this.disabled,
     required this.onOpenNowPlaying,
     this.compact = false,
-    this.playbackNoticeKey,
     this.currentLyricsLine,
     this.onArtworkError,
   });
@@ -16,7 +15,6 @@ class _PlayerTrack extends StatefulWidget {
   final String? artworkPath;
   final bool disabled;
   final bool compact;
-  final String? playbackNoticeKey;
   final String? currentLyricsLine;
   final VoidCallback? onArtworkError;
   final VoidCallback onOpenNowPlaying;
@@ -31,13 +29,10 @@ class _PlayerTrackState extends State<_PlayerTrack> {
 
   @override
   Widget build(BuildContext context) {
-    final noticeKey = widget.playbackNoticeKey;
     final textStrong = MediaControlColors.textStrongFor(context);
     final textMuted = MediaControlColors.textMutedFor(context);
-    final noticeText =
-        noticeKey == null ? null : _mediaControlI18n(context).t(noticeKey);
     final lyricsText =
-        noticeText == null && widget.currentLyricsLine?.isNotEmpty == true
+        widget.currentLyricsLine?.isNotEmpty == true
             ? widget.currentLyricsLine
             : null;
     final overlayVisible = !widget.disabled && (_hovered || _focused);
@@ -117,9 +112,9 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                             ).withValues(alpha: 0.44),
                           ),
                           child: const Icon(
-                            Icons.fullscreen_rounded,
+                            FluentIcons.full_screen_maximize_24_regular,
                             color: Colors.white,
-                            size: 36,
+                            size: 34,
                             shadows: [
                               Shadow(
                                 color: Color(0x57000000),
@@ -171,32 +166,7 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                             height: 1.1,
                           ),
                         ),
-                        if (noticeText != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline_rounded,
-                                size: 14,
-                                color: MediaControlColors.accent,
-                              ),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
-                                  noticeText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: MediaControlColors.accent,
-                                    fontSize: widget.compact ? 11 : 12,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else if (lyricsText != null) ...[
+                        if (lyricsText != null) ...[
                           const SizedBox(height: 4),
                           _PlayerTrackLyrics(
                             line: lyricsText,

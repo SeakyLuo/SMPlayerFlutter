@@ -23,10 +23,14 @@ class _MediaProgressSlider extends StatelessWidget {
     final disabledThumbColor = MediaControlColors.accent.withValues(alpha: 0.8);
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: 2,
+        trackHeight: _mediaSliderTrackHeight,
         trackShape: const _MediaProgressTrackShape(),
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: _mediaSliderThumbRadius,
+        ),
+        overlayShape: const RoundSliderOverlayShape(
+          overlayRadius: _mediaSliderOverlayRadius,
+        ),
         activeTrackColor: MediaControlColors.accent,
         inactiveTrackColor: inactiveTrackColor,
         thumbColor: MediaControlColors.accent,
@@ -60,7 +64,7 @@ class _MediaProgressTrackShape extends RoundedRectSliderTrackShape {
     bool isEnabled = false,
     bool isDiscrete = false,
   }) {
-    final trackHeight = sliderTheme.trackHeight ?? 2;
+    final trackHeight = sliderTheme.trackHeight ?? _mediaSliderTrackHeight;
     final trackLeft = offset.dx;
     final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
     return Rect.fromLTWH(
@@ -108,7 +112,7 @@ class _MediaProgressLoadingState extends State<_MediaProgressLoading>
         child: ClipRRect(
           borderRadius: BorderRadius.circular(999),
           child: SizedBox(
-            height: 2,
+            height: _mediaSliderTrackHeight,
             child: DecoratedBox(
               decoration: BoxDecoration(color: inactiveTrackColor),
               child: AnimatedBuilder(

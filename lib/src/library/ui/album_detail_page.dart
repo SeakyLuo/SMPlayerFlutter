@@ -131,8 +131,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       .read(libraryRepositoryProvider)
                       .recordAlbumPlayed(routeAlbumName);
                 },
-                onSetPreferred: (level) {
-                  ref
+                onSetPreferred: (level) async {
+                  await ref
                       .read(libraryRepositoryProvider)
                       .addPreferenceItem(
                         'album',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
@@ -8,6 +9,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
@@ -226,7 +228,7 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(700, 360);
+    tester.view.physicalSize = const Size(700, 440);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -253,7 +255,7 @@ void main() {
 
     final title = tester.widget<Text>(find.text('Blue Hour'));
     expect(title.style?.fontSize, 24);
-    expect(title.style?.fontWeight, FontWeight.w800);
+    expect(title.style?.fontWeight, FontWeight.w600);
     expect(title.style?.fontVariations, const [FontVariation.weight(800)]);
   });
 
@@ -292,6 +294,15 @@ void main() {
     expect(
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
       const Size(1100, 88),
+    );
+    final titleText = tester.widget<Text>(find.text('Mix'));
+    expect(titleText.style?.fontSize, 48);
+    expect(titleText.style?.fontWeight, FontWeight.w600);
+    expect(titleText.style?.fontVariations, const [FontVariation.weight(650)]);
+    expect(
+      tester.getRect(find.text('Songs: 2 • 3:30')).top -
+          tester.getRect(find.text('Mix')).bottom,
+      moreOrLessEquals(24, epsilon: 1),
     );
     expect(find.text('Rename'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
@@ -343,12 +354,73 @@ void main() {
       tester.getSize(find.byType(HeaderedPlaylistCover)),
       const Size(180, 180),
     );
+    final titleText = tester.widget<Text>(find.text('My Favorites'));
+    expect(titleText.style?.fontSize, 24);
+    expect(titleText.style?.fontWeight, FontWeight.w600);
+    expect(titleText.style?.fontVariations, const [FontVariation.weight(800)]);
     expect(
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
       const Size(696, 86),
     );
     expect(find.text('My Favorites'), findsOneWidget);
     expect(find.text('Clear'), findsOneWidget);
+  });
+
+  testWidgets('HeaderedPlaylistControl centers compact command bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: i18n,
+        type: HeaderedPlaylistType.playlist,
+        title: 'Mix',
+        removable: true,
+        canClear: true,
+        showAlbum: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final commandBar = find.byKey(
+      const ValueKey('HeaderedPlaylist.CommandBar'),
+    );
+    expect(tester.getSize(commandBar).width, 520);
+
+    final buttonsRect = _unionRects([
+      tester.getRect(
+        find.ancestor(
+          of: find.text('Shuffle'),
+          matching: find.byType(SmPlayerTextIconButton),
+        ),
+      ),
+      tester.getRect(
+        find.ancestor(
+          of: find.text('Multi Select'),
+          matching: find.byType(SmPlayerTextIconButton),
+        ),
+      ),
+      tester.getRect(
+        find.ancestor(
+          of: find.text('Sort'),
+          matching: find.byType(SmPlayerTextIconButton),
+        ),
+      ),
+      tester.getRect(
+        find.ancestor(
+          of: find.text('Clear'),
+          matching: find.byType(SmPlayerTextIconButton),
+        ),
+      ),
+    ]);
+
+    expect(buttonsRect.center.dx, moreOrLessEquals(350, epsilon: 1));
   });
 
   testWidgets(
@@ -622,6 +694,20 @@ void main() {
     expect(collapsedTitle.style?.fontVariations, const [
       FontVariation.weight(650),
     ]);
+    final collapsedCoverRect = tester.getRect(
+      find.byType(HeaderedPlaylistCover),
+    );
+    final collapsedCommandBarRect = tester.getRect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CommandBar')),
+    );
+    expect(
+      tester.getRect(find.text('Blue Hour')).top,
+      moreOrLessEquals(collapsedCoverRect.top, epsilon: 1),
+    );
+    expect(
+      collapsedCommandBarRect.bottom,
+      moreOrLessEquals(collapsedCoverRect.bottom, epsilon: 1),
+    );
 
     await tester.dragFrom(const Offset(600, 340), const Offset(0, 60));
     await tester.pumpAndSettle();
@@ -722,6 +808,9 @@ class _AlbumDetailTestApp extends StatelessWidget {
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
       child: MaterialApp(
+        theme: ThemeData(
+          extensions: const [DefaultAlbumArtworkThemeColors.light],
+        ),
         home: Scaffold(body: AlbumDetailPage(albumName: albumName)),
       ),
     );
@@ -777,6 +866,9 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
           ),
       ],
       child: MaterialApp(
+        theme: ThemeData(
+          extensions: const [DefaultAlbumArtworkThemeColors.light],
+        ),
         home: Scaffold(
           body: SmPlayerI18nScope(
             i18n: i18n,
@@ -849,6 +941,14 @@ List<LibrarySong> _headeredPlaylistSongs(int count) {
         thumbnailPath: '',
       ),
   ];
+}
+
+Rect _unionRects(List<Rect> rects) {
+  var result = rects.first;
+  for (final rect in rects.skip(1)) {
+    result = result.expandToInclude(rect);
+  }
+  return result;
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

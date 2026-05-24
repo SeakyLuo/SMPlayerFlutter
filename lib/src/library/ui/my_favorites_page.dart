@@ -121,8 +121,8 @@ class MyFavoritesPage extends ConsumerWidget {
                   .setSongsFavorite(songIds, false);
               ref.invalidate(libraryViewDataProvider);
             },
-            onSetPreferred: (level) {
-              ref
+            onSetPreferred: (level) async {
+              await ref
                   .read(libraryRepositoryProvider)
                   .addPreferenceItem(
                     'my-favorites',

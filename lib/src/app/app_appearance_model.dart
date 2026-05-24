@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_surface_colors.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
@@ -16,8 +17,8 @@ import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/recent/recent_search_list.dart';
+import 'package:smplayer_flutter/src/settings/settings_colors.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
-import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 bool isAppNightMode(SettingsSnapshot settings) {
   return switch (settings.nightMode) {
@@ -64,8 +65,8 @@ ThemeData buildSmPlayerTheme(
     colorScheme: colorScheme,
     scaffoldBackgroundColor:
         resolvedBrightness == Brightness.dark
-            ? const Color(0xff111317)
-            : const Color(0xfff5f7fb),
+            ? SmPlayerAppSurfaceColors.nightSurface
+            : SmPlayerAppSurfaceColors.surface,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: _NoPageTransitionsBuilder(),

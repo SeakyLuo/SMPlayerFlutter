@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -33,6 +34,57 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   List<int>? _previewPlaylistIds;
   int? _draggingPlaylistId;
   int? _lastPersistedPlaylistId;
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
+  late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+  }
+
+  @override
+  void dispose() {
+    _clearAppBarPortalOwner();
+    super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+      _appBarPortalNotifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required String routePath,
+    required Widget content,
+  }) {
+    final signature = '$showPortal:$routePath';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: routePath,
+        content: content,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -202,8 +254,8 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               );
           ref.invalidate(libraryViewDataProvider);
         },
-        onSetPreferred: (level) {
-          ref
+        onSetPreferred: (level) async {
+          await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem(
                 selectedPlaylist.isBuiltIn ? 'my-favorites' : 'playlist',
@@ -268,25 +320,39 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .map((playlistId) => playlistById[playlistId])
             .whereType<LibraryPlaylist>()
             .toList();
+    final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+    final createCommandBar = CommandBar(
+      style:
+          useWorkspaceAppBar
+              ? CommandBarStyleVariant.appBar
+              : CommandBarStyleVariant.standard,
+      overflowLabel: i18n.t('player.more'),
+      children: [
+        CommandBarButton(
+          icon: FluentIcons.add_20_regular,
+          label: i18n.t('playlists.newName'),
+          canOverflow: false,
+          showLabel: !useWorkspaceAppBar,
+          onPressed: () {
+            unawaited(_createPlaylist(context, i18n, snapshot));
+          },
+        ),
+      ],
+    );
+    _syncAppBarPortal(
+      showPortal: useWorkspaceAppBar,
+      routePath: '/playlists',
+      content: createCommandBar,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       child: Column(
         children: [
-          CommandBar(
-            overflowLabel: i18n.t('player.more'),
-            children: [
-              CommandBarButton(
-                icon: FluentIcons.add_20_regular,
-                label: i18n.t('playlists.newName'),
-                canOverflow: false,
-                onPressed: () {
-                  unawaited(_createPlaylist(context, i18n, snapshot));
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
+          if (!useWorkspaceAppBar) ...[
+            createCommandBar,
+            const SizedBox(height: 18),
+          ],
           Expanded(
             child:
                 orderedPlaylists.isEmpty

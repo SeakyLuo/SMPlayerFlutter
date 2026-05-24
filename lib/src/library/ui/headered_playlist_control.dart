@@ -31,6 +31,8 @@ import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 enum HeaderedPlaylistType { album, playlist, favorites }
 
+const _compactHeaderTopInset = 72.0;
+
 typedef HeaderedPlaylistTrackHandler =
     void Function(int trackId, List<int> queueSongIds);
 typedef HeaderedPlaylistSongsHandler =
@@ -130,8 +132,6 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
     required this.artworkUrl,
     required this.onPlayTrack,
     required this.onAddSongToPlaylist,
-    this.subtitle,
-    this.caption,
     this.headerSongs,
     this.isPlaying = false,
     this.removable = false,
@@ -163,8 +163,6 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
 
   final HeaderedPlaylistType type;
   final String title;
-  final String? subtitle;
-  final String? caption;
   final List<LibrarySong>? headerSongs;
   final List<LibrarySong> songs;
   final int? selectedTrackId;
@@ -191,7 +189,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onClear;
   final VoidCallback? onEditArtwork;
-  final ValueChanged<String>? onSetPreferred;
+  final FutureOr<void> Function(String level)? onSetPreferred;
   final HeaderedPlaylistSortHandler? onSortSongs;
   final ValueChanged<String>? onArtistClick;
   final ValueChanged<String>? onAlbumClick;
@@ -283,8 +281,10 @@ class _HeaderedPlaylistControlState
     required List<int> queueSongIds,
     required PlaylistSortCriterion activeSortCriterion,
     required SmPlayerI18n i18n,
+    required Color coverColor,
+    required double collapseProgress,
   }) {
-    final showPortal = compact && _headerCollapsed;
+    final showPortal = compact;
     final playlistSignature = widget.playlists
         .map(
           (playlist) =>
@@ -294,7 +294,8 @@ class _HeaderedPlaylistControlState
     final signature =
         '$showPortal:${widget.title}:$activeSortCriterion:${_selection.multiSelect}:'
         '${queueSongIds.join(',')}:$playlistSignature:'
-        '${widget.canRename}:${widget.canDelete}:${widget.canClear}:'
+        '${widget.canRename}:${widget.canDelete}:${widget.canClear}:$coverColor:'
+        '$_headerCollapsed:${collapseProgress.toStringAsFixed(3)}:'
         '${widget.canEditArtwork}:${widget.canSetPreferred}';
     if (_appBarPortalSignature == signature) {
       return;
@@ -315,14 +316,21 @@ class _HeaderedPlaylistControlState
       }
       notifier.state = HeaderedPlaylistAppBarPortalEntry(
         owner: _appBarPortalOwner,
-        title: widget.title,
-        commandBar: _buildShyCommandBar(
-          context,
-          i18n,
-          visibleSongs,
-          queueSongIds,
-          activeSortCriterion,
-        ),
+        title: _headerCollapsed ? widget.title : '',
+        coverColor: coverColor,
+        collapseProgress: collapseProgress,
+        commandBarBuilder:
+            _headerCollapsed
+                ? (_) {
+                  return _buildShyCommandBar(
+                    context,
+                    i18n,
+                    visibleSongs,
+                    queueSongIds,
+                    activeSortCriterion,
+                  );
+                }
+                : null,
       );
     });
   }
@@ -384,6 +392,8 @@ class _HeaderedPlaylistControlState
       queueSongIds: queueSongIds,
       activeSortCriterion: activeSortCriterion,
       i18n: i18n,
+      coverColor: _headerCoverColor,
+      collapseProgress: collapseProgress,
     );
 
     return DecoratedBox(
@@ -406,8 +416,6 @@ class _HeaderedPlaylistControlState
                             : _HeaderHero(
                               type: widget.type,
                               title: widget.title,
-                              subtitle: widget.subtitle,
-                              caption: widget.caption,
                               info: getHeaderPlaylistInfo(headerSongs, i18n),
                               artworkUrls: headerArtworkUrls,
                               coverColor: _headerCoverColor,
@@ -429,8 +437,6 @@ class _HeaderedPlaylistControlState
                     delegate: _HeaderHeroSliverDelegate(
                       type: widget.type,
                       title: widget.title,
-                      subtitle: widget.subtitle,
-                      caption: widget.caption,
                       info: getHeaderPlaylistInfo(headerSongs, i18n),
                       artworkUrls: headerArtworkUrls,
                       coverColor: _headerCoverColor,
@@ -489,10 +495,7 @@ class _HeaderedPlaylistControlState
                           widget.onToggleFavorite == null
                               ? null
                               : () {
-                                widget.onToggleFavorite!(
-                                  song.id,
-                                  !song.favorite,
-                                );
+                                _toggleSongFavoriteWithUndo(song);
                               },
                       onAddToPlaylistClick: (buttonContext) {
                         final item = buildAddToPlaylistMenuFlyoutItem(
@@ -511,7 +514,15 @@ class _HeaderedPlaylistControlState
                               widget.onToggleFavorite == null
                                   ? null
                                   : () {
-                                    widget.onToggleFavorite!(song.id, true);
+                                    unawaited(
+                                      setSongsFavoriteWithUndo(
+                                        context: context,
+                                        ref: ref,
+                                        i18n: i18n,
+                                        songIds: [song.id],
+                                        favorite: true,
+                                      ),
+                                    );
                                   },
                           onCreatePlaylist: () {
                             unawaited(
@@ -543,7 +554,7 @@ class _HeaderedPlaylistControlState
                               }
                               : null,
                       onPlayNextClick: () {
-                        widget.onPlayNext?.call(song.id);
+                        _playNextSong(song.id);
                       },
                       onOpenContextMenu: (position) {
                         unawaited(
@@ -644,11 +655,11 @@ class _HeaderedPlaylistControlState
               );
             },
             onRemove: () {
-              unawaited(
-                _removeSongsFromCurrentPlaylist(
-                  _effectiveSelectedSongIds(queueSongIds),
-                ),
-              );
+              final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
+              unawaited(_removeSongsFromCurrentPlaylist(selectedSongIds));
+              setState(() {
+                _selection.clearSelection();
+              });
             },
             onSelectAll: () {
               setState(() {
@@ -726,13 +737,13 @@ class _HeaderedPlaylistControlState
         controlHover: colors.commandControlHover,
         controlBorder: colors.commandControlBorder,
       ),
-      child: Wrap(
+      child: CommandBar(
         key: const ValueKey('HeaderedPlaylist.CommandBar'),
-        spacing: 14,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+        style: CommandBarStyleVariant.headeredPlaylist,
+        overflowLabel: i18n.t('player.more'),
+        primaryAlignment: CommandBarPrimaryAlignment.center,
         children: [
-          _HeaderCommandButton(
+          CommandBarButton(
             icon: FluentIcons.arrow_shuffle_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'shuffle'),
             disabled: visibleSongs.isEmpty,
@@ -740,7 +751,7 @@ class _HeaderedPlaylistControlState
               _shuffle(queueSongIds);
             },
           ),
-          _HeaderCommandButton(
+          CommandBarButton(
             icon: FluentIcons.multiselect_ltr_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'multiSelect'),
             active: _selection.multiSelect,
@@ -754,12 +765,15 @@ class _HeaderedPlaylistControlState
           if (widget.canSetPreferred && widget.onSetPreferred != null)
             Builder(
               builder:
-                  (buttonContext) => _HeaderCommandButton(
+                  (buttonContext) => CommandBarButton(
                     icon: FluentIcons.star_20_regular,
                     label: captionForHeaderedPlaylist(
                       i18n,
                       'preferenceSettings',
                     ),
+                    onOverflowPressedWithContext: (_) {
+                      unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
+                    },
                     onPressed: () {
                       unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
                     },
@@ -767,10 +781,11 @@ class _HeaderedPlaylistControlState
             ),
           Builder(
             builder:
-                (buttonContext) => _HeaderCommandButton(
+                (buttonContext) => CommandBarButton(
                   icon: FluentIcons.arrow_sort_20_regular,
                   label: captionForHeaderedPlaylist(i18n, 'sort'),
                   disabled: visibleSongs.isEmpty,
+                  overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
                   onPressed: () {
                     showMenuFlyout(
                       buttonContext,
@@ -780,7 +795,7 @@ class _HeaderedPlaylistControlState
                 ),
           ),
           if (widget.canRename)
-            _HeaderCommandButton(
+            CommandBarButton(
               icon: FluentIcons.edit_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'rename'),
               onPressed: () {
@@ -788,7 +803,7 @@ class _HeaderedPlaylistControlState
               },
             ),
           if (widget.canClear)
-            _HeaderCommandButton(
+            CommandBarButton(
               icon: FluentIcons.dismiss_circle_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'clear'),
               disabled: visibleSongs.isEmpty,
@@ -797,7 +812,7 @@ class _HeaderedPlaylistControlState
               },
             ),
           if (widget.canDelete)
-            _HeaderCommandButton(
+            CommandBarButton(
               icon: FluentIcons.delete_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'delete'),
               onPressed: () {
@@ -805,7 +820,7 @@ class _HeaderedPlaylistControlState
               },
             ),
           if (widget.canEditArtwork && widget.onEditArtwork != null)
-            _HeaderCommandButton(
+            CommandBarButton(
               icon: FluentIcons.image_edit_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'editArtwork'),
               onPressed: widget.onEditArtwork,
@@ -823,6 +838,7 @@ class _HeaderedPlaylistControlState
     PlaylistSortCriterion activeSortCriterion,
   ) {
     return CommandBar(
+      style: CommandBarStyleVariant.appBar,
       dynamicOverflow: false,
       overflowItems: [
         MenuFlyoutItem(
@@ -954,14 +970,15 @@ class _HeaderedPlaylistControlState
                   preferenceItemId == null ||
                   preferenceLevel == null
               ? null
-              : () {
-                ref
+              : () async {
+                await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem(preferenceType, preferenceItemId);
                 ref.invalidate(libraryViewDataProvider);
               },
-      onSetPreference: (level) {
-        widget.onSetPreferred?.call(level);
+      onSetPreference: (level) async {
+        await widget.onSetPreferred!(level);
+        ref.invalidate(libraryViewDataProvider);
       },
     );
     showMenuFlyout(context, items: preferenceItem.submenu);
@@ -1124,6 +1141,37 @@ class _HeaderedPlaylistControlState
     );
   }
 
+  void _playNextSong(int songId) {
+    if (widget.onPlayNext != null) {
+      widget.onPlayNext!(songId);
+      return;
+    }
+    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final nextQueue = snapshot.nowPlaying.songIds.toList();
+    final currentIndex =
+        widget.selectedTrackId == null
+            ? -1
+            : nextQueue.indexOf(widget.selectedTrackId!);
+    nextQueue.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
+    widget.onPlayTrack(widget.selectedTrackId ?? songId, nextQueue);
+  }
+
+  void _toggleSongFavoriteWithUndo(LibrarySong song) {
+    if (widget.type == HeaderedPlaylistType.favorites && song.favorite) {
+      unawaited(_removeSongsFromCurrentPlaylist([song.id]));
+      return;
+    }
+    unawaited(
+      setSongsFavoriteWithUndo(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        songIds: [song.id],
+        favorite: !song.favorite,
+      ),
+    );
+  }
+
   void _commitSort(
     PlaylistSortCriterion criterion,
     PlaylistSortCriterion activeSortCriterion,
@@ -1168,7 +1216,6 @@ class _HeaderedPlaylistControlState
   Future<void> _removeSongsFromCurrentPlaylist(List<int> songIds) async {
     await widget.onRemoveSongs?.call(songIds);
     _showUndoRemoveSongs(songIds);
-    _hideSelectionAfterOperation();
   }
 
   void _showUndoRemoveSongs(List<int> songIds) {
@@ -1304,17 +1351,7 @@ class _HeaderedPlaylistControlState
           widget.onTogglePlayPause?.call();
         },
         onPlayNext: () {
-          if (widget.onPlayNext != null) {
-            widget.onPlayNext!(song.id);
-            return;
-          }
-          final nextQueue = snapshot.nowPlaying.songIds.toList();
-          final currentIndex =
-              widget.selectedTrackId == null
-                  ? -1
-                  : nextQueue.indexOf(widget.selectedTrackId!);
-          nextQueue.insert(currentIndex < 0 ? 0 : currentIndex + 1, song.id);
-          widget.onPlayTrack(widget.selectedTrackId ?? song.id, nextQueue);
+          _playNextSong(song.id);
         },
         onAddToNowPlaying: () {
           _addSongsToNowPlaying([song.id]);
@@ -1347,19 +1384,7 @@ class _HeaderedPlaylistControlState
           });
         },
         onToggleFavorite: () {
-          if (widget.type == HeaderedPlaylistType.favorites && song.favorite) {
-            unawaited(_removeSongsFromCurrentPlaylist([song.id]));
-            return;
-          }
-          unawaited(
-            setSongsFavoriteWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              songIds: [song.id],
-              favorite: !song.favorite,
-            ),
-          );
+          _toggleSongFavoriteWithUndo(song);
         },
         onSetPreference: (level) async {
           await ref
@@ -1693,45 +1718,6 @@ class _HeaderedPlaylistScrollbarState
   }
 }
 
-class _HeaderCommandButton extends StatelessWidget {
-  const _HeaderCommandButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.active = false,
-    this.disabled = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool active;
-  final bool disabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return SmPlayerTextIconButton(
-      icon: icon,
-      label: label,
-      active: active,
-      disabled: disabled,
-      tooltip: label,
-      minWidth: 0,
-      maxWidth: null,
-      height: 40,
-      horizontalPadding: 12,
-      iconSize: 17,
-      iconGap: 8,
-      opacityWhenDisabled: 0.54,
-      borderRadius: 10,
-      fontSize: 13,
-      fontWeight: FontWeight.w700,
-      fontVariations: const [],
-      onPressed: onPressed,
-    );
-  }
-}
-
 class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
   const _HeaderHeroSliverDelegate({
     required this.type,
@@ -1741,14 +1727,10 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
     required this.coverColor,
     required this.windowDragCallbacks,
     required this.commandBar,
-    this.subtitle,
-    this.caption,
   });
 
   final HeaderedPlaylistType type;
   final String title;
-  final String? subtitle;
-  final String? caption;
   final String info;
   final List<String> artworkUrls;
   final Color coverColor;
@@ -1774,8 +1756,6 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
     return _HeaderHero(
       type: type,
       title: title,
-      subtitle: subtitle,
-      caption: caption,
       info: info,
       artworkUrls: artworkUrls,
       coverColor: coverColor,
@@ -1790,8 +1770,6 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _HeaderHeroSliverDelegate oldDelegate) {
     return type != oldDelegate.type ||
         title != oldDelegate.title ||
-        subtitle != oldDelegate.subtitle ||
-        caption != oldDelegate.caption ||
         info != oldDelegate.info ||
         artworkUrls != oldDelegate.artworkUrls ||
         coverColor != oldDelegate.coverColor ||
@@ -1811,14 +1789,10 @@ class _HeaderHero extends StatelessWidget {
     required this.windowDragCallbacks,
     required this.commandBar,
     this.extendBackdrop = true,
-    this.subtitle,
-    this.caption,
   });
 
   final HeaderedPlaylistType type;
   final String title;
-  final String? subtitle;
-  final String? caption;
   final String info;
   final List<String> artworkUrls;
   final Color coverColor;
@@ -1831,16 +1805,24 @@ class _HeaderHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final colors = HeaderedPlaylistThemeColors.of(context);
+    final compactTopInset =
+        _compactHeaderTopInset * (1 - collapseProgress).clamp(0.0, 1.0);
     final heroHeight =
-        lerpDouble(compact ? 320 : 326, compact ? 138 : 126, collapseProgress)!;
+        lerpDouble(
+          compact ? 320 : 326,
+          compact ? 138 : 126,
+          collapseProgress,
+        )! +
+        compactTopInset;
     final coverSize =
         lerpDouble(compact ? 180 : 240, compact ? 68 : 86, collapseProgress)!;
     final titleSize =
         lerpDouble(compact ? 24 : 48, compact ? 20 : 26, collapseProgress)!;
     final commandMargin =
         lerpDouble(compact ? 8 : 30, compact ? 4 : 8, collapseProgress)!;
+    final infoMargin = compact ? 8.0 : lerpDouble(24, 8, collapseProgress)!;
     final heroPaddingTop =
-        compact ? 0.0 : lerpDouble(50, 24, collapseProgress)!;
+        compact ? compactTopInset : lerpDouble(50, 24, collapseProgress)!;
     final horizontalPadding = compact ? 4.0 : 40.0;
     final gap =
         lerpDouble(compact ? 12 : 42, compact ? 12 : 18, collapseProgress)!;
@@ -1849,6 +1831,7 @@ class _HeaderHero extends StatelessWidget {
     final backdropExtra = compact ? 72.0 : 110.0;
     final fixedWidthBackdrop =
         !compact && MediaQuery.sizeOf(context).width <= 900;
+    final collapsedDesktop = !compact && collapseProgress >= 1.0;
     return SizedBox(
       height: heroHeight,
       child: Stack(
@@ -1906,122 +1889,133 @@ class _HeaderHero extends StatelessWidget {
                 ),
                 SizedBox(width: compact ? 0 : gap, height: compact ? gap : 0),
                 Expanded(
-                  child: Column(
-                    mainAxisAlignment:
-                        compact
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.center,
-                    crossAxisAlignment:
-                        compact
-                            ? CrossAxisAlignment.center
-                            : CrossAxisAlignment.start,
-                    children: [
-                      if (caption != null) ...[
-                        _HeaderHeroDragRegion(
-                          windowDragCallbacks: windowDragCallbacks,
-                          child: Text(
-                            caption!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      _HeaderHeroDragRegion(
-                        windowDragCallbacks: windowDragCallbacks,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: compact ? 420 : 860,
-                          ),
-                          child: Text(
-                            title,
-                            maxLines: compact ? 2 : 3,
-                            textAlign:
-                                compact ? TextAlign.center : TextAlign.start,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textStrong,
-                              fontSize: titleSize,
-                              height: compact ? 1.16 : 1.08,
-                              fontWeight:
-                                  compact ? FontWeight.w800 : FontWeight.w600,
-                              fontVariations:
-                                  compact
-                                      ? const [FontVariation.weight(800)]
-                                      : const [FontVariation.weight(650)],
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        SizedBox(height: lerpDouble(8, 4, collapseProgress)!),
-                        _HeaderHeroDragRegion(
-                          windowDragCallbacks: windowDragCallbacks,
-                          child: Text(
-                            subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: lerpDouble(17, 14, collapseProgress)!,
-                              fontWeight: FontWeight.w600,
-                              fontVariations: const [FontVariation.weight(650)],
-                            ),
-                          ),
-                        ),
-                      ],
-                      SizedBox(height: lerpDouble(16, 4, collapseProgress)!),
-                      ClipRect(
-                        child: Align(
-                          alignment:
-                              compact ? Alignment.center : Alignment.centerLeft,
-                          heightFactor: (1 - collapseProgress).clamp(0.0, 1.0),
-                          child: Opacity(
-                            opacity: (1 - collapseProgress).clamp(0.0, 1.0),
-                            child: _HeaderHeroDragRegion(
-                              windowDragCallbacks: windowDragCallbacks,
+                  child: Align(
+                    alignment:
+                        collapsedDesktop
+                            ? Alignment.centerLeft
+                            : Alignment.center,
+                    child: SizedBox(
+                      height: collapsedDesktop ? coverSize : null,
+                      child: Column(
+                        mainAxisAlignment:
+                            compact
+                                ? MainAxisAlignment.start
+                                : MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            compact
+                                ? CrossAxisAlignment.center
+                                : CrossAxisAlignment.start,
+                        children: [
+                          _HeaderHeroDragRegion(
+                            windowDragCallbacks: windowDragCallbacks,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: compact ? 420 : 860,
+                              ),
                               child: Text(
-                                info,
-                                maxLines: 1,
+                                title,
+                                maxLines: compact ? 2 : 3,
                                 textAlign:
                                     compact
                                         ? TextAlign.center
                                         : TextAlign.start,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: colors.textMuted,
-                                  fontSize:
-                                      lerpDouble(17, 14, collapseProgress)!,
+                                  color: colors.textStrong,
+                                  fontSize: titleSize,
+                                  height: compact ? 1.16 : 1.08,
                                   fontWeight: FontWeight.w600,
-                                  fontVariations: const [
-                                    FontVariation.weight(650),
-                                  ],
+                                  fontVariations:
+                                      compact
+                                          ? const [FontVariation.weight(800)]
+                                          : const [FontVariation.weight(650)],
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      SizedBox(height: commandMargin),
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: Align(
-                          alignment:
-                              compact ? Alignment.center : Alignment.centerLeft,
-                          child: ClipRect(
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: commandBar,
+                          if (!collapsedDesktop) ...[
+                            SizedBox(height: infoMargin),
+                            ClipRect(
+                              child: Align(
+                                alignment:
+                                    compact
+                                        ? Alignment.center
+                                        : Alignment.centerLeft,
+                                heightFactor: (1 - collapseProgress).clamp(
+                                  0.0,
+                                  1.0,
+                                ),
+                                child: Opacity(
+                                  opacity: (1 - collapseProgress).clamp(
+                                    0.0,
+                                    1.0,
+                                  ),
+                                  child: _HeaderHeroDragRegion(
+                                    windowDragCallbacks: windowDragCallbacks,
+                                    child: Text(
+                                      info,
+                                      maxLines: 1,
+                                      textAlign:
+                                          compact
+                                              ? TextAlign.center
+                                              : TextAlign.start,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: colors.textMuted,
+                                        fontSize:
+                                            lerpDouble(
+                                              17,
+                                              14,
+                                              collapseProgress,
+                                            )!,
+                                        fontWeight: FontWeight.w600,
+                                        fontVariations: const [
+                                          FontVariation.weight(650),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                            SizedBox(height: commandMargin),
+                          ],
+                          if (collapsedDesktop)
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomLeft,
+                                child: ClipRect(
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: commandBar,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            Flexible(
+                              fit: FlexFit.loose,
+                              child: Align(
+                                alignment:
+                                    compact
+                                        ? Alignment.center
+                                        : Alignment.centerLeft,
+                                child: ClipRect(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: compact ? 520 : double.infinity,
+                                    ),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: commandBar,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -2050,8 +2044,7 @@ class _HeaderedPlaylistBackdrop extends StatelessWidget {
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            color:
-                HeaderedPlaylistThemeColors.of(context).pageSurface,
+            color: HeaderedPlaylistThemeColors.of(context).pageSurface,
           ),
         ),
         _HeaderRadial(
@@ -2345,13 +2338,7 @@ class _CoverFallback extends StatelessWidget {
         gradient: colors.coverFallbackGradient,
         color: colors.coverFallbackColor,
       ),
-      child: const DefaultAlbumArtwork(
-        logoScale: 1,
-        lightShadowOffset: 0,
-        darkShadowOffset: 0,
-        lightShadowBlur: 0,
-        darkShadowBlur: 0,
-      ),
+      child: const DefaultAlbumArtwork(logoOpacity: 0.9),
     );
   }
 }
@@ -2390,8 +2377,7 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
     final colors = HeaderedPlaylistThemeColors.of(context);
     final listSurface =
         compact ? colors.compactListSurface : colors.listSurface;
-    final listBorder =
-        compact ? colors.compactListBorder : colors.listBorder;
+    final listBorder = compact ? colors.compactListBorder : colors.listBorder;
     final listShadows =
         compact
             ? colors.compactListShadows

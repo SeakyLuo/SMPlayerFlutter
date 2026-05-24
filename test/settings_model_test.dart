@@ -195,7 +195,7 @@ void main() {
 
   test('settings labels mirror Electron zh-CN translations', () {
     expect(nightModeLabel(NightMode.system), '跟随系统');
-    expect(nightModeLabel(NightMode.auto), '自动');
+    expect(nightModeLabel(NightMode.auto), '自定义');
     expect(nightModeLabel(NightMode.onMode), '开启');
     expect(nightModeLabel(NightMode.never), '永不');
     expect(notificationSendLabel(NotificationSendMode.musicChanged), '音乐变更');

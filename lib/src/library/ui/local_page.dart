@@ -16,16 +16,15 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
 import '../../platform/desktop_features.dart';
-import '../../settings/settings_model.dart'
-    show AppSettingsUpdate, LocalViewMode;
+import '../../settings/settings_model.dart' show LocalViewMode;
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
+import 'default_album_artwork.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
 import 'multi_select_command_bar.dart';
-import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart'
     show getNextPlaylistName, validatePlaylistName;
 import 'library_page_actions.dart'
@@ -122,13 +121,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
     return snapshotValue.when(
       loading: () => const _LocalScaffold(child: SmPlayerLoadingState()),
-      error:
-          (_, _) => _LocalScaffold(
-            child: _LocalEmptyState(
-              title: i18n.t('remoteShare.libraryLoadFailed'),
-              message: i18n.t('library.scanHelp'),
-            ),
-          ),
+      error: (_, _) => const _LocalScaffold(child: SmPlayerLoadingState()),
       data: (snapshot) {
         return SmPlayerI18nScope(
           i18n: i18n,
@@ -144,30 +137,37 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     SmPlayerI18n i18n,
   ) {
     if (snapshot.rootPath.isEmpty) {
-      return Stack(
-        children: [
-          MissingLibraryRootContent(
-            topPadding: 18,
-            buttonLoading: _pickingLibraryRoot,
-            buttonLabel:
-                _pickingLibraryRoot
-                    ? i18n.t('library.openingFolderPicker')
-                    : null,
-            onPickLibraryRoot:
-                _rootScanRunning || _pickingLibraryRoot
-                    ? null
-                    : () {
-                      unawaited(_pickAndScanLibraryRoot(i18n));
-                    },
-          ),
-          if (_refreshProgress case final progress?)
-            _LocalProgressOverlay(
-              title: _localOperationTitle ?? i18n.t('local.updateFolder'),
-              progress: progress,
-              onCancel:
-                  progress.canCancel ? () => _requestCancelScan(i18n) : null,
+      return _LocalScaffold(
+        child: Stack(
+          children: [
+            _LocalEmptyState(
+              title: i18n.t('local.noRoot'),
+              message: i18n.t('local.noRootCopy'),
+              action: LocalCommandButton(
+                onPressed:
+                    _rootScanRunning || _pickingLibraryRoot
+                        ? null
+                        : () {
+                          unawaited(_pickAndScanLibraryRoot(i18n));
+                        },
+                icon:
+                    _pickingLibraryRoot ? null : FluentIcons.folder_20_regular,
+                label:
+                    _pickingLibraryRoot
+                        ? i18n.t('library.openingFolderPicker')
+                        : i18n.t('library.chooseFolder'),
+                loading: _pickingLibraryRoot,
+              ),
             ),
-        ],
+            if (_refreshProgress case final progress?)
+              _LocalProgressOverlay(
+                title: _localOperationTitle ?? i18n.t('local.updateFolder'),
+                progress: progress,
+                onCancel:
+                    progress.canCancel ? () => _requestCancelScan(i18n) : null,
+              ),
+          ],
+        ),
       );
     }
 
@@ -203,6 +203,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return _LocalScaffold(
         child: _LocalEmptyState(
           title: i18n.t('local.folderNotFound'),
+          message: i18n.t('local.folderNotFoundDescription'),
           action: LocalCommandButton(
             onPressed: () => _openFolder(''),
             icon: FluentIcons.arrow_left_20_regular,
@@ -407,18 +408,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 () => _showSortMenu(context, i18n, currentNode),
                           );
                         },
-                      ),
-                      CommandBarButton(
-                        icon:
-                            snapshot.localViewMode == LocalViewMode.list
-                                ? FluentIcons.grid_24_regular
-                                : FluentIcons.text_bullet_list_ltr_24_regular,
-                        label:
-                            snapshot.localViewMode == LocalViewMode.list
-                                ? i18n.t('local.viewGrid')
-                                : i18n.t('local.viewList'),
-                        onPressed:
-                            () => _toggleLocalViewMode(snapshot.localViewMode),
                       ),
                       CommandBarButton(
                         icon: FluentIcons.add_24_regular,
@@ -943,14 +932,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         title: i18n.t('local.noSongsScanned'),
         message: i18n.t('local.scanPopulate'),
         action: LocalCommandButton(
-          onPressed:
-              _rootScanRunning
-                  ? null
-                  : () {
-                    unawaited(_scanLibraryRoot(snapshot.rootPath, i18n));
-                  },
-          icon: FluentIcons.arrow_sync_20_regular,
-          label: i18n.t('local.rescan'),
+          onPressed: () => context.go('/settings'),
+          icon: FluentIcons.settings_20_regular,
+          label: i18n.t('local.goToSettings'),
         ),
       );
     }
@@ -1452,17 +1436,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           .updateLocalFolderSort(folder.path, sortMode);
       ref.invalidate(libraryViewDataProvider);
     }
-  }
-
-  Future<void> _toggleLocalViewMode(LocalViewMode currentMode) async {
-    final nextMode =
-        currentMode == LocalViewMode.list
-            ? LocalViewMode.grid
-            : LocalViewMode.list;
-    await ref
-        .read(libraryRepositoryProvider)
-        .updateSettings(AppSettingsUpdate(localViewMode: nextMode));
-    ref.invalidate(libraryViewDataProvider);
   }
 
   Future<void> _updateFolderSortMode(
@@ -3120,11 +3093,12 @@ class _LocalEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MissingLibraryRootThemeColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: LocalPageColors.emptyStateSurface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: LocalPageColors.emptyStateBorder),
+        border: Border.all(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -3132,43 +3106,28 @@ class _LocalEmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 104,
-              height: 104,
-              margin: const EdgeInsets.only(bottom: 4),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: LocalPageColors.emptyStateArtworkBorder,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: LocalPageColors.artworkShadow,
-                    offset: Offset(0, 8),
-                    blurRadius: 18,
-                  ),
-                ],
-              ),
-              child: const DefaultAlbumArtwork(logoScale: 0.72),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: _LocalEmptyArtwork(),
             ),
             const SizedBox(height: 10),
             Text(
               title,
-              style: const TextStyle(
-                color: LocalPageColors.textStrong,
+              style: TextStyle(
+                color: colors.textStrong,
                 fontSize: 26,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
+                fontVariations: const [FontVariation.weight(650)],
               ),
             ),
             if (message.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Text(
                   message,
-                  style: const TextStyle(
-                    color: LocalPageColors.textMuted,
+                  style: TextStyle(
+                    color: colors.textMuted,
                     fontSize: 14,
                     height: 1.65,
                   ),
@@ -3177,6 +3136,43 @@ class _LocalEmptyState extends StatelessWidget {
             ],
             if (action != null) ...[const SizedBox(height: 18), action!],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LocalEmptyArtwork extends StatelessWidget {
+  const _LocalEmptyArtwork();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MissingLibraryRootThemeColors.of(context);
+    return SizedBox.square(
+      dimension: 104,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: colors.artworkShadow,
+              offset: const Offset(0, 8),
+              blurRadius: 18,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            foregroundDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.artworkBorder),
+            ),
+            child: DefaultAlbumArtwork(
+              logoScale: 0.72,
+              logoOpacity: colors.artworkLogoOpacity,
+            ),
+          ),
         ),
       ),
     );

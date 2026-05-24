@@ -1,22 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_surface_colors.dart';
 
 class ShellColors {
   const ShellColors._();
 
-  static const bodyHighlight = Color(0xd1ffffff);
-  static const bodyTop = Color(0xfff6f8fb);
-  static const bodyBottom = Color(0xffedf2f7);
-  static const workspaceSurface = Color(0xbdfafcff);
-  static const workspaceSolidSurface = Color(0xfffafcff);
+  static const bodyHighlight = SmPlayerAppSurfaceColors.bodyHighlight;
+  static const bodyTop = SmPlayerAppSurfaceColors.bodyTop;
+  static const bodyBottom = SmPlayerAppSurfaceColors.bodyBottom;
+  static const navigationSurface = SmPlayerAppSurfaceColors.sidebarSurface;
+  static const workspaceSurface = SmPlayerAppSurfaceColors.workspaceSurface;
+  static const workspaceSolidSurface =
+      SmPlayerAppSurfaceColors.minimalToolbarSurface;
   static const workspaceShadow = Color(0x2e2f425c);
-  static const navigationOverlaySurface = Color(0xfff8fbfe);
+  static const navigationOverlaySurface =
+      SmPlayerAppSurfaceColors.minimalToolbarSurface;
   static const navigationOverlayShadow = Color(0x2e2a384e);
   static const navigationMinimalShadow = Color(0x33363046);
   static const headerText = Color(0xff1f2933);
-  static const nightBodyHighlight = Color(0x1a5f9ed1);
-  static const nightBodyTop = Color(0xff111317);
-  static const nightBodyBottom = Color(0xff1a2028);
-  static const nightWorkspaceSurface = Color(0xff141a21);
+  static const nightBodyHighlight = SmPlayerAppSurfaceColors.nightBodyHighlight;
+  static const nightBodyTop = SmPlayerAppSurfaceColors.nightSurface;
+  static const nightBodyBottom = SmPlayerAppSurfaceColors.nightShellSurface;
+  static const nightNavigationSurface =
+      SmPlayerAppSurfaceColors.nightShellSurface;
+  static const nightWorkspaceSurface =
+      SmPlayerAppSurfaceColors.nightShellSurface;
   static const nightWorkspaceShadow = Color(0x66000000);
   static const nightNavigationOverlaySurface = Color(0xf5101419);
   static const nightNavigationOverlayShadow = Color(0x5c000000);
@@ -30,6 +37,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
     required this.bodyHighlight,
     required this.bodyTop,
     required this.bodyBottom,
+    required this.navigationSurface,
     required this.workspaceSurface,
     required this.workspaceSolidSurface,
     required this.workspaceShadow,
@@ -42,6 +50,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
   final Color bodyHighlight;
   final Color bodyTop;
   final Color bodyBottom;
+  final Color navigationSurface;
   final Color workspaceSurface;
   final Color workspaceSolidSurface;
   final Color workspaceShadow;
@@ -54,6 +63,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
     bodyHighlight: ShellColors.bodyHighlight,
     bodyTop: ShellColors.bodyTop,
     bodyBottom: ShellColors.bodyBottom,
+    navigationSurface: ShellColors.navigationSurface,
     workspaceSurface: ShellColors.workspaceSurface,
     workspaceSolidSurface: ShellColors.workspaceSolidSurface,
     workspaceShadow: ShellColors.workspaceShadow,
@@ -67,6 +77,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
     bodyHighlight: ShellColors.nightBodyHighlight,
     bodyTop: ShellColors.nightBodyTop,
     bodyBottom: ShellColors.nightBodyBottom,
+    navigationSurface: ShellColors.nightNavigationSurface,
     workspaceSurface: ShellColors.nightWorkspaceSurface,
     workspaceSolidSurface: ShellColors.nightWorkspaceSurface,
     workspaceShadow: ShellColors.nightWorkspaceShadow,
@@ -85,6 +96,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
     Color? bodyHighlight,
     Color? bodyTop,
     Color? bodyBottom,
+    Color? navigationSurface,
     Color? workspaceSurface,
     Color? workspaceSolidSurface,
     Color? workspaceShadow,
@@ -97,6 +109,7 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
       bodyHighlight: bodyHighlight ?? this.bodyHighlight,
       bodyTop: bodyTop ?? this.bodyTop,
       bodyBottom: bodyBottom ?? this.bodyBottom,
+      navigationSurface: navigationSurface ?? this.navigationSurface,
       workspaceSurface: workspaceSurface ?? this.workspaceSurface,
       workspaceSolidSurface:
           workspaceSolidSurface ?? this.workspaceSolidSurface,
@@ -120,6 +133,8 @@ class ShellThemeColors extends ThemeExtension<ShellThemeColors> {
       bodyHighlight: Color.lerp(bodyHighlight, other.bodyHighlight, t)!,
       bodyTop: Color.lerp(bodyTop, other.bodyTop, t)!,
       bodyBottom: Color.lerp(bodyBottom, other.bodyBottom, t)!,
+      navigationSurface:
+          Color.lerp(navigationSurface, other.navigationSurface, t)!,
       workspaceSurface:
           Color.lerp(workspaceSurface, other.workspaceSurface, t)!,
       workspaceSolidSurface:

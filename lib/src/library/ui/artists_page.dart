@@ -4,11 +4,13 @@ import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
 import '../../app/undoable_notification.dart';
+import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart' hide formatDuration;
 import '../../playback/media_control_provider.dart';
@@ -42,6 +44,7 @@ class ArtistsPage extends ConsumerStatefulWidget {
 class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   var _artistSearch = '';
   var _artistSearchFocused = false;
+  var _appBarSearchOpen = false;
   var _selectedArtistName = '';
   String? _appliedTargetArtistName;
   String? _notifiedMissingTargetArtistName;
@@ -49,11 +52,15 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   final _selection = PageSelectionController<int>.stored('artists');
   final _artistListController = ScrollController();
   final _artistDetailController = ScrollController();
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
+  late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   ({LibrarySong song, SongDialogMode mode})? _musicDialog;
 
   @override
   void initState() {
     super.initState();
+    _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
     _artistListController.addListener(_handleArtistListScroll);
   }
 
@@ -71,10 +78,49 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
   @override
   void dispose() {
+    _clearAppBarPortalOwner();
     _artistListController.removeListener(_handleArtistListScroll);
     _artistListController.dispose();
     _artistDetailController.dispose();
     super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+      _appBarPortalNotifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required String routePath,
+    required Widget content,
+  }) {
+    final signature =
+        '$showPortal:$routePath:$_appBarSearchOpen:$_artistSearch';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: routePath,
+        content: content,
+        replacesTitle: _appBarSearchOpen,
+      );
+    });
   }
 
   @override
@@ -213,6 +259,44 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   ),
                 )
                 .toList();
+        final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        _syncAppBarPortal(
+          showPortal: useWorkspaceAppBar,
+          routePath: '/artists',
+          content: _ArtistsAppBarSearchActions(
+            searchOpen: _appBarSearchOpen,
+            artistSearch: _artistSearch,
+            i18n: i18n,
+            onOpenSearch: () {
+              setState(() {
+                _appBarSearchOpen = true;
+                _artistSearchFocused = true;
+              });
+            },
+            onCloseSearch: () {
+              setState(() {
+                _appBarSearchOpen = false;
+                _artistSearchFocused = false;
+              });
+            },
+            onSearchChanged: (value) {
+              setState(() {
+                _artistSearch = value;
+              });
+            },
+            onSearchSubmitted: () {
+              _submitArtistSearch();
+              setState(() {
+                _appBarSearchOpen = false;
+              });
+            },
+            onClearSearch: () {
+              setState(() {
+                _artistSearch = '';
+              });
+            },
+          ),
+        );
 
         if (visibleArtists.isEmpty) {
           return _ArtistsPagePanel(
@@ -1503,6 +1587,95 @@ class _ArtistsMaster extends StatelessWidget {
                 },
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtistsAppBarSearchActions extends StatelessWidget {
+  const _ArtistsAppBarSearchActions({
+    required this.searchOpen,
+    required this.artistSearch,
+    required this.i18n,
+    required this.onOpenSearch,
+    required this.onCloseSearch,
+    required this.onSearchChanged,
+    required this.onSearchSubmitted,
+    required this.onClearSearch,
+  });
+
+  final bool searchOpen;
+  final String artistSearch;
+  final SmPlayerI18n i18n;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onCloseSearch;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSearchSubmitted;
+  final VoidCallback onClearSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!searchOpen) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: IconButton(
+          key: const ValueKey('Artists.AppBar.Search'),
+          tooltip: i18n.t('common.search'),
+          icon: const Icon(FluentIcons.search_20_regular),
+          color: artistSearch.isEmpty ? null : const Color(0xff0078d7),
+          onPressed: onOpenSearch,
+        ),
+      );
+    }
+    return SizedBox(
+      height: 36,
+      width: double.infinity,
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            onCloseSearch();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: TextField(
+          autofocus: true,
+          controller: TextEditingController(text: artistSearch)
+            ..selection = TextSelection.collapsed(offset: artistSearch.length),
+          onChanged: onSearchChanged,
+          onSubmitted: (_) {
+            onSearchSubmitted();
+          },
+          decoration: InputDecoration(
+            hintText: i18n.t('artists.searchPlaceholder'),
+            prefixIcon: IconButton(
+              tooltip: i18n.t('common.search'),
+              icon: const Icon(FluentIcons.search_20_regular),
+              onPressed: onSearchSubmitted,
+            ),
+            suffixIcon:
+                artistSearch.isNotEmpty
+                    ? IconButton(
+                      tooltip: i18n.t('common.clear'),
+                      icon: const Icon(FluentIcons.dismiss_20_regular),
+                      onPressed: onClearSearch,
+                    )
+                    : IconButton(
+                      tooltip: i18n.t('common.close'),
+                      icon: const Icon(FluentIcons.dismiss_20_regular),
+                      onPressed: onCloseSearch,
+                    ),
+            filled: true,
+            fillColor: const Color(0x090d1826),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),

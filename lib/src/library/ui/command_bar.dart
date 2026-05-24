@@ -3,25 +3,34 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
+import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+
+enum CommandBarStyleVariant { standard, headeredPlaylist, appBar }
+
+enum CommandBarPrimaryAlignment { end, center }
 
 class CommandBar extends StatefulWidget {
   const CommandBar({
     super.key,
     this.content,
+    this.style = CommandBarStyleVariant.standard,
     this.dynamicOverflow = true,
     this.overflowReserve = 0,
     this.overflowItems = const [],
     this.overflowLabel,
+    this.primaryAlignment = CommandBarPrimaryAlignment.end,
     required this.children,
   });
 
   final Widget? content;
+  final CommandBarStyleVariant style;
   final bool dynamicOverflow;
   final double overflowReserve;
   final List<MenuFlyoutItem> overflowItems;
   final String? overflowLabel;
+  final CommandBarPrimaryAlignment primaryAlignment;
   final List<Widget> children;
 
   @override
@@ -53,7 +62,14 @@ class _CommandBarState extends State<CommandBar> {
 
   @override
   Widget build(BuildContext context) {
-    final style = _CommandBarStyleData.standard();
+    final style = switch (widget.style) {
+      CommandBarStyleVariant.standard => _CommandBarStyleData.standard(),
+      CommandBarStyleVariant.headeredPlaylist =>
+        _CommandBarStyleData.headeredPlaylist(),
+      CommandBarStyleVariant.appBar => _CommandBarStyleData.appBar(
+        Theme.of(context).brightness,
+      ),
+    };
     _scheduleMeasure();
     final toolbar = ConstrainedBox(
       constraints: BoxConstraints(minHeight: style.toolbarMinHeight),
@@ -61,140 +77,168 @@ class _CommandBarState extends State<CommandBar> {
         padding: style.toolbarPadding,
         child: _CommandBarStyleScope(
           data: style,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (widget.content != null)
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: style.contentHorizontalPadding,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: widget.content!,
+          child: _CommandBarTextIconTheme(
+            enabled: widget.style == CommandBarStyleVariant.appBar,
+            style: style,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (widget.content != null)
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: style.contentHorizontalPadding,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: widget.content!,
+                      ),
                     ),
                   ),
-                ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final overflow = _resolveCommandBarOverflow(
-                      context: context,
-                      maxWidth: constraints.maxWidth,
-                      dynamicOverflow: widget.dynamicOverflow,
-                      overflowReserve: widget.overflowReserve,
-                      overflowItems: widget.overflowItems,
-                      children: widget.children,
-                      measuredItemWidths: _itemWidths,
-                      measuredMoreWidth: _measuredMoreWidth,
-                    );
-                    final overflowMenuItems = [
-                      for (final entry in overflow.overflowedChildren)
-                        _toMenuFlyoutItem(entry.$2, entry.$1),
-                      ...widget.overflowItems,
-                    ];
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth =
+                          constraints.maxWidth.isFinite
+                              ? constraints.maxWidth
+                              : MediaQuery.sizeOf(context).width;
+                      final overflow = _resolveCommandBarOverflow(
+                        context: context,
+                        maxWidth: maxWidth,
+                        dynamicOverflow: widget.dynamicOverflow,
+                        overflowReserve: widget.overflowReserve,
+                        overflowItems: widget.overflowItems,
+                        children: widget.children,
+                        measuredItemWidths: _itemWidths,
+                        measuredMoreWidth: _measuredMoreWidth,
+                      );
+                      final overflowMenuItems = [
+                        for (final entry in overflow.overflowedChildren)
+                          _toMenuFlyoutItem(entry.$2, entry.$1),
+                        ...widget.overflowItems,
+                      ];
 
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          left: -100000,
-                          top: 0,
-                          width: 10000,
-                          height: style.visibleRowHeight,
-                          child: Offstage(
-                            child: SizedBox(
-                              height: style.visibleRowHeight,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (
-                                    var index = 0;
-                                    index < widget.children.length;
-                                    index += 1
-                                  )
-                                    KeyedSubtree(
-                                      key: _itemKeys[index],
-                                      child: widget.children[index],
-                                    ),
-                                  KeyedSubtree(
-                                    key: _moreKey,
-                                    child: CommandBarButton(
-                                      icon:
-                                          FluentIcons
-                                              .more_horizontal_24_regular,
-                                      label: widget.overflowLabel ?? 'More',
-                                      showLabel: false,
-                                      canOverflow: false,
-                                      onPressed: () {},
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: style.primaryAlignment,
+                      return SizedBox(
+                        width: maxWidth,
+                        height: style.visibleRowHeight,
+                        child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            Flexible(
-                              fit: FlexFit.loose,
-                              child: SizedBox(
-                                height: style.visibleRowHeight,
-                                child: ClipRect(
-                                  child: Align(
-                                    alignment: style.visibleAlignment,
-                                    child: OverflowBox(
-                                      minWidth: 0,
-                                      maxWidth: double.infinity,
-                                      minHeight: 0,
-                                      maxHeight: style.visibleRowHeight,
-                                      alignment: style.visibleAlignment,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          for (final child
-                                              in overflow.visibleChildren)
-                                            child,
-                                        ],
+                            Positioned(
+                              left: -100000,
+                              top: 0,
+                              width: 10000,
+                              height: style.visibleRowHeight,
+                              child: Offstage(
+                                child: SizedBox(
+                                  height: style.visibleRowHeight,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      for (
+                                        var index = 0;
+                                        index < widget.children.length;
+                                        index += 1
+                                      )
+                                        KeyedSubtree(
+                                          key: _itemKeys[index],
+                                          child: widget.children[index],
+                                        ),
+                                      KeyedSubtree(
+                                        key: _moreKey,
+                                        child: CommandBarButton(
+                                          icon:
+                                              FluentIcons
+                                                  .more_horizontal_24_regular,
+                                          label: widget.overflowLabel ?? 'More',
+                                          showLabel: false,
+                                          canOverflow: false,
+                                          onPressed: () {},
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                            if (overflowMenuItems.isNotEmpty)
-                              Builder(
-                                builder: (context) {
-                                  return CommandBarButton(
-                                    key: const ValueKey(
-                                      'CommandBar.MoreButton',
+                            Align(
+                              alignment: switch (widget.primaryAlignment) {
+                                CommandBarPrimaryAlignment.center =>
+                                  Alignment.center,
+                                CommandBarPrimaryAlignment.end =>
+                                  Alignment.centerRight,
+                              },
+                              child: SizedBox(
+                                width:
+                                    widget.primaryAlignment ==
+                                            CommandBarPrimaryAlignment.center
+                                        ? overflow.visibleWidth
+                                            .clamp(0, maxWidth)
+                                            .toDouble()
+                                        : maxWidth,
+                                height: style.visibleRowHeight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: style.primaryAlignment,
+                                  children: [
+                                    Expanded(
+                                      child: ClipRect(
+                                        child: Align(
+                                          alignment: style.visibleAlignment,
+                                          child: OverflowBox(
+                                            minWidth: 0,
+                                            maxWidth: double.infinity,
+                                            minHeight: 0,
+                                            maxHeight: style.visibleRowHeight,
+                                            alignment: style.visibleAlignment,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                for (final child
+                                                    in overflow.visibleChildren)
+                                                  child,
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    icon:
-                                        FluentIcons.more_horizontal_24_regular,
-                                    label: widget.overflowLabel ?? 'More',
-                                    showLabel: false,
-                                    canOverflow: false,
-                                    onPressed: () {
-                                      showMenuFlyout(
-                                        context,
-                                        items: overflowMenuItems,
-                                      );
-                                    },
-                                  );
-                                },
+                                    if (overflowMenuItems.isNotEmpty)
+                                      Builder(
+                                        builder: (context) {
+                                          return CommandBarButton(
+                                            key: const ValueKey(
+                                              'CommandBar.MoreButton',
+                                            ),
+                                            icon:
+                                                FluentIcons
+                                                    .more_horizontal_24_regular,
+                                            label:
+                                                widget.overflowLabel ?? 'More',
+                                            showLabel: false,
+                                            canOverflow: false,
+                                            onPressed: () {
+                                              showMenuFlyout(
+                                                context,
+                                                items: overflowMenuItems,
+                                              );
+                                            },
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                ),
                               ),
+                            ),
                           ],
                         ),
-                      ],
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -310,6 +354,7 @@ class _CommandBarButtonState extends State<CommandBarButton> {
           iconSize: style.iconSize,
           iconGap: style.iconGap,
           opacityWhenDisabled: style.disabledOpacity,
+          borderRadius: style.borderRadius,
           fontSize: style.fontSize,
           fontWeight: style.fontWeight,
           fontVariations: const [FontVariation.weight(720)],
@@ -328,7 +373,9 @@ class _CommandBarButtonState extends State<CommandBarButton> {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(widget.icon, size: style.iconSize, color: foreground),
+        isMultiSelectIcon(widget.icon)
+            ? UniformMultiSelectIcon(size: style.iconSize, color: foreground)
+            : Icon(widget.icon, size: style.iconSize, color: foreground),
         if (widget.showLabel) ...[
           SizedBox(width: style.iconGap),
           if (style.maxWidth == null)
@@ -507,10 +554,12 @@ class _CommandBarOverflowResult {
   const _CommandBarOverflowResult({
     required this.visibleChildren,
     required this.overflowedChildren,
+    required this.visibleWidth,
   });
 
   final List<Widget> visibleChildren;
   final List<(int, CommandBarButton)> overflowedChildren;
+  final double visibleWidth;
 }
 
 _CommandBarOverflowResult _resolveCommandBarOverflow({
@@ -527,6 +576,7 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
     return _CommandBarOverflowResult(
       visibleChildren: children,
       overflowedChildren: const [],
+      visibleWidth: maxWidth,
     );
   }
 
@@ -577,6 +627,11 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
         if (overflowedIndexes.contains(index))
           (index, children[index] as CommandBarButton),
     ],
+    visibleWidth:
+        totalWidth +
+        (overflowItems.isNotEmpty || overflowedIndexes.isNotEmpty
+            ? moreWidth
+            : 0),
   );
 }
 
@@ -653,6 +708,36 @@ class _CommandBarStyleScope extends InheritedWidget {
   @override
   bool updateShouldNotify(covariant _CommandBarStyleScope oldWidget) {
     return oldWidget.data != data;
+  }
+}
+
+class _CommandBarTextIconTheme extends StatelessWidget {
+  const _CommandBarTextIconTheme({
+    required this.enabled,
+    required this.style,
+    required this.child,
+  });
+
+  final bool enabled;
+  final _CommandBarStyleData style;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return child;
+    }
+    return SmPlayerTextIconButtonTheme(
+      colors: SmPlayerTextIconButtonColors.of(context).copyWith(
+        commandText: style.foreground,
+        control: style.surface,
+        controlHover: style.hoverSurface,
+        controlActive: CommandBarColors.accentSoft,
+        controlBorder: style.borderColor,
+        accentStrong: CommandBarColors.accentStrong,
+      ),
+      child: child,
+    );
   }
 }
 
@@ -765,6 +850,78 @@ class _CommandBarStyleData {
       iconSize: 20,
       iconGap: 8,
       transparent: false,
+    );
+  }
+
+  static _CommandBarStyleData headeredPlaylist() {
+    return const _CommandBarStyleData(
+      toolbarMinHeight: 40,
+      visibleRowHeight: 40,
+      toolbarPadding: EdgeInsets.zero,
+      contentHorizontalPadding: 0,
+      primaryAlignment: MainAxisAlignment.center,
+      visibleAlignment: Alignment.center,
+      buttonMargin: EdgeInsets.symmetric(horizontal: 1, vertical: 2),
+      minWidth: 0,
+      minHeight: 34,
+      maxWidth: 150,
+      horizontalPadding: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: CommandBarColors.buttonBorder,
+      surface: CommandBarColors.buttonSurface,
+      hoverSurface: CommandBarColors.buttonHoverSurface,
+      pressedSurface: CommandBarColors.buttonPressedSurface,
+      foreground: CommandBarColors.textStrong,
+      highlightColor: CommandBarColors.buttonInsetHighlight,
+      shadow: [],
+      disabledOpacity: 0.54,
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      iconSize: 17,
+      iconGap: 8,
+      transparent: false,
+    );
+  }
+
+  static _CommandBarStyleData appBar(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return _CommandBarStyleData(
+      toolbarMinHeight: 40,
+      visibleRowHeight: 40,
+      toolbarPadding: EdgeInsets.zero,
+      contentHorizontalPadding: 0,
+      primaryAlignment: MainAxisAlignment.end,
+      visibleAlignment: Alignment.centerRight,
+      buttonMargin: EdgeInsets.zero,
+      minWidth: 40,
+      minHeight: 40,
+      maxWidth: 132,
+      horizontalPadding: 10,
+      borderRadius: 10,
+      borderWidth: 0,
+      borderColor: Colors.transparent,
+      surface: Colors.transparent,
+      hoverSurface:
+          dark
+              ? CommandBarColors.appBarHoverDark
+              : CommandBarColors.appBarHover,
+      pressedSurface:
+          dark
+              ? CommandBarColors.appBarPressedDark
+              : CommandBarColors.appBarPressed,
+      foreground:
+          dark
+              ? CommandBarColors.appBarForegroundDark
+              : CommandBarColors.appBarForeground,
+      highlightColor: Colors.transparent,
+      shadow: const [],
+      disabledOpacity: 0.45,
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      iconSize: 19,
+      iconGap: 7,
+      transparent: true,
     );
   }
 }

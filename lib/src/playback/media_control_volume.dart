@@ -4,6 +4,15 @@ enum VolumeSliderOrientation { horizontal, vertical }
 
 int clampVolumeValue(num value) => value.round().clamp(0, 100);
 
+const double _volumeSliderHorizontalHeight = 44;
+const double _volumeSliderVerticalHeight = 156;
+const double _volumeSliderVerticalTrackLength = 132;
+const double _mediaSliderTrackHeight = 1;
+const double _mediaSliderThumbRadius = 8;
+const double _mediaSliderOverlayRadius = 10;
+const double _volumeSliderTooltipHorizontalTop = -18;
+const double _volumeSliderTooltipGap = 8;
+
 IconData playerVolumeIcon(int volume, bool isMuted) {
   if (isMuted) {
     return FluentIcons.speaker_mute_20_regular;
@@ -21,14 +30,15 @@ IconData playerVolumeIcon(int volume, bool isMuted) {
 }
 
 const IconData _previousIcon = FluentIcons.previous_20_regular;
-const IconData _playIcon = IconData(0xed79, fontFamily: 'FluentSystemIcons');
-const IconData _pauseIcon = IconData(0xec59, fontFamily: 'FluentSystemIcons');
+const IconData _playIcon = FluentIcons.play_20_regular;
+const IconData _pauseIcon = FluentIcons.pause_20_regular;
 const IconData _nextIcon = FluentIcons.next_20_regular;
 const IconData _shuffleIcon = FluentIcons.arrow_shuffle_20_regular;
 const IconData _repeatIcon = FluentIcons.arrow_repeat_all_20_regular;
 const IconData _repeatOneIcon = FluentIcons.arrow_repeat_1_20_regular;
 const IconData _listPlaybackIcon = FluentIcons.music_note_2_24_regular;
 const IconData _moreIcon = FluentIcons.more_horizontal_20_regular;
+const IconData _voiceIcon = FluentIcons.mic_20_regular;
 
 class VolumeSlider extends StatefulWidget {
   const VolumeSlider({
@@ -113,9 +123,14 @@ class _VolumeSliderState extends State<VolumeSlider> {
             : widget.inactiveTrackColor;
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: 2,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+        trackHeight: _mediaSliderTrackHeight,
+        trackShape: const _MediaProgressTrackShape(),
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: _mediaSliderThumbRadius,
+        ),
+        overlayShape: const RoundSliderOverlayShape(
+          overlayRadius: _mediaSliderOverlayRadius,
+        ),
         activeTrackColor: widget.activeTrackColor,
         inactiveTrackColor: inactiveTrackColor,
         thumbColor: widget.thumbColor,
@@ -161,26 +176,37 @@ class _VolumeSliderState extends State<VolumeSlider> {
     );
 
     return SizedBox(
-      height: widget.orientation == VolumeSliderOrientation.vertical ? 156 : 44,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          if (widget.orientation == VolumeSliderOrientation.vertical)
-            RotatedBox(
-              quarterTurns: -1,
-              child: SizedBox(width: 132, child: slider),
-            )
-          else
-            slider,
-          if (_tooltipActive && !widget.disabled)
-            _VolumeSliderTooltip(
-              value: value.round(),
-              orientation: widget.orientation,
-              backgroundColor: widget.tooltipBackgroundColor,
-              foregroundColor: widget.tooltipForegroundColor,
-            ),
-        ],
+      height:
+          widget.orientation == VolumeSliderOrientation.vertical
+              ? _volumeSliderVerticalHeight
+              : _volumeSliderHorizontalHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              if (widget.orientation == VolumeSliderOrientation.vertical)
+                RotatedBox(
+                  quarterTurns: -1,
+                  child: SizedBox(
+                    width: _volumeSliderVerticalTrackLength,
+                    child: slider,
+                  ),
+                )
+              else
+                slider,
+              if (_tooltipActive && !widget.disabled)
+                _VolumeSliderTooltip(
+                  value: value.round(),
+                  orientation: widget.orientation,
+                  sliderSize: constraints.biggest,
+                  backgroundColor: widget.tooltipBackgroundColor,
+                  foregroundColor: widget.tooltipForegroundColor,
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -232,12 +258,14 @@ class _VolumeSliderTooltip extends StatelessWidget {
   const _VolumeSliderTooltip({
     required this.value,
     required this.orientation,
+    required this.sliderSize,
     required this.backgroundColor,
     required this.foregroundColor,
   });
 
   final int value;
   final VolumeSliderOrientation orientation;
+  final Size sliderSize;
   final Color backgroundColor;
   final Color foregroundColor;
 
@@ -265,8 +293,48 @@ class _VolumeSliderTooltip extends StatelessWidget {
     );
 
     if (orientation == VolumeSliderOrientation.vertical) {
-      return Positioned(right: -4, top: 8, child: tooltip);
+      final centerY = _volumeSliderVerticalThumbCenterY(value);
+      return Positioned(
+        key: const ValueKey('VolumeSlider.TooltipPosition'),
+        left:
+            (sliderSize.width / 2) +
+            _mediaSliderThumbRadius +
+            _volumeSliderTooltipGap,
+        top: centerY,
+        child: FractionalTranslation(
+          translation: const Offset(0, -0.5),
+          child: tooltip,
+        ),
+      );
     }
-    return Positioned(top: -4, child: tooltip);
+    final centerX = _volumeSliderHorizontalThumbCenterX(
+      value,
+      sliderSize.width,
+    );
+    return Positioned(
+      key: const ValueKey('VolumeSlider.TooltipPosition'),
+      left: centerX,
+      top: _volumeSliderTooltipHorizontalTop,
+      child: FractionalTranslation(
+        translation: const Offset(-0.5, 0),
+        child: tooltip,
+      ),
+    );
   }
+}
+
+double _volumeSliderHorizontalThumbCenterX(int value, double width) {
+  final trackWidth = max(0.0, width - (_mediaSliderOverlayRadius * 2));
+  return _mediaSliderOverlayRadius +
+      trackWidth * (clampVolumeValue(value) / 100);
+}
+
+double _volumeSliderVerticalThumbCenterY(int value) {
+  final trackHeight =
+      _volumeSliderVerticalTrackLength - (_mediaSliderOverlayRadius * 2);
+  final rotatedTrackTop =
+      (_volumeSliderVerticalHeight - _volumeSliderVerticalTrackLength) / 2;
+  return rotatedTrackTop +
+      _mediaSliderOverlayRadius +
+      trackHeight * (1 - clampVolumeValue(value) / 100);
 }

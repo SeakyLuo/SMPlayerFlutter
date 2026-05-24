@@ -12,6 +12,7 @@ List<MenuFlyoutItem> _buildPlaybackModeMenuItems({
       key: 'playback-mode-list',
       text: i18n.t('player.playbackModeList'),
       icon: _listPlaybackIcon,
+      usePlaylistIcon: true,
       checked: mode == PlaybackMode.once,
       onPressed: () {
         _setPlaybackMode(
@@ -94,7 +95,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   List<LibraryPlaylist> playlists = const [],
   String? preferenceLevel,
   VoidCallback? onAddToNowPlaying,
-  VoidCallback? onCreatePlaylist,
+  ValueChanged<String>? onCreatePlaylist,
   ValueChanged<int>? onAddToPlaylist,
   VoidCallback? onUndoPreference,
   ValueChanged<String>? onSetPreference,
@@ -118,6 +119,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         text:
             '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
         icon: _playbackModeIcon(mode),
+        usePlaylistIcon: mode == PlaybackMode.once,
         submenu: _buildPlaybackModeMenuItems(
           i18n: i18n,
           mode: mode,
@@ -140,21 +142,20 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           onVolumeChange: onVolumeChange,
         ),
       ),
-      MenuFlyoutItem(
-        key: 'player-favorite',
-        text:
-            currentSong?.favorite == true
-                ? i18n.t('player.unlike')
-                : i18n.t('player.like'),
-        icon:
-            currentSong?.favorite == true
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
-        iconColor:
-            currentSong?.favorite == true ? const Color(0xffd13438) : null,
-        disabled: currentSong == null,
-        onPressed: onToggleFavorite,
-      ),
+      if (currentSong != null)
+        MenuFlyoutItem(
+          key: 'player-favorite',
+          text:
+              currentSong.favorite
+                  ? i18n.t('player.unlike')
+                  : i18n.t('player.like'),
+          icon:
+              currentSong.favorite
+                  ? FluentIcons.heart_20_filled
+                  : FluentIcons.heart_20_regular,
+          iconColor: currentSong.favorite ? const Color(0xffd13438) : null,
+          onPressed: onToggleFavorite,
+        ),
     ],
   ];
 
@@ -177,9 +178,12 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
     i18n: i18n,
     songIds: [currentSong.id],
     playlists: customPlaylists,
+    defaultPlaylistName: currentSong.title,
+    includeNowPlaying: false,
     includeFavorites: !isCompact && !currentSong.favorite,
+    onAddToNowPlaying: onAddToNowPlaying,
     onToggleFavorite: currentSong.favorite ? null : onToggleFavorite,
-    onCreatePlaylist: onCreatePlaylist,
+    onCreatePlaylistWithName: onCreatePlaylist,
     onAddToPlaylist: onAddToPlaylist,
   );
   if (addToItem != null) {
@@ -202,45 +206,45 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
     MenuFlyoutItem(
       key: 'view',
       text: i18n.t('context.view'),
-      icon: Icons.visibility_outlined,
+      icon: FluentIcons.eye_20_regular,
       submenu: [
         MenuFlyoutItem(
           key: 'see-artist',
           text: i18n.t('context.seeArtist'),
-          icon: Icons.groups_rounded,
+          icon: FluentIcons.people_20_regular,
           onPressed: onSeeArtist,
         ),
         MenuFlyoutItem(
           key: 'see-album',
           text: i18n.t('context.seeAlbum'),
-          icon: Icons.album_rounded,
+          icon: FluentIcons.album_20_regular,
           onPressed: onSeeAlbum,
         ),
         MenuFlyoutItem(
           key: 'see-music-info',
           text: i18n.t('context.seeMusicInfo'),
-          icon: Icons.info_outline_rounded,
+          icon: FluentIcons.info_20_regular,
           keepOpen: true,
           onPressed: onSeeMusicInfo,
         ),
         MenuFlyoutItem(
           key: 'see-lyrics',
           text: i18n.t('context.seeLyrics'),
-          icon: Icons.lyrics_rounded,
+          icon: FluentIcons.text_bullet_list_20_regular,
           keepOpen: true,
           onPressed: onSeeLyrics,
         ),
         MenuFlyoutItem(
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
-          icon: Icons.image_rounded,
+          icon: FluentIcons.image_20_regular,
           keepOpen: true,
           onPressed: onSeeAlbumArt,
         ),
         MenuFlyoutItem(
           key: 'see-local-file',
           text: i18n.t('context.seeLocalFile'),
-          icon: Icons.folder_open_rounded,
+          icon: FluentIcons.folder_open_20_regular,
           pendingText: i18n.t('context.openingLocal'),
           onPressed: onSeeLocal,
         ),
@@ -254,14 +258,14 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
               : i18n.t('nowPlaying.fullScreen'),
       icon:
           isWindowFullScreen
-              ? Icons.fullscreen_exit_rounded
-              : Icons.fullscreen_rounded,
+              ? FluentIcons.full_screen_minimize_20_regular
+              : FluentIcons.full_screen_maximize_20_regular,
       onPressed: onToggleWindowFullScreen,
     ),
     MenuFlyoutItem(
       key: 'mini-mode',
       text: i18n.t('player.miniMode'),
-      icon: Icons.picture_in_picture_alt_rounded,
+      icon: FluentIcons.picture_in_picture_20_regular,
       onPressed: onEnterMiniMode,
     ),
   ]);

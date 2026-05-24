@@ -248,6 +248,7 @@
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				49CE79BE1888C43EB71E7333 /* [CP] Embed Pods Frameworks */,
+				8C7A2D5B5E1847D38A9E61C2 /* Patch Privacy Usage Descriptions */,
 			);
 			buildRules = (
 			);
@@ -408,6 +409,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		8C7A2D5B5E1847D38A9E61C2 /* Patch Privacy Usage Descriptions */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Patch Privacy Usage Descriptions";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nAPP_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\n[ -d \"$APP_DIR\" ] || exit 0\nPATCHED_BUNDLES=\"${TARGET_TEMP_DIR}/privacy_patched_bundles.txt\"\n: > \"$PATCHED_BUNDLES\"\nfind \"$APP_DIR\" \\( -name Info.plist -path \"*.framework/*\" -o -name Info.plist -path \"*.bundle/*\" -o -name Info.plist -path \"*.app/*\" \\) -print | while IFS= read -r plist; do\n  /usr/libexec/PlistBuddy -c \"Set :NSMicrophoneUsageDescription Simple Melody Player uses the microphone for voice assistant commands.\" \"$plist\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :NSMicrophoneUsageDescription string Simple Melody Player uses the microphone for voice assistant commands.\" \"$plist\"\n  /usr/libexec/PlistBuddy -c \"Set :NSSpeechRecognitionUsageDescription Simple Melody Player uses speech recognition to run voice assistant commands.\" \"$plist\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :NSSpeechRecognitionUsageDescription string Simple Melody Player uses speech recognition to run voice assistant commands.\" \"$plist\"\n  bundle=\"$plist\"\n  while [ \"$bundle\" != \"/\" ] && [ -n \"$bundle\" ] && [ \"${bundle##*.}\" != \"framework\" ] && [ \"${bundle##*.}\" != \"bundle\" ] && [ \"${bundle##*.}\" != \"app\" ]; do\n    bundle=\"${bundle%/*}\"\n  done\n  case \"$bundle\" in\n    *.framework|*.bundle) printf '%s\\n' \"$bundle\" >> \"$PATCHED_BUNDLES\" ;;\n  esac\ndone\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" != \"NO\" ]; then\n  SIGN_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\n  [ -n \"$SIGN_IDENTITY\" ] || SIGN_IDENTITY=\"-\"\n  sort -u \"$PATCHED_BUNDLES\" | while IFS= read -r bundle; do\n    [ -d \"$bundle\" ] || continue\n    codesign --force --sign \"$SIGN_IDENTITY\" --timestamp=none --preserve-metadata=identifier,entitlements,flags,runtime \"$bundle\"\n  done\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 		B5C055520E9AECCBA90D0A59 /* [CP] Check Pods Manifest.lock */ = {
@@ -584,6 +605,8 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -716,6 +739,8 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -736,6 +761,7 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

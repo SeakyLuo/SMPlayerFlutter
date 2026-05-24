@@ -8,10 +8,14 @@ class HeaderedPlaylistAppBarPortalEntry {
   const HeaderedPlaylistAppBarPortalEntry({
     required this.owner,
     required this.title,
-    required this.commandBar,
+    required this.coverColor,
+    required this.collapseProgress,
+    this.commandBarBuilder,
   });
 
   final Object owner;
   final String title;
-  final Widget commandBar;
+  final WidgetBuilder? commandBarBuilder;
+  final Color coverColor;
+  final double collapseProgress;
 }

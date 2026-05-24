@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
@@ -257,6 +258,41 @@ void main() {
     );
 
     expect(find.text('Road Trip'), findsOneWidget);
+  });
+
+  testWidgets('sidebar playlist group is expanded by default', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            playlists: const [
+              LibraryPlaylist(
+                id: 8,
+                name: 'Daily Mix',
+                priority: 0,
+                songCount: 1,
+                songIds: [1],
+                sortCriterion: PlaylistSortCriterion.title,
+                isBuiltIn: false,
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Daily Mix'), findsOneWidget);
   });
 
   testWidgets('search box reports typed, submitted, and cleared values', (
@@ -659,9 +695,78 @@ void main() {
 
     expect(find.text('Road Mix'), findsOneWidget);
     expect(find.text('Built in'), findsNothing);
+    final headingRect = tester.getRect(
+      find.byKey(const ValueKey('MainNavigationView.PlaylistsHeadingItem')),
+    );
+    final playlistRect = tester.getRect(
+      find.byKey(const ValueKey('PlaylistItem.7')),
+    );
+    expect(playlistRect.top - headingRect.bottom, 0);
+    expect(playlistRect.height, 48);
+    final randomIconFinder = find.byIcon(FluentIcons.arrow_shuffle_20_regular);
+    expect(randomIconFinder, findsOneWidget);
+    expect(
+      tester
+          .widget<Opacity>(
+            find
+                .ancestor(of: randomIconFinder, matching: find.byType(Opacity))
+                .first,
+          )
+          .opacity,
+      0,
+    );
 
     await tester.tap(find.byKey(const ValueKey('PlaylistItem.7')));
     expect(invokedTarget, '/playlists/7');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/playlists/7',
+            searchText: '',
+            i18n: testI18n,
+            playlists: const [
+              LibraryPlaylist(
+                id: 7,
+                name: 'Road Mix',
+                priority: 1,
+                songCount: 2,
+                songIds: [1, 2],
+                sortCriterion: PlaylistSortCriterion.title,
+                isBuiltIn: false,
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (target) {
+              invokedTarget = target;
+            },
+            onCreatePlaylist: () {
+              createRequested = true;
+            },
+            onPlaylistRandomPlay: (playlistId) {
+              randomPlaylistId = playlistId;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<Opacity>(
+            find
+                .ancestor(of: randomIconFinder, matching: find.byType(Opacity))
+                .first,
+          )
+          .opacity,
+      1,
+    );
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
@@ -670,6 +775,16 @@ void main() {
       tester.getCenter(find.byKey(const ValueKey('PlaylistItem.7'))),
     );
     await tester.pump();
+    expect(
+      tester
+          .widget<Opacity>(
+            find
+                .ancestor(of: randomIconFinder, matching: find.byType(Opacity))
+                .first,
+          )
+          .opacity,
+      1,
+    );
 
     await tester.tap(find.byTooltip('随机播放'));
     expect(randomPlaylistId, 7);

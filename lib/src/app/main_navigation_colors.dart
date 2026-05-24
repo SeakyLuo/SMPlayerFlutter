@@ -6,10 +6,10 @@ class MainNavigationViewColors {
   static const textStrong = Color(0xff1f252b);
   static const textMuted = Color(0xff5f625f);
   static const accentStrong = Color(0xff0063b1);
-  static const accentHover = Color(0x140078d7);
+  static const accentHover = Color(0x1a0078d7);
   static const iconButtonHover = Color(0x1f0078d7);
   static const collapsedHover = Color(0x210078d7);
-  static const accentBorder = Color(0x140078d7);
+  static const accentBorder = SmPlayerInteractionColors.hoverSurface;
   static const searchSurface = Color(0x090d1826);
   static const focusedSearchSurface = Color(0xffffffff);
   static const searchBorder = Color(0x24536379);
@@ -17,7 +17,7 @@ class MainNavigationViewColors {
   static const searchFocusRing = Color(0x1a0078d7);
   static const searchInsetHighlight = Color(0x61ffffff);
   static const searchPlaceholder = Color(0x9e3d4958);
-  static const clearButton = Color(0x140078d7);
+  static const clearButton = SmPlayerInteractionColors.hoverSurface;
   static const clearButtonHover = Color(0x1f0078d7);
   static const sectionDivider = Color(0x3d6c7580);
   static const sectionLabel = Color(0x8a5f625f);
@@ -115,7 +115,7 @@ class MainNavigationPalette extends ThemeExtension<MainNavigationPalette> {
     textMuted: Color(0xc7ffffff),
     highlightText: Color(0xffffffff),
     accentStrong: Color(0xff7fc4ff),
-    accentHover: Color(0x290078d7),
+    accentHover: SmPlayerInteractionColors.hoverSurfaceDark,
     iconButtonHover: Color(0x2e0078d7),
     collapsedHover: Color(0x330078d7),
     accentBorder: Color(0x330078d7),
@@ -126,15 +126,15 @@ class MainNavigationPalette extends ThemeExtension<MainNavigationPalette> {
     searchFocusRing: Color(0x290078d7),
     searchInsetHighlight: Color(0x00ffffff),
     searchPlaceholder: Color(0x94ffffff),
-    clearButton: Color(0x290078d7),
-    clearButtonHover: Color(0x290078d7),
+    clearButton: SmPlayerInteractionColors.hoverSurfaceDark,
+    clearButtonHover: SmPlayerInteractionColors.hoverSurfaceDark,
     clearForeground: Color(0xffffffff),
     sectionDivider: Color(0x1fd6e0ec),
     sectionLabel: Color(0x9ecbd5e1),
     dropdownSurface: Color(0xfa1d232b),
     dropdownShadow: Color(0x5c000000),
     searchHistoryHeader: Color(0x7acbd5e1),
-    searchHistoryItemHover: Color(0x290078d7),
+    searchHistoryItemHover: SmPlayerInteractionColors.hoverSurfaceDark,
   );
 
   @override

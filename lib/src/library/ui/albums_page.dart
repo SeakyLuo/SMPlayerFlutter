@@ -3,11 +3,13 @@ import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
 import '../../app/undoable_notification.dart';
+import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
@@ -66,10 +68,14 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   AlbumView? _albumArtPreview;
   final _selection = PageSelectionController<String>.stored('albums');
   final _albumGridScrollController = ScrollController();
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
+  late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
 
   @override
   void initState() {
     super.initState();
+    _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
     _albumGridScrollController.addListener(_handleAlbumGridScroll);
   }
 
@@ -83,9 +89,82 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   @override
   void dispose() {
+    _clearAppBarPortalOwner();
     _albumGridScrollController.removeListener(_handleAlbumGridScroll);
     _albumGridScrollController.dispose();
     super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+      _appBarPortalNotifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required String routePath,
+    required SmPlayerI18n i18n,
+  }) {
+    final signature =
+        '$showPortal:$routePath:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_sortCriterion';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: routePath,
+        content: _buildAlbumsAppBarActions(i18n, positioned: false),
+        replacesTitle: _appBarSearchOpen,
+      );
+    });
+  }
+
+  Widget _buildAlbumsAppBarActions(
+    SmPlayerI18n i18n, {
+    required bool positioned,
+  }) {
+    return _AlbumsAppBarActions(
+      positioned: positioned,
+      searchOpen: _appBarSearchOpen,
+      searchDraft: _searchDraft,
+      searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+      sortCriterion: _sortCriterion,
+      i18n: i18n,
+      onOpenSearch: () {
+        setState(() {
+          _appBarSearchOpen = true;
+          _searchFocused = true;
+        });
+      },
+      onCloseSearch: () {
+        setState(() {
+          _appBarSearchOpen = false;
+          _searchFocused = false;
+        });
+      },
+      onSearchChanged: (value) {
+        setState(() {
+          _searchDraft = value;
+        });
+      },
+      onSearchSubmitted: _submitSearch,
+      onClearSearch: _clearSearch,
+      onChangeAlbumSort: _changeAlbumSort,
+    );
   }
 
   @override
@@ -167,6 +246,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   ),
                 )
                 .toList();
+        final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        _syncAppBarPortal(
+          showPortal: useWorkspaceAppBar,
+          routePath: '/albums',
+          i18n: i18n,
+        );
 
         if (visibleAlbums.isEmpty) {
           return _AlbumsPagePanel(
@@ -349,34 +434,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       ),
                     ],
                   ),
-                  _AlbumsAppBarActions(
-                    searchOpen: _appBarSearchOpen,
-                    searchDraft: _searchDraft,
-                    searchHasText:
-                        _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
-                    sortCriterion: _sortCriterion,
-                    i18n: i18n,
-                    onOpenSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = true;
-                        _searchFocused = true;
-                      });
-                    },
-                    onCloseSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = false;
-                        _searchFocused = false;
-                      });
-                    },
-                    onSearchChanged: (value) {
-                      setState(() {
-                        _searchDraft = value;
-                      });
-                    },
-                    onSearchSubmitted: _submitSearch,
-                    onClearSearch: _clearSearch,
-                    onChangeAlbumSort: _changeAlbumSort,
-                  ),
+                  if (!useWorkspaceAppBar)
+                    _buildAlbumsAppBarActions(i18n, positioned: true),
                   MultiSelectCommandBar(
                     visible: _selection.multiSelect,
                     selectedCount: selectedAlbums.length,
@@ -1140,6 +1199,7 @@ class _AlbumsToolbar extends StatelessWidget {
 
 class _AlbumsAppBarActions extends StatelessWidget {
   const _AlbumsAppBarActions({
+    required this.positioned,
     required this.searchOpen,
     required this.searchDraft,
     required this.searchHasText,
@@ -1153,6 +1213,7 @@ class _AlbumsAppBarActions extends StatelessWidget {
     required this.onChangeAlbumSort,
   });
 
+  final bool positioned;
   final bool searchOpen;
   final String searchDraft;
   final bool searchHasText;
@@ -1167,22 +1228,31 @@ class _AlbumsAppBarActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
+    final panel = Material(
       key: const ValueKey('Albums.AppBarActions'),
-      top: 8,
-      right: 8,
-      child: Material(
-        elevation: 8,
-        shadowColor: const Color(0x1a000000),
-        color: Colors.white.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child:
-              searchOpen
-                  ? SizedBox(
-                    width: 320,
-                    height: 42,
+      elevation: positioned ? 8 : 0,
+      shadowColor: const Color(0x1a000000),
+      color:
+          positioned
+              ? Colors.white.withValues(alpha: 0.82)
+              : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: EdgeInsets.all(positioned ? 6 : 0),
+        child:
+            searchOpen
+                ? SizedBox(
+                  width: positioned ? 320 : double.infinity,
+                  height: positioned ? 42 : 36,
+                  child: Focus(
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.escape) {
+                        onCloseSearch();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
                     child: TextField(
                       autofocus: true,
                       controller: TextEditingController(text: searchDraft)
@@ -1217,7 +1287,8 @@ class _AlbumsAppBarActions extends StatelessWidget {
                                   onPressed: onCloseSearch,
                                 ),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor:
+                            positioned ? Colors.white : const Color(0x090d1826),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(9),
                           borderSide: BorderSide.none,
@@ -1225,19 +1296,27 @@ class _AlbumsAppBarActions extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                  )
-                  : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
+                  ),
+                )
+                : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: IconButton(
                         key: const ValueKey('Albums.AppBar.Search'),
                         tooltip: i18n.t('common.search'),
                         icon: const Icon(FluentIcons.search_20_regular),
                         onPressed: onOpenSearch,
                       ),
-                      Builder(
-                        builder: (context) {
-                          return IconButton(
+                    ),
+                    Builder(
+                      builder: (context) {
+                        return SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: IconButton(
                             key: const ValueKey('Albums.AppBar.Sort'),
                             tooltip: _albumSortLabel(i18n, sortCriterion),
                             icon: const Icon(FluentIcons.arrow_sort_20_regular),
@@ -1251,14 +1330,18 @@ class _AlbumsAppBarActions extends StatelessWidget {
                                 ),
                               );
                             },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-        ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
       ),
     );
+    if (!positioned) {
+      return panel;
+    }
+    return Positioned(top: 8, right: 8, child: panel);
   }
 }
 

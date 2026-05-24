@@ -28,6 +28,7 @@ const _smPlayerDatabaseName = 'SMPlayerSettings.db';
 const _nowPlayingJsonName = 'NowPlaying.json';
 const _pendingSongDeletesJsonName = 'pending-song-deletes.json';
 const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
+const _macOsBundleIdentifier = 'com.seaky.smplayerFlutter';
 const _recentSongLimit = 500;
 const _recentCollectionLimit = 200;
 
@@ -38,7 +39,7 @@ String defaultSmPlayerUserDataPath() {
 
   if (Platform.isMacOS) {
     return p.join(
-      Platform.environment['HOME']!,
+      _macOsSandboxDataPath(),
       'Library',
       'Application Support',
       'Simple Melody Player',
@@ -50,6 +51,21 @@ String defaultSmPlayerUserDataPath() {
     '.config',
     'simple-melody-player',
   );
+}
+
+String _macOsSandboxDataPath() {
+  final home = Platform.environment['HOME']!;
+  final normalizedHome = p.normalize(home);
+  final sandboxSuffix = p.join(
+    'Library',
+    'Containers',
+    _macOsBundleIdentifier,
+    'Data',
+  );
+  if (normalizedHome.endsWith(sandboxSuffix)) {
+    return home;
+  }
+  return p.join(home, 'Library', 'Containers', _macOsBundleIdentifier, 'Data');
 }
 
 const _audioFileExtensions = {
@@ -796,6 +812,37 @@ class LibraryRepository {
     }
   }
 
+  Future<void> saveMainWindowState({
+    required String bounds,
+    required bool maximized,
+  }) async {
+    final databaseFile = await _resolveDatabaseFile();
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE Settings
+        SET
+          MainWindowBounds = ?,
+          MainWindowMaximized = ?
+        WHERE Id = (
+          SELECT Id
+          FROM Settings
+          ORDER BY Id DESC
+          LIMIT 1
+        )
+      ''',
+        [bounds, _boolValue(maximized)],
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<void> replaceNowPlaying(List<int> songIds) async {
     final databaseFile = await _resolveDatabaseFile();
     if (!databaseFile.existsSync()) {
@@ -990,10 +1037,6 @@ class LibraryRepository {
         try {
           for (final entry in entries) {
             final storedType = _toStoredSearchHistoryType(entry.type);
-            db.execute(
-              'DELETE FROM SearchHistory WHERE Query = ? AND Type = ?',
-              [entry.query, storedType],
-            );
             statement.execute([
               entry.id,
               entry.query,
@@ -1893,14 +1936,6 @@ class LibraryRepository {
       final searchedAt = DateTime.now().toUtc().toIso8601String();
       db.execute('BEGIN');
       try {
-        db.execute(
-          '''
-          DELETE FROM SearchHistory
-          WHERE Query = ? COLLATE NOCASE
-            AND Type = ?
-        ''',
-          [nextQuery, _toStoredSearchHistoryType(type)],
-        );
         db.execute(
           '''
           INSERT INTO SearchHistory (Query, Type, SearchedAt)
@@ -7517,8 +7552,9 @@ void _initializeLibrarySchema(Database db) {
   );
   db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_file_path ON File(Path)');
   db.execute('CREATE INDEX IF NOT EXISTS idx_playlist_name ON Playlist(Name)');
+  db.execute('DROP INDEX IF EXISTS idx_search_history_query_nocase');
   db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_search_history_query_nocase
+    CREATE INDEX IF NOT EXISTS idx_search_history_query_lookup
       ON SearchHistory(Query COLLATE NOCASE, Type)
   ''');
   db.execute('''

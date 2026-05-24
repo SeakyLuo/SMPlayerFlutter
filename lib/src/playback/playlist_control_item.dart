@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
 
@@ -601,7 +602,7 @@ class _PlaylistControlItemColors {
   const _PlaylistControlItemColors._();
 
   static const border = Color(0x297e8b9a);
-  static const hover = Color(0x140078d7);
+  static const hover = SmPlayerInteractionColors.hoverSurface;
   static const current = Color(0x1f0078d7);
   static const selectedInset = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);

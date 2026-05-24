@@ -84,7 +84,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final String? preferenceLevel;
   final FutureOr<String?> Function()? onResolvePreferenceLevel;
   final VoidCallback? onAddToNowPlaying;
-  final VoidCallback? onCreatePlaylist;
+  final ValueChanged<String>? onCreatePlaylist;
   final ValueChanged<int>? onAddToPlaylist;
   final VoidCallback? onUndoPreference;
   final ValueChanged<String>? onSetPreference;
@@ -104,6 +104,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilitySize = narrow ? 34.0 : 36.0;
     final utilityPadding = narrow ? 5.0 : 6.0;
     final utilityIconSize = utilitySize - utilityPadding * 2;
+    final utilityGap = narrow ? 2.0 : 6.0;
+    const utilityControlOuterSlack = 4.0;
 
     final transportControls = Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -112,8 +114,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
           key: const ValueKey('MediaControl.PreviousButton'),
           tooltip: i18n.t('player.previous'),
           icon: _previousIcon,
-          buttonSize: 40,
-          padding: 8,
+          buttonSize: 36,
+          padding: 6,
           iconSize: 24,
           disabled: disabled,
           onPressed: onPrevious,
@@ -136,8 +138,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
           key: const ValueKey('MediaControl.NextButton'),
           tooltip: i18n.t('player.next'),
           icon: _nextIcon,
-          buttonSize: 40,
-          padding: 8,
+          buttonSize: 36,
+          padding: 6,
           iconSize: 24,
           disabled: disabled,
           onPressed: onNext,
@@ -195,7 +197,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         else
           _PlayerIconButton(
             tooltip: i18n.t('player.voiceAssistant'),
-            icon: Icons.mic_rounded,
+            icon: _voiceIcon,
             buttonSize: utilitySize,
             padding: utilityPadding,
             iconSize: utilityIconSize,
@@ -204,48 +206,51 @@ class _CompactMediaControlLayout extends StatelessWidget {
           ),
         Builder(
           builder: (moreButtonContext) {
-            return _PlayerIconButton(
-              key: const ValueKey('MediaControl.MoreButton'),
-              tooltip: i18n.t('player.more'),
-              icon: _moreIcon,
-              buttonSize: utilitySize,
-              padding: utilityPadding,
-              iconSize: utilityIconSize,
-              onPressed: () {
-                _showCompactMoreMenu(
-                  moreButtonContext,
-                  i18n: i18n,
-                  disabled: disabled,
-                  trackId: track.id,
-                  mode: mode,
-                  isMuted: isMuted,
-                  volumeValue: volume,
-                  onQuickPlay: onQuickPlay,
-                  onToggleMute: onToggleMute,
-                  onToggleShuffle: onToggleShuffle,
-                  onToggleRepeat: onToggleRepeat,
-                  onToggleRepeatOne: onToggleRepeatOne,
-                  onOpenNowPlaying: onOpenNowPlaying,
-                  onToggleWindowFullScreen: onToggleWindowFullScreen,
-                  isWindowFullScreen: isWindowFullScreen,
-                  onEnterMiniMode: onEnterMiniMode,
-                  currentSong: currentSong,
-                  playlists: playlists,
-                  preferenceLevel: preferenceLevel,
-                  onResolvePreferenceLevel: onResolvePreferenceLevel,
-                  onAddToNowPlaying: onAddToNowPlaying,
-                  onCreatePlaylist: onCreatePlaylist,
-                  onAddToPlaylist: onAddToPlaylist,
-                  onUndoPreference: onUndoPreference,
-                  onSetPreference: onSetPreference,
-                  onSeeArtist: onSeeArtist,
-                  onSeeAlbum: onSeeAlbum,
-                  onSeeMusicInfo: onSeeMusicInfo,
-                  onSeeLyrics: onSeeLyrics,
-                  onSeeAlbumArt: onSeeAlbumArt,
-                  onSeeLocal: onSeeLocal,
-                );
-              },
+            return Padding(
+              padding: EdgeInsets.only(left: utilityGap),
+              child: _PlayerIconButton(
+                key: const ValueKey('MediaControl.MoreButton'),
+                tooltip: i18n.t('player.more'),
+                icon: _moreIcon,
+                buttonSize: utilitySize,
+                padding: utilityPadding,
+                iconSize: utilityIconSize,
+                onPressed: () {
+                  _showCompactMoreMenu(
+                    moreButtonContext,
+                    i18n: i18n,
+                    disabled: disabled,
+                    trackId: track.id,
+                    mode: mode,
+                    isMuted: isMuted,
+                    volumeValue: volume,
+                    onQuickPlay: onQuickPlay,
+                    onToggleMute: onToggleMute,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                    onOpenNowPlaying: onOpenNowPlaying,
+                    onToggleWindowFullScreen: onToggleWindowFullScreen,
+                    isWindowFullScreen: isWindowFullScreen,
+                    onEnterMiniMode: onEnterMiniMode,
+                    currentSong: currentSong,
+                    playlists: playlists,
+                    preferenceLevel: preferenceLevel,
+                    onResolvePreferenceLevel: onResolvePreferenceLevel,
+                    onAddToNowPlaying: onAddToNowPlaying,
+                    onCreatePlaylist: onCreatePlaylist,
+                    onAddToPlaylist: onAddToPlaylist,
+                    onUndoPreference: onUndoPreference,
+                    onSetPreference: onSetPreference,
+                    onSeeArtist: onSeeArtist,
+                    onSeeAlbum: onSeeAlbum,
+                    onSeeMusicInfo: onSeeMusicInfo,
+                    onSeeLyrics: onSeeLyrics,
+                    onSeeAlbumArt: onSeeAlbumArt,
+                    onSeeLocal: onSeeLocal,
+                  );
+                },
+              ),
             );
           },
         ),
@@ -257,7 +262,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final utilityWidth = narrow ? 72.0 : 80.0;
+              final utilityWidth =
+                  utilitySize * 2 + utilityGap + utilityControlOuterSlack;
               final transportWidth = narrow ? 176.0 : 208.0;
               final availableTrackWidth =
                   constraints.maxWidth - utilityWidth - transportWidth;
@@ -273,7 +279,6 @@ class _CompactMediaControlLayout extends StatelessWidget {
                     child: _PlayerTrack(
                       track: track,
                       artworkPath: resolvePlayerArtworkPath(track, currentSong),
-                      playbackNoticeKey: playbackNoticeKey,
                       currentLyricsLine: currentLyricsLine,
                       onArtworkError: onArtworkError,
                       disabled: track.id == null,
@@ -323,7 +328,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     String? preferenceLevel,
     FutureOr<String?> Function()? onResolvePreferenceLevel,
     VoidCallback? onAddToNowPlaying,
-    VoidCallback? onCreatePlaylist,
+    ValueChanged<String>? onCreatePlaylist,
     ValueChanged<int>? onAddToPlaylist,
     VoidCallback? onUndoPreference,
     ValueChanged<String>? onSetPreference,

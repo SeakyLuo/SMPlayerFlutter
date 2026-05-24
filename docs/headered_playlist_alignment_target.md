@@ -15,6 +15,124 @@ Reference source:
 
 Goal: Flutter `HeaderedPlaylistControl` should match the Electron implementation in visible UI, interaction behavior, and command/menu business logic unless a platform difference is explicitly documented.
 
+## Next Alignment Target - 2026-05-24
+
+This is the current working target after re-checking:
+
+- Electron: `/Users/luohaitian/Desktop/Projects/SMPlayerElectron/src/components/HeaderedPlaylistControl.tsx`
+- Electron CSS: `/Users/luohaitian/Desktop/Projects/SMPlayerElectron/src/styles/headered-playlist.css`, plus `now-playing.css`, `appbar.css`, `shell.css`
+- Flutter: `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/library/ui/headered_playlist_control.dart`
+
+### UI Targets
+
+1. **Collapsed desktop header geometry**
+   - Electron switches the desktop hero into fixed shell coordinates after collapse, based on workspace geometry.
+   - Flutter currently uses a pinned sliver hero, which is visually close but not identical to Electron's fixed-position `.headered-playlist-hero`.
+   - Target: verify and align collapsed desktop coordinates, width, left/right offsets, appbar overlap, and z-order against Electron screenshots.
+
+2. **Compact collapsed behavior**
+   - Electron hides the compact hero completely when collapsed and moves commands into the appbar portal.
+   - Flutter also hides the compact hero, but the route/list transition still needs pixel verification against Electron: list should start at the top without residual hero spacing, with the appbar command portal carrying the collapsed controls.
+
+3. **Header drag region**
+   - Electron starts native drag only on non-interactive header space and explicitly excludes `button`, `input`, `textarea`, `select`, `a`, `[role="button"]`, and `.headered-playlist-scrollbar-thumb`.
+   - Flutter currently has drag listeners on hero regions, but the exclusion model is not one-to-one.
+   - Target: make drag start only from the same non-interactive hero/drag-strip surfaces and add regression coverage for command buttons, cover, title text, and scrollbar thumb.
+
+4. **Row visual CSS parity**
+   - Flutter row height matches, but row paint still needs visual parity against Electron's now-playing row CSS.
+   - Target: hover/current/selected pseudo-layer color, selected left inset, action opacity, favorite-loading spinner, compact album action visibility, favorites action visibility, and night-mode alphas.
+
+5. **List/header grid parity**
+   - Electron uses CSS grid tracks:
+     - no album: `64px minmax(190px, 1fr) minmax(170px, auto) 74px`
+     - has album: `64px minmax(190px, 1.18fr) minmax(170px, auto) minmax(160px, 0.72fr) 74px`
+     - <=1120px: `64px minmax(0, 1fr) max-content 20px`
+   - Flutter approximates this with `Row`, `Expanded`, and fixed widths.
+   - Target: compare desktop/narrow screenshots and tune the Flutter list header/row columns so song, action, album, and duration cells land in Electron positions.
+
+6. **Compact list surface**
+   - Electron compact list uses a blurred translucent panel with inset highlight.
+   - Flutter approximates this with translucent color, border, and shadows.
+   - Target: either reproduce the blur/inset more closely or document the Flutter equivalent after screenshot comparison.
+
+7. **Artwork fallback and header color**
+   - Flutter now uses `DefaultAlbumArtwork` and extracts/mixes artwork colors, but the exact failure/default and four-image settled-result path still needs verification.
+   - Target: compare empty, 1-image, 3-image, and 4+-image playlists in day/night; ensure fallback fill, fallback surface, mosaic fourth tile, and backdrop color match Electron.
+
+8. **Scrollbar metrics**
+   - Flutter has Electron-like top/bottom/hover width, but Electron computes from workspace/player rectangles and supports thumb pointer drag from the fixed scrollbar.
+   - Target: verify desktop/compact collapsed positions, bottom inset relative to player bar, thumb height, thumb drag behavior, and hover opacity/width.
+
+### Business Logic Targets
+
+1. **Row favorite toggle with undo**
+   - Electron row favorite action always goes through `toggleSongFavoriteWithUndo`; in favorites it removes from the current favorites list with pending favorite loading state and undo.
+   - Flutter row `onToggleFavoriteClick` currently calls `widget.onToggleFavorite` directly, so it can miss Electron undo/pending behavior.
+   - Target: route row favorite toggles through the same undo path as the context menu, including favorites removal and loading state.
+
+2. **Play Next fallback parity**
+   - Electron row and context menu `Play next` fall back to inserting after the current now-playing track when `onPlayNext` is absent.
+   - Flutter context menu has this fallback, but row `onPlayNextClick` only calls `widget.onPlayNext`.
+   - Target: add the same fallback to row play-next.
+
+3. **Header preference menu refresh**
+   - Electron refreshes the preference snapshot before open and after set/undo via `onUpdated`.
+   - Flutter reads only the current level, invalidates on undo, and delegates set through `widget.onSetPreferred`.
+   - Target: refresh menu state after both set and undo, and ensure the display name rule matches Electron:
+     - album: `Album - Artist`
+     - playlist/favorites: title
+
+4. **Song preference menu refresh**
+   - Electron stores and refreshes `songPreferenceItem` after set/undo.
+   - Flutter fetches a level on menu open and invalidates library data after set/undo.
+   - Target: verify the visible menu state updates immediately after preference actions without requiring the menu to close/reopen.
+
+5. **Add to Favorites from Add To menu**
+   - Electron adds through playlist/favorite repository actions and shows an undo notification for Add to Favorites.
+   - Flutter single-row Add To currently delegates to `widget.onToggleFavorite` in one path and may skip Electron's undo/message behavior.
+   - Target: make Add to Favorites use the same shared add-with-undo path for row, context, and multi-select flows.
+
+6. **Remove-from-current-list selection semantics**
+   - Electron multi-select remove clears selection immediately and does not gate that clear on `hideMultiSelectCommandBarAfterOperation`.
+   - Flutter calls `_removeSongsFromCurrentPlaylist`, which then calls `_hideSelectionAfterOperation`; this can differ when the setting is off.
+   - Target: remove-from-current-list should clear selected IDs immediately like Electron, independent of the hide-after-operation setting.
+
+7. **Virtual window parity**
+   - Electron renders visible rows plus 10-row overscan with explicit top/bottom spacers.
+   - Flutter uses `SliverList.builder`; it is lazy, but it is not the same visible-window/spacer model and may differ in scroll metrics for large playlists.
+   - Target: decide whether to keep Flutter sliver laziness as the documented equivalent or implement the same overscan/spacer model. Verify with at least 500 songs.
+
+8. **Context menu exact order and disabled states**
+   - Flutter has broad menu coverage, but Electron ordering and disabled/loading states are still the source of truth.
+   - Target: compare `getMusicMenuFlyoutItems` order and state for album, playlist, and favorites contexts:
+     - play/pause/play next
+     - add to playlist / now playing / favorites / create playlist
+     - remove from current list
+     - select
+     - preference set/undo
+     - move to folder
+     - toggle favorite
+     - see local
+     - delete/hide
+     - see artist / see album / music info / lyrics / album art
+
+### Verification Targets
+
+- Add focused widget tests for:
+  - row play-next fallback
+  - row favorite undo in favorites
+  - Add to Favorites undo from Add To menu
+  - remove-from-current-list selection clearing when hide-after-operation is off
+  - header preference set/undo immediate refresh
+  - header drag exclusion over buttons/scrollbar
+- Add screenshot checks for:
+  - desktop expanded/collapsed day and night
+  - compact expanded/collapsed day and night
+  - album, playlist, favorites
+  - 0/1/3/4+ artwork sources
+  - large playlist scroll position around first/middle/end
+
 ## Current Delta Snapshot - 2026-05-24
 
 These are the remaining or recently observed differences after comparing the current Flutter file against Electron's `HeaderedPlaylistControl`.

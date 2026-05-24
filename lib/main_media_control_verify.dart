@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  unawaited(dismissNativeSplash());
   runApp(const _MediaControlVerifyApp());
 }
 
@@ -67,6 +73,9 @@ class _MediaControlVerifyApp extends StatelessWidget {
       i18n: _i18n,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          extensions: const [DefaultAlbumArtworkThemeColors.dark],
+        ),
         home: Scaffold(
           backgroundColor: const Color(0xff111820),
           body: Column(

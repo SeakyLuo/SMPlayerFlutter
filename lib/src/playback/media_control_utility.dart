@@ -207,7 +207,7 @@ class _PlayerUtilityRows extends StatelessWidget {
                     if (onOpenVoiceAssistant != null) ...[
                       _PlayerIconButton(
                         tooltip: i18n.t('player.voiceAssistant'),
-                        icon: Icons.mic_rounded,
+                        icon: _voiceIcon,
                         disabled: false,
                         onPressed: onOpenVoiceAssistant!,
                       ),
@@ -371,15 +371,35 @@ class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         children: [
-          _PlayerIconButton(
-            tooltip: widget.label,
-            icon: playerVolumeIcon(_liveValue, widget.muted),
-            active: widget.muted,
-            disabled: widget.disabled,
-            buttonSize: 32,
-            padding: 7,
-            iconSize: 18,
-            onPressed: widget.onToggleMute,
+          Tooltip(
+            message: widget.label,
+            child: SizedBox(
+              width: 20,
+              height: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 20,
+                  height: 32,
+                ),
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(20, 32),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                ),
+                color: MediaControlColors.textStrongFor(context),
+                disabledColor: MediaControlColors.textStrongFor(
+                  context,
+                ).withValues(alpha: 0.46),
+                icon: Icon(
+                  playerVolumeIcon(_liveValue, widget.muted),
+                  size: 18,
+                ),
+                onPressed: widget.disabled ? null : widget.onToggleMute,
+              ),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(

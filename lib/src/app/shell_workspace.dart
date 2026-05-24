@@ -1,6 +1,10 @@
+import 'dart:ui' show ImageFilter;
+
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -8,18 +12,34 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
 
+class SmPlayerShellWorkspaceKeys {
+  const SmPlayerShellWorkspaceKeys._();
+
+  static const navigationMenuButton = ValueKey(
+    'SmPlayerShell.MinimalMenuButton',
+  );
+}
+
 class SmPlayerWorkspace extends ConsumerWidget {
   const SmPlayerWorkspace({
     super.key,
     required this.currentPath,
     required this.currentLocation,
     required this.headerHeight,
+    required this.showNavigationAppBar,
+    required this.navigationMenuLabel,
+    required this.onNavigationMenuPressed,
+    required this.navigationAppBarTopInset,
     this.child,
   });
 
   final String currentPath;
   final String currentLocation;
   final double headerHeight;
+  final bool showNavigationAppBar;
+  final String navigationMenuLabel;
+  final VoidCallback onNavigationMenuPressed;
+  final double navigationAppBarTopInset;
   final Widget? child;
 
   @override
@@ -37,39 +57,38 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final headeredPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
-    final routeSurface = shellColors.workspaceSolidSurface;
+    final workspaceAppBarPortal = ref.watch(workspaceAppBarPortalProvider);
+    final currentRoutePath = Uri.parse(currentLocation).path;
+    final currentWorkspaceAppBarPortal =
+        workspaceAppBarPortal?.routePath == currentRoutePath
+            ? workspaceAppBarPortal
+            : null;
+    final routeSurface =
+        showNavigationAppBar
+            ? shellColors.workspaceSolidSurface
+            : shellColors.workspaceSurface;
     final page = _WorkspacePageSurface(
       title: title,
       headerHeight: headerHeight,
+      showNavigationAppBar: showNavigationAppBar,
+      navigationMenuLabel: navigationMenuLabel,
+      onNavigationMenuPressed: onNavigationMenuPressed,
       routeSurface: routeSurface,
+      workspaceAppBarPortal: currentWorkspaceAppBarPortal,
       headeredPlaylistAppBar: headeredPlaylistAppBar,
-      child: KeyedSubtree(
-        key: ValueKey(currentLocation),
-        child: child ?? const SizedBox.shrink(),
-      ),
+      navigationAppBarTopInset: navigationAppBarTopInset,
+      child: child ?? const SizedBox.shrink(),
     );
     final workspace = DecoratedBox(
-      decoration: _workspaceDecoration(
-        shellColors: shellColors,
-        routeSurface: routeSurface,
-      ),
+      decoration: _workspaceDecoration(shellColors: shellColors),
       child: ClipRect(child: page),
     );
-    return RepaintBoundary(
-      child: KeyedSubtree(
-        key: ValueKey('SmPlayerWorkspace.$currentLocation'),
-        child: workspace,
-      ),
-    );
+    return RepaintBoundary(child: workspace);
   }
 }
 
-BoxDecoration _workspaceDecoration({
-  required ShellThemeColors shellColors,
-  required Color routeSurface,
-}) {
+BoxDecoration _workspaceDecoration({required ShellThemeColors shellColors}) {
   return BoxDecoration(
-    color: routeSurface,
     boxShadow: [
       BoxShadow(
         color: shellColors.workspaceShadow,
@@ -84,19 +103,37 @@ class _WorkspacePageSurface extends StatelessWidget {
   const _WorkspacePageSurface({
     required this.title,
     required this.headerHeight,
+    required this.showNavigationAppBar,
+    required this.navigationMenuLabel,
+    required this.onNavigationMenuPressed,
     required this.routeSurface,
+    required this.workspaceAppBarPortal,
     required this.headeredPlaylistAppBar,
+    required this.navigationAppBarTopInset,
     required this.child,
   });
 
   final String title;
   final double headerHeight;
+  final bool showNavigationAppBar;
+  final String navigationMenuLabel;
+  final VoidCallback onNavigationMenuPressed;
   final Color routeSurface;
+  final WorkspaceAppBarPortalEntry? workspaceAppBarPortal;
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
+  final double navigationAppBarTopInset;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final overlayNavigationAppBar =
+        showNavigationAppBar && headeredPlaylistAppBar != null;
+    final headeredPlaylistCommandBar = headeredPlaylistAppBar?.commandBarBuilder
+        ?.call(context);
+    final content = WorkspaceNavigationAppBarScope(
+      active: showNavigationAppBar,
+      child: _WorkspaceContentMediaQuery(child: child),
+    );
     return ColoredBox(
       color: routeSurface,
       child: Stack(
@@ -104,15 +141,71 @@ class _WorkspacePageSurface extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (title.isNotEmpty)
+              if (showNavigationAppBar && !overlayNavigationAppBar)
+                _WorkspaceNavigationAppBar(
+                  headeredPlaylistAppBar: headeredPlaylistAppBar,
+                  title:
+                      headeredPlaylistAppBar?.title ??
+                      (workspaceAppBarPortal?.replacesTitle == true
+                          ? ''
+                          : title),
+                  navigationMenuLabel: navigationMenuLabel,
+                  onNavigationMenuPressed: onNavigationMenuPressed,
+                  titleContent:
+                      workspaceAppBarPortal?.replacesTitle == true
+                          ? workspaceAppBarPortal?.content
+                          : null,
+                  actions:
+                      headeredPlaylistCommandBar ??
+                      (workspaceAppBarPortal?.replacesTitle == true
+                          ? null
+                          : workspaceAppBarPortal?.content),
+                  bottomContent: workspaceAppBarPortal?.bottomContent,
+                )
+              else if (title.isNotEmpty)
                 _WorkspaceHeader(title: title, height: headerHeight),
-              Expanded(child: SizedBox.expand(child: child)),
+              Expanded(child: content),
             ],
           ),
-          if (headeredPlaylistAppBar != null)
+          if (overlayNavigationAppBar)
+            Positioned(
+              top: navigationAppBarTopInset,
+              left: 0,
+              right: 0,
+              height: 40,
+              child: _WorkspaceNavigationAppBar(
+                headeredPlaylistAppBar: headeredPlaylistAppBar,
+                title: headeredPlaylistAppBar!.title,
+                navigationMenuLabel: navigationMenuLabel,
+                onNavigationMenuPressed: onNavigationMenuPressed,
+                titleContent: null,
+                actions: headeredPlaylistCommandBar,
+                bottomContent: null,
+              ),
+            ),
+          if (!showNavigationAppBar && headeredPlaylistAppBar != null)
             _HeaderedPlaylistAppBarPortal(entry: headeredPlaylistAppBar!),
         ],
       ),
+    );
+  }
+}
+
+class _WorkspaceContentMediaQuery extends StatelessWidget {
+  const _WorkspaceContentMediaQuery({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return MediaQuery(
+          data: mediaQuery.copyWith(size: constraints.biggest),
+          child: SizedBox.expand(child: child),
+        );
+      },
     );
   }
 }
@@ -149,9 +242,219 @@ class _HeaderedPlaylistAppBarPortal extends StatelessWidget {
           const SizedBox(width: 12),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            child: entry.commandBar,
+            child: entry.commandBarBuilder?.call(context),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceNavigationAppBar extends StatelessWidget {
+  const _WorkspaceNavigationAppBar({
+    required this.headeredPlaylistAppBar,
+    required this.title,
+    required this.navigationMenuLabel,
+    required this.onNavigationMenuPressed,
+    required this.titleContent,
+    required this.actions,
+    required this.bottomContent,
+  });
+
+  final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
+  final String title;
+  final String navigationMenuLabel;
+  final VoidCallback onNavigationMenuPressed;
+  final Widget? titleContent;
+  final Widget? actions;
+  final Widget? bottomContent;
+
+  @override
+  Widget build(BuildContext context) {
+    final shellColors = ShellThemeColors.of(context);
+    final isHeaderedPlaylist = headeredPlaylistAppBar != null;
+    final titleColor =
+        isHeaderedPlaylist
+            ? _immersiveAppBarForeground(context)
+            : shellColors.headerText;
+    final topRow = SizedBox(
+      height: 40,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 8, right: 14),
+        child: Row(
+          children: [
+            Tooltip(
+              message: navigationMenuLabel,
+              waitDuration: const Duration(milliseconds: 450),
+              child: InkWell(
+                key: SmPlayerShellWorkspaceKeys.navigationMenuButton,
+                borderRadius: BorderRadius.circular(10),
+                hoverColor:
+                    isHeaderedPlaylist
+                        ? _immersiveAppBarHover(context)
+                        : shellColors.headerText.withValues(alpha: 0.07),
+                focusColor:
+                    isHeaderedPlaylist
+                        ? _immersiveAppBarHover(context)
+                        : shellColors.headerText.withValues(alpha: 0.07),
+                highlightColor:
+                    isHeaderedPlaylist
+                        ? _immersiveAppBarHover(context)
+                        : shellColors.headerText.withValues(alpha: 0.07),
+                onTap: onNavigationMenuPressed,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(
+                    FluentIcons.line_horizontal_3_24_regular,
+                    size: 19,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child:
+                  titleContent != null
+                      ? titleContent!
+                      : actions == null
+                      ? _WorkspaceNavigationAppBarTitle(
+                        title: title,
+                        color: titleColor,
+                      )
+                      : Row(
+                        children: [
+                          Expanded(
+                            child: _WorkspaceNavigationAppBarTitle(
+                              title: title,
+                              color: titleColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            flex: 0,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 360),
+                              child: actions!,
+                            ),
+                          ),
+                        ],
+                      ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final content =
+        bottomContent == null
+            ? topRow
+            : SizedBox(
+              height: 80,
+              child: Column(
+                children: [
+                  topRow,
+                  SizedBox(
+                    key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
+                    height: 40,
+                    child: Material(
+                      color: shellColors.workspaceSolidSurface,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: bottomContent!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+    if (!isHeaderedPlaylist) {
+      return Material(color: shellColors.workspaceSolidSurface, child: content);
+    }
+
+    final entry = headeredPlaylistAppBar!;
+    final progress = entry.collapseProgress.clamp(0.0, 1.0);
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18 * progress, sigmaY: 18 * progress),
+        child: Material(
+          color: Colors.transparent,
+          child: DecoratedBox(
+            decoration: _immersiveAppBarDecoration(context, entry),
+            child: content,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+BoxDecoration _immersiveAppBarDecoration(
+  BuildContext context,
+  HeaderedPlaylistAppBarPortalEntry entry,
+) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  final progress = entry.collapseProgress.clamp(0.0, 1.0);
+  final surface = dark ? const Color(0xff101419) : const Color(0xfff6f9fc);
+  final shadowColor =
+      dark
+          ? Colors.white.withValues(alpha: 0.05 * progress)
+          : const Color(0xff111827).withValues(alpha: 0.05 * progress);
+  final highlight = Colors.white.withValues(alpha: 0.08 * progress);
+  return BoxDecoration(
+    color: surface.withValues(alpha: 0.20 * progress),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(
+          highlight,
+          entry.coverColor.withValues(alpha: 0.24 * progress),
+        ),
+        Color.alphaBlend(
+          Colors.white.withValues(alpha: 0),
+          entry.coverColor.withValues(alpha: 0.14 * progress),
+        ),
+      ],
+    ),
+    boxShadow: [BoxShadow(color: shadowColor, offset: const Offset(0, 1))],
+  );
+}
+
+Color _immersiveAppBarForeground(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xfff6f9fc)
+      : const Color(0xff111827);
+}
+
+Color _immersiveAppBarHover(BuildContext context) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return const Color(0xff0078d7).withValues(alpha: dark ? 0.18 : 0.12);
+}
+
+class _WorkspaceNavigationAppBarTitle extends StatelessWidget {
+  const _WorkspaceNavigationAppBarTitle({
+    required this.title,
+    required this.color,
+  });
+
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (title.isEmpty) {
+      return const SizedBox.expand();
+    }
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: color,
+        fontSize: 16,
+        height: 1.1,
+        fontWeight: FontWeight.w700,
       ),
     );
   }
@@ -217,6 +520,10 @@ String _workspaceTitle({
           'count': _albumCount(snapshot!),
         })
         : i18n.t('library.allAlbums');
+  }
+
+  if (path.startsWith('/now-playing/full')) {
+    return '';
   }
 
   if (path.startsWith('/now-playing')) {
