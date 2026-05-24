@@ -17,6 +17,7 @@ import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_workspace.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_model.dart';
 import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
@@ -31,12 +32,15 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/local_audio_file_source.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
@@ -45,6 +49,12 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+
+part 'shell_page_voice.dart';
+part 'shell_page_mini_mode.dart';
+part 'shell_page_shell_widgets.dart';
+part 'shell_page_voice_dialog.dart';
+part 'shell_page_desktop_lyrics.dart';
 
 class SmPlayerShellMetrics {
   const SmPlayerShellMetrics._();
@@ -434,9 +444,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     final isNavigationOverlaySurface =
         isNavigationPaneVisible &&
         navigationMode != SmPlayerNavigationMode.wide;
-    final headeredPlaylistAppBar = ref.watch(
+    final rawHeaderedPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
+    final currentLocation = widget.currentLocation ?? currentPath;
+    final headeredPlaylistAppBar =
+        rawHeaderedPlaylistAppBar != null &&
+                (rawHeaderedPlaylistAppBar.routeLocation == null ||
+                    rawHeaderedPlaylistAppBar.routeLocation == currentLocation)
+            ? rawHeaderedPlaylistAppBar
+            : null;
     final minimalTitlebarHeight =
         !isNowPlayingFullRoute &&
                 navigationMode == SmPlayerNavigationMode.minimal
@@ -895,7 +912,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                               _quickPlayLibrary(ref);
                                             },
                                             onOpenNowPlaying: () {
-                                              _navigateTo('/now-playing/full');
+                                              _navigateTo(
+                                                nowPlayingFullRouteFrom(
+                                                  widget.currentLocation ??
+                                                      currentPath,
+                                                ),
+                                              );
                                             },
                                             onArtworkError:
                                                 currentSong == null
@@ -1389,7 +1411,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     _mediaControlController.setTrackLoading(true);
     _syncingAudioPlayer = false;
     try {
-      final duration = await _audioPlayer.setFilePath(song.path);
+      final duration = await _audioPlayer.setAudioSource(
+        LocalAudioFileSource(song.path),
+      );
       if (!mounted || loadSerial != _audioLoadSerial) {
         return;
       }
@@ -1976,7 +2000,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     });
     _closeNavigationOverlay();
     widget.onNavigate?.call(restoredTarget);
-    if (restoredTarget != '/now-playing/full') {
+    if (_pathFromLocation(restoredTarget) != '/now-playing/full') {
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
   }
@@ -2032,22 +2056,34 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
 
   void _toggleNativeNowPlayingFullScreen() {
     final currentPath = widget.currentPath ?? _currentPath;
+    final currentLocation = widget.currentLocation ?? currentPath;
     final nextFullScreen =
         !_isWindowFullScreen && currentPath != '/now-playing/full';
     unawaited(_desktopFeatureService.setWindowFullScreen(nextFullScreen));
-    _navigateTo(nextFullScreen ? '/now-playing/full' : '/now-playing');
+    final exitTarget =
+        currentPath == '/now-playing/full'
+            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
+            : nowPlayingRoutePath;
+    _navigateTo(
+      nextFullScreen ? nowPlayingFullRouteFrom(currentLocation) : exitTarget,
+    );
   }
 
   void _enterMiniMode() {
     final currentPath = widget.currentPath ?? _currentPath;
+    final currentLocation = widget.currentLocation ?? currentPath;
+    final exitTarget =
+        currentPath == '/now-playing/full'
+            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
+            : nowPlayingRoutePath;
     setState(() {
       _isMiniMode = true;
       if (currentPath == '/now-playing/full') {
-        _currentPath = '/now-playing';
+        _currentPath = exitTarget;
       }
     });
     if (currentPath == '/now-playing/full') {
-      widget.onNavigate?.call('/now-playing');
+      widget.onNavigate?.call(exitTarget);
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
     unawaited(_desktopFeatureService.enterMiniMode());
@@ -2394,6 +2430,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           currentSong != null && _desktopLyricsLoadingSongId == currentSong.id,
       isPlaying: mediaControlState.isPlaying,
       progressSeconds: mediaControlState.progressSeconds,
+      durationSeconds: mediaControlState.durationSeconds,
       i18n: i18n,
     );
     _ensureDesktopLyricsLoaded(currentSong, mode: settings.playerLyricsSource);
@@ -2677,9 +2714,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
 
   void _setDesktopWindowFullScreen(bool fullScreen) {
     final currentPath = widget.currentPath ?? _currentPath;
+    final currentLocation = widget.currentLocation ?? currentPath;
     final nextPath =
         !fullScreen && currentPath == '/now-playing/full'
-            ? '/now-playing'
+            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
             : currentPath;
     if (_isWindowFullScreen == fullScreen && nextPath == currentPath) {
       return;
@@ -2859,7 +2897,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     unawaited(
       ref
           .read(libraryRepositoryProvider)
-          .updateLyricsOffset(song.id, offsetMs)
+          .updateLyricsOffset(song.id, clampedDesktopLyricsOffset(offsetMs))
           .then((_) {
             ref.invalidate(libraryViewDataProvider);
             _lastDesktopLyricsSignature = null;
@@ -3054,14 +3092,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       'play music by',
     ]);
     if (playArtist != null && playArtist.isNotEmpty) {
-      return _playMatchedSongs(
-        snapshot,
-        i18n,
-        playArtist,
-        (song, query) =>
-            song.artists.any((artist) => _voiceTextMatches(artist, query)) ||
-            _voiceTextMatches(song.artist, query),
-      );
+      return _playMatchedSongs(snapshot, i18n, playArtist, _songArtistMatches);
     }
 
     final playAlbum = _stripVoicePrefix(command, const ['播放专辑', 'play album']);
@@ -3070,7 +3101,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         snapshot,
         i18n,
         playAlbum,
-        (song, query) => _voiceTextMatches(song.album, query),
+        (song, query) => _songAlbumMatches(song, query, i18n),
       );
     }
 
@@ -3114,10 +3145,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         snapshot,
         i18n,
         playQuery,
-        (song, query) =>
-            _voiceTextMatches(song.title, query) ||
-            _voiceTextMatches(song.artist, query) ||
-            _voiceTextMatches(song.album, query),
+        (song, query) => _songTextMatches(song, query, i18n),
       );
     }
 
@@ -3176,16 +3204,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           snapshot,
           i18n,
           result.value!,
-          (song, query) =>
-              song.artists.any((artist) => _voiceTextMatches(artist, query)) ||
-              _voiceTextMatches(song.artist, query),
+          _songArtistMatches,
         );
       case VoiceAssistantMatchType.playAlbum:
         return _playMatchedSongs(
           snapshot,
           i18n,
           result.value!,
-          (song, query) => _voiceTextMatches(song.album, query),
+          (song, query) => _songAlbumMatches(song, query, i18n),
         );
       case VoiceAssistantMatchType.playPlaylist:
         return _playPlaylistByName(snapshot, i18n, result.value!);
@@ -3198,10 +3224,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           snapshot,
           i18n,
           result.value!,
-          (song, query) =>
-              _voiceTextMatches(song.title, query) ||
-              _voiceTextMatches(song.artist, query) ||
-              _voiceTextMatches(song.album, query),
+          (song, query) => _songTextMatches(song, query, i18n),
         );
       case VoiceAssistantMatchType.playByArtistOrMusic:
         final request = result.request!;
@@ -3218,10 +3241,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           snapshot,
           i18n,
           request.original,
-          (song, query) =>
-              _voiceTextMatches(song.title, query) ||
-              _voiceTextMatches(song.artist, query) ||
-              _voiceTextMatches(song.album, query),
+          (song, query) => _songTextMatches(song, query, i18n),
         );
       case VoiceAssistantMatchType.playByArtist:
       case VoiceAssistantMatchType.playByArtistAndMusic:
@@ -3241,7 +3261,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           i18n,
           request.left,
           (song, query) =>
-              _voiceTextMatches(song.album, query) &&
+              _songAlbumMatches(song, query, i18n) &&
               _songArtistMatches(song, request.right),
         );
       case VoiceAssistantMatchType.playMusicInAlbum:
@@ -3253,7 +3273,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           request.left,
           (song, query) =>
               _voiceTextMatches(song.title, query) &&
-              _voiceTextMatches(song.album, albumQuery),
+              _songAlbumMatches(song, albumQuery, i18n),
         );
       case VoiceAssistantMatchType.playMusicInPlaylist:
         final request = result.request!;
@@ -3282,7 +3302,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           request.left,
           (song, query) =>
               _voiceTextMatches(song.title, query) &&
-              (_voiceTextMatches(song.album, request.right) ||
+              (_songAlbumMatches(song, request.right, i18n) ||
                   _songArtistMatches(song, request.right) ||
                   _voiceTextMatches(
                     _displayFolderName(song.path),
@@ -3606,2026 +3626,4 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     );
     ref.invalidate(libraryViewDataProvider);
   }
-}
-
-bool _isVoiceHelpCommand(String lowerCommand) {
-  return _matchesAny(lowerCommand, const ['help', 'get help']) ||
-      lowerCommand == '帮助';
-}
-
-bool _matchesAny(String value, List<String> candidates) {
-  return candidates.any((candidate) => value.trim() == candidate);
-}
-
-String? _stripVoicePrefix(String command, List<String> prefixes) {
-  final trimmedCommand = _trimVoiceArgument(command);
-  final lower = trimmedCommand.toLowerCase();
-  for (final prefix in prefixes) {
-    final lowerPrefix = prefix.toLowerCase();
-    if (lower == lowerPrefix) {
-      return '';
-    }
-    if (lower.startsWith(lowerPrefix)) {
-      return _trimVoiceArgument(trimmedCommand.substring(prefix.length));
-    }
-  }
-  return null;
-}
-
-String _trimVoiceArgument(String value) {
-  return value
-      .trim()
-      .replaceAll(RegExp(r'^[\s:：,，。.!！?？"“”‘’《》]+'), '')
-      .replaceAll(RegExp(r'[\s"“”‘’《》]+$'), '')
-      .trim();
-}
-
-bool _voiceTextMatches(String value, String query) {
-  return value.toLowerCase().contains(query.toLowerCase());
-}
-
-bool _songArtistMatches(LibrarySong song, String query) {
-  return song.artists.any((artist) => _voiceTextMatches(artist, query)) ||
-      _voiceTextMatches(song.artist, query);
-}
-
-String _stripVoiceTargetType(String value, String type) {
-  return value
-      .replaceFirst(RegExp('^$type\\s+', caseSensitive: false), '')
-      .trim();
-}
-
-String _displayFolderName(String path) {
-  final normalized = path.replaceAll('\\', '/');
-  final index = normalized.lastIndexOf('/');
-  return index >= 0 ? normalized.substring(index + 1) : normalized;
-}
-
-int? _firstVoiceNumber(String value) {
-  final match = RegExp(r'\d+').firstMatch(value);
-  return match == null ? null : int.parse(match.group(0)!);
-}
-
-class _MiniModeSurface extends StatefulWidget {
-  const _MiniModeSurface({
-    required this.state,
-    required this.i18n,
-    required this.currentSong,
-    required this.repository,
-    required this.playerLyricsSource,
-    required this.onExit,
-    required this.onTogglePlayPause,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onSeek,
-    required this.onBeginSeek,
-    required this.onEndSeek,
-    required this.onToggleFavorite,
-    required this.onQuickPlay,
-    required this.onCycleRepeatMode,
-    required this.onToggleMute,
-    required this.onVolumeChange,
-    required this.onOpenVoiceAssistant,
-    required this.onWindowDragStart,
-    required this.onWindowDragEnd,
-  });
-
-  final MediaControlState state;
-  final SmPlayerI18n i18n;
-  final LibrarySong? currentSong;
-  final LibraryRepository repository;
-  final LyricsRequestMode playerLyricsSource;
-  final VoidCallback onExit;
-  final VoidCallback onTogglePlayPause;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final ValueChanged<double> onSeek;
-  final VoidCallback onBeginSeek;
-  final VoidCallback onEndSeek;
-  final VoidCallback onToggleFavorite;
-  final VoidCallback onQuickPlay;
-  final VoidCallback onCycleRepeatMode;
-  final VoidCallback onToggleMute;
-  final ValueChanged<int> onVolumeChange;
-  final VoidCallback? onOpenVoiceAssistant;
-  final VoidCallback? onWindowDragStart;
-  final VoidCallback? onWindowDragEnd;
-
-  @override
-  State<_MiniModeSurface> createState() => _MiniModeSurfaceState();
-}
-
-class _MiniModeSurfaceState extends State<_MiniModeSurface> {
-  Timer? _controlsHideTimer;
-  var _controlsVisible = false;
-  var _volumeOpen = false;
-  var _isProgressSeeking = false;
-  var _draftProgressSeconds = 0.0;
-
-  @override
-  void dispose() {
-    _controlsHideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _showControls([PointerEvent? _]) {
-    _controlsHideTimer?.cancel();
-    if (!_controlsVisible) {
-      setState(() {
-        _controlsVisible = true;
-      });
-    }
-  }
-
-  void _scheduleControlsHide([PointerEvent? _]) {
-    _controlsHideTimer?.cancel();
-    _controlsHideTimer = Timer(const Duration(seconds: 5), () {
-      if (!mounted) {
-        return;
-      }
-      if (_volumeOpen || _isProgressSeeking) {
-        _showControls();
-        return;
-      }
-      setState(() {
-        _controlsVisible = false;
-        _volumeOpen = false;
-      });
-    });
-  }
-
-  Widget _visibleControls(Widget child, {Key? key}) {
-    return IgnorePointer(
-      ignoring: !_controlsVisible,
-      child: AnimatedOpacity(
-        key: key,
-        opacity: _controlsVisible ? 1 : 0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        child: child,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = widget.state;
-    final i18n = widget.i18n;
-    final currentSong = widget.currentSong;
-    final repository = widget.repository;
-    final playerLyricsSource = widget.playerLyricsSource;
-    final onExit = widget.onExit;
-    final onTogglePlayPause = widget.onTogglePlayPause;
-    final onPrevious = widget.onPrevious;
-    final onNext = widget.onNext;
-    final onSeek = widget.onSeek;
-    final onBeginSeek = widget.onBeginSeek;
-    final onEndSeek = widget.onEndSeek;
-    final onToggleFavorite = widget.onToggleFavorite;
-    final onQuickPlay = widget.onQuickPlay;
-    final onCycleRepeatMode = widget.onCycleRepeatMode;
-    final onVolumeChange = widget.onVolumeChange;
-    final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
-    final artworkPath = currentSong?.thumbnailPath ?? state.track.artworkUrl;
-    final title =
-        state.track.title.isEmpty
-            ? i18n.t('app.chooseSong')
-            : state.track.title;
-    final artist =
-        state.track.artist.isEmpty
-            ? i18n.t('common.artistUnknown')
-            : state.track.artist;
-    final noticeKey = state.playbackNoticeKey;
-    final noticeText = noticeKey == null ? null : i18n.t(noticeKey);
-    final duration = state.durationSeconds <= 0 ? 1.0 : state.durationSeconds;
-    final displayProgressSeconds =
-        _isProgressSeeking ? _draftProgressSeconds : state.progressSeconds;
-    final progress = displayProgressSeconds.clamp(0, duration).toDouble();
-
-    return MouseRegion(
-      onEnter: _showControls,
-      onHover: _showControls,
-      onExit: _scheduleControlsHide,
-      child: Focus(
-        onFocusChange: (focused) {
-          if (focused) {
-            _showControls();
-          }
-        },
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xff28394f), Color(0xff162130)],
-            ),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _MiniModeArtwork(path: artworkPath),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(
-                    alpha: _controlsVisible ? 0.54 : 0,
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: 48,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: _ShellWindowDragRegion(
-                                onWindowDragStart: widget.onWindowDragStart,
-                                onWindowDragEnd: widget.onWindowDragEnd,
-                                child: const SizedBox.expand(),
-                              ),
-                            ),
-                            _visibleControls(
-                              Row(
-                                children: [
-                                  IconButton(
-                                    tooltip: i18n.t('player.exitMiniMode'),
-                                    onPressed: onExit,
-                                    color: Colors.white,
-                                    icon: const Icon(Icons.arrow_back_rounded),
-                                  ),
-                                  const Spacer(),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      _visibleControls(
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xd9ffffff),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (noticeText != null) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                noticeText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xff8bc8ff),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                            _MiniModeLyricLine(
-                              song: currentSong,
-                              repository: repository,
-                              playerLyricsSource: playerLyricsSource,
-                              progressSeconds: state.progressSeconds,
-                              durationSeconds: state.durationSeconds,
-                            ),
-                          ],
-                        ),
-                        key: const ValueKey('MiniMode.TrackCopyOpacity'),
-                      ),
-                      const SizedBox(height: 18),
-                      _visibleControls(
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _MiniModeButton(
-                              tooltip: i18n.t('player.previous'),
-                              icon: Icons.skip_previous_rounded,
-                              disabled: state.disabled,
-                              onPressed: onPrevious,
-                            ),
-                            const SizedBox(width: 12),
-                            _MiniModeButton(
-                              primary: true,
-                              tooltip:
-                                  state.isPlaying
-                                      ? i18n.t('player.pause')
-                                      : i18n.t('player.play'),
-                              icon:
-                                  state.isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                              loading: state.track.isLoading,
-                              disabled: state.disabled,
-                              onPressed: onTogglePlayPause,
-                            ),
-                            const SizedBox(width: 12),
-                            _MiniModeButton(
-                              tooltip: i18n.t('player.next'),
-                              icon: Icons.skip_next_rounded,
-                              disabled: state.disabled,
-                              onPressed: onNext,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _visibleControls(
-                        Column(
-                          children: [
-                            const SizedBox(height: 18),
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 3,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 5,
-                                ),
-                              ),
-                              child: Slider(
-                                key: const ValueKey('MiniMode.ProgressSlider'),
-                                min: 0,
-                                max: duration,
-                                value: progress,
-                                activeColor: Colors.white,
-                                inactiveColor: Colors.white24,
-                                onChanged:
-                                    state.disabled
-                                        ? null
-                                        : (value) {
-                                          setState(() {
-                                            _draftProgressSeconds = value;
-                                          });
-                                        },
-                                onChangeStart:
-                                    state.disabled
-                                        ? null
-                                        : (_) {
-                                          setState(() {
-                                            _isProgressSeeking = true;
-                                            _draftProgressSeconds = progress;
-                                            _controlsVisible = true;
-                                          });
-                                          onBeginSeek();
-                                        },
-                                onChangeEnd:
-                                    state.disabled
-                                        ? null
-                                        : (value) {
-                                          onSeek(value);
-                                          onEndSeek();
-                                          setState(() {
-                                            _isProgressSeeking = false;
-                                          });
-                                        },
-                              ),
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  tooltip: i18n.t('nowPlaying.quickPlay'),
-                                  onPressed:
-                                      state.disabled ? null : onQuickPlay,
-                                  color: Colors.white,
-                                  disabledColor: Colors.white38,
-                                  icon: const Icon(Icons.casino_rounded),
-                                ),
-                                IconButton(
-                                  tooltip: i18n.t('player.playbackModeRepeat'),
-                                  onPressed:
-                                      state.disabled ? null : onCycleRepeatMode,
-                                  color:
-                                      state.mode == PlaybackMode.repeat ||
-                                              state.mode ==
-                                                  PlaybackMode.repeatOne
-                                          ? const Color(0xff8bc8ff)
-                                          : Colors.white,
-                                  disabledColor: Colors.white38,
-                                  icon: Icon(
-                                    state.mode == PlaybackMode.repeatOne
-                                        ? Icons.repeat_one_rounded
-                                        : Icons.repeat_rounded,
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip:
-                                      state.track.favorite
-                                          ? i18n.t('player.unlike')
-                                          : i18n.t('player.like'),
-                                  onPressed:
-                                      state.disabled ? null : onToggleFavorite,
-                                  color:
-                                      state.track.favorite
-                                          ? const Color(0xffff78a6)
-                                          : Colors.white,
-                                  disabledColor: Colors.white38,
-                                  icon: Icon(
-                                    state.track.favorite
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                  ),
-                                ),
-                                if (onOpenVoiceAssistant != null)
-                                  IconButton(
-                                    tooltip: i18n.t('player.voiceAssistant'),
-                                    onPressed:
-                                        state.disabled
-                                            ? null
-                                            : onOpenVoiceAssistant,
-                                    color: Colors.white,
-                                    disabledColor: Colors.white38,
-                                    icon: const Icon(Icons.mic_rounded),
-                                  ),
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    alignment: Alignment.center,
-                                    children: [
-                                      IconButton(
-                                        tooltip:
-                                            state.isMuted
-                                                ? i18n.t('player.unmute')
-                                                : i18n.t('player.mute'),
-                                        onPressed:
-                                            state.disabled
-                                                ? null
-                                                : () {
-                                                  setState(() {
-                                                    _volumeOpen = !_volumeOpen;
-                                                    _controlsVisible = true;
-                                                  });
-                                                },
-                                        color:
-                                            _volumeOpen || state.isMuted
-                                                ? const Color(0xff8bc8ff)
-                                                : Colors.white,
-                                        disabledColor: Colors.white38,
-                                        icon: Icon(
-                                          playerVolumeIcon(
-                                            state.volume,
-                                            state.isMuted,
-                                          ),
-                                        ),
-                                      ),
-                                      if (_volumeOpen)
-                                        Positioned(
-                                          bottom: 52,
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xcc0d1726),
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                              border: Border.all(
-                                                color: Colors.white24,
-                                              ),
-                                            ),
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 12,
-                                                  ),
-                                              child: VolumeSlider(
-                                                value: clampVolumeValue(
-                                                  state.volume,
-                                                ),
-                                                disabled: state.disabled,
-                                                orientation:
-                                                    VolumeSliderOrientation
-                                                        .vertical,
-                                                showTooltipOnMount: true,
-                                                activeTrackColor: Colors.white,
-                                                inactiveTrackColor:
-                                                    Colors.white24,
-                                                thumbColor: Colors.white,
-                                                overlayColor: Colors.white24,
-                                                tooltipBackgroundColor:
-                                                    const Color(0xcc000000),
-                                                tooltipForegroundColor:
-                                                    Colors.white,
-                                                onChange: onVolumeChange,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniModeLyricLine extends StatefulWidget {
-  const _MiniModeLyricLine({
-    required this.song,
-    required this.repository,
-    required this.playerLyricsSource,
-    required this.progressSeconds,
-    required this.durationSeconds,
-  });
-
-  final LibrarySong? song;
-  final LibraryRepository repository;
-  final LyricsRequestMode playerLyricsSource;
-  final double progressSeconds;
-  final double durationSeconds;
-
-  @override
-  State<_MiniModeLyricLine> createState() => _MiniModeLyricLineState();
-}
-
-class _MiniModeLyricLineState extends State<_MiniModeLyricLine> {
-  LyricsSnapshot? _lyrics;
-  int? _loadingSongId;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLyricsForSong();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MiniModeLyricLine oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.song?.id != widget.song?.id ||
-        oldWidget.playerLyricsSource != widget.playerLyricsSource) {
-      _lyrics = null;
-      _loadLyricsForSong();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lyrics = _lyrics;
-    if (lyrics == null || lyrics.lines.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final progressRatio =
-        widget.durationSeconds > 0
-            ? widget.progressSeconds / widget.durationSeconds
-            : 0.0;
-    final text = _resolveMiniModeLyricText(
-      lyrics: lyrics,
-      progressSeconds: widget.progressSeconds,
-      progressRatio: progressRatio,
-    );
-    if (text.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.24),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.lyrics_rounded,
-                color: Color(0xd9ffffff),
-                size: 15,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _loadLyricsForSong() async {
-    final song = widget.song;
-    if (song == null) {
-      _loadingSongId = null;
-      return;
-    }
-
-    final songId = song.id;
-    _loadingSongId = songId;
-    final lyrics = await widget.repository.getSongLyrics(
-      songId,
-      mode: widget.playerLyricsSource,
-    );
-    if (!mounted || _loadingSongId != songId) {
-      return;
-    }
-    setState(() {
-      _lyrics = lyrics;
-    });
-  }
-}
-
-String _resolveMiniModeLyricText({
-  required LyricsSnapshot lyrics,
-  required double progressSeconds,
-  required double progressRatio,
-}) {
-  final timedLines =
-      lyrics.lines.where((line) => line.timestampMs != null).toList();
-  if (timedLines.isNotEmpty) {
-    final progressMs = max(0, (progressSeconds * 1000).floor());
-    var currentText = '';
-    for (final line in timedLines) {
-      if (line.timestampMs! > progressMs) {
-        break;
-      }
-      currentText = line.text;
-    }
-    return _toSingleDisplayLyricLine(currentText);
-  }
-
-  final lyricIndex = min(
-    lyrics.lines.length - 1,
-    (lyrics.lines.length * progressRatio.clamp(0, 1)).floor(),
-  );
-  return _toSingleDisplayLyricLine(lyrics.lines[lyricIndex].text);
-}
-
-String? _resolvePlayerLyricLine({
-  required LyricsSnapshot? lyrics,
-  required LibrarySong? song,
-  required double progressSeconds,
-  required double durationSeconds,
-}) {
-  final snapshot = lyrics;
-  if (snapshot == null || snapshot.lines.isEmpty || song == null) {
-    return null;
-  }
-  final effectiveDurationSeconds =
-      durationSeconds > 0 ? durationSeconds : song.duration.toDouble();
-  final adjustedProgressSeconds = max(
-    0.0,
-    progressSeconds + song.lyricsOffsetMs / 1000,
-  );
-  final progressRatio =
-      effectiveDurationSeconds > 0
-          ? adjustedProgressSeconds / effectiveDurationSeconds
-          : 0.0;
-  return _resolveMiniModeLyricText(
-    lyrics: snapshot,
-    progressSeconds: adjustedProgressSeconds,
-    progressRatio: progressRatio,
-  );
-}
-
-String _toSingleDisplayLyricLine(String text) {
-  final normalizedText = text
-      .replaceAll(RegExp(r'\\r\\n|\\n|\\r'), '\n')
-      .replaceAll(RegExp(r'\r\n|[\n\r\u2028\u2029]'), '\n');
-  for (final segment in normalizedText.split('\n')) {
-    final candidate = segment.trim();
-    if (candidate.isNotEmpty) {
-      return candidate;
-    }
-  }
-  return '';
-}
-
-class _MiniModeArtwork extends StatelessWidget {
-  const _MiniModeArtwork({required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    final file = path.isEmpty ? null : File(path);
-    if (file != null && file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover);
-    }
-    return const Center(
-      child: Icon(Icons.music_note_rounded, color: Colors.white24, size: 120),
-    );
-  }
-}
-
-class _MiniModeButton extends StatelessWidget {
-  const _MiniModeButton({
-    required this.tooltip,
-    required this.icon,
-    required this.disabled,
-    required this.onPressed,
-    this.primary = false,
-    this.loading = false,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final bool disabled;
-  final VoidCallback onPressed;
-  final bool primary;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: disabled ? null : onPressed,
-      color: primary ? const Color(0xff172130) : Colors.white,
-      disabledColor: primary ? const Color(0xff5e6b7a) : Colors.white38,
-      style: IconButton.styleFrom(
-        fixedSize: Size.square(primary ? 64 : 52),
-        backgroundColor: primary ? Colors.white : Colors.white24,
-        shape: const CircleBorder(),
-      ),
-      icon:
-          loading
-              ? const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              )
-              : Icon(icon, size: primary ? 34 : 30),
-    );
-  }
-}
-
-class _ShellWindowDragRegion extends StatelessWidget {
-  const _ShellWindowDragRegion({
-    required this.child,
-    required this.onWindowDragStart,
-    required this.onWindowDragEnd,
-  });
-
-  final Widget child;
-  final VoidCallback? onWindowDragStart;
-  final VoidCallback? onWindowDragEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        if (event.buttons == 1) {
-          onWindowDragStart?.call();
-        }
-      },
-      onPointerUp: (_) => onWindowDragEnd?.call(),
-      onPointerCancel: (_) => onWindowDragEnd?.call(),
-      child: child,
-    );
-  }
-}
-
-class _ShellNavigationGlassSurface extends StatelessWidget {
-  const _ShellNavigationGlassSurface({
-    super.key,
-    required this.surface,
-    required this.shadowColor,
-    required this.shadowBlur,
-    required this.child,
-  });
-
-  final Color surface;
-  final Color shadowColor;
-  final double shadowBlur;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    const edgeBleed = 10.0;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        boxShadow:
-            shadowColor == Colors.transparent
-                ? const []
-                : [
-                  BoxShadow(
-                    color: shadowColor,
-                    blurRadius: shadowBlur,
-                    offset: const Offset(18, 0),
-                  ),
-                ],
-      ),
-      child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned(
-              left: -edgeBleed,
-              top: -edgeBleed,
-              right: -edgeBleed,
-              bottom: -edgeBleed,
-              child: GlassContainer(
-                useOwnLayer: true,
-                quality: GlassQuality.standard,
-                shape: const LiquidRoundedRectangle(borderRadius: 0),
-                settings: LiquidGlassSettings(
-                  blur: 30,
-                  thickness: 18,
-                  refractiveIndex: 1.06,
-                  saturation: 1.18,
-                  chromaticAberration: 0,
-                  lightIntensity: 0.18,
-                  ambientStrength: 0.12,
-                  glowIntensity: 0.12,
-                  glassColor: surface,
-                  standardOpacityMultiplier: 1,
-                ),
-                clipBehavior: Clip.none,
-                allowElevation: false,
-                child: const SizedBox.expand(),
-              ),
-            ),
-            Positioned.fill(child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MinimalTitlebar extends StatelessWidget {
-  const _MinimalTitlebar({
-    required this.title,
-    required this.canGoBack,
-    required this.backLabel,
-    required this.onGoBack,
-    required this.onWindowDragStart,
-    required this.onWindowDragEnd,
-    required this.headeredPlaylistAppBar,
-  });
-
-  final String title;
-  final bool canGoBack;
-  final String backLabel;
-  final VoidCallback onGoBack;
-  final VoidCallback? onWindowDragStart;
-  final VoidCallback? onWindowDragEnd;
-  final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
-
-  @override
-  Widget build(BuildContext context) {
-    final shellColors = ShellThemeColors.of(context);
-    final leadingInset =
-        Platform.isMacOS ? SmPlayerShellMetrics.macOSTitlebarLeadingInset : 0.0;
-    final titleColor =
-        headeredPlaylistAppBar == null
-            ? shellColors.headerText
-            : _immersiveMinimalTitlebarForeground(context);
-    final content = Row(
-      children: [
-        if (leadingInset > 0) SizedBox(width: leadingInset),
-        if (canGoBack)
-          Tooltip(
-            message: backLabel,
-            waitDuration: const Duration(milliseconds: 450),
-            child: InkWell(
-              onTap: onGoBack,
-              hoverColor: titleColor.withValues(alpha: 0.08),
-              focusColor: titleColor.withValues(alpha: 0.08),
-              highlightColor: titleColor.withValues(alpha: 0.08),
-              child: SizedBox(
-                width: 40,
-                height: SmPlayerShellMetrics.minimalTitlebarHeight,
-                child: Icon(
-                  FluentIcons.arrow_left_24_regular,
-                  size: 18,
-                  color: titleColor,
-                ),
-              ),
-            ),
-          ),
-        Expanded(
-          child: _ShellWindowDragRegion(
-            onWindowDragStart: onWindowDragStart,
-            onWindowDragEnd: onWindowDragEnd,
-            child:
-                title.isEmpty
-                    ? const SizedBox.expand()
-                    : Padding(
-                      padding: EdgeInsets.only(
-                        left: canGoBack ? 6 : 10,
-                        right: 138,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontSize: 13,
-                            height: 1,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-          ),
-        ),
-      ],
-    );
-    if (headeredPlaylistAppBar == null) {
-      return Material(color: shellColors.workspaceSolidSurface, child: content);
-    }
-
-    return Material(color: Colors.transparent, child: content);
-  }
-}
-
-Color _immersiveMinimalTitlebarForeground(BuildContext context) {
-  return Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xfff6f9fc)
-      : const Color(0xff111827);
-}
-
-class _VoiceAssistantDialog extends StatefulWidget {
-  const _VoiceAssistantDialog({
-    required this.i18n,
-    required this.getHint,
-    required this.onExecute,
-  });
-
-  final SmPlayerI18n i18n;
-  final String Function() getHint;
-  final String Function(String command) onExecute;
-
-  @override
-  State<_VoiceAssistantDialog> createState() => _VoiceAssistantDialogState();
-}
-
-enum _VoiceAssistantCaptureState { idle, capturing, processing }
-
-class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
-  late final TextEditingController _controller;
-  late final SpeechToText _speechToText;
-  late final FlutterTts _tts;
-  Timer? _closeTimer;
-  Timer? _restartTimer;
-  String? _result;
-  String _statusText = '';
-  var _state = _VoiceAssistantCaptureState.idle;
-  var _session = 0;
-  var _listening = false;
-  var _processing = false;
-  var _showHelpLink = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _speechToText = SpeechToText();
-    _tts = FlutterTts();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _openAssistant();
-    });
-  }
-
-  @override
-  void dispose() {
-    _listening = false;
-    _session += 1;
-    _closeTimer?.cancel();
-    _restartTimer?.cancel();
-    unawaited(_speechToText.cancel().catchError(_ignoreVoicePluginError));
-    unawaited(_tts.stop().catchError(_ignoreVoicePluginError));
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = widget.i18n;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xfafbfcff),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0x80b9c3d2)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x47232d3c),
-                blurRadius: 28,
-                offset: Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.mic_rounded, color: Color(0xff0063b1)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        i18n.t('player.voiceAssistant'),
-                        style: const TextStyle(
-                          color: Color(0xff111827),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: i18n.t('common.close'),
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _VoiceAssistantStatus(
-                  state: _state,
-                  text:
-                      _statusText.isEmpty
-                          ? i18n.t('voiceAssistant.listening')
-                          : _statusText,
-                  showHelpLink: _showHelpLink,
-                  onOpenHelp: _openHelp,
-                  i18n: i18n,
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _controller,
-                  decoration: InputDecoration(
-                    hintText: i18n.t('voiceAssistant.command.play1'),
-                    prefixIcon: const Icon(Icons.keyboard_voice_rounded),
-                    filled: true,
-                    fillColor: const Color(0xe6ffffff),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0x9ebec8d6)),
-                    ),
-                  ),
-                  onSubmitted: (_) => _execute(),
-                ),
-                if (_result case final result?) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    result,
-                    style: const TextStyle(
-                      color: Color(0xff344054),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _VoiceCommandHelp(i18n: i18n),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(i18n.t('common.cancel')),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: _openAssistant,
-                      icon: const Icon(Icons.mic_rounded),
-                      label: Text(i18n.t('voiceAssistant.listening')),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: _execute,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(i18n.t('common.start')),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openAssistant() async {
-    _session += 1;
-    final session = _session;
-    _listening = true;
-    _processing = false;
-    _closeTimer?.cancel();
-    _restartTimer?.cancel();
-    try {
-      await _tts.stop();
-      await _speechToText.cancel();
-    } on Object {
-      if (mounted) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
-      }
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _result = null;
-      _statusText = widget.getHint();
-      _showHelpLink = true;
-      _state = _VoiceAssistantCaptureState.idle;
-    });
-    await _startRecognition(session);
-  }
-
-  Future<void> _startRecognition(int session) async {
-    _restartTimer?.cancel();
-    final bool initialized;
-    try {
-      initialized = await _speechToText.initialize(
-        onStatus: (status) => _handleSpeechStatus(status, session),
-        onError: (error) => _handleSpeechError(error, session),
-      );
-    } on Object {
-      if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
-      }
-      return;
-    }
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    if (!initialized) {
-      _stopListeningWithMessage(widget.i18n.t('voiceAssistant.unavailable'));
-      return;
-    }
-
-    _controller.clear();
-    setState(() {
-      _state = _VoiceAssistantCaptureState.idle;
-    });
-    try {
-      await _speechToText.listen(
-        onResult: (result) => _handleSpeechResult(result, session),
-        listenOptions: SpeechListenOptions(
-          partialResults: true,
-          listenMode: ListenMode.confirmation,
-          localeId: widget.i18n.locale,
-          pauseFor: const Duration(seconds: 2),
-          listenFor: const Duration(seconds: 8),
-        ),
-      );
-    } on Object {
-      if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
-      }
-    }
-  }
-
-  void _handleSpeechStatus(String status, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    if (status == 'listening') {
-      setState(() {
-        _state = _VoiceAssistantCaptureState.capturing;
-      });
-    }
-    if ((status == 'done' || status == 'notListening') &&
-        !_processing &&
-        _controller.text.trim().isEmpty) {
-      _scheduleRecognitionRestart(session);
-    }
-  }
-
-  void _handleSpeechError(SpeechRecognitionError error, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    final message = error.errorMsg;
-    if (message.contains('no_match') ||
-        message.contains('no-speech') ||
-        message.contains('speech_timeout')) {
-      _scheduleRecognitionRestart(session);
-      return;
-    }
-    _stopListeningWithMessage(
-      message.contains('permission')
-          ? widget.i18n.t('voiceAssistant.privacyRequired')
-          : widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-    );
-  }
-
-  void _handleSpeechResult(SpeechRecognitionResult result, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    final transcript = result.recognizedWords.trim();
-    if (transcript.isNotEmpty) {
-      _controller.text = transcript;
-      setState(() {
-        _statusText = transcript;
-        _showHelpLink = false;
-        _state = _VoiceAssistantCaptureState.capturing;
-      });
-    }
-    if (result.finalResult && transcript.isNotEmpty) {
-      unawaited(_executeRecognizedCommand(transcript, session));
-    }
-  }
-
-  Future<void> _executeRecognizedCommand(String command, int session) async {
-    _processing = true;
-    try {
-      await _speechToText.stop();
-    } on Object {
-      if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
-      }
-      return;
-    }
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    setState(() {
-      _state = _VoiceAssistantCaptureState.processing;
-      _statusText = widget.i18n.t('voiceAssistant.processing');
-    });
-    final result = widget.onExecute(command);
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    setState(() {
-      _result = result;
-      _statusText = result;
-    });
-    if (result == widget.i18n.t('voiceAssistant.notUnderstood')) {
-      await _speak(result);
-      if (_isActiveSession(session)) {
-        _processing = false;
-        _scheduleRecognitionRestart(session);
-      }
-      return;
-    }
-    _listening = false;
-    if (result != widget.i18n.t('voiceAssistant.executed') &&
-        result != widget.i18n.t('voiceAssistant.canceled')) {
-      await _speak(result);
-    }
-    _closeTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    });
-  }
-
-  Future<void> _speak(String message) async {
-    try {
-      await _tts.stop();
-      await _tts.setLanguage(widget.i18n.locale);
-      await _tts.awaitSpeakCompletion(true);
-      await _tts.speak(message);
-    } on Object {
-      return;
-    }
-  }
-
-  void _ignoreVoicePluginError(Object error) {}
-
-  void _scheduleRecognitionRestart(int session) {
-    _restartTimer?.cancel();
-    _restartTimer = Timer(const Duration(milliseconds: 250), () {
-      if (_isActiveSession(session)) {
-        unawaited(_startRecognition(session));
-      }
-    });
-  }
-
-  void _stopListeningWithMessage(String message) {
-    _listening = false;
-    _processing = false;
-    setState(() {
-      _state = _VoiceAssistantCaptureState.idle;
-      _showHelpLink = false;
-      _statusText = message;
-      _result = message;
-    });
-  }
-
-  void _openHelp() {
-    setState(() {
-      _result = widget.i18n.t('voiceAssistant.help');
-      _showHelpLink = false;
-    });
-  }
-
-  bool _isActiveSession(int session) {
-    return mounted && _listening && _session == session;
-  }
-
-  void _execute() {
-    _listening = false;
-    _processing = false;
-    _session += 1;
-    _restartTimer?.cancel();
-    _closeTimer?.cancel();
-    unawaited(_speechToText.stop());
-    final result = widget.onExecute(_controller.text);
-    setState(() {
-      _result = result;
-      _statusText = result;
-      _showHelpLink = false;
-      _state = _VoiceAssistantCaptureState.idle;
-    });
-  }
-}
-
-class _VoiceAssistantStatus extends StatelessWidget {
-  const _VoiceAssistantStatus({
-    required this.state,
-    required this.text,
-    required this.showHelpLink,
-    required this.onOpenHelp,
-    required this.i18n,
-  });
-
-  final _VoiceAssistantCaptureState state;
-  final String text;
-  final bool showHelpLink;
-  final VoidCallback onOpenHelp;
-  final SmPlayerI18n i18n;
-
-  @override
-  Widget build(BuildContext context) {
-    final isProcessing = state == _VoiceAssistantCaptureState.processing;
-    final isCapturing = state == _VoiceAssistantCaptureState.capturing;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isCapturing ? const Color(0x1f0063b1) : const Color(0x0f0d1826),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color:
-              isCapturing ? const Color(0x660063b1) : const Color(0x1f536379),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            if (isProcessing)
-              const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              )
-            else
-              Icon(
-                isCapturing ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
-                color: const Color(0xff0063b1),
-              ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Color(0xff344054),
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            if (showHelpLink)
-              TextButton(
-                onPressed: onOpenHelp,
-                child: Text(i18n.t('voiceAssistant.getHelp')),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VoiceCommandHelp extends StatelessWidget {
-  const _VoiceCommandHelp({required this.i18n});
-
-  final SmPlayerI18n i18n;
-
-  @override
-  Widget build(BuildContext context) {
-    final commands = [
-      ('voiceAssistant.command.play', 'voiceAssistant.command.play1'),
-      (
-        'voiceAssistant.command.playControl',
-        'voiceAssistant.command.playControl1',
-      ),
-      ('voiceAssistant.command.search', 'voiceAssistant.command.search1'),
-      ('voiceAssistant.command.volume', 'voiceAssistant.command.volume1'),
-    ];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0x0f0d1826),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x1f536379)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              i18n.t('voiceAssistant.supportedCommands'),
-              style: const TextStyle(
-                color: Color(0xff111827),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final command in commands)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${i18n.t(command.$1)}: ${i18n.t(command.$2)}',
-                  style: const TextStyle(
-                    color: Color(0xff5b697a),
-                    height: 1.35,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-bool _usesNativeDesktopLyricsWindow() {
-  return Platform.isWindows || Platform.isMacOS;
-}
-
-bool _supportsVoiceAssistant() {
-  return Platform.isWindows ||
-      Platform.isMacOS ||
-      Platform.isIOS ||
-      Platform.isAndroid;
-}
-
-class _DesktopLyricsOverlay extends StatefulWidget {
-  const _DesktopLyricsOverlay({
-    required this.song,
-    required this.settings,
-    required this.repository,
-    required this.i18n,
-    required this.progressSeconds,
-    required this.isPlaying,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onTogglePlayPause,
-    required this.onSeekOffset,
-    required this.onResetOffset,
-    required this.onToggleLock,
-    required this.onClose,
-    required this.onOpenSettings,
-  });
-
-  final LibrarySong song;
-  final SettingsSnapshot settings;
-  final LibraryRepository repository;
-  final SmPlayerI18n i18n;
-  final double progressSeconds;
-  final bool isPlaying;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onTogglePlayPause;
-  final ValueChanged<int> onSeekOffset;
-  final VoidCallback onResetOffset;
-  final VoidCallback onToggleLock;
-  final VoidCallback onClose;
-  final VoidCallback onOpenSettings;
-
-  @override
-  State<_DesktopLyricsOverlay> createState() => _DesktopLyricsOverlayState();
-}
-
-class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
-  LyricsSnapshot? _lyrics;
-  var _loadingSongId = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLyrics();
-  }
-
-  @override
-  void didUpdateWidget(covariant _DesktopLyricsOverlay oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.song.id != widget.song.id ||
-        oldWidget.settings.playerLyricsSource !=
-            widget.settings.playerLyricsSource) {
-      _loadLyrics();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final settings = widget.settings;
-    final textColor = _parseShellHexColor(
-      settings.desktopLyricsColor,
-    ).withValues(alpha: settings.desktopLyricsOpacity / 100);
-    final strokeColor = _parseShellHexColor(
-      settings.desktopLyricsStrokeColor,
-    ).withValues(alpha: settings.desktopLyricsOpacity / 100);
-    final lyricText = _resolveDesktopLyricText(
-      lyrics: _lyrics,
-      song: widget.song,
-      progressSeconds: widget.progressSeconds,
-    );
-    final nextLyricText = _resolveNextDesktopLyricText(
-      lyrics: _lyrics,
-      progressSeconds: widget.progressSeconds,
-      offsetMs: widget.song.lyricsOffsetMs,
-    );
-
-    return IgnorePointer(
-      ignoring: settings.desktopLyricsLocked,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: const Color(0xcc101820),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x30ffffff)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!settings.desktopLyricsLocked)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t('player.previous'),
-                            icon: Icons.skip_previous_rounded,
-                            onPressed: widget.onPrevious,
-                          ),
-                          _DesktopLyricsIconButton(
-                            tooltip:
-                                widget.isPlaying
-                                    ? widget.i18n.t('player.pause')
-                                    : widget.i18n.t('player.play'),
-                            icon:
-                                widget.isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                            onPressed: widget.onTogglePlayPause,
-                          ),
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t('player.next'),
-                            icon: Icons.skip_next_rounded,
-                            onPressed: widget.onNext,
-                          ),
-                          const SizedBox(width: 8),
-                          _DesktopLyricsTextButton(
-                            label: '-0.1s',
-                            onPressed: () => widget.onSeekOffset(-100),
-                          ),
-                          _DesktopLyricsTextButton(
-                            label: '+0.1s',
-                            onPressed: () => widget.onSeekOffset(100),
-                          ),
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t(
-                              'settings.desktopLyricsResetOffset',
-                            ),
-                            icon: Icons.restart_alt_rounded,
-                            onPressed: widget.onResetOffset,
-                          ),
-                          const Spacer(),
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t(
-                              'settings.desktopLyricsLockAction',
-                            ),
-                            icon: Icons.lock_open_rounded,
-                            onPressed: widget.onToggleLock,
-                          ),
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t('common.settings'),
-                            icon: Icons.settings_rounded,
-                            onPressed: widget.onOpenSettings,
-                          ),
-                          _DesktopLyricsIconButton(
-                            tooltip: widget.i18n.t('common.close'),
-                            icon: Icons.close_rounded,
-                            onPressed: widget.onClose,
-                          ),
-                        ],
-                      ),
-                    ),
-                  _ScrollingStrokeText(
-                    text: lyricText,
-                    textColor: textColor,
-                    strokeColor: strokeColor,
-                    fontFamily:
-                        settings.desktopLyricsFontFamily == 'system'
-                            ? null
-                            : settings.desktopLyricsFontFamily,
-                    fontSize: settings.desktopLyricsFontSize.toDouble(),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  if (nextLyricText.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      nextLyricText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: textColor.withValues(alpha: 0.74),
-                        fontSize: max(13, settings.desktopLyricsFontSize - 8),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _loadLyrics() async {
-    final songId = widget.song.id;
-    _loadingSongId = songId;
-    final lyrics = await widget.repository.getSongLyrics(
-      songId,
-      mode: widget.settings.playerLyricsSource,
-    );
-    if (!mounted || _loadingSongId != songId) {
-      return;
-    }
-    setState(() {
-      _lyrics = lyrics;
-    });
-  }
-}
-
-class _StrokeText extends StatelessWidget {
-  const _StrokeText({
-    required this.text,
-    required this.textColor,
-    required this.strokeColor,
-    required this.fontSize,
-    required this.fontWeight,
-    this.fontFamily,
-    this.overflow = TextOverflow.ellipsis,
-    this.textAlign = TextAlign.center,
-  });
-
-  final String text;
-  final Color textColor;
-  final Color strokeColor;
-  final double fontSize;
-  final FontWeight fontWeight;
-  final String? fontFamily;
-  final TextOverflow overflow;
-  final TextAlign textAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    final baseStyle = TextStyle(
-      fontFamily: fontFamily,
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      height: 1.15,
-    );
-    return Stack(
-      alignment:
-          textAlign == TextAlign.left ? Alignment.centerLeft : Alignment.center,
-      children: [
-        Text(
-          text,
-          maxLines: 1,
-          overflow: overflow,
-          textAlign: textAlign,
-          style: baseStyle.copyWith(
-            foreground:
-                Paint()
-                  ..style = PaintingStyle.stroke
-                  ..strokeWidth = 3
-                  ..color = strokeColor,
-          ),
-        ),
-        Text(
-          text,
-          maxLines: 1,
-          overflow: overflow,
-          textAlign: textAlign,
-          style: baseStyle.copyWith(color: textColor),
-        ),
-      ],
-    );
-  }
-}
-
-class _ScrollingStrokeText extends StatefulWidget {
-  const _ScrollingStrokeText({
-    required this.text,
-    required this.textColor,
-    required this.strokeColor,
-    required this.fontSize,
-    required this.fontWeight,
-    this.fontFamily,
-  });
-
-  final String text;
-  final Color textColor;
-  final Color strokeColor;
-  final double fontSize;
-  final FontWeight fontWeight;
-  final String? fontFamily;
-
-  @override
-  State<_ScrollingStrokeText> createState() => _ScrollingStrokeTextState();
-}
-
-class _ScrollingStrokeTextState extends State<_ScrollingStrokeText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ScrollingStrokeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text ||
-        oldWidget.fontSize != widget.fontSize ||
-        oldWidget.fontFamily != widget.fontFamily) {
-      _controller.reset();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
-      fontFamily: widget.fontFamily,
-      fontSize: widget.fontSize,
-      fontWeight: widget.fontWeight,
-      height: 1.15,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final painter = TextPainter(
-          text: TextSpan(text: widget.text, style: style),
-          maxLines: 1,
-          textDirection: TextDirection.ltr,
-        )..layout();
-        final overflowDistance = max(0.0, painter.width - constraints.maxWidth);
-        if (overflowDistance <= 0) {
-          _controller.stop();
-          return _StrokeText(
-            text: widget.text,
-            textColor: widget.textColor,
-            strokeColor: widget.strokeColor,
-            fontSize: widget.fontSize,
-            fontWeight: widget.fontWeight,
-            fontFamily: widget.fontFamily,
-          );
-        }
-
-        final durationSeconds = min(
-          12,
-          max(5, (overflowDistance / 28).round() + 4),
-        );
-        _controller.duration = Duration(seconds: durationSeconds);
-        if (!_controller.isAnimating) {
-          _controller.repeat(reverse: true);
-        }
-        return ClipRect(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final value = Curves.easeInOut.transform(_controller.value);
-              return Transform.translate(
-                offset: Offset(-overflowDistance * value, 0),
-                child: child,
-              );
-            },
-            child: Align(
-              alignment: Alignment.centerLeft,
-              widthFactor: 1,
-              child: SizedBox(
-                width: painter.width,
-                child: _StrokeText(
-                  text: widget.text,
-                  textColor: widget.textColor,
-                  strokeColor: widget.strokeColor,
-                  fontSize: widget.fontSize,
-                  fontWeight: widget.fontWeight,
-                  fontFamily: widget.fontFamily,
-                  overflow: TextOverflow.visible,
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _DesktopLyricsIconButton extends StatelessWidget {
-  const _DesktopLyricsIconButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      color: Colors.white,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 20),
-    );
-  }
-}
-
-class _DesktopLyricsTextButton extends StatelessWidget {
-  const _DesktopLyricsTextButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: TextButton(
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          visualDensity: VisualDensity.compact,
-          minimumSize: const Size(46, 34),
-        ),
-        onPressed: onPressed,
-        child: Text(label),
-      ),
-    );
-  }
-}
-
-String _resolveDesktopLyricText({
-  required LyricsSnapshot? lyrics,
-  required LibrarySong song,
-  required double progressSeconds,
-}) {
-  final snapshot = lyrics;
-  if (snapshot == null || snapshot.lines.isEmpty) {
-    return song.title;
-  }
-  if (!snapshot.isSynced) {
-    return snapshot.lines.first.text;
-  }
-  final line = _currentDesktopLyricLine(
-    snapshot,
-    progressSeconds,
-    song.lyricsOffsetMs,
-  );
-  return line?.text.isEmpty == false ? line!.text : song.title;
-}
-
-String _resolveNextDesktopLyricText({
-  required LyricsSnapshot? lyrics,
-  required double progressSeconds,
-  required int offsetMs,
-}) {
-  final snapshot = lyrics;
-  if (snapshot == null || !snapshot.isSynced) {
-    return '';
-  }
-  final index = _currentDesktopLyricIndex(snapshot, progressSeconds, offsetMs);
-  final nextIndex = index + 1;
-  if (nextIndex < 0 || nextIndex >= snapshot.lines.length) {
-    return '';
-  }
-  return snapshot.lines[nextIndex].text;
-}
-
-LyricsLine? _currentDesktopLyricLine(
-  LyricsSnapshot lyrics,
-  double progressSeconds,
-  int offsetMs,
-) {
-  final index = _currentDesktopLyricIndex(lyrics, progressSeconds, offsetMs);
-  if (index < 0 || index >= lyrics.lines.length) {
-    return null;
-  }
-  return lyrics.lines[index];
-}
-
-int _currentDesktopLyricIndex(
-  LyricsSnapshot lyrics,
-  double progressSeconds,
-  int offsetMs,
-) {
-  final targetMs = (progressSeconds * 1000).round() + offsetMs;
-  var currentIndex = 0;
-  for (var index = 0; index < lyrics.lines.length; index += 1) {
-    final timestamp = lyrics.lines[index].timestampMs;
-    if (timestamp == null || timestamp > targetMs) {
-      break;
-    }
-    currentIndex = index;
-  }
-  return currentIndex;
-}
-
-Color _parseShellHexColor(String value) {
-  return Color(0xff000000 + int.parse(value.substring(1), radix: 16));
 }

@@ -6,15 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
-import 'package:smplayer_flutter/src/recent/recent_search_list.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode;
+    show LyricsRequestMode, SettingsSnapshot;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -246,7 +247,7 @@ void main() {
 
     await tester.tap(find.text('Searches'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Remove').first);
+    await tester.tap(find.byIcon(FluentIcons.dismiss_16_regular).first);
     await tester.pumpAndSettle();
 
     expect(repository.removedRecentSearchIds, [4]);
@@ -301,7 +302,7 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.physicalSize = const Size(1800, 1000);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -388,6 +389,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Albums'));
     await tester.pumpAndSettle();
+    tester.takeException();
 
     expect(find.text('2025.01'), findsOneWidget);
     expect(find.text('2024.12'), findsOneWidget);
@@ -401,7 +403,7 @@ void main() {
     repository.albumRecordCompleter = recordCompleter;
     var snapshotLoads = 0;
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.physicalSize = const Size(2000, 1200);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -422,7 +424,10 @@ void main() {
         ],
         child: SmPlayerI18nScope(
           i18n: i18n,
-          child: const MaterialApp(home: Scaffold(body: RecentPage())),
+          child: MaterialApp(
+            theme: _recentPageTestTheme(),
+            home: const Scaffold(body: RecentPage()),
+          ),
         ),
       ),
     );
@@ -432,13 +437,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Albums'));
     await tester.pumpAndSettle();
+    tester.takeException();
     final loadsBeforePlay = snapshotLoads;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer();
     addTearDown(mouse.removePointer);
     await mouse.moveTo(tester.getCenter(find.text('January Album')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(FluentIcons.play_20_filled).first);
+    await tester.tap(find.byType(SmPlayerPlayIcon).first);
     await tester.pump();
 
     expect(repository.recordedAlbums, ['January Album']);
@@ -608,9 +614,7 @@ class _RecentRouterTestApp extends StatelessWidget {
 }
 
 ThemeData _recentPageTestTheme() {
-  return ThemeData(
-    extensions: const [RecentThemeColors.light, RecentSearchThemeColors.light],
-  );
+  return buildSmPlayerTheme(const SettingsSnapshot.defaults());
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

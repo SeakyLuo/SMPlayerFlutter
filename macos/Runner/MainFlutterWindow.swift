@@ -35,6 +35,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     desktopFeatureChannel?.setMethodCallHandler(handleDesktopFeatureMethodCall)
     UNUserNotificationCenter.current().delegate = self
+    SmPlayerExternalFileAccessStore.shared.restoreAccess()
     restoreSecurityScopedDirectoryAccess()
     installMediaKeyMonitor()
     installExternalOpenObserver()
@@ -146,7 +147,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       return
     }
     if call.method == "updateDesktopLyricsWindow" {
-      guard let state = call.arguments as? [String: Any] else {
+      guard let state = flutterStringMap(call.arguments) else {
         result(FlutterError(
           code: "invalid_arguments",
           message: "updateDesktopLyricsWindow expects state.",
@@ -158,7 +159,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       return
     }
     if call.method == "updateMediaSession" {
-      guard let state = call.arguments as? [String: Any] else {
+      guard let state = flutterStringMap(call.arguments) else {
         result(FlutterError(
           code: "invalid_arguments",
           message: "updateMediaSession expects state.",
@@ -182,6 +183,23 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       return
     }
     result(FlutterMethodNotImplemented)
+  }
+
+  private func flutterStringMap(_ value: Any?) -> [String: Any]? {
+    if let map = value as? [String: Any] {
+      return map
+    }
+    guard let map = value as? [AnyHashable: Any] else {
+      return nil
+    }
+    var result: [String: Any] = [:]
+    for (key, item) in map {
+      guard let key = key as? String else {
+        return nil
+      }
+      result[key] = item
+    }
+    return result
   }
 
   private func pickDirectory(result: @escaping FlutterResult) {
@@ -390,6 +408,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     let panel = ensureDesktopLyricsPanel(bounds: state["bounds"] as? String)
     desktopLyricsView?.apply(state: state)
     panel.ignoresMouseEvents = false
+    panel.isMovableByWindowBackground = (state["locked"] as? Bool) != true
     panel.orderFrontRegardless()
   }
 
@@ -672,16 +691,19 @@ private final class NativeSplashView: NSView {
   }
 }
 
-private final class DesktopLyricsNativeView: NSView, WKScriptMessageHandler {
+private final class DesktopLyricsNativeView: NSView, WKNavigationDelegate, WKScriptMessageHandler {
   private let webView: DesktopLyricsWebView
   private var state = [String: Any]()
+  private var webViewReady = false
   var onCommand: ((String) -> Void)?
 
   override init(frame frameRect: NSRect) {
     let contentController = WKUserContentController()
     let configuration = WKWebViewConfiguration()
     configuration.userContentController = contentController
-    webView = DesktopLyricsWebView(frame: frameRect, configuration: configuration)
+    webView = DesktopLyricsWebView(
+      frame: NSRect(origin: .zero, size: frameRect.size),
+      configuration: configuration)
     super.init(frame: frameRect)
     configureWebView(contentController)
   }
@@ -701,6 +723,18 @@ private final class DesktopLyricsNativeView: NSView, WKScriptMessageHandler {
 
   func apply(state: [String: Any]) {
     self.state = state
+    guard webViewReady else {
+      return
+    }
+    applyCurrentState()
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    webViewReady = true
+    applyCurrentState()
+  }
+
+  private func applyCurrentState() {
     let script = "window.smplayerDesktopLyricsUpdate(\(jsonLiteral(state)))"
     webView.evaluateJavaScript(script, completionHandler: nil)
   }
@@ -739,12 +773,21 @@ private final class DesktopLyricsNativeView: NSView, WKScriptMessageHandler {
     layer?.backgroundColor = NSColor.clear.cgColor
     contentController.add(self, name: "desktopLyricsCommand")
     webView.desktopLyricsView = self
+    webView.navigationDelegate = self
+    webView.frame = bounds
     webView.autoresizingMask = [.width, .height]
     webView.setValue(false, forKey: "drawsBackground")
     webView.wantsLayer = true
     webView.layer?.backgroundColor = NSColor.clear.cgColor
     addSubview(webView)
     webView.loadHTMLString(Self.html, baseURL: nil)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      guard let self else {
+        return
+      }
+      self.webViewReady = true
+      self.applyCurrentState()
+    }
   }
 
   private func desktopLyricsButtonRects() -> [NSRect] {
@@ -788,7 +831,10 @@ private final class DesktopLyricsNativeView: NSView, WKScriptMessageHandler {
 html.desktop-lyrics-host,
 html.desktop-lyrics-host body,
 html.desktop-lyrics-host #root,
-body.desktop-lyrics-host {
+body.desktop-lyrics-host,
+html:has(.desktop-lyrics-window),
+html:has(.desktop-lyrics-window) body,
+html:has(.desktop-lyrics-window) #root {
   width: 100%;
   height: 100%;
   margin: 0;
@@ -868,6 +914,7 @@ body.desktop-lyrics-host {
   padding: 0 6px;
   border: 0;
   border-radius: 5px;
+  background: transparent;
   background: rgba(6, 10, 16, 0.16);
   color: rgba(255, 255, 255, 0.94);
   font: inherit;

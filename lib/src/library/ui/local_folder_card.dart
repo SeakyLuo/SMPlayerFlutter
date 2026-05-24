@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
@@ -499,7 +500,10 @@ class _RoundAction extends StatelessWidget {
           disabledForegroundColor: Colors.white54,
         ),
         onPressed: onPressed,
-        icon: Icon(icon, size: 20),
+        icon:
+            icon == FluentIcons.play_20_regular
+                ? const SmPlayerPlayIcon(size: 20)
+                : Icon(icon, size: 20),
       ),
     );
   }
@@ -521,7 +525,10 @@ class _LocalIconAction extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
-      icon: Icon(icon, size: 18),
+      icon:
+          icon == FluentIcons.play_20_regular
+              ? const SmPlayerPlayIcon(size: 18)
+              : Icon(icon, size: 18),
       onPressed: onPressed,
     );
   }

@@ -2,6 +2,7 @@ import 'package:lpinyin/lpinyin.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
+import 'song_display_helpers.dart' as song_display;
 
 class ArtistGroup {
   const ArtistGroup({
@@ -341,27 +342,15 @@ List<String> _naturalTextParts(String value) {
 }
 
 List<String> getSongArtists(LibrarySong song) {
-  final artists = song.artists.where((artist) => artist.isNotEmpty).toList();
-  if (artists.isNotEmpty) {
-    return artists;
-  }
-
-  return song.artist
-      .split(RegExp(r'\s*(?:;|；|、|\|)\s*'))
-      .map((artist) => artist.trim())
-      .where((artist) => artist.isNotEmpty)
-      .toList();
+  return song_display.songArtists(song);
 }
 
 String displayArtists(LibrarySong song, SmPlayerI18n i18n) {
-  final artists = getSongArtists(song);
-  return artists.isEmpty
-      ? i18n.t('common.artistUnknown')
-      : artists.join(i18n.t('common.artistSeparator'));
+  return song_display.displayArtists(song, i18n);
 }
 
 String displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
-  return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+  return song_display.displayAlbum(song, i18n);
 }
 
 String formatDuration(int seconds) {

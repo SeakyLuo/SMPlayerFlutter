@@ -258,14 +258,14 @@ void main() {
         i18n: i18n,
         child: MaterialApp(
           home: SettingsPage(
-            appVersion: '3.0.2',
+            appVersion: '3.0.3',
             onLoadSystemFonts: () async => const [],
           ),
         ),
       ),
     );
 
-    final footer = find.text('简音播放器 3.0.2');
+    final footer = find.text('简音播放器 3.0.3');
     expect(footer, findsOneWidget);
     expect(tester.getCenter(footer).dx, closeTo(600, 1));
     final footerText = tester.widget<Text>(footer);

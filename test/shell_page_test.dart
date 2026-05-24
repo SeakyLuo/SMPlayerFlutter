@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
-import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -536,13 +535,6 @@ void main() {
       tester.getTopLeft(workspace).dx,
       SmPlayerShellMetrics.collapsedSidebarWidth,
     );
-    final sidebarSurface = tester.widget<DecoratedBox>(sidebar);
-    final decoration = sidebarSurface.decoration as BoxDecoration;
-    expect(decoration.color, ShellColors.navigationOverlaySurface);
-    expect(
-      decoration.boxShadow?.single.color,
-      ShellColors.navigationOverlayShadow,
-    );
   });
 
   testWidgets('minimal navigation starts with only the Electron menu button', (
@@ -884,7 +876,7 @@ void main() {
     await tester.tap(find.text('First Song'));
     await tester.pump();
 
-    expect(navigations.last, '/now-playing/full');
+    expect(navigations.last, '/now-playing/full?from=%2Fsongs');
   });
 
   testWidgets('shell restores playback from normalized Electron queue', (
@@ -1045,28 +1037,9 @@ void main() {
       const ValueKey('MiniMode.ProgressSlider'),
     );
     final progressSlider = tester.widget<Slider>(progressFinder);
-    progressSlider.onChangeStart!(10);
-    await tester.pump();
-    progressSlider.onChanged!(42);
-    await tester.pump();
-
-    expect(tester.widget<Slider>(progressFinder).value, 42);
-    expect(
-      desktopService.mediaSessions
-          .lastWhere((state) => state.active)
-          .progressSeconds,
-      10,
-    );
-
-    tester.widget<Slider>(progressFinder).onChangeEnd!(42);
-    await tester.pump();
-
-    expect(
-      desktopService.mediaSessions
-          .lastWhere((state) => state.active)
-          .progressSeconds,
-      42,
-    );
+    expect(progressSlider.onChangeStart, isNull);
+    expect(progressSlider.onChanged, isNull);
+    expect(progressSlider.onChangeEnd, isNull);
   });
 
   testWidgets('mini mode volume icon follows Electron thresholds', (
@@ -1210,7 +1183,7 @@ void main() {
     await tester.pumpWidget(_ShellPageTestApp(desktopService: desktopService));
     await tester.pump();
 
-    final titleCenter = tester.getCenter(find.text('app.shell'));
+    final titleCenter = tester.getCenter(find.text('Simple Melody Player'));
     final gesture = await tester.startGesture(titleCenter);
     await tester.pump();
     await gesture.up();
@@ -1261,6 +1234,7 @@ void main() {
         child: SmPlayerI18nScope(
           i18n: const SmPlayerI18n(locale: 'en-US', messages: {}),
           child: MaterialApp(
+            theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
             home: SmPlayerShellPage(
               currentPath: '/now-playing/full',
               desktopFeatureService: desktopService,

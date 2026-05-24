@@ -9,16 +9,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
-import '../../playback/media_control_model.dart' hide formatDuration;
 import '../../playback/media_control_provider.dart';
+import '../../playback/media_control_track_factory.dart';
 import '../../playback/playlist_control_item.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
 import 'artists_page_model.dart';
+import 'command_bar.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
 import 'multi_select_command_bar.dart';
@@ -95,9 +97,11 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     required bool showPortal,
     required String routePath,
     required Widget content,
+    required int searchSuggestionCount,
+    required int searchHistoryCount,
   }) {
     final signature =
-        '$showPortal:$routePath:$_appBarSearchOpen:$_artistSearch';
+        '$showPortal:$routePath:$_appBarSearchOpen:$_artistSearch:$_artistSearchFocused:$searchSuggestionCount:$searchHistoryCount';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -216,11 +220,10 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   artistGroups,
                   _artistSearch,
                 ).take(8).map((artist) => artist.name).toList();
-        final artistSearchHistoryEntries =
-            snapshot.recentSearches
-                .where((entry) => entry.type == SearchHistoryType.artists)
-                .take(10)
-                .toList();
+        final artistSearchHistoryEntries = latestSearchHistoryEntries(
+          snapshot.recentSearches,
+          SearchHistoryType.artists,
+        );
         final matchingSelectedArtists =
             visibleArtists
                 .where((artist) => artist.name == _selectedArtistName)
@@ -267,6 +270,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             searchOpen: _appBarSearchOpen,
             artistSearch: _artistSearch,
             i18n: i18n,
+            searchFocused: _artistSearchFocused,
+            searchSuggestions: artistSearchSuggestions,
+            searchHistoryEntries: artistSearchHistoryEntries,
             onOpenSearch: () {
               setState(() {
                 _appBarSearchOpen = true;
@@ -284,6 +290,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 _artistSearch = value;
               });
             },
+            onSearchFocusChanged: _changeArtistSearchFocus,
             onSearchSubmitted: () {
               _submitArtistSearch();
               setState(() {
@@ -295,30 +302,41 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 _artistSearch = '';
               });
             },
+            onSelectSearchSuggestion: (query) {
+              _selectArtistSearchQuery(query);
+              setState(() {
+                _appBarSearchOpen = false;
+              });
+            },
+            onRemoveRecentSearch: _removeArtistRecentSearch,
+            onClearRecentSearches: _clearArtistRecentSearches,
           ),
+          searchSuggestionCount: artistSearchSuggestions.length,
+          searchHistoryCount: artistSearchHistoryEntries.length,
         );
 
         if (visibleArtists.isEmpty) {
           return _ArtistsPagePanel(
             child: Column(
               children: [
-                _ArtistsSearchBox(
-                  artistSearch: _artistSearch,
-                  i18n: i18n,
-                  searchFocused: _artistSearchFocused,
-                  searchSuggestions: artistSearchSuggestions,
-                  searchHistoryEntries: artistSearchHistoryEntries,
-                  onChanged: (value) {
-                    setState(() {
-                      _artistSearch = value;
-                    });
-                  },
-                  onFocusChanged: _changeArtistSearchFocus,
-                  onSubmitted: _submitArtistSearch,
-                  onSelectSearchSuggestion: _selectArtistSearchQuery,
-                  onRemoveRecentSearch: _removeArtistRecentSearch,
-                  onClearRecentSearches: _clearArtistRecentSearches,
-                ),
+                if (!useWorkspaceAppBar)
+                  _ArtistsSearchBox(
+                    artistSearch: _artistSearch,
+                    i18n: i18n,
+                    searchFocused: _artistSearchFocused,
+                    searchSuggestions: artistSearchSuggestions,
+                    searchHistoryEntries: artistSearchHistoryEntries,
+                    onChanged: (value) {
+                      setState(() {
+                        _artistSearch = value;
+                      });
+                    },
+                    onFocusChanged: _changeArtistSearchFocus,
+                    onSubmitted: _submitArtistSearch,
+                    onSelectSearchSuggestion: _selectArtistSearchQuery,
+                    onRemoveRecentSearch: _removeArtistRecentSearch,
+                    onClearRecentSearches: _clearArtistRecentSearches,
+                  ),
                 Expanded(
                   child: _ArtistsEmptyState(
                     title:
@@ -357,6 +375,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             multiSelect: _selection.multiSelect,
                             selectedSongIds: _selection.selectedItems,
                             i18n: i18n,
+                            showSearch: !useWorkspaceAppBar,
                             searchFocused: _artistSearchFocused,
                             searchSuggestions: artistSearchSuggestions,
                             searchHistoryEntries: artistSearchHistoryEntries,
@@ -434,6 +453,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                                     activeArtistQuickJumpKey,
                                 scrollController: _artistListController,
                                 i18n: i18n,
+                                showSearch: !useWorkspaceAppBar,
                                 searchFocused: _artistSearchFocused,
                                 searchSuggestions: artistSearchSuggestions,
                                 searchHistoryEntries:
@@ -861,14 +881,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: firstSong.id,
-            title: firstSong.title,
-            artist: firstSong.artist,
-            artworkUrl: firstSong.thumbnailPath,
-            isLoading: false,
-            favorite: firstSong.favorite,
-          ),
+          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
@@ -885,14 +898,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artworkUrl: song.thumbnailPath,
-            isLoading: false,
-            favorite: song.favorite,
-          ),
+          mediaControlTrackForSong(song, context.smPlayerI18n),
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
@@ -1062,7 +1068,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           MenuFlyoutItem(
             key: 'see-album',
             text: i18n.t('context.seeAlbum'),
-            icon: FluentIcons.album_20_regular,
+            useAlbumIcon: true,
             onPressed: () {
               context.go('/albums?album=${Uri.encodeQueryComponent(label)}');
             },
@@ -1318,6 +1324,7 @@ class _CompactArtistsPage extends StatelessWidget {
     required this.multiSelect,
     required this.selectedSongIds,
     required this.i18n,
+    required this.showSearch,
     required this.searchFocused,
     required this.searchSuggestions,
     required this.searchHistoryEntries,
@@ -1354,6 +1361,7 @@ class _CompactArtistsPage extends StatelessWidget {
   final bool multiSelect;
   final Set<int> selectedSongIds;
   final SmPlayerI18n i18n;
+  final bool showSearch;
   final bool searchFocused;
   final List<String> searchSuggestions;
   final List<SearchHistoryEntry> searchHistoryEntries;
@@ -1419,19 +1427,20 @@ class _CompactArtistsPage extends StatelessWidget {
 
     return Column(
       children: [
-        _ArtistsSearchBox(
-          artistSearch: artistSearch,
-          i18n: i18n,
-          searchFocused: searchFocused,
-          searchSuggestions: searchSuggestions,
-          searchHistoryEntries: searchHistoryEntries,
-          onChanged: onSearchChanged,
-          onFocusChanged: onSearchFocusChanged,
-          onSubmitted: onSearchSubmitted,
-          onSelectSearchSuggestion: onSelectSearchSuggestion,
-          onRemoveRecentSearch: onRemoveRecentSearch,
-          onClearRecentSearches: onClearRecentSearches,
-        ),
+        if (showSearch)
+          _ArtistsSearchBox(
+            artistSearch: artistSearch,
+            i18n: i18n,
+            searchFocused: searchFocused,
+            searchSuggestions: searchSuggestions,
+            searchHistoryEntries: searchHistoryEntries,
+            onChanged: onSearchChanged,
+            onFocusChanged: onSearchFocusChanged,
+            onSubmitted: onSearchSubmitted,
+            onSelectSearchSuggestion: onSelectSearchSuggestion,
+            onRemoveRecentSearch: onRemoveRecentSearch,
+            onClearRecentSearches: onClearRecentSearches,
+          ),
         Expanded(
           child: Row(
             children: [
@@ -1484,6 +1493,7 @@ class _ArtistsMaster extends StatelessWidget {
     required this.activeArtistQuickJumpKey,
     required this.scrollController,
     required this.i18n,
+    required this.showSearch,
     required this.searchFocused,
     required this.searchSuggestions,
     required this.searchHistoryEntries,
@@ -1506,6 +1516,7 @@ class _ArtistsMaster extends StatelessWidget {
   final String activeArtistQuickJumpKey;
   final ScrollController scrollController;
   final SmPlayerI18n i18n;
+  final bool showSearch;
   final bool searchFocused;
   final List<String> searchSuggestions;
   final List<SearchHistoryEntry> searchHistoryEntries;
@@ -1536,20 +1547,22 @@ class _ArtistsMaster extends StatelessWidget {
               Expanded(
                 child: Column(
                   children: [
-                    _ArtistsSearchBox(
-                      artistSearch: artistSearch,
-                      i18n: i18n,
-                      searchFocused: searchFocused,
-                      searchSuggestions: searchSuggestions,
-                      searchHistoryEntries: searchHistoryEntries,
-                      onChanged: onSearchChanged,
-                      onFocusChanged: onSearchFocusChanged,
-                      onSubmitted: onSearchSubmitted,
-                      onSelectSearchSuggestion: onSelectSearchSuggestion,
-                      onRemoveRecentSearch: onRemoveRecentSearch,
-                      onClearRecentSearches: onClearRecentSearches,
-                    ),
-                    const SizedBox(height: 14),
+                    if (showSearch) ...[
+                      _ArtistsSearchBox(
+                        artistSearch: artistSearch,
+                        i18n: i18n,
+                        searchFocused: searchFocused,
+                        searchSuggestions: searchSuggestions,
+                        searchHistoryEntries: searchHistoryEntries,
+                        onChanged: onSearchChanged,
+                        onFocusChanged: onSearchFocusChanged,
+                        onSubmitted: onSearchSubmitted,
+                        onSelectSearchSuggestion: onSelectSearchSuggestion,
+                        onRemoveRecentSearch: onRemoveRecentSearch,
+                        onClearRecentSearches: onClearRecentSearches,
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     Expanded(
                       child: ListView.builder(
                         controller: scrollController,
@@ -1599,85 +1612,125 @@ class _ArtistsAppBarSearchActions extends StatelessWidget {
     required this.searchOpen,
     required this.artistSearch,
     required this.i18n,
+    required this.searchFocused,
+    required this.searchSuggestions,
+    required this.searchHistoryEntries,
     required this.onOpenSearch,
     required this.onCloseSearch,
     required this.onSearchChanged,
+    required this.onSearchFocusChanged,
     required this.onSearchSubmitted,
     required this.onClearSearch,
+    required this.onSelectSearchSuggestion,
+    required this.onRemoveRecentSearch,
+    required this.onClearRecentSearches,
   });
 
   final bool searchOpen;
   final String artistSearch;
   final SmPlayerI18n i18n;
+  final bool searchFocused;
+  final List<String> searchSuggestions;
+  final List<SearchHistoryEntry> searchHistoryEntries;
   final VoidCallback onOpenSearch;
   final VoidCallback onCloseSearch;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<bool> onSearchFocusChanged;
   final VoidCallback onSearchSubmitted;
   final VoidCallback onClearSearch;
+  final ValueChanged<String> onSelectSearchSuggestion;
+  final ValueChanged<int> onRemoveRecentSearch;
+  final VoidCallback onClearRecentSearches;
 
   @override
   Widget build(BuildContext context) {
     if (!searchOpen) {
-      return SizedBox(
-        width: 40,
-        height: 40,
-        child: IconButton(
-          key: const ValueKey('Artists.AppBar.Search'),
-          tooltip: i18n.t('common.search'),
-          icon: const Icon(FluentIcons.search_20_regular),
-          color: artistSearch.isEmpty ? null : const Color(0xff0078d7),
-          onPressed: onOpenSearch,
-        ),
+      return CommandBar(
+        style: CommandBarStyleVariant.appBar,
+        overflowLabel: i18n.t('player.more'),
+        children: [
+          CommandBarButton(
+            key: const ValueKey('Artists.AppBar.Search'),
+            icon: FluentIcons.search_20_regular,
+            label: i18n.t('common.search'),
+            active: artistSearch.isNotEmpty,
+            showLabel: false,
+            canOverflow: false,
+            onPressed: onOpenSearch,
+          ),
+        ],
       );
     }
+    final showSuggestions = searchFocused && searchSuggestions.isNotEmpty;
+    final showHistory =
+        searchFocused &&
+        artistSearch.trim().isEmpty &&
+        searchHistoryEntries.isNotEmpty;
     return SizedBox(
       height: 36,
       width: double.infinity,
-      child: Focus(
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
-            onCloseSearch();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: TextField(
-          autofocus: true,
-          controller: TextEditingController(text: artistSearch)
-            ..selection = TextSelection.collapsed(offset: artistSearch.length),
-          onChanged: onSearchChanged,
-          onSubmitted: (_) {
-            onSearchSubmitted();
-          },
-          decoration: InputDecoration(
-            hintText: i18n.t('artists.searchPlaceholder'),
-            prefixIcon: IconButton(
-              tooltip: i18n.t('common.search'),
-              icon: const Icon(FluentIcons.search_20_regular),
-              onPressed: onSearchSubmitted,
-            ),
-            suffixIcon:
-                artistSearch.isNotEmpty
-                    ? IconButton(
-                      tooltip: i18n.t('common.clear'),
-                      icon: const Icon(FluentIcons.dismiss_20_regular),
-                      onPressed: onClearSearch,
-                    )
-                    : IconButton(
-                      tooltip: i18n.t('common.close'),
-                      icon: const Icon(FluentIcons.dismiss_20_regular),
-                      onPressed: onCloseSearch,
-                    ),
-            filled: true,
-            fillColor: const Color(0x090d1826),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: EdgeInsets.zero,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Focus(
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.escape) {
+                      onCloseSearch();
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: PageSearchField(
+                    value: artistSearch,
+                    hintText: i18n.t('artists.searchArtistsPlaceholder'),
+                    focused: searchFocused,
+                    autofocus: true,
+                    height: 36,
+                    onChanged: onSearchChanged,
+                    onFocusChanged: onSearchFocusChanged,
+                    onSubmitted: onSearchSubmitted,
+                    onClear: onClearSearch,
+                    searchTooltip: i18n.t('common.search'),
+                    clearTooltip: i18n.t('common.clear'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: IconButton(
+                  tooltip: i18n.t('common.close'),
+                  icon: const Icon(FluentIcons.dismiss_20_regular),
+                  onPressed: onCloseSearch,
+                ),
+              ),
+            ],
           ),
-        ),
+          if (showSuggestions || showHistory)
+            Positioned(
+              top: 42,
+              left: 0,
+              right: 40,
+              child:
+                  showSuggestions
+                      ? PageSearchSuggestionPanel(
+                        labels: searchSuggestions,
+                        onSelect: onSelectSearchSuggestion,
+                      )
+                      : PageSearchHistoryPanel(
+                        entries: searchHistoryEntries,
+                        i18n: i18n,
+                        onSelect: onSelectSearchSuggestion,
+                        onRemove: onRemoveRecentSearch,
+                        onClear: onClearRecentSearches,
+                      ),
+            ),
+        ],
       ),
     );
   }
@@ -1721,41 +1774,18 @@ class _ArtistsSearchBox extends StatelessWidget {
       children: [
         SizedBox(
           height: 40,
-          child: Focus(
-            onFocusChange: onFocusChanged,
-            child: TextField(
-              controller: TextEditingController(text: artistSearch)
-                ..selection = TextSelection.collapsed(
-                  offset: artistSearch.length,
-                ),
-              onTap: () {
-                onFocusChanged(true);
-              },
-              onChanged: onChanged,
-              onSubmitted: (_) {
-                onSubmitted();
-              },
-              decoration: InputDecoration(
-                hintText: i18n.t('artists.searchArtistsPlaceholder'),
-                prefixIcon: const Icon(FluentIcons.search_20_regular),
-                suffixIcon:
-                    artistSearch.isEmpty
-                        ? null
-                        : IconButton(
-                          icon: const Icon(FluentIcons.dismiss_20_regular),
-                          onPressed: () {
-                            onChanged('');
-                          },
-                        ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: _ArtistsColors.searchSurface,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
+          child: PageSearchField(
+            value: artistSearch,
+            hintText: i18n.t('artists.searchArtistsPlaceholder'),
+            focused: searchFocused,
+            onChanged: onChanged,
+            onFocusChanged: onFocusChanged,
+            onSubmitted: onSubmitted,
+            onClear: () {
+              onChanged('');
+            },
+            searchTooltip: i18n.t('common.search'),
+            clearTooltip: i18n.t('common.clear'),
           ),
         ),
         if (showSuggestions || showHistory)
@@ -1928,8 +1958,7 @@ class _ArtistListArtworkState extends State<ArtistListArtwork> {
                             shape: BoxShape.circle,
                             color: _ArtistsColors.overlayPlay,
                           ),
-                          child: const Icon(
-                            FluentIcons.play_20_filled,
+                          child: const SmPlayerPlayIcon(
                             color: Colors.white,
                             size: 18,
                           ),
@@ -2565,7 +2594,6 @@ class _ArtistsColors {
   static const albumSection = Color(0xa3ffffff);
   static const albumShadow = Color(0x14685870);
   static const panelBorder = Color(0x2e7e8b9a);
-  static const searchSurface = Color(0x0f0d1826);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
   static const overlayPlay = Color(0xb81e2228);

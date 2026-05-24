@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 
 class MenuFlyoutItem {
   const MenuFlyoutItem({
@@ -12,6 +13,7 @@ class MenuFlyoutItem {
     this.pendingText,
     this.icon,
     this.iconColor,
+    this.useAlbumIcon = false,
     this.usePlaylistIcon = false,
     this.disabled = false,
     this.checked = false,
@@ -28,6 +30,7 @@ class MenuFlyoutItem {
       pendingText = null,
       icon = null,
       iconColor = null,
+      useAlbumIcon = false,
       usePlaylistIcon = false,
       disabled = false,
       checked = false,
@@ -44,6 +47,7 @@ class MenuFlyoutItem {
   final String? pendingText;
   final IconData? icon;
   final Color? iconColor;
+  final bool useAlbumIcon;
   final bool usePlaylistIcon;
   final bool disabled;
   final bool checked;
@@ -595,16 +599,42 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                 SizedBox(
                   width: 20,
                   child:
-                      item.usePlaylistIcon
+                      item.icon == FluentIcons.play_20_regular
                           ? Center(
                             child: SizedBox.square(
                               dimension: 18,
-                              child: CustomPaint(
-                                painter: _MenuFlyoutPlaylistIconPainter(
-                                  item.disabled
-                                      ? foreground
-                                      : item.iconColor ?? foreground,
-                                ),
+                              child: SmPlayerPlayIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
+                          : item.useAlbumIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: SmPlayerAlbumIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
+                          : item.usePlaylistIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: SmPlayerPlaylistIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
                               ),
                             ),
                           )
@@ -659,64 +689,6 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
       triggerRect: box.localToGlobal(Offset.zero) & box.size,
       items: item.submenu,
     );
-  }
-}
-
-class _MenuFlyoutPlaylistIconPainter extends CustomPainter {
-  const _MenuFlyoutPlaylistIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.65 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawLine(
-      Offset(4 * scale, 6 * scale),
-      Offset(14 * scale, 6 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(4 * scale, 12 * scale),
-      Offset(13 * scale, 12 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(4 * scale, 18 * scale),
-      Offset(10 * scale, 18 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(17 * scale, 8 * scale),
-      Offset(17 * scale, 17 * scale),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(17 * scale, 8 * scale)
-        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(15.4 * scale, 18.1 * scale),
-        width: 5.1 * scale,
-        height: 4.1 * scale,
-      ),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _MenuFlyoutPlaylistIconPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
 

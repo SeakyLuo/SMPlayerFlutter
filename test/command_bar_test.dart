@@ -105,9 +105,92 @@ void main() {
         ),
       );
 
-      expect(find.byType(SmPlayerTextIconButton), findsOneWidget);
+      expect(find.byType(SmPlayerTextIconButton), findsNWidgets(2));
     },
   );
+
+  testWidgets('CommandBar icon-only buttons use night colors', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          extensions: const [SmPlayerTextIconButtonColors.night],
+        ),
+        home: Scaffold(
+          body: CommandBar(
+            children: [
+              CommandBarButton(
+                key: const ValueKey('more-button'),
+                icon: FluentIcons.more_horizontal_24_regular,
+                label: 'More',
+                showLabel: false,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final decoratedBox = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(const ValueKey('more-button')),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .firstWhere((box) => box.decoration is BoxDecoration);
+    final decoration = decoratedBox.decoration as BoxDecoration;
+
+    expect(decoration.color, SmPlayerTextIconButtonColors.night.control);
+    expect(
+      decoration.border,
+      Border.all(color: SmPlayerTextIconButtonColors.night.controlBorder),
+    );
+  });
+
+  testWidgets('CommandBar appbar actions share icon and text button metrics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommandBar(
+            style: CommandBarStyleVariant.appBar,
+            children: [
+              CommandBarButton(
+                key: const ValueKey('appbar-icon'),
+                icon: FluentIcons.search_20_regular,
+                label: 'Search',
+                showLabel: false,
+                onPressed: () {},
+              ),
+              CommandBarButton(
+                key: const ValueKey('appbar-text'),
+                icon: FluentIcons.play_20_regular,
+                label: 'Quick Play',
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final iconRect = tester.getRect(find.byKey(const ValueKey('appbar-icon')));
+    final textRect = tester.getRect(find.byKey(const ValueKey('appbar-text')));
+    expect(iconRect.size, const Size.square(40));
+    expect(textRect.height, 40);
+
+    final textButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('appbar-text')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(textButton.fontSize, 14);
+    expect(textButton.fontVariations, const [FontVariation.weight(650)]);
+  });
 
   testWidgets('SmPlayerTextIconButton does not render a box shadow', (
     tester,
@@ -520,7 +603,7 @@ void main() {
               }.contains(item.key),
             )
             .map((item) => item.keepOpen),
-        everyElement(isTrue),
+        everyElement(isFalse),
       );
     },
   );

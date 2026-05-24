@@ -9,8 +9,10 @@ import 'package:smplayer_flutter/src/library/ui/album_artwork_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
 class AlbumDetailPage extends ConsumerStatefulWidget {
   const AlbumDetailPage({super.key, required this.albumName});
@@ -53,7 +55,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
           final routeAlbumName = Uri.decodeComponent(widget.albumName);
           final albumSongs =
               snapshot.songs
-                  .where((song) => song.album == routeAlbumName)
+                  .where(
+                    (song) =>
+                        song_display.displayAlbum(song, i18n) == routeAlbumName,
+                  )
                   .toList()
                 ..sort(
                   (left, right) => compareArtistText(left.title, right.title),
@@ -80,6 +85,11 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             children: [
               HeaderedPlaylistControl(
                 type: HeaderedPlaylistType.album,
+                routeLocation:
+                    Uri(
+                      path: '/albums',
+                      queryParameters: {'album': routeAlbumName},
+                    ).toString(),
                 title: routeAlbumName,
                 songs: albumSongs,
                 selectedTrackId: mediaControl.track.id,
@@ -93,12 +103,13 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 preferenceType: 'album',
                 preferenceItemId: routeAlbumName,
                 onPlayTrack: (trackId, queueSongIds) {
-                  _playTrack(ref, snapshot, trackId, queueSongIds);
+                  _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
                 },
                 onMoveToMusicOrPlay: (songId) {
                   _playTrack(
                     ref,
                     snapshot,
+                    i18n,
                     songId,
                     albumSongs.map((song) => song.id).toList(),
                   );
@@ -257,6 +268,7 @@ class _AlbumDetailColors {
 void _playTrack(
   WidgetRef ref,
   LibraryViewData snapshot,
+  SmPlayerI18n i18n,
   int trackId,
   List<int> queueSongIds,
 ) {
@@ -266,14 +278,7 @@ void _playTrack(
   ref
       .read(mediaControlControllerProvider)
       .playTrack(
-        MediaControlTrack(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          artworkUrl: song.thumbnailPath,
-          isLoading: false,
-          favorite: song.favorite,
-        ),
+        mediaControlTrackForSong(song, i18n),
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );

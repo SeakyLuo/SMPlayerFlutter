@@ -258,7 +258,7 @@ class MediaControl extends StatelessWidget {
                               ),
                             ),
                             Expanded(
-                              flex: 10,
+                              flex: 19,
                               child: MediaControlSurface(
                                 trackId: track.id,
                                 isLoading: track.isLoading,
@@ -283,40 +283,13 @@ class MediaControl extends StatelessWidget {
                                 onToggleRepeatOne: onToggleRepeatOne,
                                 onToggleFavorite: onToggleFavorite,
                                 onOpenVoiceAssistant: onOpenVoiceAssistant,
-                                onMoreClick: () {
+                                utilityCondensed: condensedUtility,
+                                onMoreClick: (moreButtonContext) {
                                   _showPlayerMoreMenu(
-                                    context,
+                                    moreButtonContext,
                                     i18n: _mediaControlI18n(context),
                                   );
                                 },
-                              ),
-                            ),
-                            Expanded(
-                              flex: 9,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: _PlayerUtilityRows(
-                                  trackId: track.id,
-                                  favorite: track.favorite,
-                                  disabled: transportDisabled,
-                                  volumeValue: clampedVolume,
-                                  isMuted: isMuted,
-                                  mode: mode,
-                                  onVolumeChange: onVolumeChange,
-                                  onToggleMute: onToggleMute,
-                                  onToggleShuffle: onToggleShuffle,
-                                  onToggleRepeat: onToggleRepeat,
-                                  onToggleRepeatOne: onToggleRepeatOne,
-                                  onToggleFavorite: onToggleFavorite,
-                                  onOpenVoiceAssistant: onOpenVoiceAssistant,
-                                  condensed: condensedUtility,
-                                  onMoreClick: (moreButtonContext) {
-                                    _showPlayerMoreMenu(
-                                      moreButtonContext,
-                                      i18n: _mediaControlI18n(context),
-                                    );
-                                  },
-                                ),
                               ),
                             ),
                           ],

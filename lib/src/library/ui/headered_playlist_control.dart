@@ -26,6 +26,8 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
@@ -144,6 +146,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
     this.sortCriterion,
     this.preferenceType,
     this.preferenceItemId,
+    this.routeLocation,
     this.onTogglePlayPause,
     this.onAddSongsToPlaylist,
     this.onRemoveSongs,
@@ -180,6 +183,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   final PlaylistSortCriterion? sortCriterion;
   final String? preferenceType;
   final String? preferenceItemId;
+  final String? routeLocation;
   final HeaderedPlaylistTrackHandler onPlayTrack;
   final VoidCallback? onTogglePlayPause;
   final void Function(int playlistId, int songId) onAddSongToPlaylist;
@@ -292,7 +296,8 @@ class _HeaderedPlaylistControlState
         )
         .join('|');
     final signature =
-        '$showPortal:${widget.title}:$activeSortCriterion:${_selection.multiSelect}:'
+        '$showPortal:${widget.routeLocation}:${widget.title}:'
+        '$activeSortCriterion:${_selection.multiSelect}:'
         '${queueSongIds.join(',')}:$playlistSignature:'
         '${widget.canRename}:${widget.canDelete}:${widget.canClear}:$coverColor:'
         '$_headerCollapsed:${collapseProgress.toStringAsFixed(3)}:'
@@ -316,6 +321,7 @@ class _HeaderedPlaylistControlState
       }
       notifier.state = HeaderedPlaylistAppBarPortalEntry(
         owner: _appBarPortalOwner,
+        routeLocation: widget.routeLocation,
         title: _headerCollapsed ? widget.title : '',
         coverColor: coverColor,
         collapseProgress: collapseProgress,
@@ -567,9 +573,7 @@ class _HeaderedPlaylistControlState
                               ? null
                               : () {
                                 widget.onAlbumClick!(
-                                  song.album.isEmpty
-                                      ? i18n.t('common.albumUnknown')
-                                      : song.album,
+                                  song_display.displayAlbum(song, i18n),
                                 );
                               },
                     );
@@ -739,7 +743,6 @@ class _HeaderedPlaylistControlState
       ),
       child: CommandBar(
         key: const ValueKey('HeaderedPlaylist.CommandBar'),
-        style: CommandBarStyleVariant.headeredPlaylist,
         overflowLabel: i18n.t('player.more'),
         primaryAlignment: CommandBarPrimaryAlignment.center,
         children: [
@@ -1440,9 +1443,7 @@ class _HeaderedPlaylistControlState
           widget.onArtistClick?.call(_displayArtist(song, i18n));
         },
         onSeeAlbum: () {
-          widget.onAlbumClick?.call(
-            song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album,
-          );
+          widget.onAlbumClick?.call(song_display.displayAlbum(song, i18n));
         },
         onSeeMusicInfo: () {
           _openMusicDialog(song, SongDialogMode.properties);
@@ -1517,12 +1518,8 @@ class _HeaderedPlaylistControlState
   }
 
   String _displayArtist(LibrarySong song, SmPlayerI18n i18n) {
-    final artists =
-        song.artists.where((artist) => artist.trim().isNotEmpty).toList();
-    if (artists.isNotEmpty) {
-      return artists.first;
-    }
-    return song.artist.isEmpty ? i18n.t('common.artistUnknown') : song.artist;
+    final artists = song_display.songArtists(song);
+    return artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
   }
 
   Future<void> _requestRename(SmPlayerI18n i18n) async {

@@ -19,11 +19,13 @@ import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
@@ -242,7 +244,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     icon: FluentIcons.full_screen_maximize_20_regular,
                     disabled: currentSong == null,
                     onPressed: () {
-                      context.go('/now-playing/full');
+                      context.go(
+                        nowPlayingFullRouteFrom(
+                          GoRouterState.of(context).uri.toString(),
+                        ),
+                      );
                     },
                   ),
                   MenuFlyoutItem(
@@ -258,7 +264,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           overflowItems: appBarOverflowItems,
           children: [
             CommandBarButton(
-              icon: FluentIcons.play_20_filled,
+              icon: FluentIcons.play_20_regular,
               label: i18n.t('nowPlaying.quickPlay'),
               canOverflow: false,
               disabled: snapshot.songs.isEmpty,
@@ -300,7 +306,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       overflowLabel: i18n.t('player.more'),
                       children: [
                         CommandBarButton(
-                          icon: FluentIcons.play_20_filled,
+                          icon: FluentIcons.play_20_regular,
                           label: i18n.t('nowPlaying.quickPlay'),
                           disabled: snapshot.songs.isEmpty,
                           onPressed: () {
@@ -376,7 +382,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             label: i18n.t('nowPlaying.playMode'),
                             disabled: currentSong == null,
                             onPressed: () {
-                              context.go('/now-playing/full');
+                              context.go(
+                                nowPlayingFullRouteFrom(
+                                  GoRouterState.of(context).uri.toString(),
+                                ),
+                              );
                             },
                           ),
                           CommandBarButton(
@@ -892,13 +902,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           );
         },
         onSeeArtist: () {
-          final artist =
-              song.artists.isEmpty ? song.artist : song.artists.first;
+          final artist = primaryDisplayArtist(song, i18n);
           context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
         },
         onSeeAlbum: () {
-          final album =
-              song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+          final album = displayAlbum(song, i18n);
           context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
         },
         onSeeMusicInfo: () {
@@ -1102,13 +1110,7 @@ bool _matchesSearch(LibrarySong song, String searchQuery) {
     return true;
   }
 
-  return [
-    song.title,
-    song.artist,
-    ...song.artists,
-    song.album,
-    song.path,
-  ].join(' ').toLowerCase().contains(normalizedSearchQuery);
+  return searchableSongText(song).toLowerCase().contains(normalizedSearchQuery);
 }
 
 String _displayPathName(String path) {

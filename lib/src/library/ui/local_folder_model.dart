@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart';
+import 'song_display_helpers.dart' as song_display;
 
 typedef LocalSortMode = LocalFolderSortCriterion;
 
@@ -144,9 +145,10 @@ List<List<LibrarySong>> _getAlbumSongGroups(
 
   for (final songId in songIds) {
     final song = songsById[songId]!;
-    final groupSongs = albumSongs[song.album];
+    final album = song_display.canonicalAlbumName(song);
+    final groupSongs = albumSongs[album];
     if (groupSongs == null) {
-      albumSongs[song.album] = [song];
+      albumSongs[album] = [song];
     } else {
       groupSongs.add(song);
     }
@@ -274,13 +276,10 @@ bool matchesSongSearch(LibrarySong song, String searchQuery) {
     return true;
   }
 
-  return [
-    song.title,
-    song.artist,
-    ...song.artists,
-    song.album,
-    song.path,
-  ].join(' ').toLowerCase().contains(normalizedSearchQuery);
+  return song_display
+      .searchableSongText(song)
+      .toLowerCase()
+      .contains(normalizedSearchQuery);
 }
 
 List<FolderChainItem> buildFolderChain(
@@ -420,9 +419,9 @@ String getLocalSongQuickJumpValue(
 ) {
   switch (sortMode) {
     case LocalSortMode.artist:
-      return getSongArtists(song).firstOrNull ?? i18n.t('common.artistUnknown');
+      return song_display.primaryDisplayArtist(song, i18n);
     case LocalSortMode.album:
-      return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+      return song_display.displayAlbum(song, i18n);
     case LocalSortMode.reverse:
     case LocalSortMode.title:
       return song.title;

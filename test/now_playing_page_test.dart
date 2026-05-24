@@ -2,8 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
-import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
@@ -14,7 +14,7 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode;
+    show LyricsRequestMode, SettingsSnapshot;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -84,6 +84,7 @@ void main() {
       'player.next': 'Next',
       'player.pause': 'Pause',
       'player.play': 'Play',
+      'player.playbackLoadFailed': 'Playback failed',
       'player.playbackMode': 'Playback Mode',
       'player.playbackModeList': 'List',
       'player.playbackModeRepeat': 'Repeat',
@@ -159,7 +160,7 @@ void main() {
     expect(rowRight, commandBarRight);
   });
 
-  testWidgets('NowPlayingPage paints page surface when queue is empty', (
+  testWidgets('NowPlayingPage keeps queue body empty when queue is empty', (
     tester,
   ) async {
     final snapshot = _snapshotWithSongs(
@@ -171,41 +172,27 @@ void main() {
     await tester.pumpWidget(_NowPlayingTestApp(snapshot: snapshot, i18n: i18n));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is DecoratedBox &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration as BoxDecoration).color ==
-                const Color(0xfffafcff),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('No active track'), findsNothing);
+    expect(find.text('Choose music first.'), findsNothing);
+    expect(find.byKey(const ValueKey('now-playing-1-0')), findsNothing);
   });
 
-  testWidgets('NowPlayingPage queue menu uses Electron Add To submenu', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'NowPlayingPage queue menu omits Add To in current compact menu',
+    (tester) async {
+      await tester.pumpWidget(
+        _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Add To'), findsAtLeastNWidgets(1));
-    expect(find.text('Mix'), findsNothing);
-    expect(find.text('Built in'), findsNothing);
-
-    await tester.tap(find.text('Add To').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('My Favorites'), findsOneWidget);
-    expect(find.text('New Playlist'), findsOneWidget);
-    expect(find.text('Mix'), findsOneWidget);
-    expect(find.text('Built in'), findsNothing);
-  });
+      expect(find.text('Add To'), findsNothing);
+      expect(find.text('Mix'), findsNothing);
+      expect(find.text('Built in'), findsNothing);
+    },
+  );
 
   testWidgets('NowPlayingPage Add To favorites updates repository with undo', (
     tester,
@@ -343,6 +330,259 @@ void main() {
       expect(find.text('1 songs'), findsOneWidget);
     },
   );
+
+  testWidgets('NowPlayingFullPage shows playback error like Electron', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+    mediaController.setPlaybackLoadFailed();
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Playback failed'), findsOneWidget);
+  });
+
+  testWidgets('NowPlayingFullPage keeps full player surface out of loading', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 0,
+      queueIndex: 0,
+    );
+    mediaController.setTrackLoading(true);
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('MediaControl.ProgressLoading')),
+      findsNothing,
+    );
+    expect(find.text('2:00'), findsOneWidget);
+  });
+
+  testWidgets('NowPlayingFullPage favorite button updates current song', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.snapshot.songs.single.favorite, isTrue);
+    expect(mediaController.state.track.favorite, isTrue);
+  });
+
+  testWidgets('NowPlayingFullPage queue panel does not pin player bar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+  });
+
+  testWidgets(
+    'NowPlayingFullPage empty queue panel omits header like Electron',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final snapshot = _snapshotWithSongs(
+        _snapshot,
+        _snapshot.songs,
+        nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+      );
+      final repository = _FakeNowPlayingRepository(snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: null,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Now Playing').first);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('0 songs'), findsNothing);
+      expect(find.byTooltip('Close'), findsNothing);
+    },
+  );
+
+  testWidgets('NowPlayingFullPage lyric rows do not seek on tap', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+    mediaController.syncPlaybackProgress(12, durationSeconds: 120);
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.text('Opening lyric'));
+    await tester.pump();
+
+    expect(mediaController.state.progressSeconds, 12);
+  });
 }
 
 class _NowPlayingTestApp extends StatelessWidget {
@@ -371,12 +611,7 @@ class _NowPlayingTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: ThemeData(
-            extensions: const [
-              ShellThemeColors.light,
-              DefaultAlbumArtworkThemeColors.light,
-            ],
-          ),
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
           home: Scaffold(body: NowPlayingPage(searchQuery: searchQuery)),
         ),
       ),
@@ -408,12 +643,7 @@ class _NowPlayingFullTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: ThemeData(
-            extensions: const [
-              DefaultAlbumArtworkThemeColors.light,
-              NowPlayingFullThemeColors.light,
-            ],
-          ),
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
           home: const Scaffold(body: NowPlayingFullPage()),
         ),
       ),
@@ -674,4 +904,10 @@ Future<void> _openAddToMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Add To').first);
   await tester.pumpAndSettle();
+}
+
+bool _hasPlayerBarOpacity(WidgetTester tester, double opacity) {
+  return tester
+      .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
+      .any((widget) => widget.opacity == opacity);
 }

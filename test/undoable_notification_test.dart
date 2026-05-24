@@ -14,6 +14,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: _i18n,
         child: MaterialApp(
+          theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
           home: Builder(
             builder: (context) {
               return Scaffold(

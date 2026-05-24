@@ -10,6 +10,7 @@ class MediaControlColors {
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentHover = SmPlayerInteractionColors.hoverSurface;
+  static const nightTransportHover = Color(0x2e0078d7);
   static const nightAccentStrong = Color(0xffffffff);
   static const nightAccentHover = SmPlayerInteractionColors.hoverSurfaceDark;
   static const accentBorder = Color(0x2e0078d7);
@@ -82,6 +83,7 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     required this.textMuted,
     required this.accentStrong,
     required this.accentHover,
+    required this.primaryButtonHover,
     required this.sliderInactive,
     required this.disabledPrimaryButtonSurface,
     required this.disabledPrimaryButtonBorder,
@@ -110,6 +112,7 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   final Color textMuted;
   final Color accentStrong;
   final Color accentHover;
+  final Color primaryButtonHover;
   final Color sliderInactive;
   final Color disabledPrimaryButtonSurface;
   final Color disabledPrimaryButtonBorder;
@@ -138,6 +141,7 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     textMuted: MediaControlColors.textMuted,
     accentStrong: MediaControlColors.accentStrong,
     accentHover: MediaControlColors.accentHover,
+    primaryButtonHover: MediaControlColors.accentStrong,
     sliderInactive: MediaControlColors.sliderInactive,
     disabledPrimaryButtonSurface:
         MediaControlColors.disabledPrimaryButtonSurface,
@@ -171,6 +175,7 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     textMuted: MediaControlColors.nightMuted,
     accentStrong: MediaControlColors.nightAccentStrong,
     accentHover: MediaControlColors.nightAccentHover,
+    primaryButtonHover: MediaControlColors.nightTransportHover,
     sliderInactive: MediaControlColors.nightSliderInactive,
     disabledPrimaryButtonSurface:
         MediaControlColors.nightDisabledPrimaryButtonSurface,

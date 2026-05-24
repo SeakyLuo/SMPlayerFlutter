@@ -34,7 +34,6 @@ double mpris_progress_seconds = 0;
 GtkWidget* desktop_lyrics_window = nullptr;
 GtkWidget* desktop_lyrics_meta_label = nullptr;
 GtkWidget* desktop_lyrics_text_label = nullptr;
-GtkWidget* desktop_lyrics_next_label = nullptr;
 GtkWidget* desktop_lyrics_outer = nullptr;
 GtkWidget* desktop_lyrics_toolbar = nullptr;
 GtkWidget* desktop_lyrics_previous_button = nullptr;
@@ -273,9 +272,7 @@ void apply_desktop_lyrics_style(bool night_mode) {
       "}"
       "#desktop-lyrics-meta { color: " +
       text_color +
-      "; opacity: 0.72; }"
-      "#desktop-lyrics-next { color: " +
-      text_color + "; opacity: 0.74; }";
+      "; opacity: 0.72; }";
   gtk_css_provider_load_from_data(desktop_lyrics_css_provider, css.c_str(), -1,
                                   nullptr);
 }
@@ -358,13 +355,6 @@ GtkWidget* ensure_desktop_lyrics_window(FlValue* arguments) {
   gtk_box_pack_start(GTK_BOX(desktop_lyrics_outer), desktop_lyrics_text_label,
                      TRUE, TRUE, 0);
 
-  desktop_lyrics_next_label = gtk_label_new("");
-  gtk_widget_set_name(desktop_lyrics_next_label, "desktop-lyrics-next");
-  gtk_label_set_ellipsize(GTK_LABEL(desktop_lyrics_next_label),
-                          PANGO_ELLIPSIZE_END);
-  gtk_box_pack_start(GTK_BOX(desktop_lyrics_outer), desktop_lyrics_next_label,
-                     FALSE, FALSE, 0);
-
   desktop_lyrics_toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_box_pack_start(GTK_BOX(desktop_lyrics_outer), desktop_lyrics_toolbar,
                      FALSE, FALSE, 0);
@@ -422,8 +412,6 @@ void update_desktop_lyrics_window(FlValue* arguments) {
   gtk_label_set_text(GTK_LABEL(desktop_lyrics_meta_label), meta.c_str());
   gtk_label_set_text(GTK_LABEL(desktop_lyrics_text_label),
                      desktop_lyrics_display_text(arguments).c_str());
-  gtk_label_set_text(GTK_LABEL(desktop_lyrics_next_label),
-                     fl_map_string(arguments, "nextLyricText").c_str());
 
   const double offset_seconds = fl_map_int(arguments, "offsetMs") / 1000.0;
   char offset_buffer[32];
@@ -447,7 +435,8 @@ void update_desktop_lyrics_window(FlValue* arguments) {
                        fl_map_string(arguments, "labelClose").c_str());
 
   gtk_widget_show_all(window);
-  gtk_widget_set_visible(desktop_lyrics_toolbar, !desktop_lyrics_locked);
+  gtk_widget_set_visible(desktop_lyrics_toolbar, TRUE);
+  gtk_widget_set_visible(desktop_lyrics_close_button, !desktop_lyrics_locked);
   gtk_window_present(GTK_WINDOW(window));
 }
 

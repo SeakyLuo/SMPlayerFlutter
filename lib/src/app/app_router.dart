@@ -25,6 +25,7 @@ import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
@@ -361,7 +362,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         }
 
         if (path == '/now-playing/full') {
-          context.go('/now-playing');
+          context.go(nowPlayingFullReturnLocation(context));
         }
       },
       onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {

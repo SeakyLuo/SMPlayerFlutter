@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -23,6 +24,7 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 
 import 'recent_page_model.dart';
@@ -667,14 +669,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artworkUrl: song.thumbnailPath,
-            isLoading: false,
-            favorite: song.favorite,
-          ),
+          mediaControlTrackForSong(song, context.smPlayerI18n),
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
@@ -2285,12 +2280,16 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                             foregroundColor: Colors.white,
                             shape: const CircleBorder(),
                           ),
-                          icon: Icon(
-                            widget.playing
-                                ? FluentIcons.pause_20_filled
-                                : FluentIcons.play_20_filled,
-                            size: 19,
-                          ),
+                          icon:
+                              widget.playing
+                                  ? const Icon(
+                                    FluentIcons.pause_20_filled,
+                                    size: 19,
+                                  )
+                                  : const SmPlayerPlayIcon(
+                                    size: 19,
+                                    color: Colors.white,
+                                  ),
                           onPressed: widget.onPlayTrack,
                         ),
                       ),
@@ -2741,7 +2740,7 @@ class _CollectionCardState extends State<_CollectionCard> {
                       foregroundColor: Colors.white,
                       shape: const CircleBorder(),
                     ),
-                    icon: const Icon(FluentIcons.play_20_filled, size: 17),
+                    icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
                     onPressed: widget.onPlay,
                   ),
                 ),
@@ -2869,7 +2868,7 @@ class _ArtistRow extends StatelessWidget {
               else
                 IconButton(
                   tooltip: context.smPlayerI18n.t('nowPlaying.randomPlay'),
-                  icon: const Icon(FluentIcons.play_20_filled),
+                  icon: const SmPlayerPlayIcon(),
                   onPressed: onPlay,
                 ),
             ],
@@ -3203,5 +3202,5 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
 }
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
-  return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+  return displayAlbum(song, i18n);
 }

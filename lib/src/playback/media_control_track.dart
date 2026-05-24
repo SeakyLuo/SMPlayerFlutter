@@ -150,11 +150,11 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                           style: TextStyle(
                             color: textStrong,
                             fontSize: widget.compact ? 15 : 17,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w400,
                             height: 1.08,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        SizedBox(height: widget.compact ? 4 : 5),
                         Text(
                           widget.track.artist,
                           maxLines: 1,
@@ -162,15 +162,16 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                           style: TextStyle(
                             color: textMuted,
                             fontSize: widget.compact ? 12 : 14,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w400,
                             height: 1.1,
                           ),
                         ),
                         if (lyricsText != null) ...[
-                          const SizedBox(height: 4),
+                          SizedBox(height: widget.compact ? 4 : 5),
                           _PlayerTrackLyrics(
                             line: lyricsText,
                             compact: widget.compact,
+                            color: textMuted,
                           ),
                         ],
                       ],
@@ -187,10 +188,15 @@ class _PlayerTrackState extends State<_PlayerTrack> {
 }
 
 class _PlayerTrackLyrics extends StatelessWidget {
-  const _PlayerTrackLyrics({required this.line, required this.compact});
+  const _PlayerTrackLyrics({
+    required this.line,
+    required this.compact,
+    required this.color,
+  });
 
   final String line;
   final bool compact;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -220,10 +226,10 @@ class _PlayerTrackLyrics extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: MediaControlColors.accent,
-                fontSize: compact ? 11 : 13,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
+                color: color,
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w400,
+                height: 17 / (compact ? 12 : 13),
               ),
             ),
           ),

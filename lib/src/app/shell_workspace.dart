@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -11,6 +12,8 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
+import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 
 class SmPlayerShellWorkspaceKeys {
   const SmPlayerShellWorkspaceKeys._();
@@ -54,14 +57,51 @@ class SmPlayerWorkspace extends ConsumerWidget {
       snapshot: snapshot,
       i18n: i18n,
     );
-    final headeredPlaylistAppBar = ref.watch(
+    final rawHeaderedPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
+    final headeredPlaylistAppBar =
+        rawHeaderedPlaylistAppBar != null &&
+                (rawHeaderedPlaylistAppBar.routeLocation == null ||
+                    rawHeaderedPlaylistAppBar.routeLocation == currentLocation)
+            ? rawHeaderedPlaylistAppBar
+            : null;
     final workspaceAppBarPortal = ref.watch(workspaceAppBarPortalProvider);
-    final currentRoutePath = Uri.parse(currentLocation).path;
+    final currentUri = Uri.parse(currentLocation);
+    final currentRoutePath = currentUri.path;
     final currentWorkspaceAppBarPortal =
         workspaceAppBarPortal?.routePath == currentRoutePath
             ? workspaceAppBarPortal
+            : null;
+    final localTitleContent =
+        showNavigationAppBar &&
+                currentRoutePath == '/local' &&
+                snapshot != null &&
+                snapshot.rootPath.isNotEmpty
+            ? LocalTitleGrid(
+              songs: snapshot.songs,
+              folders: snapshot.folders,
+              i18n: i18n,
+              rootPath: snapshot.rootPath,
+              currentRelativePath: currentUri.queryParameters['path'] ?? '',
+              compact: true,
+              onHiddenFoldersListButtonClick: () {
+                context.go('/hidden-folders');
+              },
+              onOpenFolder: (targetRelativePath) {
+                final query = <String, String>{};
+                if (targetRelativePath.isNotEmpty) {
+                  query['path'] = targetRelativePath;
+                }
+                final searchQuery = currentUri.queryParameters['query'];
+                if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+                  query['query'] = searchQuery.trim();
+                }
+                context.go(
+                  Uri(path: '/local', queryParameters: query).toString(),
+                );
+              },
+            )
             : null;
     final routeSurface =
         showNavigationAppBar
@@ -75,6 +115,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
       onNavigationMenuPressed: onNavigationMenuPressed,
       routeSurface: routeSurface,
       workspaceAppBarPortal: currentWorkspaceAppBarPortal,
+      localTitleContent: localTitleContent,
       headeredPlaylistAppBar: headeredPlaylistAppBar,
       navigationAppBarTopInset: navigationAppBarTopInset,
       child: child ?? const SizedBox.shrink(),
@@ -108,6 +149,7 @@ class _WorkspacePageSurface extends StatelessWidget {
     required this.onNavigationMenuPressed,
     required this.routeSurface,
     required this.workspaceAppBarPortal,
+    required this.localTitleContent,
     required this.headeredPlaylistAppBar,
     required this.navigationAppBarTopInset,
     required this.child,
@@ -120,6 +162,7 @@ class _WorkspacePageSurface extends StatelessWidget {
   final VoidCallback onNavigationMenuPressed;
   final Color routeSurface;
   final WorkspaceAppBarPortalEntry? workspaceAppBarPortal;
+  final Widget? localTitleContent;
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
   final double navigationAppBarTopInset;
   final Widget child;
@@ -146,15 +189,17 @@ class _WorkspacePageSurface extends StatelessWidget {
                   headeredPlaylistAppBar: headeredPlaylistAppBar,
                   title:
                       headeredPlaylistAppBar?.title ??
-                      (workspaceAppBarPortal?.replacesTitle == true
+                      (localTitleContent != null ||
+                              workspaceAppBarPortal?.replacesTitle == true
                           ? ''
                           : title),
                   navigationMenuLabel: navigationMenuLabel,
                   onNavigationMenuPressed: onNavigationMenuPressed,
                   titleContent:
-                      workspaceAppBarPortal?.replacesTitle == true
+                      localTitleContent ??
+                      (workspaceAppBarPortal?.replacesTitle == true
                           ? workspaceAppBarPortal?.content
-                          : null,
+                          : null),
                   actions:
                       headeredPlaylistCommandBar ??
                       (workspaceAppBarPortal?.replacesTitle == true
@@ -323,23 +368,31 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                         title: title,
                         color: titleColor,
                       )
-                      : Row(
-                        children: [
-                          Expanded(
-                            child: _WorkspaceNavigationAppBarTitle(
-                              title: title,
-                              color: titleColor,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            flex: 0,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: actions!,
-                            ),
-                          ),
-                        ],
+                      : LayoutBuilder(
+                        builder: (context, constraints) {
+                          const titleActionGap = 12.0;
+                          const titleReserveWidth = 148.0;
+                          final actionWidth =
+                              (constraints.maxWidth -
+                                      titleReserveWidth -
+                                      titleActionGap)
+                                  .clamp(0.0, 360.0)
+                                  .toDouble();
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: _WorkspaceNavigationAppBarTitle(
+                                  title: title,
+                                  color: titleColor,
+                                ),
+                              ),
+                              if (actionWidth > 0) ...[
+                                const SizedBox(width: titleActionGap),
+                                SizedBox(width: actionWidth, child: actions!),
+                              ],
+                            ],
+                          );
+                        },
                       ),
             ),
           ],
@@ -609,7 +662,7 @@ int _artistCount(LibraryViewData snapshot) {
 
 int _albumCount(LibraryViewData snapshot) {
   return snapshot.songs
-      .map((song) => song.album.trim())
+      .map(canonicalAlbumName)
       .where((album) => album.isNotEmpty)
       .toSet()
       .length;

@@ -27,6 +27,8 @@ class MediaControlSurface extends StatefulWidget {
     required this.onToggleFavorite,
     this.onOpenVoiceAssistant,
     this.condensed = false,
+    this.utilityCondensed = false,
+    this.utilityMinimal = false,
     required this.onMoreClick,
   });
 
@@ -54,7 +56,9 @@ class MediaControlSurface extends StatefulWidget {
   final VoidCallback onToggleFavorite;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
-  final VoidCallback onMoreClick;
+  final bool utilityCondensed;
+  final bool utilityMinimal;
+  final ValueChanged<BuildContext> onMoreClick;
 
   @override
   State<MediaControlSurface> createState() => _MediaControlSurfaceState();
@@ -75,52 +79,66 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
             ? 0.0
             : progressSeconds.clamp(0, progressMax).toDouble();
 
-    return MediaControlButtons(
-      trackId: widget.trackId,
-      isLoading: widget.isLoading,
-      favorite: widget.favorite,
-      disabled: widget.disabled,
-      isPlaying: widget.isPlaying,
-      volumeValue: clampVolumeValue(widget.volume),
-      mode: widget.mode,
-      progressSeconds: progressValue,
-      progressValue: progressValue,
-      progressMax: progressMax,
-      durationSeconds: widget.durationSeconds,
-      onTogglePlayPause: widget.onTogglePlayPause,
-      onPrevious: widget.onPrevious,
-      onNext: widget.onNext,
-      onSeekChange: (value) {
-        setState(() {
-          _draftProgressSeconds = value;
-        });
-      },
-      onSeekBegin: () {
-        setState(() {
-          _isProgressSeeking = true;
-          _draftProgressSeconds = progressValue;
-        });
-        widget.onBeginSeek();
-      },
-      onSeekEnd: (value) {
-        if (!_isProgressSeeking) {
-          return;
-        }
-        widget.onSeek(value);
-        widget.onEndSeek();
-        setState(() {
-          _isProgressSeeking = false;
-        });
-      },
-      onVolumeChange: widget.onVolumeChange,
-      onToggleMute: widget.onToggleMute,
-      onToggleShuffle: widget.onToggleShuffle,
-      onToggleRepeat: widget.onToggleRepeat,
-      onToggleRepeatOne: widget.onToggleRepeatOne,
-      onToggleFavorite: widget.onToggleFavorite,
-      onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
-      isMuted: widget.isMuted,
-      onMoreClick: widget.onMoreClick,
+    return Row(
+      children: [
+        Expanded(
+          child: MediaControlButtons(
+            isLoading: widget.isLoading,
+            disabled: widget.disabled,
+            isPlaying: widget.isPlaying,
+            progressSeconds: progressValue,
+            progressValue: progressValue,
+            progressMax: progressMax,
+            durationSeconds: widget.durationSeconds,
+            onTogglePlayPause: widget.onTogglePlayPause,
+            onPrevious: widget.onPrevious,
+            onNext: widget.onNext,
+            onSeekChange: (value) {
+              setState(() {
+                _draftProgressSeconds = value;
+              });
+            },
+            onSeekBegin: () {
+              setState(() {
+                _isProgressSeeking = true;
+                _draftProgressSeconds = progressValue;
+              });
+              widget.onBeginSeek();
+            },
+            onSeekEnd: (value) {
+              if (!_isProgressSeeking) {
+                return;
+              }
+              widget.onSeek(value);
+              widget.onEndSeek();
+              setState(() {
+                _isProgressSeeking = false;
+              });
+            },
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: MediaControlUtilityRows(
+            trackId: widget.trackId,
+            favorite: widget.favorite,
+            disabled: widget.disabled,
+            volumeValue: clampVolumeValue(widget.volume),
+            isMuted: widget.isMuted,
+            mode: widget.mode,
+            onVolumeChange: widget.onVolumeChange,
+            onToggleMute: widget.onToggleMute,
+            onToggleShuffle: widget.onToggleShuffle,
+            onToggleRepeat: widget.onToggleRepeat,
+            onToggleRepeatOne: widget.onToggleRepeatOne,
+            onToggleFavorite: widget.onToggleFavorite,
+            onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
+            condensed: widget.utilityCondensed,
+            minimal: widget.utilityMinimal,
+            onMoreClick: widget.onMoreClick,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -128,13 +146,9 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
 class MediaControlButtons extends StatelessWidget {
   const MediaControlButtons({
     super.key,
-    required this.trackId,
     required this.isLoading,
-    required this.favorite,
     required this.disabled,
     required this.isPlaying,
-    required this.volumeValue,
-    required this.mode,
     required this.progressSeconds,
     required this.progressValue,
     required this.progressMax,
@@ -145,24 +159,11 @@ class MediaControlButtons extends StatelessWidget {
     required this.onSeekChange,
     required this.onSeekBegin,
     required this.onSeekEnd,
-    required this.onVolumeChange,
-    required this.onToggleMute,
-    required this.onToggleShuffle,
-    required this.onToggleRepeat,
-    required this.onToggleRepeatOne,
-    required this.onToggleFavorite,
-    this.onOpenVoiceAssistant,
-    required this.isMuted,
-    required this.onMoreClick,
   });
 
-  final int? trackId;
   final bool isLoading;
-  final bool favorite;
   final bool disabled;
   final bool isPlaying;
-  final int volumeValue;
-  final PlaybackMode mode;
   final double progressSeconds;
   final double progressValue;
   final double progressMax;
@@ -173,15 +174,6 @@ class MediaControlButtons extends StatelessWidget {
   final ValueChanged<double> onSeekChange;
   final VoidCallback onSeekBegin;
   final ValueChanged<double> onSeekEnd;
-  final ValueChanged<int> onVolumeChange;
-  final VoidCallback onToggleMute;
-  final VoidCallback onToggleShuffle;
-  final VoidCallback onToggleRepeat;
-  final VoidCallback onToggleRepeatOne;
-  final VoidCallback onToggleFavorite;
-  final VoidCallback? onOpenVoiceAssistant;
-  final bool isMuted;
-  final VoidCallback onMoreClick;
 
   @override
   Widget build(BuildContext context) {

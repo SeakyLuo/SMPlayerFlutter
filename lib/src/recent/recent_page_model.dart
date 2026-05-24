@@ -1,5 +1,7 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 
 class RecentPlaylistView {
   const RecentPlaylistView({
@@ -185,19 +187,19 @@ String formatRecentDateTime(String value) {
 }
 
 String displayAlbum(LibrarySong song, [SmPlayerI18n? i18n]) {
-  return song.album.isEmpty
-      ? i18n?.t('common.albumUnknown') ?? 'Unknown Album'
-      : song.album;
+  final locale = i18n;
+  if (locale != null) {
+    return song_display.displayAlbum(song, locale);
+  }
+  final album = song_display.canonicalAlbumName(song);
+  return album.isEmpty ? 'Unknown Album' : album;
 }
 
 List<String> getSongArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
-  return song.artists.where((artist) => artist.trim().isNotEmpty).isEmpty
-      ? [
-        song.artist.isEmpty
-            ? i18n?.t('common.artistUnknown') ?? 'Unknown Artist'
-            : song.artist,
-      ]
-      : song.artists;
+  final artists = song_display.songArtists(song);
+  return artists.isEmpty
+      ? [i18n?.t('common.artistUnknown') ?? 'Unknown Artist']
+      : artists;
 }
 
 String displayArtists(LibrarySong song, [SmPlayerI18n? i18n]) {

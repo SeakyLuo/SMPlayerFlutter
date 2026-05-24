@@ -309,7 +309,6 @@ class _MainNavigationPlaylistItemButtonState
     extends State<_MainNavigationPlaylistItemButton> {
   final _focusNode = FocusNode();
   var _hovered = false;
-  var _focused = false;
   var _randomHovered = false;
   var _randomFocused = false;
 
@@ -323,10 +322,11 @@ class _MainNavigationPlaylistItemButtonState
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
     final highlighted = widget.active || _hovered;
+    final randomPlayEnabled =
+        widget.onRandomPlay != null && widget.playlist.songCount > 0;
     final showRandomPlay =
-        widget.onRandomPlay != null &&
-        widget.playlist.songIds.isNotEmpty &&
-        (_hovered || _focused || _randomFocused);
+        widget.onRandomPlay != null && (_hovered || _randomFocused);
+    final randomHighlighted = _randomHovered || _randomFocused;
     final foreground = highlighted ? colors.highlightText : colors.textMuted;
 
     return DragTarget<int>(
@@ -360,11 +360,6 @@ class _MainNavigationPlaylistItemButtonState
           },
           child: Focus(
             focusNode: _focusNode,
-            onFocusChange: (focused) {
-              setState(() {
-                _focused = focused;
-              });
-            },
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
@@ -397,13 +392,9 @@ class _MainNavigationPlaylistItemButtonState
                         width: 40,
                         height: 40,
                         child: Center(
-                          child: SizedBox.square(
-                            dimension: 19,
-                            child: CustomPaint(
-                              painter: _PlaylistNavigationIconPainter(
-                                foreground,
-                              ),
-                            ),
+                          child: SmPlayerPlaylistIcon(
+                            size: 21,
+                            color: foreground,
                           ),
                         ),
                       ),
@@ -424,56 +415,59 @@ class _MainNavigationPlaylistItemButtonState
                       const SizedBox(width: 10),
                       SizedBox(
                         width: 30,
-                        child: IgnorePointer(
-                          ignoring: !showRandomPlay,
-                          child: Opacity(
-                            opacity: showRandomPlay ? 1 : 0,
-                            child: Tooltip(
-                              message: widget.randomPlayLabel,
-                              waitDuration: const Duration(milliseconds: 450),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: MouseRegion(
-                                    cursor: SystemMouseCursors.click,
-                                    onEnter: (_) {
-                                      setState(() {
-                                        _randomHovered = true;
-                                      });
-                                    },
-                                    onExit: (_) {
-                                      setState(() {
-                                        _randomHovered = false;
-                                      });
-                                    },
-                                    child: Focus(
-                                      onFocusChange: (focused) {
-                                        setState(() {
-                                          _randomFocused = focused;
-                                        });
-                                      },
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: widget.onRandomPlay,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color:
-                                                _randomHovered || _randomFocused
-                                                    ? colors.iconButtonHover
-                                                    : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
+                        child: Opacity(
+                          opacity: showRandomPlay ? 1 : 0,
+                          child: Tooltip(
+                            message: widget.randomPlayLabel,
+                            child: Center(
+                              child: MouseRegion(
+                                cursor:
+                                    randomPlayEnabled
+                                        ? SystemMouseCursors.click
+                                        : SystemMouseCursors.basic,
+                                onEnter: (_) {
+                                  setState(() {
+                                    _randomHovered = true;
+                                  });
+                                },
+                                onExit: (_) {
+                                  setState(() {
+                                    _randomHovered = false;
+                                  });
+                                },
+                                child: Focus(
+                                  onFocusChange: (focused) {
+                                    setState(() {
+                                      _randomFocused = focused;
+                                    });
+                                  },
+                                  child: Semantics(
+                                    button: true,
+                                    enabled: randomPlayEnabled,
+                                    label: widget.randomPlayLabel,
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap:
+                                          randomPlayEnabled
+                                              ? widget.onRandomPlay
+                                              : null,
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color:
+                                              randomHighlighted
+                                                  ? colors.clearButtonHover
+                                                  : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
                                           ),
+                                        ),
+                                        child: SizedBox.square(
+                                          dimension: 32,
                                           child: Icon(
                                             FluentIcons
                                                 .arrow_shuffle_20_regular,
                                             size: 18,
-                                            color:
-                                                _randomHovered || _randomFocused
-                                                    ? colors.accentStrong
-                                                    : foreground,
+                                            color: colors.clearForeground,
                                           ),
                                         ),
                                       ),

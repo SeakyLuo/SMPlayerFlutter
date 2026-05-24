@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode;
+    show LyricsRequestMode, SettingsSnapshot;
 
 void main() {
   testWidgets('MusicDialog preserves timed lyrics when timestamps are hidden', (
@@ -39,6 +40,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.savedLyrics, '[00:01.00]Edited line');
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('MusicDialog applies recommended library album art', (
@@ -60,6 +62,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.savedArtworkPath, repository.recommendedArtworkPath);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets(
@@ -82,6 +85,7 @@ void main() {
 
       expect(find.text('[00:02.00]Internet line'), findsOneWidget);
       expect(repository.internetLyricsRequested, isTrue);
+      await tester.pump(const Duration(seconds: 3));
     },
   );
 
@@ -140,6 +144,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.savedLyrics, '[00:03.00]Saved line');
+    await tester.pump(const Duration(seconds: 3));
   });
 }
 
@@ -159,6 +164,7 @@ class _MusicDialogTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: _i18n,
         child: MaterialApp(
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
           home: Scaffold(
             body: MusicDialog(
               song: _currentSong,

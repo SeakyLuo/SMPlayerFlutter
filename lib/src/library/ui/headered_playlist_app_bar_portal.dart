@@ -7,6 +7,7 @@ final headeredPlaylistAppBarPortalProvider =
 class HeaderedPlaylistAppBarPortalEntry {
   const HeaderedPlaylistAppBarPortalEntry({
     required this.owner,
+    required this.routeLocation,
     required this.title,
     required this.coverColor,
     required this.collapseProgress,
@@ -14,6 +15,7 @@ class HeaderedPlaylistAppBarPortalEntry {
   });
 
   final Object owner;
+  final String? routeLocation;
   final String title;
   final WidgetBuilder? commandBarBuilder;
   final Color coverColor;

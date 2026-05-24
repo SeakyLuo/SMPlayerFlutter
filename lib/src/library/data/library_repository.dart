@@ -1030,14 +1030,20 @@ class LibraryRepository {
     try {
       db.execute('BEGIN');
       try {
-        final statement = db.prepare('''
+        final deleteStatement = db.prepare('''
+          DELETE FROM SearchHistory
+          WHERE Query = ? COLLATE NOCASE
+            AND Type = ?
+        ''');
+        final insertStatement = db.prepare('''
           INSERT INTO SearchHistory (Id, Query, Type, SearchedAt)
           VALUES (?, ?, ?, ?)
         ''');
         try {
           for (final entry in entries) {
             final storedType = _toStoredSearchHistoryType(entry.type);
-            statement.execute([
+            deleteStatement.execute([entry.query, storedType]);
+            insertStatement.execute([
               entry.id,
               entry.query,
               storedType,
@@ -1045,7 +1051,8 @@ class LibraryRepository {
             ]);
           }
         } finally {
-          statement.dispose();
+          insertStatement.dispose();
+          deleteStatement.dispose();
         }
         db.execute('COMMIT');
       } on Object {
@@ -1936,6 +1943,14 @@ class LibraryRepository {
       final searchedAt = DateTime.now().toUtc().toIso8601String();
       db.execute('BEGIN');
       try {
+        db.execute(
+          '''
+          DELETE FROM SearchHistory
+          WHERE Query = ? COLLATE NOCASE
+            AND Type = ?
+        ''',
+          [nextQuery, _toStoredSearchHistoryType(type)],
+        );
         db.execute(
           '''
           INSERT INTO SearchHistory (Query, Type, SearchedAt)

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -14,6 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
         compareArtistText,
         formatDuration,
         getArtistQuickJumpBucket;
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     hide formatDuration;
@@ -47,6 +49,7 @@ void main() {
       'common.artistUnknown': 'Unknown Artist',
       'common.cancel': 'Cancel',
       'common.clear': 'Clear',
+      'common.close': 'Close',
       'common.favorite': 'Favorite',
       'common.multiSelect': 'Multi Select',
       'common.myFavorites': 'My Favorites',
@@ -132,6 +135,32 @@ void main() {
     final artists = buildArtistGroups(_artistUnknownAlbumOrderSongs, i18n);
 
     expect(artists.single.songs.map((song) => song.id), [5, 6]);
+  });
+
+  testWidgets('ArtistsPage appbar search keeps Electron close behavior', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _ArtistsAppBarPortalTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Artists.AppBar.Search')));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, 'Search artists'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, 'Alpha');
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Clear'), findsOneWidget);
+    expect(find.byTooltip('Close'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Clear'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsWidgets);
+    expect(find.byTooltip('Close'), findsOneWidget);
   });
 
   test('formatDuration matches Electron hour display', () {
@@ -662,6 +691,10 @@ void main() {
     await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey('PageSearchHistoryPanel.Item.artist a')),
+      findsNothing,
+    );
     await tester.tap(
       find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
     );
@@ -998,6 +1031,54 @@ class _ArtistsTestApp extends StatelessWidget {
   }
 }
 
+class _ArtistsAppBarPortalTestApp extends StatelessWidget {
+  const _ArtistsAppBarPortalTestApp({
+    required this.snapshot,
+    required this.i18n,
+  });
+
+  final LibraryViewData snapshot;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _artistsPageTestTheme(),
+          home: Scaffold(
+            body: Column(
+              children: [
+                Consumer(
+                  builder: (context, ref, _) {
+                    final entry = ref.watch(workspaceAppBarPortalProvider);
+                    return SizedBox(height: 80, child: entry?.content);
+                  },
+                ),
+                const Expanded(
+                  child: WorkspaceNavigationAppBarScope(
+                    active: true,
+                    child: ArtistsPage(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+ThemeData _artistsPageTestTheme() {
+  return ThemeData(extensions: const [DefaultAlbumArtworkThemeColors.light]);
+}
+
 class _ArtistsSnapshotRouterTestApp extends StatelessWidget {
   const _ArtistsSnapshotRouterTestApp({
     required this.snapshot,
@@ -1249,6 +1330,12 @@ const _snapshot = LibraryViewData(
     SearchHistoryEntry(
       id: 31,
       query: 'Artist A',
+      type: SearchHistoryType.artists,
+      searchedAt: '2026-05-21T00:00:00',
+    ),
+    SearchHistoryEntry(
+      id: 30,
+      query: 'artist a',
       type: SearchHistoryType.artists,
       searchedAt: '2026-05-20T00:00:00',
     ),

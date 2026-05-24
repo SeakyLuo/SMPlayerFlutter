@@ -3,8 +3,12 @@ import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart'
+    show formatDuration;
 
 enum PlaylistControlItemVariant { standard, headeredPlaylist }
 
@@ -67,7 +71,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
 
   @override
   Widget build(BuildContext context) {
-    final hasAlbumColumn = widget.showAlbum && widget.song.album.isNotEmpty;
+    final i18n = context.smPlayerI18n;
+    final hasAlbumColumn = widget.showAlbum;
     final headeredPlaylist =
         widget.variant == PlaylistControlItemVariant.headeredPlaylist;
     final compact = MediaQuery.sizeOf(context).width <= 720;
@@ -198,7 +203,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         borderRadius: BorderRadius.circular(4),
                         onTap: widget.onSeeAlbum,
                         child: Text(
-                          displayAlbum(widget.song),
+                          displayAlbum(widget.song, i18n),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -216,7 +221,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   SizedBox(
                     width: headeredPlaylist && !compact ? 74 : 42,
                     child: Text(
-                      formatDuration(widget.song.duration),
+                      formatDuration(widget.song.duration.toDouble()),
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color:
@@ -314,7 +319,7 @@ class _QueueArtwork extends StatelessWidget {
                   foregroundColor: Colors.white,
                   shape: const CircleBorder(),
                 ),
-                icon: const Icon(FluentIcons.play_20_filled, size: 17),
+                icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
                 onPressed: onPlayTrack,
               ),
             ),
@@ -435,15 +440,17 @@ class _QueueMetadata extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
     final color =
         current
             ? _PlaylistControlItemColors.accentStrong
             : _PlaylistControlItemColors.textMuted;
-    final artistNames =
-        song.artists.isEmpty ? <String>[displayArtists(song)] : song.artists;
+    final artistNames = songArtists(song);
+    final effectiveArtistNames =
+        artistNames.isEmpty ? [i18n.t('common.artistUnknown')] : artistNames;
     final children = <Widget>[];
-    for (var index = 0; index < artistNames.length; index += 1) {
-      final artist = artistNames[index];
+    for (var index = 0; index < effectiveArtistNames.length; index += 1) {
+      final artist = effectiveArtistNames[index];
       if (index > 0) {
         children.add(Text(' / ', style: TextStyle(color: color, fontSize: 13)));
       }
@@ -466,7 +473,7 @@ class _QueueMetadata extends StatelessWidget {
       );
     }
 
-    if (showAlbum && song.album.isNotEmpty) {
+    if (showAlbum) {
       children
         ..add(Text(' - ', style: TextStyle(color: color, fontSize: 13)))
         ..add(
@@ -474,7 +481,7 @@ class _QueueMetadata extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             onTap: onSeeAlbum,
             child: Text(
-              displayAlbum(song),
+              displayAlbum(song, i18n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: color, fontSize: 13),
