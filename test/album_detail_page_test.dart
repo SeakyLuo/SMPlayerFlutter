@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
@@ -9,6 +8,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
@@ -394,30 +394,58 @@ void main() {
     expect(tester.getSize(commandBar).width, 520);
 
     final buttonsRect = _unionRects([
-      tester.getRect(
-        find.ancestor(
-          of: find.text('Shuffle'),
-          matching: find.byType(SmPlayerTextIconButton),
-        ),
+      for (final label in ['Shuffle', 'Multi Select', 'Sort', 'Clear'])
+        if (_hasCommandBarButtonLabel(label))
+          _commandBarButtonRectForLabel(tester, label),
+      if (find
+          .byKey(const ValueKey('CommandBar.MoreButton'))
+          .evaluate()
+          .isNotEmpty)
+        tester.getRect(find.byKey(const ValueKey('CommandBar.MoreButton'))),
+    ]);
+
+    expect(buttonsRect.center.dx, moreOrLessEquals(350, epsilon: 1));
+  });
+
+  testWidgets('HeaderedPlaylistControl centers compact Chinese command bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final zhI18n = SmPlayerI18n(
+      locale: 'zh-CN',
+      messages: {
+        ...i18n.messages,
+        'nowPlaying.randomPlay': '随机播放',
+        'albums.multiSelect': '多选',
+        'common.myFavorites': '我喜欢',
+        'settings.preferenceSettings': '偏好设置',
+        'common.sort': '排序',
+      },
+    );
+
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: zhI18n,
+        type: HeaderedPlaylistType.favorites,
+        title: '我喜欢',
+        removable: true,
+        canSetPreferred: true,
+        onSetPreferred: (_) async {},
+        showAlbum: true,
       ),
-      tester.getRect(
-        find.ancestor(
-          of: find.text('Multi Select'),
-          matching: find.byType(SmPlayerTextIconButton),
-        ),
-      ),
-      tester.getRect(
-        find.ancestor(
-          of: find.text('Sort'),
-          matching: find.byType(SmPlayerTextIconButton),
-        ),
-      ),
-      tester.getRect(
-        find.ancestor(
-          of: find.text('Clear'),
-          matching: find.byType(SmPlayerTextIconButton),
-        ),
-      ),
+    );
+    await tester.pumpAndSettle();
+
+    final visibleButtons = ['随机播放', '多选', '偏好设置', '排序'];
+    final buttonsRect = _unionRects([
+      for (final label in visibleButtons)
+        _commandBarButtonRectForLabel(tester, label),
     ]);
 
     expect(buttonsRect.center.dx, moreOrLessEquals(350, epsilon: 1));
@@ -827,11 +855,13 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
     this.canRename = false,
     this.canDelete = false,
     this.canClear = false,
+    this.canSetPreferred = false,
     this.showPortalProbe = false,
     this.songCount = 2,
     this.snapshot = _snapshot,
     this.onWindowDragStart,
     this.onWindowDragEnd,
+    this.onSetPreferred,
     this.onPlayTrack,
   });
 
@@ -843,11 +873,13 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
   final bool canRename;
   final bool canDelete;
   final bool canClear;
+  final bool canSetPreferred;
   final bool showPortalProbe;
   final int songCount;
   final LibraryViewData snapshot;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final Future<void> Function(String level)? onSetPreferred;
   final HeaderedPlaylistTrackHandler? onPlayTrack;
 
   @override
@@ -887,12 +919,14 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
                   canRename: canRename,
                   canDelete: canDelete,
                   canClear: canClear,
+                  canSetPreferred: canSetPreferred,
                   onPlayTrack: onPlayTrack ?? (_, _) {},
                   onAddSongToPlaylist: (_, _) {},
                   onRemoveSongs: (_) {},
                   onRename: (_) {},
                   onDelete: () {},
                   onClear: () {},
+                  onSetPreferred: onSetPreferred,
                   onPlayNext: (_) {},
                 ),
                 if (showPortalProbe)
@@ -949,6 +983,22 @@ Rect _unionRects(List<Rect> rects) {
     result = result.expandToInclude(rect);
   }
   return result;
+}
+
+bool _hasCommandBarButtonLabel(String label) {
+  return find
+      .ancestor(of: find.text(label), matching: find.byType(CommandBarButton))
+      .evaluate()
+      .isNotEmpty;
+}
+
+Rect _commandBarButtonRectForLabel(WidgetTester tester, String label) {
+  return tester.getRect(
+    find.ancestor(
+      of: find.text(label),
+      matching: find.byType(CommandBarButton),
+    ),
+  );
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

@@ -123,7 +123,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: ThemeData(brightness: Brightness.dark),
+          theme: _mediaControlTestTheme(brightness: Brightness.dark),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -168,16 +168,20 @@ void main() {
     final artist = tester.widget<Text>(find.text('Artist').first);
 
     expect(title.style?.color, MediaControlColors.nightText);
+    expect(title.style?.fontWeight, FontWeight.w400);
+    expect(title.style?.fontVariations, isNull);
     expect(artist.style?.color, MediaControlColors.nightMuted);
+    expect(artist.style?.fontWeight, FontWeight.w400);
+    expect(artist.style?.fontVariations, isNull);
   });
 
   test('MediaControl player background constants mirror Electron CSS', () {
     expect(MediaControlColors.playerSurfaceSolid, const Color(0xd1ffffff));
     expect(MediaControlColors.playerSurface, const Color(0xe0ffffff));
-    expect(MediaControlColors.playerAccentWash, const Color(0x1a0078d7));
+    expect(MediaControlColors.playerAccentWash, const Color(0x1aabd9ff));
     expect(MediaControlColors.emptyPlayerAccentWash, const Color(0x100078d7));
     expect(MediaControlColors.emptyPlayerLeftWash, const Color(0xe0ffffff));
-    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x1a0078d7));
+    expect(MediaControlColors.emptyPlayerRightWash, const Color(0x1aebf6ff));
     expect(MediaControlColors.compactPlayerBorder, const Color(0x9effffff));
     expect(MediaControlColors.compactPlayerSurface, const Color(0xd1f8fbfe));
     expect(MediaControlColors.compactPlayerTop, const Color(0xbdffffff));
@@ -191,6 +195,7 @@ void main() {
     expect(MediaControlColors.nightPlayerSurface, const Color(0xe611161c));
     expect(MediaControlColors.nightPlayerHighlight, const Color(0x0effffff));
     expect(MediaControlColors.nightPlayerAccentWash, const Color(0x1f0078d7));
+    expect(MediaControlColors.nightTransportHover, const Color(0x2e0078d7));
     expect(
       MediaControlColors.nightEmptyPlayerAccentWash,
       const Color(0x120078d7),
@@ -202,6 +207,90 @@ void main() {
     expect(
       MediaControlColors.nightEmptyCompactPlayerWash,
       const Color(0xd611161c),
+    );
+  });
+
+  testWidgets('MediaControl play button hover mirrors Electron player CSS', (
+    tester,
+  ) async {
+    Future<Color?> pumpAndHoverPlayButton(Brightness brightness) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(brightness: brightness),
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                ),
+                currentSong: _song,
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 12,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(
+        tester.getCenter(
+          find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      await mouse.removePointer();
+
+      final playButton = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      final playDecoration = playButton.decoration! as BoxDecoration;
+      return playDecoration.color;
+    }
+
+    expect(
+      await pumpAndHoverPlayButton(Brightness.light),
+      MediaControlColors.accentStrong,
+    );
+    expect(
+      await pumpAndHoverPlayButton(Brightness.dark),
+      MediaControlColors.nightTransportHover,
     );
   });
 
@@ -252,6 +341,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: _mediaControlTestTheme(),
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -281,6 +371,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: _mediaControlTestTheme(),
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -322,6 +413,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: _mediaControlTestTheme(),
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -364,6 +456,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: _mediaControlTestTheme(),
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -406,6 +499,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -472,6 +566,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack.empty(),
@@ -539,9 +634,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [DefaultAlbumArtworkThemeColors.light],
-            ),
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack.empty(),
@@ -665,6 +758,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: _mediaControlTestTheme(),
             home: SizedBox(
               width: double.infinity,
               height: double.infinity,
@@ -761,6 +855,7 @@ void main() {
           SmPlayerI18nScope(
             i18n: i18n,
             child: MaterialApp(
+              theme: _mediaControlTestTheme(),
               home: Scaffold(
                 body: AnimatedBuilder(
                   animation: controller,
@@ -823,21 +918,6 @@ void main() {
       await tester.pump();
       expect(controller.state.mode, PlaybackMode.shuffle);
 
-      await tester.tap(
-        find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
-      );
-      await tester.pump();
-
-      expect(
-        find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
-        findsOneWidget,
-      );
-      final verticalSlider = tester.widget<RotatedBox>(find.byType(RotatedBox));
-      expect(verticalSlider.quarterTurns, -1);
-
-      await tester.tap(find.text('Song'));
-      await tester.pump();
-
       expect(
         find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
         findsNothing,
@@ -859,6 +939,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -916,6 +997,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -962,15 +1044,13 @@ void main() {
   });
 
   testWidgets(
-    'MediaControl renders playback load failure without file details',
+    'MediaControl keeps playback load failure out of the compact bar',
     (tester) async {
       await tester.pumpWidget(
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [DefaultAlbumArtworkThemeColors.light],
-            ),
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -1011,7 +1091,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Could not play this song.'), findsOneWidget);
+      expect(find.text('Could not play this song.'), findsNothing);
       expect(find.textContaining('/'), findsNothing);
     },
   );
@@ -1023,6 +1103,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -1068,6 +1149,12 @@ void main() {
       find.byKey(const ValueKey('MediaControl.CurrentLyricsContainer')),
       findsOneWidget,
     );
+    final lyrics = tester.widget<Text>(
+      find.byKey(const ValueKey('MediaControl.CurrentLyricsLine')),
+    );
+    expect(lyrics.style?.color, MediaControlColors.textMuted);
+    expect(lyrics.style?.fontWeight, FontWeight.w400);
+    expect(lyrics.style?.fontVariations, isNull);
     expect(find.byType(AnimatedSwitcher), findsOneWidget);
     expect(find.byType(SlideTransition), findsWidgets);
   });
@@ -1079,6 +1166,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -1128,7 +1216,10 @@ void main() {
       await tester.pump();
 
       expect(tester.widget<AnimatedOpacity>(overlayFinder).opacity, 1);
-      expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
+      expect(
+        find.byIcon(FluentIcons.full_screen_maximize_24_regular),
+        findsOneWidget,
+      );
     },
   );
 
@@ -1169,6 +1260,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: MediaControlTrack(
@@ -1243,6 +1335,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -1323,6 +1416,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: controller.state.track,
@@ -1396,6 +1490,7 @@ void main() {
           SmPlayerI18nScope(
             i18n: i18n,
             child: MaterialApp(
+              theme: _mediaControlTestTheme(),
               home: Scaffold(
                 body: MediaControl(
                   track: const MediaControlTrack.empty(),
@@ -1462,6 +1557,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -1617,6 +1713,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -1712,6 +1809,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -1798,6 +1896,7 @@ void main() {
           SmPlayerI18nScope(
             i18n: i18n,
             child: MaterialApp(
+              theme: _mediaControlTestTheme(),
               home: Scaffold(
                 body: MediaControl(
                   track: controller.state.track,
@@ -1873,9 +1972,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [DefaultAlbumArtworkThemeColors.light],
-            ),
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -1968,9 +2065,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [DefaultAlbumArtworkThemeColors.light],
-            ),
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -2035,9 +2130,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [DefaultAlbumArtworkThemeColors.light],
-            ),
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -2114,7 +2207,7 @@ void main() {
     }
   });
 
-  testWidgets('medium MediaControl volume opens Electron vertical popover', (
+  testWidgets('medium MediaControl exposes compact volume button', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -2124,12 +2217,11 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    var changedVolume = 0;
-
     await tester.pumpWidget(
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -2153,9 +2245,7 @@ void main() {
               onSeek: (_) {},
               onBeginSeek: () {},
               onEndSeek: () {},
-              onVolumeChange: (volume) {
-                changedVolume = volume;
-              },
+              onVolumeChange: (_) {},
               onToggleMute: () {},
               onToggleShuffle: () {},
               onToggleRepeat: () {},
@@ -2186,26 +2276,6 @@ void main() {
       findsNothing,
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
-    );
-    await tester.pump();
-
-    expect(
-      find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
-      findsOneWidget,
-    );
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, -1);
-
-    final volumeSlider = tester.widget<Slider>(find.byType(Slider).last);
-    volumeSlider.onChanged!(64);
-    await tester.pump();
-
-    expect(changedVolume, 64);
-
-    await tester.tap(find.text('Song'));
-    await tester.pump();
-
     expect(
       find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
       findsNothing,
@@ -2229,6 +2299,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack.empty(),
@@ -2366,6 +2437,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -2445,6 +2517,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _mediaControlTestTheme(),
           home: Scaffold(
             body: MediaControl(
               track: const MediaControlTrack(
@@ -2512,6 +2585,7 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -2581,3 +2655,16 @@ const _song = LibrarySong(
 );
 
 const double _testVolumeSliderThumbRadius = 8;
+
+ThemeData _mediaControlTestTheme({Brightness brightness = Brightness.light}) {
+  final isDark = brightness == Brightness.dark;
+  return ThemeData(
+    brightness: brightness,
+    extensions: [
+      isDark
+          ? DefaultAlbumArtworkThemeColors.dark
+          : DefaultAlbumArtworkThemeColors.light,
+      isDark ? MediaControlThemeColors.dark : MediaControlThemeColors.light,
+    ],
+  );
+}

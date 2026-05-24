@@ -11,8 +11,8 @@ import '../../app/loading_state.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
-import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
+import '../../playback/media_control_track_factory.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart';
@@ -105,9 +105,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     required bool showPortal,
     required String routePath,
     required SmPlayerI18n i18n,
+    required List<String> searchSuggestions,
+    required List<SearchHistoryEntry> searchHistoryEntries,
   }) {
     final signature =
-        '$showPortal:$routePath:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_sortCriterion';
+        '$showPortal:$routePath:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_sortCriterion:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -127,7 +129,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
-        content: _buildAlbumsAppBarActions(i18n, positioned: false),
+        content: _buildAlbumsAppBarActions(
+          i18n,
+          searchSuggestions: searchSuggestions,
+          searchHistoryEntries: searchHistoryEntries,
+        ),
         replacesTitle: _appBarSearchOpen,
       );
     });
@@ -135,15 +141,18 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   Widget _buildAlbumsAppBarActions(
     SmPlayerI18n i18n, {
-    required bool positioned,
+    required List<String> searchSuggestions,
+    required List<SearchHistoryEntry> searchHistoryEntries,
   }) {
     return _AlbumsAppBarActions(
-      positioned: positioned,
       searchOpen: _appBarSearchOpen,
       searchDraft: _searchDraft,
       searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
       sortCriterion: _sortCriterion,
       i18n: i18n,
+      searchFocused: _searchFocused,
+      searchSuggestions: searchSuggestions,
+      searchHistoryEntries: searchHistoryEntries,
       onOpenSearch: () {
         setState(() {
           _appBarSearchOpen = true;
@@ -161,8 +170,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           _searchDraft = value;
         });
       },
+      onSearchFocusChanged: _changeSearchFocus,
       onSearchSubmitted: _submitSearch,
       onClearSearch: _clearSearch,
+      onSelectSearchSuggestion: _selectSearchQuery,
+      onRemoveRecentSearch: _removeRecentSearch,
+      onClearRecentSearches: _clearRecentSearches,
       onChangeAlbumSort: _changeAlbumSort,
     );
   }
@@ -230,11 +243,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   albums,
                   _searchDraft,
                 ).take(8).map((album) => album.name).toList();
-        final albumSearchHistoryEntries =
-            snapshot.recentSearches
-                .where((entry) => entry.type == SearchHistoryType.albums)
-                .take(10)
-                .toList();
+        final albumSearchHistoryEntries = latestSearchHistoryEntries(
+          snapshot.recentSearches,
+          SearchHistoryType.albums,
+        );
         final customPlaylists =
             snapshot.playlists
                 .where((playlist) => !playlist.isBuiltIn)
@@ -251,36 +263,39 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           showPortal: useWorkspaceAppBar,
           routePath: '/albums',
           i18n: i18n,
+          searchSuggestions: albumSearchSuggestions,
+          searchHistoryEntries: albumSearchHistoryEntries,
         );
 
         if (visibleAlbums.isEmpty) {
           return _AlbumsPagePanel(
             child: Column(
               children: [
-                _AlbumsToolbar(
-                  searchDraft: _searchDraft,
-                  searchHasText:
-                      _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
-                  sortCriterion: _sortCriterion,
-                  multiSelect: _selection.multiSelect,
-                  i18n: i18n,
-                  searchFocused: _searchFocused,
-                  searchSuggestions: albumSearchSuggestions,
-                  searchHistoryEntries: albumSearchHistoryEntries,
-                  onSearchChanged: (value) {
-                    setState(() {
-                      _searchDraft = value;
-                    });
-                  },
-                  onSearchFocusChanged: _changeSearchFocus,
-                  onSearchSubmitted: _submitSearch,
-                  onClearSearch: _clearSearch,
-                  onSelectSearchSuggestion: _selectSearchQuery,
-                  onRemoveRecentSearch: _removeRecentSearch,
-                  onClearRecentSearches: _clearRecentSearches,
-                  onChangeAlbumSort: _changeAlbumSort,
-                  onToggleMultiSelect: _enterMultiSelect,
-                ),
+                if (!useWorkspaceAppBar)
+                  _AlbumsToolbar(
+                    searchDraft: _searchDraft,
+                    searchHasText:
+                        _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+                    sortCriterion: _sortCriterion,
+                    multiSelect: _selection.multiSelect,
+                    i18n: i18n,
+                    searchFocused: _searchFocused,
+                    searchSuggestions: albumSearchSuggestions,
+                    searchHistoryEntries: albumSearchHistoryEntries,
+                    onSearchChanged: (value) {
+                      setState(() {
+                        _searchDraft = value;
+                      });
+                    },
+                    onSearchFocusChanged: _changeSearchFocus,
+                    onSearchSubmitted: _submitSearch,
+                    onClearSearch: _clearSearch,
+                    onSelectSearchSuggestion: _selectSearchQuery,
+                    onRemoveRecentSearch: _removeRecentSearch,
+                    onClearRecentSearches: _clearRecentSearches,
+                    onChangeAlbumSort: _changeAlbumSort,
+                    onToggleMultiSelect: _enterMultiSelect,
+                  ),
                 Expanded(
                   child: _AlbumsEmptyState(
                     title:
@@ -325,30 +340,32 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 children: [
                   Column(
                     children: [
-                      _AlbumsToolbar(
-                        searchDraft: _searchDraft,
-                        searchHasText:
-                            _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
-                        sortCriterion: _sortCriterion,
-                        multiSelect: _selection.multiSelect,
-                        i18n: i18n,
-                        searchFocused: _searchFocused,
-                        searchSuggestions: albumSearchSuggestions,
-                        searchHistoryEntries: albumSearchHistoryEntries,
-                        onSearchChanged: (value) {
-                          setState(() {
-                            _searchDraft = value;
-                          });
-                        },
-                        onSearchFocusChanged: _changeSearchFocus,
-                        onSearchSubmitted: _submitSearch,
-                        onClearSearch: _clearSearch,
-                        onSelectSearchSuggestion: _selectSearchQuery,
-                        onRemoveRecentSearch: _removeRecentSearch,
-                        onClearRecentSearches: _clearRecentSearches,
-                        onChangeAlbumSort: _changeAlbumSort,
-                        onToggleMultiSelect: _enterMultiSelect,
-                      ),
+                      if (!useWorkspaceAppBar)
+                        _AlbumsToolbar(
+                          searchDraft: _searchDraft,
+                          searchHasText:
+                              _searchDraft.isNotEmpty ||
+                              _searchQuery.isNotEmpty,
+                          sortCriterion: _sortCriterion,
+                          multiSelect: _selection.multiSelect,
+                          i18n: i18n,
+                          searchFocused: _searchFocused,
+                          searchSuggestions: albumSearchSuggestions,
+                          searchHistoryEntries: albumSearchHistoryEntries,
+                          onSearchChanged: (value) {
+                            setState(() {
+                              _searchDraft = value;
+                            });
+                          },
+                          onSearchFocusChanged: _changeSearchFocus,
+                          onSearchSubmitted: _submitSearch,
+                          onClearSearch: _clearSearch,
+                          onSelectSearchSuggestion: _selectSearchQuery,
+                          onRemoveRecentSearch: _removeRecentSearch,
+                          onClearRecentSearches: _clearRecentSearches,
+                          onChangeAlbumSort: _changeAlbumSort,
+                          onToggleMultiSelect: _enterMultiSelect,
+                        ),
                       Expanded(
                         child: Row(
                           children: [
@@ -434,8 +451,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       ),
                     ],
                   ),
-                  if (!useWorkspaceAppBar)
-                    _buildAlbumsAppBarActions(i18n, positioned: true),
                   MultiSelectCommandBar(
                     visible: _selection.multiSelect,
                     selectedCount: selectedAlbums.length,
@@ -590,8 +605,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     setState(() {
       _searchDraft = '';
       _searchQuery = '';
-      _searchFocused = false;
-      _appBarSearchOpen = false;
     });
     if (widget.targetAlbumName != null) {
       context.go('/albums');
@@ -855,14 +868,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: firstSong.id,
-            title: firstSong.title,
-            artist: firstSong.artist,
-            artworkUrl: firstSong.thumbnailPath,
-            isLoading: false,
-            favorite: firstSong.favorite,
-          ),
+          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
@@ -1103,39 +1109,16 @@ class _AlbumsToolbar extends StatelessWidget {
             overflowLabel: i18n.t('player.more'),
             content: SizedBox(
               height: 40,
-              child: Focus(
-                onFocusChange: onSearchFocusChanged,
-                child: TextField(
-                  controller: TextEditingController(text: searchDraft)
-                    ..selection = TextSelection.collapsed(
-                      offset: searchDraft.length,
-                    ),
-                  onTap: () {
-                    onSearchFocusChanged(true);
-                  },
-                  onChanged: onSearchChanged,
-                  onSubmitted: (_) {
-                    onSearchSubmitted();
-                  },
-                  decoration: InputDecoration(
-                    hintText: i18n.t('albums.searchAlbumPlaceholder'),
-                    prefixIcon: const Icon(FluentIcons.search_20_regular),
-                    suffixIcon:
-                        searchHasText
-                            ? IconButton(
-                              icon: const Icon(FluentIcons.dismiss_20_regular),
-                              onPressed: onClearSearch,
-                            )
-                            : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: _AlbumsColors.commandSurface,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
+              child: PageSearchField(
+                value: searchDraft,
+                hintText: i18n.t('albums.searchAlbumPlaceholder'),
+                focused: searchFocused,
+                onChanged: onSearchChanged,
+                onFocusChanged: onSearchFocusChanged,
+                onSubmitted: onSearchSubmitted,
+                onClear: onClearSearch,
+                searchTooltip: i18n.t('common.search'),
+                clearTooltip: i18n.t('common.clear'),
               ),
             ),
             children: [
@@ -1199,138 +1182,159 @@ class _AlbumsToolbar extends StatelessWidget {
 
 class _AlbumsAppBarActions extends StatelessWidget {
   const _AlbumsAppBarActions({
-    required this.positioned,
     required this.searchOpen,
     required this.searchDraft,
     required this.searchHasText,
     required this.sortCriterion,
     required this.i18n,
+    required this.searchFocused,
+    required this.searchSuggestions,
+    required this.searchHistoryEntries,
     required this.onOpenSearch,
     required this.onCloseSearch,
     required this.onSearchChanged,
+    required this.onSearchFocusChanged,
     required this.onSearchSubmitted,
     required this.onClearSearch,
+    required this.onSelectSearchSuggestion,
+    required this.onRemoveRecentSearch,
+    required this.onClearRecentSearches,
     required this.onChangeAlbumSort,
   });
 
-  final bool positioned;
   final bool searchOpen;
   final String searchDraft;
   final bool searchHasText;
   final AlbumSortCriterion sortCriterion;
   final SmPlayerI18n i18n;
+  final bool searchFocused;
+  final List<String> searchSuggestions;
+  final List<SearchHistoryEntry> searchHistoryEntries;
   final VoidCallback onOpenSearch;
   final VoidCallback onCloseSearch;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<bool> onSearchFocusChanged;
   final VoidCallback onSearchSubmitted;
   final VoidCallback onClearSearch;
+  final ValueChanged<String> onSelectSearchSuggestion;
+  final ValueChanged<int> onRemoveRecentSearch;
+  final VoidCallback onClearRecentSearches;
   final ValueChanged<AlbumSortCriterion> onChangeAlbumSort;
 
   @override
   Widget build(BuildContext context) {
+    final showSuggestions = searchFocused && searchSuggestions.isNotEmpty;
+    final showHistory =
+        searchFocused &&
+        searchDraft.trim().isEmpty &&
+        searchHistoryEntries.isNotEmpty;
     final panel = Material(
       key: const ValueKey('Albums.AppBarActions'),
-      elevation: positioned ? 8 : 0,
-      shadowColor: const Color(0x1a000000),
-      color:
-          positioned
-              ? Colors.white.withValues(alpha: 0.82)
-              : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
       child: Padding(
-        padding: EdgeInsets.all(positioned ? 6 : 0),
+        padding: EdgeInsets.zero,
         child:
             searchOpen
                 ? SizedBox(
-                  width: positioned ? 320 : double.infinity,
-                  height: positioned ? 42 : 36,
-                  child: Focus(
-                    onKeyEvent: (node, event) {
-                      if (event is KeyDownEvent &&
-                          event.logicalKey == LogicalKeyboardKey.escape) {
-                        onCloseSearch();
-                        return KeyEventResult.handled;
-                      }
-                      return KeyEventResult.ignored;
-                    },
-                    child: TextField(
-                      autofocus: true,
-                      controller: TextEditingController(text: searchDraft)
-                        ..selection = TextSelection.collapsed(
-                          offset: searchDraft.length,
-                        ),
-                      onChanged: onSearchChanged,
-                      onSubmitted: (_) {
-                        onSearchSubmitted();
-                      },
-                      decoration: InputDecoration(
-                        hintText: i18n.t('albums.searchAlbumPlaceholder'),
-                        prefixIcon: IconButton(
-                          tooltip: i18n.t('common.search'),
-                          icon: const Icon(FluentIcons.search_20_regular),
-                          onPressed: onSearchSubmitted,
-                        ),
-                        suffixIcon:
-                            searchHasText
-                                ? IconButton(
-                                  tooltip: i18n.t('common.clear'),
-                                  icon: const Icon(
-                                    FluentIcons.dismiss_20_regular,
-                                  ),
-                                  onPressed: onClearSearch,
-                                )
-                                : IconButton(
-                                  tooltip: i18n.t('common.close'),
-                                  icon: const Icon(
-                                    FluentIcons.dismiss_20_regular,
-                                  ),
-                                  onPressed: onCloseSearch,
+                  height: 36,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Focus(
+                              onKeyEvent: (node, event) {
+                                if (event is KeyDownEvent &&
+                                    event.logicalKey ==
+                                        LogicalKeyboardKey.escape) {
+                                  onCloseSearch();
+                                  return KeyEventResult.handled;
+                                }
+                                return KeyEventResult.ignored;
+                              },
+                              child: PageSearchField(
+                                value: searchDraft,
+                                hintText: i18n.t(
+                                  'albums.searchAlbumPlaceholder',
                                 ),
-                        filled: true,
-                        fillColor:
-                            positioned ? Colors.white : const Color(0x090d1826),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(9),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: EdgeInsets.zero,
+                                focused: searchFocused,
+                                autofocus: true,
+                                height: 36,
+                                onChanged: onSearchChanged,
+                                onFocusChanged: onSearchFocusChanged,
+                                onSubmitted: onSearchSubmitted,
+                                onClear: onClearSearch,
+                                searchTooltip: i18n.t('common.search'),
+                                clearTooltip: i18n.t('common.clear'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: IconButton(
+                              tooltip: i18n.t('common.close'),
+                              icon: const Icon(FluentIcons.dismiss_20_regular),
+                              onPressed: onCloseSearch,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                      if (showSuggestions || showHistory)
+                        Positioned(
+                          top: 42,
+                          left: 0,
+                          right: 40,
+                          child:
+                              showSuggestions
+                                  ? PageSearchSuggestionPanel(
+                                    labels: searchSuggestions,
+                                    onSelect: onSelectSearchSuggestion,
+                                  )
+                                  : PageSearchHistoryPanel(
+                                    entries: searchHistoryEntries,
+                                    i18n: i18n,
+                                    onSelect: onSelectSearchSuggestion,
+                                    onRemove: onRemoveRecentSearch,
+                                    onClear: onClearRecentSearches,
+                                  ),
+                        ),
+                    ],
                   ),
                 )
-                : Row(
-                  mainAxisSize: MainAxisSize.min,
+                : CommandBar(
+                  style: CommandBarStyleVariant.appBar,
+                  overflowLabel: i18n.t('player.more'),
                   children: [
-                    SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: IconButton(
-                        key: const ValueKey('Albums.AppBar.Search'),
-                        tooltip: i18n.t('common.search'),
-                        icon: const Icon(FluentIcons.search_20_regular),
-                        onPressed: onOpenSearch,
-                      ),
+                    CommandBarButton(
+                      key: const ValueKey('Albums.AppBar.Search'),
+                      icon: FluentIcons.search_20_regular,
+                      label: i18n.t('common.search'),
+                      active: searchHasText,
+                      showLabel: false,
+                      canOverflow: false,
+                      onPressed: onOpenSearch,
                     ),
                     Builder(
                       builder: (context) {
-                        return SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: IconButton(
-                            key: const ValueKey('Albums.AppBar.Sort'),
-                            tooltip: _albumSortLabel(i18n, sortCriterion),
-                            icon: const Icon(FluentIcons.arrow_sort_20_regular),
-                            onPressed: () {
-                              showMenuFlyout(
-                                context,
-                                items: _albumSortMenuItems(
-                                  i18n,
-                                  sortCriterion,
-                                  onChangeAlbumSort,
-                                ),
-                              );
-                            },
-                          ),
+                        return CommandBarButton(
+                          key: const ValueKey('Albums.AppBar.Sort'),
+                          icon: FluentIcons.arrow_sort_20_regular,
+                          label: _albumSortLabel(i18n, sortCriterion),
+                          showLabel: false,
+                          canOverflow: false,
+                          onPressed: () {
+                            showMenuFlyout(
+                              context,
+                              items: _albumSortMenuItems(
+                                i18n,
+                                sortCriterion,
+                                onChangeAlbumSort,
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -1338,10 +1342,7 @@ class _AlbumsAppBarActions extends StatelessWidget {
                 ),
       ),
     );
-    if (!positioned) {
-      return panel;
-    }
-    return Positioned(top: 8, right: 8, child: panel);
+    return panel;
   }
 }
 
@@ -1719,7 +1720,6 @@ List<MenuFlyoutItem> _albumSortMenuItems(
 class _AlbumsColors {
   const _AlbumsColors._();
 
-  static const commandSurface = Color(0xd9ffffff);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
   static const textStrong = Color(0xff111827);

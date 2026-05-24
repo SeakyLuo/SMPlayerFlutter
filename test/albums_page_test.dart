@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -222,7 +223,9 @@ void main() {
   testWidgets('AlbumsPage exposes Electron appbar search entry', (
     tester,
   ) async {
-    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpWidget(
+      _AlbumsAppBarPortalTestApp(snapshot: _snapshot, i18n: i18n),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('Albums.AppBar.Search')));
@@ -234,6 +237,30 @@ void main() {
     expect(find.text('Red Days'), findsOneWidget);
     expect(find.text('Blue Hour'), findsNothing);
   });
+
+  testWidgets(
+    'AlbumsPage appbar search separates clear and close like Electron',
+    (tester) async {
+      await tester.pumpWidget(
+        _AlbumsAppBarPortalTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('Albums.AppBar.Search')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'Red');
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Clear'), findsOneWidget);
+      expect(find.byTooltip('Close'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Clear'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsWidgets);
+      expect(find.byTooltip('Close'), findsOneWidget);
+    },
+  );
 
   testWidgets('AlbumsPage multi-select play replaces Now Playing', (
     tester,
@@ -441,7 +468,7 @@ void main() {
     await gesture.addPointer(location: Offset.zero);
     await gesture.moveTo(tester.getCenter(find.text('Blue Hour')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(FluentIcons.play_20_filled).first);
+    await tester.tap(find.byType(SmPlayerPlayIcon).first);
     await tester.pumpAndSettle();
 
     expect(repository.recordedAlbums, ['Blue Hour']);
@@ -551,6 +578,10 @@ void main() {
     await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey('PageSearchHistoryPanel.Item.red')),
+      findsNothing,
+    );
     await tester.tap(
       find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Red')),
     );
@@ -651,6 +682,50 @@ class _AlbumsTestApp extends StatelessWidget {
         child: MaterialApp(
           theme: _albumsPageTestTheme(),
           home: const Scaffold(body: AlbumsPage()),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumsAppBarPortalTestApp extends StatelessWidget {
+  const _AlbumsAppBarPortalTestApp({
+    required this.snapshot,
+    required this.i18n,
+  });
+
+  final LibraryViewData snapshot;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _albumsPageTestTheme(),
+          home: Scaffold(
+            body: Column(
+              children: [
+                Consumer(
+                  builder: (context, ref, _) {
+                    final entry = ref.watch(workspaceAppBarPortalProvider);
+                    return SizedBox(height: 80, child: entry?.content);
+                  },
+                ),
+                const Expanded(
+                  child: WorkspaceNavigationAppBarScope(
+                    active: true,
+                    child: AlbumsPage(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -871,6 +946,12 @@ const _snapshot = LibraryViewData(
     SearchHistoryEntry(
       id: 21,
       query: 'Red',
+      type: SearchHistoryType.albums,
+      searchedAt: '2026-05-21T00:00:00',
+    ),
+    SearchHistoryEntry(
+      id: 20,
+      query: 'red',
       type: SearchHistoryType.albums,
       searchedAt: '2026-05-20T00:00:00',
     ),

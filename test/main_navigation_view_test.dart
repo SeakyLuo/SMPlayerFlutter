@@ -364,6 +364,12 @@ void main() {
             i18n: testI18n,
             recentSearches: const [
               SearchHistoryEntry(
+                id: 10,
+                query: 'jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-21T00:00:00Z',
+              ),
+              SearchHistoryEntry(
                 id: 7,
                 query: 'Jazz',
                 type: SearchHistoryType.sidebar,
@@ -409,9 +415,14 @@ void main() {
     await tester.pump();
 
     expect(find.text('最近搜索'), findsOneWidget);
-    expect(find.text('Jazz'), findsOneWidget);
+    expect(find.text('jazz'), findsOneWidget);
+    expect(find.text('Jazz'), findsNothing);
     expect(find.text('Blues'), findsOneWidget);
     expect(find.text('Album only'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.SearchHistoryItem.7')),
+      findsNothing,
+    );
     final searchFieldSize = tester.getSize(
       find.byKey(const ValueKey('MainNavigationView.SearchFieldShell')),
     );
@@ -474,7 +485,7 @@ void main() {
       tester
               .getTopLeft(
                 find.byKey(
-                  const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+                  const ValueKey('MainNavigationView.SearchHistoryItem.10'),
                 ),
               )
               .dy -
@@ -491,7 +502,7 @@ void main() {
       tester
           .getSize(
             find.byKey(
-              const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+              const ValueKey('MainNavigationView.SearchHistoryItem.10'),
             ),
           )
           .height,
@@ -501,7 +512,7 @@ void main() {
       tester
           .getSize(
             find.byKey(
-              const ValueKey('MainNavigationView.SearchHistorySelect.7'),
+              const ValueKey('MainNavigationView.SearchHistorySelect.10'),
             ),
           )
           .height,
@@ -509,7 +520,7 @@ void main() {
     );
     expect(
       tester.getSize(
-        find.byKey(const ValueKey('MainNavigationView.SearchHistoryRemove.7')),
+        find.byKey(const ValueKey('MainNavigationView.SearchHistoryRemove.10')),
       ),
       const Size(30, 30),
     );
@@ -524,7 +535,7 @@ void main() {
           tester
               .getBottomLeft(
                 find.byKey(
-                  const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+                  const ValueKey('MainNavigationView.SearchHistoryItem.10'),
                 ),
               )
               .dy,
@@ -546,16 +557,16 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Jazz'));
+    await tester.tap(find.text('jazz'));
     await tester.pump();
-    expect(committedText, 'Jazz');
+    expect(committedText, 'jazz');
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     await tester.pump();
-    await tester.tap(find.byTooltip('移除最近搜索 Jazz'));
-    expect(removedId, 7);
+    await tester.tap(find.byTooltip('移除最近搜索 jazz'));
+    expect(removedId, 10);
 
     await tester.tap(find.text('清空'));
     expect(cleared, isTrue);
@@ -765,7 +776,7 @@ void main() {
                 .first,
           )
           .opacity,
-      1,
+      0,
     );
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -901,10 +912,10 @@ void main() {
       final textField = tester.widget<TextField>(
         find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
       );
-      expect(textField.controller?.text, '');
+      expect(textField.controller?.text, 'Jazz');
       expect(
         find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(repository.recordedSearches, [
         (query: 'Jazz', type: SearchHistoryType.sidebar),
@@ -939,7 +950,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('最近搜索'), findsOneWidget);
-      expect(find.text('Jazz'), findsOneWidget);
+      expect(find.text('Jazz'), findsNWidgets(2));
 
       await tester.tap(find.byKey(SmPlayerShellKeys.workspace));
       await tester.pumpAndSettle();

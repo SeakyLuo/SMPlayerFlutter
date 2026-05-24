@@ -107,7 +107,7 @@ void main() {
     }
   });
 
-  test('addRecentSearch allows repeated query entries', () async {
+  test('addRecentSearch keeps latest repeated query entry', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer_recent_search_duplicate_test_',
     );
@@ -137,16 +137,56 @@ void main() {
       'jazz',
       SearchHistoryType.sidebar,
     );
+    final artist = await repository.addRecentSearch(
+      'Jazz',
+      SearchHistoryType.artists,
+    );
     final searches = await repository.getRecentSearches();
 
     expect(first, isNotNull);
     expect(second, isNotNull);
+    expect(artist, isNotNull);
     expect(first!.id, isNot(second!.id));
-    expect(searches.map((search) => search.query), ['jazz', 'Jazz']);
+    expect(searches.map((search) => search.query), ['Jazz', 'jazz']);
     expect(searches.map((search) => search.type), [
-      SearchHistoryType.sidebar,
+      SearchHistoryType.artists,
       SearchHistoryType.sidebar,
     ]);
+  });
+
+  test('latestSearchHistoryEntries keeps newest keyword for one type', () {
+    final entries = [
+      SearchHistoryEntry(
+        id: 1,
+        query: 'Artist A',
+        type: SearchHistoryType.artists,
+        searchedAt: '2026-05-21T00:00:00Z',
+      ),
+      SearchHistoryEntry(
+        id: 2,
+        query: 'artist a',
+        type: SearchHistoryType.artists,
+        searchedAt: '2026-05-20T00:00:00Z',
+      ),
+      SearchHistoryEntry(
+        id: 3,
+        query: 'Artist A',
+        type: SearchHistoryType.albums,
+        searchedAt: '2026-05-21T00:00:00Z',
+      ),
+    ];
+
+    final artists = latestSearchHistoryEntries(
+      entries,
+      SearchHistoryType.artists,
+    );
+    final albums = latestSearchHistoryEntries(
+      entries,
+      SearchHistoryType.albums,
+    );
+
+    expect(artists.map((entry) => entry.id), [1]);
+    expect(albums.map((entry) => entry.id), [3]);
   });
 
   test('addRecentSearch initializes a new macOS-style data store', () async {

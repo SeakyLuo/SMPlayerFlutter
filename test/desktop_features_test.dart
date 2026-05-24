@@ -104,6 +104,14 @@ void main() {
     );
   });
 
+  test('desktop lyrics offset follows Electron limits', () {
+    expect(clampedDesktopLyricsOffset(-10001), -10000);
+    expect(clampedDesktopLyricsOffset(-10000), -10000);
+    expect(clampedDesktopLyricsOffset(0), 0);
+    expect(clampedDesktopLyricsOffset(10000), 10000);
+    expect(clampedDesktopLyricsOffset(10001), 10000);
+  });
+
   test('desktop lyrics state follows Electron fallback text', () {
     final settings = const SettingsSnapshot.defaults().copyWith(
       desktopLyricsEnabled: true,
@@ -116,6 +124,7 @@ void main() {
       lyricsLoading: true,
       isPlaying: true,
       progressSeconds: 12,
+      durationSeconds: 180,
       i18n: const SmPlayerI18n(
         locale: 'zh-CN',
         messages: {
@@ -139,6 +148,7 @@ void main() {
     expect(state.playing, isTrue);
     expect(state.fallbackText, 'Track - Artist');
     expect(state.textColor, '#ffffff');
+    expect(state.progressSeconds, 12.12);
     expect(state.offsetMs, 120);
     expect(
       state.toPlatformMap(),
@@ -149,14 +159,14 @@ void main() {
     expect(state.toPlatformMap(), containsPair('nightMode', false));
     expect(state.toPlatformMap(), containsPair('labelPrevious', '上一首'));
     expect(state.toPlatformMap(), containsPair('labelNext', '下一首'));
-    expect(state.toPlatformMap(), containsPair('labelPlayPause', '播放或暂停'));
-    expect(state.toPlatformMap(), containsPair('labelPlay', '播放'));
-    expect(state.toPlatformMap(), containsPair('labelPause', '暂停'));
+    expect(state.toPlatformMap(), containsPair('labelPlayPause', '暂停'));
     expect(state.toPlatformMap(), containsPair('labelResetOffset', '重置'));
     expect(state.toPlatformMap(), containsPair('labelLock', '锁定'));
     expect(state.toPlatformMap(), containsPair('labelUnlock', '解锁'));
     expect(state.toPlatformMap(), containsPair('labelSettings', '设置'));
     expect(state.toPlatformMap(), containsPair('labelClose', '关闭'));
+    expect(state.toPlatformMap(), isNot(contains('labelPlay')));
+    expect(state.toPlatformMap(), isNot(contains('labelPause')));
   });
 
   test('media session state mirrors Electron metadata payload', () {
@@ -182,7 +192,7 @@ void main() {
     expect(state.toPlatformMap(), containsPair('playing', true));
   });
 
-  test('desktop lyrics state carries current and next synced lyric lines', () {
+  test('desktop lyrics state carries only Electron current lyric line', () {
     final settings = const SettingsSnapshot.defaults().copyWith(
       desktopLyricsEnabled: true,
     );
@@ -202,10 +212,55 @@ void main() {
       lyricsLoading: false,
       isPlaying: true,
       progressSeconds: 1.2,
+      durationSeconds: 180,
     );
 
     expect(state.lyricText, 'Second line');
-    expect(state.nextLyricText, 'Third line');
+    expect(state.toPlatformMap(), isNot(contains('nextLyricText')));
+  });
+
+  test('desktop lyrics plain text follows Electron progress ratio', () {
+    final settings = const SettingsSnapshot.defaults().copyWith(
+      desktopLyricsEnabled: true,
+    );
+    final state = DesktopLyricsDisplayState.fromShell(
+      settings: settings,
+      currentSong: _song,
+      lyrics: const LyricsSnapshot(
+        source: LyricsSource.musicFile,
+        isSynced: false,
+        rawText: '',
+        lines: [
+          LyricsLine(id: 1, timestampMs: null, text: 'First plain'),
+          LyricsLine(id: 2, timestampMs: null, text: 'Second plain'),
+          LyricsLine(id: 3, timestampMs: null, text: 'Third plain'),
+        ],
+      ),
+      lyricsLoading: false,
+      isPlaying: true,
+      progressSeconds: 60,
+      durationSeconds: 180,
+    );
+
+    expect(state.lyricText, 'Second plain');
+  });
+
+  test('desktop lyrics text collapses multiline content like Electron', () {
+    expect(
+      desktopLyricsText(
+        lyrics: const LyricsSnapshot(
+          source: LyricsSource.musicFile,
+          isSynced: true,
+          rawText: '',
+          lines: [
+            LyricsLine(id: 1, timestampMs: 0, text: '\n  Current line\\nNext'),
+          ],
+        ),
+        progressSeconds: 0,
+        progressRatio: 0,
+      ),
+      'Current line',
+    );
   });
 
   test('track notification payload matches Electron body contract', () {

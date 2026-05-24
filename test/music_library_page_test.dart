@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -13,7 +14,7 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode;
+    show LyricsRequestMode, SettingsSnapshot;
 
 void main() {
   setUp(PageSelectionController.clearStoredStates);
@@ -312,6 +313,89 @@ void main() {
     );
   });
 
+  testWidgets(
+    'MusicLibraryPage compact quick jump panel uses Electron night colors',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _MusicLibraryTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          brightness: Brightness.dark,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpToggle')),
+      );
+      await tester.pumpAndSettle();
+
+      final panelDecoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .descendant(
+                          of: find.byKey(
+                            const ValueKey('MusicLibrary.QuickJumpPanel'),
+                          ),
+                          matching: find.byType(DecoratedBox),
+                        )
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
+      expect(panelDecoration.color, const Color(0xf5101419));
+      expect(panelDecoration.boxShadow?.single.color, const Color(0x5c000000));
+
+      final enabledButton = tester.widget<TextButton>(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpPanel.R')),
+      );
+      expect(
+        enabledButton.style?.backgroundColor?.resolve({}),
+        const Color(0xff1d232b),
+      );
+      expect(
+        enabledButton.style?.foregroundColor?.resolve({}),
+        const Color(0xadcbd5e1),
+      );
+      expect(
+        enabledButton.style?.side?.resolve({})?.color,
+        const Color(0x1fd6e0ec),
+      );
+      expect(
+        enabledButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
+        const Color(0x2e0078d7),
+      );
+      expect(
+        enabledButton.style?.foregroundColor?.resolve({WidgetState.hovered}),
+        Colors.white,
+      );
+      expect(
+        enabledButton.style?.side?.resolve({WidgetState.hovered})?.color,
+        const Color(0x570078d7),
+      );
+
+      final disabledButton = tester.widget<TextButton>(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpPanel.#')),
+      );
+      expect(
+        disabledButton.style?.backgroundColor?.resolve({WidgetState.disabled}),
+        Colors.transparent,
+      );
+      expect(
+        disabledButton.style?.foregroundColor?.resolve({WidgetState.disabled}),
+        const Color(0x3dcbd5e1),
+      );
+    },
+  );
+
   testWidgets('MusicLibraryPage compact sort bar uses Electron labels', (
     tester,
   ) async {
@@ -603,8 +687,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Blue Song'), findsWidgets);
-    expect(find.text('See Lyrics'), findsOneWidget);
-    expect(find.text('See Album Art'), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Album Art'), findsOneWidget);
   });
 
   testWidgets('MusicLibraryPage selection menu shuffle replaces Now Playing', (
@@ -955,7 +1039,10 @@ class _MusicLibraryRouterTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -968,6 +1055,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
     this.repository,
     this.mediaController,
     this.searchQuery = '',
+    this.brightness,
   });
 
   final LibraryViewData snapshot;
@@ -975,6 +1063,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
   final String searchQuery;
+  final Brightness? brightness;
 
   @override
   Widget build(BuildContext context) {
@@ -992,6 +1081,10 @@ class _MusicLibraryTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: buildSmPlayerTheme(
+            const SettingsSnapshot.defaults(),
+            brightness: brightness,
+          ),
           home: Scaffold(body: MusicLibraryPage(searchQuery: searchQuery)),
         ),
       ),
@@ -1060,7 +1153,10 @@ class _LibraryViewDataInvalidatorState
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(home: Scaffold(body: MusicLibraryPage()));
+    return MaterialApp(
+      theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+      home: const Scaffold(body: MusicLibraryPage()),
+    );
   }
 
   void _invalidateSnapshot() {

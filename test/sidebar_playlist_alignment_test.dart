@@ -48,6 +48,7 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(420, 1000);
+    var randomPlaylistId = 0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -80,7 +81,9 @@ void main() {
             onSearchCleared: () {},
             onItemInvoked: (_) {},
             onCreatePlaylist: () {},
-            onPlaylistRandomPlay: (_) {},
+            onPlaylistRandomPlay: (playlistId) {
+              randomPlaylistId = playlistId;
+            },
           ),
         ),
       ),
@@ -136,5 +139,8 @@ void main() {
           .opacity,
       1,
     );
+
+    await tester.tap(find.byTooltip('随机播放'));
+    expect(randomPlaylistId, 7);
   });
 }

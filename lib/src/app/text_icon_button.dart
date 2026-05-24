@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
 class SmPlayerTextIconButton extends StatefulWidget {
@@ -66,6 +68,8 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         widget.onPressed != null && !widget.disabled && !widget.loading;
     final hovered = enabled && (_hovered || _focused);
     final foreground = widget.active ? colors.accentStrong : colors.commandText;
+    final iconOnlyWidth =
+        widget.minWidth > widget.height ? widget.minWidth : widget.height;
     final control = DecoratedBox(
       decoration: BoxDecoration(
         color:
@@ -79,12 +83,12 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minWidth: widget.showLabel ? widget.minWidth : widget.height,
+          minWidth: widget.showLabel ? widget.minWidth : iconOnlyWidth,
           minHeight: widget.height,
           maxWidth:
               widget.showLabel
                   ? widget.maxWidth ?? double.infinity
-                  : widget.height,
+                  : iconOnlyWidth,
         ),
         child: Padding(
           padding: EdgeInsets.symmetric(
@@ -108,6 +112,8 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                       size: widget.iconSize,
                       color: foreground,
                     )
+                    : icon == FluentIcons.play_20_regular
+                    ? SmPlayerPlayIcon(size: widget.iconSize, color: foreground)
                     : Icon(icon, size: widget.iconSize, color: foreground),
               if (widget.showLabel) ...[
                 if (widget.loading || widget.icon != null)

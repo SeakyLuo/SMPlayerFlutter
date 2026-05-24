@@ -66,7 +66,6 @@ class FlutterWindow : public Win32Window {
   HWND desktop_lyrics_window_ = nullptr;
   std::wstring desktop_lyrics_text_;
   ULONGLONG desktop_lyrics_text_started_at_ = 0;
-  std::wstring desktop_lyrics_next_text_;
   std::wstring desktop_lyrics_title_;
   std::wstring desktop_lyrics_artist_;
   std::wstring desktop_lyrics_font_family_ = L"Segoe UI";
@@ -82,8 +81,6 @@ class FlutterWindow : public Win32Window {
   std::wstring desktop_lyrics_label_next_ = L"Next";
   std::wstring desktop_lyrics_label_play_pause_ = L"Play/Pause";
   std::wstring desktop_lyrics_offset_label_ = L"0.0s";
-  std::wstring desktop_lyrics_label_play_ = L"Play";
-  std::wstring desktop_lyrics_label_pause_ = L"Pause";
   std::wstring desktop_lyrics_label_reset_offset_ = L"Reset";
   std::wstring desktop_lyrics_label_lock_ = L"Lock";
   std::wstring desktop_lyrics_label_unlock_ = L"Unlock";

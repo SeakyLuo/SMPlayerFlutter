@@ -67,7 +67,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 : MediaControlColors.disabledButtonSurface
             : widget.primary
             ? hovered
-                ? accentStrong
+                ? colors.primaryButtonHover
                 : MediaControlColors.accent
             : widget.active || hovered
             ? accentHover
@@ -238,12 +238,11 @@ class _CenteredPlayIconPainter extends CustomPainter {
           ..strokeWidth = 1.3 * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
-    final path =
-        Path()
-          ..moveTo(7.4 * scale, 3.9 * scale)
-          ..lineTo(21.0 * scale, 12 * scale)
-          ..lineTo(7.4 * scale, 20.1 * scale)
-          ..close();
+    final path = _roundedTransportPolygon([
+      Offset(7.4 * scale, 3.9 * scale),
+      Offset(21.0 * scale, 12 * scale),
+      Offset(7.4 * scale, 20.1 * scale),
+    ], 1.8 * scale);
     canvas.drawPath(path, paint);
   }
 
@@ -275,12 +274,11 @@ class _SkipTransportIconPainter extends CustomPainter {
       canvas.translate(size.width, 0);
       canvas.scale(-1, 1);
     }
-    final path =
-        Path()
-          ..moveTo(7.25 * scale, 5.5 * scale)
-          ..lineTo(16.25 * scale, 12 * scale)
-          ..lineTo(7.25 * scale, 18.5 * scale)
-          ..close();
+    final path = _roundedTransportPolygon([
+      Offset(7.25 * scale, 5.5 * scale),
+      Offset(16.25 * scale, 12 * scale),
+      Offset(7.25 * scale, 18.5 * scale),
+    ], 1.5 * scale);
     canvas.drawPath(path, paint);
     canvas.drawLine(
       Offset(18 * scale, 5.75 * scale),
@@ -294,6 +292,29 @@ class _SkipTransportIconPainter extends CustomPainter {
   bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.reverse != reverse;
   }
+}
+
+Path _roundedTransportPolygon(List<Offset> points, double radius) {
+  final path = Path();
+  for (var index = 0; index < points.length; index += 1) {
+    final previous = points[(index - 1 + points.length) % points.length];
+    final current = points[index];
+    final next = points[(index + 1) % points.length];
+    final incoming = previous - current;
+    final outgoing = next - current;
+    final incomingLength = incoming.distance;
+    final outgoingLength = outgoing.distance;
+    final cornerRadius = min(radius, min(incomingLength, outgoingLength) / 2);
+    final start = current + incoming / incomingLength * cornerRadius;
+    final end = current + outgoing / outgoingLength * cornerRadius;
+    if (index == 0) {
+      path.moveTo(start.dx, start.dy);
+    } else {
+      path.lineTo(start.dx, start.dy);
+    }
+    path.quadraticBezierTo(current.dx, current.dy, end.dx, end.dy);
+  }
+  return path..close();
 }
 
 class _VoiceAssistantIconPainter extends CustomPainter {

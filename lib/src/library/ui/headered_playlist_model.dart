@@ -1,6 +1,8 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart'
+    show formatDuration;
 
 const sortOptions = [
   PlaylistSortCriterion.title,
@@ -46,7 +48,7 @@ String getHeaderPlaylistInfo(List<LibrarySong> songs, SmPlayerI18n i18n) {
   }
 
   final duration = songs.fold<int>(0, (total, song) => total + song.duration);
-  return '$countText • ${formatDuration(duration)}';
+  return '$countText • ${formatDuration(duration.toDouble())}';
 }
 
 String getAlbumPreferenceDisplayName(
@@ -65,12 +67,7 @@ String getAlbumPreferenceDisplayName(
 }
 
 String _displayArtistsForPreference(LibrarySong song, SmPlayerI18n i18n) {
-  final artists =
-      song.artists.where((artist) => artist.trim().isNotEmpty).toList();
-  if (artists.isNotEmpty) {
-    return artists.join(i18n.t('common.artistSeparator'));
-  }
-  return song.artist.isEmpty ? i18n.t('common.artistUnknown') : song.artist;
+  return displayArtists(song, i18n);
 }
 
 List<LibrarySong> sortSongs(
@@ -82,8 +79,16 @@ List<LibrarySong> sortSongs(
     return switch (criterion) {
       PlaylistSortCriterion.artist => displayArtists(
         left,
-      ).compareTo(displayArtists(right)),
-      PlaylistSortCriterion.album => left.album.compareTo(right.album),
+        const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {}),
+      ).compareTo(
+        displayArtists(
+          right,
+          const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {}),
+        ),
+      ),
+      PlaylistSortCriterion.album => canonicalAlbumName(
+        left,
+      ).compareTo(canonicalAlbumName(right)),
       PlaylistSortCriterion.duration => left.duration.compareTo(right.duration),
       PlaylistSortCriterion.playCount => left.playCount.compareTo(
         right.playCount,

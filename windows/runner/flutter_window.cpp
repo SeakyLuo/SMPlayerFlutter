@@ -678,7 +678,6 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
     desktop_lyrics_text_started_at_ = ::GetTickCount64();
   }
   desktop_lyrics_text_ = next_desktop_lyrics_text;
-  desktop_lyrics_next_text_ = EncodableString(state, "nextLyricText");
   desktop_lyrics_title_ = EncodableString(state, "songTitle");
   desktop_lyrics_artist_ = EncodableString(state, "artist");
   desktop_lyrics_font_family_ = EncodableString(state, "fontFamily");
@@ -702,8 +701,6 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   desktop_lyrics_label_previous_ = EncodableString(state, "labelPrevious");
   desktop_lyrics_label_next_ = EncodableString(state, "labelNext");
   desktop_lyrics_label_play_pause_ = EncodableString(state, "labelPlayPause");
-  desktop_lyrics_label_play_ = EncodableString(state, "labelPlay");
-  desktop_lyrics_label_pause_ = EncodableString(state, "labelPause");
   desktop_lyrics_label_reset_offset_ =
       EncodableString(state, "labelResetOffset");
   desktop_lyrics_label_lock_ = EncodableString(state, "labelLock");
@@ -718,12 +715,6 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   }
   if (desktop_lyrics_label_play_pause_.empty()) {
     desktop_lyrics_label_play_pause_ = L"Play/Pause";
-  }
-  if (desktop_lyrics_label_play_.empty()) {
-    desktop_lyrics_label_play_ = L"Play";
-  }
-  if (desktop_lyrics_label_pause_.empty()) {
-    desktop_lyrics_label_pause_ = L"Pause";
   }
   if (desktop_lyrics_label_reset_offset_.empty()) {
     desktop_lyrics_label_reset_offset_ = L"Reset";
@@ -761,13 +752,6 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
     ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
   }
 
-  LONG_PTR style = ::GetWindowLongPtrW(desktop_lyrics_window_, GWL_EXSTYLE);
-  if (desktop_lyrics_locked_) {
-    style |= WS_EX_TRANSPARENT;
-  } else {
-    style &= ~WS_EX_TRANSPARENT;
-  }
-  ::SetWindowLongPtrW(desktop_lyrics_window_, GWL_EXSTYLE, style);
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
@@ -880,49 +864,49 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   ::DeleteObject(card_brush);
   desktop_lyrics_buttons_.clear();
 
+  desktop_lyrics_buttons_ = {
+      {RECT{card.left + 10, card.top + 8, card.left + 48, card.top + 34},
+       "previous", L"<<"},
+      {RECT{card.left + 52, card.top + 8, card.left + 112, card.top + 34},
+       "play-pause", desktop_lyrics_label_play_pause_},
+      {RECT{card.left + 116, card.top + 8, card.left + 154, card.top + 34},
+       "next", L">>"},
+      {RECT{card.left + 166, card.top + 8, card.left + 214, card.top + 34},
+       "offset:-100", L"-0.1"},
+      {RECT{card.left + 218, card.top + 8, card.left + 266, card.top + 34},
+       "offset:100", L"+0.1"},
+      {RECT{card.left + 270, card.top + 8, card.left + 326, card.top + 34},
+       "reset-offset", desktop_lyrics_offset_label_},
+      {RECT{card.right - 238, card.top + 8, card.right - 184, card.top + 34},
+       "toggle-lock", desktop_lyrics_locked_ ? desktop_lyrics_label_unlock_
+                                              : desktop_lyrics_label_lock_},
+      {RECT{card.right - 180, card.top + 8, card.right - 102, card.top + 34},
+       "open-settings", desktop_lyrics_label_settings_},
+  };
   if (!desktop_lyrics_locked_) {
-    const std::vector<DesktopLyricsButton> buttons = {
-        {RECT{card.left + 10, card.top + 8, card.left + 48, card.top + 34},
-         "previous", L"<<"},
-        {RECT{card.left + 52, card.top + 8, card.left + 112, card.top + 34},
-         "play-pause", desktop_lyrics_label_play_pause_},
-        {RECT{card.left + 116, card.top + 8, card.left + 154, card.top + 34},
-         "next", L">>"},
-        {RECT{card.left + 166, card.top + 8, card.left + 214, card.top + 34},
-         "offset:-100", L"-0.1"},
-        {RECT{card.left + 218, card.top + 8, card.left + 266, card.top + 34},
-         "offset:100", L"+0.1"},
-        {RECT{card.left + 270, card.top + 8, card.left + 326, card.top + 34},
-         "reset-offset", desktop_lyrics_offset_label_},
-        {RECT{card.right - 238, card.top + 8, card.right - 184, card.top + 34},
-         "toggle-lock", desktop_lyrics_locked_ ? desktop_lyrics_label_unlock_
-                                                : desktop_lyrics_label_lock_},
-        {RECT{card.right - 180, card.top + 8, card.right - 102, card.top + 34},
-         "open-settings", desktop_lyrics_label_settings_},
+    desktop_lyrics_buttons_.push_back(
         {RECT{card.right - 98, card.top + 8, card.right - 40, card.top + 34},
-         "disable", desktop_lyrics_label_close_},
-    };
-    desktop_lyrics_buttons_ = buttons;
-    HFONT button_font = ::CreateFontW(
-        -MulDiv(12, 96, 72), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT old_button_font = static_cast<HFONT>(::SelectObject(hdc, button_font));
-    ::SetBkMode(hdc, TRANSPARENT);
-    ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(225, 235, 245)
-                                                   : RGB(32, 42, 54));
-    HBRUSH button_brush = ::CreateSolidBrush(
-        desktop_lyrics_night_mode_ ? RGB(42, 52, 64) : RGB(222, 230, 240));
-    for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
-      ::FillRect(hdc, &button.bounds, button_brush);
-      RECT label_rect = button.bounds;
-      ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    }
-    ::DeleteObject(button_brush);
-    ::SelectObject(hdc, old_button_font);
-    ::DeleteObject(button_font);
+         "disable", desktop_lyrics_label_close_});
   }
+  HFONT button_font = ::CreateFontW(
+      -MulDiv(12, 96, 72), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+      CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+  HFONT old_button_font = static_cast<HFONT>(::SelectObject(hdc, button_font));
+  ::SetBkMode(hdc, TRANSPARENT);
+  ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(225, 235, 245)
+                                                 : RGB(32, 42, 54));
+  HBRUSH button_brush = ::CreateSolidBrush(
+      desktop_lyrics_night_mode_ ? RGB(42, 52, 64) : RGB(222, 230, 240));
+  for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
+    ::FillRect(hdc, &button.bounds, button_brush);
+    RECT label_rect = button.bounds;
+    ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+  }
+  ::DeleteObject(button_brush);
+  ::SelectObject(hdc, old_button_font);
+  ::DeleteObject(button_font);
 
   const int font_height = -MulDiv(desktop_lyrics_font_size_, 96, 72);
   HFONT lyrics_font = ::CreateFontW(
@@ -936,7 +920,7 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   text_rect.left += 18;
   text_rect.right -= 18;
   text_rect.top += desktop_lyrics_locked_ ? 26 : 42;
-  text_rect.bottom -= desktop_lyrics_next_text_.empty() ? 16 : 42;
+  text_rect.bottom -= 16;
   SIZE lyric_size = {};
   ::GetTextExtentPoint32W(
       hdc, desktop_lyrics_text_.c_str(),
@@ -970,25 +954,6 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
   }
 
-  if (!desktop_lyrics_next_text_.empty()) {
-    HFONT next_font = ::CreateFontW(
-        -MulDiv(std::max(13, desktop_lyrics_font_size_ - 8), 96, 72), 0, 0, 0,
-        FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        desktop_lyrics_font_family_.c_str());
-    ::SelectObject(hdc, next_font);
-    ::SetTextColor(hdc, RGB(170, 190, 210));
-    RECT next_rect = card;
-    next_rect.left += 18;
-    next_rect.right -= 18;
-    next_rect.top = card.bottom - 38;
-    next_rect.bottom = card.bottom - 10;
-    ::DrawTextW(hdc, desktop_lyrics_next_text_.c_str(), -1, &next_rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    ::SelectObject(hdc, lyrics_font);
-    ::DeleteObject(next_font);
-  }
-
   ::SelectObject(hdc, old_font);
   ::DeleteObject(lyrics_font);
   ::EndPaint(desktop_lyrics_window_, &paint);
@@ -1011,7 +976,7 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
 
   switch (message) {
     case WM_LBUTTONDOWN:
-      if (!window->desktop_lyrics_locked_) {
+      {
         const POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         for (const DesktopLyricsButton& button :
              window->desktop_lyrics_buttons_) {
@@ -1020,8 +985,10 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
             return 0;
           }
         }
-        ::ReleaseCapture();
-        ::SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        if (!window->desktop_lyrics_locked_) {
+          ::ReleaseCapture();
+          ::SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
       }
       return 0;
     case WM_EXITSIZEMOVE:

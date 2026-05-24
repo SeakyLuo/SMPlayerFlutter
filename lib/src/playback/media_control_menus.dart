@@ -217,7 +217,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         MenuFlyoutItem(
           key: 'see-album',
           text: i18n.t('context.seeAlbum'),
-          icon: FluentIcons.album_20_regular,
+          useAlbumIcon: true,
           onPressed: onSeeAlbum,
         ),
         MenuFlyoutItem(
@@ -230,7 +230,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         MenuFlyoutItem(
           key: 'see-lyrics',
           text: i18n.t('context.seeLyrics'),
-          icon: FluentIcons.text_bullet_list_20_regular,
+          icon: FluentIcons.comment_text_20_regular,
           keepOpen: true,
           onPressed: onSeeLyrics,
         ),
@@ -244,7 +244,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         MenuFlyoutItem(
           key: 'see-local-file',
           text: i18n.t('context.seeLocalFile'),
-          icon: FluentIcons.folder_open_20_regular,
+          icon: FluentIcons.hard_drive_20_regular,
           pendingText: i18n.t('context.openingLocal'),
           onPressed: onSeeLocal,
         ),

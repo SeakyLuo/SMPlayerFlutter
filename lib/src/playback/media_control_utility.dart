@@ -1,7 +1,8 @@
 part of 'media_control.dart';
 
-class _PlayerUtilityRows extends StatelessWidget {
-  const _PlayerUtilityRows({
+class MediaControlUtilityRows extends StatelessWidget {
+  const MediaControlUtilityRows({
+    super.key,
     required this.trackId,
     required this.favorite,
     required this.disabled,
@@ -16,6 +17,7 @@ class _PlayerUtilityRows extends StatelessWidget {
     required this.onToggleFavorite,
     this.onOpenVoiceAssistant,
     this.condensed = false,
+    this.minimal = false,
     required this.onMoreClick,
   });
 
@@ -33,6 +35,7 @@ class _PlayerUtilityRows extends StatelessWidget {
   final VoidCallback onToggleFavorite;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
+  final bool minimal;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
@@ -40,93 +43,93 @@ class _PlayerUtilityRows extends StatelessWidget {
     final i18n = _mediaControlI18n(context);
 
     return SizedBox(
-      key: const ValueKey('MediaControl.UtilityRows'),
-      width: condensed ? 132 : 280,
+      width: minimal ? 80 : (condensed ? 132 : 280),
       child: Padding(
         padding:
-            condensed
+            condensed || minimal
                 ? EdgeInsets.zero
                 : const EdgeInsets.only(left: 12, right: 16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              key: const ValueKey('MediaControl.VolumeRow'),
-              height: 44,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child:
-                    condensed
-                        ? _PlayerCompactVolumeAction(
-                          tooltip:
-                              isMuted
-                                  ? i18n.t('player.unmute')
-                                  : i18n.t('player.mute'),
-                          icon: playerVolumeIcon(volumeValue, isMuted),
-                          active: isMuted,
-                          disabled: false,
-                          volumeValue: volumeValue,
-                          onVolumeChange: onVolumeChange,
-                        )
-                        : SizedBox(
-                          width: 248,
-                          child: Row(
-                            children: [
-                              _PlayerIconButton(
-                                tooltip:
-                                    isMuted
-                                        ? i18n.t('player.unmute')
-                                        : i18n.t('player.mute'),
-                                icon: playerVolumeIcon(volumeValue, isMuted),
-                                active: isMuted,
-                                disabled: false,
-                                onPressed: onToggleMute,
-                              ),
-                              const SizedBox(width: 14),
-                              SizedBox(
-                                width: 148,
-                                height: 22,
-                                child: VolumeSlider(
-                                  key: const ValueKey(
-                                    'MediaControl.WideVolumeSlider',
-                                  ),
-                                  value: volumeValue,
-                                  disabled: false,
-                                  onChange: onVolumeChange,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              if (trackId != null)
+            if (!minimal)
+              SizedBox(
+                key: const ValueKey('MediaControl.VolumeRow'),
+                height: 44,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child:
+                      condensed
+                          ? _PlayerCompactVolumeAction(
+                            tooltip:
+                                isMuted
+                                    ? i18n.t('player.unmute')
+                                    : i18n.t('player.mute'),
+                            icon: playerVolumeIcon(volumeValue, isMuted),
+                            active: isMuted,
+                            disabled: false,
+                            volumeValue: volumeValue,
+                            onVolumeChange: onVolumeChange,
+                          )
+                          : SizedBox(
+                            width: 248,
+                            child: Row(
+                              children: [
                                 _PlayerIconButton(
                                   tooltip:
-                                      favorite
-                                          ? i18n.t('player.unlike')
-                                          : i18n.t('player.like'),
-                                  icon:
-                                      favorite
-                                          ? Icons.favorite_rounded
-                                          : Icons.favorite_border_rounded,
-                                  active: favorite,
-                                  disabled: disabled,
-                                  favorite: favorite,
-                                  onPressed: onToggleFavorite,
-                                )
-                              else
-                                const SizedBox(width: 36),
-                            ],
+                                      isMuted
+                                          ? i18n.t('player.unmute')
+                                          : i18n.t('player.mute'),
+                                  icon: playerVolumeIcon(volumeValue, isMuted),
+                                  active: isMuted,
+                                  disabled: false,
+                                  onPressed: onToggleMute,
+                                ),
+                                const SizedBox(width: 14),
+                                SizedBox(
+                                  width: 148,
+                                  height: 22,
+                                  child: VolumeSlider(
+                                    key: const ValueKey(
+                                      'MediaControl.WideVolumeSlider',
+                                    ),
+                                    value: volumeValue,
+                                    disabled: false,
+                                    onChange: onVolumeChange,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                if (trackId != null)
+                                  _PlayerIconButton(
+                                    tooltip:
+                                        favorite
+                                            ? i18n.t('player.unlike')
+                                            : i18n.t('player.like'),
+                                    icon:
+                                        favorite
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                    active: favorite,
+                                    disabled: disabled,
+                                    favorite: favorite,
+                                    onPressed: onToggleFavorite,
+                                  )
+                                else
+                                  const SizedBox(width: 36),
+                              ],
+                            ),
                           ),
-                        ),
+                ),
               ),
-            ),
             SizedBox(
               key: const ValueKey('MediaControl.ModeRow'),
-              height: 44,
+              height: minimal ? 36 : 44,
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (condensed)
+                    if (condensed || minimal)
                       Builder(
                         builder: (modeButtonContext) {
                           return _PlayerIconButton(

@@ -223,24 +223,20 @@ class _MainNavigationItemIcon extends StatelessWidget {
       return Center(
         child: Transform.translate(
           offset: const Offset(0, -1),
-          child: SizedBox.square(
-            dimension: 21,
-            child: CustomPaint(
-              key: const ValueKey('MainNavigationView.AlbumsConcentricIcon'),
-              painter: _AlbumNavigationIconPainter(color),
-            ),
+          child: SmPlayerAlbumIcon(
+            key: const ValueKey('MainNavigationView.AlbumsConcentricIcon'),
+            size: 21,
+            color: color,
           ),
         ),
       );
     }
     if (item.name == 'PlaylistsItem') {
       return Center(
-        child: SizedBox.square(
-          dimension: 21,
-          child: CustomPaint(
-            key: const ValueKey('MainNavigationView.PlaylistsMusicListIcon'),
-            painter: _PlaylistNavigationIconPainter(color),
-          ),
+        child: SmPlayerPlaylistIcon(
+          key: const ValueKey('MainNavigationView.PlaylistsMusicListIcon'),
+          size: 21,
+          color: color,
         ),
       );
     }
@@ -250,96 +246,6 @@ class _MainNavigationItemIcon extends StatelessWidget {
 
 IconData _navigationItemIcon(MainNavigationViewItem item) {
   return item.icon;
-}
-
-class _AlbumNavigationIconPainter extends CustomPainter {
-  const _AlbumNavigationIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.65 * scale;
-    canvas.drawCircle(center, 8 * scale, paint);
-    canvas.drawCircle(center, 3 * scale, paint);
-    canvas.drawCircle(
-      center,
-      1 * scale,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _AlbumNavigationIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
-class _PlaylistNavigationIconPainter extends CustomPainter {
-  const _PlaylistNavigationIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.65 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawLine(
-      Offset(4 * scale, 6 * scale),
-      Offset(14 * scale, 6 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(4 * scale, 12 * scale),
-      Offset(13 * scale, 12 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(4 * scale, 18 * scale),
-      Offset(10 * scale, 18 * scale),
-      paint,
-    );
-
-    canvas.drawLine(
-      Offset(17 * scale, 8 * scale),
-      Offset(17 * scale, 17 * scale),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(17 * scale, 8 * scale)
-        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(15.4 * scale, 18.1 * scale),
-        width: 5.1 * scale,
-        height: 4.1 * scale,
-      ),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlaylistNavigationIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
 }
 
 class _NavigationIconButton extends StatefulWidget {

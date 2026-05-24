@@ -7,6 +7,7 @@ import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 
 class MultiSelectCommandBarPlaylist {
   const MultiSelectCommandBarPlaylist({
@@ -304,7 +305,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       (playlist) => MenuFlyoutItem(
         key: '$key-${playlist.id}',
         text: playlist.name,
-        icon: FluentIcons.apps_list_detail_20_regular,
+        usePlaylistIcon: true,
         disabled: songIds.isEmpty,
         onPressed: () {
           onAddToPlaylist?.call(playlist.id);
@@ -338,6 +339,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required VoidCallback onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
+  ValueChanged<String>? onCreatePlaylistWithName,
   required ValueChanged<int> onAddToPlaylist,
   required VoidCallback onRemove,
   required VoidCallback onSelect,
@@ -351,6 +353,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required FutureOr<void> Function() onSeeLocal,
   String? currentPlaylistName,
   String? excludePlaylistName,
+  String? defaultPlaylistName,
   int? currentTrackId,
   String songPath = '',
   String? preferenceLevel,
@@ -407,9 +410,11 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     includeNowPlaying: currentPlaylistName != i18n.t('common.nowPlaying'),
     includeFavorites:
         currentPlaylistName != i18n.t('common.myFavorites') && !isFavorite,
+    defaultPlaylistName: defaultPlaylistName,
     onAddToNowPlaying: onAddToNowPlaying,
     onToggleFavorite: isFavorite ? null : onToggleFavorite,
     onCreatePlaylist: onCreatePlaylist,
+    onCreatePlaylistWithName: onCreatePlaylistWithName,
     onAddToPlaylist: onAddToPlaylist,
   );
   if (addToItem != null) {
@@ -491,13 +496,13 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         MenuFlyoutItem(
           key: 'see-artist',
           text: i18n.t('context.seeArtist'),
-          icon: FluentIcons.person_20_regular,
+          icon: FluentIcons.people_20_regular,
           onPressed: onSeeArtist,
         ),
         MenuFlyoutItem(
           key: 'see-album',
           text: i18n.t('context.seeAlbum'),
-          icon: FluentIcons.album_20_regular,
+          useAlbumIcon: true,
           onPressed: onSeeAlbum,
         ),
       ]);
@@ -507,14 +512,12 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         key: 'see-music-info',
         text: i18n.t('context.seeMusicInfo'),
         icon: FluentIcons.info_20_regular,
-        keepOpen: true,
         onPressed: onSeeMusicInfo,
       ),
       MenuFlyoutItem(
         key: 'see-lyrics',
         text: i18n.t('context.seeLyrics'),
-        icon: FluentIcons.text_grammar_wand_20_regular,
-        keepOpen: true,
+        icon: FluentIcons.comment_text_20_regular,
         onPressed: onSeeLyrics,
       ),
       if (showAlbumArt)
@@ -522,13 +525,12 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
           icon: FluentIcons.image_20_regular,
-          keepOpen: true,
           onPressed: onSeeAlbumArt,
         ),
       MenuFlyoutItem(
         key: 'see-local',
         text: i18n.t('context.seeLocalFile'),
-        icon: FluentIcons.folder_open_20_regular,
+        icon: FluentIcons.hard_drive_20_regular,
         pendingText: i18n.t('context.openingLocal'),
         onPressed: onSeeLocal,
       ),
@@ -560,7 +562,7 @@ List<int> _shuffleSongIds(List<LibrarySong> songs) {
 List<int> _randomArtist(List<LibrarySong> songs, int randomLimit) {
   final songsByArtist = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    final artists = song.artists.isEmpty ? [song.artist] : song.artists;
+    final artists = songArtists(song);
     for (final artist in artists) {
       songsByArtist[artist] = [...(songsByArtist[artist] ?? []), song];
     }
@@ -571,7 +573,7 @@ List<int> _randomArtist(List<LibrarySong> songs, int randomLimit) {
 
 List<int> _randomAlbum(List<LibrarySong> songs, int randomLimit) {
   return _randomItems(
-    _randomSongGroup(songs, (song) => song.album),
+    _randomSongGroup(songs, canonicalAlbumName),
     randomLimit,
   ).map((song) => song.id).toList();
 }

@@ -6,8 +6,8 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
 class MyFavoritesPage extends ConsumerWidget {
   const MyFavoritesPage({super.key});
@@ -65,6 +65,7 @@ class MyFavoritesPage extends ConsumerWidget {
           child: HeaderedPlaylistControl(
             key: const ValueKey('HeaderedPlaylist.Favorites'),
             type: HeaderedPlaylistType.favorites,
+            routeLocation: '/favorites',
             title: i18n.t('common.myFavorites'),
             songs: songs,
             selectedTrackId: mediaControl.track.id,
@@ -81,12 +82,13 @@ class MyFavoritesPage extends ConsumerWidget {
             preferenceType: 'my-favorites',
             preferenceItemId: '6',
             onPlayTrack: (trackId, queueSongIds) {
-              _playTrack(ref, snapshot, trackId, queueSongIds);
+              _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
             },
             onMoveToMusicOrPlay: (songId) {
               _playTrack(
                 ref,
                 snapshot,
+                i18n,
                 songId,
                 songs.map((song) => song.id).toList(),
               );
@@ -164,6 +166,7 @@ class MyFavoritesPage extends ConsumerWidget {
 void _playTrack(
   WidgetRef ref,
   LibraryViewData snapshot,
+  SmPlayerI18n i18n,
   int trackId,
   List<int> queueSongIds,
 ) {
@@ -173,14 +176,7 @@ void _playTrack(
   ref
       .read(mediaControlControllerProvider)
       .playTrack(
-        MediaControlTrack(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          artworkUrl: song.thumbnailPath,
-          isLoading: false,
-          favorite: song.favorite,
-        ),
+        mediaControlTrackForSong(song, i18n),
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );

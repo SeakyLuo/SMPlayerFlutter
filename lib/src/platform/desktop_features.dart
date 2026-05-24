@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -24,6 +25,8 @@ import 'package:window_manager/window_manager.dart';
 const desktopRecentSongLimit = 10;
 const windowsAppUserModelId = 'com.seaky.simplemelodyplayer';
 const windowsToastActivationUri = 'smplayer://show-window';
+const desktopLyricsOffsetMinMs = -10000;
+const desktopLyricsOffsetMaxMs = 10000;
 const _desktopFeatureChannel = MethodChannel(
   'smplayer_flutter/desktop_features',
 );
@@ -203,6 +206,10 @@ String _appleScriptRgbToHex(int red, int green, int blue) {
   }
 
   return '#${component(red)}${component(green)}${component(blue)}';
+}
+
+int clampedDesktopLyricsOffset(int offsetMs) {
+  return offsetMs.clamp(desktopLyricsOffsetMinMs, desktopLyricsOffsetMaxMs);
 }
 
 enum DesktopFeatureCommand {
@@ -542,7 +549,6 @@ class DesktopLyricsDisplayState {
     required this.textColor,
     required this.strokeColor,
     required this.lyricText,
-    required this.nextLyricText,
     required this.fallbackText,
     required this.songTitle,
     required this.artist,
@@ -559,6 +565,7 @@ class DesktopLyricsDisplayState {
     required bool lyricsLoading,
     required bool isPlaying,
     required double progressSeconds,
+    required double durationSeconds,
     SmPlayerI18n? i18n,
   }) {
     final artists =
@@ -572,6 +579,16 @@ class DesktopLyricsDisplayState {
             : artist.isEmpty
             ? currentSong.title
             : '${currentSong.title} - $artist';
+    final offsetMs = currentSong?.lyricsOffsetMs ?? 0;
+    final adjustedProgressSeconds = max(0.0, progressSeconds + offsetMs / 1000);
+    final effectiveDurationSeconds =
+        durationSeconds > 0
+            ? durationSeconds
+            : (currentSong?.duration.toDouble() ?? 0);
+    final progressRatio =
+        effectiveDurationSeconds > 0
+            ? adjustedProgressSeconds / effectiveDurationSeconds
+            : 0.0;
     return DesktopLyricsDisplayState(
       visible: settings.desktopLyricsEnabled && currentSong != null,
       loading: lyricsLoading,
@@ -585,24 +602,19 @@ class DesktopLyricsDisplayState {
       strokeColor: settings.desktopLyricsStrokeColor,
       lyricText: desktopLyricsText(
         lyrics: lyrics,
-        currentSong: currentSong,
-        progressSeconds: progressSeconds,
-      ),
-      nextLyricText: desktopLyricsNextText(
-        lyrics: lyrics,
-        progressSeconds: progressSeconds,
-        offsetMs: currentSong?.lyricsOffsetMs ?? 0,
+        progressSeconds: adjustedProgressSeconds,
+        progressRatio: progressRatio,
       ),
       fallbackText: fallbackText,
       songTitle: currentSong?.title ?? '',
       artist: artist,
-      progressSeconds: progressSeconds,
-      offsetMs: currentSong?.lyricsOffsetMs ?? 0,
+      progressSeconds: adjustedProgressSeconds,
+      offsetMs: offsetMs,
       bounds: settings.desktopLyricsBounds,
       labels:
           i18n == null
-              ? DesktopLyricsLabels.defaults
-              : DesktopLyricsLabels.fromI18n(i18n),
+              ? DesktopLyricsLabels.defaultsForPlayingState(isPlaying)
+              : DesktopLyricsLabels.fromI18n(i18n, isPlaying),
     );
   }
 
@@ -617,7 +629,6 @@ class DesktopLyricsDisplayState {
   final String textColor;
   final String strokeColor;
   final String lyricText;
-  final String nextLyricText;
   final String fallbackText;
   final String songTitle;
   final String artist;
@@ -639,7 +650,6 @@ class DesktopLyricsDisplayState {
       textColor,
       strokeColor,
       lyricText,
-      nextLyricText,
       fallbackText,
       songTitle,
       artist,
@@ -663,7 +673,6 @@ class DesktopLyricsDisplayState {
       'textColor': textColor,
       'strokeColor': strokeColor,
       'lyricText': lyricText,
-      'nextLyricText': nextLyricText,
       'fallbackText': fallbackText,
       'songTitle': songTitle,
       'artist': artist,
@@ -673,8 +682,6 @@ class DesktopLyricsDisplayState {
       'labelPrevious': labels.previous,
       'labelNext': labels.next,
       'labelPlayPause': labels.playPause,
-      'labelPlay': labels.play,
-      'labelPause': labels.pause,
       'labelResetOffset': labels.resetOffset,
       'labelLock': labels.lock,
       'labelUnlock': labels.unlock,
@@ -689,8 +696,6 @@ class DesktopLyricsLabels {
     required this.previous,
     required this.next,
     required this.playPause,
-    required this.play,
-    required this.pause,
     required this.resetOffset,
     required this.lock,
     required this.unlock,
@@ -698,13 +703,11 @@ class DesktopLyricsLabels {
     required this.close,
   });
 
-  factory DesktopLyricsLabels.fromI18n(SmPlayerI18n i18n) {
+  factory DesktopLyricsLabels.fromI18n(SmPlayerI18n i18n, bool isPlaying) {
     return DesktopLyricsLabels(
       previous: i18n.t('player.previous'),
       next: i18n.t('player.next'),
-      playPause: i18n.t('player.playPause'),
-      play: i18n.t('player.play'),
-      pause: i18n.t('player.pause'),
+      playPause: isPlaying ? i18n.t('player.pause') : i18n.t('player.play'),
       resetOffset: i18n.t('settings.desktopLyricsResetOffset'),
       lock: i18n.t('settings.desktopLyricsLockAction'),
       unlock: i18n.t('settings.desktopLyricsUnlockAction'),
@@ -717,8 +720,6 @@ class DesktopLyricsLabels {
     previous: 'Previous',
     next: 'Next',
     playPause: 'Play/Pause',
-    play: 'Play',
-    pause: 'Pause',
     resetOffset: 'Reset',
     lock: 'Lock',
     unlock: 'Unlock',
@@ -726,11 +727,22 @@ class DesktopLyricsLabels {
     close: 'Close',
   );
 
+  static DesktopLyricsLabels defaultsForPlayingState(bool isPlaying) {
+    return DesktopLyricsLabels(
+      previous: defaults.previous,
+      next: defaults.next,
+      playPause: isPlaying ? 'Pause' : 'Play',
+      resetOffset: defaults.resetOffset,
+      lock: defaults.lock,
+      unlock: defaults.unlock,
+      settings: defaults.settings,
+      close: defaults.close,
+    );
+  }
+
   final String previous;
   final String next;
   final String playPause;
-  final String play;
-  final String pause;
   final String resetOffset;
   final String lock;
   final String unlock;
@@ -742,8 +754,6 @@ class DesktopLyricsLabels {
       previous,
       next,
       playPause,
-      play,
-      pause,
       resetOffset,
       lock,
       unlock,
@@ -755,47 +765,46 @@ class DesktopLyricsLabels {
 
 String desktopLyricsText({
   required LyricsSnapshot? lyrics,
-  required LibrarySong? currentSong,
   required double progressSeconds,
+  required double progressRatio,
 }) {
-  final song = currentSong;
-  if (song == null) {
-    return '';
-  }
   final snapshot = lyrics;
   if (snapshot == null || snapshot.lines.isEmpty) {
-    return song.title;
+    return '';
   }
-  if (!snapshot.isSynced) {
-    return snapshot.lines.first.text;
+
+  final timedLines =
+      snapshot.lines.where((line) => line.timestampMs != null).toList();
+  if (timedLines.isNotEmpty) {
+    final progressMs = max(0, (progressSeconds * 1000).floor());
+    var currentText = '';
+    for (final line in timedLines) {
+      if (line.timestampMs! > progressMs) {
+        break;
+      }
+      currentText = line.text;
+    }
+    return _singleDisplayLyricLine(currentText);
   }
-  final index = currentDesktopLyricIndex(
-    snapshot,
-    progressSeconds,
-    song.lyricsOffsetMs,
+
+  final lyricIndex = min(
+    snapshot.lines.length - 1,
+    (snapshot.lines.length * progressRatio.clamp(0, 1)).floor(),
   );
-  if (index < 0 || index >= snapshot.lines.length) {
-    return song.title;
-  }
-  final line = snapshot.lines[index].text;
-  return line.isEmpty ? song.title : line;
+  return _singleDisplayLyricLine(snapshot.lines[lyricIndex].text);
 }
 
-String desktopLyricsNextText({
-  required LyricsSnapshot? lyrics,
-  required double progressSeconds,
-  required int offsetMs,
-}) {
-  final snapshot = lyrics;
-  if (snapshot == null || !snapshot.isSynced) {
-    return '';
+String _singleDisplayLyricLine(String text) {
+  final normalizedText = text
+      .replaceAll(RegExp(r'\\r\\n|\\n|\\r'), '\n')
+      .replaceAll(RegExp(r'\r\n|[\n\r\u2028\u2029]'), '\n');
+  for (final segment in normalizedText.split('\n')) {
+    final candidate = segment.trim();
+    if (candidate.isNotEmpty) {
+      return candidate;
+    }
   }
-  final nextIndex =
-      currentDesktopLyricIndex(snapshot, progressSeconds, offsetMs) + 1;
-  if (nextIndex < 0 || nextIndex >= snapshot.lines.length) {
-    return '';
-  }
-  return snapshot.lines[nextIndex].text;
+  return '';
 }
 
 int currentDesktopLyricIndex(
@@ -1771,17 +1780,11 @@ List<String> systemFontFamilyNames(String fontName) {
 }
 
 String desktopNotificationArtist(LibrarySong song, SmPlayerI18n i18n) {
-  if (song.artists.isNotEmpty) {
-    return song.artists.join(i18n.t('common.artistSeparator'));
-  }
-  if (song.artist.isNotEmpty) {
-    return song.artist;
-  }
-  return i18n.t('common.artistUnknown');
+  return displayArtists(song, i18n);
 }
 
 String desktopNotificationAlbum(LibrarySong song, SmPlayerI18n i18n) {
-  return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
+  return displayAlbum(song, i18n);
 }
 
 String desktopNotificationBody(TrackNotificationPayload payload) {

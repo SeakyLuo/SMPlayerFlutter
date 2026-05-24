@@ -17,6 +17,7 @@ class LocalTitleGrid extends StatelessWidget {
     required this.currentRelativePath,
     required this.onHiddenFoldersListButtonClick,
     required this.onOpenFolder,
+    this.compact = false,
     this.onOpenFolderMenu,
   });
 
@@ -27,24 +28,27 @@ class LocalTitleGrid extends StatelessWidget {
   final String currentRelativePath;
   final VoidCallback onHiddenFoldersListButtonClick;
   final ValueChanged<String> onOpenFolder;
+  final bool compact;
   final void Function(String targetRelativePath, Offset position)?
   onOpenFolderMenu;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 42,
+      height: compact ? 36 : 42,
       child: Row(
         children: [
-          Text(
-            i18n.t('local.currentPath'),
-            style: const TextStyle(
-              color: LocalPageColors.textStrong,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+          if (!compact) ...[
+            Text(
+              i18n.t('local.currentPath'),
+              style: const TextStyle(
+                color: LocalPageColors.textStrong,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: FolderChainListView(
               songs: songs,
@@ -53,16 +57,19 @@ class LocalTitleGrid extends StatelessWidget {
               rootPath: rootPath,
               currentRelativePath: currentRelativePath,
               onOpenFolder: onOpenFolder,
+              compact: compact,
               onOpenFolderMenu: onOpenFolderMenu,
             ),
           ),
-          const SizedBox(width: 12),
-          IconButton(
-            tooltip: i18n.t('local.hiddenFolders'),
-            icon: const Icon(FluentIcons.eye_off_24_regular),
-            color: LocalPageColors.textMuted,
-            onPressed: onHiddenFoldersListButtonClick,
-          ),
+          if (!compact) ...[
+            const SizedBox(width: 12),
+            IconButton(
+              tooltip: i18n.t('local.hiddenFolders'),
+              icon: const Icon(FluentIcons.eye_off_24_regular),
+              color: LocalPageColors.textMuted,
+              onPressed: onHiddenFoldersListButtonClick,
+            ),
+          ],
         ],
       ),
     );
@@ -78,6 +85,7 @@ class FolderChainListView extends StatefulWidget {
     required this.rootPath,
     required this.currentRelativePath,
     required this.onOpenFolder,
+    this.compact = false,
     this.onOpenFolderMenu,
   });
 
@@ -87,6 +95,7 @@ class FolderChainListView extends StatefulWidget {
   final String rootPath;
   final String currentRelativePath;
   final ValueChanged<String> onOpenFolder;
+  final bool compact;
   final void Function(String targetRelativePath, Offset position)?
   onOpenFolderMenu;
 
@@ -126,8 +135,11 @@ class _FolderChainListViewState extends State<FolderChainListView> {
     );
 
     return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      height: widget.compact ? 36 : 42,
+      padding:
+          widget.compact
+              ? const EdgeInsets.symmetric(horizontal: 2)
+              : const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: LocalPageColors.panel,
         borderRadius: BorderRadius.circular(8),

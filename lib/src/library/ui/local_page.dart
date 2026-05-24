@@ -12,9 +12,10 @@ import '../../app/input_dialog.dart';
 import '../../app/loading_state.dart';
 import '../../app/text_icon_button.dart';
 import '../../app/undoable_notification.dart';
+import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
-import '../../playback/media_control_model.dart';
 import '../../playback/media_control_provider.dart';
+import '../../playback/media_control_track_factory.dart';
 import '../../platform/desktop_features.dart';
 import '../../settings/settings_model.dart' show LocalViewMode;
 import '../data/library_models.dart';
@@ -315,26 +316,28 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             children: [
               Column(
                 children: [
-                  LocalTitleGrid(
-                    songs: snapshot.songs,
-                    folders: snapshot.folders,
-                    i18n: i18n,
-                    rootPath: snapshot.rootPath,
-                    currentRelativePath: widget.currentRelativePath,
-                    onHiddenFoldersListButtonClick:
-                        () => context.go('/hidden-folders'),
-                    onOpenFolder: _openFolder,
-                    onOpenFolderMenu:
-                        (targetRelativePath, position) => _showFolderChainMenu(
-                          position: position,
-                          folder: nodes[targetRelativePath]!,
-                          nodes: nodes,
-                          songsById: songsById,
-                          playlists: customPlaylists,
-                          snapshot: snapshot,
-                          i18n: i18n,
-                        ),
-                  ),
+                  if (!WorkspaceNavigationAppBarScope.of(context))
+                    LocalTitleGrid(
+                      songs: snapshot.songs,
+                      folders: snapshot.folders,
+                      i18n: i18n,
+                      rootPath: snapshot.rootPath,
+                      currentRelativePath: widget.currentRelativePath,
+                      onHiddenFoldersListButtonClick:
+                          () => context.go('/hidden-folders'),
+                      onOpenFolder: _openFolder,
+                      onOpenFolderMenu:
+                          (targetRelativePath, position) =>
+                              _showFolderChainMenu(
+                                position: position,
+                                folder: nodes[targetRelativePath]!,
+                                nodes: nodes,
+                                songsById: songsById,
+                                playlists: customPlaylists,
+                                snapshot: snapshot,
+                                i18n: i18n,
+                              ),
+                    ),
                   const SizedBox(height: 12),
                   CommandBar(
                     overflowReserve: isCompactLayout ? 44 : 0,
@@ -2167,14 +2170,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artworkUrl: song.thumbnailPath,
-            isLoading: false,
-            favorite: song.favorite,
-          ),
+          mediaControlTrackForSong(song, context.smPlayerI18n),
           durationSeconds: song.duration.toDouble(),
           queueIndex: max(0, queueSongIds.indexOf(trackId)),
         );

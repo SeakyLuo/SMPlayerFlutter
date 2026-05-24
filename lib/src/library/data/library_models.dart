@@ -322,6 +322,28 @@ class SearchHistoryEntry {
   final String searchedAt;
 }
 
+List<SearchHistoryEntry> latestSearchHistoryEntries(
+  Iterable<SearchHistoryEntry> entries,
+  SearchHistoryType type, {
+  int limit = 10,
+}) {
+  final seenQueries = <String>{};
+  final result = <SearchHistoryEntry>[];
+  for (final entry in entries) {
+    if (entry.type != type) {
+      continue;
+    }
+    if (!seenQueries.add(entry.query.toLowerCase())) {
+      continue;
+    }
+    result.add(entry);
+    if (result.length == limit) {
+      break;
+    }
+  }
+  return result;
+}
+
 class LibraryPlaylist {
   const LibraryPlaylist({
     required this.id,

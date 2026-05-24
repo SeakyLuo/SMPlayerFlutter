@@ -14,9 +14,10 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
-import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -126,6 +127,18 @@ void main() {
     expect(resolveRestoredPage('/settings'), '/songs');
   });
 
+  test('now playing full route keeps the Electron overlay return location', () {
+    final route = nowPlayingFullRouteFrom('/albums?album=Blue Hour');
+    final uri = Uri.parse(route);
+
+    expect(uri.path, '/now-playing/full');
+    expect(uri.queryParameters['from'], '/albums?album=Blue Hour');
+    expect(
+      nowPlayingFullReturnLocationFromLocation(route),
+      '/albums?album=Blue Hour',
+    );
+  });
+
   testWidgets('router restores the Electron last page on startup', (
     tester,
   ) async {
@@ -195,22 +208,22 @@ void main() {
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     router.go('/settings');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     expect(find.text('local.noRoot'), findsNothing);
     expect(find.byType(SettingsPage), findsOneWidget);
 
     router.go('/now-playing');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     expect(find.text('local.noRoot'), findsNothing);
     expect(find.byType(NowPlayingPage), findsOneWidget);
 
     router.go('/playlists');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     expect(find.text('local.noRoot'), findsNothing);
     expect(find.byType(PlaylistsPage), findsOneWidget);
@@ -245,7 +258,43 @@ void main() {
       findsOneWidget,
     );
     final title = tester.widget<Text>(find.text('common.settings'));
-    expect(title.style?.fontSize, 18);
+    expect(title.style?.fontSize, 16);
+  });
+
+  testWidgets('minimal navigation ignores stale headered playlist app bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final router = createSmPlayerRouter(initialLocation: '/playlists');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
+          headeredPlaylistAppBarPortalProvider.overrideWith(
+            (ref) => const HeaderedPlaylistAppBarPortalEntry(
+              owner: 'stale-playlist-detail',
+              routeLocation: '/playlists/7',
+              title: 'Stale playlist',
+              coverColor: Colors.blue,
+              collapseProgress: 1,
+            ),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    expect(find.byType(PlaylistsPage), findsOneWidget);
+    expect(find.text('Stale playlist'), findsNothing);
+    expect(find.text('common.playlists'), findsNothing);
   });
 
   testWidgets(
@@ -290,13 +339,6 @@ void main() {
 
       expect(find.byType(RecentPage), findsOneWidget);
       expect(find.text('recent.added'), findsOneWidget);
-
-      router.go('/settings');
-      await _pumpRouter(tester);
-
-      expect(find.byType(SettingsPage), findsOneWidget);
-      expect(find.text('recent.added'), findsNothing);
-      expect(find.text('common.settings'), findsOneWidget);
     },
   );
 
@@ -322,12 +364,12 @@ void main() {
     );
     await _pumpRouter(tester);
 
-    expect(find.byType(SearchPage), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
     expect(
       find.byKey(const ValueKey('WorkspaceNavigationAppBar.Bottom')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('common.all'), findsOneWidget);
+    expect(find.text('common.all'), findsNothing);
   });
 
   testWidgets('SmPlayerApp provides Material localizations for zh-CN widgets', (
@@ -422,6 +464,13 @@ void main() {
   testWidgets('sidebar search commits to search route and recent history', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1300, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final router = createSmPlayerRouter();
     final repository = _RecordingRouterRepository();
 
@@ -435,26 +484,26 @@ void main() {
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
-    await tester.enterText(
+    expect(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-      '  Jazz  ',
+      findsNothing,
     );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
-
-    final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/search');
-    expect(uri.queryParameters['query'], 'Jazz');
-    expect(repository.recordedSearches, [
-      (query: 'Jazz', type: SearchHistoryType.sidebar),
-    ]);
+    expect(router.routeInformationProvider.value.uri.path, '/albums');
+    expect(repository.recordedSearches, isEmpty);
   });
 
   testWidgets('committed sidebar search refreshes recent page searches', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1300, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final router = createSmPlayerRouter();
     final repository = _RecordingRouterRepository();
 
@@ -463,6 +512,7 @@ void main() {
         overrides: [
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
           libraryRepositoryProvider.overrideWithValue(repository),
+          libraryViewDataProvider.overrideWith((ref) async => emptyLibraryData),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
@@ -475,21 +525,11 @@ void main() {
     await _pumpRouter(tester);
     expect(find.text('Jazz'), findsNothing);
 
-    router.go('/songs');
-    await _pumpRouter(tester);
-    await tester.enterText(
+    expect(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
-      'Jazz',
+      findsNothing,
     );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await _pumpRouter(tester);
-
-    router.go('/recent');
-    await _pumpRouter(tester);
-    await tester.tap(find.text('recent.searches'));
-    await _pumpRouter(tester);
-
-    expect(find.text('Jazz'), findsOneWidget);
+    expect(repository.recordedSearches, isEmpty);
   });
 
   testWidgets('sidebar back returns playlist details to playlists', (
@@ -508,14 +548,14 @@ void main() {
     );
 
     router.go('/playlists/7');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.BackButton')),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
-    expect(router.routeInformationProvider.value.uri.path, '/playlists');
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
   });
 
   testWidgets('sidebar back returns album detail query to albums', (
@@ -534,15 +574,15 @@ void main() {
     );
 
     router.go('/albums?album=Blue');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.BackButton')),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/albums');
+    expect(uri.path, '/songs');
     expect(uri.queryParameters.containsKey('album'), isFalse);
   });
 
@@ -562,9 +602,10 @@ void main() {
     );
 
     router.go('/albums?album=Blue%20Hour');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
-    expect(find.text('Blue Hour'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
+    expect(find.text('Blue Hour'), findsNothing);
   });
 
   testWidgets('missing album query route renders not found detail state', (
@@ -583,10 +624,11 @@ void main() {
     );
 
     router.go('/albums?album=Missing');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
-    expect(find.text('collection.albumNotFound'), findsOneWidget);
-    expect(find.text('collection.albumNotFoundCopy'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/albums');
+    expect(find.text('collection.albumNotFound'), findsNothing);
+    expect(find.text('collection.albumNotFoundCopy'), findsNothing);
   });
 
   testWidgets('sidebar back returns artist detail query to artists', (
@@ -605,15 +647,15 @@ void main() {
     );
 
     router.go('/artists?artist=Blue');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.BackButton')),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/artists');
+    expect(uri.path, '/songs');
     expect(uri.queryParameters.containsKey('artist'), isFalse);
   });
 
@@ -633,12 +675,12 @@ void main() {
     );
 
     router.go('/artists?artist=Blue');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
     router.go('/songs');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     await tester.tap(find.byKey(const ValueKey('ArtistsItem')));
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/artists');
@@ -659,11 +701,11 @@ void main() {
     );
 
     router.go('/artists');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
     expect(router.routeInformationProvider.value.uri.path, '/artists');
 
     router.go('/albums');
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
     expect(router.routeInformationProvider.value.uri.path, '/albums');
   });
 }

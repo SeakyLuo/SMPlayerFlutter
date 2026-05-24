@@ -35,13 +35,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(_scrollbarOpacity(tester), 0);
+    expect(_scrollbarThumbColor(tester), Colors.transparent);
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: tester.getCenter(find.byType(ListView)));
     await tester.pumpAndSettle();
 
-    expect(_scrollbarOpacity(tester), 1);
+    expect(_scrollbarThumbColor(tester), const Color(0x805b697a));
 
     await gesture.removePointer();
   });
@@ -80,13 +80,13 @@ void main() {
     await gesture.addPointer(location: tester.getCenter(find.byType(ListView)));
     await tester.pumpAndSettle();
 
-    expect(_scrollbarOpacity(tester), 0);
+    expect(_scrollbarThumbColor(tester), Colors.transparent);
 
     await gesture.removePointer();
   });
 }
 
-double _scrollbarOpacity(WidgetTester tester) {
-  final opacity = tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
-  return opacity.opacity;
+Color? _scrollbarThumbColor(WidgetTester tester) {
+  final theme = tester.widget<ScrollbarTheme>(find.byType(ScrollbarTheme));
+  return theme.data.thumbColor?.resolve({});
 }

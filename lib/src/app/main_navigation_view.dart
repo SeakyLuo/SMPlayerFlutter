@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
@@ -333,11 +334,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   @override
   Widget build(BuildContext context) {
     final collapsed = !widget.isPaneOpen;
-    final visibleRecentSearches =
-        widget.recentSearches
-            .where((entry) => entry.type == SearchHistoryType.sidebar)
-            .take(10)
-            .toList();
+    final visibleRecentSearches = latestSearchHistoryEntries(
+      widget.recentSearches,
+      SearchHistoryType.sidebar,
+    );
     final customPlaylists =
         widget.playlists.where((playlist) => !playlist.isBuiltIn).toList();
     final resolvedAppName = _navigationAppName(

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 
 import '../data/library_models.dart';
 import 'default_album_artwork.dart';
@@ -131,7 +132,7 @@ class _AlbumTileState extends State<AlbumTile> {
                   child: Row(
                     children: [
                       _AlbumHoverAction(
-                        icon: FluentIcons.play_20_filled,
+                        icon: FluentIcons.play_20_regular,
                         onPressed: (_) => widget.onPlayAlbum(),
                       ),
                       const SizedBox(width: 6),
@@ -225,7 +226,10 @@ class _AlbumHoverAction extends StatelessWidget {
         ),
         child: SizedBox.square(
           dimension: 34,
-          child: Icon(icon, size: 17, color: Colors.white),
+          child:
+              icon == FluentIcons.play_20_regular
+                  ? const SmPlayerPlayIcon(size: 17, color: Colors.white)
+                  : Icon(icon, size: 17, color: Colors.white),
         ),
       ),
     );

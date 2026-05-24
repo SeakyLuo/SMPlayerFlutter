@@ -12,6 +12,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -329,7 +331,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
           ),
           if (_libraryArtworkPickerOpen)
             _AlbumArtLibraryPickerDialog(
-              albumName: widget.song.album,
+              albumName: song_display.canonicalAlbumName(widget.song),
               currentSong: widget.song,
               songs: librarySongs,
               onApply: _applyAlbumArtLibraryChoice,
@@ -691,7 +693,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     final uri = musicLyricsSearchUri(
       locale: i18n.locale,
       title: widget.song.title,
-      artist: widget.song.artist,
+      artist: song_display.displayArtists(widget.song, i18n),
     );
     setState(() {
       _saving = true;
@@ -1235,8 +1237,10 @@ List<_RankedSong> _getAlbumArtRecommendationCandidates(
               return null;
             }
 
+            final albumName = song_display.canonicalAlbumName(song);
             final sameAlbum =
-                song.album.trim().isNotEmpty && candidate.album == song.album;
+                albumName.isNotEmpty &&
+                song_display.canonicalAlbumName(candidate) == albumName;
             final similarTitle = _isSimilarArtworkTitle(
               song.title,
               candidate.title,
@@ -1282,14 +1286,16 @@ List<_RankedSong> _getRankedArtworkSourceSongs({
       librarySongs
           .map((song) {
             final searchableText = _normalizeSearchText(
-              '${song.title} ${song.album} ${_getSongArtists(song).join(' ')}',
+              song_display.searchableSongText(song),
             );
             if (normalizedQuery.isNotEmpty &&
                 !searchableText.contains(normalizedQuery)) {
               return null;
             }
 
-            final sameAlbum = albumName.isNotEmpty && song.album == albumName;
+            final sameAlbum =
+                albumName.isNotEmpty &&
+                song_display.canonicalAlbumName(song) == albumName;
             final sameArtist = _isSameArtistSong(song, artistKeys);
             final similarTitle = _isSimilarArtworkTitle(
               currentSong.title,
@@ -1335,15 +1341,7 @@ bool _isSameArtistSong(LibrarySong song, Set<String> artistKeys) {
 }
 
 List<String> _getSongArtists(LibrarySong song) {
-  if (song.artists.isNotEmpty) {
-    return song.artists;
-  }
-
-  return song.artist
-      .split(RegExp(r',|;|/'))
-      .map((artist) => artist.trim())
-      .where((artist) => artist.isNotEmpty)
-      .toList();
+  return song_display.songArtists(song);
 }
 
 String _getDisplayArtists(LibrarySong song, SmPlayerI18n i18n) {
@@ -2543,9 +2541,7 @@ class _AlbumArtChoiceTile extends StatelessWidget {
                     style: const TextStyle(color: PopupDialogColors.textMuted),
                   ),
                   Text(
-                    choice.song.album.isEmpty
-                        ? i18n.t('common.albumUnknown')
-                        : choice.song.album,
+                    song_display.displayAlbum(choice.song, i18n),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: PopupDialogColors.textMuted),
@@ -2588,9 +2584,7 @@ class _AlbumArtChoicePreview extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          choice.song.album.isEmpty
-              ? i18n.t('common.albumUnknown')
-              : choice.song.album,
+          song_display.displayAlbum(choice.song, i18n),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

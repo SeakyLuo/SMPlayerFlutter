@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -24,9 +25,12 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -843,14 +847,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artworkUrl: song.thumbnailPath,
-            isLoading: false,
-            favorite: song.favorite,
-          ),
+          mediaControlTrackForSong(song, context.smPlayerI18n),
           durationSeconds: song.duration.toDouble(),
           queueIndex: index,
         );
@@ -869,14 +866,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: firstSong.id,
-            title: firstSong.title,
-            artist: firstSong.artist,
-            artworkUrl: firstSong.thumbnailPath,
-            isLoading: false,
-            favorite: firstSong.favorite,
-          ),
+          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
@@ -1716,12 +1706,14 @@ class _SearchResultSection extends StatelessWidget {
         },
         onHide: () {},
         onSeeArtist: () {
-          final artist =
-              song.artists.isEmpty ? song.artist : song.artists.first;
+          final artist = song_display.primaryDisplayArtist(
+            song,
+            context.smPlayerI18n,
+          );
           onOpenArtist(artist);
         },
         onSeeAlbum: () {
-          onOpenAlbum(song.album);
+          onOpenAlbum(song_display.displayAlbum(song, context.smPlayerI18n));
         },
         onSeeMusicInfo: () {
           onOpenMusicDialog(song, SongDialogMode.properties);
@@ -2572,7 +2564,7 @@ class _SearchCardPlayButton extends StatelessWidget {
           foregroundColor: Colors.white,
           shape: const CircleBorder(),
         ),
-        icon: const Icon(FluentIcons.play_20_filled, size: 17),
+        icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
         onPressed: onPressed,
       ),
     );

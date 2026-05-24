@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -416,7 +417,7 @@ void main() {
     await mouse.addPointer(location: tester.getCenter(find.text('Road Mix')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(FluentIcons.play_20_filled).last);
+    await tester.tap(find.byType(SmPlayerPlayIcon).last);
     await tester.pumpAndSettle();
 
     expect(repository.replacedNowPlaying, [2, 1]);

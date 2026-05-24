@@ -19,6 +19,7 @@ void main() {
       'macos/Runner/DebugProfile.entitlements',
       'macos/Runner/Release.entitlements',
     ]) {
+      expect(_readPlistValue(path, 'com.apple.security.app-sandbox'), 'true');
       expect(
         _readPlistValue(
           path,
@@ -37,6 +38,39 @@ void main() {
       reason:
           'macOS 26 TCC checks the debug dylib as the privacy accessor when '
           'Xcode debug dylib mode is enabled.',
+    );
+  });
+
+  test('macOS external audio opens keep sandboxed file access', () {
+    final appDelegate = File('macos/Runner/AppDelegate.swift');
+    final mainWindow = File('macos/Runner/MainFlutterWindow.swift');
+    expect(appDelegate.existsSync(), isTrue);
+    expect(mainWindow.existsSync(), isTrue);
+
+    final appDelegateText = appDelegate.readAsStringSync();
+    expect(
+      appDelegateText,
+      contains('securityScopedExternalFileBookmarks'),
+    );
+    expect(
+      appDelegateText,
+      contains('url.startAccessingSecurityScopedResource()'),
+    );
+    expect(
+      appDelegateText,
+      contains(
+        'override func application(_ sender: NSApplication, openFiles filenames: [String])',
+      ),
+    );
+    expect(
+      appDelegateText,
+      contains('SmPlayerExternalFileAccessStore.shared.storeAccess('),
+    );
+
+    final mainWindowText = mainWindow.readAsStringSync();
+    expect(
+      mainWindowText,
+      contains('SmPlayerExternalFileAccessStore.shared.restoreAccess()'),
     );
   });
 }

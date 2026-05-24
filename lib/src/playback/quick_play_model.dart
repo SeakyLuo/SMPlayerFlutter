@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 const quickPlayDefaultLimit = 100;
@@ -55,7 +56,9 @@ List<int> quickPlaySongIds({
             .expand(
               (item) => _randomItems(
                 _randomItems(
-                  songs.where((song) => song.album == item.itemId).toList(),
+                  songs
+                      .where((song) => canonicalAlbumName(song) == item.itemId)
+                      .toList(),
                   _randomPreferredItemCount(item.level),
                 ),
                 _randomPreferenceItems,
@@ -292,7 +295,7 @@ void _removeDislikedSongs(
     if (_toss(probability) &&
         (songIds.contains(song.id) ||
             _songArtists(song).any(artists.contains) ||
-            albums.contains(song.album) ||
+            albums.contains(canonicalAlbumName(song)) ||
             playlistSongIds.contains(song.id) ||
             folderPaths.any(
               (folderPath) => _isSongInFolder(song, folderPath),
@@ -383,7 +386,7 @@ List<T> _randomItems<T>(List<T> items, int count) {
 }
 
 List<String> _songArtists(LibrarySong song) {
-  return song.artists.isEmpty ? [song.artist] : song.artists;
+  return songArtists(song);
 }
 
 bool _isSongInFolder(LibrarySong song, String folderPath) {

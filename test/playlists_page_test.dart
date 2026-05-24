@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show SettingsSnapshot;
 
 void main() {
   setUp(() {
@@ -59,6 +64,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.lastPlaylistId, 7);
+  });
+
+  testWidgets('PlaylistsPage appbar create uses shared appbar action style', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const _PlaylistAppBarPortalTestApp(child: PlaylistsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    final appBarCreate = find.byKey(const ValueKey('Playlists.AppBar.Create'));
+    expect(appBarCreate, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('Playlists.AppBarHost')),
+        matching: find.byType(CommandBar),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.getSize(appBarCreate), const Size.square(40));
   });
 
   testWidgets('PlaylistsPage Add To excludes the current playlist', (
@@ -132,9 +164,57 @@ class _PlaylistTestApp extends StatelessWidget {
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
-      child: MaterialApp(home: Scaffold(body: child)),
+      child: MaterialApp(
+        theme: _playlistsPageTestTheme(),
+        home: Scaffold(body: child),
+      ),
     );
   }
+}
+
+class _PlaylistAppBarPortalTestApp extends StatelessWidget {
+  const _PlaylistAppBarPortalTestApp({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => _i18n),
+        libraryViewDataProvider.overrideWith((ref) async => _snapshot),
+      ],
+      child: MaterialApp(
+        theme: _playlistsPageTestTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              Consumer(
+                builder: (context, ref, _) {
+                  final entry = ref.watch(workspaceAppBarPortalProvider);
+                  return SizedBox(
+                    key: const ValueKey('Playlists.AppBarHost'),
+                    height: 40,
+                    child: entry?.content,
+                  );
+                },
+              ),
+              Expanded(
+                child: WorkspaceNavigationAppBarScope(
+                  active: true,
+                  child: child,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+ThemeData _playlistsPageTestTheme() {
+  return buildSmPlayerTheme(const SettingsSnapshot.defaults());
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

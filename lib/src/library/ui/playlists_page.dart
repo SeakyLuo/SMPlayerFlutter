@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -18,8 +19,8 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
 class PlaylistsPage extends ConsumerStatefulWidget {
   const PlaylistsPage({super.key, this.selectedPlaylistId});
@@ -149,6 +150,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       i18n: i18n,
       child: HeaderedPlaylistControl(
         key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
+        routeLocation: '/playlists/${selectedPlaylist.id}',
         type:
             selectedPlaylist.isBuiltIn
                 ? HeaderedPlaylistType.favorites
@@ -173,12 +175,13 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         preferenceItemId:
             selectedPlaylist.isBuiltIn ? '6' : selectedPlaylist.id.toString(),
         onPlayTrack: (trackId, queueSongIds) {
-          _playTrack(ref, snapshot, trackId, queueSongIds);
+          _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
         },
         onMoveToMusicOrPlay: (songId) {
           _playTrack(
             ref,
             snapshot,
+            i18n,
             songId,
             songs.map((song) => song.id).toList(),
           );
@@ -321,18 +324,29 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .whereType<LibraryPlaylist>()
             .toList();
     final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
-    final createCommandBar = CommandBar(
-      style:
-          useWorkspaceAppBar
-              ? CommandBarStyleVariant.appBar
-              : CommandBarStyleVariant.standard,
+    final createButton = CommandBar(
       overflowLabel: i18n.t('player.more'),
       children: [
         CommandBarButton(
           icon: FluentIcons.add_20_regular,
           label: i18n.t('playlists.newName'),
           canOverflow: false,
-          showLabel: !useWorkspaceAppBar,
+          onPressed: () {
+            unawaited(_createPlaylist(context, i18n, snapshot));
+          },
+        ),
+      ],
+    );
+    final createAppBarButton = CommandBar(
+      style: CommandBarStyleVariant.appBar,
+      overflowLabel: i18n.t('player.more'),
+      children: [
+        CommandBarButton(
+          key: const ValueKey('Playlists.AppBar.Create'),
+          icon: FluentIcons.add_20_regular,
+          label: i18n.t('playlists.newName'),
+          showLabel: false,
+          canOverflow: false,
           onPressed: () {
             unawaited(_createPlaylist(context, i18n, snapshot));
           },
@@ -342,7 +356,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     _syncAppBarPortal(
       showPortal: useWorkspaceAppBar,
       routePath: '/playlists',
-      content: createCommandBar,
+      content: createAppBarButton,
     );
 
     return Padding(
@@ -350,7 +364,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       child: Column(
         children: [
           if (!useWorkspaceAppBar) ...[
-            createCommandBar,
+            createButton,
             const SizedBox(height: 18),
           ],
           Expanded(
@@ -370,7 +384,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: columns,
-                                mainAxisExtent: 232,
+                                mainAxisExtent: 234,
                                 crossAxisSpacing: 30,
                                 mainAxisSpacing: 26,
                               ),
@@ -451,6 +465,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                         _playTrack(
                                           ref,
                                           snapshot,
+                                          i18n,
                                           playlistSongs.first.id,
                                           playlistSongs
                                               .map((song) => song.id)
@@ -688,6 +703,7 @@ Future<String?> _requestPlaylistName({
 void _playTrack(
   WidgetRef ref,
   LibraryViewData snapshot,
+  SmPlayerI18n i18n,
   int trackId,
   List<int> queueSongIds,
 ) {
@@ -697,14 +713,7 @@ void _playTrack(
   ref
       .read(mediaControlControllerProvider)
       .playTrack(
-        MediaControlTrack(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          artworkUrl: song.thumbnailPath,
-          isLoading: false,
-          favorite: song.favorite,
-        ),
+        mediaControlTrackForSong(song, i18n),
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
@@ -752,7 +761,7 @@ class _PlaylistCard extends StatelessWidget {
       alignment: Alignment.topLeft,
       child: SizedBox(
         width: 180,
-        height: 232,
+        height: 234,
         child: AnimatedOpacity(
           opacity: dragging ? 0.92 : 1,
           duration: const Duration(milliseconds: 120),
@@ -823,7 +832,7 @@ class _PlaylistCard extends StatelessWidget {
                       bottom: 60,
                       child: IconButton.filled(
                         tooltip: i18n.t('context.play'),
-                        icon: const Icon(FluentIcons.play_20_filled),
+                        icon: const SmPlayerPlayIcon(),
                         onPressed: songs.isEmpty ? null : onPlay,
                       ),
                     ),
