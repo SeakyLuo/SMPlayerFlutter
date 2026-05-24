@@ -14,6 +14,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
@@ -2555,18 +2556,12 @@ class _SearchCardPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: 34,
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: const Color(0xb81e2228),
-          foregroundColor: Colors.white,
-          shape: const CircleBorder(),
-        ),
-        icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
-        onPressed: onPressed,
-      ),
+    return ArtworkFloatingActionButton(
+      tooltip: context.smPlayerI18n.t('context.play'),
+      size: 34,
+      iconSize: 17,
+      icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
+      onPressed: onPressed,
     );
   }
 }

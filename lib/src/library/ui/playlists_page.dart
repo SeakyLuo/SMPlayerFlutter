@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
@@ -818,11 +819,12 @@ class _PlaylistCard extends StatelessWidget {
                     Positioned(
                       top: 12,
                       right: 12,
-                      child: IconButton.filledTonal(
+                      child: ArtworkFloatingActionButton(
                         tooltip: i18n.t('playlists.dragToSort'),
+                        size: 40,
+                        iconSize: 18,
                         icon: const Icon(
                           FluentIcons.re_order_dots_vertical_20_regular,
-                          size: 18,
                         ),
                         onPressed: () {},
                       ),
@@ -830,9 +832,10 @@ class _PlaylistCard extends StatelessWidget {
                     Positioned(
                       right: 8,
                       bottom: 60,
-                      child: IconButton.filled(
+                      child: ArtworkFloatingActionButton(
                         tooltip: i18n.t('context.play'),
-                        icon: const SmPlayerPlayIcon(),
+                        size: 48,
+                        icon: const SmPlayerPlayIcon(color: Colors.white),
                         onPressed: songs.isEmpty ? null : onPlay,
                       ),
                     ),

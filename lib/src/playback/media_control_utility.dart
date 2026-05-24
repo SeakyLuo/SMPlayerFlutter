@@ -41,9 +41,13 @@ class MediaControlUtilityRows extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = _mediaControlI18n(context);
+    final compactMinimal = condensed && minimal;
+    final utilityButtonSize = compactMinimal ? 34.0 : 36.0;
+    final utilityButtonPadding = compactMinimal ? 5.0 : 6.0;
+    final utilityIconSize = utilityButtonSize - utilityButtonPadding * 2;
 
     return SizedBox(
-      width: minimal ? 80 : (condensed ? 132 : 280),
+      width: minimal ? (compactMinimal ? 68 : 80) : (condensed ? 132 : 280),
       child: Padding(
         padding:
             condensed || minimal
@@ -141,6 +145,9 @@ class MediaControlUtilityRows extends StatelessWidget {
                             icon: _playbackModeIcon(mode),
                             active: mode != PlaybackMode.once,
                             disabled: disabled,
+                            buttonSize: utilityButtonSize,
+                            padding: utilityButtonPadding,
+                            iconSize: utilityIconSize,
                             onPressed: () {
                               switch (getNextPlaybackMode(mode)) {
                                 case PlaybackMode.shuffle:
@@ -212,6 +219,9 @@ class MediaControlUtilityRows extends StatelessWidget {
                         tooltip: i18n.t('player.voiceAssistant'),
                         icon: _voiceIcon,
                         disabled: false,
+                        buttonSize: utilityButtonSize,
+                        padding: utilityButtonPadding,
+                        iconSize: utilityIconSize,
                         onPressed: onOpenVoiceAssistant!,
                       ),
                       const SizedBox(width: 14),
@@ -222,6 +232,9 @@ class MediaControlUtilityRows extends StatelessWidget {
                           key: const ValueKey('MediaControl.MoreButton'),
                           tooltip: i18n.t('player.more'),
                           icon: _moreIcon,
+                          buttonSize: utilityButtonSize,
+                          padding: utilityButtonPadding,
+                          iconSize: utilityIconSize,
                           onPressed: () {
                             onMoreClick(moreButtonContext);
                           },

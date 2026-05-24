@@ -396,6 +396,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'MusicLibraryPage compact quick jump panel closes on outside tap',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpToggle')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpPanel')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpDismissBarrier')),
+        findsOneWidget,
+      );
+
+      await tester.tapAt(const Offset(320, 760));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpPanel')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('MusicLibrary.QuickJumpDismissBarrier')),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('MusicLibraryPage compact sort bar uses Electron labels', (
     tester,
   ) async {

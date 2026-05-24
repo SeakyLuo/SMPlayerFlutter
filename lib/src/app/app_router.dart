@@ -190,13 +190,19 @@ GoRouter createSmPlayerRouter({
                       initialFragment: state.uri.fragment,
                       lyricsBatchSongCount:
                           ref.watch(librarySongCountProvider).valueOrNull,
+                      librarySongs:
+                          ref
+                              .watch(libraryViewDataProvider)
+                              .valueOrNull
+                              ?.songs ??
+                          const [],
                       libraryRepository: ref.read(libraryRepositoryProvider),
                       onScanLibrary: (
                         rootPath, {
                         cancellation,
                         onProgress,
                       }) async {
-                        await ref
+                        final result = await ref
                             .read(libraryRepositoryProvider)
                             .scanAllMusicLibrary(
                               rootPath,
@@ -204,6 +210,7 @@ GoRouter createSmPlayerRouter({
                               onProgress: onProgress,
                             );
                         _invalidateLibraryData(ref);
+                        return result;
                       },
                       onDataImported: () async {
                         if (onDataImported != null) {
@@ -474,7 +481,12 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
     try {
       final rootPath =
           Platform.isMacOS
-              ? await pickDirectoryFromDesktopShell()
+              ? await pickDirectoryFromDesktopShell(
+                title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
+                buttonLabel: i18n.t(
+                  'local.chooseMusicLibraryFolderDialogButton',
+                ),
+              )
               : await FilePicker.getDirectoryPath();
       if (rootPath == null || rootPath.isEmpty) {
         if (mounted) {

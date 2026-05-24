@@ -138,7 +138,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       return
     }
     if call.method == "pickDirectory" {
-      pickDirectory(result: result)
+      pickDirectory(arguments: call.arguments, result: result)
       return
     }
     if call.method == "dismissNativeSplash" {
@@ -202,13 +202,25 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     return result
   }
 
-  private func pickDirectory(result: @escaping FlutterResult) {
+  private func pickDirectory(arguments: Any?, result: @escaping FlutterResult) {
+    let arguments = flutterStringMap(arguments)
     let panel = NSOpenPanel()
+    if let title = arguments?["title"] as? String {
+      panel.title = title
+    }
+    if let buttonLabel = arguments?["buttonLabel"] as? String {
+      panel.prompt = buttonLabel
+    }
     panel.canChooseFiles = false
     panel.canChooseDirectories = true
     panel.allowsMultipleSelection = false
     panel.canCreateDirectories = false
     panel.showsHiddenFiles = false
+    if let defaultPath = arguments?["defaultPath"] as? String, !defaultPath.isEmpty {
+      panel.directoryURL = URL(fileURLWithPath: defaultPath)
+    } else {
+      panel.directoryURL = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first
+    }
     panel.beginSheetModal(for: self) { response in
       guard response == .OK, let url = panel.url else {
         result(nil)

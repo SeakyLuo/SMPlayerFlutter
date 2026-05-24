@@ -1,7 +1,15 @@
-part of 'shell_page.dart';
+import 'dart:io';
 
-class _ShellWindowDragRegion extends StatelessWidget {
-  const _ShellWindowDragRegion({
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
+
+class ShellWindowDragRegion extends StatelessWidget {
+  const ShellWindowDragRegion({
+    super.key,
     required this.child,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
@@ -27,8 +35,8 @@ class _ShellWindowDragRegion extends StatelessWidget {
   }
 }
 
-class _ShellNavigationGlassSurface extends StatelessWidget {
-  const _ShellNavigationGlassSurface({
+class ShellNavigationGlassSurface extends StatelessWidget {
+  const ShellNavigationGlassSurface({
     super.key,
     required this.surface,
     required this.shadowColor,
@@ -95,8 +103,9 @@ class _ShellNavigationGlassSurface extends StatelessWidget {
   }
 }
 
-class _MinimalTitlebar extends StatelessWidget {
-  const _MinimalTitlebar({
+class MinimalTitlebar extends StatelessWidget {
+  const MinimalTitlebar({
+    super.key,
     required this.title,
     required this.canGoBack,
     required this.backLabel,
@@ -147,7 +156,7 @@ class _MinimalTitlebar extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: _ShellWindowDragRegion(
+          child: ShellWindowDragRegion(
             onWindowDragStart: onWindowDragStart,
             onWindowDragEnd: onWindowDragEnd,
             child:

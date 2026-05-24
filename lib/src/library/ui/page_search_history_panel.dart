@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
+import 'command_bar_colors.dart';
 
 class PageSearchHistoryPanel extends StatelessWidget {
   const PageSearchHistoryPanel({
@@ -74,7 +75,7 @@ class PageSearchSuggestionPanel extends StatelessWidget {
   }
 }
 
-class PageSearchField extends StatelessWidget {
+class PageSearchField extends StatefulWidget {
   const PageSearchField({
     super.key,
     required this.value,
@@ -86,6 +87,7 @@ class PageSearchField extends StatelessWidget {
     required this.onClear,
     this.autofocus = false,
     this.height = 40,
+    this.appBar = false,
     this.searchTooltip,
     this.clearTooltip,
   });
@@ -99,42 +101,68 @@ class PageSearchField extends StatelessWidget {
   final VoidCallback onClear;
   final bool autofocus;
   final double height;
+  final bool appBar;
   final String? searchTooltip;
   final String? clearTooltip;
 
   @override
+  State<PageSearchField> createState() => _PageSearchFieldState();
+}
+
+class _PageSearchFieldState extends State<PageSearchField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant PageSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = TextEditingController(text: value)
-      ..selection = TextSelection.collapsed(offset: value.length);
+    final colors = _PageSearchColors.resolve(context, appBar: widget.appBar);
+    const borderRadius = 10.0;
     return SizedBox(
-      height: height,
+      height: widget.height,
       child: Focus(
-        onFocusChange: onFocusChanged,
+        onFocusChange: widget.onFocusChanged,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color:
-                focused
-                    ? _PageSearchColors.focusedSurface
-                    : _PageSearchColors.searchSurface,
-            borderRadius: BorderRadius.circular(10),
+                widget.focused ? colors.focusedSurface : colors.searchSurface,
+            borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color:
-                  focused
-                      ? _PageSearchColors.focusedBorder
-                      : _PageSearchColors.border,
+              color: widget.focused ? colors.focusedBorder : colors.border,
             ),
             boxShadow:
-                focused
-                    ? const [
+                widget.focused
+                    ? [
                       BoxShadow(
-                        color: _PageSearchColors.focusRing,
+                        color: colors.focusRing,
                         blurRadius: 0,
                         spreadRadius: 3,
                       ),
                     ]
-                    : const [
+                    : [
                       BoxShadow(
-                        color: _PageSearchColors.insetHighlight,
+                        color: colors.insetHighlight,
                         offset: Offset(0, 1),
                         blurRadius: 0,
                         spreadRadius: 0,
@@ -145,61 +173,152 @@ class PageSearchField extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: height,
-                height: height,
+                width: widget.height,
+                height: widget.height,
                 child: _PageSearchIconButton(
-                  tooltip: searchTooltip,
+                  tooltip: widget.searchTooltip,
                   icon: FluentIcons.search_24_regular,
                   iconSize: 19,
                   borderRadius: 0,
-                  hoverBackground: _PageSearchColors.clearButton,
-                  onPressed: onSubmitted,
+                  foreground: colors.textMuted,
+                  hoverBackground: colors.iconButtonHover,
+                  onPressed: widget.onSubmitted,
                 ),
               ),
               Expanded(
                 child: TextField(
-                  autofocus: autofocus,
-                  controller: controller,
+                  autofocus: widget.autofocus,
+                  controller: _controller,
                   onTap: () {
-                    onFocusChanged(true);
+                    widget.onFocusChanged(true);
                   },
-                  onChanged: onChanged,
+                  onChanged: widget.onChanged,
                   onSubmitted: (_) {
-                    onSubmitted();
+                    widget.onSubmitted();
                   },
                   textInputAction: TextInputAction.search,
                   style: const TextStyle(
-                    color: _PageSearchColors.textStrong,
                     fontSize: 14,
-                  ),
+                  ).copyWith(color: colors.textStrong),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: hintText,
-                    hintStyle: const TextStyle(
-                      color: _PageSearchColors.placeholder,
-                    ),
+                    hintText: widget.hintText,
+                    hintStyle: TextStyle(color: colors.placeholder),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
-              if (value.isNotEmpty)
+              if (_controller.text.isNotEmpty)
                 SizedBox(
-                  width: 24,
-                  height: height,
+                  width: 30,
+                  height: widget.height,
                   child: _PageSearchIconButton(
-                    tooltip: clearTooltip,
+                    tooltip: widget.clearTooltip,
                     icon: FluentIcons.dismiss_16_regular,
                     iconSize: 14,
-                    borderRadius: 6,
-                    background: _PageSearchColors.clearButton,
-                    hoverBackground: _PageSearchColors.clearButtonHover,
-                    foreground: _PageSearchColors.accent,
-                    onPressed: onClear,
+                    borderRadius: 8,
+                    hoverBackground: colors.iconButtonHover,
+                    foreground: colors.textMuted,
+                    hoverForeground: colors.accent,
+                    onPressed: widget.onClear,
                   ),
                 ),
               const SizedBox(width: 10),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppBarPageSearchCloseButton extends StatefulWidget {
+  const AppBarPageSearchCloseButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  State<AppBarPageSearchCloseButton> createState() =>
+      _AppBarPageSearchCloseButtonState();
+}
+
+class _AppBarPageSearchCloseButtonState
+    extends State<AppBarPageSearchCloseButton> {
+  var _hovered = false;
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final foreground =
+        dark
+            ? CommandBarColors.appBarForegroundDark
+            : CommandBarColors.appBarForeground;
+    final hover =
+        dark ? CommandBarColors.appBarHoverDark : CommandBarColors.appBarHover;
+    final pressed =
+        dark
+            ? CommandBarColors.appBarPressedDark
+            : CommandBarColors.appBarPressed;
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) {
+          setState(() {
+            _hovered = true;
+          });
+        },
+        onExit: (_) {
+          setState(() {
+            _hovered = false;
+            _pressed = false;
+          });
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) {
+            setState(() {
+              _pressed = true;
+            });
+          },
+          onTapCancel: () {
+            setState(() {
+              _pressed = false;
+            });
+          },
+          onTapUp: (_) {
+            setState(() {
+              _pressed = false;
+            });
+          },
+          onTap: widget.onPressed,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color:
+                  _pressed
+                      ? pressed
+                      : _hovered
+                      ? hover
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: SizedBox.square(
+              dimension: 36,
+              child: Center(
+                child: Icon(
+                  FluentIcons.dismiss_20_regular,
+                  size: 18,
+                  color: foreground,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -241,18 +360,19 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _PageSearchColors.resolve(context, appBar: false);
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: _PageSearchColors.dropdownSurface,
+            color: colors.dropdownSurface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _PageSearchColors.border),
-            boxShadow: const [
+            border: Border.all(color: colors.border),
+            boxShadow: [
               BoxShadow(
-                color: _PageSearchColors.dropdownShadow,
+                color: colors.dropdownShadow,
                 blurRadius: 36,
                 offset: Offset(0, 18),
               ),
@@ -277,8 +397,8 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
                                 title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _PageSearchColors.header,
+                                style: TextStyle(
+                                  color: colors.header,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 0,
@@ -343,6 +463,7 @@ class _SearchHistoryPanelRow<TValue> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _PageSearchColors.resolve(context, appBar: false);
     return SizedBox(
       height: 38,
       child: Row(
@@ -354,7 +475,7 @@ class _SearchHistoryPanelRow<TValue> extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 minimumSize: const Size(0, 38),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                foregroundColor: _PageSearchColors.textStrong,
+                foregroundColor: colors.textStrong,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -378,8 +499,8 @@ class _SearchHistoryPanelRow<TValue> extends StatelessWidget {
                 icon: FluentIcons.dismiss_16_regular,
                 iconSize: 14,
                 borderRadius: 8,
-                foreground: _PageSearchColors.textMuted,
-                hoverForeground: _PageSearchColors.accent,
+                foreground: colors.textMuted,
+                hoverForeground: colors.accent,
                 onPressed: () {
                   onRemove!(item);
                 },
@@ -407,6 +528,7 @@ class _PageSearchTextButtonState extends State<_PageSearchTextButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    final colors = _PageSearchColors.resolve(context, appBar: false);
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) {
@@ -428,10 +550,7 @@ class _PageSearchTextButtonState extends State<_PageSearchTextButton> {
             child: Text(
               widget.label,
               style: TextStyle(
-                color:
-                    _hovered && enabled
-                        ? _PageSearchColors.accent
-                        : _PageSearchColors.header,
+                color: _hovered && enabled ? colors.accent : colors.header,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 height: 1,
@@ -451,10 +570,9 @@ class _PageSearchIconButton extends StatefulWidget {
     required this.borderRadius,
     required this.onPressed,
     this.tooltip,
-    this.background = Colors.transparent,
     this.hoverBackground = Colors.transparent,
-    this.foreground = _PageSearchColors.textMuted,
-    this.hoverForeground = _PageSearchColors.accent,
+    this.foreground = const Color(0xff5f625f),
+    this.hoverForeground = const Color(0xff0063b1),
   });
 
   final IconData icon;
@@ -462,7 +580,6 @@ class _PageSearchIconButton extends StatefulWidget {
   final double borderRadius;
   final VoidCallback onPressed;
   final String? tooltip;
-  final Color background;
   final Color hoverBackground;
   final Color foreground;
   final Color hoverForeground;
@@ -493,7 +610,7 @@ class _PageSearchIconButtonState extends State<_PageSearchIconButton> {
         onTap: widget.onPressed,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: _hovered ? widget.hoverBackground : widget.background,
+            color: _hovered ? widget.hoverBackground : Colors.transparent,
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
           child: Center(
@@ -514,21 +631,79 @@ class _PageSearchIconButtonState extends State<_PageSearchIconButton> {
 }
 
 class _PageSearchColors {
-  const _PageSearchColors._();
+  const _PageSearchColors({
+    required this.searchSurface,
+    required this.focusedSurface,
+    required this.border,
+    required this.focusedBorder,
+    required this.focusRing,
+    required this.insetHighlight,
+    required this.placeholder,
+    required this.iconButtonHover,
+    required this.dropdownSurface,
+    required this.dropdownShadow,
+    required this.header,
+    required this.accent,
+    required this.textStrong,
+    required this.textMuted,
+  });
 
-  static const searchSurface = Color(0x090d1826);
-  static const focusedSurface = Color(0xffffffff);
-  static const border = Color(0x24536379);
-  static const focusedBorder = Color(0x7a0078d7);
-  static const focusRing = Color(0x1a0078d7);
-  static const insetHighlight = Color(0x61ffffff);
-  static const placeholder = Color(0x9e3d4958);
-  static const clearButton = Color(0x1a0078d7);
-  static const clearButtonHover = Color(0x1f0078d7);
-  static const dropdownSurface = Color(0xf5f4f6f9);
-  static const dropdownShadow = Color(0x2935495f);
-  static const header = Color(0x945f625f);
-  static const accent = Color(0xff0063b1);
-  static const textStrong = Color(0xff1f252b);
-  static const textMuted = Color(0xff5f625f);
+  final Color searchSurface;
+  final Color focusedSurface;
+  final Color border;
+  final Color focusedBorder;
+  final Color focusRing;
+  final Color insetHighlight;
+  final Color placeholder;
+  final Color iconButtonHover;
+  final Color dropdownSurface;
+  final Color dropdownShadow;
+  final Color header;
+  final Color accent;
+  final Color textStrong;
+  final Color textMuted;
+
+  static const light = _PageSearchColors(
+    searchSurface: Color(0x090d1826),
+    focusedSurface: Color(0xffffffff),
+    border: Color(0x24536379),
+    focusedBorder: Color(0x7a0078d7),
+    focusRing: Color(0x1a0078d7),
+    insetHighlight: Color(0x61ffffff),
+    placeholder: Color(0x9e3d4958),
+    iconButtonHover: Color(0x120078d7),
+    dropdownSurface: Color(0xf5f4f6f9),
+    dropdownShadow: Color(0x2935495f),
+    header: Color(0x945f625f),
+    accent: Color(0xff0063b1),
+    textStrong: Color(0xff1f252b),
+    textMuted: Color(0xff5f625f),
+  );
+
+  static const darkAppBar = _PageSearchColors(
+    searchSurface: Color(0x0effffff),
+    focusedSurface: Color(0x240078d7),
+    border: Colors.transparent,
+    focusedBorder: Colors.transparent,
+    focusRing: Color(0x240078d7),
+    insetHighlight: Color(0x0effffff),
+    placeholder: Color(0xadcbd5e1),
+    iconButtonHover: Color(0x240078d7),
+    dropdownSurface: Color(0xf5181e26),
+    dropdownShadow: Color(0x57000000),
+    header: Color(0xadCBD5E1),
+    accent: Color(0xfff6f9fc),
+    textStrong: Color(0xfff6f9fc),
+    textMuted: Color(0xadcbd5e1),
+  );
+
+  static _PageSearchColors resolve(
+    BuildContext context, {
+    required bool appBar,
+  }) {
+    if (appBar && Theme.of(context).brightness == Brightness.dark) {
+      return darkAppBar;
+    }
+    return light;
+  }
 }

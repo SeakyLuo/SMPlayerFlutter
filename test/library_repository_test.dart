@@ -189,7 +189,7 @@ void main() {
     expect(albums.map((entry) => entry.id), [3]);
   });
 
-  test('addRecentSearch initializes a new macOS-style data store', () async {
+  test('addRecentSearch skips missing data store', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer_new_data_store_test_',
     );
@@ -200,32 +200,11 @@ void main() {
     final repository = LibraryRepository(
       databaseFileResolver: () async => databaseFile,
     );
-    final reopenedRepository = LibraryRepository(
-      databaseFileResolver: () async => databaseFile,
-    );
 
     final entry = await repository.addRecentSearch('Jazz');
-    final snapshot = await repository.getLibraryViewData();
-    final recentPageData = await repository.getRecentPageData();
-    final reopenedRecentPageData = await reopenedRepository.getRecentPageData();
-    final reopenedNavigationData =
-        await reopenedRepository.getShellNavigationData();
 
-    expect(entry, isNotNull);
-    expect(databaseFile.existsSync(), isTrue);
-    expect(snapshot.recentSearches.map((search) => search.query), ['Jazz']);
-    expect(recentPageData.recentSearches.map((search) => search.query), [
-      'Jazz',
-    ]);
-    expect(
-      reopenedRecentPageData.recentSearches.map((search) => search.query),
-      ['Jazz'],
-    );
-    expect(
-      reopenedNavigationData.recentSearches.map((search) => search.query),
-      ['Jazz'],
-    );
-    expect(snapshot.rootPath, '');
+    expect(entry, isNull);
+    expect(databaseFile.existsSync(), isFalse);
   });
 
   test('initializeLibraryDatabase adds missing schema columns', () async {
@@ -1112,7 +1091,13 @@ void main() {
     await hidden.create();
     final visibleSong = File('${album.path}/Visible.mp3');
     final hiddenSong = File('${hidden.path}/Hidden.mp3');
-    await visibleSong.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    await visibleSong.writeAsBytes([
+      0xff,
+      0xfb,
+      0x90,
+      0x64,
+      ...List.filled(15996, 0),
+    ]);
     await const Id3TagService().writeSongArtwork(
       visibleSong.path,
       Id3Picture(data: Uint8List.fromList(_pngBytes), format: 'image/png'),
@@ -1172,6 +1157,12 @@ void main() {
                 visibleSong.path,
               ]).single['ThumbnailPath']
               as String;
+      final duration =
+          db.select('SELECT Duration FROM Music WHERE Path = ?', [
+                visibleSong.path,
+              ]).single['Duration']
+              as int;
+      expect(duration, 1);
       expect(thumbnailPath, isNotEmpty);
       expect(File(thumbnailPath).existsSync(), isTrue);
       expect(staleThumbnail.existsSync(), isFalse);

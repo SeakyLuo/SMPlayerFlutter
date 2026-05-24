@@ -1,16 +1,24 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show formatDuration;
 
 enum PlaylistControlItemVariant { standard, headeredPlaylist }
+
+enum PlaylistControlDropPosition { before, after }
+
+const _queueItemSwipeLimit = 108.0;
+const _queueItemSwipeOpenTrigger = 58.0;
 
 class PlaylistControlItem extends StatefulWidget {
   const PlaylistControlItem({
@@ -36,6 +44,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.onSeeAlbum,
     this.onSeeArtist,
     this.onOpenContextMenu,
+    this.dropPosition,
     this.variant = PlaylistControlItemVariant.standard,
   });
 
@@ -60,6 +69,7 @@ class PlaylistControlItem extends StatefulWidget {
   final VoidCallback? onSeeAlbum;
   final ValueChanged<String>? onSeeArtist;
   final ValueChanged<Offset>? onOpenContextMenu;
+  final PlaylistControlDropPosition? dropPosition;
   final PlaylistControlItemVariant variant;
 
   @override
@@ -68,6 +78,44 @@ class PlaylistControlItem extends StatefulWidget {
 
 class _PlaylistControlItemState extends State<PlaylistControlItem> {
   var _hovered = false;
+  var _swipeOffset = 0.0;
+  PointerDeviceKind? _pointerKind;
+
+  void _resetSwipe() {
+    setState(() {
+      _swipeOffset = 0;
+    });
+  }
+
+  bool get _swipeEnabled =>
+      widget.onRemoveFromListClick != null &&
+      !widget.selectionMode &&
+      _pointerKind == PointerDeviceKind.touch;
+
+  void _updateSwipe(DragUpdateDetails details) {
+    if (!_swipeEnabled) {
+      return;
+    }
+    final nextOffset = (_swipeOffset + details.delta.dx).clamp(
+      -_queueItemSwipeLimit,
+      0.0,
+    );
+    setState(() {
+      _swipeOffset = nextOffset;
+    });
+  }
+
+  void _settleSwipe() {
+    if (!_swipeEnabled) {
+      return;
+    }
+    setState(() {
+      _swipeOffset =
+          _swipeOffset <= -_queueItemSwipeOpenTrigger
+              ? -_queueItemSwipeLimit
+              : 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +132,152 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 : const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
             : const EdgeInsets.fromLTRB(18, 10, 22, 10);
     final artworkGap = headeredPlaylist && !compact ? 22.0 : 14.0;
+    final dropPosition = widget.dropPosition;
+    final content = InkWell(
+      onTap:
+          widget.selectionMode
+              ? widget.onToggleSelection
+              : _swipeOffset != 0
+              ? _resetSwipe
+              : widget.current
+              ? widget.onTogglePlayPause
+              : widget.onPlayTrack,
+      onSecondaryTapDown: (details) {
+        widget.onOpenContextMenu?.call(details.globalPosition);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: rowHeight,
+        margin: EdgeInsets.zero,
+        padding: rowPadding,
+        decoration: BoxDecoration(
+          color:
+              widget.current
+                  ? _PlaylistControlItemColors.current
+                  : widget.selected || _hovered
+                  ? _PlaylistControlItemColors.hover
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            bottom: BorderSide(color: _PlaylistControlItemColors.border),
+          ),
+          boxShadow:
+              widget.selected
+                  ? const [
+                    BoxShadow(
+                      color: _PlaylistControlItemColors.selectedInset,
+                      offset: Offset(3, 0),
+                    ),
+                  ]
+                  : null,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth <= 720;
+            return Row(
+              children: [
+                _QueueArtwork(
+                  song: widget.song,
+                  current: widget.current,
+                  playing: widget.playing,
+                  hovered: _hovered,
+                  selectionMode: widget.selectionMode,
+                  selected: widget.selected,
+                  onPlayTrack: widget.onPlayTrack,
+                ),
+                SizedBox(width: artworkGap),
+                Expanded(
+                  flex: compact ? 1 : 12,
+                  child: _QueueCopy(
+                    song: widget.song,
+                    current: widget.current,
+                    showAlbum: widget.showAlbum,
+                    onSeeAlbum: widget.onSeeAlbum,
+                    onSeeArtist: widget.onSeeArtist,
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(width: 14),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 170),
+                    child: Center(
+                      child: _QueueActions(
+                        favorite: widget.song.favorite,
+                        compact: compact,
+                        playNextLabel: widget.playNextLabel,
+                        removeLabel: widget.removeLabel,
+                        addToPlaylistLabel: widget.addToPlaylistLabel,
+                        favoriteLabel: widget.favoriteLabel,
+                        moreLabel: widget.moreLabel,
+                        onToggleFavoriteClick: widget.onToggleFavoriteClick,
+                        onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                        onPlayNextClick: widget.onPlayNextClick,
+                        onRemoveFromListClick: widget.onRemoveFromListClick,
+                        onOpenContextMenu: widget.onOpenContextMenu,
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(width: 14),
+                  _QueueActions(
+                    favorite: widget.song.favorite,
+                    compact: compact,
+                    playNextLabel: widget.playNextLabel,
+                    removeLabel: widget.removeLabel,
+                    addToPlaylistLabel: widget.addToPlaylistLabel,
+                    favoriteLabel: widget.favoriteLabel,
+                    moreLabel: widget.moreLabel,
+                    onToggleFavoriteClick: widget.onToggleFavoriteClick,
+                    onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                    onPlayNextClick: widget.onPlayNextClick,
+                    onRemoveFromListClick: widget.onRemoveFromListClick,
+                    onOpenContextMenu: widget.onOpenContextMenu,
+                  ),
+                ],
+                if (!compact && hasAlbumColumn) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    flex: 7,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: widget.onSeeAlbum,
+                      child: Text(
+                        displayAlbum(widget.song, i18n),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color:
+                              widget.current
+                                  ? _PlaylistControlItemColors.accentStrong
+                                  : _PlaylistControlItemColors.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 18),
+                SizedBox(
+                  width: headeredPlaylist && !compact ? 74 : 42,
+                  child: Text(
+                    formatDuration(widget.song.duration.toDouble()),
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      color:
+                          widget.current
+                              ? _PlaylistControlItemColors.accentStrong
+                              : _PlaylistControlItemColors.textStrong,
+                      fontSize: 13,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -96,148 +290,132 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
           _hovered = false;
         });
       },
-      child: InkWell(
-        onTap:
-            widget.selectionMode
-                ? widget.onToggleSelection
-                : widget.current
-                ? widget.onTogglePlayPause
-                : widget.onPlayTrack,
-        onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu?.call(details.globalPosition);
+      child: Listener(
+        onPointerDown: (event) {
+          _pointerKind = event.kind;
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: rowHeight,
-          margin: EdgeInsets.zero,
-          padding: rowPadding,
-          decoration: BoxDecoration(
-            color:
-                widget.current
-                    ? _PlaylistControlItemColors.current
-                    : widget.selected || _hovered
-                    ? _PlaylistControlItemColors.hover
-                    : Colors.transparent,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (details) {
+            _pointerKind = details.kind;
+          },
+          onHorizontalDragUpdate: _updateSwipe,
+          onHorizontalDragEnd: (_) {
+            _settleSwipe();
+          },
+          onHorizontalDragCancel: _resetSwipe,
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            border: const Border(
-              bottom: BorderSide(color: _PlaylistControlItemColors.border),
-            ),
-            boxShadow:
-                widget.selected
-                    ? const [
-                      BoxShadow(
-                        color: _PlaylistControlItemColors.selectedInset,
-                        offset: Offset(3, 0),
-                      ),
-                    ]
-                    : null,
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth <= 720;
-              return Row(
+            child: SizedBox(
+              height: rowHeight,
+              child: Stack(
                 children: [
-                  _QueueArtwork(
-                    song: widget.song,
-                    current: widget.current,
-                    playing: widget.playing,
-                    hovered: _hovered,
-                    selectionMode: widget.selectionMode,
-                    selected: widget.selected,
-                    onPlayTrack: widget.onPlayTrack,
-                  ),
-                  SizedBox(width: artworkGap),
-                  Expanded(
-                    flex: compact ? 1 : 12,
-                    child: _QueueCopy(
-                      song: widget.song,
-                      current: widget.current,
-                      showAlbum: widget.showAlbum,
-                      onSeeAlbum: widget.onSeeAlbum,
-                      onSeeArtist: widget.onSeeArtist,
-                    ),
-                  ),
-                  if (!compact) ...[
-                    const SizedBox(width: 14),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 170),
-                      child: Center(
-                        child: _QueueActions(
-                          favorite: widget.song.favorite,
-                          compact: compact,
-                          playNextLabel: widget.playNextLabel,
-                          removeLabel: widget.removeLabel,
-                          addToPlaylistLabel: widget.addToPlaylistLabel,
-                          favoriteLabel: widget.favoriteLabel,
-                          moreLabel: widget.moreLabel,
-                          onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                          onAddToPlaylistClick: widget.onAddToPlaylistClick,
-                          onPlayNextClick: widget.onPlayNextClick,
-                          onRemoveFromListClick: widget.onRemoveFromListClick,
-                          onOpenContextMenu: widget.onOpenContextMenu,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: _swipeOffset),
+                    duration:
+                        _swipeOffset == -_queueItemSwipeLimit ||
+                                _swipeOffset == 0
+                            ? const Duration(milliseconds: 170)
+                            : Duration.zero,
+                    curve: Curves.easeOut,
+                    builder:
+                        (context, offset, child) => Transform.translate(
+                          offset: Offset(offset, 0),
+                          child: child,
                         ),
-                      ),
-                    ),
-                  ] else ...[
-                    const SizedBox(width: 14),
-                    _QueueActions(
-                      favorite: widget.song.favorite,
-                      compact: compact,
-                      playNextLabel: widget.playNextLabel,
-                      removeLabel: widget.removeLabel,
-                      addToPlaylistLabel: widget.addToPlaylistLabel,
-                      favoriteLabel: widget.favoriteLabel,
-                      moreLabel: widget.moreLabel,
-                      onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                      onAddToPlaylistClick: widget.onAddToPlaylistClick,
-                      onPlayNextClick: widget.onPlayNextClick,
-                      onRemoveFromListClick: widget.onRemoveFromListClick,
-                      onOpenContextMenu: widget.onOpenContextMenu,
-                    ),
-                  ],
-                  if (!compact && hasAlbumColumn) ...[
-                    const SizedBox(width: 14),
-                    Expanded(
-                      flex: 7,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(4),
-                        onTap: widget.onSeeAlbum,
-                        child: Text(
-                          displayAlbum(widget.song, i18n),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color:
-                                widget.current
-                                    ? _PlaylistControlItemColors.accentStrong
-                                    : _PlaylistControlItemColors.textMuted,
-                            fontSize: 13,
+                    child: content,
+                  ),
+                  if (widget.onRemoveFromListClick != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: _swipeOffset == 0,
+                        child: AnimatedOpacity(
+                          opacity: _swipeOffset == 0 ? 0 : 1,
+                          duration: const Duration(milliseconds: 90),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _QueueSwipeRemoveAction(
+                              label:
+                                  widget.removeLabel ??
+                                  context.smPlayerI18n.t('nowPlaying.remove'),
+                              onPressed: () {
+                                _resetSwipe();
+                                widget.onRemoveFromListClick!();
+                              },
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                  const SizedBox(width: 18),
-                  SizedBox(
-                    width: headeredPlaylist && !compact ? 74 : 42,
-                    child: Text(
-                      formatDuration(widget.song.duration.toDouble()),
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        color:
-                            widget.current
-                                ? _PlaylistControlItemColors.accentStrong
-                                : _PlaylistControlItemColors.textStrong,
-                        fontSize: 13,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                  if (dropPosition != null)
+                    Positioned(
+                      left: 8,
+                      right: 10,
+                      top:
+                          dropPosition == PlaylistControlDropPosition.before
+                              ? 0
+                              : null,
+                      bottom:
+                          dropPosition == PlaylistControlDropPosition.after
+                              ? 0
+                              : null,
+                      child: const _QueueDropIndicator(),
                     ),
-                  ),
                 ],
-              );
-            },
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _QueueDropIndicator extends StatelessWidget {
+  const _QueueDropIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _PlaylistControlItemColors.accentStrong,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: _PlaylistControlItemColors.accentStrong.withValues(
+              alpha: 0.14,
+            ),
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+      child: const SizedBox(height: 3),
+    );
+  }
+}
+
+class _QueueSwipeRemoveAction extends StatelessWidget {
+  const _QueueSwipeRemoveAction({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _queueItemSwipeLimit,
+      height: double.infinity,
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: _PlaylistControlItemColors.destructive,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: const RoundedRectangleBorder(),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        onPressed: onPressed,
+        icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
@@ -275,15 +453,7 @@ class _QueueArtwork extends StatelessWidget {
             child:
                 file != null && file.existsSync()
                     ? Image.file(file, fit: BoxFit.cover)
-                    : const DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: _PlaylistControlItemColors.artwork,
-                      ),
-                      child: Icon(
-                        FluentIcons.music_note_2_24_regular,
-                        color: _PlaylistControlItemColors.artworkIcon,
-                      ),
-                    ),
+                    : const DefaultAlbumArtwork(),
           ),
         ),
         if (selectionMode)
@@ -313,12 +483,10 @@ class _QueueArtwork extends StatelessWidget {
         else if (hovered)
           Positioned.fill(
             child: Center(
-              child: IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: _PlaylistControlItemColors.overlay,
-                  foregroundColor: Colors.white,
-                  shape: const CircleBorder(),
-                ),
+              child: ArtworkFloatingActionButton(
+                tooltip: context.smPlayerI18n.t('context.play'),
+                size: 38,
+                iconSize: 17,
                 icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
                 onPressed: onPlayTrack,
               ),
@@ -616,7 +784,6 @@ class _PlaylistControlItemColors {
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
   static const favorite = Color(0xffd13438);
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
+  static const destructive = Color(0xffc42b1c);
   static const overlay = Color(0xb81e2228);
 }

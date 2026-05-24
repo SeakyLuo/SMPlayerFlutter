@@ -47,8 +47,25 @@ Future<String?> pickDesktopColor(String value) async {
   return null;
 }
 
-Future<String?> pickDirectoryFromDesktopShell() {
-  return _desktopFeatureChannel.invokeMethod<String>('pickDirectory');
+Future<String?> pickDirectoryFromDesktopShell({
+  String? title,
+  String? buttonLabel,
+  String? defaultPath,
+}) {
+  final arguments = <String, String>{};
+  if (title != null) {
+    arguments['title'] = title;
+  }
+  if (buttonLabel != null) {
+    arguments['buttonLabel'] = buttonLabel;
+  }
+  if (defaultPath != null) {
+    arguments['defaultPath'] = defaultPath;
+  }
+  return _desktopFeatureChannel.invokeMethod<String>(
+    'pickDirectory',
+    arguments,
+  );
 }
 
 Future<void> dismissNativeSplash() async {

@@ -58,96 +58,50 @@ void main() {
     expect(picture?.data, [0x89, 0x50, 0x4e, 0x47]);
   });
 
-  test('Id3TagService reads constant bitrate mp3 duration', () async {
-    final directory = await Directory.systemTemp.createTemp('smplayer_id3_');
+  test('Id3TagService reads FLAC tags, lyrics, and artwork', () async {
+    final directory = await Directory.systemTemp.createTemp('smplayer_flac_');
     addTearDown(() async {
       await directory.delete(recursive: true);
     });
-    final songFile = File('${directory.path}${Platform.pathSeparator}song.mp3');
-    await songFile.writeAsBytes([
-      0xff,
-      0xfb,
-      0x90,
-      0x64,
-      ...List.filled(15996, 0),
-    ]);
+    final songFile = File(
+      '${directory.path}${Platform.pathSeparator}song.flac',
+    );
+    await songFile.writeAsBytes(
+      _flacFile(
+        comments: const [
+          'TITLE=Flac Title',
+          'ARTIST=Flac Artist',
+          'ALBUM=Flac Album',
+          'ALBUMARTIST=Flac Album Artist',
+          'TRACKNUMBER=3/10',
+          'DATE=2025-04-02',
+          'GENRE=Jazz',
+          'COMPOSER=Flac Composer',
+          'UNSYNCEDLYRICS=[00:02.00]Flac line',
+        ],
+        picture: _pictureBlock('image/png', [0x89, 0x50]),
+      ),
+    );
 
     const service = Id3TagService();
+    final properties = await service.readSongTagProperties(songFile.path);
+    final picture = await service.readFirstPicture(songFile.path);
 
-    expect(await service.readDurationSeconds(songFile.path), 1);
+    expect(properties.title, 'Flac Title');
+    expect(properties.artist, 'Flac Artist');
+    expect(properties.album, 'Flac Album');
+    expect(properties.albumArtist, 'Flac Album Artist');
+    expect(properties.trackNumber, 3);
+    expect(properties.year, 2025);
+    expect(properties.genre, 'Jazz');
+    expect(properties.composers, 'Flac Composer');
+    expect(
+      await service.readEmbeddedLyrics(songFile.path),
+      '[00:02.00]Flac line',
+    );
+    expect(picture?.format, 'image/png');
+    expect(picture?.data, [0x89, 0x50]);
   });
-
-  test(
-    'Id3TagService reads Xing mp3 duration before bitrate fallback',
-    () async {
-      final directory = await Directory.systemTemp.createTemp('smplayer_id3_');
-      addTearDown(() async {
-        await directory.delete(recursive: true);
-      });
-      final songFile = File(
-        '${directory.path}${Platform.pathSeparator}song.mp3',
-      );
-      final bytes = List<int>.filled(96, 0);
-      bytes.setRange(0, 4, [0xff, 0xfb, 0x90, 0x64]);
-      bytes.setRange(36, 40, ascii.encode('Xing'));
-      bytes.setRange(40, 44, [0x00, 0x00, 0x00, 0x01]);
-      bytes.setRange(44, 48, [0x00, 0x00, 0x00, 100]);
-      await songFile.writeAsBytes(bytes);
-
-      const service = Id3TagService();
-
-      expect(await service.readDurationSeconds(songFile.path), 3);
-    },
-  );
-
-  test(
-    'Id3TagService reads FLAC tags, duration, lyrics, and artwork',
-    () async {
-      final directory = await Directory.systemTemp.createTemp('smplayer_flac_');
-      addTearDown(() async {
-        await directory.delete(recursive: true);
-      });
-      final songFile = File(
-        '${directory.path}${Platform.pathSeparator}song.flac',
-      );
-      await songFile.writeAsBytes(
-        _flacFile(
-          comments: const [
-            'TITLE=Flac Title',
-            'ARTIST=Flac Artist',
-            'ALBUM=Flac Album',
-            'ALBUMARTIST=Flac Album Artist',
-            'TRACKNUMBER=3/10',
-            'DATE=2025-04-02',
-            'GENRE=Jazz',
-            'COMPOSER=Flac Composer',
-            'UNSYNCEDLYRICS=[00:02.00]Flac line',
-          ],
-          picture: _pictureBlock('image/png', [0x89, 0x50]),
-        ),
-      );
-
-      const service = Id3TagService();
-      final properties = await service.readSongTagProperties(songFile.path);
-      final picture = await service.readFirstPicture(songFile.path);
-
-      expect(properties.title, 'Flac Title');
-      expect(properties.artist, 'Flac Artist');
-      expect(properties.album, 'Flac Album');
-      expect(properties.albumArtist, 'Flac Album Artist');
-      expect(properties.trackNumber, 3);
-      expect(properties.year, 2025);
-      expect(properties.genre, 'Jazz');
-      expect(properties.composers, 'Flac Composer');
-      expect(
-        await service.readEmbeddedLyrics(songFile.path),
-        '[00:02.00]Flac line',
-      );
-      expect(await service.readDurationSeconds(songFile.path), 2);
-      expect(picture?.format, 'image/png');
-      expect(picture?.data, [0x89, 0x50]);
-    },
-  );
 
   test('Id3TagService reads Ogg Vorbis comments', () async {
     final directory = await Directory.systemTemp.createTemp('smplayer_ogg_');
@@ -177,7 +131,7 @@ void main() {
     expect(properties.year, 2024);
   });
 
-  test('Id3TagService reads M4A atoms, duration, and artwork', () async {
+  test('Id3TagService reads M4A atoms and artwork', () async {
     final directory = await Directory.systemTemp.createTemp('smplayer_m4a_');
     addTearDown(() async {
       await directory.delete(recursive: true);
@@ -207,12 +161,11 @@ void main() {
     expect(properties.albumArtist, 'M4A Album Artist');
     expect(properties.trackNumber, 5);
     expect(properties.year, 2023);
-    expect(await service.readDurationSeconds(songFile.path), 2);
     expect(picture?.format, 'image/jpeg');
     expect(picture?.data, [0xff, 0xd8]);
   });
 
-  test('Id3TagService reads WAV INFO tags and PCM duration', () async {
+  test('Id3TagService reads WAV INFO tags', () async {
     final directory = await Directory.systemTemp.createTemp('smplayer_wav_');
     addTearDown(() async {
       await directory.delete(recursive: true);
@@ -244,77 +197,70 @@ void main() {
     expect(properties.year, 2026);
     expect(properties.genre, 'Wave');
     expect(properties.composers, 'WAV Composer');
-    expect(await service.readDurationSeconds(songFile.path), 2);
   });
 
-  test(
-    'Id3TagService reads AIFF ID3 tags, lyrics, artwork, and duration',
-    () async {
-      final directory = await Directory.systemTemp.createTemp('smplayer_aiff_');
-      addTearDown(() async {
-        await directory.delete(recursive: true);
-      });
+  test('Id3TagService reads AIFF ID3 tags, lyrics, and artwork', () async {
+    final directory = await Directory.systemTemp.createTemp('smplayer_aiff_');
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
 
-      final taggedMp3 = File(
-        '${directory.path}${Platform.pathSeparator}tagged.mp3',
-      );
-      await taggedMp3.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    final taggedMp3 = File(
+      '${directory.path}${Platform.pathSeparator}tagged.mp3',
+    );
+    await taggedMp3.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
 
-      const service = Id3TagService();
-      await service.writeSongTagProperties(
-        taggedMp3.path,
-        const Id3SongTagProperties(
-          title: 'AIFF Title',
-          subtitle: 'AIFF Subtitle',
-          artist: 'AIFF Artist',
-          album: 'AIFF Album',
-          albumArtist: 'AIFF Album Artist',
-          publisher: 'AIFF Publisher',
-          trackNumber: 4,
-          year: 2026,
-          genre: 'AIFF Genre',
-          composers: 'AIFF Composer',
-        ),
-      );
-      await service.writeEmbeddedLyrics(taggedMp3.path, '[00:03.00]AIFF line');
-      await service.writeSongArtwork(
-        taggedMp3.path,
-        Id3Picture(
-          data: Uint8List.fromList([0xff, 0xd8, 0xff]),
-          format: 'image/jpeg',
-        ),
-      );
+    const service = Id3TagService();
+    await service.writeSongTagProperties(
+      taggedMp3.path,
+      const Id3SongTagProperties(
+        title: 'AIFF Title',
+        subtitle: 'AIFF Subtitle',
+        artist: 'AIFF Artist',
+        album: 'AIFF Album',
+        albumArtist: 'AIFF Album Artist',
+        publisher: 'AIFF Publisher',
+        trackNumber: 4,
+        year: 2026,
+        genre: 'AIFF Genre',
+        composers: 'AIFF Composer',
+      ),
+    );
+    await service.writeEmbeddedLyrics(taggedMp3.path, '[00:03.00]AIFF line');
+    await service.writeSongArtwork(
+      taggedMp3.path,
+      Id3Picture(
+        data: Uint8List.fromList([0xff, 0xd8, 0xff]),
+        format: 'image/jpeg',
+      ),
+    );
 
-      final id3Tag = _id3TagFromTaggedMp3(await taggedMp3.readAsBytes());
-      final songFile = File(
-        '${directory.path}${Platform.pathSeparator}song.aiff',
-      );
-      await songFile.writeAsBytes(
-        _aiffFile(sampleFrames: 88200, id3Tag: id3Tag),
-      );
+    final id3Tag = _id3TagFromTaggedMp3(await taggedMp3.readAsBytes());
+    final songFile = File(
+      '${directory.path}${Platform.pathSeparator}song.aiff',
+    );
+    await songFile.writeAsBytes(_aiffFile(sampleFrames: 88200, id3Tag: id3Tag));
 
-      final properties = await service.readSongTagProperties(songFile.path);
-      final picture = await service.readFirstPicture(songFile.path);
+    final properties = await service.readSongTagProperties(songFile.path);
+    final picture = await service.readFirstPicture(songFile.path);
 
-      expect(properties.title, 'AIFF Title');
-      expect(properties.subtitle, 'AIFF Subtitle');
-      expect(properties.artist, 'AIFF Artist');
-      expect(properties.album, 'AIFF Album');
-      expect(properties.albumArtist, 'AIFF Album Artist');
-      expect(properties.publisher, 'AIFF Publisher');
-      expect(properties.trackNumber, 4);
-      expect(properties.year, 2026);
-      expect(properties.genre, 'AIFF Genre');
-      expect(properties.composers, 'AIFF Composer');
-      expect(
-        await service.readEmbeddedLyrics(songFile.path),
-        '[00:03.00]AIFF line',
-      );
-      expect(await service.readDurationSeconds(songFile.path), 2);
-      expect(picture?.format, 'image/jpeg');
-      expect(picture?.data, [0xff, 0xd8, 0xff]);
-    },
-  );
+    expect(properties.title, 'AIFF Title');
+    expect(properties.subtitle, 'AIFF Subtitle');
+    expect(properties.artist, 'AIFF Artist');
+    expect(properties.album, 'AIFF Album');
+    expect(properties.albumArtist, 'AIFF Album Artist');
+    expect(properties.publisher, 'AIFF Publisher');
+    expect(properties.trackNumber, 4);
+    expect(properties.year, 2026);
+    expect(properties.genre, 'AIFF Genre');
+    expect(properties.composers, 'AIFF Composer');
+    expect(
+      await service.readEmbeddedLyrics(songFile.path),
+      '[00:03.00]AIFF line',
+    );
+    expect(picture?.format, 'image/jpeg');
+    expect(picture?.data, [0xff, 0xd8, 0xff]);
+  });
 
   test('Id3TagService reads APEv2 tags, lyrics, and artwork', () async {
     final directory = await Directory.systemTemp.createTemp('smplayer_ape_');
@@ -363,59 +309,52 @@ void main() {
     expect(picture?.data, [0x89, 0x50, 0x4e, 0x47]);
   });
 
-  test(
-    'Id3TagService reads WMA ASF tags, artwork, lyrics, and duration',
-    () async {
-      final directory = await Directory.systemTemp.createTemp('smplayer_wma_');
-      addTearDown(() async {
-        await directory.delete(recursive: true);
-      });
-      final songFile = File(
-        '${directory.path}${Platform.pathSeparator}song.wma',
-      );
-      await songFile.writeAsBytes(
-        _asfFile(
-          durationSeconds: 2,
-          title: 'WMA Title',
-          artist: 'WMA Artist',
-          extendedTextItems: const {
-            'WM/SubTitle': 'WMA Subtitle',
-            'WM/AlbumTitle': 'WMA Album',
-            'WM/AlbumArtist': 'WMA Album Artist',
-            'WM/Publisher': 'WMA Publisher',
-            'WM/TrackNumber': '8/14',
-            'WM/Year': '2026',
-            'WM/Genre': 'WMA Genre',
-            'WM/Composer': 'WMA Composer',
-            'WM/Lyrics': '[00:05.00]WMA line',
-          },
-          pictureBytes: const [0xff, 0xd8, 0xff],
-        ),
-      );
+  test('Id3TagService reads WMA ASF tags, artwork, and lyrics', () async {
+    final directory = await Directory.systemTemp.createTemp('smplayer_wma_');
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}${Platform.pathSeparator}song.wma');
+    await songFile.writeAsBytes(
+      _asfFile(
+        title: 'WMA Title',
+        artist: 'WMA Artist',
+        extendedTextItems: const {
+          'WM/SubTitle': 'WMA Subtitle',
+          'WM/AlbumTitle': 'WMA Album',
+          'WM/AlbumArtist': 'WMA Album Artist',
+          'WM/Publisher': 'WMA Publisher',
+          'WM/TrackNumber': '8/14',
+          'WM/Year': '2026',
+          'WM/Genre': 'WMA Genre',
+          'WM/Composer': 'WMA Composer',
+          'WM/Lyrics': '[00:05.00]WMA line',
+        },
+        pictureBytes: const [0xff, 0xd8, 0xff],
+      ),
+    );
 
-      const service = Id3TagService();
-      final properties = await service.readSongTagProperties(songFile.path);
-      final picture = await service.readFirstPicture(songFile.path);
+    const service = Id3TagService();
+    final properties = await service.readSongTagProperties(songFile.path);
+    final picture = await service.readFirstPicture(songFile.path);
 
-      expect(properties.title, 'WMA Title');
-      expect(properties.subtitle, 'WMA Subtitle');
-      expect(properties.artist, 'WMA Artist');
-      expect(properties.album, 'WMA Album');
-      expect(properties.albumArtist, 'WMA Album Artist');
-      expect(properties.publisher, 'WMA Publisher');
-      expect(properties.trackNumber, 8);
-      expect(properties.year, 2026);
-      expect(properties.genre, 'WMA Genre');
-      expect(properties.composers, 'WMA Composer');
-      expect(
-        await service.readEmbeddedLyrics(songFile.path),
-        '[00:05.00]WMA line',
-      );
-      expect(await service.readDurationSeconds(songFile.path), 2);
-      expect(picture?.format, 'image/jpeg');
-      expect(picture?.data, [0xff, 0xd8, 0xff]);
-    },
-  );
+    expect(properties.title, 'WMA Title');
+    expect(properties.subtitle, 'WMA Subtitle');
+    expect(properties.artist, 'WMA Artist');
+    expect(properties.album, 'WMA Album');
+    expect(properties.albumArtist, 'WMA Album Artist');
+    expect(properties.publisher, 'WMA Publisher');
+    expect(properties.trackNumber, 8);
+    expect(properties.year, 2026);
+    expect(properties.genre, 'WMA Genre');
+    expect(properties.composers, 'WMA Composer');
+    expect(
+      await service.readEmbeddedLyrics(songFile.path),
+      '[00:05.00]WMA line',
+    );
+    expect(picture?.format, 'image/jpeg');
+    expect(picture?.data, [0xff, 0xd8, 0xff]);
+  });
 }
 
 List<int> _flacFile({
@@ -659,17 +598,12 @@ List<int> _apeFooter({required int size, required int itemCount}) {
 }
 
 List<int> _asfFile({
-  required int durationSeconds,
   required String title,
   required String artist,
   required Map<String, String> extendedTextItems,
   required List<int> pictureBytes,
 }) {
   final objects = [
-    _asfObject(
-      _asfFilePropertiesGuid,
-      _asfFilePropertiesPayload(durationSeconds),
-    ),
     _asfObject(
       _asfContentDescriptionGuid,
       _asfContentDescriptionPayload(title: title, artist: artist),
@@ -692,22 +626,6 @@ List<int> _asfFile({
     ..._asfHeaderGuid,
     ..._uint64Le(headerPayload.length + 24),
     ...headerPayload,
-  ];
-}
-
-List<int> _asfFilePropertiesPayload(int durationSeconds) {
-  return [
-    ...List.filled(16, 0),
-    ..._uint64Le(0),
-    ..._uint64Le(0),
-    ..._uint64Le(0),
-    ..._uint64Le(durationSeconds * 10000000),
-    ..._uint64Le(0),
-    ..._uint64Le(0),
-    ..._uint32Le(0),
-    ..._uint32Le(0),
-    ..._uint32Le(0),
-    ..._uint32Le(0),
   ];
 }
 
@@ -848,24 +766,6 @@ const _asfHeaderGuid = [
   0x62,
   0xce,
   0x6c,
-];
-const _asfFilePropertiesGuid = [
-  0xa1,
-  0xdc,
-  0xab,
-  0x8c,
-  0x47,
-  0xa9,
-  0xcf,
-  0x11,
-  0x8e,
-  0xe4,
-  0x00,
-  0xc0,
-  0x0c,
-  0x20,
-  0x53,
-  0x65,
 ];
 const _asfContentDescriptionGuid = [
   0x33,
