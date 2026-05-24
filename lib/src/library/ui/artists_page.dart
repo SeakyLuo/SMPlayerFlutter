@@ -118,10 +118,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               if (!mounted) {
                 return;
               }
-              ref
-                  .read(libraryRepositoryProvider)
-                  .addRecentSearch(target, SearchHistoryType.artists);
-              ref.invalidate(libraryViewDataProvider);
+              unawaited(
+                ref
+                    .read(libraryRepositoryProvider)
+                    .addRecentSearch(target, SearchHistoryType.artists)
+                    .then((_) {
+                      invalidateRecentSearchData(ref);
+                    }),
+              );
               if (_artistListController.hasClients) {
                 _artistListController.jumpTo(targetIndex * artistRowHeight);
               }
@@ -610,19 +614,27 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             ? exactMatches.first
             : (suggestions.isEmpty ? null : suggestions.first);
     if (targetArtist != null) {
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(targetArtist.name, SearchHistoryType.artists);
-      ref.invalidate(libraryViewDataProvider);
+      unawaited(
+        ref
+            .read(libraryRepositoryProvider)
+            .addRecentSearch(targetArtist.name, SearchHistoryType.artists)
+            .then((_) {
+              invalidateRecentSearchData(ref);
+            }),
+      );
       setState(() {
         _artistSearch = targetArtist.name;
       });
       _openArtistDetail(targetArtist.name);
     } else {
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.artists);
-      ref.invalidate(libraryViewDataProvider);
+      unawaited(
+        ref
+            .read(libraryRepositoryProvider)
+            .addRecentSearch(query, SearchHistoryType.artists)
+            .then((_) {
+              invalidateRecentSearchData(ref);
+            }),
+      );
     }
   }
 
@@ -631,10 +643,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       _artistSearch = query;
       _artistSearchFocused = false;
     });
-    ref
-        .read(libraryRepositoryProvider)
-        .addRecentSearch(query, SearchHistoryType.artists);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .addRecentSearch(query, SearchHistoryType.artists)
+          .then((_) {
+            invalidateRecentSearchData(ref);
+          }),
+    );
     final snapshot = ref.read(libraryViewDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
@@ -657,8 +673,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _removeArtistRecentSearch(int entryId) {
-    ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
+    );
   }
 
   void _clearArtistRecentSearches() {
@@ -668,8 +689,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             .where((entry) => entry.type == SearchHistoryType.artists)
             .map((entry) => entry.id)
             .toList();
-    ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
+    );
   }
 
   void _returnToArtistList() {

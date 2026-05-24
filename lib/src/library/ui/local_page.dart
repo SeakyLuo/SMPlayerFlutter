@@ -2448,9 +2448,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       return;
     }
 
-    ref
-        .read(libraryRepositoryProvider)
-        .addRecentSearch(query, SearchHistoryType.folders);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .addRecentSearch(query, SearchHistoryType.folders)
+          .then((_) {
+            invalidateRecentSearchData(ref);
+          }),
+    );
     context.go(
       Uri(
         path: '/search',

@@ -1028,13 +1028,9 @@ class _NowPlayingPagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color:
-            nightMode
-                ? _NowPlayingColors.nightPageSurface
-                : _NowPlayingColors.pageSurface,
+        color: ShellThemeColors.of(context).workspaceSolidSurface,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -1099,8 +1095,6 @@ class _NowPlayingColors {
 
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
-  static const pageSurface = ShellColors.workspaceSolidSurface;
-  static const nightPageSurface = ShellColors.nightWorkspaceSurface;
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);
 }

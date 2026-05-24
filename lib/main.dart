@@ -48,9 +48,8 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
 
   Future<void> _initialize() async {
     const repository = LibraryRepository();
-    await repository.initializeLibraryDatabase();
-    final settingsController = SettingsController(null, repository);
-    await settingsController.refresh();
+    final settingsSnapshot = await repository.initializeSettingsSnapshot();
+    final settingsController = SettingsController(settingsSnapshot, repository);
     final initialLocation = resolveRestoredPage(
       settingsController.snapshot.lastPage,
     );

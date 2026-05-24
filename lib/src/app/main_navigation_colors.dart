@@ -25,65 +25,12 @@ class MainNavigationViewColors {
   static const dropdownShadow = Color(0x2935495f);
 
   static MainNavigationPalette of(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    if (!dark) {
-      return const MainNavigationPalette(
-        textStrong: textStrong,
-        textMuted: textMuted,
-        highlightText: accentStrong,
-        accentStrong: accentStrong,
-        accentHover: accentHover,
-        iconButtonHover: iconButtonHover,
-        collapsedHover: collapsedHover,
-        accentBorder: accentBorder,
-        searchSurface: searchSurface,
-        focusedSearchSurface: focusedSearchSurface,
-        searchBorder: searchBorder,
-        focusedSearchBorder: focusedSearchBorder,
-        searchFocusRing: searchFocusRing,
-        searchInsetHighlight: searchInsetHighlight,
-        searchPlaceholder: searchPlaceholder,
-        clearButton: clearButton,
-        clearButtonHover: clearButtonHover,
-        clearForeground: accentStrong,
-        sectionDivider: sectionDivider,
-        sectionLabel: sectionLabel,
-        dropdownSurface: dropdownSurface,
-        dropdownShadow: dropdownShadow,
-        searchHistoryHeader: Color(0x945f625f),
-        searchHistoryItemHover: accentHover,
-      );
-    }
-    return const MainNavigationPalette(
-      textStrong: Color(0xebffffff),
-      textMuted: Color(0xc7ffffff),
-      highlightText: Color(0xffffffff),
-      accentStrong: Color(0xff7fc4ff),
-      accentHover: Color(0x290078d7),
-      iconButtonHover: Color(0x2e0078d7),
-      collapsedHover: Color(0x330078d7),
-      accentBorder: Color(0x330078d7),
-      searchSurface: Color(0x0cffffff),
-      focusedSearchSurface: Color(0x240078d7),
-      searchBorder: Color(0x1fd6e0ec),
-      focusedSearchBorder: Color(0x570078d7),
-      searchFocusRing: Color(0x290078d7),
-      searchInsetHighlight: Color(0x00ffffff),
-      searchPlaceholder: Color(0x94ffffff),
-      clearButton: Color(0x290078d7),
-      clearButtonHover: Color(0x290078d7),
-      clearForeground: Color(0xffffffff),
-      sectionDivider: Color(0x1fd6e0ec),
-      sectionLabel: Color(0x9ecbd5e1),
-      dropdownSurface: Color(0xfa1d232b),
-      dropdownShadow: Color(0x5c000000),
-      searchHistoryHeader: Color(0x7acbd5e1),
-      searchHistoryItemHover: Color(0x290078d7),
-    );
+    return Theme.of(context).extension<MainNavigationPalette>() ??
+        MainNavigationPalette.light;
   }
 }
 
-class MainNavigationPalette {
+class MainNavigationPalette extends ThemeExtension<MainNavigationPalette> {
   const MainNavigationPalette({
     required this.textStrong,
     required this.textMuted,
@@ -135,4 +82,71 @@ class MainNavigationPalette {
   final Color dropdownShadow;
   final Color searchHistoryHeader;
   final Color searchHistoryItemHover;
+
+  static const light = MainNavigationPalette(
+    textStrong: MainNavigationViewColors.textStrong,
+    textMuted: MainNavigationViewColors.textMuted,
+    highlightText: MainNavigationViewColors.accentStrong,
+    accentStrong: MainNavigationViewColors.accentStrong,
+    accentHover: MainNavigationViewColors.accentHover,
+    iconButtonHover: MainNavigationViewColors.iconButtonHover,
+    collapsedHover: MainNavigationViewColors.collapsedHover,
+    accentBorder: MainNavigationViewColors.accentBorder,
+    searchSurface: MainNavigationViewColors.searchSurface,
+    focusedSearchSurface: MainNavigationViewColors.focusedSearchSurface,
+    searchBorder: MainNavigationViewColors.searchBorder,
+    focusedSearchBorder: MainNavigationViewColors.focusedSearchBorder,
+    searchFocusRing: MainNavigationViewColors.searchFocusRing,
+    searchInsetHighlight: MainNavigationViewColors.searchInsetHighlight,
+    searchPlaceholder: MainNavigationViewColors.searchPlaceholder,
+    clearButton: MainNavigationViewColors.clearButton,
+    clearButtonHover: MainNavigationViewColors.clearButtonHover,
+    clearForeground: MainNavigationViewColors.accentStrong,
+    sectionDivider: MainNavigationViewColors.sectionDivider,
+    sectionLabel: MainNavigationViewColors.sectionLabel,
+    dropdownSurface: MainNavigationViewColors.dropdownSurface,
+    dropdownShadow: MainNavigationViewColors.dropdownShadow,
+    searchHistoryHeader: Color(0x945f625f),
+    searchHistoryItemHover: MainNavigationViewColors.accentHover,
+  );
+
+  static const dark = MainNavigationPalette(
+    textStrong: Color(0xebffffff),
+    textMuted: Color(0xc7ffffff),
+    highlightText: Color(0xffffffff),
+    accentStrong: Color(0xff7fc4ff),
+    accentHover: Color(0x290078d7),
+    iconButtonHover: Color(0x2e0078d7),
+    collapsedHover: Color(0x330078d7),
+    accentBorder: Color(0x330078d7),
+    searchSurface: Color(0x0cffffff),
+    focusedSearchSurface: Color(0x240078d7),
+    searchBorder: Color(0x1fd6e0ec),
+    focusedSearchBorder: Color(0x570078d7),
+    searchFocusRing: Color(0x290078d7),
+    searchInsetHighlight: Color(0x00ffffff),
+    searchPlaceholder: Color(0x94ffffff),
+    clearButton: Color(0x290078d7),
+    clearButtonHover: Color(0x290078d7),
+    clearForeground: Color(0xffffffff),
+    sectionDivider: Color(0x1fd6e0ec),
+    sectionLabel: Color(0x9ecbd5e1),
+    dropdownSurface: Color(0xfa1d232b),
+    dropdownShadow: Color(0x5c000000),
+    searchHistoryHeader: Color(0x7acbd5e1),
+    searchHistoryItemHover: Color(0x290078d7),
+  );
+
+  @override
+  MainNavigationPalette copyWith() {
+    return this;
+  }
+
+  @override
+  MainNavigationPalette lerp(
+    ThemeExtension<MainNavigationPalette>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! MainNavigationPalette ? this : other;
+  }
 }

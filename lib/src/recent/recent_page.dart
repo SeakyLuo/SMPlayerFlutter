@@ -637,10 +637,14 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   void _clearHistory() {
     if (_activeTab == RecentTab.played) {
       ref.read(libraryRepositoryProvider).clearRecentPlayed();
+      ref.invalidate(recentPageDataProvider);
     } else if (_activeTab == RecentTab.searches) {
-      ref.read(libraryRepositoryProvider).clearRecentSearches();
+      unawaited(
+        ref.read(libraryRepositoryProvider).clearRecentSearches().then((_) {
+          invalidateRecentSearchData(ref);
+        }),
+      );
     }
-    ref.invalidate(recentPageDataProvider);
     setState(_clearSelection);
   }
 
@@ -1204,7 +1208,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
             .where((entry) => entryIdSet.contains(entry.id))
             .toList();
     await ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(recentPageDataProvider);
+    invalidateRecentSearchData(ref);
     if (!mounted) {
       return;
     }
@@ -1216,7 +1220,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         await ref
             .read(libraryRepositoryProvider)
             .restoreRecentSearches(entries);
-        ref.invalidate(recentPageDataProvider);
+        invalidateRecentSearchData(ref);
       },
     );
   }
@@ -1286,17 +1290,15 @@ class _RecentTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final height = nightMode ? 46.0 : 54.0;
-    final spacing = nightMode ? 10.0 : 34.0;
+    final colors = RecentThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 12, right: 18),
       child: SizedBox(
-        height: height,
+        height: colors.tabsHeight,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            spacing: spacing,
+            spacing: colors.tabsSpacing,
             children: [
               _RecentTabButton(
                 active: activeTab == RecentTab.added,
@@ -1478,41 +1480,20 @@ class _RecentAppBarTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final foregroundColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightAccentText
-                : _RecentColors.nightText
-            : active
-            ? _RecentColors.accentStrong
-            : _RecentColors.textStrong;
-    final backgroundColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightAppBarTabActiveSurface
-                : _RecentColors.nightControlSurface
-            : active
-            ? _RecentColors.accentSoft
-            : _RecentColors.appBarTabSurface;
-    final borderColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightAppBarTabActiveBorder
-                : _RecentColors.nightBorder
-            : active
-            ? _RecentColors.appBarTabActiveBorder
-            : _RecentColors.appBarTabBorder;
+    final colors = RecentThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: TextButton(
         style: _recentTextButtonStyle(
-          foregroundColor: foregroundColor,
-          backgroundColor: backgroundColor,
-          borderColor: borderColor,
+          foregroundColor:
+              active ? colors.appBarTabActiveText : colors.appBarTabText,
+          backgroundColor:
+              active ? colors.appBarTabActiveSurface : colors.appBarTabSurface,
+          borderColor:
+              active ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
           minHeight: 34,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          radius: nightMode ? 999 : 10,
+          radius: colors.appBarTabRadius,
         ),
         onPressed: onPressed,
         child: _RecentTabContent(
@@ -1547,23 +1528,21 @@ class _RecentTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    if (nightMode) {
+    final colors = RecentThemeColors.of(context);
+    if (colors.primaryTabsUsePillStyle) {
       return TextButton(
         style: _recentTextButtonStyle(
           foregroundColor:
-              active ? _RecentColors.nightAccentText : _RecentColors.nightMuted,
+              active ? colors.primaryTabActiveText : colors.primaryTabText,
           backgroundColor:
               active
-                  ? _RecentColors.nightRecentTabActiveSurface
-                  : _RecentColors.nightRecentTabSurface,
+                  ? colors.primaryTabActiveSurface
+                  : colors.primaryTabSurface,
           borderColor:
-              active
-                  ? _RecentColors.nightRecentTabActiveBorder
-                  : _RecentColors.nightBorder,
+              active ? colors.primaryTabActiveBorder : colors.primaryTabBorder,
           minHeight: 38,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          radius: 999,
+          radius: colors.primaryTabRadius,
         ),
         onPressed: onPressed,
         child: _RecentTabContent(
@@ -1585,7 +1564,7 @@ class _RecentTabButton extends StatelessWidget {
     return TextButton(
       style: _recentTextButtonStyle(
         foregroundColor:
-            active ? _RecentColors.accent : _RecentColors.textRootMuted,
+            active ? colors.primaryTabActiveText : colors.primaryTabText,
         backgroundColor: Colors.transparent,
         borderColor: Colors.transparent,
         minHeight: 54,
@@ -1695,51 +1674,28 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final foregroundColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightAccentText
-                : _RecentColors.nightText
-            : active
-            ? _RecentColors.accent
-            : _RecentColors.textStrong;
-    final backgroundColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightPlayedFilterActiveSurface
-                : _RecentColors.nightControlSurface
-            : active
-            ? _RecentColors.playedFilterActiveSurface
-            : _RecentColors.appBarTabSurface;
-    final borderColor =
-        nightMode
-            ? active
-                ? _RecentColors.nightPlayedFilterActiveBorder
-                : _RecentColors.nightBorder
-            : active
-            ? _RecentColors.playedFilterActiveBorder
-            : _RecentColors.playedFilterBorder;
+    final colors = RecentThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          boxShadow:
-              !nightMode && active
-                  ? const [
-                    BoxShadow(
-                      color: _RecentColors.playedFilterActiveRing,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                  : const [],
+          boxShadow: active ? colors.playedFilterActiveShadow : const [],
         ),
         child: TextButton.icon(
           style: _recentTextButtonStyle(
-            foregroundColor: foregroundColor,
-            backgroundColor: backgroundColor,
-            borderColor: borderColor,
+            foregroundColor:
+                active
+                    ? colors.playedFilterActiveText
+                    : colors.playedFilterText,
+            backgroundColor:
+                active
+                    ? colors.playedFilterActiveSurface
+                    : colors.playedFilterSurface,
+            borderColor:
+                active
+                    ? colors.playedFilterActiveBorder
+                    : colors.playedFilterBorder,
             minHeight: 36,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             radius: 10,
@@ -2912,6 +2868,130 @@ class _RecentColors {
   static const nightRecentTabActiveBorder = Color(0x7a0078d7);
   static const nightPlayedFilterActiveSurface = Color(0x2e0078d7);
   static const nightPlayedFilterActiveBorder = Color(0x610078d7);
+}
+
+class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
+  const RecentThemeColors({
+    required this.tabsHeight,
+    required this.tabsSpacing,
+    required this.appBarTabText,
+    required this.appBarTabActiveText,
+    required this.appBarTabSurface,
+    required this.appBarTabActiveSurface,
+    required this.appBarTabBorder,
+    required this.appBarTabActiveBorder,
+    required this.appBarTabRadius,
+    required this.primaryTabsUsePillStyle,
+    required this.primaryTabText,
+    required this.primaryTabActiveText,
+    required this.primaryTabSurface,
+    required this.primaryTabActiveSurface,
+    required this.primaryTabBorder,
+    required this.primaryTabActiveBorder,
+    required this.primaryTabRadius,
+    required this.playedFilterText,
+    required this.playedFilterActiveText,
+    required this.playedFilterSurface,
+    required this.playedFilterActiveSurface,
+    required this.playedFilterBorder,
+    required this.playedFilterActiveBorder,
+    required this.playedFilterActiveShadow,
+  });
+
+  final double tabsHeight;
+  final double tabsSpacing;
+  final Color appBarTabText;
+  final Color appBarTabActiveText;
+  final Color appBarTabSurface;
+  final Color appBarTabActiveSurface;
+  final Color appBarTabBorder;
+  final Color appBarTabActiveBorder;
+  final double appBarTabRadius;
+  final bool primaryTabsUsePillStyle;
+  final Color primaryTabText;
+  final Color primaryTabActiveText;
+  final Color primaryTabSurface;
+  final Color primaryTabActiveSurface;
+  final Color primaryTabBorder;
+  final Color primaryTabActiveBorder;
+  final double primaryTabRadius;
+  final Color playedFilterText;
+  final Color playedFilterActiveText;
+  final Color playedFilterSurface;
+  final Color playedFilterActiveSurface;
+  final Color playedFilterBorder;
+  final Color playedFilterActiveBorder;
+  final List<BoxShadow> playedFilterActiveShadow;
+
+  static const light = RecentThemeColors(
+    tabsHeight: 54,
+    tabsSpacing: 34,
+    appBarTabText: _RecentColors.textStrong,
+    appBarTabActiveText: _RecentColors.accentStrong,
+    appBarTabSurface: _RecentColors.appBarTabSurface,
+    appBarTabActiveSurface: _RecentColors.accentSoft,
+    appBarTabBorder: _RecentColors.appBarTabBorder,
+    appBarTabActiveBorder: _RecentColors.appBarTabActiveBorder,
+    appBarTabRadius: 10,
+    primaryTabsUsePillStyle: false,
+    primaryTabText: _RecentColors.textRootMuted,
+    primaryTabActiveText: _RecentColors.accent,
+    primaryTabSurface: Colors.transparent,
+    primaryTabActiveSurface: Colors.transparent,
+    primaryTabBorder: Colors.transparent,
+    primaryTabActiveBorder: Colors.transparent,
+    primaryTabRadius: 0,
+    playedFilterText: _RecentColors.textStrong,
+    playedFilterActiveText: _RecentColors.accent,
+    playedFilterSurface: _RecentColors.appBarTabSurface,
+    playedFilterActiveSurface: _RecentColors.playedFilterActiveSurface,
+    playedFilterBorder: _RecentColors.playedFilterBorder,
+    playedFilterActiveBorder: _RecentColors.playedFilterActiveBorder,
+    playedFilterActiveShadow: [
+      BoxShadow(color: _RecentColors.playedFilterActiveRing, spreadRadius: 2),
+    ],
+  );
+
+  static const dark = RecentThemeColors(
+    tabsHeight: 46,
+    tabsSpacing: 10,
+    appBarTabText: _RecentColors.nightText,
+    appBarTabActiveText: _RecentColors.nightAccentText,
+    appBarTabSurface: _RecentColors.nightControlSurface,
+    appBarTabActiveSurface: _RecentColors.nightAppBarTabActiveSurface,
+    appBarTabBorder: _RecentColors.nightBorder,
+    appBarTabActiveBorder: _RecentColors.nightAppBarTabActiveBorder,
+    appBarTabRadius: 999,
+    primaryTabsUsePillStyle: true,
+    primaryTabText: _RecentColors.nightMuted,
+    primaryTabActiveText: _RecentColors.nightAccentText,
+    primaryTabSurface: _RecentColors.nightRecentTabSurface,
+    primaryTabActiveSurface: _RecentColors.nightRecentTabActiveSurface,
+    primaryTabBorder: _RecentColors.nightBorder,
+    primaryTabActiveBorder: _RecentColors.nightRecentTabActiveBorder,
+    primaryTabRadius: 999,
+    playedFilterText: _RecentColors.nightText,
+    playedFilterActiveText: _RecentColors.nightAccentText,
+    playedFilterSurface: _RecentColors.nightControlSurface,
+    playedFilterActiveSurface: _RecentColors.nightPlayedFilterActiveSurface,
+    playedFilterBorder: _RecentColors.nightBorder,
+    playedFilterActiveBorder: _RecentColors.nightPlayedFilterActiveBorder,
+    playedFilterActiveShadow: [],
+  );
+
+  static RecentThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<RecentThemeColors>()!;
+  }
+
+  @override
+  RecentThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  RecentThemeColors lerp(ThemeExtension<RecentThemeColors>? other, double t) {
+    return t < 0.5 || other is! RecentThemeColors ? this : other;
+  }
 }
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {

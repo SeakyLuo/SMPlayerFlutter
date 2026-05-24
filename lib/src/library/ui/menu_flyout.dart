@@ -415,7 +415,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _MenuFlyoutColors.of(context);
+    final colors = MenuFlyoutThemeColors.of(context);
     final maxHeight = (boundaryBottom - state.position.dy - _menuFlyoutMargin)
         .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
     return Positioned(
@@ -520,7 +520,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
       );
     }
 
-    final colors = _MenuFlyoutColors.of(context);
+    final colors = MenuFlyoutThemeColors.of(context);
     final hasSubmenu = item.submenu.isNotEmpty && !item.disabled;
     final active = _hovered && !item.disabled && !_busy;
     final foreground =
@@ -668,8 +668,8 @@ double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
       });
 }
 
-class _MenuFlyoutColors {
-  const _MenuFlyoutColors({
+class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
+  const MenuFlyoutThemeColors({
     required this.surface,
     required this.border,
     required this.shadow,
@@ -689,29 +689,42 @@ class _MenuFlyoutColors {
   final Color hoverSurface;
   final Color checked;
 
-  static _MenuFlyoutColors of(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    if (dark) {
-      return const _MenuFlyoutColors(
-        surface: Color(0xfa181e26),
-        border: Color(0x30d6e0ec),
-        shadow: Color(0x5c000000),
-        text: Colors.white,
-        hoverText: Colors.white,
-        disabledText: Color(0x8fffffff),
-        hoverSurface: Color(0x2e0078d7),
-        checked: Colors.white,
-      );
-    }
-    return const _MenuFlyoutColors(
-      surface: Color(0xffffffff),
-      border: Color(0x337e8b9a),
-      shadow: Color(0x2e263344),
-      text: Color(0xff1f252b),
-      hoverText: Color(0xff0063b1),
-      disabledText: Color(0x751f252b),
-      hoverSurface: Color(0x1a0078d7),
-      checked: Color(0xff0063b1),
-    );
+  static const light = MenuFlyoutThemeColors(
+    surface: Color(0xffffffff),
+    border: Color(0x337e8b9a),
+    shadow: Color(0x2e263344),
+    text: Color(0xff1f252b),
+    hoverText: Color(0xff0063b1),
+    disabledText: Color(0x751f252b),
+    hoverSurface: Color(0x1a0078d7),
+    checked: Color(0xff0063b1),
+  );
+
+  static const dark = MenuFlyoutThemeColors(
+    surface: Color(0xfa181e26),
+    border: Color(0x30d6e0ec),
+    shadow: Color(0x5c000000),
+    text: Colors.white,
+    hoverText: Colors.white,
+    disabledText: Color(0x8fffffff),
+    hoverSurface: Color(0x2e0078d7),
+    checked: Colors.white,
+  );
+
+  static MenuFlyoutThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<MenuFlyoutThemeColors>() ?? light;
+  }
+
+  @override
+  MenuFlyoutThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  MenuFlyoutThemeColors lerp(
+    ThemeExtension<MenuFlyoutThemeColors>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! MenuFlyoutThemeColors ? this : other;
   }
 }

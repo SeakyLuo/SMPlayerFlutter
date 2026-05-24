@@ -690,7 +690,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ref.read(libraryRepositoryProvider).addRecentSearch(query, type).then((
         _,
       ) {
-        ref.invalidate(libraryViewDataProvider);
+        invalidateRecentSearchData(ref);
       }),
     );
   }
@@ -939,12 +939,9 @@ class _SearchPageSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final shellColors = ShellThemeColors.of(context);
     return ColoredBox(
-      color:
-          nightMode
-              ? ShellColors.nightWorkspaceSurface
-              : ShellColors.workspaceSolidSurface,
+      color: shellColors.workspaceSolidSurface,
       child: SizedBox.expand(child: child),
     );
   }
@@ -969,25 +966,14 @@ class _SearchResultToolbarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final colors = SearchPageThemeColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           stops: const [0, 0.78, 1],
-          colors:
-              nightMode
-                  ? const [
-                    Color(0xf5101419),
-                    Color(0xe0101419),
-                    Color(0x00101419),
-                  ]
-                  : const [
-                    Color(0xf5fafcff),
-                    Color(0xe0fafcff),
-                    Color(0x00fafcff),
-                  ],
+          colors: colors.resultToolbarGradient,
         ),
       ),
       child: Padding(
@@ -1152,7 +1138,7 @@ class _SearchFilterTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     final foreground =
         selected
             ? Colors.white
@@ -1306,7 +1292,7 @@ class _SearchResultSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     final preview = activeFilter == SearchFilterKey.all;
     final visibleCount =
         preview && !expanded ? section.previewLimit : section.count;
@@ -2037,7 +2023,7 @@ class _SearchPlaylistGridCardState extends State<_SearchPlaylistGridCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     final songs =
         widget.playlist.songIds
             .map((songId) => widget.songsById[songId])
@@ -2177,7 +2163,7 @@ class _SearchSelectionMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: selected ? _SearchColors.accent : colors.selectionMarkSurface,
@@ -2238,7 +2224,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     final isArtist = widget.type == SearchResultType.artists;
     final artworkFile =
         widget.card.artworkUrl.isEmpty ? null : File(widget.card.artworkUrl);
@@ -2337,7 +2323,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
   }
 
   Color _cardSurface(bool isArtist) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     if (widget.selected) {
       return colors.cardSelected;
     }
@@ -2386,7 +2372,7 @@ class _SearchCompactCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     return Row(
       children: [
         artwork,
@@ -2434,7 +2420,7 @@ class _SearchGridCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2539,7 +2525,7 @@ class _SearchLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _SearchThemeColors.of(context);
+    final colors = SearchPageThemeColors.of(context);
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 52),
       child: Padding(
@@ -2573,22 +2559,14 @@ class _SearchEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final colors = SearchPageThemeColors.of(context);
     return SizedBox(
       width: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color:
-              nightMode
-                  ? _SearchColors.nightEmptyStateSurface
-                  : _SearchColors.emptyStateSurface,
+          color: colors.emptyStateSurface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color:
-                nightMode
-                    ? _SearchColors.nightEmptyStateBorder
-                    : _SearchColors.emptyStateBorder,
-          ),
+          border: Border.all(color: colors.emptyStateBorder),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
@@ -2597,10 +2575,7 @@ class _SearchEmptyState extends StatelessWidget {
             softWrap: true,
             overflow: TextOverflow.visible,
             style: TextStyle(
-              color:
-                  nightMode
-                      ? _SearchColors.electronNightTextStrong
-                      : _SearchColors.electronTextStrong,
+              color: colors.textStrong,
               fontSize: 26,
               fontWeight: FontWeight.w500,
               height: 1.2,
@@ -2630,8 +2605,8 @@ bool _isSearchSongSelectionKey(String key) {
   return key.startsWith('songs:');
 }
 
-class _SearchThemeColors {
-  const _SearchThemeColors({
+class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
+  const SearchPageThemeColors({
     required this.textStrong,
     required this.textMuted,
     required this.controlBorder,
@@ -2645,6 +2620,9 @@ class _SearchThemeColors {
     required this.cardHover,
     required this.cardSelected,
     required this.panel,
+    required this.emptyStateSurface,
+    required this.emptyStateBorder,
+    required this.resultToolbarGradient,
   });
 
   final Color textStrong;
@@ -2660,27 +2638,11 @@ class _SearchThemeColors {
   final Color cardHover;
   final Color cardSelected;
   final Color panel;
+  final Color emptyStateSurface;
+  final Color emptyStateBorder;
+  final List<Color> resultToolbarGradient;
 
-  static _SearchThemeColors of(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    if (nightMode) {
-      return const _SearchThemeColors(
-        textStrong: Color(0xeff6f9fc),
-        textMuted: Color(0xb8d8e2ef),
-        controlBorder: Color(0x29d6e0ec),
-        subtleBorder: Color(0x29d6e0ec),
-        controlSurface: Color(0x0effffff),
-        controlHover: Color(0x290078d7),
-        accentStrong: Color(0xff5fb6ff),
-        accentSelectedBorder: Color(0x6b0078d7),
-        selectionMarkBorder: Color(0x6bdce6f2),
-        selectionMarkSurface: Color(0xb812161d),
-        cardHover: Color(0x210078d7),
-        cardSelected: Color(0x2e0078d7),
-        panel: Color(0x0cffffff),
-      );
-    }
-    return const _SearchThemeColors(
+  static const light = SearchPageThemeColors(
       textStrong: _SearchColors.textStrong,
       textMuted: _SearchColors.textMuted,
       controlBorder: _SearchColors.controlBorder,
@@ -2694,7 +2656,53 @@ class _SearchThemeColors {
       cardHover: _SearchColors.cardHover,
       cardSelected: _SearchColors.cardSelected,
       panel: Colors.white,
+      emptyStateSurface: _SearchColors.emptyStateSurface,
+      emptyStateBorder: _SearchColors.emptyStateBorder,
+      resultToolbarGradient: [
+        Color(0xf5fafcff),
+        Color(0xe0fafcff),
+        Color(0x00fafcff),
+      ],
     );
+
+  static const dark = SearchPageThemeColors(
+    textStrong: Color(0xeff6f9fc),
+    textMuted: Color(0xb8d8e2ef),
+    controlBorder: Color(0x29d6e0ec),
+    subtleBorder: Color(0x29d6e0ec),
+    controlSurface: Color(0x0effffff),
+    controlHover: Color(0x290078d7),
+    accentStrong: Color(0xff5fb6ff),
+    accentSelectedBorder: Color(0x6b0078d7),
+    selectionMarkBorder: Color(0x6bdce6f2),
+    selectionMarkSurface: Color(0xb812161d),
+    cardHover: Color(0x210078d7),
+    cardSelected: Color(0x2e0078d7),
+    panel: Color(0x0cffffff),
+    emptyStateSurface: _SearchColors.nightEmptyStateSurface,
+    emptyStateBorder: _SearchColors.nightEmptyStateBorder,
+    resultToolbarGradient: [
+      Color(0xf5101419),
+      Color(0xe0101419),
+      Color(0x00101419),
+    ],
+  );
+
+  static SearchPageThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<SearchPageThemeColors>() ?? light;
+  }
+
+  @override
+  SearchPageThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  SearchPageThemeColors lerp(
+    covariant ThemeExtension<SearchPageThemeColors>? other,
+    double t,
+  ) {
+    return this;
   }
 }
 
@@ -2711,8 +2719,6 @@ class _SearchColors {
   static const accentSelectedBorder = Color(0x6b0078d7);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
-  static const electronTextStrong = Color(0xff1f252b);
-  static const electronNightTextStrong = Color(0xeff6f9fc);
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);
   static const nightEmptyStateSurface = Color(0x0cffffff);

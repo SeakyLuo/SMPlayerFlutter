@@ -245,10 +245,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return _settingsNoTextScaling(
       context,
       Material(
-        color:
-            Theme.of(context).brightness == Brightness.dark
-                ? ShellColors.nightWorkspaceSurface
-                : ShellColors.workspaceSolidSurface,
+        color: ShellThemeColors.of(context).workspaceSolidSurface,
         child: Stack(
           children: [
             SingleChildScrollView(
@@ -5522,61 +5519,12 @@ class SettingsPageColors {
   static const danger = Color(0xffb42318);
 
   static SettingsPalette of(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    if (!dark) {
-      return const SettingsPalette(
-        textStrong: textStrong,
-        textMuted: textMuted,
-        accent: accent,
-        accentStrong: accentStrong,
-        accentHover: accentHover,
-        cardSurface: cardSurface,
-        cardBorder: cardBorder,
-        cardShadow: cardShadow,
-        inputSurface: inputSurface,
-        inputBorder: inputBorder,
-        selectOpenSurface: selectOpenSurface,
-        selectOpenBorder: selectOpenBorder,
-        dropdownSurface: dropdownSurface,
-        dropdownShadow: dropdownShadow,
-        colorSwatchInset: colorSwatchInset,
-        buttonSurface: buttonSurface,
-        progressPanelSurface: Color(0xc2ffffff),
-        progressPanelBorder: Color(0x247e8b9a),
-        progressTrack: Color(0x297e8b9a),
-        dialogSurface: dialogSurface,
-        overlay: overlay,
-        preferenceHeader: preferenceHeader,
-      );
-    }
-    return const SettingsPalette(
-      textStrong: Color(0xeff6f9fc),
-      textMuted: Color(0xadCBD5E1),
-      accent: accent,
-      accentStrong: Color(0xff7fc4ff),
-      accentHover: Color(0x2e0078d7),
-      cardSurface: Color(0x0cffffff),
-      cardBorder: Color(0x1fd6e0ec),
-      cardShadow: Color(0x33000000),
-      inputSurface: Color(0x11ffffff),
-      inputBorder: Color(0x1fd6e0ec),
-      selectOpenSurface: Color(0x290078d7),
-      selectOpenBorder: Color(0x570078d7),
-      dropdownSurface: Color(0xfa181e26),
-      dropdownShadow: Color(0x5c000000),
-      colorSwatchInset: Color(0x1fffffff),
-      buttonSurface: Color(0x11ffffff),
-      progressPanelSurface: Color(0x11ffffff),
-      progressPanelBorder: Color(0x1fd6e0ec),
-      progressTrack: Color(0x2ecbd5e1),
-      dialogSurface: Color(0xff181e26),
-      overlay: Color(0x7a05070a),
-      preferenceHeader: Color(0x14ffffff),
-    );
+    return Theme.of(context).extension<SettingsPalette>() ??
+        SettingsPalette.light;
   }
 }
 
-class SettingsPalette {
+class SettingsPalette extends ThemeExtension<SettingsPalette> {
   const SettingsPalette({
     required this.textStrong,
     required this.textMuted,
@@ -5602,6 +5550,56 @@ class SettingsPalette {
     required this.preferenceHeader,
   });
 
+  static const light = SettingsPalette(
+        textStrong: SettingsPageColors.textStrong,
+        textMuted: SettingsPageColors.textMuted,
+        accent: SettingsPageColors.accent,
+        accentStrong: SettingsPageColors.accentStrong,
+        accentHover: SettingsPageColors.accentHover,
+        cardSurface: SettingsPageColors.cardSurface,
+        cardBorder: SettingsPageColors.cardBorder,
+        cardShadow: SettingsPageColors.cardShadow,
+        inputSurface: SettingsPageColors.inputSurface,
+        inputBorder: SettingsPageColors.inputBorder,
+        selectOpenSurface: SettingsPageColors.selectOpenSurface,
+        selectOpenBorder: SettingsPageColors.selectOpenBorder,
+        dropdownSurface: SettingsPageColors.dropdownSurface,
+        dropdownShadow: SettingsPageColors.dropdownShadow,
+        colorSwatchInset: SettingsPageColors.colorSwatchInset,
+        buttonSurface: SettingsPageColors.buttonSurface,
+        progressPanelSurface: Color(0xc2ffffff),
+        progressPanelBorder: Color(0x247e8b9a),
+        progressTrack: Color(0x297e8b9a),
+        dialogSurface: SettingsPageColors.dialogSurface,
+        overlay: SettingsPageColors.overlay,
+        preferenceHeader: SettingsPageColors.preferenceHeader,
+      );
+
+  static const dark = SettingsPalette(
+      textStrong: Color(0xeff6f9fc),
+      textMuted: Color(0xadCBD5E1),
+      accent: SettingsPageColors.accent,
+      accentStrong: Color(0xff7fc4ff),
+      accentHover: Color(0x2e0078d7),
+      cardSurface: Color(0x0cffffff),
+      cardBorder: Color(0x1fd6e0ec),
+      cardShadow: Color(0x33000000),
+      inputSurface: Color(0x11ffffff),
+      inputBorder: Color(0x1fd6e0ec),
+      selectOpenSurface: Color(0x290078d7),
+      selectOpenBorder: Color(0x570078d7),
+      dropdownSurface: Color(0xfa181e26),
+      dropdownShadow: Color(0x5c000000),
+      colorSwatchInset: Color(0x1fffffff),
+      buttonSurface: Color(0x11ffffff),
+      progressPanelSurface: Color(0x11ffffff),
+      progressPanelBorder: Color(0x1fd6e0ec),
+      progressTrack: Color(0x2ecbd5e1),
+      dialogSurface: Color(0xff181e26),
+      overlay: Color(0x7a05070a),
+      preferenceHeader: Color(0x14ffffff),
+    );
+
   final Color textStrong;
   final Color textMuted;
   final Color accent;
@@ -5624,4 +5622,17 @@ class SettingsPalette {
   final Color dialogSurface;
   final Color overlay;
   final Color preferenceHeader;
+
+  @override
+  SettingsPalette copyWith() {
+    return this;
+  }
+
+  @override
+  SettingsPalette lerp(
+    covariant ThemeExtension<SettingsPalette>? other,
+    double t,
+  ) {
+    return this;
+  }
 }

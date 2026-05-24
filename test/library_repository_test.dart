@@ -114,13 +114,31 @@ void main() {
     final repository = LibraryRepository(
       databaseFileResolver: () async => databaseFile,
     );
+    final reopenedRepository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
 
     final entry = await repository.addRecentSearch('Jazz');
     final snapshot = await repository.getLibraryViewData();
+    final recentPageData = await repository.getRecentPageData();
+    final reopenedRecentPageData = await reopenedRepository.getRecentPageData();
+    final reopenedNavigationData =
+        await reopenedRepository.getShellNavigationData();
 
     expect(entry, isNotNull);
     expect(databaseFile.existsSync(), isTrue);
     expect(snapshot.recentSearches.map((search) => search.query), ['Jazz']);
+    expect(recentPageData.recentSearches.map((search) => search.query), [
+      'Jazz',
+    ]);
+    expect(
+      reopenedRecentPageData.recentSearches.map((search) => search.query),
+      ['Jazz'],
+    );
+    expect(
+      reopenedNavigationData.recentSearches.map((search) => search.query),
+      ['Jazz'],
+    );
     expect(snapshot.rootPath, '');
   });
 

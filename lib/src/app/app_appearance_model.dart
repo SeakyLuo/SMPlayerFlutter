@@ -1,8 +1,23 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/search_page.dart';
+import 'package:smplayer_flutter/src/playback/media_control.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
+import 'package:smplayer_flutter/src/recent/recent_page.dart';
+import 'package:smplayer_flutter/src/recent/recent_search_list.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
+import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 bool isAppNightMode(SettingsSnapshot settings) {
   return switch (settings.nightMode) {
@@ -62,6 +77,53 @@ ThemeData buildSmPlayerTheme(
       },
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: accent),
+    extensions: [
+      resolvedBrightness == Brightness.dark
+          ? ShellThemeColors.dark
+          : ShellThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? MainNavigationPalette.dark
+          : MainNavigationPalette.light,
+      resolvedBrightness == Brightness.dark
+          ? SmPlayerTextIconButtonColors.night
+          : SmPlayerTextIconButtonColors.day,
+      resolvedBrightness == Brightness.dark
+          ? AppNotificationThemeColors.dark
+          : AppNotificationThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? MissingLibraryRootThemeColors.night
+          : MissingLibraryRootThemeColors.day,
+      resolvedBrightness == Brightness.dark
+          ? DefaultAlbumArtworkThemeColors.dark
+          : DefaultAlbumArtworkThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? PopupDialogResolvedColors.dark
+          : PopupDialogResolvedColors.light,
+      resolvedBrightness == Brightness.dark
+          ? MenuFlyoutThemeColors.dark
+          : MenuFlyoutThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? RecentThemeColors.dark
+          : RecentThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? RecentSearchThemeColors.dark
+          : RecentSearchThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? SearchPageThemeColors.dark
+          : SearchPageThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? SettingsPalette.dark
+          : SettingsPalette.light,
+      resolvedBrightness == Brightness.dark
+          ? MediaControlThemeColors.dark
+          : MediaControlThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? NowPlayingFullThemeColors.dark
+          : NowPlayingFullThemeColors.light,
+      resolvedBrightness == Brightness.dark
+          ? HeaderedPlaylistThemeColors.night
+          : HeaderedPlaylistThemeColors.day,
+    ],
     sliderTheme: SliderThemeData(
       activeTrackColor: accent,
       thumbColor: accent,

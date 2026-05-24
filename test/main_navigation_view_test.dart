@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -9,6 +10,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show SettingsSnapshot;
 
 const testI18n = SmPlayerI18n(
   locale: 'zh-CN',
@@ -336,6 +339,12 @@ void main() {
                 type: SearchHistoryType.albums,
                 searchedAt: '2026-05-20T00:00:00Z',
               ),
+              SearchHistoryEntry(
+                id: 9,
+                query: 'Blues',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-20T00:00:00Z',
+              ),
             ],
             onPaneToggle: () {},
             onSearchTextChanged: (_) {},
@@ -365,6 +374,7 @@ void main() {
 
     expect(find.text('最近搜索'), findsOneWidget);
     expect(find.text('Jazz'), findsOneWidget);
+    expect(find.text('Blues'), findsOneWidget);
     expect(find.text('Album only'), findsNothing);
     final searchFieldSize = tester.getSize(
       find.byKey(const ValueKey('MainNavigationView.SearchFieldShell')),
@@ -386,12 +396,24 @@ void main() {
       8,
     );
     expect(
+      find.byKey(const ValueKey('MainNavigationView.SearchHistoryBackdrop')),
+      findsOneWidget,
+    );
+    expect(
       tester
           .getSize(
             find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
           )
           .width,
       searchFieldSize.width,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
+          )
+          .height,
+      130,
     );
     final historyPanel = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
@@ -406,6 +428,72 @@ void main() {
         offset: Offset(0, 18),
       ),
     ]);
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('MainNavigationView.SearchHistoryHeader')),
+      ),
+      Size(searchFieldSize.width - 16, 30),
+    );
+    expect(
+      tester
+              .getTopLeft(
+                find.byKey(
+                  const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+                ),
+              )
+              .dy -
+          tester
+              .getBottomLeft(
+                find.byKey(
+                  const ValueKey('MainNavigationView.SearchHistoryHeader'),
+                ),
+              )
+              .dy,
+      6,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(
+              const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+            ),
+          )
+          .height,
+      38,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(
+              const ValueKey('MainNavigationView.SearchHistorySelect.7'),
+            ),
+          )
+          .height,
+      38,
+    );
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('MainNavigationView.SearchHistoryRemove.7')),
+      ),
+      const Size(30, 30),
+    );
+    expect(
+      tester
+              .getTopLeft(
+                find.byKey(
+                  const ValueKey('MainNavigationView.SearchHistoryItem.9'),
+                ),
+              )
+              .dy -
+          tester
+              .getBottomLeft(
+                find.byKey(
+                  const ValueKey('MainNavigationView.SearchHistoryItem.7'),
+                ),
+              )
+              .dy,
+      2,
+    );
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('MusicLibraryItem'))).dy,
       libraryTop,
@@ -678,9 +766,12 @@ void main() {
             libraryRepositoryProvider.overrideWithValue(repository),
             smPlayerI18nProvider.overrideWith((ref) async => testI18n),
           ],
-          child: const SmPlayerI18nScope(
+          child: SmPlayerI18nScope(
             i18n: testI18n,
-            child: MaterialApp(home: SmPlayerShellPage()),
+            child: MaterialApp(
+              theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+              home: const SmPlayerShellPage(),
+            ),
           ),
         ),
       );

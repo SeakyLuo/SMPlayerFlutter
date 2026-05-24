@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/main.dart' as app;
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
@@ -109,7 +110,7 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('RecentItem')));
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     expect(router.routeInformationProvider.value.uri.path, '/recent');
 
@@ -137,7 +138,7 @@ void main() {
         child: _RouterTestApp(router: router, i18n: testI18n),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpRouter(tester);
 
     expect(router.routeInformationProvider.value.uri.path, '/recent');
   });
@@ -335,6 +336,46 @@ void main() {
     ]);
   });
 
+  testWidgets('committed sidebar search refreshes recent page searches', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+    final repository = _RecordingRouterRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    router.go('/recent');
+    await _pumpRouter(tester);
+    await tester.tap(find.text('recent.searches'));
+    await _pumpRouter(tester);
+    expect(find.text('Jazz'), findsNothing);
+
+    router.go('/songs');
+    await _pumpRouter(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      'Jazz',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await _pumpRouter(tester);
+
+    router.go('/recent');
+    await _pumpRouter(tester);
+    await tester.tap(find.text('recent.searches'));
+    await _pumpRouter(tester);
+
+    expect(find.text('Jazz'), findsOneWidget);
+  });
+
   testWidgets('sidebar back returns playlist details to playlists', (
     tester,
   ) async {
@@ -511,6 +552,12 @@ void main() {
   });
 }
 
+Future<void> _pumpRouter(WidgetTester tester) async {
+  for (var pumpIndex = 0; pumpIndex < 6; pumpIndex += 1) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 class _RouterTestApp extends StatelessWidget {
   const _RouterTestApp({required this.router, required this.i18n});
 
@@ -521,7 +568,10 @@ class _RouterTestApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return SmPlayerI18nScope(
       i18n: i18n,
-      child: MaterialApp.router(routerConfig: router),
+      child: MaterialApp.router(
+        theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+        routerConfig: router,
+      ),
     );
   }
 }
@@ -539,6 +589,69 @@ ShellNavigationData _shellNavigationData(LibraryViewData data) {
 
 class _RecordingRouterRepository extends LibraryRepository {
   final recordedSearches = <({String query, SearchHistoryType type})>[];
+
+  List<SearchHistoryEntry> get _recentSearchEntries {
+    return [
+      for (final entry in recordedSearches.indexed)
+        SearchHistoryEntry(
+          id: entry.$1 + 1,
+          query: entry.$2.query,
+          type: entry.$2.type,
+          searchedAt: '2026-05-23T00:00:00Z',
+        ),
+    ];
+  }
+
+  @override
+  Future<LibraryViewData> getLibraryViewData() async {
+    return LibraryViewData(
+      songs: const [],
+      recentSongs: const [],
+      recentPlaylists: const [],
+      recentAlbums: const [],
+      recentArtists: const [],
+      recentSearches: _recentSearchEntries,
+      playlists: const [],
+      favoritePlaylistId: 0,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+      hasLibrary: false,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      showCount: true,
+      hideMultiSelectCommandBarAfterOperation: true,
+      databasePath: '',
+      rootPath: r'C:\Music',
+    );
+  }
+
+  @override
+  Future<RecentPageData> getRecentPageData() async {
+    return RecentPageData(
+      songs: const [],
+      recentSongs: const [],
+      recentPlaylists: const [],
+      recentAlbums: const [],
+      recentArtists: const [],
+      recentSearches: _recentSearchEntries,
+      playlists: const [],
+      favoritePlaylistId: 0,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+      showCount: true,
+      hideMultiSelectCommandBarAfterOperation: true,
+    );
+  }
+
+  @override
+  Future<ShellNavigationData> getShellNavigationData() async {
+    return ShellNavigationData(
+      songs: const [],
+      playlists: const [],
+      folders: const [],
+      recentSearches: _recentSearchEntries,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+      rootPath: r'C:\Music',
+    );
+  }
 
   @override
   Future<SearchHistoryEntry?> addRecentSearch(

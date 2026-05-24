@@ -28,7 +28,7 @@ class RecentSearchList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _RecentSearchColors.of(context);
+    final colors = RecentSearchThemeColors.of(context);
     if (entries.isEmpty) {
       return Center(
         child: Text(
@@ -96,7 +96,7 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _RecentSearchColors.of(context);
+    final colors = RecentSearchThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: MouseRegion(
@@ -250,8 +250,8 @@ IconData _searchHistoryTypeIcon(SearchHistoryType type) {
   };
 }
 
-class _RecentSearchColors {
-  const _RecentSearchColors({
+class RecentSearchThemeColors extends ThemeExtension<RecentSearchThemeColors> {
+  const RecentSearchThemeColors({
     required this.surface,
     required this.hoverSurface,
     required this.border,
@@ -281,65 +281,70 @@ class _RecentSearchColors {
   final Color textSoft;
   final Color removeHoverSurface;
 
-  static _RecentSearchColors of(BuildContext context) {
-    final night = Theme.of(context).brightness == Brightness.dark;
-    if (night) {
-      return const _RecentSearchColors(
-        surface: Color(0x0cffffff),
-        hoverSurface: Color(0x210078d7),
-        border: Color(0x1fd6e0ec),
-        hoverBorder: Color(0x470078d7),
-        shadow: [
-          BoxShadow(
-            color: Color(0x24000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-        hoverShadow: [
-          BoxShadow(color: Color(0x290078d7), blurRadius: 0, spreadRadius: 1),
-        ],
-        selectedShadow: [],
-        accent: Color(0xff0078d7),
-        accentStrong: Color(0xff7fc4ff),
-        textStrong: Color(0xebffffff),
-        textMuted: Color(0xc7ffffff),
-        textSoft: Color(0x94ffffff),
-        removeHoverSurface: Color(0x2e0078d7),
-      );
-    }
-    return const _RecentSearchColors(
-      surface: Color(0x9effffff),
-      hoverSurface: Color(0x1f0078d7),
-      border: Color(0x1f7e8b9a),
-      hoverBorder: Color(0x3d0078d7),
-      shadow: [
-        BoxShadow(
-          color: Color(0x0a273446),
-          blurRadius: 18,
-          offset: Offset(0, 8),
-        ),
-      ],
-      hoverShadow: [
-        BoxShadow(
-          color: Color(0x210078d7),
-          blurRadius: 26,
-          offset: Offset(0, 12),
-        ),
-      ],
-      selectedShadow: [
-        BoxShadow(
-          color: Color(0x0f273446),
-          blurRadius: 22,
-          offset: Offset(0, 10),
-        ),
-      ],
-      accent: Color(0xff0078d7),
-      accentStrong: Color(0xff0063b1),
-      textStrong: Color(0xff111827),
-      textMuted: Color(0xff5b697a),
-      textSoft: Color(0xff8290a1),
-      removeHoverSurface: Color(0x1a0078d7),
-    );
+  static const light = RecentSearchThemeColors(
+    surface: Color(0x9effffff),
+    hoverSurface: Color(0x1f0078d7),
+    border: Color(0x1f7e8b9a),
+    hoverBorder: Color(0x3d0078d7),
+    shadow: [
+      BoxShadow(color: Color(0x0a273446), blurRadius: 18, offset: Offset(0, 8)),
+    ],
+    hoverShadow: [
+      BoxShadow(
+        color: Color(0x210078d7),
+        blurRadius: 26,
+        offset: Offset(0, 12),
+      ),
+    ],
+    selectedShadow: [
+      BoxShadow(
+        color: Color(0x0f273446),
+        blurRadius: 22,
+        offset: Offset(0, 10),
+      ),
+    ],
+    accent: Color(0xff0078d7),
+    accentStrong: Color(0xff0063b1),
+    textStrong: Color(0xff111827),
+    textMuted: Color(0xff5b697a),
+    textSoft: Color(0xff8290a1),
+    removeHoverSurface: Color(0x1a0078d7),
+  );
+
+  static const dark = RecentSearchThemeColors(
+    surface: Color(0x0cffffff),
+    hoverSurface: Color(0x210078d7),
+    border: Color(0x1fd6e0ec),
+    hoverBorder: Color(0x470078d7),
+    shadow: [
+      BoxShadow(color: Color(0x24000000), blurRadius: 18, offset: Offset(0, 8)),
+    ],
+    hoverShadow: [
+      BoxShadow(color: Color(0x290078d7), blurRadius: 0, spreadRadius: 1),
+    ],
+    selectedShadow: [],
+    accent: Color(0xff0078d7),
+    accentStrong: Color(0xff7fc4ff),
+    textStrong: Color(0xebffffff),
+    textMuted: Color(0xc7ffffff),
+    textSoft: Color(0x94ffffff),
+    removeHoverSurface: Color(0x2e0078d7),
+  );
+
+  static RecentSearchThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<RecentSearchThemeColors>()!;
+  }
+
+  @override
+  RecentSearchThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  RecentSearchThemeColors lerp(
+    ThemeExtension<RecentSearchThemeColors>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! RecentSearchThemeColors ? this : other;
   }
 }

@@ -12,6 +12,80 @@ const _appNotificationRadius = 8.0;
 
 _AppNotificationController? _currentNotification;
 
+class AppNotificationThemeColors
+    extends ThemeExtension<AppNotificationThemeColors> {
+  const AppNotificationThemeColors({
+    required this.primaryShadow,
+    required this.secondaryShadow,
+    required this.glass,
+    required this.border,
+    required this.top,
+    required this.bottom,
+    required this.text,
+    required this.actionForeground,
+    required this.actionBackground,
+    required this.actionHoverBackground,
+    required this.actionBorder,
+  });
+
+  final Color primaryShadow;
+  final Color secondaryShadow;
+  final Color glass;
+  final Color border;
+  final Color top;
+  final Color bottom;
+  final Color text;
+  final Color actionForeground;
+  final Color actionBackground;
+  final Color actionHoverBackground;
+  final Color actionBorder;
+
+  static final light = AppNotificationThemeColors(
+    primaryShadow: Colors.black.withValues(alpha: 0.18),
+    secondaryShadow: Colors.black.withValues(alpha: 0.10),
+    glass: const Color(0x9cf7fbff),
+    border: const Color(0x2e56657a),
+    top: const Color(0xe8ffffff),
+    bottom: const Color(0xcaf6faff),
+    text: const Color(0xff3b4654),
+    actionForeground: const Color(0xff2d3644),
+    actionBackground: Colors.white.withValues(alpha: 0.82),
+    actionHoverBackground: Colors.white.withValues(alpha: 0.96),
+    actionBorder: const Color(0x3d788291),
+  );
+
+  static final dark = AppNotificationThemeColors(
+    primaryShadow: Colors.black.withValues(alpha: 0.42),
+    secondaryShadow: Colors.black.withValues(alpha: 0.28),
+    glass: const Color(0x54262f3c),
+    border: Colors.white.withValues(alpha: 0.14),
+    top: const Color(0xb8262f3c),
+    bottom: const Color(0x9c141b24),
+    text: const Color(0xffeaf2fb),
+    actionForeground: Colors.white.withValues(alpha: 0.86),
+    actionBackground: Colors.white.withValues(alpha: 0.08),
+    actionHoverBackground: const Color(0x2e0078d7),
+    actionBorder: Colors.white.withValues(alpha: 0.13),
+  );
+
+  static AppNotificationThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<AppNotificationThemeColors>()!;
+  }
+
+  @override
+  AppNotificationThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  AppNotificationThemeColors lerp(
+    ThemeExtension<AppNotificationThemeColors>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! AppNotificationThemeColors ? this : other;
+  }
+}
+
 Future<SnackBarClosedReason> showUndoableSnackBar({
   required BuildContext context,
   required SmPlayerI18n i18n,
@@ -130,19 +204,18 @@ class _AppNotificationOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final width = math.min(680.0, mediaQuery.size.width - 40.0);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colors = AppNotificationThemeColors.of(context);
     final notification = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_appNotificationRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.18),
+            color: colors.primaryShadow,
             blurRadius: 58,
             offset: const Offset(0, 22),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.10),
+            color: colors.secondaryShadow,
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
@@ -163,25 +236,16 @@ class _AppNotificationOverlay extends StatelessWidget {
           lightIntensity: 0.46,
           ambientStrength: 0.18,
           glowIntensity: 0.42,
-          glassColor:
-              isDark ? const Color(0x54262f3c) : const Color(0x9cf7fbff),
+          glassColor: colors.glass,
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border.all(
-              color:
-                  isDark
-                      ? Colors.white.withValues(alpha: 0.14)
-                      : const Color(0x2e56657a),
-            ),
+            border: Border.all(color: colors.border),
             borderRadius: BorderRadius.circular(_appNotificationRadius),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors:
-                  isDark
-                      ? const [Color(0xb8262f3c), Color(0x9c141b24)]
-                      : const [Color(0xe8ffffff), Color(0xcaf6faff)],
+              colors: [colors.top, colors.bottom],
             ),
           ),
           child: Padding(
@@ -200,10 +264,7 @@ class _AppNotificationOverlay extends StatelessWidget {
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color:
-                          isDark
-                              ? const Color(0xffeaf2fb)
-                              : const Color(0xff3b4654),
+                      color: colors.text,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       height: 1.45,
@@ -253,7 +314,7 @@ class _NotificationActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppNotificationThemeColors.of(context);
     final accent = Theme.of(context).colorScheme.primary;
     return ValueListenableBuilder<bool>(
       valueListenable: running,
@@ -270,29 +331,21 @@ class _NotificationActionButton extends StatelessWidget {
                   states.contains(WidgetState.focused)) {
                 return accent;
               }
-              return isDark
-                  ? accent.withValues(alpha: 0.86)
-                  : const Color(0xff2d3644);
+              return colors.actionForeground;
             }),
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.hovered) ||
                   states.contains(WidgetState.focused)) {
-                return isDark
-                    ? accent.withValues(alpha: 0.18)
-                    : Colors.white.withValues(alpha: 0.96);
+                return colors.actionHoverBackground;
               }
-              return isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.82);
+              return colors.actionBackground;
             }),
             side: WidgetStateProperty.resolveWith((states) {
               final color =
                   states.contains(WidgetState.hovered) ||
                           states.contains(WidgetState.focused)
                       ? accent.withValues(alpha: 0.24)
-                      : isDark
-                      ? Colors.white.withValues(alpha: 0.13)
-                      : const Color(0x3d788291);
+                      : colors.actionBorder;
               return BorderSide(color: color);
             }),
             shape: WidgetStatePropertyAll(

@@ -253,7 +253,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   final _routeMemory = <String, String>{};
   final _navigationHistory = <String>[];
   var _searchText = '';
-  var _sidebarRecentSearches = const <SearchHistoryEntry>[];
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
   int? _finishingAudioTrackId;
@@ -378,18 +377,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         isNavigationPaneVisible && navigationMode != SmPlayerNavigationMode.wide
             ? SmPlayerShellMetrics.sidebarWidth
             : shellSidebarWidth;
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final shellColors = ShellThemeColors.of(context);
     final isNavigationOverlaySurface =
         isNavigationPaneVisible &&
         navigationMode != SmPlayerNavigationMode.wide;
     final navigationOverlayShadow =
         navigationMode == SmPlayerNavigationMode.minimal
-            ? nightMode
-                ? ShellColors.nightNavigationMinimalShadow
-                : ShellColors.navigationMinimalShadow
-            : nightMode
-            ? ShellColors.nightNavigationOverlayShadow
-            : ShellColors.navigationOverlayShadow;
+            ? shellColors.navigationMinimalShadow
+            : shellColors.navigationOverlayShadow;
 
     return ProviderScope(
       overrides: [
@@ -417,12 +412,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  nightMode
-                      ? ShellColors.nightBodyHighlight
-                      : ShellColors.bodyHighlight,
-                  Colors.transparent,
-                ],
+                colors: [shellColors.bodyHighlight, Colors.transparent],
                 stops: const [0, 0.36],
               ),
             ),
@@ -431,13 +421,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors:
-                      nightMode
-                          ? const [
-                            ShellColors.nightBodyTop,
-                            ShellColors.nightBodyBottom,
-                          ]
-                          : const [ShellColors.bodyTop, ShellColors.bodyBottom],
+                  colors: [shellColors.bodyTop, shellColors.bodyBottom],
                 ),
               ),
               child: SafeArea(
@@ -484,11 +468,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                   decoration: BoxDecoration(
                                     color:
                                         isNavigationOverlaySurface
-                                            ? nightMode
-                                                ? ShellColors
-                                                    .nightNavigationOverlaySurface
-                                                : ShellColors
-                                                    .navigationOverlaySurface
+                                            ? shellColors
+                                                .navigationOverlaySurface
                                             : Colors.transparent,
                                     boxShadow:
                                         isNavigationOverlaySurface
@@ -525,12 +506,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             widget.canGoBack ||
                                             _navigationHistory.length > 1;
                                         final recentSearches =
-                                            _sidebarRecentSearches.isNotEmpty
-                                                ? _sidebarRecentSearches
-                                                : snapshot?.recentSearches ??
-                                                    const <
-                                                      SearchHistoryEntry
-                                                    >[];
+                                            snapshot?.recentSearches ??
+                                            const <SearchHistoryEntry>[];
                                         return MainNavigationView(
                                           isPaneOpen: isNavigationPaneVisible,
                                           currentPath: currentPath,
@@ -565,30 +542,30 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                           onSearchCleared: _clearSearch,
                                           onItemInvoked: _navigateTo,
                                           onRecentSearchRemove: (entryId) {
-                                            setState(() {
-                                              _sidebarRecentSearches =
-                                                  _sidebarRecentSearches
-                                                      .where(
-                                                        (entry) =>
-                                                            entry.id != entryId,
-                                                      )
-                                                      .toList();
-                                            });
-                                            ref
-                                                .read(libraryRepositoryProvider)
-                                                .removeRecentSearches([
-                                                  entryId,
-                                                ]);
-                                            _invalidateRecentSearchData();
+                                            unawaited(
+                                              ref
+                                                  .read(
+                                                    libraryRepositoryProvider,
+                                                  )
+                                                  .removeRecentSearches([
+                                                    entryId,
+                                                  ])
+                                                  .then((_) {
+                                                    _invalidateRecentSearchData();
+                                                  }),
+                                            );
                                           },
                                           onRecentSearchesClear: () {
-                                            setState(() {
-                                              _sidebarRecentSearches = const [];
-                                            });
-                                            ref
-                                                .read(libraryRepositoryProvider)
-                                                .clearRecentSearches();
-                                            _invalidateRecentSearchData();
+                                            unawaited(
+                                              ref
+                                                  .read(
+                                                    libraryRepositoryProvider,
+                                                  )
+                                                  .clearRecentSearches()
+                                                  .then((_) {
+                                                    _invalidateRecentSearchData();
+                                                  }),
+                                            );
                                           },
                                           onCreatePlaylist: () {
                                             unawaited(
@@ -2817,19 +2794,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           ref.read(libraryRepositoryProvider);
       unawaited(
         searchRepository.addRecentSearch(nextSearchText, type).then((entry) {
-          if (mounted && entry != null) {
-            setState(() {
-              _sidebarRecentSearches = [
-                entry,
-                ..._sidebarRecentSearches.where(
-                  (recentSearch) =>
-                      recentSearch.type != entry.type ||
-                      recentSearch.query.toLowerCase() !=
-                          entry.query.toLowerCase(),
-                ),
-              ];
-            });
-          }
           if (onRecentSearchRecorded != null) {
             onRecentSearchRecorded();
           } else {
@@ -2849,10 +2813,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   void _invalidateRecentSearchData() {
-    ref.invalidate(libraryViewDataProvider);
-    ref.invalidate(shellNavigationDataProvider);
-    ref.invalidate(recentPageDataProvider);
-    ref.invalidate(recentSearchesProvider);
+    invalidateRecentSearchData(ref);
   }
 
   Future<void> _showVoiceAssistantDialog(

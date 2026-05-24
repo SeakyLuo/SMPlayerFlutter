@@ -7,18 +7,18 @@ class _PlayerLiquidGlassFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final night = MediaControlColors.isNight(context);
+    final colors = MediaControlThemeColors.of(context);
     return GlassContainer(
       useOwnLayer: true,
       quality: GlassQuality.standard,
       shape: const LiquidRoundedRectangle(borderRadius: 0),
       settings: LiquidGlassSettings(
         blur: 18,
-        thickness: night ? 34 : 28,
-        lightIntensity: night ? 0.42 : 0.56,
+        thickness: colors.glassThickness,
+        lightIntensity: colors.glassLightIntensity,
         chromaticAberration: 0.08,
-        saturation: night ? 1.18 : 1.34,
-        glassColor: night ? const Color(0x2411161c) : const Color(0x30ffffff),
+        saturation: colors.glassSaturation,
+        glassColor: colors.glassColor,
         standardOpacityMultiplier: 0.72,
       ),
       clipBehavior: Clip.hardEdge,
@@ -61,15 +61,12 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth <= _playerCompactBreakpoint;
-        final night = MediaControlColors.isNight(context);
-        final coverWash = _accentColor.withValues(alpha: 0.24);
-        final nightCoverWash = _accentColor.withValues(
-          alpha: compact ? 0.20 : 0.22,
+        final colors = MediaControlThemeColors.of(context);
+        final coverWash = _accentColor.withValues(
+          alpha: compact ? colors.compactCoverWashAlpha : colors.coverWashAlpha,
         );
         final borderColor =
-            compact
-                ? MediaControlColors.compactPlayerBorderFor(night)
-                : MediaControlColors.playerBorderFor(night);
+            compact ? colors.compactPlayerBorder : colors.playerBorder;
         final border =
             compact
                 ? Border(top: BorderSide(color: borderColor))
@@ -82,15 +79,15 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
             compact
                 ? [
                   BoxShadow(
-                    color: MediaControlColors.compactPlayerShadowFor(night),
+                    color: colors.compactPlayerShadow,
                     offset: const Offset(0, -12),
                     blurRadius: 36,
                   ),
                 ]
                 : [
                   BoxShadow(
-                    color: MediaControlColors.playerShadowFor(night),
-                    offset: Offset(0, night ? -18 : 18),
+                    color: colors.playerShadow,
+                    offset: Offset(0, colors.wideShadowOffsetY),
                     blurRadius: 48,
                   ),
                 ];
@@ -100,13 +97,13 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
           child:
               compact
                   ? _PlayerCompactTintedBackground(
-                    night: night,
-                    coverWash: night ? nightCoverWash : coverWash,
+                    colors: colors,
+                    coverWash: coverWash,
                     child: widget.child,
                   )
                   : _PlayerWideTintedBackground(
-                    night: night,
-                    coverWash: night ? nightCoverWash : coverWash,
+                    colors: colors,
+                    coverWash: coverWash,
                     child: widget.child,
                   ),
         );
@@ -145,12 +142,12 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
 
 class _PlayerWideTintedBackground extends StatelessWidget {
   const _PlayerWideTintedBackground({
-    required this.night,
+    required this.colors,
     required this.coverWash,
     required this.child,
   });
 
-  final bool night;
+  final MediaControlThemeColors colors;
   final Color coverWash;
   final Widget child;
 
@@ -158,10 +155,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color:
-            night
-                ? MediaControlColors.nightPlayerSurface
-                : MediaControlColors.playerSurfaceSolid,
+        color: colors.wideSurface,
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -169,7 +163,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [coverWash, Colors.transparent],
-            stops: [0, night ? 0.46 : 0.42],
+            stops: [0, colors.wideWashStop],
           ),
         ),
         child: DecoratedBox(
@@ -177,16 +171,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors:
-                  night
-                      ? [
-                        MediaControlColors.nightPlayerHighlight,
-                        MediaControlColors.nightPlayerAccentWash,
-                      ]
-                      : [
-                        MediaControlColors.playerSurface,
-                        MediaControlColors.playerAccentWash,
-                      ],
+              colors: colors.wideHighlightGradient,
             ),
           ),
           child: child,
@@ -198,12 +183,12 @@ class _PlayerWideTintedBackground extends StatelessWidget {
 
 class _PlayerCompactTintedBackground extends StatelessWidget {
   const _PlayerCompactTintedBackground({
-    required this.night,
+    required this.colors,
     required this.coverWash,
     required this.child,
   });
 
-  final bool night;
+  final MediaControlThemeColors colors;
   final Color coverWash;
   final Widget child;
 
@@ -214,26 +199,14 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            color:
-                night
-                    ? MediaControlColors.nightCompactPlayerSurface
-                    : MediaControlColors.compactPlayerSurface,
+            color: colors.compactSurface,
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors:
-                    night
-                        ? [
-                          MediaControlColors.nightCompactPlayerTop,
-                          MediaControlColors.nightCompactPlayerBottom,
-                        ]
-                        : [
-                          MediaControlColors.compactPlayerTop,
-                          MediaControlColors.compactPlayerBottom,
-                        ],
+                colors: colors.compactTopGradient,
               ),
             ),
             child: DecoratedBox(
@@ -241,14 +214,8 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors:
-                      night
-                          ? [
-                            coverWash,
-                            MediaControlColors.nightCompactPlayerWash,
-                          ]
-                          : [coverWash, MediaControlColors.compactPlayerWash],
-                  stops: [0, night ? 0.56 : 0.54],
+                  colors: [coverWash, colors.compactWash],
+                  stops: [0, colors.compactWashStop],
                 ),
               ),
               child: child,
@@ -262,9 +229,7 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
           height: 1,
           child: ColoredBox(
             color:
-                night
-                    ? MediaControlColors.nightCompactPlayerInsetHighlight
-                    : MediaControlColors.compactPlayerInsetHighlight,
+                colors.compactInsetHighlight,
           ),
         ),
       ],
