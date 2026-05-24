@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart'
     show getAlbumArtworkSong;
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -610,7 +611,10 @@ class _AlbumsRouterTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          theme: _albumsPageTestTheme(),
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -644,7 +648,10 @@ class _AlbumsTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: const MaterialApp(home: Scaffold(body: AlbumsPage())),
+        child: MaterialApp(
+          theme: _albumsPageTestTheme(),
+          home: const Scaffold(body: AlbumsPage()),
+        ),
       ),
     );
   }
@@ -711,12 +718,19 @@ class _AlbumsSnapshotInvalidatorState
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(home: Scaffold(body: AlbumsPage()));
+    return MaterialApp(
+      theme: _albumsPageTestTheme(),
+      home: const Scaffold(body: AlbumsPage()),
+    );
   }
 
   void _invalidateSnapshot() {
     ref.invalidate(libraryViewDataProvider);
   }
+}
+
+ThemeData _albumsPageTestTheme() {
+  return ThemeData(extensions: const [DefaultAlbumArtworkThemeColors.light]);
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

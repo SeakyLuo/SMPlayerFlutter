@@ -25,4 +25,10 @@ class CommandBarColors {
   static const accentSoft = Color(0x1a0078d7);
   static const accentBorder = Color(0x570078d7);
   static const multiSelectShadow = Color(0x2e2f425c);
+  static const appBarForeground = Color(0xff111827);
+  static const appBarForegroundDark = Color(0xfff6f9fc);
+  static const appBarHover = Color(0x12111827);
+  static const appBarPressed = Color(0x1a111827);
+  static const appBarHoverDark = Color(0x2e0078d7);
+  static const appBarPressedDark = Color(0x3d0078d7);
 }

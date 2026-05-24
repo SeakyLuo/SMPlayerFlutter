@@ -8,13 +8,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
+import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -78,6 +81,8 @@ void main() {
       'local.currentPath': 'Current Path',
       'local.folderCardStats': '{folders} folders · {songs} songs',
       'local.folderNotFound': 'Folder not found',
+      'local.folderNotFoundDescription':
+          'Return to the root folder and choose an existing folder.',
       'local.folderNameEmpty': 'Folder name cannot be empty.',
       'local.folderNameTooLong': 'Folder name cannot exceed 50 characters.',
       'local.folderNameUsed': 'A folder with this name already exists.',
@@ -367,26 +372,33 @@ void main() {
     expect(find.text('Song 139'), findsOneWidget);
   });
 
-  testWidgets('LocalPage view toggle persists Electron LocalViewMode', (
+  testWidgets('LocalPage toolbar does not expose a view toggle', (
     tester,
   ) async {
     _setLargeSurface(tester);
-    final repository = _FakeLibraryRepository();
 
     await tester.pumpWidget(
       _LocalPageTestApp(
         snapshot: _snapshot,
         i18n: i18n,
-        repository: repository,
+        repository: _FakeLibraryRepository(),
         mediaController: MediaControlController(),
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    await _pressTextButtonByLabel(tester, 'List View');
-    await tester.pumpAndSettle();
-
-    expect(repository.settingsUpdate?.localViewMode, LocalViewMode.list);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is CommandBarButton && widget.label == 'List View',
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is CommandBarButton && widget.label == 'Grid View',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('LocalPage empty root chooses and scans library', (tester) async {
@@ -410,7 +422,7 @@ void main() {
     expect(repository.scannedRootPath, r'C:\PickedMusic');
   });
 
-  testWidgets('LocalPage empty scanned library rescans current root', (
+  testWidgets('LocalPage empty scanned library shows settings action', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -426,10 +438,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Rescan Library'));
-    await tester.pumpAndSettle();
-
-    expect(repository.scannedRootPath, r'C:\Music');
+    expect(find.text('Settings'), findsOneWidget);
+    expect(repository.scannedRootPath, isNull);
   });
 
   testWidgets('LocalPage custom root scan receives progress and cancellation', (
@@ -869,6 +879,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _localPageTestTheme(),
           home: Scaffold(
             body: SizedBox(
               width: 500,
@@ -910,6 +921,7 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _localPageTestTheme(),
           home: Scaffold(
             body: SizedBox(
               width: 500,
@@ -941,6 +953,16 @@ void main() {
     expect(menuFolderPath, '');
     expect(menuPosition, isNotNull);
   });
+}
+
+ThemeData _localPageTestTheme() {
+  return ThemeData(
+    extensions: [
+      AppNotificationThemeColors.light,
+      DefaultAlbumArtworkThemeColors.light,
+      MissingLibraryRootThemeColors.day,
+    ],
+  );
 }
 
 void _setLargeSurface(WidgetTester tester) {
@@ -1014,6 +1036,7 @@ class _LocalPageTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _localPageTestTheme(),
           home: Scaffold(
             body: LocalPage(
               onPickLibraryRoot: onPickLibraryRoot,
@@ -1077,7 +1100,10 @@ class _LocalPageRouterTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          theme: _localPageTestTheme(),
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -1110,6 +1136,7 @@ class _LocalPageSearchQueryTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: _localPageTestTheme(),
           home: Scaffold(
             body: ValueListenableBuilder<String>(
               valueListenable: searchQuery,

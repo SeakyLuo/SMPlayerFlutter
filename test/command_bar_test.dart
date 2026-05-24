@@ -196,6 +196,53 @@ void main() {
     expect(invoked, 'third');
   });
 
+  testWidgets('CommandBar keeps overflow on one row instead of wrapping', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 240,
+              child: CommandBar(
+                overflowLabel: 'More',
+                children: [
+                  CommandBarButton(
+                    icon: FluentIcons.play_24_regular,
+                    label: 'Quick Play',
+                    onPressed: () {},
+                  ),
+                  CommandBarButton(
+                    icon: FluentIcons.arrow_shuffle_24_regular,
+                    label: 'Random Play',
+                    onPressed: () {},
+                  ),
+                  CommandBarButton(
+                    icon: FluentIcons.arrow_sort_24_regular,
+                    label: 'Sort',
+                    onPressed: () {},
+                  ),
+                  CommandBarButton(
+                    icon: FluentIcons.multiselect_ltr_24_regular,
+                    label: 'Multi Select',
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final commandBarRect = tester.getRect(find.byType(CommandBar));
+    expect(commandBarRect.height, 48);
+    expect(find.byKey(const ValueKey('CommandBar.MoreButton')), findsOneWidget);
+  });
+
   testWidgets('CommandBar overflow click can open a new root flyout', (
     tester,
   ) async {

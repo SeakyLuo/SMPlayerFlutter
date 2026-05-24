@@ -136,7 +136,7 @@ int dateValue(String value) {
 }
 
 String categorizeRecentDate(String value, SmPlayerI18n i18n) {
-  final date = DateTime.tryParse(value);
+  final date = DateTime.tryParse(value)?.toLocal();
   if (date == null) {
     return '';
   }
@@ -171,7 +171,7 @@ String categorizeRecentDate(String value, SmPlayerI18n i18n) {
 }
 
 String formatRecentDateTime(String value) {
-  final date = DateTime.tryParse(value);
+  final date = DateTime.tryParse(value)?.toLocal();
   if (date == null) {
     return '';
   }

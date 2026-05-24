@@ -5,8 +5,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -51,9 +53,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   late final SettingsController _settingsController;
   final _selection = PageSelectionController<String>.stored('search');
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
   var _settings = const SettingsSnapshot.defaults();
   late var _activeFilter = searchFilterKeyFromType(widget.activeType);
-  String? _lastRecentSearchKey;
   LibrarySong? _dialogSong;
   SongDialogMode? _dialogMode;
   SearchResult? _albumArtPreview;
@@ -91,8 +94,55 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   void dispose() {
+    _clearAppBarPortalOwner();
     _settingsController.dispose();
     super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+    if (notifier.state?.owner == _appBarPortalOwner) {
+      notifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required SmPlayerI18n i18n,
+    required SearchResults results,
+  }) {
+    final signature =
+        '$showPortal:$_activeFilter:${results.artists.length}:'
+        '${results.albums.length}:${results.songs.length}:'
+        '${results.playlists.length}:${results.folders.length}';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: '/search',
+        content: const SizedBox.shrink(),
+        bottomContent: _SearchFilterTabs(
+          i18n: i18n,
+          activeFilter: _activeFilter,
+          results: results,
+          onChanged: _changeFilter,
+        ),
+      );
+    });
   }
 
   @override
@@ -105,27 +155,37 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final query = widget.query.trim();
 
     return snapshotValue.when(
-      loading:
-          () => _SearchPageSurface(
-            child:
-                query.isEmpty
-                    ? Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
-                      child: _SearchEmptyState(
-                        message: i18n.t('search.enterKeyword'),
-                      ),
-                    )
-                    : _SearchLoadingState(
-                      message: i18n.t('nowPlaying.loading'),
+      loading: () {
+        _syncAppBarPortal(
+          showPortal: false,
+          i18n: i18n,
+          results: const SearchResults.empty(),
+        );
+        return _SearchPageSurface(
+          child:
+              query.isEmpty
+                  ? Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+                    child: _SearchEmptyState(
+                      message: i18n.t('search.enterKeyword'),
                     ),
+                  )
+                  : _SearchLoadingState(message: i18n.t('nowPlaying.loading')),
+        );
+      },
+      error: (_, _) {
+        _syncAppBarPortal(
+          showPortal: false,
+          i18n: i18n,
+          results: const SearchResults.empty(),
+        );
+        return _SearchPageSurface(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+            child: _SearchEmptyState(message: i18n.t('search.noResult')),
           ),
-      error:
-          (_, _) => _SearchPageSurface(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
-              child: _SearchEmptyState(message: i18n.t('search.noResult')),
-            ),
-          ),
+        );
+      },
       data: (snapshot) {
         final normalizedQuery = query.toLowerCase();
         final searchFolderPath = _searchFolderPath(
@@ -158,6 +218,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           i18n,
         );
         final hasResults = _totalCount(results) > 0;
+        final showNavigationAppBar = WorkspaceNavigationAppBarScope.of(context);
+        _syncAppBarPortal(
+          showPortal: hasResults && showNavigationAppBar,
+          i18n: i18n,
+          results: results,
+        );
         final criteria = SearchCriteria(
           artists: _settings.searchArtistsCriterion,
           albums: _settings.searchAlbumsCriterion,
@@ -196,17 +262,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         ),
                       )
                     else ...[
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _SearchResultToolbarDelegate(
-                          child: _SearchFilterTabs(
-                            i18n: i18n,
-                            activeFilter: _activeFilter,
-                            results: results,
-                            onChanged: _changeFilter,
+                      if (!showNavigationAppBar)
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _SearchResultToolbarDelegate(
+                            child: _SearchFilterTabs(
+                              i18n: i18n,
+                              activeFilter: _activeFilter,
+                              results: results,
+                              onChanged: _changeFilter,
+                            ),
                           ),
                         ),
-                      ),
                       SliverPadding(
                         padding: EdgeInsets.fromLTRB(
                           24,
@@ -680,12 +747,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         widget.folderRelativePath?.isNotEmpty == true
             ? SearchHistoryType.folders
             : searchHistoryTypeForFilter(_activeFilter);
-    final recentSearchKey = '$query:${type.name}';
-    if (_lastRecentSearchKey == recentSearchKey) {
-      return;
-    }
-
-    _lastRecentSearchKey = recentSearchKey;
     unawaited(
       ref.read(libraryRepositoryProvider).addRecentSearch(query, type).then((
         _,
@@ -2643,27 +2704,27 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
   final List<Color> resultToolbarGradient;
 
   static const light = SearchPageThemeColors(
-      textStrong: _SearchColors.textStrong,
-      textMuted: _SearchColors.textMuted,
-      controlBorder: _SearchColors.controlBorder,
-      subtleBorder: _SearchColors.subtleBorder,
-      controlSurface: _SearchColors.controlSurface,
-      controlHover: _SearchColors.accentSoft,
-      accentStrong: _SearchColors.accent,
-      accentSelectedBorder: _SearchColors.accentSelectedBorder,
-      selectionMarkBorder: Color(0x52768499),
-      selectionMarkSurface: Colors.white,
-      cardHover: _SearchColors.cardHover,
-      cardSelected: _SearchColors.cardSelected,
-      panel: Colors.white,
-      emptyStateSurface: _SearchColors.emptyStateSurface,
-      emptyStateBorder: _SearchColors.emptyStateBorder,
-      resultToolbarGradient: [
-        Color(0xf5fafcff),
-        Color(0xe0fafcff),
-        Color(0x00fafcff),
-      ],
-    );
+    textStrong: _SearchColors.textStrong,
+    textMuted: _SearchColors.textMuted,
+    controlBorder: _SearchColors.controlBorder,
+    subtleBorder: _SearchColors.subtleBorder,
+    controlSurface: _SearchColors.controlSurface,
+    controlHover: _SearchColors.accentSoft,
+    accentStrong: _SearchColors.accent,
+    accentSelectedBorder: _SearchColors.accentSelectedBorder,
+    selectionMarkBorder: Color(0x52768499),
+    selectionMarkSurface: Colors.white,
+    cardHover: _SearchColors.cardHover,
+    cardSelected: _SearchColors.cardSelected,
+    panel: Colors.white,
+    emptyStateSurface: _SearchColors.emptyStateSurface,
+    emptyStateBorder: _SearchColors.emptyStateBorder,
+    resultToolbarGradient: [
+      Color(0xf5fafcff),
+      Color(0xe0fafcff),
+      Color(0x00fafcff),
+    ],
+  );
 
   static const dark = SearchPageThemeColors(
     textStrong: Color(0xeff6f9fc),
@@ -2671,12 +2732,12 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
     controlBorder: Color(0x29d6e0ec),
     subtleBorder: Color(0x29d6e0ec),
     controlSurface: Color(0x0effffff),
-    controlHover: Color(0x290078d7),
+    controlHover: SmPlayerInteractionColors.hoverSurfaceDark,
     accentStrong: Color(0xff5fb6ff),
     accentSelectedBorder: Color(0x6b0078d7),
     selectionMarkBorder: Color(0x6bdce6f2),
     selectionMarkSurface: Color(0xb812161d),
-    cardHover: Color(0x210078d7),
+    cardHover: SmPlayerInteractionColors.hoverSurfaceDark,
     cardSelected: Color(0x2e0078d7),
     panel: Color(0x0cffffff),
     emptyStateSurface: _SearchColors.nightEmptyStateSurface,
@@ -2710,11 +2771,11 @@ class _SearchColors {
   const _SearchColors._();
 
   static const accent = Color(0xff0063b1);
-  static const accentSoft = Color(0x1a0078d7);
+  static const accentSoft = SmPlayerInteractionColors.hoverSurface;
   static const controlBorder = Color(0x3d7e8b9a);
   static const subtleBorder = Color(0x2e768499);
   static const controlSurface = Color(0x94ffffff);
-  static const cardHover = Color(0x140078d7);
+  static const cardHover = SmPlayerInteractionColors.hoverSurface;
   static const cardSelected = Color(0x1f0078d7);
   static const accentSelectedBorder = Color(0x6b0078d7);
   static const textStrong = Color(0xff111827);

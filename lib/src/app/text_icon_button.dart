@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
 class SmPlayerTextIconButton extends StatefulWidget {
   const SmPlayerTextIconButton({
@@ -102,7 +103,12 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                   ),
                 )
               else if (widget.icon case final icon?)
-                Icon(icon, size: widget.iconSize, color: foreground),
+                isMultiSelectIcon(icon)
+                    ? UniformMultiSelectIcon(
+                      size: widget.iconSize,
+                      color: foreground,
+                    )
+                    : Icon(icon, size: widget.iconSize, color: foreground),
               if (widget.showLabel) ...[
                 if (widget.loading || widget.icon != null)
                   SizedBox(width: widget.iconGap),

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -275,6 +276,89 @@ void main() {
     expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsNothing);
   });
 
+  testWidgets('VolumeSlider tooltip follows the horizontal thumb', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 180,
+              child: VolumeSlider(
+                value: 20,
+                disabled: false,
+                showTooltipOnMount: true,
+                onChange: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final initialCenter = tester.getCenter(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(80);
+    await tester.pump();
+    final draggedCenter = tester.getCenter(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    final tooltipRect = tester.getRect(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    final sliderRect = tester.getRect(find.byType(Slider));
+
+    expect(draggedCenter.dx, greaterThan(initialCenter.dx + 80));
+    expect(
+      tooltipRect.bottom,
+      lessThan(sliderRect.center.dy - _testVolumeSliderThumbRadius),
+    );
+  });
+
+  testWidgets('VolumeSlider tooltip follows the vertical thumb', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 80,
+              child: VolumeSlider(
+                value: 20,
+                disabled: false,
+                orientation: VolumeSliderOrientation.vertical,
+                showTooltipOnMount: true,
+                onChange: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final initialCenter = tester.getCenter(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(80);
+    await tester.pump();
+    final draggedCenter = tester.getCenter(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    final tooltipRect = tester.getRect(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    final sliderRect = tester.getRect(find.byType(Slider));
+
+    expect(draggedCenter.dy, lessThan(initialCenter.dy - 50));
+    expect(
+      tooltipRect.left,
+      greaterThan(sliderRect.center.dx + _testVolumeSliderThumbRadius),
+    );
+  });
+
   testWidgets('VolumeSlider rounds and de-dupes live changes', (tester) async {
     final changes = <int>[];
 
@@ -455,6 +539,9 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack.empty(),
@@ -881,6 +968,9 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -1275,9 +1365,10 @@ void main() {
     );
     final quickPlayLeft = tester.getTopLeft(find.text('Quick Play')).dx;
     final quickPlayBottom = tester.getBottomLeft(find.text('Quick Play')).dy;
-    final moreButtonTop = tester.getTopLeft(
-      find.byKey(const ValueKey('MediaControl.MoreButton')),
-    ).dy;
+    final moreButtonTop =
+        tester
+            .getTopLeft(find.byKey(const ValueKey('MediaControl.MoreButton')))
+            .dy;
     expect(moreButtonCenter.dx, greaterThan(1100));
     expect(quickPlayLeft, greaterThan(900));
     expect(moreButtonCenter.dx - quickPlayLeft, lessThan(260));
@@ -1436,7 +1527,7 @@ void main() {
               onAddToPlaylist: (playlistId) {
                 addedPlaylistId = playlistId;
               },
-              onCreatePlaylist: () {},
+              onCreatePlaylist: (_) {},
               onSetPreference: (level) {},
               onSeeLocal: () {
                 localOpened = true;
@@ -1466,9 +1557,10 @@ void main() {
     );
     final addToLeft = tester.getTopLeft(find.text('Add To')).dx;
     final addToBottom = tester.getBottomLeft(find.text('Add To')).dy;
-    final moreButtonTop = tester.getTopLeft(
-      find.byKey(const ValueKey('MediaControl.MoreButton')),
-    ).dy;
+    final moreButtonTop =
+        tester
+            .getTopLeft(find.byKey(const ValueKey('MediaControl.MoreButton')))
+            .dy;
     expect(moreButtonCenter.dx, greaterThan(720));
     expect(addToLeft, greaterThan(480));
     expect(moreButtonCenter.dx - addToLeft, lessThan(260));
@@ -1655,7 +1747,7 @@ void main() {
               onToggleWindowFullScreen: () {},
               isWindowFullScreen: false,
               onEnterMiniMode: () {},
-              onCreatePlaylist: () {},
+              onCreatePlaylist: (_) {},
             ),
           ),
         ),
@@ -1781,6 +1873,9 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
             home: Scaffold(
               body: MediaControl(
                 track: const MediaControlTrack(
@@ -1853,6 +1948,170 @@ void main() {
       ),
       const Size(34, 34),
     );
+  });
+
+  testWidgets('compact MediaControl utility buttons fit near minimum width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    Future<void> pumpAtWidth({
+      required double width,
+      required bool voiceAssistant,
+    }) {
+      tester.view.physicalSize = Size(width, 420);
+      return tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                  favorite: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+                onOpenVoiceAssistant: voiceAssistant ? () {} : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final voiceAssistant in [false, true]) {
+      await pumpAtWidth(width: 500, voiceAssistant: voiceAssistant);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('MediaControl keeps play button centered across player widths', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    Future<void> pumpAtWidth(double width) {
+      tester.view.physicalSize = Size(width, 420);
+      return tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                  favorite: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final width in [1200.0, 700.0, 500.0]) {
+      await pumpAtWidth(width);
+      await tester.pumpAndSettle();
+
+      final playFinder = find.byKey(
+        const ValueKey('MediaControl.PlayPauseButton'),
+      );
+      final playCenter = tester.getCenter(playFinder);
+      final previousCenter = tester.getCenter(
+        find.byKey(const ValueKey('MediaControl.PreviousButton')),
+      );
+      final nextCenter = tester.getCenter(
+        find.byKey(const ValueKey('MediaControl.NextButton')),
+      );
+      final playContainer = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: playFinder,
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+
+      expect(
+        playCenter.dx,
+        closeTo((previousCenter.dx + nextCenter.dx) / 2, 0.01),
+        reason: 'play button should be centered between skip buttons at $width',
+      );
+      expect(
+        playContainer.alignment,
+        Alignment.center,
+        reason:
+            'play icon should be centered by the button container at $width',
+      );
+    }
   });
 
   testWidgets('medium MediaControl volume opens Electron vertical popover', (
@@ -2057,12 +2316,15 @@ void main() {
         disabledProgressTheme.data.disabledThumbColor,
         MediaControlColors.accent.withValues(alpha: 0.8),
       );
-      expect(disabledProgressTheme.data.trackHeight, 2);
+      expect(disabledProgressTheme.data.trackHeight, 1);
       final progressSlider = tester.widget<Slider>(find.byType(Slider).first);
       expect(progressSlider.onChanged, isNull);
       final defaultArtwork = tester.widget<Image>(find.byType(Image).first);
       final defaultArtworkProvider = defaultArtwork.image as AssetImage;
-      expect(defaultArtworkProvider.assetName, 'assets/branding/app-icon.png');
+      expect(
+        defaultArtworkProvider.assetName,
+        'assets/branding/monotone_no_bg.png',
+      );
 
       await tester.tap(find.byTooltip('Playback Mode: List').last);
       await tester.pump();
@@ -2317,3 +2579,5 @@ const _song = LibrarySong(
   favorite: false,
   thumbnailPath: '',
 );
+
+const double _testVolumeSliderThumbRadius = 8;

@@ -9,17 +9,17 @@ class MediaControlColors {
   static const nightMuted = Color(0xffcbd5e1);
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
-  static const accentHover = Color(0x1f0078d7);
+  static const accentHover = SmPlayerInteractionColors.hoverSurface;
   static const nightAccentStrong = Color(0xffffffff);
-  static const nightAccentHover = Color(0x380078d7);
+  static const nightAccentHover = SmPlayerInteractionColors.hoverSurfaceDark;
   static const accentBorder = Color(0x2e0078d7);
   static const accentShadow = Color(0x330078d7);
   static const favorite = Color(0xffd83b7d);
   static const playerSurface = Color(0xe0ffffff);
-  static const playerAccentWash = Color(0x1a0078d7);
+  static const playerAccentWash = Color(0x1aabd9ff);
   static const emptyPlayerAccentWash = Color(0x100078d7);
   static const emptyPlayerLeftWash = Color(0xe0ffffff);
-  static const emptyPlayerRightWash = Color(0x1a0078d7);
+  static const emptyPlayerRightWash = Color(0x1aebf6ff);
   static const playerSurfaceSolid = Color(0xd1ffffff);
   static const playerBorder = Color(0xd6ffffff);
   static const compactPlayerBorder = Color(0x9effffff);
@@ -74,7 +74,6 @@ class MediaControlColors {
 
   static Color disabledPrimaryButtonBorderFor(BuildContext context) =>
       MediaControlThemeColors.of(context).disabledPrimaryButtonBorder;
-
 }
 
 class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
@@ -96,7 +95,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     required this.glassSaturation,
     required this.glassColor,
     required this.coverWashAlpha,
-    required this.compactCoverWashAlpha,
     required this.playerBorder,
     required this.compactPlayerBorder,
     required this.playerShadow,
@@ -105,11 +103,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     required this.wideSurface,
     required this.wideWashStop,
     required this.wideHighlightGradient,
-    required this.compactSurface,
-    required this.compactTopGradient,
-    required this.compactWash,
-    required this.emptyCompactWash,
-    required this.compactWashStop,
     required this.compactInsetHighlight,
   });
 
@@ -130,7 +123,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   final double glassSaturation;
   final Color glassColor;
   final double coverWashAlpha;
-  final double compactCoverWashAlpha;
   final Color playerBorder;
   final Color compactPlayerBorder;
   final Color playerShadow;
@@ -139,11 +131,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   final Color wideSurface;
   final double wideWashStop;
   final List<Color> wideHighlightGradient;
-  final Color compactSurface;
-  final List<Color> compactTopGradient;
-  final Color compactWash;
-  final Color emptyCompactWash;
-  final double compactWashStop;
   final Color compactInsetHighlight;
 
   static const light = MediaControlThemeColors(
@@ -165,7 +152,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     glassSaturation: 1.34,
     glassColor: Color(0x30ffffff),
     coverWashAlpha: 0.24,
-    compactCoverWashAlpha: 0.20,
     playerBorder: MediaControlColors.playerBorder,
     compactPlayerBorder: MediaControlColors.compactPlayerBorder,
     playerShadow: MediaControlColors.playerShadow,
@@ -177,14 +163,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
       MediaControlColors.playerSurface,
       MediaControlColors.playerAccentWash,
     ],
-    compactSurface: MediaControlColors.compactPlayerSurface,
-    compactTopGradient: [
-      MediaControlColors.compactPlayerTop,
-      MediaControlColors.compactPlayerBottom,
-    ],
-    compactWash: MediaControlColors.compactPlayerWash,
-    emptyCompactWash: MediaControlColors.emptyCompactPlayerWash,
-    compactWashStop: 0.54,
     compactInsetHighlight: MediaControlColors.compactPlayerInsetHighlight,
   );
 
@@ -207,7 +185,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     glassSaturation: 1.18,
     glassColor: Color(0x2411161c),
     coverWashAlpha: 0.22,
-    compactCoverWashAlpha: 0.20,
     playerBorder: MediaControlColors.nightPlayerBorder,
     compactPlayerBorder: MediaControlColors.nightPlayerBorder,
     playerShadow: MediaControlColors.nightPlayerShadow,
@@ -219,14 +196,6 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
       MediaControlColors.nightPlayerHighlight,
       MediaControlColors.nightPlayerAccentWash,
     ],
-    compactSurface: MediaControlColors.nightCompactPlayerSurface,
-    compactTopGradient: [
-      MediaControlColors.nightCompactPlayerTop,
-      MediaControlColors.nightCompactPlayerBottom,
-    ],
-    compactWash: MediaControlColors.nightCompactPlayerWash,
-    emptyCompactWash: MediaControlColors.nightEmptyCompactPlayerWash,
-    compactWashStop: 0.56,
     compactInsetHighlight: MediaControlColors.nightCompactPlayerInsetHighlight,
   );
 

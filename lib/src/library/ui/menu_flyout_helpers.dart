@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -212,11 +213,14 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   required List<MultiSelectCommandBarPlaylist> playlists,
   bool includeNowPlaying = false,
   bool includeFavorites = false,
+  String? defaultPlaylistName,
   String? currentPlaylistName,
   String? excludePlaylistName,
   VoidCallback? onAddToNowPlaying,
   VoidCallback? onToggleFavorite,
+  VoidCallback? onRequestCreatePlaylist,
   VoidCallback? onCreatePlaylist,
+  ValueChanged<String>? onCreatePlaylistWithName,
   ValueChanged<int>? onAddToPlaylist,
   String key = 'add-to',
 }) {
@@ -232,7 +236,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       }).toList();
   final submenu = <MenuFlyoutItem>[];
 
-  if (includeNowPlaying && onAddToNowPlaying != null) {
+  if (includeNowPlaying) {
     submenu.add(
       MenuFlyoutItem(
         key: '$key-now-playing',
@@ -257,18 +261,40 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   }
 
   if (submenu.isNotEmpty &&
-      (onCreatePlaylist != null || addablePlaylists.isNotEmpty)) {
+      (onCreatePlaylist != null ||
+          onCreatePlaylistWithName != null ||
+          addablePlaylists.isNotEmpty)) {
     submenu.add(MenuFlyoutItem.separator(key: '$key-built-in-separator'));
   }
 
-  if (onCreatePlaylist != null) {
+  if (onCreatePlaylist != null || onCreatePlaylistWithName != null) {
     submenu.add(
       MenuFlyoutItem(
         key: '$key-new-playlist',
         text: i18n.t('playlists.newPlaylist'),
         icon: FluentIcons.add_20_regular,
         disabled: songIds.isEmpty,
-        onPressed: onCreatePlaylist,
+        onPressedWithContext: (context) async {
+          if (onRequestCreatePlaylist != null) {
+            onRequestCreatePlaylist();
+            return;
+          }
+          if (onCreatePlaylistWithName == null) {
+            onCreatePlaylist?.call();
+            return;
+          }
+          final name = await showSmPlayerInputDialog(
+            context: context,
+            i18n: i18n,
+            title: i18n.t('playlists.newName'),
+            defaultValue: defaultPlaylistName ?? i18n.t('playlists.newName'),
+            placeholder: i18n.t('playlists.namePlaceholder'),
+            confirmText: i18n.t('playlists.create'),
+          );
+          if (name != null) {
+            onCreatePlaylistWithName(name);
+          }
+        },
       ),
     );
   }

@@ -2,8 +2,12 @@ import Cocoa
 import FlutterMacOS
 import MediaPlayer
 import UserNotifications
+import WebKit
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
+  private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
+  private static let mainWindowMinimumSize = NSSize(width: 506, height: 840)
+
   private var desktopFeatureChannel: FlutterMethodChannel?
   private var globalMediaEventMonitor: Any?
   private var localMediaEventMonitor: Any?
@@ -13,9 +17,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   private var nativeSplashView: NativeSplashView?
   private var mediaSessionCommandsInstalled = false
   private var externalOpenChannelReady = false
+  private var securityScopedResourceUrls: [URL] = []
 
   override func awakeFromNib() {
     configureIntegratedTitlebar()
+    minSize = Self.mainWindowMinimumSize
+    setFrameAutosaveName(Self.mainWindowFrameAutosaveName)
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
@@ -28,6 +35,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     desktopFeatureChannel?.setMethodCallHandler(handleDesktopFeatureMethodCall)
     UNUserNotificationCenter.current().delegate = self
+    restoreSecurityScopedDirectoryAccess()
     installMediaKeyMonitor()
     installExternalOpenObserver()
 
@@ -50,6 +58,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     }
     if let externalOpenObserver = externalOpenObserver {
       NotificationCenter.default.removeObserver(externalOpenObserver)
+    }
+    for url in securityScopedResourceUrls {
+      url.stopAccessingSecurityScopedResource()
     }
   }
 
@@ -185,7 +196,65 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
         result(nil)
         return
       }
+      self.storeSecurityScopedDirectoryAccess(url)
       result(url.path)
+    }
+  }
+
+  private func storeSecurityScopedDirectoryAccess(_ url: URL) {
+    do {
+      let bookmarkData = try url.bookmarkData(
+        options: [.withSecurityScope],
+        includingResourceValuesForKeys: nil,
+        relativeTo: nil)
+      var bookmarks = UserDefaults.standard.dictionary(
+        forKey: "securityScopedDirectoryBookmarks") as? [String: String] ?? [:]
+      bookmarks[url.path] = bookmarkData.base64EncodedString()
+      UserDefaults.standard.set(bookmarks, forKey: "securityScopedDirectoryBookmarks")
+      startSecurityScopedAccess(url)
+    } catch {
+      NSLog("Simple Melody Player failed to store directory bookmark: \(error)")
+    }
+  }
+
+  private func restoreSecurityScopedDirectoryAccess() {
+    let bookmarks = UserDefaults.standard.dictionary(
+      forKey: "securityScopedDirectoryBookmarks") as? [String: String] ?? [:]
+    var nextBookmarks: [String: String] = [:]
+    for (path, encodedBookmark) in bookmarks {
+      guard let bookmarkData = Data(base64Encoded: encodedBookmark) else {
+        continue
+      }
+      do {
+        var isStale = false
+        let url = try URL(
+          resolvingBookmarkData: bookmarkData,
+          options: [.withSecurityScope],
+          relativeTo: nil,
+          bookmarkDataIsStale: &isStale)
+        startSecurityScopedAccess(url)
+        if isStale {
+          let refreshedBookmark = try url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil)
+          nextBookmarks[url.path] = refreshedBookmark.base64EncodedString()
+        } else {
+          nextBookmarks[path] = encodedBookmark
+        }
+      } catch {
+        NSLog("Simple Melody Player failed to restore directory bookmark: \(error)")
+      }
+    }
+    UserDefaults.standard.set(nextBookmarks, forKey: "securityScopedDirectoryBookmarks")
+  }
+
+  private func startSecurityScopedAccess(_ url: URL) {
+    if securityScopedResourceUrls.contains(url) {
+      return
+    }
+    if url.startAccessingSecurityScopedResource() {
+      securityScopedResourceUrls.append(url)
     }
   }
 
@@ -320,7 +389,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
 
     let panel = ensureDesktopLyricsPanel(bounds: state["bounds"] as? String)
     desktopLyricsView?.apply(state: state)
-    panel.ignoresMouseEvents = (state["locked"] as? Bool) == true
+    panel.ignoresMouseEvents = false
     panel.orderFrontRegardless()
   }
 
@@ -603,191 +672,466 @@ private final class NativeSplashView: NSView {
   }
 }
 
-private final class DesktopLyricsNativeView: NSView {
-  private var lyricText = ""
-  private var nextLyricText = ""
-  private var fontFamily = "system"
-  private var fontSize = 28
-  private var textColor = NSColor(calibratedRed: 0.29, green: 0.66, blue: 1.0, alpha: 1)
-  private var opacity = 0.88
-  private var loading = false
-  private var locked = false
-  private var nightMode = true
-  private var labelPlayPause = "Play/Pause"
-  private var offsetLabel = "0.0s"
-  private var labelLock = "Lock"
-  private var labelUnlock = "Unlock"
-  private var labelSettings = "Settings"
-  private var labelClose = "Close"
-  private var buttonRects: [(rect: NSRect, command: String, label: String)] = []
-  private var lyricScrollStart = Date()
-  private var lyricScrollTimer: Timer?
+private final class DesktopLyricsNativeView: NSView, WKScriptMessageHandler {
+  private let webView: DesktopLyricsWebView
+  private var state = [String: Any]()
   var onCommand: ((String) -> Void)?
 
-  override var isFlipped: Bool { true }
+  override init(frame frameRect: NSRect) {
+    let contentController = WKUserContentController()
+    let configuration = WKWebViewConfiguration()
+    configuration.userContentController = contentController
+    webView = DesktopLyricsWebView(frame: frameRect, configuration: configuration)
+    super.init(frame: frameRect)
+    configureWebView(contentController)
+  }
 
-  override func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
-    if window == nil {
-      lyricScrollTimer?.invalidate()
-      lyricScrollTimer = nil
-    } else if lyricScrollTimer == nil {
-      lyricScrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-        self?.needsDisplay = true
-      }
-    }
+  required init?(coder: NSCoder) {
+    let contentController = WKUserContentController()
+    let configuration = WKWebViewConfiguration()
+    configuration.userContentController = contentController
+    webView = DesktopLyricsWebView(frame: .zero, configuration: configuration)
+    super.init(coder: coder)
+    configureWebView(contentController)
   }
 
   deinit {
-    lyricScrollTimer?.invalidate()
+    webView.configuration.userContentController.removeScriptMessageHandler(forName: "desktopLyricsCommand")
   }
 
   func apply(state: [String: Any]) {
-    let lyric = (state["lyricText"] as? String) ?? ""
-    let fallback = (state["fallbackText"] as? String) ?? ""
-    loading = (state["loading"] as? Bool) ?? false
-    let nextLyricTextValue = loading ? "..." : lyric.isEmpty ? fallback : lyric
-    let nextFontFamily = (state["fontFamily"] as? String) ?? "system"
-    let nextFontSize = (state["fontSize"] as? Int) ?? 28
-    if lyricText != nextLyricTextValue || fontFamily != nextFontFamily || fontSize != nextFontSize {
-      lyricScrollStart = Date()
-    }
-    lyricText = nextLyricTextValue
-    nextLyricText = (state["nextLyricText"] as? String) ?? ""
-    fontFamily = nextFontFamily
-    fontSize = nextFontSize
-    locked = (state["locked"] as? Bool) ?? false
-    nightMode = (state["nightMode"] as? Bool) ?? true
-    let offsetMs = Double((state["offsetMs"] as? Int) ?? 0)
-    offsetLabel = String(format: "%+.1fs", offsetMs / 1000.0)
-    opacity = Double((state["opacity"] as? Int) ?? 88) / 100.0
-    labelPlayPause = (state["labelPlayPause"] as? String) ?? "Play/Pause"
-    labelLock = (state["labelLock"] as? String) ?? "Lock"
-    labelUnlock = (state["labelUnlock"] as? String) ?? "Unlock"
-    labelSettings = (state["labelSettings"] as? String) ?? "Settings"
-    labelClose = (state["labelClose"] as? String) ?? "Close"
-    textColor = NSColor(hex: (state["textColor"] as? String) ?? "#4aa8ff")
-      .withAlphaComponent(opacity)
-    needsDisplay = true
+    self.state = state
+    let script = "window.smplayerDesktopLyricsUpdate(\(jsonLiteral(state)))"
+    webView.evaluateJavaScript(script, completionHandler: nil)
   }
 
-  override func draw(_ dirtyRect: NSRect) {
-    NSColor.clear.setFill()
-    bounds.fill()
-    let card = bounds.insetBy(dx: 10, dy: 10)
-    let cardColor = nightMode
-      ? NSColor(calibratedRed: 0.06, green: 0.09, blue: 0.13, alpha: 0.72)
-      : NSColor(calibratedRed: 0.96, green: 0.98, blue: 1.0, alpha: 0.76)
-    cardColor.setFill()
-    NSBezierPath(roundedRect: card, xRadius: 8, yRadius: 8).fill()
-    buttonRects.removeAll()
-
-    if !locked {
-      let buttons: [(CGFloat, CGFloat, String, String)] = [
-        (card.minX + 10, 38, "previous", "<<"),
-        (card.minX + 52, 60, "play-pause", labelPlayPause),
-        (card.minX + 116, 38, "next", ">>"),
-        (card.minX + 166, 48, "offset:-100", "-0.1"),
-        (card.minX + 218, 48, "offset:100", "+0.1"),
-        (card.minX + 270, 56, "reset-offset", offsetLabel),
-        (card.maxX - 238, 54, "toggle-lock", locked ? labelUnlock : labelLock),
-        (card.maxX - 180, 78, "open-settings", labelSettings),
-        (card.maxX - 98, 58, "disable", labelClose),
-      ]
-      for (x, width, command, label) in buttons {
-        let rect = NSRect(x: x, y: card.minY + 8, width: width, height: 26)
-        buttonRects.append((rect, command, label))
-        let buttonColor = nightMode
-          ? NSColor(calibratedRed: 0.16, green: 0.20, blue: 0.25, alpha: 0.88)
-          : NSColor(calibratedRed: 0.87, green: 0.91, blue: 0.95, alpha: 0.92)
-        buttonColor.setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
-        drawCentered(
-          label,
-          in: rect.insetBy(dx: 4, dy: 3),
-          font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-          color: nightMode
-            ? NSColor(calibratedWhite: 0.92, alpha: 1)
-            : NSColor(calibratedRed: 0.12, green: 0.16, blue: 0.21, alpha: 1))
-      }
-    }
-
-    let fontName = fontFamily == "system" ? nil : fontFamily
-    let lyricFont = fontName.flatMap { NSFont(name: $0, size: CGFloat(fontSize)) }
-      ?? NSFont.systemFont(ofSize: CGFloat(fontSize), weight: .bold)
-    let topInset: CGFloat = locked ? 28 : 42
-    drawScrollingCentered(
-      lyricText,
-      in: card.insetBy(dx: 18, dy: nextLyricText.isEmpty ? topInset : max(topInset, 34)),
-      font: lyricFont,
-      color: textColor)
-
-    if !nextLyricText.isEmpty {
-      let nextFont = fontName.flatMap { NSFont(name: $0, size: CGFloat(max(13, fontSize - 8))) }
-        ?? NSFont.systemFont(ofSize: CGFloat(max(13, fontSize - 8)), weight: .semibold)
-      var nextRect = card.insetBy(dx: 18, dy: 0)
-      nextRect.origin.y = card.maxY - 40
-      nextRect.size.height = 28
-      drawCentered(
-        nextLyricText,
-        in: nextRect,
-        font: nextFont,
-        color: textColor.withAlphaComponent(opacity * 0.74))
-    }
-  }
-
-  private func drawCentered(_ text: String, in rect: NSRect, font: NSFont, color: NSColor) {
-    drawAttributed(text, in: rect, font: font, color: color, scrollOverflow: false)
-  }
-
-  private func drawScrollingCentered(_ text: String, in rect: NSRect, font: NSFont, color: NSColor) {
-    drawAttributed(text, in: rect, font: font, color: color, scrollOverflow: true)
-  }
-
-  private func drawAttributed(_ text: String, in rect: NSRect, font: NSFont, color: NSColor, scrollOverflow: Bool) {
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.alignment = .center
-    paragraph.lineBreakMode = scrollOverflow ? .byClipping : .byTruncatingTail
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: font,
-      .foregroundColor: color,
-      .paragraphStyle: paragraph,
-    ]
-    let attributed = NSAttributedString(string: text, attributes: attributes)
-    let size = attributed.size()
-    if scrollOverflow && size.width > rect.width {
-      let distance = size.width - rect.width
-      let duration = min(12.0, max(5.0, round(Double(distance / 28.0)) + 4.0))
-      let cycle = duration * 2.0
-      let elapsed = Date().timeIntervalSince(lyricScrollStart).truncatingRemainder(dividingBy: cycle)
-      let rawProgress = elapsed <= duration ? elapsed / duration : 1.0 - (elapsed - duration) / duration
-      let progress = rawProgress * rawProgress * (3.0 - 2.0 * rawProgress)
-      let drawRect = NSRect(
-        x: rect.minX - distance * CGFloat(progress),
-        y: rect.midY - size.height / 2,
-        width: size.width,
-        height: size.height)
-      NSGraphicsContext.saveGraphicsState()
-      rect.clip()
-      attributed.draw(with: drawRect, options: [.usesLineFragmentOrigin])
-      NSGraphicsContext.restoreGraphicsState()
+  func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard message.name == "desktopLyricsCommand" else {
       return
     }
-    let drawRect = NSRect(
-      x: rect.minX,
-      y: rect.midY - size.height / 2,
-      width: rect.width,
-      height: size.height)
-    attributed.draw(in: drawRect)
+    if let command = message.body as? String {
+      onCommand?(command)
+      return
+    }
+    if let payload = message.body as? [String: Any],
+       let command = payload["command"] as? String {
+      onCommand?(command)
+    }
   }
 
-  override func mouseDown(with event: NSEvent) {
+  func shouldWebViewHandleMouseDown(_ event: NSEvent) -> Bool {
     let point = convert(event.locationInWindow, from: nil)
-    for button in buttonRects where button.rect.contains(point) {
-      onCommand?(button.command)
+    for rect in desktopLyricsButtonRects() where rect.contains(point) {
+      return true
+    }
+    return false
+  }
+
+  func handleWebViewBackgroundMouseDown(_ event: NSEvent) {
+    if (state["locked"] as? Bool) == true {
       return
     }
     window?.performDrag(with: event)
+  }
+
+  private func configureWebView(_ contentController: WKUserContentController) {
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+    contentController.add(self, name: "desktopLyricsCommand")
+    webView.desktopLyricsView = self
+    webView.autoresizingMask = [.width, .height]
+    webView.setValue(false, forKey: "drawsBackground")
+    webView.wantsLayer = true
+    webView.layer?.backgroundColor = NSColor.clear.cgColor
+    addSubview(webView)
+    webView.loadHTMLString(Self.html, baseURL: nil)
+  }
+
+  private func desktopLyricsButtonRects() -> [NSRect] {
+    let locked = (state["locked"] as? Bool) == true
+    var items: [CGFloat] = [26, 26, 26, 9, 42, 42, 56, 9, 26, 26]
+    if !locked {
+      items.append(26)
+    }
+    let gap: CGFloat = 3
+    let totalWidth = items.reduce(CGFloat(0), +) + gap * CGFloat(items.count - 1)
+    var x = bounds.midX - totalWidth / 2
+    let y = bounds.maxY - 8 - 12 - 30 + 2
+    var rects = [NSRect]()
+    for width in items {
+      if width == 9 {
+        x += width + gap
+        continue
+      }
+      rects.append(NSRect(x: x, y: y, width: width, height: 26))
+      x += width + gap
+    }
+    return rects
+  }
+
+  private func jsonLiteral(_ value: [String: Any]) -> String {
+    guard JSONSerialization.isValidJSONObject(value),
+          let data = try? JSONSerialization.data(withJSONObject: value),
+          let json = String(data: data, encoding: .utf8) else {
+      return "{}"
+    }
+    return json
+  }
+
+  private static let html = """
+<!doctype html>
+<html class="desktop-lyrics-host">
+<head>
+<meta charset="utf-8">
+<style>
+:root.desktop-lyrics-host,
+html.desktop-lyrics-host,
+html.desktop-lyrics-host body,
+html.desktop-lyrics-host #root,
+body.desktop-lyrics-host {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden;
+}
+
+.desktop-lyrics-window {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: stretch;
+  color: #17202c;
+  font-family: var(--desktop-lyrics-font-family);
+  user-select: none;
+}
+
+.desktop-lyrics-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: center;
+  row-gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  margin: 8px;
+  padding: 10px 18px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  overflow: hidden;
+  cursor: move;
+  transition: background-color 160ms ease, border-color 160ms ease, backdrop-filter 160ms ease;
+}
+
+.desktop-lyrics-card:hover,
+.desktop-lyrics-card:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(8, 12, 18, calc(var(--desktop-lyrics-opacity) * 0.34));
+  backdrop-filter: blur(36px) saturate(1.5);
+  -webkit-backdrop-filter: blur(36px) saturate(1.5);
+}
+
+.desktop-lyrics-drag-region {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.desktop-lyrics-toolbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 30px;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  cursor: default;
+}
+
+.desktop-lyrics-card:hover .desktop-lyrics-toolbar,
+.desktop-lyrics-toolbar:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.desktop-lyrics-toolbar button {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(6, 10, 16, 0.16);
+  color: rgba(255, 255, 255, 0.94);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.42));
+}
+
+.desktop-lyrics-toolbar button:hover {
+  background: rgba(6, 10, 16, 0.28);
+  color: #fff;
+}
+
+.desktop-lyrics-toolbar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.desktop-lyrics-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.desktop-lyrics-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  align-self: center;
+  min-height: calc(var(--desktop-lyrics-font-size) * 1.2);
+  color: var(--desktop-lyrics-color);
+  font-size: var(--desktop-lyrics-font-size);
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-text-stroke: 0.7px var(--desktop-lyrics-stroke-color);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--desktop-lyrics-stroke-color) 50%, transparent);
+}
+
+.desktop-lyrics-text span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.desktop-lyrics-text[data-overflow='true'] {
+  justify-content: flex-start;
+}
+
+.desktop-lyrics-text[data-overflow='true'] span {
+  animation: desktop-lyrics-scroll var(--desktop-lyrics-scroll-duration) ease-in-out infinite alternate;
+}
+
+@keyframes desktop-lyrics-scroll {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  84%,
+  100% {
+    transform: translateX(calc(var(--desktop-lyrics-scroll-distance) * -1));
+  }
+}
+
+.desktop-lyrics-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  gap: 10px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.desktop-lyrics-card:hover .desktop-lyrics-meta,
+.desktop-lyrics-card:focus-within .desktop-lyrics-meta {
+  opacity: 1;
+}
+
+.desktop-lyrics-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-lyrics-window.is-day .desktop-lyrics-card:hover,
+.desktop-lyrics-window.is-day .desktop-lyrics-card:focus-within {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(245, 250, 255, calc(var(--desktop-lyrics-opacity) * 0.24));
+}
+
+.desktop-lyrics-window.is-day .desktop-lyrics-toolbar button {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.38);
+  color: rgba(17, 24, 39, 0.76);
+  box-shadow: 0 1px 5px rgba(20, 30, 45, 0.08);
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.38));
+}
+
+.desktop-lyrics-window.is-day .desktop-lyrics-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.58);
+  color: #111827;
+}
+
+.desktop-lyrics-window.is-day .desktop-lyrics-toolbar-divider {
+  background: rgba(15, 23, 42, 0.16);
+}
+
+.desktop-lyrics-window.is-day .desktop-lyrics-meta {
+  color: rgba(17, 24, 39, 0.68);
+}
+
+.desktop-lyrics-window.is-locked .desktop-lyrics-card {
+  cursor: default;
+}
+</style>
+</head>
+<body class="desktop-lyrics-host">
+<main class="desktop-lyrics-window is-night" id="window">
+  <section class="desktop-lyrics-card" id="card">
+    <div class="desktop-lyrics-drag-region" aria-hidden="true"></div>
+    <div class="desktop-lyrics-meta">
+      <span id="songTitle"></span>
+      <span id="artist"></span>
+    </div>
+    <div class="desktop-lyrics-text" id="lyricBox">
+      <span id="lyricText"></span>
+    </div>
+    <div class="desktop-lyrics-toolbar" id="toolbar">
+      <button type="button" data-command="previous" id="previousButton"></button>
+      <button type="button" data-command="play-pause" id="playPauseButton"></button>
+      <button type="button" data-command="next" id="nextButton"></button>
+      <span class="desktop-lyrics-toolbar-divider" aria-hidden="true"></span>
+      <button type="button" data-command="offset:-100">-0.1s</button>
+      <button type="button" data-command="offset:100">+0.1s</button>
+      <button type="button" data-command="reset-offset" id="offsetButton">0.0s</button>
+      <span class="desktop-lyrics-toolbar-divider" aria-hidden="true"></span>
+      <button type="button" data-command="toggle-lock" id="lockButton"></button>
+      <button type="button" data-command="open-settings" id="settingsButton"></button>
+      <button type="button" data-command="disable" id="closeButton"></button>
+    </div>
+  </section>
+</main>
+<script>
+const icons = {
+  previous: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6V5Zm3 7 9-7v14l-9-7Z"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2V5ZM6 19V5l9 7-9 7Z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5Z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"/></svg>',
+  unlock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 8h-2a3 3 0 0 0-6 0v2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1V8a5 5 0 0 1 10 0Z"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.5-2-3.5-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A7.7 7.7 0 0 0 7 6L4.6 5 2.6 8.5l2 1.5-.1 1.5.1 1.5-2 1.5 2 3.5 2.4-1a7.7 7.7 0 0 0 2.6 1.5L10 22h4l.4-2.5A7.7 7.7 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m6.7 5.3 12 12-1.4 1.4-12-12 1.4-1.4Zm10.6 0 1.4 1.4-12 12-1.4-1.4 12-12Z"/></svg>',
+};
+
+const windowNode = document.getElementById('window');
+const lyricBox = document.getElementById('lyricBox');
+const lyricText = document.getElementById('lyricText');
+const songTitle = document.getElementById('songTitle');
+const artist = document.getElementById('artist');
+const playPauseButton = document.getElementById('playPauseButton');
+const previousButton = document.getElementById('previousButton');
+const nextButton = document.getElementById('nextButton');
+const lockButton = document.getElementById('lockButton');
+const settingsButton = document.getElementById('settingsButton');
+const closeButton = document.getElementById('closeButton');
+const offsetButton = document.getElementById('offsetButton');
+
+function request(command) {
+  window.webkit.messageHandlers.desktopLyricsCommand.postMessage(command);
+}
+
+function fontCss(fontFamily) {
+  if (!fontFamily || fontFamily === 'system') {
+    return '"Segoe UI", system-ui, sans-serif';
+  }
+  return `"${String(fontFamily).replaceAll('\\\\', '\\\\\\\\').replaceAll('"', '\\\\"')}", "Segoe UI", system-ui, sans-serif`;
+}
+
+function updateScrollDistance() {
+  const distance = Math.max(0, Math.ceil(lyricText.scrollWidth - lyricBox.clientWidth));
+  windowNode.style.setProperty('--desktop-lyrics-scroll-distance', `${distance}px`);
+  windowNode.style.setProperty('--desktop-lyrics-scroll-duration', `${Math.min(12, Math.max(5, Math.round(distance / 28) + 4))}s`);
+  if (distance > 0) {
+    lyricBox.dataset.overflow = 'true';
+  } else {
+    delete lyricBox.dataset.overflow;
+  }
+}
+
+function updateIcon(button, name) {
+  button.innerHTML = icons[name];
+}
+
+window.smplayerDesktopLyricsUpdate = function(state) {
+  const offsetSeconds = Math.round((state.offsetMs || 0) / 100) / 10;
+  const text = state.loading ? '...' : (state.lyricText || state.fallbackText || '');
+  windowNode.className = `desktop-lyrics-window${state.nightMode ? ' is-night' : ' is-day'}${state.locked ? ' is-locked' : ''}`;
+  windowNode.style.setProperty('--desktop-lyrics-opacity', (state.opacity || 88) / 100);
+  windowNode.style.setProperty('--desktop-lyrics-font-size', `${state.fontSize || 28}px`);
+  windowNode.style.setProperty('--desktop-lyrics-font-family', fontCss(state.fontFamily));
+  windowNode.style.setProperty('--desktop-lyrics-color', state.textColor || '#4aa8ff');
+  windowNode.style.setProperty('--desktop-lyrics-stroke-color', state.strokeColor || 'transparent');
+  songTitle.textContent = state.songTitle || '';
+  artist.textContent = state.artist || '';
+  artist.hidden = !state.artist;
+  lyricBox.title = text;
+  lyricText.textContent = text;
+  previousButton.title = state.labelPrevious || '';
+  nextButton.title = state.labelNext || '';
+  playPauseButton.title = state.labelPlayPause || '';
+  lockButton.title = state.locked ? (state.labelUnlock || '') : (state.labelLock || '');
+  settingsButton.title = state.labelSettings || '';
+  closeButton.title = state.labelClose || '';
+  closeButton.hidden = !!state.locked;
+  offsetButton.textContent = offsetSeconds > 0 ? `+${offsetSeconds}s` : `${offsetSeconds}s`;
+  updateIcon(previousButton, 'previous');
+  updateIcon(nextButton, 'next');
+  updateIcon(playPauseButton, state.playing ? 'pause' : 'play');
+  updateIcon(lockButton, state.locked ? 'lock' : 'unlock');
+  updateIcon(settingsButton, 'settings');
+  updateIcon(closeButton, 'close');
+  requestAnimationFrame(updateScrollDistance);
+};
+
+document.querySelectorAll('[data-command]').forEach((button) => {
+  button.addEventListener('click', () => request(button.dataset.command));
+});
+
+new ResizeObserver(updateScrollDistance).observe(lyricBox);
+window.smplayerDesktopLyricsUpdate({});
+</script>
+</body>
+</html>
+"""
+}
+
+private final class DesktopLyricsWebView: WKWebView {
+  weak var desktopLyricsView: DesktopLyricsNativeView?
+
+  override func mouseDown(with event: NSEvent) {
+    if desktopLyricsView?.shouldWebViewHandleMouseDown(event) == true {
+      super.mouseDown(with: event)
+      return
+    }
+    desktopLyricsView?.handleWebViewBackgroundMouseDown(event)
   }
 }
 

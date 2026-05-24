@@ -3,10 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -25,29 +33,66 @@ void main() {
       'common.myFavorites': 'My Favorites',
       'common.nowPlaying': 'Now Playing',
       'common.undo': 'Undo',
+      'common.close': 'Close',
       'context.addToPlaylist': 'Add To',
+      'context.seeAlbum': 'See Album',
+      'context.seeAlbumArt': 'See Album Art',
+      'context.seeArtist': 'See Artist',
+      'context.seeLyrics': 'See Lyrics',
+      'context.seeMusicInfo': 'See Music Info',
+      'context.view': 'View',
       'context.hideFile': 'Hide File',
       'context.moveToFolder': 'Move To Folder',
       'context.play': 'Play',
       'context.playNext': 'Play Next',
       'context.removeFromList': 'Remove',
       'context.select': 'Select',
+      'detail.playAlbum': 'Play Album',
+      'detail.playArtist': 'Play Artist',
       'notification.hiddenStorageItem': 'Hidden "{name}"',
       'notification.movedSong': 'Moved "{title}"',
       'notification.songAddedTo': 'Added {title} to {target}',
       'notification.songsAddedTo': 'Added {count} songs to {target}',
+      'nowPlaying.clearNowPlaying': 'Clear Now Playing',
       'nowPlaying.clearQueue': 'Clear Queue',
+      'nowPlaying.exitImmersiveMode': 'Exit immersive mode',
       'nowPlaying.locateCurrent': 'Locate Current',
+      'nowPlaying.loading': 'Loading',
+      'nowPlaying.loadingLyrics': 'Loading Lyrics',
+      'nowPlaying.lyricsCopy': 'Lyrics are unavailable.',
+      'nowPlaying.noActiveTrack': 'No active track',
+      'nowPlaying.noActiveTrackCopy': 'Choose music first.',
+      'nowPlaying.noLyrics': 'No Lyrics',
       'nowPlaying.noQueueMatch': 'No match for {query}',
       'nowPlaying.playMode': 'Immersive mode',
+      'nowPlaying.playlist': 'Playlist',
       'nowPlaying.quickPlay': 'Quick Play',
       'nowPlaying.queueEmpty': 'No songs',
       'nowPlaying.queueEmptyHelp': 'Queue songs first.',
       'nowPlaying.queueSearchHelp': 'Try another search.',
       'nowPlaying.randomPlay': 'Shuffle',
       'nowPlaying.remove': 'Remove',
+      'nowPlaying.savePlaylist': 'Save Playlist',
       'playlists.newPlaylist': 'New Playlist',
+      'playlists.create': 'Create',
+      'playlists.createNew': 'Create New Playlist',
+      'playlists.namePlaceholder': 'Playlist name',
+      'playlists.nameDuplicate': 'Playlist already exists',
+      'playlists.songCount': '{count} songs',
+      'player.like': 'Like',
       'player.more': 'More',
+      'player.next': 'Next',
+      'player.pause': 'Pause',
+      'player.play': 'Play',
+      'player.playbackMode': 'Playback Mode',
+      'player.playbackModeList': 'List',
+      'player.playbackModeRepeat': 'Repeat',
+      'player.playbackModeRepeatOne': 'Repeat One',
+      'player.playbackModeShuffle': 'Shuffle',
+      'player.previous': 'Previous',
+      'player.unlike': 'Unlike',
+      'player.volume': 'Volume',
+      'sidebar.back': 'Back',
     },
   );
 
@@ -90,6 +135,28 @@ void main() {
     expect(find.text('Clear Queue'), findsNothing);
     expect(find.text('Immersive mode'), findsNothing);
     expect(find.text('Multi Select'), findsNothing);
+  });
+
+  testWidgets('NowPlayingPage aligns queue rows to the command bar edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1012, 760);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final commandBarRight = tester.getRect(find.byType(CommandBar)).right;
+    final rowRight =
+        tester.getRect(find.byKey(const ValueKey('now-playing-1-0'))).right;
+
+    expect(rowRight, commandBarRight);
   });
 
   testWidgets('NowPlayingPage paints page surface when queue is empty', (
@@ -226,6 +293,56 @@ void main() {
     expect(find.text('Red Song'), findsOneWidget);
     expect(find.text('Blue Song'), findsNothing);
   });
+
+  testWidgets(
+    'NowPlayingFullPage shows immersive lyrics and Electron fallback',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+      mediaController.syncPlaybackProgress(12, durationSeconds: 120);
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(DefaultAlbumArtwork), findsOneWidget);
+      expect(find.text('Blue Song'), findsWidgets);
+      expect(find.text('Artist A'), findsOneWidget);
+      expect(find.text('Blue Hour'), findsOneWidget);
+      expect(find.text('Current lyric', skipOffstage: false), findsOneWidget);
+
+      await tester.tap(find.text('Now Playing').first);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Now Playing'), findsWidgets);
+      expect(find.text('1 songs'), findsOneWidget);
+    },
+  );
 }
 
 class _NowPlayingTestApp extends StatelessWidget {
@@ -254,7 +371,50 @@ class _NowPlayingTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+            ],
+          ),
           home: Scaffold(body: NowPlayingPage(searchQuery: searchQuery)),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingFullTestApp extends StatelessWidget {
+  const _NowPlayingFullTestApp({
+    required this.snapshot,
+    required this.i18n,
+    required this.repository,
+    required this.mediaController,
+  });
+
+  final LibraryViewData snapshot;
+  final SmPlayerI18n i18n;
+  final _FakeNowPlayingRepository repository;
+  final MediaControlController mediaController;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryRepositoryProvider.overrideWithValue(repository),
+        mediaControlControllerProvider.overrideWith((ref) => mediaController),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              NowPlayingFullThemeColors.light,
+            ],
+          ),
+          home: const Scaffold(body: NowPlayingFullPage()),
         ),
       ),
     );
@@ -365,6 +525,22 @@ class _FakeNowPlayingRepository extends LibraryRepository {
         playlistId: snapshot.nowPlaying.playlistId,
         songIds: songIds,
       ),
+    );
+  }
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
+    return const LyricsSnapshot(
+      source: LyricsSource.musicFile,
+      isSynced: true,
+      rawText: '[00:00.00]Opening lyric\n[00:10.00]Current lyric',
+      lines: [
+        LyricsLine(id: 1, timestampMs: 0, text: 'Opening lyric'),
+        LyricsLine(id: 2, timestampMs: 10000, text: 'Current lyric'),
+      ],
     );
   }
 }

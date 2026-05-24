@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
@@ -24,6 +26,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
@@ -33,11 +36,12 @@ import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
+import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
+import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
-import 'package:smplayer_flutter/src/settings/settings_page.dart'
-    show ArtistSplitReviewDialog, ReleaseNotesDialog;
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -49,6 +53,8 @@ class SmPlayerShellMetrics {
   static const playerTopRadius = 18.0;
   static const sidebarWidth = 320.0;
   static const collapsedSidebarWidth = 64.0;
+  static const minimalTitlebarHeight = 32.0;
+  static const macOSTitlebarLeadingInset = 78.0;
   static const workspaceHeaderHeight = 92.0;
   static const navigationMinimalBreakpoint = 720.0;
   static const navigationOverlayBreakpoint = 1200.0;
@@ -176,6 +182,10 @@ class SmPlayerShellKeys {
   static const sidebar = ValueKey('SmPlayerShell.Sidebar');
   static const workspace = ValueKey('SmPlayerShell.Workspace');
   static const reservedPlayer = ValueKey('SmPlayerShell.ReservedPlayer');
+  static const minimalMenuButton = ValueKey('SmPlayerShell.MinimalMenuButton');
+  static const navigationDismissLayer = ValueKey(
+    'SmPlayerShell.NavigationDismissLayer',
+  );
 }
 
 bool _globalNavigationCollapsed = false;
@@ -226,7 +236,8 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
   ConsumerState<SmPlayerShellPage> createState() => _SmPlayerShellPageState();
 }
 
-class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
+class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
+    with WidgetsBindingObserver {
   static const _playbackStallCheckInterval = Duration(milliseconds: 500);
   static const _playbackStallTimeout = Duration(seconds: 8);
   static const _playbackProgressEpsilonSeconds = 0.05;
@@ -284,6 +295,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _settingsController = SettingsController(null, widget.settingsRepository);
     _mediaControlController = MediaControlController(
       null,
@@ -298,7 +310,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       _audioPlayer.errorStream.listen(_handleAudioPlaybackError),
     ];
     _desktopFeatureService =
-        widget.desktopFeatureService ?? createDesktopFeatureService();
+        widget.desktopFeatureService ??
+        createDesktopFeatureService(
+          settingsRepository: widget.settingsRepository,
+        );
     unawaited(_desktopFeatureService.initialize(_handleDesktopFeatureAction));
     unawaited(_restoreDesktopWindowFullScreenState());
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
@@ -319,6 +334,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   @override
   void didUpdateWidget(covariant SmPlayerShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncNavigationMode(MediaQuery.sizeOf(context).width);
     final currentPath = widget.currentPath ?? _currentPath;
     final currentLocation = widget.currentLocation ?? currentPath;
     final previousLocation =
@@ -335,6 +351,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _mediaControlController.removeListener(_syncAudioPlayerFromController);
     for (final subscription in _audioSubscriptions) {
       unawaited(subscription.cancel());
@@ -353,39 +370,88 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   @override
+  void didChangeMetrics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _syncNavigationMode(MediaQuery.sizeOf(context).width);
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final currentPath = widget.currentPath ?? _currentPath;
     final isNowPlayingFullRoute = currentPath == '/now-playing/full';
-    final navigationMode =
-        _navigationMode ??
-        SmPlayerShellMetrics.navigationModeForWidth(
-          MediaQuery.sizeOf(context).width,
-        );
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
+      windowWidth,
+    );
+    if (_navigationMode != navigationMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final latestNavigationMode =
+            SmPlayerShellMetrics.navigationModeForWidth(
+              MediaQuery.sizeOf(context).width,
+            );
+        if (_navigationMode == latestNavigationMode) {
+          return;
+        }
+        setState(() {
+          _syncNavigationMode(MediaQuery.sizeOf(context).width);
+        });
+      });
+    }
     final isNavigationPaneVisible =
         isNowPlayingFullRoute
             ? false
             : navigationMode == SmPlayerNavigationMode.minimal
             ? _isMinimalNavigationOpen
             : _isNavigationPaneOpen;
+    final canGoBack = widget.canGoBack || _navigationHistory.length > 1;
     final shellSidebarWidth =
-        navigationMode != SmPlayerNavigationMode.wide
+        navigationMode == SmPlayerNavigationMode.minimal
+            ? 0.0
+            : navigationMode != SmPlayerNavigationMode.wide
             ? SmPlayerShellMetrics.collapsedSidebarWidth
             : isNavigationPaneVisible
             ? SmPlayerShellMetrics.sidebarWidth
             : SmPlayerShellMetrics.collapsedSidebarWidth;
     final sidebarSurfaceWidth =
-        isNavigationPaneVisible && navigationMode != SmPlayerNavigationMode.wide
+        navigationMode == SmPlayerNavigationMode.minimal
+            ? isNavigationPaneVisible
+                ? SmPlayerShellMetrics.sidebarWidth
+                : 0.0
+            : isNavigationPaneVisible &&
+                navigationMode != SmPlayerNavigationMode.wide
             ? SmPlayerShellMetrics.sidebarWidth
             : shellSidebarWidth;
     final shellColors = ShellThemeColors.of(context);
     final isNavigationOverlaySurface =
         isNavigationPaneVisible &&
         navigationMode != SmPlayerNavigationMode.wide;
-    final navigationOverlayShadow =
-        navigationMode == SmPlayerNavigationMode.minimal
-            ? shellColors.navigationMinimalShadow
-            : shellColors.navigationOverlayShadow;
-
+    final headeredPlaylistAppBar = ref.watch(
+      headeredPlaylistAppBarPortalProvider,
+    );
+    final minimalTitlebarHeight =
+        !isNowPlayingFullRoute &&
+                navigationMode == SmPlayerNavigationMode.minimal
+            ? SmPlayerShellMetrics.minimalTitlebarHeight
+            : 0.0;
+    final immersiveMinimalTitlebar =
+        minimalTitlebarHeight > 0 && headeredPlaylistAppBar != null;
+    final workspaceTop = immersiveMinimalTitlebar ? 0.0 : minimalTitlebarHeight;
+    final navigationSurfaceTop =
+        headeredPlaylistAppBar != null &&
+                navigationMode == SmPlayerNavigationMode.minimal
+            ? 0.0
+            : minimalTitlebarHeight;
+    final navigationContentTopInset =
+        minimalTitlebarHeight - navigationSurfaceTop;
     return ProviderScope(
       overrides: [
         mediaControlControllerProvider.overrideWith((ref) {
@@ -410,18 +476,18 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [shellColors.bodyHighlight, Colors.transparent],
-                stops: const [0, 0.36],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [shellColors.bodyTop, shellColors.bodyBottom],
               ),
             ),
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [shellColors.bodyTop, shellColors.bodyBottom],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [shellColors.bodyHighlight, Colors.transparent],
+                  stops: const [0, 0.36],
                 ),
               ),
               child: SafeArea(
@@ -437,14 +503,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                               curve: Curves.easeOutCubic,
                               left:
                                   isNowPlayingFullRoute ? 0 : shellSidebarWidth,
-                              top: 0,
+                              top: workspaceTop,
                               right: 0,
                               height:
                                   isNowPlayingFullRoute
                                       ? MediaQuery.sizeOf(context).height
                                       : MediaQuery.sizeOf(context).height -
                                           SmPlayerShellMetrics.playerHeight +
-                                          SmPlayerShellMetrics.playerTopRadius,
+                                          SmPlayerShellMetrics.playerTopRadius -
+                                          workspaceTop,
                               child: SmPlayerWorkspace(
                                 key: SmPlayerShellKeys.workspace,
                                 currentPath: currentPath,
@@ -452,42 +519,70 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                     widget.currentLocation ?? currentPath,
                                 headerHeight:
                                     SmPlayerShellMetrics.workspaceHeaderHeight,
+                                showNavigationAppBar:
+                                    navigationMode ==
+                                        SmPlayerNavigationMode.minimal &&
+                                    !isNowPlayingFullRoute,
+                                navigationMenuLabel:
+                                    isNavigationPaneVisible
+                                        ? context.smPlayerI18n.t(
+                                          'sidebar.collapseNavigation',
+                                        )
+                                        : context.smPlayerI18n.t(
+                                          'sidebar.expandNavigation',
+                                        ),
+                                onNavigationMenuPressed: _toggleNavigationPane,
+                                navigationAppBarTopInset:
+                                    immersiveMinimalTitlebar
+                                        ? minimalTitlebarHeight
+                                        : 0,
                                 child: widget.child,
                               ),
                             ),
-                            if (!isNowPlayingFullRoute)
+                            if (isNavigationOverlaySurface)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  key: SmPlayerShellKeys.navigationDismissLayer,
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: _closeNavigationOverlay,
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            if (!isNowPlayingFullRoute &&
+                                (navigationMode !=
+                                        SmPlayerNavigationMode.minimal ||
+                                    _isMinimalNavigationOpen))
                               AnimatedPositioned(
                                 duration: const Duration(milliseconds: 180),
                                 curve: Curves.easeOutCubic,
                                 left: 0,
-                                top: 0,
+                                top: navigationSurfaceTop,
                                 bottom: SmPlayerShellMetrics.playerHeight,
                                 width: sidebarSurfaceWidth,
-                                child: DecoratedBox(
+                                child: _ShellNavigationGlassSurface(
                                   key: SmPlayerShellKeys.sidebar,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        isNavigationOverlaySurface
-                                            ? shellColors
-                                                .navigationOverlaySurface
-                                            : Colors.transparent,
-                                    boxShadow:
-                                        isNavigationOverlaySurface
-                                            ? [
-                                              BoxShadow(
-                                                color: navigationOverlayShadow,
-                                                blurRadius:
-                                                    navigationMode ==
-                                                            SmPlayerNavigationMode
-                                                                .minimal
-                                                        ? 42
-                                                        : 48,
-                                                offset: const Offset(18, 0),
-                                              ),
-                                            ]
-                                            : const [],
-                                  ),
-                                  child: SizedBox.expand(
+                                  surface:
+                                      isNavigationOverlaySurface
+                                          ? shellColors.navigationOverlaySurface
+                                          : shellColors.navigationSurface,
+                                  shadowColor:
+                                      isNavigationOverlaySurface
+                                          ? navigationMode ==
+                                                  SmPlayerNavigationMode.minimal
+                                              ? shellColors
+                                                  .navigationMinimalShadow
+                                              : shellColors
+                                                  .navigationOverlayShadow
+                                          : Colors.transparent,
+                                  shadowBlur:
+                                      navigationMode ==
+                                              SmPlayerNavigationMode.minimal
+                                          ? 42
+                                          : 48,
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      top: navigationContentTopInset,
+                                    ),
                                     child: Consumer(
                                       builder: (context, ref, _) {
                                         final snapshot =
@@ -502,14 +597,14 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                               locale: smPlayerFallbackLocale,
                                               messages: {},
                                             );
-                                        final canGoBack =
-                                            widget.canGoBack ||
-                                            _navigationHistory.length > 1;
                                         final recentSearches =
                                             snapshot?.recentSearches ??
                                             const <SearchHistoryEntry>[];
                                         return MainNavigationView(
                                           isPaneOpen: isNavigationPaneVisible,
+                                          showTitlebar:
+                                              navigationMode !=
+                                              SmPlayerNavigationMode.minimal,
                                           currentPath: currentPath,
                                           searchText: _searchText,
                                           i18n: i18n,
@@ -622,9 +717,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             );
                                           },
                                           onPlaylistRandomPlay: (playlistId) {
-                                            _randomPlayPlaylist(
-                                              ref,
-                                              playlistId,
+                                            unawaited(
+                                              _randomPlayPlaylist(
+                                                ref,
+                                                playlistId,
+                                              ),
                                             );
                                           },
                                           onWindowDragStart: _startWindowDrag,
@@ -633,6 +730,44 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                       },
                                     ),
                                   ),
+                                ),
+                              ),
+                            if (minimalTitlebarHeight > 0)
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: minimalTitlebarHeight,
+                                child: _MinimalTitlebar(
+                                  title:
+                                      Platform.isMacOS
+                                          ? ''
+                                          : context.smPlayerI18n.t('app.shell'),
+                                  canGoBack: canGoBack,
+                                  backLabel: context.smPlayerI18n.t(
+                                    'sidebar.back',
+                                  ),
+                                  onGoBack: _goBack,
+                                  onWindowDragStart: _startWindowDrag,
+                                  onWindowDragEnd: _stopWindowDrag,
+                                  headeredPlaylistAppBar:
+                                      headeredPlaylistAppBar,
+                                ),
+                              ),
+                            if (!isNowPlayingFullRoute)
+                              Positioned(
+                                left: 0,
+                                bottom: 0,
+                                width: sidebarSurfaceWidth,
+                                height: SmPlayerShellMetrics.playerHeight,
+                                child: _ShellNavigationGlassSurface(
+                                  surface:
+                                      isNavigationOverlaySurface
+                                          ? shellColors.navigationOverlaySurface
+                                          : shellColors.navigationSurface,
+                                  shadowColor: Colors.transparent,
+                                  shadowBlur: 0,
+                                  child: const SizedBox.expand(),
                                 ),
                               ),
                             if (!isNowPlayingFullRoute)
@@ -760,7 +895,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                               _quickPlayLibrary(ref);
                                             },
                                             onOpenNowPlaying: () {
-                                              _navigateTo('/now-playing');
+                                              _navigateTo('/now-playing/full');
                                             },
                                             onArtworkError:
                                                 currentSong == null
@@ -778,7 +913,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                 _isWindowFullScreen,
                                             onEnterMiniMode: _enterMiniMode,
                                             onOpenVoiceAssistant:
-                                                Platform.isWindows
+                                                _supportsVoiceAssistant()
                                                     ? () {
                                                       _showVoiceAssistantDialog(
                                                         snapshot,
@@ -798,7 +933,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                             onCreatePlaylist:
                                                 currentSong == null
                                                     ? null
-                                                    : () {
+                                                    : (name) {
                                                       createPlaylistWithSongs(
                                                         context: context,
                                                         ref: ref,
@@ -809,8 +944,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                                             snapshot
                                                                 ?.playlists ??
                                                             const [],
-                                                        defaultName:
-                                                            currentSong.title,
+                                                        defaultName: name,
                                                         songIds: [
                                                           currentSong.id,
                                                         ],
@@ -1061,8 +1195,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
                                     _startupArtistSplitResult = null;
                                   });
                                 },
-                                onApply: () {
-                                  unawaited(_applyStartupArtistSplits(result));
+                                onApply: (splits) {
+                                  unawaited(_applyStartupArtistSplits(splits));
                                 },
                               ),
                           ],
@@ -1594,7 +1728,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
               onToggleMute: _mediaControlController.onToggleMute,
               onVolumeChange: _mediaControlController.onVolumeChange,
               onOpenVoiceAssistant:
-                  Platform.isWindows
+                  _supportsVoiceAssistant()
                       ? () {
                         _showVoiceAssistantDialog(snapshot, i18n);
                       }
@@ -1613,6 +1747,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   Future<void> _quickPlayLibraryAsync(WidgetRef ref) async {
+    final i18n = context.smPlayerI18n;
     final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     if (songs.isEmpty) {
@@ -1635,14 +1770,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     await repository.replaceNowPlaying(songIds);
     ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: firstSong.id,
-        title: firstSong.title,
-        artist: firstSong.artist,
-        artworkUrl: firstSong.thumbnailPath,
-        isLoading: false,
-        favorite: firstSong.favorite,
-      ),
+      mediaControlTrackForSong(firstSong, i18n),
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
@@ -2005,13 +2133,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     _saveNavigationCollapsed(!nextIsPaneOpen);
   }
 
-  void _closeNavigationOverlay() {
+  void _closeNavigationOverlay({bool preserveSearchText = false}) {
     final navigationMode = _navigationMode;
     if (navigationMode == SmPlayerNavigationMode.minimal &&
         _isMinimalNavigationOpen) {
       setState(() {
         _isMinimalNavigationOpen = false;
-        _searchText = '';
+        if (!preserveSearchText) {
+          _searchText = '';
+        }
       });
       return;
     }
@@ -2020,7 +2150,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
         _isNavigationPaneOpen) {
       setState(() {
         _isNavigationPaneOpen = false;
-        _searchText = '';
+        if (!preserveSearchText) {
+          _searchText = '';
+        }
       });
       _saveNavigationCollapsed(true);
     }
@@ -2109,14 +2241,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final progressSeconds =
         settings.saveMusicProgress ? settings.musicProgress : 0.0;
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: restoredSong.id,
-        title: restoredSong.title,
-        artist: restoredSong.artist,
-        artworkUrl: restoredSong.thumbnailPath,
-        isLoading: false,
-        favorite: restoredSong.favorite,
-      ),
+      mediaControlTrackForSong(restoredSong, context.smPlayerI18n),
       durationSeconds: restoredSong.duration.toDouble(),
       queueIndex: restoredIndex,
       progressSeconds: progressSeconds,
@@ -2205,17 +2330,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }
 
   Future<void> _applyStartupArtistSplits(
-    ArtistSplitAnalysisResult result,
+    List<ArtistSplitResultItem> splits,
   ) async {
     setState(() {
       _startupArtistSplitApplying = true;
     });
     try {
-      await ref.read(libraryRepositoryProvider).applyArtistSplits([
-        ...result.directSplits,
-        ...result.possibleSplits,
-        ...result.mergeSuggestions,
-      ]);
+      await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
       ref.invalidate(libraryViewDataProvider);
       if (!mounted) {
         return;
@@ -2647,14 +2768,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[openedSongIds.first]!;
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        artworkUrl: song.thumbnailPath,
-        isLoading: false,
-        favorite: song.favorite,
-      ),
+      mediaControlTrackForSong(song, context.smPlayerI18n),
       durationSeconds: song.duration.toDouble(),
       queueIndex: insertIndex,
     );
@@ -2689,14 +2803,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     ref.read(libraryRepositoryProvider).replaceNowPlaying([song.id]);
     ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        artworkUrl: song.thumbnailPath,
-        isLoading: false,
-        favorite: song.favorite,
-      ),
+      mediaControlTrackForSong(song, context.smPlayerI18n),
       durationSeconds: song.duration.toDouble(),
       queueIndex: 0,
     );
@@ -2782,7 +2889,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
   }) {
     final nextSearchText = value.trim();
     setState(() {
-      _searchText = '';
+      _searchText = nextSearchText;
       if (nextSearchText.isNotEmpty) {
         _currentPath = '/search';
       }
@@ -2801,7 +2908,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
           }
         }),
       );
-      _closeNavigationOverlay();
+      _closeNavigationOverlay(preserveSearchText: true);
       widget.onSearchCommit?.call(nextSearchText, type);
     }
   }
@@ -3329,14 +3436,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
     ref.invalidate(libraryViewDataProvider);
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: firstSong.id,
-        title: firstSong.title,
-        artist: firstSong.artist,
-        artworkUrl: firstSong.thumbnailPath,
-        isLoading: false,
-        favorite: firstSong.favorite,
-      ),
+      mediaControlTrackForSong(firstSong, context.smPlayerI18n),
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
@@ -3470,14 +3570,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
       currentProgressSeconds: _mediaControlController.state.progressSeconds,
     );
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        artworkUrl: song.thumbnailPath,
-        isLoading: false,
-        favorite: song.favorite,
-      ),
+      mediaControlTrackForSong(song, context.smPlayerI18n),
       durationSeconds: song.duration.toDouble(),
       queueIndex: queueIndex,
       progressSeconds: startSeconds,
@@ -3491,24 +3584,23 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage> {
     return true;
   }
 
-  void _randomPlayPlaylist(WidgetRef ref, int playlistId) {
+  Future<void> _randomPlayPlaylist(WidgetRef ref, int playlistId) async {
+    final i18n = context.smPlayerI18n;
     final snapshot = ref.read(libraryViewDataProvider).value!;
     final playlist = snapshot.playlists.firstWhere(
       (playlist) => playlist.id == playlistId,
     );
     final songIds = playlist.songIds.toList()..shuffle(Random());
+    if (songIds.isEmpty) {
+      return;
+    }
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
+    final repository = ref.read(libraryRepositoryProvider);
+    await repository.recordPlaylistPlayed(playlistId);
+    await repository.replaceNowPlaying(songIds);
     _mediaControlController.playTrack(
-      MediaControlTrack(
-        id: firstSong.id,
-        title: firstSong.title,
-        artist: firstSong.artist,
-        artworkUrl: firstSong.thumbnailPath,
-        isLoading: false,
-        favorite: firstSong.favorite,
-      ),
+      mediaControlTrackForSong(firstSong, i18n),
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
@@ -4330,6 +4422,170 @@ class _ShellWindowDragRegion extends StatelessWidget {
   }
 }
 
+class _ShellNavigationGlassSurface extends StatelessWidget {
+  const _ShellNavigationGlassSurface({
+    super.key,
+    required this.surface,
+    required this.shadowColor,
+    required this.shadowBlur,
+    required this.child,
+  });
+
+  final Color surface;
+  final Color shadowColor;
+  final double shadowBlur;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    const edgeBleed = 10.0;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        boxShadow:
+            shadowColor == Colors.transparent
+                ? const []
+                : [
+                  BoxShadow(
+                    color: shadowColor,
+                    blurRadius: shadowBlur,
+                    offset: const Offset(18, 0),
+                  ),
+                ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(
+              left: -edgeBleed,
+              top: -edgeBleed,
+              right: -edgeBleed,
+              bottom: -edgeBleed,
+              child: GlassContainer(
+                useOwnLayer: true,
+                quality: GlassQuality.standard,
+                shape: const LiquidRoundedRectangle(borderRadius: 0),
+                settings: LiquidGlassSettings(
+                  blur: 30,
+                  thickness: 18,
+                  refractiveIndex: 1.06,
+                  saturation: 1.18,
+                  chromaticAberration: 0,
+                  lightIntensity: 0.18,
+                  ambientStrength: 0.12,
+                  glowIntensity: 0.12,
+                  glassColor: surface,
+                  standardOpacityMultiplier: 1,
+                ),
+                clipBehavior: Clip.none,
+                allowElevation: false,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned.fill(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MinimalTitlebar extends StatelessWidget {
+  const _MinimalTitlebar({
+    required this.title,
+    required this.canGoBack,
+    required this.backLabel,
+    required this.onGoBack,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
+    required this.headeredPlaylistAppBar,
+  });
+
+  final String title;
+  final bool canGoBack;
+  final String backLabel;
+  final VoidCallback onGoBack;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+  final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
+
+  @override
+  Widget build(BuildContext context) {
+    final shellColors = ShellThemeColors.of(context);
+    final leadingInset =
+        Platform.isMacOS ? SmPlayerShellMetrics.macOSTitlebarLeadingInset : 0.0;
+    final titleColor =
+        headeredPlaylistAppBar == null
+            ? shellColors.headerText
+            : _immersiveMinimalTitlebarForeground(context);
+    final content = Row(
+      children: [
+        if (leadingInset > 0) SizedBox(width: leadingInset),
+        if (canGoBack)
+          Tooltip(
+            message: backLabel,
+            waitDuration: const Duration(milliseconds: 450),
+            child: InkWell(
+              onTap: onGoBack,
+              hoverColor: titleColor.withValues(alpha: 0.08),
+              focusColor: titleColor.withValues(alpha: 0.08),
+              highlightColor: titleColor.withValues(alpha: 0.08),
+              child: SizedBox(
+                width: 40,
+                height: SmPlayerShellMetrics.minimalTitlebarHeight,
+                child: Icon(
+                  FluentIcons.arrow_left_24_regular,
+                  size: 18,
+                  color: titleColor,
+                ),
+              ),
+            ),
+          ),
+        Expanded(
+          child: _ShellWindowDragRegion(
+            onWindowDragStart: onWindowDragStart,
+            onWindowDragEnd: onWindowDragEnd,
+            child:
+                title.isEmpty
+                    ? const SizedBox.expand()
+                    : Padding(
+                      padding: EdgeInsets.only(
+                        left: canGoBack ? 6 : 10,
+                        right: 138,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: titleColor,
+                            fontSize: 13,
+                            height: 1,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+          ),
+        ),
+      ],
+    );
+    if (headeredPlaylistAppBar == null) {
+      return Material(color: shellColors.workspaceSolidSurface, child: content);
+    }
+
+    return Material(color: Colors.transparent, child: content);
+  }
+}
+
+Color _immersiveMinimalTitlebarForeground(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xfff6f9fc)
+      : const Color(0xff111827);
+}
+
 class _VoiceAssistantDialog extends StatefulWidget {
   const _VoiceAssistantDialog({
     required this.i18n,
@@ -4378,8 +4634,8 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
     _session += 1;
     _closeTimer?.cancel();
     _restartTimer?.cancel();
-    unawaited(_speechToText.cancel());
-    unawaited(_tts.stop());
+    unawaited(_speechToText.cancel().catchError(_ignoreVoicePluginError));
+    unawaited(_tts.stop().catchError(_ignoreVoicePluginError));
     _controller.dispose();
     super.dispose();
   }
@@ -4507,8 +4763,17 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
     _processing = false;
     _closeTimer?.cancel();
     _restartTimer?.cancel();
-    await _tts.stop();
-    await _speechToText.cancel();
+    try {
+      await _tts.stop();
+      await _speechToText.cancel();
+    } on Object {
+      if (mounted) {
+        _stopListeningWithMessage(
+          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+        );
+      }
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -4523,10 +4788,20 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
 
   Future<void> _startRecognition(int session) async {
     _restartTimer?.cancel();
-    final initialized = await _speechToText.initialize(
-      onStatus: (status) => _handleSpeechStatus(status, session),
-      onError: (error) => _handleSpeechError(error, session),
-    );
+    final bool initialized;
+    try {
+      initialized = await _speechToText.initialize(
+        onStatus: (status) => _handleSpeechStatus(status, session),
+        onError: (error) => _handleSpeechError(error, session),
+      );
+    } on Object {
+      if (_isActiveSession(session)) {
+        _stopListeningWithMessage(
+          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+        );
+      }
+      return;
+    }
     if (!_isActiveSession(session)) {
       return;
     }
@@ -4539,16 +4814,24 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
     setState(() {
       _state = _VoiceAssistantCaptureState.idle;
     });
-    await _speechToText.listen(
-      onResult: (result) => _handleSpeechResult(result, session),
-      listenOptions: SpeechListenOptions(
-        partialResults: true,
-        listenMode: ListenMode.confirmation,
-        localeId: widget.i18n.locale,
-        pauseFor: const Duration(seconds: 2),
-        listenFor: const Duration(seconds: 8),
-      ),
-    );
+    try {
+      await _speechToText.listen(
+        onResult: (result) => _handleSpeechResult(result, session),
+        listenOptions: SpeechListenOptions(
+          partialResults: true,
+          listenMode: ListenMode.confirmation,
+          localeId: widget.i18n.locale,
+          pauseFor: const Duration(seconds: 2),
+          listenFor: const Duration(seconds: 8),
+        ),
+      );
+    } on Object {
+      if (_isActiveSession(session)) {
+        _stopListeningWithMessage(
+          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+        );
+      }
+    }
   }
 
   void _handleSpeechStatus(String status, int session) {
@@ -4605,7 +4888,16 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
 
   Future<void> _executeRecognizedCommand(String command, int session) async {
     _processing = true;
-    await _speechToText.stop();
+    try {
+      await _speechToText.stop();
+    } on Object {
+      if (_isActiveSession(session)) {
+        _stopListeningWithMessage(
+          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+        );
+      }
+      return;
+    }
     if (!_isActiveSession(session)) {
       return;
     }
@@ -4642,11 +4934,17 @@ class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
   }
 
   Future<void> _speak(String message) async {
-    await _tts.stop();
-    await _tts.setLanguage(widget.i18n.locale);
-    await _tts.awaitSpeakCompletion(true);
-    await _tts.speak(message);
+    try {
+      await _tts.stop();
+      await _tts.setLanguage(widget.i18n.locale);
+      await _tts.awaitSpeakCompletion(true);
+      await _tts.speak(message);
+    } on Object {
+      return;
+    }
   }
+
+  void _ignoreVoicePluginError(Object error) {}
 
   void _scheduleRecognitionRestart(int session) {
     _restartTimer?.cancel();
@@ -4816,6 +5114,13 @@ class _VoiceCommandHelp extends StatelessWidget {
 
 bool _usesNativeDesktopLyricsWindow() {
   return Platform.isWindows || Platform.isMacOS;
+}
+
+bool _supportsVoiceAssistant() {
+  return Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isIOS ||
+      Platform.isAndroid;
 }
 
 class _DesktopLyricsOverlay extends StatefulWidget {

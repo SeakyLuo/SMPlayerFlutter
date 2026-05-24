@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -544,7 +545,7 @@ void main() {
     );
   });
 
-  testWidgets('minimal navigation starts as Electron rail layout', (
+  testWidgets('minimal navigation starts with only the Electron menu button', (
     tester,
   ) async {
     _setViewSize(tester, const Size(600, 600));
@@ -552,35 +553,29 @@ void main() {
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pump();
 
-    expect(
-      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
-      SmPlayerShellMetrics.collapsedSidebarWidth,
-    );
-    expect(
-      tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx,
-      SmPlayerShellMetrics.collapsedSidebarWidth,
-    );
+    expect(find.byKey(SmPlayerShellKeys.sidebar), findsNothing);
+    expect(find.byKey(SmPlayerShellKeys.minimalMenuButton), findsOneWidget);
+    expect(tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx, 0);
   });
 
-  testWidgets('minimal navigation expands as a floating pane over the rail', (
+  testWidgets('minimal navigation expands as a floating pane over content', (
     tester,
   ) async {
     _setViewSize(tester, const Size(600, 600));
 
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pump();
-    await tester.tap(
-      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
-    );
+    await tester.tap(find.byKey(SmPlayerShellKeys.minimalMenuButton));
     await tester.pumpAndSettle();
 
     expect(
       tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
       SmPlayerShellMetrics.sidebarWidth,
     );
+    expect(tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx, 0);
     expect(
-      tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx,
-      SmPlayerShellMetrics.collapsedSidebarWidth,
+      find.byKey(SmPlayerShellKeys.navigationDismissLayer),
+      findsOneWidget,
     );
   });
 
@@ -840,6 +835,56 @@ void main() {
     expect(restoredSession.playing, isFalse);
     expect(restoredSession.durationSeconds, 240);
     expect(restoredSession.progressSeconds, 42);
+  });
+
+  testWidgets('bottom player opens immersive now playing page', (tester) async {
+    _setViewSize(tester, const Size(1300, 700));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        musicProgress: 0,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
+    final navigations = <String>[];
+    final repository = _SnapshotRepository(
+      const LibraryViewData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(repository: repository, onNavigate: navigations.add),
+    );
+    for (var pump = 0; pump < 8; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    await tester.tap(find.text('First Song'));
+    await tester.pump();
+
+    expect(navigations.last, '/now-playing/full');
   });
 
   testWidgets('shell restores playback from normalized Electron queue', (
@@ -1273,6 +1318,7 @@ class _ShellPageTestApp extends StatelessWidget {
     this.initialMiniMode = false,
     this.currentPath,
     this.currentLocation,
+    this.onNavigate,
     this.child,
   });
 
@@ -1283,6 +1329,7 @@ class _ShellPageTestApp extends StatelessWidget {
   final bool initialMiniMode;
   final String? currentPath;
   final String? currentLocation;
+  final ValueChanged<String>? onNavigate;
   final Widget? child;
 
   @override
@@ -1295,12 +1342,14 @@ class _ShellPageTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: SmPlayerI18n(locale: 'en-US', messages: messages),
         child: MaterialApp(
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
           home: SmPlayerShellPage(
             appVersion: appVersion,
             desktopFeatureService: desktopService,
             initialMiniMode: initialMiniMode,
             currentPath: currentPath,
             currentLocation: currentLocation,
+            onNavigate: onNavigate,
             child: child,
           ),
         ),

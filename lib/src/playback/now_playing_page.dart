@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -21,6 +22,7 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
@@ -39,12 +41,62 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   final _selection = PageSelectionController<int>.stored('now-playing');
   final _listController = ScrollController();
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
+  late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   ({LibrarySong song, SongDialogMode mode})? _songDialog;
 
   @override
+  void initState() {
+    super.initState();
+    _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+  }
+
+  @override
   void dispose() {
+    _clearAppBarPortalOwner();
     _listController.dispose();
     super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+      _appBarPortalNotifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required String routePath,
+    required Widget content,
+    required int queueLength,
+    required int? currentSongId,
+    required bool libraryCommandsEnabled,
+  }) {
+    final signature =
+        '$showPortal:$routePath:$queueLength:$currentSongId:$libraryCommandsEnabled:${_selection.multiSelect}';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: routePath,
+        content: content,
+      );
+    });
   }
 
   @override
@@ -155,105 +207,189 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             );
           },
         );
+        final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        final appBarOverflowItems =
+            queueSongs.isEmpty
+                ? const <MenuFlyoutItem>[]
+                : [
+                  MenuFlyoutItem(
+                    key: 'now-playing-appbar-locate-current',
+                    text: i18n.t('nowPlaying.locateCurrent'),
+                    icon: FluentIcons.music_note_2_20_regular,
+                    disabled: currentSong == null,
+                    onPressed: () {
+                      _locateCurrent(queueSongs, mediaControlState);
+                    },
+                  ),
+                  if (addQueueToItem != null)
+                    MenuFlyoutItem(
+                      key: 'now-playing-appbar-add-to-playlist',
+                      text: i18n.t('context.addToPlaylist'),
+                      icon: FluentIcons.add_20_regular,
+                      submenu: addQueueToItem.submenu,
+                    ),
+                  MenuFlyoutItem(
+                    key: 'now-playing-appbar-clear-queue',
+                    text: i18n.t('nowPlaying.clearQueue'),
+                    icon: FluentIcons.dismiss_20_regular,
+                    onPressed: () {
+                      _clearQueue(queueSongIds);
+                    },
+                  ),
+                  MenuFlyoutItem(
+                    key: 'now-playing-appbar-play-mode',
+                    text: i18n.t('nowPlaying.playMode'),
+                    icon: FluentIcons.full_screen_maximize_20_regular,
+                    disabled: currentSong == null,
+                    onPressed: () {
+                      context.go('/now-playing/full');
+                    },
+                  ),
+                  MenuFlyoutItem(
+                    key: 'now-playing-appbar-multi-select',
+                    text: i18n.t('common.multiSelect'),
+                    icon: FluentIcons.multiselect_ltr_20_regular,
+                    onPressed: _toggleMultiSelect,
+                  ),
+                ];
+        final appBarCommandBar = CommandBar(
+          style: CommandBarStyleVariant.appBar,
+          overflowLabel: i18n.t('player.more'),
+          overflowItems: appBarOverflowItems,
+          children: [
+            CommandBarButton(
+              icon: FluentIcons.play_20_filled,
+              label: i18n.t('nowPlaying.quickPlay'),
+              canOverflow: false,
+              disabled: snapshot.songs.isEmpty,
+              onPressed: () {
+                unawaited(_quickPlay(snapshot));
+              },
+            ),
+            CommandBarButton(
+              icon: FluentIcons.arrow_shuffle_20_regular,
+              label: i18n.t('nowPlaying.randomPlay'),
+              canOverflow: false,
+              disabled: snapshot.songs.isEmpty,
+              onPressedWithContext: (buttonContext) {
+                _showShuffleMenu(
+                  buttonContext: buttonContext,
+                  snapshot: snapshot,
+                  queueSongs: queueSongs,
+                );
+              },
+            ),
+          ],
+        );
+        _syncAppBarPortal(
+          showPortal: useWorkspaceAppBar,
+          routePath: '/now-playing',
+          content: appBarCommandBar,
+          queueLength: queueSongs.length,
+          currentSongId: currentSong?.id,
+          libraryCommandsEnabled: snapshot.songs.isNotEmpty,
+        );
 
         return _NowPlayingPagePanel(
           child: Stack(
             children: [
               Column(
                 children: [
-                  CommandBar(
-                    overflowLabel: i18n.t('player.more'),
-                    children: [
-                      CommandBarButton(
-                        icon: FluentIcons.play_20_filled,
-                        label: i18n.t('nowPlaying.quickPlay'),
-                        disabled: snapshot.songs.isEmpty,
-                        onPressed: () {
-                          unawaited(_quickPlay(snapshot));
-                        },
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.arrow_shuffle_20_regular,
-                        label: i18n.t('nowPlaying.randomPlay'),
-                        disabled: snapshot.songs.isEmpty,
-                        onPressedWithContext: (buttonContext) {
-                          _showShuffleMenu(
-                            buttonContext: buttonContext,
-                            snapshot: snapshot,
-                            queueSongs: queueSongs,
-                          );
-                        },
-                        onOverflowPressedWithContext: (buttonContext) {
-                          unawaited(
-                            showMenuFlyout(
-                              buttonContext,
-                              items: _buildShuffleMenuItems(
-                                snapshot: snapshot,
-                                queueSongs: queueSongs,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (queueSongs.isNotEmpty) ...[
+                  if (!useWorkspaceAppBar) ...[
+                    CommandBar(
+                      overflowLabel: i18n.t('player.more'),
+                      children: [
                         CommandBarButton(
-                          icon: FluentIcons.music_note_2_20_regular,
-                          label: i18n.t('nowPlaying.locateCurrent'),
-                          disabled: currentSong == null,
+                          icon: FluentIcons.play_20_filled,
+                          label: i18n.t('nowPlaying.quickPlay'),
+                          disabled: snapshot.songs.isEmpty,
                           onPressed: () {
-                            _locateCurrent(queueSongs, mediaControlState);
+                            unawaited(_quickPlay(snapshot));
                           },
                         ),
                         CommandBarButton(
-                          icon: FluentIcons.add_20_regular,
-                          label: i18n.t('context.addToPlaylist'),
-                          disabled: addQueueToItem == null,
+                          icon: FluentIcons.arrow_shuffle_20_regular,
+                          label: i18n.t('nowPlaying.randomPlay'),
+                          disabled: snapshot.songs.isEmpty,
                           onPressedWithContext: (buttonContext) {
-                            if (addQueueToItem == null) {
-                              return;
-                            }
-                            showMenuFlyout(
-                              buttonContext,
-                              items: addQueueToItem.submenu,
+                            _showShuffleMenu(
+                              buttonContext: buttonContext,
+                              snapshot: snapshot,
+                              queueSongs: queueSongs,
                             );
                           },
                           onOverflowPressedWithContext: (buttonContext) {
-                            if (addQueueToItem == null) {
-                              return;
-                            }
                             unawaited(
                               showMenuFlyout(
                                 buttonContext,
-                                items: addQueueToItem.submenu,
+                                items: _buildShuffleMenuItems(
+                                  snapshot: snapshot,
+                                  queueSongs: queueSongs,
+                                ),
                               ),
                             );
                           },
                         ),
-                        CommandBarButton(
-                          icon: FluentIcons.dismiss_20_regular,
-                          label: i18n.t('nowPlaying.clearQueue'),
-                          onPressed: () {
-                            _clearQueue(queueSongIds);
-                          },
-                        ),
-                        CommandBarButton(
-                          icon: FluentIcons.full_screen_maximize_20_regular,
-                          label: i18n.t('nowPlaying.playMode'),
-                          disabled: currentSong == null,
-                          onPressed: () {
-                            context.go('/now-playing/full');
-                          },
-                        ),
-                        CommandBarButton(
-                          icon: FluentIcons.multiselect_ltr_20_regular,
-                          label: i18n.t('common.multiSelect'),
-                          active: _selection.multiSelect,
-                          onPressed: _toggleMultiSelect,
-                        ),
+                        if (queueSongs.isNotEmpty) ...[
+                          CommandBarButton(
+                            icon: FluentIcons.music_note_2_20_regular,
+                            label: i18n.t('nowPlaying.locateCurrent'),
+                            disabled: currentSong == null,
+                            onPressed: () {
+                              _locateCurrent(queueSongs, mediaControlState);
+                            },
+                          ),
+                          CommandBarButton(
+                            icon: FluentIcons.add_20_regular,
+                            label: i18n.t('context.addToPlaylist'),
+                            disabled: addQueueToItem == null,
+                            onPressedWithContext: (buttonContext) {
+                              if (addQueueToItem == null) {
+                                return;
+                              }
+                              showMenuFlyout(
+                                buttonContext,
+                                items: addQueueToItem.submenu,
+                              );
+                            },
+                            onOverflowPressedWithContext: (buttonContext) {
+                              if (addQueueToItem == null) {
+                                return;
+                              }
+                              unawaited(
+                                showMenuFlyout(
+                                  buttonContext,
+                                  items: addQueueToItem.submenu,
+                                ),
+                              );
+                            },
+                          ),
+                          CommandBarButton(
+                            icon: FluentIcons.dismiss_20_regular,
+                            label: i18n.t('nowPlaying.clearQueue'),
+                            onPressed: () {
+                              _clearQueue(queueSongIds);
+                            },
+                          ),
+                          CommandBarButton(
+                            icon: FluentIcons.full_screen_maximize_20_regular,
+                            label: i18n.t('nowPlaying.playMode'),
+                            disabled: currentSong == null,
+                            onPressed: () {
+                              context.go('/now-playing/full');
+                            },
+                          ),
+                          CommandBarButton(
+                            icon: FluentIcons.multiselect_ltr_20_regular,
+                            label: i18n.t('common.multiSelect'),
+                            active: _selection.multiSelect,
+                            onPressed: _toggleMultiSelect,
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Expanded(
                     child:
                         queueSongs.isEmpty
@@ -272,7 +408,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                 padding: EdgeInsets.fromLTRB(
                                   0,
                                   0,
-                                  14,
+                                  0,
                                   _selection.multiSelect
                                       ? multiSelectCommandBarScrollSpacer
                                       : 18,
@@ -479,14 +615,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artworkUrl: song.thumbnailPath,
-            isLoading: false,
-            favorite: song.favorite,
-          ),
+          mediaControlTrackForSong(song, context.smPlayerI18n),
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
@@ -504,14 +633,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          MediaControlTrack(
-            id: firstSong.id,
-            title: firstSong.title,
-            artist: firstSong.artist,
-            artworkUrl: firstSong.thumbnailPath,
-            isLoading: false,
-            favorite: firstSong.favorite,
-          ),
+          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 
 class MenuFlyoutItem {
   const MenuFlyoutItem({
@@ -11,6 +12,7 @@ class MenuFlyoutItem {
     this.pendingText,
     this.icon,
     this.iconColor,
+    this.usePlaylistIcon = false,
     this.disabled = false,
     this.checked = false,
     this.submenu = const [],
@@ -26,6 +28,7 @@ class MenuFlyoutItem {
       pendingText = null,
       icon = null,
       iconColor = null,
+      usePlaylistIcon = false,
       disabled = false,
       checked = false,
       submenu = const [],
@@ -41,6 +44,7 @@ class MenuFlyoutItem {
   final String? pendingText;
   final IconData? icon;
   final Color? iconColor;
+  final bool usePlaylistIcon;
   final bool disabled;
   final bool checked;
   final List<MenuFlyoutItem> submenu;
@@ -98,9 +102,7 @@ Future<void> showMenuFlyout(
 
 const _menuFlyoutMargin = 8.0;
 const _menuFlyoutWidth = 206.0;
-const _menuFlyoutSubmenuWidth = 260.0;
 const _menuFlyoutMaxWidth = 280.0;
-const _menuFlyoutSubmenuMaxWidth = 380.0;
 const _menuFlyoutPadding = 6.0;
 const _menuFlyoutItemHeight = 34.0;
 const _menuFlyoutSeparatorHeight = 13.0;
@@ -259,18 +261,11 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
             .resolve(
               size: size,
               boundaryBottom: boundaryBottom,
-              width:
-                  index == 0
-                      ? _menuFlyoutMaxWidth.clamp(
-                        0,
-                        size.width - _menuFlyoutMargin * 2,
-                      )
-                      : _menuFlyoutSubmenuMaxWidth.clamp(
-                        0,
-                        size.width - _menuFlyoutMargin * 2,
-                      ),
-              maxWidth:
-                  index == 0 ? _menuFlyoutMaxWidth : _menuFlyoutSubmenuMaxWidth,
+              width: _menuFlyoutMaxWidth.clamp(
+                0,
+                size.width - _menuFlyoutMargin * 2,
+              ),
+              maxWidth: _menuFlyoutMaxWidth,
             ),
     ];
   }
@@ -324,7 +319,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }) {
     final size = MediaQuery.sizeOf(context);
     final boundaryBottom = _boundaryBottom(size);
-    final panelWidth = _menuFlyoutSubmenuMaxWidth.clamp(
+    final panelWidth = _menuFlyoutMaxWidth.clamp(
       0.0,
       size.width - _menuFlyoutMargin * 2,
     );
@@ -423,9 +418,8 @@ class _MenuFlyoutPanel extends StatelessWidget {
       top: state.position.dy,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minWidth: depth == 0 ? _menuFlyoutWidth : _menuFlyoutSubmenuWidth,
-          maxWidth:
-              depth == 0 ? _menuFlyoutMaxWidth : _menuFlyoutSubmenuMaxWidth,
+          minWidth: _menuFlyoutWidth,
+          maxWidth: _menuFlyoutMaxWidth,
           maxHeight: maxHeight,
         ),
         child: Semantics(
@@ -601,7 +595,20 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                 SizedBox(
                   width: 20,
                   child:
-                      item.icon == null
+                      item.usePlaylistIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: CustomPaint(
+                                painter: _MenuFlyoutPlaylistIconPainter(
+                                  item.disabled
+                                      ? foreground
+                                      : item.iconColor ?? foreground,
+                                ),
+                              ),
+                            ),
+                          )
+                          : item.icon == null
                           ? null
                           : Icon(
                             item.icon,
@@ -655,6 +662,64 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
   }
 }
 
+class _MenuFlyoutPlaylistIconPainter extends CustomPainter {
+  const _MenuFlyoutPlaylistIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.65 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawLine(
+      Offset(4 * scale, 6 * scale),
+      Offset(14 * scale, 6 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(4 * scale, 12 * scale),
+      Offset(13 * scale, 12 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(4 * scale, 18 * scale),
+      Offset(10 * scale, 18 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(17 * scale, 8 * scale),
+      Offset(17 * scale, 17 * scale),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(17 * scale, 8 * scale)
+        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(15.4 * scale, 18.1 * scale),
+        width: 5.1 * scale,
+        height: 4.1 * scale,
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MenuFlyoutPlaylistIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
 double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
   return _menuFlyoutPadding * 2 +
       items.fold<double>(0, (height, item) {
@@ -696,7 +761,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
     text: Color(0xff1f252b),
     hoverText: Color(0xff0063b1),
     disabledText: Color(0x751f252b),
-    hoverSurface: Color(0x1a0078d7),
+    hoverSurface: SmPlayerInteractionColors.hoverSurface,
     checked: Color(0xff0063b1),
   );
 
@@ -707,7 +772,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
     text: Colors.white,
     hoverText: Colors.white,
     disabledText: Color(0x8fffffff),
-    hoverSurface: Color(0x2e0078d7),
+    hoverSurface: SmPlayerInteractionColors.hoverSurfaceDark,
     checked: Colors.white,
   );
 

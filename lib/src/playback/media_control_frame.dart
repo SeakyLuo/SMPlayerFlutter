@@ -1,5 +1,38 @@
 part of 'media_control.dart';
 
+class _PlayerBarShadowFrame extends StatelessWidget {
+  const _PlayerBarShadowFrame({required this.compact, required this.child});
+
+  final bool compact;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MediaControlThemeColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        boxShadow:
+            compact
+                ? [
+                  BoxShadow(
+                    color: colors.compactPlayerShadow,
+                    offset: const Offset(0, -12),
+                    blurRadius: 36,
+                  ),
+                ]
+                : [
+                  BoxShadow(
+                    color: colors.playerShadow,
+                    offset: Offset(0, colors.wideShadowOffsetY),
+                    blurRadius: 48,
+                  ),
+                ],
+      ),
+      child: child,
+    );
+  }
+}
+
 class _PlayerLiquidGlassFrame extends StatelessWidget {
   const _PlayerLiquidGlassFrame({required this.child});
 
@@ -62,9 +95,7 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
       builder: (context, constraints) {
         final compact = constraints.maxWidth <= _playerCompactBreakpoint;
         final colors = MediaControlThemeColors.of(context);
-        final coverWash = _accentColor.withValues(
-          alpha: compact ? colors.compactCoverWashAlpha : colors.coverWashAlpha,
-        );
+        final coverWash = _accentColor.withValues(alpha: colors.coverWashAlpha);
         final borderColor =
             compact ? colors.compactPlayerBorder : colors.playerBorder;
         final border =
@@ -75,25 +106,9 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
                   left: BorderSide(color: borderColor),
                   right: BorderSide(color: borderColor),
                 );
-        final shadow =
-            compact
-                ? [
-                  BoxShadow(
-                    color: colors.compactPlayerShadow,
-                    offset: const Offset(0, -12),
-                    blurRadius: 36,
-                  ),
-                ]
-                : [
-                  BoxShadow(
-                    color: colors.playerShadow,
-                    offset: Offset(0, colors.wideShadowOffsetY),
-                    blurRadius: 48,
-                  ),
-                ];
 
         return DecoratedBox(
-          decoration: BoxDecoration(border: border, boxShadow: shadow),
+          decoration: BoxDecoration(border: border),
           child:
               compact
                   ? _PlayerCompactTintedBackground(
@@ -154,9 +169,7 @@ class _PlayerWideTintedBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.wideSurface,
-      ),
+      decoration: BoxDecoration(color: colors.wideSurface),
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -198,15 +211,14 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.compactSurface,
-          ),
+          decoration: BoxDecoration(color: colors.wideSurface),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: colors.compactTopGradient,
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [coverWash, Colors.transparent],
+                stops: [0, colors.wideWashStop],
               ),
             ),
             child: DecoratedBox(
@@ -214,8 +226,7 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [coverWash, colors.compactWash],
-                  stops: [0, colors.compactWashStop],
+                  colors: colors.wideHighlightGradient,
                 ),
               ),
               child: child,
@@ -227,10 +238,7 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
           left: 0,
           right: 0,
           height: 1,
-          child: ColoredBox(
-            color:
-                colors.compactInsetHighlight,
-          ),
+          child: ColoredBox(color: colors.compactInsetHighlight),
         ),
       ],
     );

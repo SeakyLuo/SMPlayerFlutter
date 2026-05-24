@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
@@ -94,7 +97,7 @@ void main() {
       'settings.musicFolderPlaceholder': '音乐库根目录路径',
       'settings.nightMode': '夜间模式',
       'settings.nightModeSystem': '跟随系统',
-      'settings.nightModeAuto': '自动',
+      'settings.nightModeAuto': '自定义',
       'settings.nightModeEndTime': '到',
       'settings.nightModeNever': '永不',
       'settings.nightModeOn': '开启',
@@ -179,15 +182,20 @@ void main() {
       'song.lyrics.auto': '自动',
       'local.applyingArtistSplits': '正在更新...',
       'local.applyArtistSplits': '全部拆分',
+      'local.applySelectedArtistSplits': '更新歌手（{count}）',
       'local.artistSplitAfter': '拆分后',
       'local.artistMergeAfter': '合并后',
       'local.artistMergeSuggestionsTitle': '可以合并的歌手',
       'local.artistSplitOriginal': '原始',
       'local.artistSplitReviewTotal': '共 {count} 首歌',
       'local.directArtistSplitsGroup': '可以直接拆分（{count}）',
+      'local.directArtistSplitsTitle': '可以直接拆分',
       'local.keepArtistSplits': '保持原样',
       'local.refreshArtistSplitSuggestionsGroup': '可能的多歌手（{count}）',
+      'local.refreshArtistSplitSuggestionsTitle': '可能的多歌手',
       'local.startupArtistSplitSuggestionsTitle': '歌手更新建议',
+      'local.selectAllArtistSplits': '全选',
+      'local.clearArtistSplitSelection': '清空选择',
     },
   );
 
@@ -713,6 +721,13 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
           home: Scaffold(
             body: SettingsPage(
               libraryRepository: repository,
@@ -734,11 +749,13 @@ void main() {
     expect(repository.analyzeRequested, isTrue);
     expect(find.text('歌手更新建议'), findsOneWidget);
     expect(find.text('Collab Song'), findsOneWidget);
-    expect(_richTextContaining('Alpha / Beta'), findsOneWidget);
-    expect(_richTextContaining('Alpha、Beta'), findsOneWidget);
+    expect(find.text('Alpha / Beta'), findsOneWidget);
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.text('更新歌手（1）'), findsOneWidget);
     expect(find.text('99'), findsNothing);
 
-    await tester.tap(find.text('全部拆分'));
+    await tester.tap(find.text('更新歌手（1）'));
     await tester.pumpAndSettle();
 
     expect(repository.appliedSplits, [directSplit]);
@@ -774,6 +791,13 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
             home: Scaffold(
               body: SettingsPage(
                 libraryRepository: repository,
@@ -791,10 +815,12 @@ void main() {
 
       expect(find.text('可以合并的歌手'), findsOneWidget);
       expect(find.text('Merge Song'), findsOneWidget);
-      expect(_richTextContaining('合并后'), findsOneWidget);
-      expect(_richTextContaining('Jay Chou'), findsOneWidget);
+      expect(find.text('合并后'), findsOneWidget);
+      expect(find.text('Jay Chou'), findsOneWidget);
 
-      await tester.tap(find.text('全部拆分'));
+      await tester.tap(find.text('全选'));
+      await tester.pump();
+      await tester.tap(find.text('更新歌手（1）'));
       await tester.pumpAndSettle();
 
       expect(repository.appliedSplits, [mergeSuggestion]);
@@ -1371,10 +1397,4 @@ class _FakePreferenceRepository extends LibraryRepository {
   Future<void> clearInvalidPreferenceItems(PreferenceEntityType type) async {
     clearedInvalidType = type;
   }
-}
-
-Finder _richTextContaining(String text) {
-  return find.byWidgetPredicate(
-    (widget) => widget is RichText && widget.text.toPlainText().contains(text),
-  );
 }

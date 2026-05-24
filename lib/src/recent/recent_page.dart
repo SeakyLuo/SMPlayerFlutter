@@ -5,8 +5,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
+import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -32,6 +34,7 @@ enum RecentTab { added, played, searches }
 enum RecentPlayedFilter { songs, artists, albums, playlists }
 
 const _recentMinimalContentBreakpoint = 656.0;
+const _recentPlayedFilterRadius = 999.0;
 
 class RecentPage extends ConsumerStatefulWidget {
   const RecentPage({super.key});
@@ -52,6 +55,78 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   final _selectedCollectionKeys = <String>{};
   final _selectedSearchIds = <int>{};
   ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  final _appBarPortalOwner = Object();
+  String? _appBarPortalSignature;
+  late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+  }
+
+  @override
+  void dispose() {
+    _clearAppBarPortalOwner();
+    super.dispose();
+  }
+
+  void _clearAppBarPortalOwner() {
+    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+      _appBarPortalNotifier.state = null;
+    }
+  }
+
+  void _syncAppBarPortal({
+    required bool showPortal,
+    required String routePath,
+    required SmPlayerI18n i18n,
+    required int addedCount,
+    required int playedCount,
+    required int searchesCount,
+    required bool showCount,
+  }) {
+    final signature =
+        '$showPortal:$routePath:$_activeTab:$addedCount:$playedCount:$searchesCount:$showCount';
+    if (_appBarPortalSignature == signature) {
+      return;
+    }
+    _appBarPortalSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
+      if (!showPortal) {
+        if (notifier.state?.owner == _appBarPortalOwner) {
+          notifier.state = null;
+        }
+        return;
+      }
+      notifier.state = WorkspaceAppBarPortalEntry(
+        owner: _appBarPortalOwner,
+        routePath: routePath,
+        replacesTitle: true,
+        content: _RecentAppBarTabs(
+          i18n: i18n,
+          activeTab: _activeTab,
+          addedCount: addedCount,
+          playedCount: playedCount,
+          searchesCount: searchesCount,
+          showCount: showCount,
+          onChanged: _switchTab,
+        ),
+      );
+    });
+  }
+
+  void _switchTab(RecentTab tab) {
+    setState(() {
+      _activeTab = tab;
+      _clearSelection();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,19 +229,25 @@ class _RecentPageState extends ConsumerState<RecentPage> {
             builder: (context, constraints) {
               final useAppBarTabs =
                   constraints.maxWidth < _recentMinimalContentBreakpoint;
-              void switchTab(RecentTab tab) {
-                setState(() {
-                  _activeTab = tab;
-                  _clearSelection();
-                });
-              }
+              final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
+                context,
+              );
+              _syncAppBarPortal(
+                showPortal: useWorkspaceAppBar,
+                routePath: '/recent',
+                i18n: i18n,
+                addedCount: addedSongs.length,
+                playedCount: recentPlayedCount,
+                searchesCount: snapshot.recentSearches.length,
+                showCount: snapshot.showCount,
+              );
 
               return Stack(
                 children: [
                   Column(
                     spacing: 4,
                     children: [
-                      if (useAppBarTabs)
+                      if (useAppBarTabs && !useWorkspaceAppBar)
                         _RecentAppBarTabs(
                           i18n: i18n,
                           activeTab: _activeTab,
@@ -174,9 +255,9 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                           playedCount: recentPlayedCount,
                           searchesCount: snapshot.recentSearches.length,
                           showCount: snapshot.showCount,
-                          onChanged: switchTab,
+                          onChanged: _switchTab,
                         )
-                      else
+                      else if (!useWorkspaceAppBar)
                         _RecentTabs(
                           i18n: i18n,
                           activeTab: _activeTab,
@@ -184,7 +265,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                           playedCount: recentPlayedCount,
                           searchesCount: snapshot.recentSearches.length,
                           showCount: snapshot.showCount,
-                          onChanged: switchTab,
+                          onChanged: _switchTab,
                         ),
                       if (_activeTab == RecentTab.played)
                         _RecentPlayedFilterBar(
@@ -1294,6 +1375,7 @@ class _RecentTabs extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 12, right: 18),
       child: SizedBox(
+        width: double.infinity,
         height: colors.tabsHeight,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1624,32 +1706,33 @@ class _RecentPlayedFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      width: double.infinity,
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(right: 14, bottom: 2),
+        padding: const EdgeInsets.only(bottom: 2),
         children: [
           _FilterButton(
             active: activeFilter == RecentPlayedFilter.songs,
-            icon: FluentIcons.music_note_2_20_regular,
+            icon: const Icon(FluentIcons.music_note_2_20_regular, size: 21),
             label: i18n.t('common.songs'),
             onPressed: () => onChanged(RecentPlayedFilter.songs),
           ),
           _FilterButton(
             active: activeFilter == RecentPlayedFilter.artists,
-            icon: FluentIcons.people_20_regular,
+            icon: const Icon(FluentIcons.people_24_regular, size: 21),
             label: i18n.t('recent.artists'),
             onPressed: () => onChanged(RecentPlayedFilter.artists),
           ),
           _FilterButton(
             active: activeFilter == RecentPlayedFilter.albums,
-            icon: FluentIcons.album_20_regular,
+            icon: const _RecentFilterAlbumIcon(),
             label: i18n.t('recent.albums'),
             onPressed: () => onChanged(RecentPlayedFilter.albums),
           ),
           _FilterButton(
             active: activeFilter == RecentPlayedFilter.playlists,
-            icon: FluentIcons.apps_list_detail_20_regular,
+            icon: const _RecentFilterPlaylistIcon(),
             label: i18n.t('recent.playlists'),
             onPressed: () => onChanged(RecentPlayedFilter.playlists),
           ),
@@ -1668,7 +1751,7 @@ class _FilterButton extends StatelessWidget {
   });
 
   final bool active;
-  final IconData icon;
+  final Widget icon;
   final String label;
   final VoidCallback onPressed;
 
@@ -1679,7 +1762,7 @@ class _FilterButton extends StatelessWidget {
       padding: const EdgeInsets.only(right: 8),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
           boxShadow: active ? colors.playedFilterActiveShadow : const [],
         ),
         child: TextButton.icon(
@@ -1696,11 +1779,11 @@ class _FilterButton extends StatelessWidget {
                 active
                     ? colors.playedFilterActiveBorder
                     : colors.playedFilterBorder,
-            minHeight: 36,
+            minHeight: 28,
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            radius: 10,
+            radius: _recentPlayedFilterRadius,
           ),
-          icon: Icon(icon, size: 18),
+          icon: icon,
           label: Text(
             label,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
@@ -1709,6 +1792,131 @@ class _FilterButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RecentFilterAlbumIcon extends StatelessWidget {
+  const _RecentFilterAlbumIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
+    return IconTheme(
+      data: IconTheme.of(context),
+      child: SizedBox.square(
+        dimension: 21,
+        child: CustomPaint(painter: _RecentAlbumIconPainter(color)),
+      ),
+    );
+  }
+}
+
+class _RecentFilterPlaylistIcon extends StatelessWidget {
+  const _RecentFilterPlaylistIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
+    return IconTheme(
+      data: IconTheme.of(context),
+      child: SizedBox.square(
+        dimension: 21,
+        child: CustomPaint(painter: _RecentPlaylistIconPainter(color)),
+      ),
+    );
+  }
+}
+
+class _RecentAlbumIconPainter extends CustomPainter {
+  const _RecentAlbumIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.65 * scale;
+    canvas.drawCircle(center, 8 * scale, paint);
+    canvas.drawCircle(center, 3 * scale, paint);
+    canvas.drawCircle(
+      center,
+      1 * scale,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RecentAlbumIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _RecentPlaylistIconPainter extends CustomPainter {
+  const _RecentPlaylistIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.65 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawLine(
+      Offset(4 * scale, 6 * scale),
+      Offset(14 * scale, 6 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(4 * scale, 12 * scale),
+      Offset(13 * scale, 12 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(4 * scale, 18 * scale),
+      Offset(10 * scale, 18 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(17 * scale, 8 * scale),
+      Offset(17 * scale, 17 * scale),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(17 * scale, 8 * scale)
+        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(15.4 * scale, 18.1 * scale),
+        width: 5.1 * scale,
+        height: 4.1 * scale,
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RecentPlaylistIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
@@ -2365,7 +2573,7 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
                   for (final group in groups) ...[
                     _RecentTimeGroupHeader(label: group.label),
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
+                      padding: const EdgeInsets.fromLTRB(8, 0, 0, 22),
                       sliver: SliverGrid.builder(
                         gridDelegate:
                             const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -2399,7 +2607,7 @@ class _RecentTimeGroupHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 10, 14, 10),
+        padding: const EdgeInsets.fromLTRB(8, 10, 0, 10),
         child: Text(
           label,
           style: const TextStyle(
@@ -2852,7 +3060,7 @@ class _RecentColors {
   static const playedFilterBorder = Color(0x1f536379);
   static const playedFilterActiveBorder = Color(0x6b0078d7);
   static const playedFilterActiveSurface = Color(0x240078d7);
-  static const playedFilterActiveRing = Color(0x140078d7);
+  static const playedFilterActiveRing = SmPlayerInteractionColors.hoverSurface;
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
   static const overlay = Color(0xb81e2228);

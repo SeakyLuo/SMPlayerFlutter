@@ -130,6 +130,7 @@ class _MainNavigationViewItemButtonState
                           color: foreground,
                         ),
                       ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           widget.label,

@@ -160,7 +160,6 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
                 )
                 .toList();
         return Column(
-          spacing: 8,
           children: [
             _MainNavigationPlaylistHeading(
               active: _MainNavigationViewState._playlistsItem.isActive(
@@ -176,10 +175,12 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
             ),
             if (expanded)
               if (constraints.hasBoundedHeight)
-                Expanded(
+                Flexible(
+                  fit: FlexFit.loose,
                   child: ListView(
                     key: const ValueKey('MainNavigationView.PlaylistScroll'),
                     padding: EdgeInsets.zero,
+                    shrinkWrap: true,
                     children: playlistItems,
                   ),
                 )
@@ -215,6 +216,7 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
       children: [
         Expanded(
           child: _MainNavigationViewItemButton(
+            key: const ValueKey('MainNavigationView.PlaylistsHeadingItem'),
             item: _MainNavigationViewState._playlistsItem,
             label: _MainNavigationViewState._playlistsItem.labelFor(i18n),
             collapsed: false,
@@ -305,12 +307,26 @@ class _MainNavigationPlaylistItemButton extends StatefulWidget {
 
 class _MainNavigationPlaylistItemButtonState
     extends State<_MainNavigationPlaylistItemButton> {
+  final _focusNode = FocusNode();
   var _hovered = false;
+  var _focused = false;
+  var _randomHovered = false;
+  var _randomFocused = false;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
     final highlighted = widget.active || _hovered;
+    final showRandomPlay =
+        widget.onRandomPlay != null &&
+        widget.playlist.songIds.isNotEmpty &&
+        (_hovered || _focused || _randomFocused);
     final foreground = highlighted ? colors.highlightText : colors.textMuted;
 
     return DragTarget<int>(
@@ -342,78 +358,135 @@ class _MainNavigationPlaylistItemButtonState
               _hovered = false;
             });
           },
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.onPressed,
-            onSecondaryTapDown: (details) {
-              _showPlaylistMenu(context, details.globalPosition);
+          child: Focus(
+            focusNode: _focusNode,
+            onFocusChange: (focused) {
+              setState(() {
+                _focused = focused;
+              });
             },
-            onLongPressStart: (details) {
-              _showPlaylistMenu(context, details.globalPosition);
-            },
-            child: Opacity(
-              opacity: widget.dragging ? 0.45 : 1,
-              child: Container(
-                height: 40,
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(
-                  color: highlighted ? colors.accentHover : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  border: _dropIndicatorBorder(widget.dropPosition),
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Center(
-                        child: SizedBox.square(
-                          dimension: 20,
-                          child: CustomPaint(
-                            painter: _PlaylistNavigationIconPainter(foreground),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                _focusNode.requestFocus();
+                widget.onPressed();
+              },
+              onSecondaryTapDown: (details) {
+                _focusNode.requestFocus();
+                _showPlaylistMenu(context, details.globalPosition);
+              },
+              onLongPressStart: (details) {
+                _focusNode.requestFocus();
+                _showPlaylistMenu(context, details.globalPosition);
+              },
+              child: Opacity(
+                opacity: widget.dragging ? 0.45 : 1,
+                child: Container(
+                  height: 40,
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color:
+                        highlighted ? colors.accentHover : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    border: _dropIndicatorBorder(widget.dropPosition),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Center(
+                          child: SizedBox.square(
+                            dimension: 19,
+                            child: CustomPaint(
+                              painter: _PlaylistNavigationIconPainter(
+                                foreground,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.playlist.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    if (widget.onRandomPlay != null)
-                      IgnorePointer(
-                        ignoring: !_hovered || widget.playlist.songIds.isEmpty,
-                        child: Opacity(
-                          opacity:
-                              _hovered && widget.playlist.songIds.isNotEmpty
-                                  ? 1
-                                  : 0,
-                          child: IconButton(
-                            tooltip: widget.randomPlayLabel,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 28,
-                              height: 28,
-                            ),
-                            icon: const Icon(
-                              FluentIcons.arrow_shuffle_20_regular,
-                              size: 17,
-                            ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          widget.playlist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
                             color: foreground,
-                            onPressed: widget.onRandomPlay,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            height: 1,
                           ),
                         ),
                       ),
-                  ],
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 30,
+                        child: IgnorePointer(
+                          ignoring: !showRandomPlay,
+                          child: Opacity(
+                            opacity: showRandomPlay ? 1 : 0,
+                            child: Tooltip(
+                              message: widget.randomPlayLabel,
+                              waitDuration: const Duration(milliseconds: 450),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    onEnter: (_) {
+                                      setState(() {
+                                        _randomHovered = true;
+                                      });
+                                    },
+                                    onExit: (_) {
+                                      setState(() {
+                                        _randomHovered = false;
+                                      });
+                                    },
+                                    child: Focus(
+                                      onFocusChange: (focused) {
+                                        setState(() {
+                                          _randomFocused = focused;
+                                        });
+                                      },
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: widget.onRandomPlay,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color:
+                                                _randomHovered || _randomFocused
+                                                    ? colors.iconButtonHover
+                                                    : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            FluentIcons
+                                                .arrow_shuffle_20_regular,
+                                            size: 18,
+                                            color:
+                                                _randomHovered || _randomFocused
+                                                    ? colors.accentStrong
+                                                    : foreground,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

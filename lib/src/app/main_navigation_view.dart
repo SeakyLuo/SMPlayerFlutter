@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
@@ -48,6 +49,7 @@ class MainNavigationView extends StatefulWidget {
     required this.onSearchCleared,
     required this.onItemInvoked,
     this.canGoBack = false,
+    this.showTitlebar = true,
     this.playlists = const [],
     this.recentSearches = const [],
     this.onGoBack,
@@ -70,6 +72,7 @@ class MainNavigationView extends StatefulWidget {
   final List<LibraryPlaylist> playlists;
   final List<SearchHistoryEntry> recentSearches;
   final bool canGoBack;
+  final bool showTitlebar;
   final VoidCallback onPaneToggle;
   final ValueChanged<String> onSearchTextChanged;
   final MainNavigationSearchCommit onSearchCommitted;
@@ -158,12 +161,12 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     _nowPlayingItem,
     _myFavoritesItem,
   ];
-  static const _searchHistoryPanelTop = 40.0 + 8.0 + 40.0 + 8.0 + 40.0 + 8.0;
 
   final _searchFocusNode = FocusNode();
+  final _searchFieldLayerLink = LayerLink();
   var _focusSearchAfterPaneOpen = false;
   var _isSearchHistoryOpen = false;
-  var _isPlaylistNavExpanded = false;
+  var _isPlaylistNavExpanded = true;
   int? _draggingPlaylistId;
   ({int playlistId, _PlaylistDropPosition position})? _playlistDropIndicator;
 
@@ -341,6 +344,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       widget.i18n,
       View.of(context).platformDispatcher.locale,
     );
+    final topPadding = widget.showTitlebar ? 8.0 : 0.0;
 
     return Material(
       key: _rootKey,
@@ -352,7 +356,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: EdgeInsets.fromLTRB(12, topPadding, 12, 8),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final contentCollapsed =
@@ -375,25 +379,29 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 ? CrossAxisAlignment.center
                                 : CrossAxisAlignment.start,
                         children: [
-                          _MainNavigationViewTitle(
-                            collapsed: contentCollapsed,
-                            hideAppName:
-                                defaultTargetPlatform == TargetPlatform.macOS,
-                            appName: resolvedAppName,
-                            titlebarLeadingInset:
-                                defaultTargetPlatform == TargetPlatform.macOS
-                                    ? _desktopTitlebarButtonInset
-                                    : 0,
-                            canGoBack: widget.canGoBack,
-                            backLabel: widget.i18n.t('sidebar.back'),
-                            onGoBack: widget.onGoBack,
-                            onWindowDragStart: widget.onWindowDragStart,
-                            onWindowDragEnd: widget.onWindowDragEnd,
-                            onTooltipRequested:
-                                contentCollapsed ? _showFloatingTooltip : null,
-                            onTooltipDismissed: _hideFloatingTooltip,
-                          ),
-                          const SizedBox(height: 8),
+                          if (widget.showTitlebar) ...[
+                            _MainNavigationViewTitle(
+                              collapsed: contentCollapsed,
+                              hideAppName:
+                                  defaultTargetPlatform == TargetPlatform.macOS,
+                              appName: resolvedAppName,
+                              titlebarLeadingInset:
+                                  defaultTargetPlatform == TargetPlatform.macOS
+                                      ? _desktopTitlebarButtonInset
+                                      : 0,
+                              canGoBack: widget.canGoBack,
+                              backLabel: widget.i18n.t('sidebar.back'),
+                              onGoBack: widget.onGoBack,
+                              onWindowDragStart: widget.onWindowDragStart,
+                              onWindowDragEnd: widget.onWindowDragEnd,
+                              onTooltipRequested:
+                                  contentCollapsed
+                                      ? _showFloatingTooltip
+                                      : null,
+                              onTooltipDismissed: _hideFloatingTooltip,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           _NavigationIconButton(
                             key: const ValueKey(
                               'MainNavigationView.TogglePaneButton',
@@ -447,6 +455,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                               _focusSearchAfterPaneOpen = true;
                               widget.onPaneToggle();
                             },
+                            searchFieldLayerLink: _searchFieldLayerLink,
                             onTooltipRequested:
                                 contentCollapsed ? _showFloatingTooltip : null,
                             onTooltipDismissed: _hideFloatingTooltip,
@@ -503,7 +512,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 return Column(
                                   children: [
                                     ...libraryAndPlayback,
-                                    Expanded(child: playlistSection),
+                                    playlistSection,
                                   ],
                                 );
                               },
@@ -535,26 +544,31 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                         ),
                       if (showRecentSearches)
                         Positioned(
-                          top: _searchHistoryPanelTop,
                           left: 0,
                           right: 0,
-                          child: TextFieldTapRegion(
-                            child: _MainNavigationRecentSearches(
-                              entries: visibleRecentSearches,
-                              i18n: widget.i18n,
-                              onSearchSelected: (entry) {
-                                widget.onSearchTextChanged(entry.query);
-                                widget.onSearchCommitted(
-                                  entry.query,
-                                  entry.type,
-                                );
-                                setState(() {
-                                  _isSearchHistoryOpen = false;
-                                });
-                                _searchFocusNode.unfocus();
-                              },
-                              onSearchRemoved: widget.onRecentSearchRemove,
-                              onClear: widget.onRecentSearchesClear,
+                          top: 0,
+                          child: CompositedTransformFollower(
+                            link: _searchFieldLayerLink,
+                            showWhenUnlinked: false,
+                            offset: const Offset(0, 48),
+                            child: TextFieldTapRegion(
+                              child: _MainNavigationRecentSearches(
+                                entries: visibleRecentSearches,
+                                i18n: widget.i18n,
+                                onSearchSelected: (entry) {
+                                  widget.onSearchTextChanged(entry.query);
+                                  widget.onSearchCommitted(
+                                    entry.query,
+                                    entry.type,
+                                  );
+                                  setState(() {
+                                    _isSearchHistoryOpen = false;
+                                  });
+                                  _searchFocusNode.unfocus();
+                                },
+                                onSearchRemoved: widget.onRecentSearchRemove,
+                                onClear: widget.onRecentSearchesClear,
+                              ),
                             ),
                           ),
                         ),

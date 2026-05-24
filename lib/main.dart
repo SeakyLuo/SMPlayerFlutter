@@ -289,8 +289,12 @@ Future<void> _initializeDesktopWindow(SettingsSnapshot settings) async {
 
 Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {
   await windowManager.setMinimumSize(mainWindowMinimumSize);
+  if (Platform.isMacOS) {
+    return;
+  }
+  final savedBounds = parseMainWindowBounds(settings.mainWindowBounds);
   final bounds = resolveInitialMainWindowBounds(
-    parseMainWindowBounds(settings.mainWindowBounds),
+    savedBounds,
     await _mainWindowWorkAreas(),
   );
   await windowManager.setBounds(bounds);

@@ -642,7 +642,7 @@
   "settings.notificationSendNever": "送信しない",
   "settings.nightMode": "ナイトモード",
   "settings.nightModeSystem": "システムに従う",
-  "settings.nightModeAuto": "自動",
+  "settings.nightModeAuto": "カスタム",
   "settings.nightModeNever": "なし",
   "settings.nightModeOn": "オン",
   "settings.nightModeTimeRange": "ナイトモード時間",

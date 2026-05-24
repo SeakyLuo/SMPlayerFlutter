@@ -186,18 +186,9 @@ class _PlayerButtonIcon extends StatelessWidget {
     if (hidden) {
       return const SizedBox.expand();
     }
-    if (icon == _previousIcon || icon == _nextIcon) {
-      return CustomPaint(
-        painter: _SkipTransportIconPainter(
-          color: color,
-          previous: icon == _previousIcon,
-        ),
-        size: Size.square(size),
-      );
-    }
     if (icon == _playIcon) {
       return CustomPaint(
-        painter: _PlayTransportIconPainter(color),
+        painter: _CenteredPlayIconPainter(color),
         size: Size.square(size),
       );
     }
@@ -207,8 +198,160 @@ class _PlayerButtonIcon extends StatelessWidget {
         size: Size.square(size),
       );
     }
-    final iconWidget = Icon(icon, color: color, size: size);
-    return iconWidget;
+    if (icon == _previousIcon || icon == _nextIcon) {
+      return CustomPaint(
+        painter: _SkipTransportIconPainter(
+          color,
+          reverse: icon == _previousIcon,
+        ),
+        size: Size.square(size),
+      );
+    }
+    if (icon == _listPlaybackIcon) {
+      return CustomPaint(
+        painter: _PlaylistPlaybackModeIconPainter(color),
+        size: Size.square(size),
+      );
+    }
+    if (icon == _voiceIcon) {
+      return CustomPaint(
+        painter: _VoiceAssistantIconPainter(color),
+        size: Size.square(size),
+      );
+    }
+    return Icon(icon, color: color, size: size);
+  }
+}
+
+class _CenteredPlayIconPainter extends CustomPainter {
+  const _CenteredPlayIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+    final path =
+        Path()
+          ..moveTo(7.4 * scale, 3.9 * scale)
+          ..lineTo(21.0 * scale, 12 * scale)
+          ..lineTo(7.4 * scale, 20.1 * scale)
+          ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CenteredPlayIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _SkipTransportIconPainter extends CustomPainter {
+  const _SkipTransportIconPainter(this.color, {required this.reverse});
+
+  final Color color;
+  final bool reverse;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.55 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+
+    canvas.save();
+    if (reverse) {
+      canvas.translate(size.width, 0);
+      canvas.scale(-1, 1);
+    }
+    final path =
+        Path()
+          ..moveTo(7.25 * scale, 5.5 * scale)
+          ..lineTo(16.25 * scale, 12 * scale)
+          ..lineTo(7.25 * scale, 18.5 * scale)
+          ..close();
+    canvas.drawPath(path, paint);
+    canvas.drawLine(
+      Offset(18 * scale, 5.75 * scale),
+      Offset(18 * scale, 18.25 * scale),
+      paint,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.reverse != reverse;
+  }
+}
+
+class _VoiceAssistantIconPainter extends CustomPainter {
+  const _VoiceAssistantIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.35 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+    final centerX = 12 * scale;
+    final micBody = RRect.fromRectAndRadius(
+      Rect.fromLTWH(8.3 * scale, 3.2 * scale, 7.4 * scale, 11.8 * scale),
+      Radius.circular(3.7 * scale),
+    );
+    canvas.drawRRect(micBody, paint);
+    final cradle =
+        Path()
+          ..moveTo(5.8 * scale, 11.2 * scale)
+          ..cubicTo(
+            5.8 * scale,
+            15.0 * scale,
+            8.5 * scale,
+            17.8 * scale,
+            centerX,
+            17.8 * scale,
+          )
+          ..cubicTo(
+            15.5 * scale,
+            17.8 * scale,
+            18.2 * scale,
+            15.0 * scale,
+            18.2 * scale,
+            11.2 * scale,
+          );
+    canvas.drawPath(cradle, paint);
+    canvas.drawLine(
+      Offset(centerX, 17.8 * scale),
+      Offset(centerX, 20.9 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(9.0 * scale, 20.9 * scale),
+      Offset(15.0 * scale, 20.9 * scale),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _VoiceAssistantIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
@@ -235,106 +378,62 @@ class _MoreHorizontalIconPainter extends CustomPainter {
   }
 }
 
-class _PlayTransportIconPainter extends CustomPainter {
-  const _PlayTransportIconPainter(this.color);
+class _PlaylistPlaybackModeIconPainter extends CustomPainter {
+  const _PlaylistPlaybackModeIconPainter(this.color);
 
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.width / 24;
+    final scale = size.shortestSide / 24;
     final paint =
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5 * scale
+          ..strokeWidth = 1.65 * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
-    final points = [
-      Offset(6.5 * scale, 5.25 * scale),
-      Offset(19.8 * scale, 12 * scale),
-      Offset(6.5 * scale, 18.75 * scale),
-    ];
-    canvas.drawPath(_roundedTrianglePath(points, 1.5 * scale), paint);
-  }
 
-  @override
-  bool shouldRepaint(covariant _PlayTransportIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
-class _SkipTransportIconPainter extends CustomPainter {
-  const _SkipTransportIconPainter({
-    required this.color,
-    required this.previous,
-  });
-
-  final Color color;
-  final bool previous;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.35 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-    final barX = (previous ? 4.4 : 19.6) * scale;
     canvas.drawLine(
-      Offset(barX, 4.3 * scale),
-      Offset(barX, 19.7 * scale),
+      Offset(4 * scale, 6 * scale),
+      Offset(14 * scale, 6 * scale),
       paint,
     );
-
-    const triangleBackX = 20.1;
-    const triangleTipX = 7.97;
-    const triangleTopY = 3.0;
-    const triangleBottomY = 21.0;
-    final points = [
-      Offset(
-        (previous ? triangleBackX : 24 - triangleBackX) * scale,
-        triangleTopY * scale,
+    canvas.drawLine(
+      Offset(4 * scale, 12 * scale),
+      Offset(13 * scale, 12 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(4 * scale, 18 * scale),
+      Offset(10 * scale, 18 * scale),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(17 * scale, 8 * scale),
+      Offset(17 * scale, 17 * scale),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(17 * scale, 8 * scale)
+        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(15.4 * scale, 18.1 * scale),
+        width: 5.1 * scale,
+        height: 4.1 * scale,
       ),
-      Offset((previous ? triangleTipX : 24 - triangleTipX) * scale, 12 * scale),
-      Offset(
-        (previous ? triangleBackX : 24 - triangleBackX) * scale,
-        triangleBottomY * scale,
-      ),
-    ];
-    canvas.drawPath(_roundedTrianglePath(points, 1.25 * scale), paint);
+      paint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.previous != previous;
+  bool shouldRepaint(covariant _PlaylistPlaybackModeIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
-}
-
-Path _roundedTrianglePath(List<Offset> points, double radius) {
-  final path = Path();
-  for (var index = 0; index < points.length; index += 1) {
-    final current = points[index];
-    final previousPoint = points[(index + points.length - 1) % points.length];
-    final nextPoint = points[(index + 1) % points.length];
-    final start =
-        current +
-        (previousPoint - current) / (previousPoint - current).distance * radius;
-    final end =
-        current +
-        (nextPoint - current) / (nextPoint - current).distance * radius;
-
-    if (index == 0) {
-      path.moveTo(start.dx, start.dy);
-    } else {
-      path.lineTo(start.dx, start.dy);
-    }
-    path.quadraticBezierTo(current.dx, current.dy, end.dx, end.dy);
-  }
-  return path..close();
 }
 
 class _PlayerArtwork extends StatelessWidget {

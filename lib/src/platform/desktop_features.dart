@@ -11,7 +11,10 @@ import 'package:screen_retriever/screen_retriever.dart' as screen;
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    as artists_model;
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -558,7 +561,11 @@ class DesktopLyricsDisplayState {
     required double progressSeconds,
     SmPlayerI18n? i18n,
   }) {
-    final artist = currentSong?.artist ?? '';
+    final artists =
+        currentSong == null
+            ? const <String>[]
+            : artists_model.getSongArtists(currentSong);
+    final artist = artists.join(i18n?.t('common.artistSeparator') ?? ', ');
     final fallbackText =
         currentSong == null
             ? ''
@@ -846,9 +853,13 @@ abstract class DesktopFeatureService {
   void dispose();
 }
 
-DesktopFeatureService createDesktopFeatureService() {
+DesktopFeatureService createDesktopFeatureService({
+  LibraryRepository? settingsRepository,
+}) {
   if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-    return TrayWindowDesktopFeatureService();
+    return TrayWindowDesktopFeatureService(
+      settingsRepository: settingsRepository ?? const LibraryRepository(),
+    );
   }
   if (!kIsWeb && Platform.isAndroid) {
     return MobileExternalOpenFeatureService();
@@ -981,10 +992,18 @@ class MobileExternalOpenFeatureService extends NoopDesktopFeatureService {
 class TrayWindowDesktopFeatureService
     with tray.TrayListener, WindowListener
     implements DesktopFeatureService {
+  TrayWindowDesktopFeatureService({LibraryRepository? settingsRepository})
+    : _settingsRepository = settingsRepository ?? const LibraryRepository();
+
+  static const _mainWindowStateSaveDelay = Duration(milliseconds: 350);
+
+  final LibraryRepository _settingsRepository;
   ValueChanged<DesktopFeatureAction>? _onAction;
   DesktopTrayState? _lastTrayState;
   List<String>? _cachedSystemFonts;
   Rect? _boundsBeforeMiniMode;
+  Timer? _mainWindowStateSaveDebounce;
+  Future<void> _mainWindowStateWriteQueue = Future.value();
   var _wasMaximizedBeforeMiniMode = false;
   var _initialized = false;
   var _quitting = false;
@@ -1222,7 +1241,7 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onWindowClose() {
-    unawaited(_saveMainWindowState());
+    unawaited(_saveMainWindowState(immediate: true));
     final state = _lastTrayState;
     if (_quitting || state?.quitOnClose == true) {
       _emit(const DesktopFeatureAction(DesktopFeatureCommand.quit));
@@ -1263,12 +1282,12 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onWindowMaximize() {
-    unawaited(_saveMainWindowState());
+    unawaited(_saveMainWindowState(immediate: true));
   }
 
   @override
   void onWindowUnmaximize() {
-    unawaited(_saveMainWindowState());
+    unawaited(_saveMainWindowState(immediate: true));
   }
 
   @override
@@ -1293,6 +1312,7 @@ class TrayWindowDesktopFeatureService
 
   @override
   void dispose() {
+    _mainWindowStateSaveDebounce?.cancel();
     tray.trayManager.removeListener(this);
     windowManager.removeListener(this);
     _desktopFeatureChannel.setMethodCallHandler(null);
@@ -1394,18 +1414,41 @@ class TrayWindowDesktopFeatureService
     _onAction?.call(action);
   }
 
-  Future<void> _saveMainWindowState() async {
+  Future<void> _saveMainWindowState({bool immediate = false}) async {
     if (_miniModeActive || await windowManager.isFullScreen()) {
       return;
     }
     final maximized = await windowManager.isMaximized();
     final bounds = await windowManager.getBounds();
-    setSmPlayerGlobalSettingsSnapshot(
-      smPlayerGlobalSettingsSnapshot.copyWith(
-        mainWindowBounds: serializeMainWindowBounds(bounds),
-        mainWindowMaximized: maximized,
-      ),
+    final snapshot = smPlayerGlobalSettingsSnapshot.copyWith(
+      mainWindowBounds: serializeMainWindowBounds(bounds),
+      mainWindowMaximized: maximized,
     );
+    setSmPlayerGlobalSettingsSnapshot(snapshot);
+    _mainWindowStateSaveDebounce?.cancel();
+    if (immediate) {
+      await _persistMainWindowState(snapshot);
+      return;
+    }
+    _mainWindowStateSaveDebounce = Timer(
+      _mainWindowStateSaveDelay,
+      () => unawaited(_persistMainWindowState(snapshot)),
+    );
+  }
+
+  Future<void> _persistMainWindowState(SettingsSnapshot snapshot) {
+    if (Platform.isMacOS) {
+      return Future.value();
+    }
+    _mainWindowStateWriteQueue = _mainWindowStateWriteQueue
+        .catchError((_) {})
+        .then(
+          (_) => _settingsRepository.saveMainWindowState(
+            bounds: snapshot.mainWindowBounds,
+            maximized: snapshot.mainWindowMaximized,
+          ),
+        );
+    return _mainWindowStateWriteQueue;
   }
 
   Future<void> _enterMiniMode() async {

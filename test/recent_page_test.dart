@@ -10,7 +10,9 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
+import 'package:smplayer_flutter/src/recent/recent_search_list.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode;
 
@@ -254,6 +256,45 @@ void main() {
 
     expect(repository.restoredRecentSearches.single.id, 4);
     expect(repository.restoredRecentSearches.single.query, 'blue');
+  });
+
+  testWidgets('RecentPage aligns recent search rows to the command bar edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(2010, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final router = GoRouter(
+      initialLocation: '/recent',
+      routes: [
+        GoRoute(
+          path: '/recent',
+          builder: (_, _) => const Scaffold(body: RecentPage()),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _RecentRouterTestApp(
+        router: router,
+        snapshot: _snapshotWithSearches,
+        i18n: i18n,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches'));
+    await tester.pumpAndSettle();
+
+    final commandBarRight = tester.getRect(find.byType(CommandBar)).right;
+    final searchRowRight =
+        tester.getRect(find.byKey(const ValueKey('Recent.SearchRow.4'))).right;
+
+    expect(searchRowRight, commandBarRight);
   });
 
   testWidgets('RecentPage opens recent searches with their saved type', (
@@ -508,7 +549,10 @@ class _RecentTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: const MaterialApp(home: Scaffold(body: RecentPage())),
+        child: MaterialApp(
+          theme: _recentPageTestTheme(),
+          home: const Scaffold(body: RecentPage()),
+        ),
       ),
     );
   }
@@ -554,10 +598,19 @@ class _RecentRouterTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          theme: _recentPageTestTheme(),
+          routerConfig: router,
+        ),
       ),
     );
   }
+}
+
+ThemeData _recentPageTestTheme() {
+  return ThemeData(
+    extensions: const [RecentThemeColors.light, RecentSearchThemeColors.light],
+  );
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

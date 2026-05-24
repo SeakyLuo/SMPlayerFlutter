@@ -630,7 +630,7 @@ class PreferenceSettingsSnapshot {
 String nightModeLabel(NightMode mode) {
   return switch (mode) {
     NightMode.system => '跟随系统',
-    NightMode.auto => '自动',
+    NightMode.auto => '自定义',
     NightMode.onMode => '开启',
     NightMode.never => '永不',
   };

@@ -23,6 +23,7 @@ class DefaultAlbumArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DefaultAlbumArtworkThemeColors.of(context);
+    final logoBoundsScale = logoScale * 0.86;
     return DecoratedBox(
       decoration: BoxDecoration(color: colors.background),
       child: Stack(
@@ -49,8 +50,8 @@ class DefaultAlbumArtwork extends StatelessWidget {
           ),
           Center(
             child: FractionallySizedBox(
-              widthFactor: logoScale,
-              heightFactor: logoScale,
+              widthFactor: logoBoundsScale,
+              heightFactor: logoBoundsScale,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -76,7 +77,7 @@ class DefaultAlbumArtwork extends StatelessWidget {
                           BlendMode.srcIn,
                         ),
                         child: Image.asset(
-                          'assets/branding/app-icon.png',
+                          'assets/branding/monotone_no_bg.png',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -85,7 +86,7 @@ class DefaultAlbumArtwork extends StatelessWidget {
                   Opacity(
                     opacity: logoOpacity,
                     child: Image.asset(
-                      'assets/branding/app-icon.png',
+                      'assets/branding/monotone_no_bg.png',
                       fit: BoxFit.contain,
                     ),
                   ),

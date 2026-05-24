@@ -103,31 +103,33 @@ class _RecentScrollbarState extends State<RecentScrollbar> {
             }
             return false;
           },
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 140),
-            opacity: visible ? 1 : 0,
-            child: ScrollbarTheme(
-              data: ScrollbarTheme.of(context).copyWith(
-                thumbColor: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.hovered)
-                      ? const Color(0xad435060)
-                      : const Color(0x805b697a);
-                }),
-                trackColor: const WidgetStatePropertyAll(Colors.transparent),
-                thickness: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.hovered) ? 7 : 5;
-                }),
-                radius: const Radius.circular(999),
-                crossAxisMargin: 5,
-                mainAxisMargin: 0,
-              ),
-              child: Scrollbar(
-                controller: _controller,
-                interactive: true,
-                thumbVisibility: true,
-                trackVisibility: false,
-                child: widget.builder(_controller),
-              ),
+          child: ScrollbarTheme(
+            data: ScrollbarTheme.of(context).copyWith(
+              thumbColor: WidgetStateProperty.resolveWith((states) {
+                if (!visible) {
+                  return Colors.transparent;
+                }
+                return states.contains(WidgetState.hovered)
+                    ? const Color(0xad435060)
+                    : const Color(0x805b697a);
+              }),
+              trackColor: const WidgetStatePropertyAll(Colors.transparent),
+              thickness: WidgetStateProperty.resolveWith((states) {
+                if (!visible) {
+                  return 0;
+                }
+                return states.contains(WidgetState.hovered) ? 7 : 5;
+              }),
+              radius: const Radius.circular(999),
+              crossAxisMargin: 5,
+              mainAxisMargin: 0,
+            ),
+            child: Scrollbar(
+              controller: _controller,
+              interactive: visible,
+              thumbVisibility: true,
+              trackVisibility: false,
+              child: widget.builder(_controller),
             ),
           ),
         ),

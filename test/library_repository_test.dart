@@ -18,6 +18,10 @@ void main() {
         p.join(
           Platform.environment['HOME']!,
           'Library',
+          'Containers',
+          'com.seaky.smplayerFlutter',
+          'Data',
+          'Library',
           'Application Support',
           'Simple Melody Player',
         ),
@@ -101,6 +105,48 @@ void main() {
     } finally {
       db.dispose();
     }
+  });
+
+  test('addRecentSearch allows repeated query entries', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_recent_search_duplicate_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, ['${directory.path}/Song.mp3']);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('''
+        CREATE UNIQUE INDEX idx_search_history_query_nocase
+          ON SearchHistory(Query COLLATE NOCASE, Type)
+      ''');
+    } finally {
+      db.dispose();
+    }
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final first = await repository.addRecentSearch(
+      'Jazz',
+      SearchHistoryType.sidebar,
+    );
+    final second = await repository.addRecentSearch(
+      'jazz',
+      SearchHistoryType.sidebar,
+    );
+    final searches = await repository.getRecentSearches();
+
+    expect(first, isNotNull);
+    expect(second, isNotNull);
+    expect(first!.id, isNot(second!.id));
+    expect(searches.map((search) => search.query), ['jazz', 'Jazz']);
+    expect(searches.map((search) => search.type), [
+      SearchHistoryType.sidebar,
+      SearchHistoryType.sidebar,
+    ]);
   });
 
   test('addRecentSearch initializes a new macOS-style data store', () async {
@@ -1755,6 +1801,10 @@ void main() {
       );
       await repository.updateSongDuration(1, 188);
       await repository.saveViewState(lastPage: '/settings', lastPlaylistId: 42);
+      await repository.saveMainWindowState(
+        bounds: '{"x":12,"y":24,"width":1280,"height":860}',
+        maximized: true,
+      );
 
       final db = sqlite3.open(databaseFile.path);
       try {
@@ -1766,6 +1816,11 @@ void main() {
         expect(row['MusicProgress'], 0);
         expect(row['LastMusicIndex'], 3);
         expect(row['Volume'], 72);
+        expect(
+          row['MainWindowBounds'],
+          '{"x":12,"y":24,"width":1280,"height":860}',
+        );
+        expect(row['MainWindowMaximized'], 1);
         expect(row['IsMuted'], 1);
         expect(row['Mode'], 3);
         expect(row['LastPage'], '/settings');
