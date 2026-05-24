@@ -1,8 +1,5 @@
-import 'dart:ui';
-
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 const nowPlayingQuickPlayLimit = 100;
 
@@ -50,18 +47,4 @@ bool isMinuteInNightRange(int current, int start, int end) {
   }
 
   return current >= start || current < end;
-}
-
-bool isNowPlayingFullNightMode(SettingsSnapshot settings) {
-  return switch (settings.nightMode) {
-    NightMode.system =>
-      PlatformDispatcher.instance.platformBrightness == Brightness.dark,
-    NightMode.onMode => true,
-    NightMode.never => false,
-    NightMode.auto => isMinuteInNightRange(
-      getCurrentClockMinute(),
-      timeToMinute(settings.nightModeStartTime),
-      timeToMinute(settings.nightModeEndTime),
-    ),
-  };
 }

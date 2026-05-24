@@ -377,9 +377,7 @@ class _HeaderedPlaylistControlState
             ? currentSavedPlaylist!.name
             : widget.title;
 
-    final colors = _HeaderedPlaylistColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
+    final colors = HeaderedPlaylistThemeColors.of(context);
     _syncAppBarPortal(
       compact: compact,
       visibleSongs: visibleSongs,
@@ -720,16 +718,13 @@ class _HeaderedPlaylistControlState
     PlaylistSortCriterion activeSortCriterion,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   ) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final colors = HeaderedPlaylistThemeColors.of(context);
     return SmPlayerTextIconButtonTheme(
-      colors: SmPlayerTextIconButtonColors.resolve(nightMode).copyWith(
-        commandText:
-            nightMode ? const Color(0xf0f6f9fc) : const Color(0xff1f252b),
-        control: nightMode ? const Color(0x0effffff) : const Color(0xa8ffffff),
-        controlHover:
-            nightMode ? const Color(0x17ffffff) : const Color(0xdbffffff),
-        controlBorder:
-            nightMode ? const Color(0x1fd6e0ec) : const Color(0x2e768497),
+      colors: SmPlayerTextIconButtonColors.of(context).copyWith(
+        commandText: colors.commandText,
+        control: colors.commandControl,
+        controlHover: colors.commandControlHover,
+        controlBorder: colors.commandControlBorder,
       ),
       child: Wrap(
         key: const ValueKey('HeaderedPlaylist.CommandBar'),
@@ -1596,9 +1591,7 @@ class _HeaderedPlaylistScrollbarState
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final colors = _HeaderedPlaylistColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
+    final colors = HeaderedPlaylistThemeColors.of(context);
     return Positioned(
       key: const ValueKey('HeaderedPlaylist.Scrollbar'),
       top:
@@ -1837,8 +1830,7 @@ class _HeaderHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final colors = _HeaderedPlaylistColors.resolve(nightMode);
+    final colors = HeaderedPlaylistThemeColors.of(context);
     final heroHeight =
         lerpDouble(compact ? 320 : 326, compact ? 138 : 126, collapseProgress)!;
     final coverSize =
@@ -1872,7 +1864,6 @@ class _HeaderHero extends StatelessWidget {
               opacity: backdropOpacity,
               child: _HeaderedPlaylistBackdrop(
                 coverColor: coverColor,
-                nightMode: nightMode,
                 masked: !compact,
               ),
             ),
@@ -2045,12 +2036,10 @@ class _HeaderHero extends StatelessWidget {
 class _HeaderedPlaylistBackdrop extends StatelessWidget {
   const _HeaderedPlaylistBackdrop({
     required this.coverColor,
-    required this.nightMode,
     required this.masked,
   });
 
   final Color coverColor;
-  final bool nightMode;
   final bool masked;
 
   @override
@@ -2062,20 +2051,22 @@ class _HeaderedPlaylistBackdrop extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             color:
-                nightMode
-                    ? _HeaderedPlaylistColors.night.pageSurface
-                    : _HeaderedPlaylistColors.day.pageSurface,
+                HeaderedPlaylistThemeColors.of(context).pageSurface,
           ),
         ),
         _HeaderRadial(
           center: const Alignment(-0.6, -0.56),
           radius: 0.86,
-          color: coverColor.withValues(alpha: nightMode ? 0.20 : 0.32),
+          color: coverColor.withValues(
+            alpha: HeaderedPlaylistThemeColors.of(context).backdropAlphaA,
+          ),
         ),
         _HeaderRadial(
           center: const Alignment(0.78, -0.8),
           radius: 1.0,
-          color: coverColor.withValues(alpha: nightMode ? 0.10 : 0.16),
+          color: coverColor.withValues(
+            alpha: HeaderedPlaylistThemeColors.of(context).backdropAlphaB,
+          ),
         ),
         Positioned.fill(
           left: -180,
@@ -2118,28 +2109,40 @@ class _HeaderedPlaylistBackdrop extends StatelessWidget {
                         center: const Alignment(-0.6, -0.56),
                         radius: 0.76,
                         color: coverColor.withValues(
-                          alpha: nightMode ? 0.36 : 0.48,
+                          alpha:
+                              HeaderedPlaylistThemeColors.of(
+                                context,
+                              ).backdropBlurAlphaA,
                         ),
                       ),
                       _HeaderRadial(
                         center: const Alignment(0.20, -0.96),
                         radius: 0.88,
                         color: coverColor.withValues(
-                          alpha: nightMode ? 0.18 : 0.24,
+                          alpha:
+                              HeaderedPlaylistThemeColors.of(
+                                context,
+                              ).backdropBlurAlphaB,
                         ),
                       ),
                       _HeaderRadial(
                         center: const Alignment(0.76, -0.84),
                         radius: 0.76,
                         color: coverColor.withValues(
-                          alpha: nightMode ? 0.14 : 0.18,
+                          alpha:
+                              HeaderedPlaylistThemeColors.of(
+                                context,
+                              ).backdropBlurAlphaC,
                         ),
                       ),
                       _HeaderRadial(
                         center: const Alignment(-0.44, 0.36),
                         radius: 0.88,
                         color: coverColor.withValues(
-                          alpha: nightMode ? 0.10 : 0.12,
+                          alpha:
+                              HeaderedPlaylistThemeColors.of(
+                                context,
+                              ).backdropBlurAlphaD,
                         ),
                       ),
                     ],
@@ -2275,9 +2278,7 @@ class HeaderedPlaylistCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final colors = _HeaderedPlaylistColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
+    final colors = HeaderedPlaylistThemeColors.of(context);
     final radius = compact ? 8.0 : lerpDouble(14, 8, collapseProgress)!;
     final decoration = BoxDecoration(
       borderRadius: BorderRadius.circular(radius),
@@ -2338,18 +2339,11 @@ class _CoverFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final colors = HeaderedPlaylistThemeColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient:
-            nightMode
-                ? null
-                : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0x330078d7), Color(0xb8ffffff)],
-                ),
-        color: nightMode ? const Color(0x14ffffff) : null,
+        gradient: colors.coverFallbackGradient,
+        color: colors.coverFallbackColor,
       ),
       child: const DefaultAlbumArtwork(
         logoScale: 1,
@@ -2393,41 +2387,14 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final colors = _HeaderedPlaylistColors.resolve(nightMode);
+    final colors = HeaderedPlaylistThemeColors.of(context);
     final listSurface =
-        compact
-            ? nightMode
-                ? const Color(0xb8171c22)
-                : const Color(0xb8ffffff)
-            : colors.listSurface;
+        compact ? colors.compactListSurface : colors.listSurface;
     final listBorder =
-        compact
-            ? nightMode
-                ? colors.listBorder
-                : const Color(0xa8ffffff)
-            : colors.listBorder;
+        compact ? colors.compactListBorder : colors.listBorder;
     final listShadows =
         compact
-            ? [
-              BoxShadow(
-                color:
-                    nightMode
-                        ? const Color(0x47000000)
-                        : const Color(0x1a212d3e),
-                offset: const Offset(0, 18),
-                blurRadius: 42,
-              ),
-              BoxShadow(
-                color:
-                    nightMode
-                        ? const Color(0x0effffff)
-                        : const Color(0x6bffffff),
-                offset: const Offset(0, 0),
-                blurRadius: 0,
-                spreadRadius: -1,
-              ),
-            ]
+            ? colors.compactListShadows
             : [
               BoxShadow(
                 color: colors.listShadow,
@@ -2494,9 +2461,7 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = _HeaderedPlaylistColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
+    final colors = HeaderedPlaylistThemeColors.of(context);
     final textStyle = TextStyle(
       color: colors.textMuted,
       fontSize: 14,
@@ -2558,8 +2523,9 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
   }
 }
 
-class _HeaderedPlaylistColors {
-  const _HeaderedPlaylistColors({
+class HeaderedPlaylistThemeColors
+    extends ThemeExtension<HeaderedPlaylistThemeColors> {
+  const HeaderedPlaylistThemeColors({
     required this.pageSurface,
     required this.heroCover,
     required this.textStrong,
@@ -2573,6 +2539,21 @@ class _HeaderedPlaylistColors {
     required this.coverShadow,
     required this.coverA,
     required this.coverB,
+    required this.commandText,
+    required this.commandControl,
+    required this.commandControlHover,
+    required this.commandControlBorder,
+    required this.backdropAlphaA,
+    required this.backdropAlphaB,
+    required this.backdropBlurAlphaA,
+    required this.backdropBlurAlphaB,
+    required this.backdropBlurAlphaC,
+    required this.backdropBlurAlphaD,
+    required this.coverFallbackGradient,
+    required this.coverFallbackColor,
+    required this.compactListSurface,
+    required this.compactListBorder,
+    required this.compactListShadows,
   });
 
   final Color pageSurface;
@@ -2588,8 +2569,23 @@ class _HeaderedPlaylistColors {
   final Color coverShadow;
   final Color coverA;
   final Color coverB;
+  final Color commandText;
+  final Color commandControl;
+  final Color commandControlHover;
+  final Color commandControlBorder;
+  final double backdropAlphaA;
+  final double backdropAlphaB;
+  final double backdropBlurAlphaA;
+  final double backdropBlurAlphaB;
+  final double backdropBlurAlphaC;
+  final double backdropBlurAlphaD;
+  final Gradient? coverFallbackGradient;
+  final Color? coverFallbackColor;
+  final Color compactListSurface;
+  final Color compactListBorder;
+  final List<BoxShadow> compactListShadows;
 
-  static const day = _HeaderedPlaylistColors(
+  static const day = HeaderedPlaylistThemeColors(
     pageSurface: Color(0xfff6f9fc),
     heroCover: Color(0xff5b87b6),
     textStrong: Color(0xff1f252b),
@@ -2603,9 +2599,40 @@ class _HeaderedPlaylistColors {
     coverShadow: Color(0x38364456),
     coverA: Color(0xff6794c6),
     coverB: Color(0xff6f7fc8),
+    commandText: Color(0xff1f252b),
+    commandControl: Color(0xa8ffffff),
+    commandControlHover: Color(0xdbffffff),
+    commandControlBorder: Color(0x2e768497),
+    backdropAlphaA: 0.32,
+    backdropAlphaB: 0.16,
+    backdropBlurAlphaA: 0.48,
+    backdropBlurAlphaB: 0.24,
+    backdropBlurAlphaC: 0.18,
+    backdropBlurAlphaD: 0.12,
+    coverFallbackGradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0x330078d7), Color(0xb8ffffff)],
+    ),
+    coverFallbackColor: null,
+    compactListSurface: Color(0xb8ffffff),
+    compactListBorder: Color(0xa8ffffff),
+    compactListShadows: [
+      BoxShadow(
+        color: Color(0x1a212d3e),
+        offset: Offset(0, 18),
+        blurRadius: 42,
+      ),
+      BoxShadow(
+        color: Color(0x6bffffff),
+        offset: Offset(0, 0),
+        blurRadius: 0,
+        spreadRadius: -1,
+      ),
+    ],
   );
 
-  static const night = _HeaderedPlaylistColors(
+  static const night = HeaderedPlaylistThemeColors(
     pageSurface: Color(0xff0f1318),
     heroCover: Color(0xff5b87b6),
     textStrong: Color(0xf0f6f9fc),
@@ -2619,9 +2646,49 @@ class _HeaderedPlaylistColors {
     coverShadow: Color(0x61000000),
     coverA: Color(0xff2d4f72),
     coverB: Color(0xff33406d),
+    commandText: Color(0xf0f6f9fc),
+    commandControl: Color(0x0effffff),
+    commandControlHover: Color(0x17ffffff),
+    commandControlBorder: Color(0x1fd6e0ec),
+    backdropAlphaA: 0.20,
+    backdropAlphaB: 0.10,
+    backdropBlurAlphaA: 0.36,
+    backdropBlurAlphaB: 0.18,
+    backdropBlurAlphaC: 0.14,
+    backdropBlurAlphaD: 0.10,
+    coverFallbackGradient: null,
+    coverFallbackColor: Color(0x14ffffff),
+    compactListSurface: Color(0xb8171c22),
+    compactListBorder: Color(0x1fd6e0ec),
+    compactListShadows: [
+      BoxShadow(
+        color: Color(0x47000000),
+        offset: Offset(0, 18),
+        blurRadius: 42,
+      ),
+      BoxShadow(
+        color: Color(0x0effffff),
+        offset: Offset(0, 0),
+        blurRadius: 0,
+        spreadRadius: -1,
+      ),
+    ],
   );
 
-  static _HeaderedPlaylistColors resolve(bool nightMode) {
-    return nightMode ? night : day;
+  static HeaderedPlaylistThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<HeaderedPlaylistThemeColors>() ?? day;
+  }
+
+  @override
+  HeaderedPlaylistThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  HeaderedPlaylistThemeColors lerp(
+    covariant ThemeExtension<HeaderedPlaylistThemeColors>? other,
+    double t,
+  ) {
+    return this;
   }
 }

@@ -30,3 +30,10 @@ final librarySongCountProvider = FutureProvider<int>((ref) {
 final libraryViewDataProvider = FutureProvider<LibraryViewData>((ref) async {
   return ref.watch(libraryRepositoryProvider).getLibraryViewData();
 });
+
+void invalidateRecentSearchData(WidgetRef ref) {
+  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(recentPageDataProvider);
+  ref.invalidate(shellNavigationDataProvider);
+  ref.invalidate(recentSearchesProvider);
+}

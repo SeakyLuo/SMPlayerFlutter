@@ -725,53 +725,13 @@ class PopupDialogColors {
   static const nightFieldDisabledSurface = Color(0x0affffff);
 
   static PopupDialogResolvedColors resolve(BuildContext context) {
-    final night = Theme.of(context).brightness == Brightness.dark;
-    if (!night) {
-      return const PopupDialogResolvedColors(
-        overlay: overlay,
-        surface: surface,
-        border: border,
-        inputBorder: inputBorder,
-        shadow: shadow,
-        buttonSurface: buttonSurface,
-        activeButtonSurface: activeButtonSurface,
-        buttonBorder: buttonBorder,
-        activeButtonBorder: activeButtonBorder,
-        accent: accent,
-        accentStrong: accent,
-        text: text,
-        textStrong: textStrong,
-        textMuted: textMuted,
-        fieldSurface: fieldSurface,
-        fieldDisabledSurface: fieldDisabledSurface,
-        focusRing: focusRing,
-        destructive: destructive,
-      );
-    }
-    return const PopupDialogResolvedColors(
-      overlay: nightOverlay,
-      surface: nightSurface,
-      border: nightBorder,
-      inputBorder: nightInputBorder,
-      shadow: nightShadow,
-      buttonSurface: nightButtonSurface,
-      activeButtonSurface: nightActiveButtonSurface,
-      buttonBorder: nightButtonBorder,
-      activeButtonBorder: nightActiveButtonBorder,
-      accent: accent,
-      accentStrong: Color(0xff66b7ff),
-      text: nightText,
-      textStrong: nightTextStrong,
-      textMuted: nightTextMuted,
-      fieldSurface: nightFieldSurface,
-      fieldDisabledSurface: nightFieldDisabledSurface,
-      focusRing: Color(0x2e0078d7),
-      destructive: destructive,
-    );
+    return Theme.of(context).extension<PopupDialogResolvedColors>() ??
+        PopupDialogResolvedColors.light;
   }
 }
 
-class PopupDialogResolvedColors {
+class PopupDialogResolvedColors
+    extends ThemeExtension<PopupDialogResolvedColors> {
   const PopupDialogResolvedColors({
     required this.overlay,
     required this.surface,
@@ -811,4 +771,59 @@ class PopupDialogResolvedColors {
   final Color fieldDisabledSurface;
   final Color focusRing;
   final Color destructive;
+
+  static const light = PopupDialogResolvedColors(
+    overlay: PopupDialogColors.overlay,
+    surface: PopupDialogColors.surface,
+    border: PopupDialogColors.border,
+    inputBorder: PopupDialogColors.inputBorder,
+    shadow: PopupDialogColors.shadow,
+    buttonSurface: PopupDialogColors.buttonSurface,
+    activeButtonSurface: PopupDialogColors.activeButtonSurface,
+    buttonBorder: PopupDialogColors.buttonBorder,
+    activeButtonBorder: PopupDialogColors.activeButtonBorder,
+    accent: PopupDialogColors.accent,
+    accentStrong: PopupDialogColors.accent,
+    text: PopupDialogColors.text,
+    textStrong: PopupDialogColors.textStrong,
+    textMuted: PopupDialogColors.textMuted,
+    fieldSurface: PopupDialogColors.fieldSurface,
+    fieldDisabledSurface: PopupDialogColors.fieldDisabledSurface,
+    focusRing: PopupDialogColors.focusRing,
+    destructive: PopupDialogColors.destructive,
+  );
+
+  static const dark = PopupDialogResolvedColors(
+    overlay: PopupDialogColors.nightOverlay,
+    surface: PopupDialogColors.nightSurface,
+    border: PopupDialogColors.nightBorder,
+    inputBorder: PopupDialogColors.nightInputBorder,
+    shadow: PopupDialogColors.nightShadow,
+    buttonSurface: PopupDialogColors.nightButtonSurface,
+    activeButtonSurface: PopupDialogColors.nightActiveButtonSurface,
+    buttonBorder: PopupDialogColors.nightButtonBorder,
+    activeButtonBorder: PopupDialogColors.nightActiveButtonBorder,
+    accent: PopupDialogColors.accent,
+    accentStrong: Color(0xff66b7ff),
+    text: PopupDialogColors.nightText,
+    textStrong: PopupDialogColors.nightTextStrong,
+    textMuted: PopupDialogColors.nightTextMuted,
+    fieldSurface: PopupDialogColors.nightFieldSurface,
+    fieldDisabledSurface: PopupDialogColors.nightFieldDisabledSurface,
+    focusRing: Color(0x2e0078d7),
+    destructive: PopupDialogColors.destructive,
+  );
+
+  @override
+  PopupDialogResolvedColors copyWith() {
+    return this;
+  }
+
+  @override
+  PopupDialogResolvedColors lerp(
+    ThemeExtension<PopupDialogResolvedColors>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! PopupDialogResolvedColors ? this : other;
+  }
 }

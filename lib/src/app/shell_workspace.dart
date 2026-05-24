@@ -24,7 +24,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final shellColors = ShellThemeColors.of(context);
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
     final snapshot = ref.watch(libraryViewDataProvider).valueOrNull;
@@ -37,7 +37,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final headeredPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
-    final routeSurface = _workspaceRouteSurfaceColor(nightMode);
+    final routeSurface = shellColors.workspaceSolidSurface;
     final page = _WorkspacePageSurface(
       title: title,
       headerHeight: headerHeight,
@@ -50,7 +50,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
     );
     final workspace = DecoratedBox(
       decoration: _workspaceDecoration(
-        nightMode: nightMode,
+        shellColors: shellColors,
         routeSurface: routeSurface,
       ),
       child: ClipRect(child: page),
@@ -65,17 +65,14 @@ class SmPlayerWorkspace extends ConsumerWidget {
 }
 
 BoxDecoration _workspaceDecoration({
-  required bool nightMode,
+  required ShellThemeColors shellColors,
   required Color routeSurface,
 }) {
   return BoxDecoration(
     color: routeSurface,
     boxShadow: [
       BoxShadow(
-        color:
-            nightMode
-                ? ShellColors.nightWorkspaceShadow
-                : ShellColors.workspaceShadow,
+        color: shellColors.workspaceShadow,
         offset: const Offset(0, 22),
         blurRadius: 56,
       ),
@@ -127,7 +124,7 @@ class _HeaderedPlaylistAppBarPortal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final shellColors = ShellThemeColors.of(context);
     return Positioned(
       key: const ValueKey('HeaderedPlaylist.AppBarPortal'),
       top: 8,
@@ -142,10 +139,7 @@ class _HeaderedPlaylistAppBarPortal extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color:
-                    nightMode
-                        ? ShellColors.nightHeaderText
-                        : ShellColors.headerText,
+                color: shellColors.headerText,
                 fontSize: 18,
                 height: 1.1,
                 fontWeight: FontWeight.w600,
@@ -163,12 +157,6 @@ class _HeaderedPlaylistAppBarPortal extends StatelessWidget {
   }
 }
 
-Color _workspaceRouteSurfaceColor(bool nightMode) {
-  return nightMode
-      ? ShellColors.nightWorkspaceSurface
-      : ShellColors.workspaceSolidSurface;
-}
-
 class _WorkspaceHeader extends StatelessWidget {
   const _WorkspaceHeader({required this.title, required this.height});
 
@@ -177,7 +165,7 @@ class _WorkspaceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final shellColors = ShellThemeColors.of(context);
     return SizedBox(
       height: height,
       child: Padding(
@@ -189,10 +177,7 @@ class _WorkspaceHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color:
-                  nightMode
-                      ? ShellColors.nightHeaderText
-                      : ShellColors.headerText,
+              color: shellColors.headerText,
               fontSize: 40,
               height: 1.1,
               fontWeight: FontWeight.w500,

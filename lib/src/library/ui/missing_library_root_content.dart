@@ -22,9 +22,7 @@ class MissingLibraryRootContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = _MissingLibraryRootColors.resolve(
-      Theme.of(context).brightness == Brightness.dark,
-    );
+    final colors = MissingLibraryRootThemeColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.hasBoundedWidth ? constraints.maxWidth : null;
@@ -147,8 +145,9 @@ class _MissingLibraryRootButton extends StatelessWidget {
   }
 }
 
-class _MissingLibraryRootColors {
-  const _MissingLibraryRootColors({
+class MissingLibraryRootThemeColors
+    extends ThemeExtension<MissingLibraryRootThemeColors> {
+  const MissingLibraryRootThemeColors({
     required this.surface,
     required this.border,
     required this.artworkBorder,
@@ -178,39 +177,54 @@ class _MissingLibraryRootColors {
   final Color cardShadow;
   final Color accentStrong;
 
-  static const _MissingLibraryRootColors day = _MissingLibraryRootColors(
-    surface: Color(0x94ffffff),
-    border: Color(0x94ffffff),
-    artworkBorder: Color(0x2e768499),
-    artworkShadow: Color(0x21202d3f),
-    artworkLogoOpacity: 0.82,
-    textStrong: Color(0xff1f252b),
-    textMuted: Color(0xff5f625f),
-    commandText: Color(0xff1f252b),
-    control: Color(0x94ffffff),
-    controlHover: Color(0x1a0078d7),
-    controlBorder: Color(0x2e768499),
-    cardShadow: Color(0x1f1e2a3a),
-    accentStrong: Color(0xff0063b1),
-  );
+  static const MissingLibraryRootThemeColors day =
+      MissingLibraryRootThemeColors(
+        surface: Color(0x94ffffff),
+        border: Color(0x94ffffff),
+        artworkBorder: Color(0x2e768499),
+        artworkShadow: Color(0x21202d3f),
+        artworkLogoOpacity: 0.82,
+        textStrong: Color(0xff1f252b),
+        textMuted: Color(0xff5f625f),
+        commandText: Color(0xff1f252b),
+        control: Color(0x94ffffff),
+        controlHover: Color(0x1a0078d7),
+        controlBorder: Color(0x2e768499),
+        cardShadow: Color(0x1f1e2a3a),
+        accentStrong: Color(0xff0063b1),
+      );
 
-  static const _MissingLibraryRootColors night = _MissingLibraryRootColors(
-    surface: Color(0x0cffffff),
-    border: Color(0x1fd6e0ec),
-    artworkBorder: Color(0x1fd6e0ec),
-    artworkShadow: Color(0x4d000000),
-    artworkLogoOpacity: 0.72,
-    textStrong: Color(0xf0f6f9fc),
-    textMuted: Color(0xadcbd5e1),
-    commandText: Color(0xf0f6f9fc),
-    control: Color(0x0effffff),
-    controlHover: Color(0x290078d7),
-    controlBorder: Color(0x1fd6e0ec),
-    cardShadow: Color(0x3d000000),
-    accentStrong: Color(0xff0063b1),
-  );
+  static const MissingLibraryRootThemeColors night =
+      MissingLibraryRootThemeColors(
+        surface: Color(0x0cffffff),
+        border: Color(0x1fd6e0ec),
+        artworkBorder: Color(0x1fd6e0ec),
+        artworkShadow: Color(0x4d000000),
+        artworkLogoOpacity: 0.72,
+        textStrong: Color(0xf0f6f9fc),
+        textMuted: Color(0xadcbd5e1),
+        commandText: Color(0xf0f6f9fc),
+        control: Color(0x0effffff),
+        controlHover: Color(0x290078d7),
+        controlBorder: Color(0x1fd6e0ec),
+        cardShadow: Color(0x3d000000),
+        accentStrong: Color(0xff0063b1),
+      );
 
-  static _MissingLibraryRootColors resolve(bool nightMode) {
-    return nightMode ? night : day;
+  static MissingLibraryRootThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<MissingLibraryRootThemeColors>()!;
+  }
+
+  @override
+  MissingLibraryRootThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  MissingLibraryRootThemeColors lerp(
+    ThemeExtension<MissingLibraryRootThemeColors>? other,
+    double t,
+  ) {
+    return t < 0.5 || other is! MissingLibraryRootThemeColors ? this : other;
   }
 }

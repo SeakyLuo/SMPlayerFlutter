@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -15,7 +16,7 @@ import 'package:smplayer_flutter/src/library/ui/search_page_model.dart'
     as search_model;
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show AppSettingsUpdate, SearchSortCriterion;
+    show AppSettingsUpdate, NightMode, SearchSortCriterion, SettingsSnapshot;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -738,6 +739,7 @@ class _SearchPageRouterTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp.router(
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
           routerConfig: router,
           builder: (context, child) => Scaffold(body: child),
         ),
@@ -772,8 +774,12 @@ class _SearchPageTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: ThemeData.light(),
-          darkTheme: ThemeData.dark(),
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+          darkTheme: buildSmPlayerTheme(
+            const SettingsSnapshot.defaults().copyWith(
+              nightMode: NightMode.onMode,
+            ),
+          ),
           themeMode: themeMode,
           home: Scaffold(body: child),
         ),

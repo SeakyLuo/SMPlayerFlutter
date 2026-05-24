@@ -497,10 +497,14 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       _appBarSearchOpen = false;
     });
     if (query.isNotEmpty) {
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.albums);
-      ref.invalidate(libraryViewDataProvider);
+      unawaited(
+        ref
+            .read(libraryRepositoryProvider)
+            .addRecentSearch(query, SearchHistoryType.albums)
+            .then((_) {
+              invalidateRecentSearchData(ref);
+            }),
+      );
     }
     _scrollAlbumsToTop();
   }
@@ -512,10 +516,14 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       _searchFocused = false;
       _appBarSearchOpen = false;
     });
-    ref
-        .read(libraryRepositoryProvider)
-        .addRecentSearch(query, SearchHistoryType.albums);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .addRecentSearch(query, SearchHistoryType.albums)
+          .then((_) {
+            invalidateRecentSearchData(ref);
+          }),
+    );
     _scrollAlbumsToTop();
   }
 
@@ -539,8 +547,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 
   void _removeRecentSearch(int entryId) {
-    ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
+    );
   }
 
   void _clearRecentSearches() {
@@ -550,8 +563,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             .where((entry) => entry.type == SearchHistoryType.albums)
             .map((entry) => entry.id)
             .toList();
-    ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    ref.invalidate(libraryViewDataProvider);
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
+    );
   }
 
   void _changeAlbumSort(AlbumSortCriterion criterion) {

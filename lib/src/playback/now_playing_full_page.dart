@@ -23,8 +23,6 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
-import 'package:smplayer_flutter/src/settings/settings_controller.dart';
-import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 class NowPlayingFullPage extends ConsumerStatefulWidget {
   const NowPlayingFullPage({super.key});
@@ -36,26 +34,13 @@ class NowPlayingFullPage extends ConsumerStatefulWidget {
 class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
-  late final SettingsController _settingsController;
   var _isPlaylistOpen = false;
-  var _settings = const SettingsSnapshot.defaults();
   LibrarySong? _dialogSong;
   SongDialogMode? _dialogMode;
 
   @override
-  void initState() {
-    super.initState();
-    _settingsController = SettingsController(
-      null,
-      ref.read(libraryRepositoryProvider),
-    );
-    _restoreSettings();
-  }
-
-  @override
   void dispose() {
     _queueController.dispose();
-    _settingsController.dispose();
     super.dispose();
   }
 
@@ -68,7 +53,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     return snapshotValue.when(
       loading:
           () => _NowPlayingFullScaffold(
-            night: isNowPlayingFullNightMode(_settings),
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.loading'),
@@ -81,7 +65,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           ),
       error:
           (_, _) => _NowPlayingFullScaffold(
-            night: isNowPlayingFullNightMode(_settings),
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.noActiveTrack'),
@@ -102,11 +85,9 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           queueSongs,
           songsById,
         );
-        final night = isNowPlayingFullNightMode(_settings);
         final customPlaylists = _customPlaylists(snapshot.playlists);
 
         return _NowPlayingFullScaffold(
-          night: night,
           artworkPath: currentSong?.thumbnailPath,
           child: SafeArea(
             child: Stack(
@@ -115,7 +96,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                   children: [
                     _NowPlayingFullTopBar(
                       i18n: i18n,
-                      night: night,
                       playlistOpen: _isPlaylistOpen,
                       onClose: () {
                         context.go('/now-playing');
@@ -144,7 +124,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                                   queueSongIds,
                                   customPlaylists,
                                   snapshot,
-                                  night,
                                   i18n,
                                 )
                                 : _buildWideStage(
@@ -154,7 +133,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                                   queueSongIds,
                                   customPlaylists,
                                   snapshot,
-                                  night,
                                   i18n,
                                 );
                           },
@@ -171,7 +149,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     width: 390,
                     child: _NowPlayingFullPlaylist(
                       i18n: i18n,
-                      night: night,
                       songs: queueSongs,
                       songIds: queueSongIds,
                       mediaControlState: mediaControlState,
@@ -248,7 +225,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
     LibraryViewData snapshot,
-    bool night,
     SmPlayerI18n i18n,
   ) {
     return Column(
@@ -258,13 +234,12 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             children: [
               SizedBox(
                 width: 340,
-                child: _NowPlayingFullArtwork(song: currentSong, night: night),
+                child: _NowPlayingFullArtwork(song: currentSong),
               ),
               const SizedBox(width: 44),
               Expanded(
                 child: _NowPlayingFullLyricsStage(
                   song: currentSong,
-                  night: night,
                   i18n: i18n,
                 ),
               ),
@@ -276,7 +251,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           song: currentSong,
           state: mediaControlState,
           disabled: queueSongs.isEmpty,
-          night: night,
           i18n: i18n,
           onPrevious: () {
             _playPreviousFromQueue(queueSongs);
@@ -312,7 +286,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
     LibraryViewData snapshot,
-    bool night,
     SmPlayerI18n i18n,
   ) {
     return Column(
@@ -326,7 +299,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                   width: 280,
                   child: _NowPlayingFullArtwork(
                     song: currentSong,
-                    night: night,
                   ),
                 ),
               ),
@@ -335,7 +307,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 height: 240,
                 child: _NowPlayingFullLyricsStage(
                   song: currentSong,
-                  night: night,
                   i18n: i18n,
                 ),
               ),
@@ -347,7 +318,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           song: currentSong,
           state: mediaControlState,
           disabled: queueSongs.isEmpty,
-          night: night,
           i18n: i18n,
           onPrevious: () {
             _playPreviousFromQueue(queueSongs);
@@ -374,17 +344,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         ),
       ],
     );
-  }
-
-  Future<void> _restoreSettings() async {
-    await _settingsController.refresh();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _settings = _settingsController.snapshot;
-    });
   }
 
   LibrarySong? _resolveCurrentSong(
@@ -1081,12 +1040,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
 class _NowPlayingFullScaffold extends StatelessWidget {
   const _NowPlayingFullScaffold({
-    required this.night,
     required this.child,
     this.artworkPath,
   });
 
-  final bool night;
   final String? artworkPath;
   final Widget child;
 
@@ -1094,6 +1051,7 @@ class _NowPlayingFullScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final artworkFile =
         artworkPath == null || artworkPath!.isEmpty ? null : File(artworkPath!);
+    final colors = NowPlayingFullThemeColors.of(context);
 
     return Stack(
       fit: StackFit.expand,
@@ -1103,16 +1061,7 @@ class _NowPlayingFullScaffold extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors:
-                  night
-                      ? const [
-                        _NowPlayingFullColors.nightTop,
-                        _NowPlayingFullColors.nightBottom,
-                      ]
-                      : const [
-                        _NowPlayingFullColors.dayTop,
-                        _NowPlayingFullColors.dayBottom,
-                      ],
+              colors: colors.backgroundGradient,
             ),
           ),
         ),
@@ -1120,17 +1069,14 @@ class _NowPlayingFullScaffold extends StatelessWidget {
           ImageFiltered(
             imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
             child: Opacity(
-              opacity: night ? 0.28 : 0.22,
+              opacity: colors.artworkBackdropOpacity,
               child: Image.file(artworkFile, fit: BoxFit.cover),
             ),
           ),
         BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: ColoredBox(
-            color:
-                night
-                    ? _NowPlayingFullColors.nightVeil
-                    : _NowPlayingFullColors.dayVeil,
+            color: colors.veil,
             child: child,
           ),
         ),
@@ -1142,22 +1088,19 @@ class _NowPlayingFullScaffold extends StatelessWidget {
 class _NowPlayingFullTopBar extends StatelessWidget {
   const _NowPlayingFullTopBar({
     required this.i18n,
-    required this.night,
     required this.playlistOpen,
     required this.onClose,
     required this.onTogglePlaylist,
   });
 
   final SmPlayerI18n i18n;
-  final bool night;
   final bool playlistOpen;
   final VoidCallback onClose;
   final VoidCallback onTogglePlaylist;
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        night ? _NowPlayingFullColors.nightText : _NowPlayingFullColors.dayText;
+    final color = NowPlayingFullThemeColors.of(context).text;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
       child: Row(
@@ -1185,10 +1128,9 @@ class _NowPlayingFullTopBar extends StatelessWidget {
 }
 
 class _NowPlayingFullArtwork extends StatelessWidget {
-  const _NowPlayingFullArtwork({required this.song, required this.night});
+  const _NowPlayingFullArtwork({required this.song});
 
   final LibrarySong? song;
-  final bool night;
 
   @override
   Widget build(BuildContext context) {
@@ -1207,7 +1149,12 @@ class _NowPlayingFullArtwork extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: night ? 0.38 : 0.18),
+                  color: Colors.black.withValues(
+                    alpha:
+                        NowPlayingFullThemeColors.of(
+                          context,
+                        ).artworkShadowOpacity,
+                  ),
                   blurRadius: 42,
                   offset: const Offset(0, 24),
                 ),
@@ -1239,9 +1186,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             color:
-                night
-                    ? _NowPlayingFullColors.nightText
-                    : _NowPlayingFullColors.dayText,
+                NowPlayingFullThemeColors.of(context).text,
             fontSize: 24,
             fontWeight: FontWeight.w600,
             height: 1.15,
@@ -1255,9 +1200,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             color:
-                night
-                    ? _NowPlayingFullColors.nightMuted
-                    : _NowPlayingFullColors.dayMuted,
+                NowPlayingFullThemeColors.of(context).muted,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -1270,12 +1213,10 @@ class _NowPlayingFullArtwork extends StatelessWidget {
 class _NowPlayingFullLyricsStage extends StatelessWidget {
   const _NowPlayingFullLyricsStage({
     required this.song,
-    required this.night,
     required this.i18n,
   });
 
   final LibrarySong? song;
-  final bool night;
   final SmPlayerI18n i18n;
 
   @override
@@ -1298,9 +1239,7 @@ class _NowPlayingFullLyricsStage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color:
-                  night
-                      ? _NowPlayingFullColors.nightText
-                      : _NowPlayingFullColors.dayText,
+                  NowPlayingFullThemeColors.of(context).text,
               fontSize: 32,
               fontWeight: FontWeight.w600,
             ),
@@ -1313,9 +1252,7 @@ class _NowPlayingFullLyricsStage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color:
-                    night
-                        ? _NowPlayingFullColors.nightMuted
-                        : _NowPlayingFullColors.dayMuted,
+                    NowPlayingFullThemeColors.of(context).muted,
                 fontSize: 15,
                 height: 1.6,
               ),
@@ -1332,7 +1269,6 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
     required this.song,
     required this.state,
     required this.disabled,
-    required this.night,
     required this.i18n,
     required this.onPrevious,
     required this.onNext,
@@ -1344,7 +1280,6 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   final LibrarySong? song;
   final MediaControlState state;
   final bool disabled;
-  final bool night;
   final SmPlayerI18n i18n;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -1355,21 +1290,14 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(mediaControlControllerProvider);
+    final colors = NowPlayingFullThemeColors.of(context);
     return Container(
       constraints: const BoxConstraints(maxWidth: 720),
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 18),
       decoration: BoxDecoration(
-        color:
-            night
-                ? _NowPlayingFullColors.nightPanel
-                : _NowPlayingFullColors.dayPanel,
+        color: colors.panel,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color:
-              night
-                  ? _NowPlayingFullColors.nightBorder
-                  : _NowPlayingFullColors.dayBorder,
-        ),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
@@ -1406,10 +1334,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
             builder: (context) {
               return IconButton(
                 tooltip: i18n.t('player.more'),
-                color:
-                    night
-                        ? _NowPlayingFullColors.nightText
-                        : _NowPlayingFullColors.dayText,
+                color: colors.text,
                 icon: const Icon(FluentIcons.more_horizontal_24_regular),
                 onPressed: () {
                   onMoreClick(context);
@@ -1426,7 +1351,6 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
 class _NowPlayingFullPlaylist extends StatelessWidget {
   const _NowPlayingFullPlaylist({
     required this.i18n,
-    required this.night,
     required this.songs,
     required this.songIds,
     required this.mediaControlState,
@@ -1458,7 +1382,6 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
   });
 
   final SmPlayerI18n i18n;
-  final bool night;
   final List<LibrarySong> songs;
   final List<int> songIds;
   final MediaControlState mediaControlState;
@@ -1490,19 +1413,12 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NowPlayingFullThemeColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color:
-            night
-                ? _NowPlayingFullColors.nightPanel
-                : _NowPlayingFullColors.dayPanel,
+        color: colors.panel,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color:
-              night
-                  ? _NowPlayingFullColors.nightBorder
-                  : _NowPlayingFullColors.dayBorder,
-        ),
+        border: Border.all(color: colors.border),
         boxShadow: const [
           BoxShadow(
             color: Color(0x2e000000),
@@ -1524,10 +1440,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
                       Text(
                         i18n.t('nowPlaying.playlist'),
                         style: TextStyle(
-                          color:
-                              night
-                                  ? _NowPlayingFullColors.nightText
-                                  : _NowPlayingFullColors.dayText,
+                          color: colors.text,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1544,7 +1457,7 @@ class _NowPlayingFullPlaylist extends StatelessWidget {
                 Expanded(
                   child:
                       songs.isEmpty
-                          ? _QueueEmptyState(i18n: i18n, night: night)
+                          ? _QueueEmptyState(i18n: i18n)
                           : ReorderableListView.builder(
                             scrollController: scrollController,
                             padding: EdgeInsets.fromLTRB(
@@ -1821,7 +1734,7 @@ List<int> _insertQueueEntries(
 }
 
 class _QueueEmptyState extends StatelessWidget {
-  const _QueueEmptyState({required SmPlayerI18n i18n, required bool night});
+  const _QueueEmptyState({required SmPlayerI18n i18n});
 
   @override
   Widget build(BuildContext context) {
@@ -1849,4 +1762,72 @@ class _NowPlayingFullColors {
   static const nightMuted = Color(0xffcbd5e1);
   static const artworkFallback = Color(0xffd6e2ef);
   static const artworkIcon = Color(0xff71839a);
+}
+
+class NowPlayingFullThemeColors
+    extends ThemeExtension<NowPlayingFullThemeColors> {
+  const NowPlayingFullThemeColors({
+    required this.backgroundGradient,
+    required this.veil,
+    required this.panel,
+    required this.border,
+    required this.text,
+    required this.muted,
+    required this.artworkBackdropOpacity,
+    required this.artworkShadowOpacity,
+  });
+
+  final List<Color> backgroundGradient;
+  final Color veil;
+  final Color panel;
+  final Color border;
+  final Color text;
+  final Color muted;
+  final double artworkBackdropOpacity;
+  final double artworkShadowOpacity;
+
+  static const light = NowPlayingFullThemeColors(
+    backgroundGradient: [
+      _NowPlayingFullColors.dayTop,
+      _NowPlayingFullColors.dayBottom,
+    ],
+    veil: _NowPlayingFullColors.dayVeil,
+    panel: _NowPlayingFullColors.dayPanel,
+    border: _NowPlayingFullColors.dayBorder,
+    text: _NowPlayingFullColors.dayText,
+    muted: _NowPlayingFullColors.dayMuted,
+    artworkBackdropOpacity: 0.22,
+    artworkShadowOpacity: 0.18,
+  );
+
+  static const dark = NowPlayingFullThemeColors(
+    backgroundGradient: [
+      _NowPlayingFullColors.nightTop,
+      _NowPlayingFullColors.nightBottom,
+    ],
+    veil: _NowPlayingFullColors.nightVeil,
+    panel: _NowPlayingFullColors.nightPanel,
+    border: _NowPlayingFullColors.nightBorder,
+    text: _NowPlayingFullColors.nightText,
+    muted: _NowPlayingFullColors.nightMuted,
+    artworkBackdropOpacity: 0.28,
+    artworkShadowOpacity: 0.38,
+  );
+
+  static NowPlayingFullThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<NowPlayingFullThemeColors>() ?? light;
+  }
+
+  @override
+  NowPlayingFullThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  NowPlayingFullThemeColors lerp(
+    covariant ThemeExtension<NowPlayingFullThemeColors>? other,
+    double t,
+  ) {
+    return this;
+  }
 }

@@ -59,9 +59,8 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
   Widget build(BuildContext context) {
     final colors =
         SmPlayerTextIconButtonTheme.maybeOf(context) ??
-        SmPlayerTextIconButtonColors.resolve(
-          Theme.of(context).brightness == Brightness.dark,
-        );
+        Theme.of(context).extension<SmPlayerTextIconButtonColors>() ??
+        SmPlayerTextIconButtonColors.day;
     final enabled =
         widget.onPressed != null && !widget.disabled && !widget.loading;
     final hovered = enabled && (_hovered || _focused);
@@ -178,7 +177,8 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
   }
 }
 
-class SmPlayerTextIconButtonColors {
+class SmPlayerTextIconButtonColors
+    extends ThemeExtension<SmPlayerTextIconButtonColors> {
   const SmPlayerTextIconButtonColors({
     required this.commandText,
     required this.control,
@@ -213,10 +213,11 @@ class SmPlayerTextIconButtonColors {
     accentStrong: Color(0xff0063b1),
   );
 
-  static SmPlayerTextIconButtonColors resolve(bool nightMode) {
-    return nightMode ? night : day;
+  static SmPlayerTextIconButtonColors of(BuildContext context) {
+    return Theme.of(context).extension<SmPlayerTextIconButtonColors>() ?? day;
   }
 
+  @override
   SmPlayerTextIconButtonColors copyWith({
     Color? commandText,
     Color? control,
@@ -232,6 +233,24 @@ class SmPlayerTextIconButtonColors {
       controlActive: controlActive ?? this.controlActive,
       controlBorder: controlBorder ?? this.controlBorder,
       accentStrong: accentStrong ?? this.accentStrong,
+    );
+  }
+
+  @override
+  SmPlayerTextIconButtonColors lerp(
+    ThemeExtension<SmPlayerTextIconButtonColors>? other,
+    double t,
+  ) {
+    if (other is! SmPlayerTextIconButtonColors) {
+      return this;
+    }
+    return SmPlayerTextIconButtonColors(
+      commandText: Color.lerp(commandText, other.commandText, t)!,
+      control: Color.lerp(control, other.control, t)!,
+      controlHover: Color.lerp(controlHover, other.controlHover, t)!,
+      controlActive: Color.lerp(controlActive, other.controlActive, t)!,
+      controlBorder: Color.lerp(controlBorder, other.controlBorder, t)!,
+      accentStrong: Color.lerp(accentStrong, other.accentStrong, t)!,
     );
   }
 }

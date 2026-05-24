@@ -360,6 +360,8 @@ class LibraryRepository {
        _shellThumbnailResolver =
            shellThumbnailResolver ?? resolveShellThumbnail;
 
+  static final _startupArtistSplitPendingDatabasePaths = <String>{};
+
   final Future<File> Function()? _databaseFileResolver;
   final File Function()? _nowPlayingFileResolver;
   final Future<File> Function()? _pendingDeleteFileResolver;
@@ -371,6 +373,25 @@ class LibraryRepository {
     final databaseFile = await _resolveDatabaseFile();
     final db = _openInitializedLibraryDatabase(databaseFile);
     db.dispose();
+  }
+
+  Future<settings.SettingsSnapshot?> initializeSettingsSnapshot() async {
+    final databaseFile = await _resolveDatabaseFile();
+    databaseFile.parent.createSync(recursive: true);
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final shouldCheckStartupArtistSplits =
+          _hasLegacyStartupArtistSplitCandidates(db);
+      _initializeLibrarySchema(db);
+      if (shouldCheckStartupArtistSplits) {
+        _startupArtistSplitPendingDatabasePaths.add(databaseFile.path);
+      }
+      _cleanupInvalidLastPlaylist(db);
+      final rows = db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1');
+      return rows.isEmpty ? null : _settingsSnapshotFromRow(rows.single);
+    } finally {
+      db.dispose();
+    }
   }
 
   Future<RecentPageData> getRecentPageData() async {
@@ -489,15 +510,12 @@ class LibraryRepository {
       return false;
     }
 
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = sqlite3.open(databaseFile.path);
     try {
       final shouldCheck =
-          _tableExists(db, 'Music') &&
-          _tableHasRows(db, 'Music') &&
-          !_tableExists(db, 'MusicArtist');
-      if (shouldCheck) {
-        _createMusicArtistTable(db);
-      }
+          _startupArtistSplitPendingDatabasePaths.remove(databaseFile.path) ||
+          _hasLegacyStartupArtistSplitCandidates(db);
+      _initializeLibrarySchema(db);
       return shouldCheck;
     } finally {
       db.dispose();
@@ -7246,6 +7264,12 @@ bool _tableExists(Database db, String tableName) {
 bool _tableHasRows(Database db, String tableName) {
   final rows = db.select('SELECT 1 AS found FROM $tableName LIMIT 1');
   return rows.isNotEmpty;
+}
+
+bool _hasLegacyStartupArtistSplitCandidates(Database db) {
+  return _tableExists(db, 'Music') &&
+      _tableHasRows(db, 'Music') &&
+      !_tableExists(db, 'MusicArtist');
 }
 
 Database _openInitializedLibraryDatabase(File databaseFile) {

@@ -54,41 +54,196 @@ class MediaControlColors {
   static const disabledPrimaryButtonShadow = Color(0x120078d7);
   static const nightDisabledPrimaryButtonSurface = Color(0x14ffffff);
 
-  static bool isNight(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark;
-
   static Color textStrongFor(BuildContext context) =>
-      isNight(context) ? nightText : textStrong;
+      MediaControlThemeColors.of(context).textStrong;
 
   static Color textMutedFor(BuildContext context) =>
-      isNight(context) ? nightMuted : textMuted;
+      MediaControlThemeColors.of(context).textMuted;
 
   static Color accentStrongFor(BuildContext context) =>
-      isNight(context) ? nightAccentStrong : accentStrong;
+      MediaControlThemeColors.of(context).accentStrong;
 
   static Color accentHoverFor(BuildContext context) =>
-      isNight(context) ? nightAccentHover : accentHover;
+      MediaControlThemeColors.of(context).accentHover;
 
   static Color sliderInactiveFor(BuildContext context) =>
-      isNight(context) ? nightSliderInactive : sliderInactive;
+      MediaControlThemeColors.of(context).sliderInactive;
 
   static Color disabledPrimaryButtonSurfaceFor(BuildContext context) =>
-      isNight(context)
-          ? nightDisabledPrimaryButtonSurface
-          : disabledPrimaryButtonSurface;
+      MediaControlThemeColors.of(context).disabledPrimaryButtonSurface;
 
   static Color disabledPrimaryButtonBorderFor(BuildContext context) =>
-      isNight(context) ? accentBorder : disabledPrimaryButtonBorder;
+      MediaControlThemeColors.of(context).disabledPrimaryButtonBorder;
 
-  static Color playerBorderFor(bool night) =>
-      night ? nightPlayerBorder : playerBorder;
+}
 
-  static Color compactPlayerBorderFor(bool night) =>
-      night ? nightPlayerBorder : compactPlayerBorder;
+class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
+  const MediaControlThemeColors({
+    required this.textStrong,
+    required this.textMuted,
+    required this.accentStrong,
+    required this.accentHover,
+    required this.sliderInactive,
+    required this.disabledPrimaryButtonSurface,
+    required this.disabledPrimaryButtonBorder,
+    required this.disabledPrimaryIconColor,
+    required this.disabledPrimaryIconHidden,
+    required this.disabledPrimaryButtonShadow,
+    required this.disabledPrimaryButtonShadowOffset,
+    required this.disabledPrimaryButtonShadowBlur,
+    required this.glassThickness,
+    required this.glassLightIntensity,
+    required this.glassSaturation,
+    required this.glassColor,
+    required this.coverWashAlpha,
+    required this.compactCoverWashAlpha,
+    required this.playerBorder,
+    required this.compactPlayerBorder,
+    required this.playerShadow,
+    required this.compactPlayerShadow,
+    required this.wideShadowOffsetY,
+    required this.wideSurface,
+    required this.wideWashStop,
+    required this.wideHighlightGradient,
+    required this.compactSurface,
+    required this.compactTopGradient,
+    required this.compactWash,
+    required this.emptyCompactWash,
+    required this.compactWashStop,
+    required this.compactInsetHighlight,
+  });
 
-  static Color playerShadowFor(bool night) =>
-      night ? nightPlayerShadow : playerShadow;
+  final Color textStrong;
+  final Color textMuted;
+  final Color accentStrong;
+  final Color accentHover;
+  final Color sliderInactive;
+  final Color disabledPrimaryButtonSurface;
+  final Color disabledPrimaryButtonBorder;
+  final Color disabledPrimaryIconColor;
+  final bool disabledPrimaryIconHidden;
+  final Color disabledPrimaryButtonShadow;
+  final Offset disabledPrimaryButtonShadowOffset;
+  final double disabledPrimaryButtonShadowBlur;
+  final double glassThickness;
+  final double glassLightIntensity;
+  final double glassSaturation;
+  final Color glassColor;
+  final double coverWashAlpha;
+  final double compactCoverWashAlpha;
+  final Color playerBorder;
+  final Color compactPlayerBorder;
+  final Color playerShadow;
+  final Color compactPlayerShadow;
+  final double wideShadowOffsetY;
+  final Color wideSurface;
+  final double wideWashStop;
+  final List<Color> wideHighlightGradient;
+  final Color compactSurface;
+  final List<Color> compactTopGradient;
+  final Color compactWash;
+  final Color emptyCompactWash;
+  final double compactWashStop;
+  final Color compactInsetHighlight;
 
-  static Color compactPlayerShadowFor(bool night) =>
-      night ? nightPlayerShadow : compactPlayerShadow;
+  static const light = MediaControlThemeColors(
+    textStrong: MediaControlColors.textStrong,
+    textMuted: MediaControlColors.textMuted,
+    accentStrong: MediaControlColors.accentStrong,
+    accentHover: MediaControlColors.accentHover,
+    sliderInactive: MediaControlColors.sliderInactive,
+    disabledPrimaryButtonSurface:
+        MediaControlColors.disabledPrimaryButtonSurface,
+    disabledPrimaryButtonBorder: MediaControlColors.disabledPrimaryButtonBorder,
+    disabledPrimaryIconColor: Colors.transparent,
+    disabledPrimaryIconHidden: true,
+    disabledPrimaryButtonShadow: MediaControlColors.disabledPrimaryButtonShadow,
+    disabledPrimaryButtonShadowOffset: Offset(0, 8),
+    disabledPrimaryButtonShadowBlur: 18,
+    glassThickness: 28,
+    glassLightIntensity: 0.56,
+    glassSaturation: 1.34,
+    glassColor: Color(0x30ffffff),
+    coverWashAlpha: 0.24,
+    compactCoverWashAlpha: 0.20,
+    playerBorder: MediaControlColors.playerBorder,
+    compactPlayerBorder: MediaControlColors.compactPlayerBorder,
+    playerShadow: MediaControlColors.playerShadow,
+    compactPlayerShadow: MediaControlColors.compactPlayerShadow,
+    wideShadowOffsetY: 18,
+    wideSurface: MediaControlColors.playerSurfaceSolid,
+    wideWashStop: 0.42,
+    wideHighlightGradient: [
+      MediaControlColors.playerSurface,
+      MediaControlColors.playerAccentWash,
+    ],
+    compactSurface: MediaControlColors.compactPlayerSurface,
+    compactTopGradient: [
+      MediaControlColors.compactPlayerTop,
+      MediaControlColors.compactPlayerBottom,
+    ],
+    compactWash: MediaControlColors.compactPlayerWash,
+    emptyCompactWash: MediaControlColors.emptyCompactPlayerWash,
+    compactWashStop: 0.54,
+    compactInsetHighlight: MediaControlColors.compactPlayerInsetHighlight,
+  );
+
+  static const dark = MediaControlThemeColors(
+    textStrong: MediaControlColors.nightText,
+    textMuted: MediaControlColors.nightMuted,
+    accentStrong: MediaControlColors.nightAccentStrong,
+    accentHover: MediaControlColors.nightAccentHover,
+    sliderInactive: MediaControlColors.nightSliderInactive,
+    disabledPrimaryButtonSurface:
+        MediaControlColors.nightDisabledPrimaryButtonSurface,
+    disabledPrimaryButtonBorder: MediaControlColors.accentBorder,
+    disabledPrimaryIconColor: Colors.white,
+    disabledPrimaryIconHidden: false,
+    disabledPrimaryButtonShadow: MediaControlColors.accentShadow,
+    disabledPrimaryButtonShadowOffset: Offset(0, 12),
+    disabledPrimaryButtonShadowBlur: 24,
+    glassThickness: 34,
+    glassLightIntensity: 0.42,
+    glassSaturation: 1.18,
+    glassColor: Color(0x2411161c),
+    coverWashAlpha: 0.22,
+    compactCoverWashAlpha: 0.20,
+    playerBorder: MediaControlColors.nightPlayerBorder,
+    compactPlayerBorder: MediaControlColors.nightPlayerBorder,
+    playerShadow: MediaControlColors.nightPlayerShadow,
+    compactPlayerShadow: MediaControlColors.nightPlayerShadow,
+    wideShadowOffsetY: -18,
+    wideSurface: MediaControlColors.nightPlayerSurface,
+    wideWashStop: 0.46,
+    wideHighlightGradient: [
+      MediaControlColors.nightPlayerHighlight,
+      MediaControlColors.nightPlayerAccentWash,
+    ],
+    compactSurface: MediaControlColors.nightCompactPlayerSurface,
+    compactTopGradient: [
+      MediaControlColors.nightCompactPlayerTop,
+      MediaControlColors.nightCompactPlayerBottom,
+    ],
+    compactWash: MediaControlColors.nightCompactPlayerWash,
+    emptyCompactWash: MediaControlColors.nightEmptyCompactPlayerWash,
+    compactWashStop: 0.56,
+    compactInsetHighlight: MediaControlColors.nightCompactPlayerInsetHighlight,
+  );
+
+  static MediaControlThemeColors of(BuildContext context) {
+    return Theme.of(context).extension<MediaControlThemeColors>() ?? light;
+  }
+
+  @override
+  MediaControlThemeColors copyWith() {
+    return this;
+  }
+
+  @override
+  MediaControlThemeColors lerp(
+    covariant ThemeExtension<MediaControlThemeColors>? other,
+    double t,
+  ) {
+    return this;
+  }
 }

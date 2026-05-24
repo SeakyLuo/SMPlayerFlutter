@@ -45,15 +45,13 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final textStrong = MediaControlColors.textStrongFor(context);
     final accentStrong = MediaControlColors.accentStrongFor(context);
     final accentHover = MediaControlColors.accentHoverFor(context);
-    final night = MediaControlColors.isNight(context);
+    final colors = MediaControlThemeColors.of(context);
     final hovered = !widget.disabled && _hovered;
     final primaryDisabled = widget.primary && widget.disabled;
     final color =
         widget.disabled
             ? widget.primary
-                ? night
-                    ? Colors.white
-                    : Colors.transparent
+                ? colors.disabledPrimaryIconColor
                 : textStrong
             : widget.favorite
             ? MediaControlColors.favorite
@@ -88,21 +86,13 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final shadow =
         widget.primary
             ? widget.disabled
-                ? night
-                    ? const [
-                      BoxShadow(
-                        color: MediaControlColors.accentShadow,
-                        offset: Offset(0, 12),
-                        blurRadius: 24,
-                      ),
-                    ]
-                    : const [
-                      BoxShadow(
-                        color: MediaControlColors.disabledPrimaryButtonShadow,
-                        offset: Offset(0, 8),
-                        blurRadius: 18,
-                      ),
-                    ]
+                ? [
+                  BoxShadow(
+                    color: colors.disabledPrimaryButtonShadow,
+                    offset: colors.disabledPrimaryButtonShadowOffset,
+                    blurRadius: colors.disabledPrimaryButtonShadowBlur,
+                  ),
+                ]
                 : const [
                   BoxShadow(
                     color: MediaControlColors.accentShadow,
@@ -138,7 +128,11 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             curve: Curves.easeOut,
             offset: hovered ? Offset(0, -1 / size) : Offset.zero,
             child: Opacity(
-              opacity: widget.disabled && (!widget.primary || night) ? 0.65 : 1,
+              opacity:
+                  widget.disabled &&
+                          (!widget.primary || !colors.disabledPrimaryIconHidden)
+                      ? 0.65
+                      : 1,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
                 width: size,
@@ -161,7 +155,9 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                           icon: widget.icon,
                           color: color,
                           size: iconSize,
-                          hidden: primaryDisabled && !night,
+                          hidden:
+                              primaryDisabled &&
+                              colors.disabledPrimaryIconHidden,
                         ),
               ),
             ),
