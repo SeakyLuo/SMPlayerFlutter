@@ -512,12 +512,14 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         key: 'see-music-info',
         text: i18n.t('context.seeMusicInfo'),
         icon: FluentIcons.info_20_regular,
+        keepOpen: true,
         onPressed: onSeeMusicInfo,
       ),
       MenuFlyoutItem(
         key: 'see-lyrics',
         text: i18n.t('context.seeLyrics'),
         icon: FluentIcons.comment_text_20_regular,
+        keepOpen: true,
         onPressed: onSeeLyrics,
       ),
       if (showAlbumArt)
@@ -525,6 +527,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
           icon: FluentIcons.image_20_regular,
+          keepOpen: true,
           onPressed: onSeeAlbumArt,
         ),
       MenuFlyoutItem(

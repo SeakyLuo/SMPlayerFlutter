@@ -1,72 +1,60 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
-import 'id3_tag_service.dart';
-import 'artist_split_model.dart' as artist_split_model;
+import 'library_audio_metadata_service.dart';
+import 'library_artist_split_service.dart';
+import 'library_artwork_service.dart';
+import 'library_data_transfer_service.dart';
+import 'library_database_service.dart';
+import 'library_hidden_storage_service.dart';
+import 'library_local_move_service.dart';
+import 'library_lyrics_service.dart';
 import 'library_models.dart';
+import 'library_pending_delete_service.dart' hide TrashPath;
+import 'library_playback_history_service.dart';
+import 'library_playlist_service.dart';
+import 'library_preference_service.dart';
+import 'library_repository_paths.dart';
+import 'library_search_history_service.dart';
+import 'library_settings_service.dart';
+import 'library_song_properties_service.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show
         PreferenceEntityType,
-        PreferenceItemSnapshot,
         PreferenceLevel,
         PreferenceSectionKey,
         PreferenceSettingsSnapshot;
+
+export 'library_repository_paths.dart' show defaultSmPlayerUserDataPath;
+export 'library_data_transfer_service.dart'
+    show selectWindowsUwpDatabaseCandidate;
+export 'library_artwork_service.dart'
+    show ShellThumbnail, ShellThumbnailResolver;
+export 'library_local_move_service.dart'
+    show
+        LocalFolderMove,
+        LocalItemsMoveResult,
+        LocalMoveConflictResolution,
+        LocalMoveConflictResolver,
+        LocalSongMove;
+export 'library_lyrics_service.dart'
+    show
+        InternetLyricsResolver,
+        LyricsBatchDetail,
+        LyricsBatchDetailResult,
+        LyricsBatchProgress,
+        LyricsBatchResult,
+        LyricsBatchSkipReason;
 
 const _activeState = 1;
 const _inactiveState = 0;
 const _hiddenState = -1;
 const _parentHiddenState = -2;
-const _smPlayerDatabaseName = 'SMPlayerSettings.db';
-const _nowPlayingJsonName = 'NowPlaying.json';
-const _pendingSongDeletesJsonName = 'pending-song-deletes.json';
-const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
-const _macOsBundleIdentifier = 'com.seaky.smplayerFlutter';
-const _recentSongLimit = 500;
-const _recentCollectionLimit = 200;
-
-String defaultSmPlayerUserDataPath() {
-  if (Platform.isWindows) {
-    return p.join(Platform.environment['APPDATA']!, 'simple-melody-player');
-  }
-
-  if (Platform.isMacOS) {
-    return p.join(
-      _macOsSandboxDataPath(),
-      'Library',
-      'Application Support',
-      'Simple Melody Player',
-    );
-  }
-
-  return p.join(
-    Platform.environment['HOME']!,
-    '.config',
-    'simple-melody-player',
-  );
-}
-
-String _macOsSandboxDataPath() {
-  final home = Platform.environment['HOME']!;
-  final normalizedHome = p.normalize(home);
-  final sandboxSuffix = p.join(
-    'Library',
-    'Containers',
-    _macOsBundleIdentifier,
-    'Data',
-  );
-  if (normalizedHome.endsWith(sandboxSuffix)) {
-    return home;
-  }
-  return p.join(home, 'Library', 'Containers', _macOsBundleIdentifier, 'Data');
-}
 
 const _audioFileExtensions = {
   '.aac',
@@ -80,38 +68,6 @@ const _audioFileExtensions = {
   '.opus',
   '.wav',
   '.wma',
-};
-
-class _AudioFileMetadata {
-  const _AudioFileMetadata({
-    required this.properties,
-    required this.duration,
-    required this.thumbnailPath,
-  });
-
-  final Id3SongTagProperties properties;
-  final int duration;
-  final String thumbnailPath;
-}
-
-const _folderArtworkBaseNames = {
-  'cover',
-  'folder',
-  'front',
-  'album',
-  'albumart',
-  'albumart_{00000000-0000-0000-0000-000000000000}_large',
-  'albumart_{00000000-0000-0000-0000-000000000000}_small',
-  'albumartlarge',
-  'albumartsmall',
-};
-const _folderArtworkExtensions = {
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.webp',
-  '.bmp',
-  '.gif',
 };
 
 bool _isLikelyArtworkImage(List<int> data) {
@@ -154,103 +110,7 @@ bool _isLikelyArtworkImage(List<int> data) {
 }
 
 typedef TrashPath = Future<void> Function(String path);
-typedef InternetLyricsResolver = Future<String> Function(LibrarySong song);
-typedef ShellThumbnailResolver =
-    Future<ShellThumbnail?> Function(String filePath);
-
-class ShellThumbnail {
-  const ShellThumbnail({required this.data, required this.extension});
-
-  final List<int> data;
-  final String extension;
-}
-
 const _recentRecordTypeSong = 0;
-const _recentRecordTypePlaylist = 3;
-const _recentRecordTypeAlbum = 4;
-const _recentRecordTypeArtist = 5;
-const _nowPlayingPlaylistName = 'Now Playing';
-const _id3TagService = Id3TagService();
-
-class LocalSongMove {
-  const LocalSongMove({
-    required this.id,
-    required this.oldPath,
-    required this.newPath,
-  });
-
-  final int id;
-  final String oldPath;
-  final String newPath;
-}
-
-class LocalFolderMove {
-  const LocalFolderMove({required this.oldPath, required this.newPath});
-
-  final String oldPath;
-  final String newPath;
-}
-
-class _LocalFileMove {
-  const _LocalFileMove({
-    required this.oldPath,
-    required this.newPath,
-    this.replacedPath,
-  });
-
-  final String oldPath;
-  final String newPath;
-  final String? replacedPath;
-}
-
-class _LocalResolvedFileMoveTarget {
-  const _LocalResolvedFileMoveTarget({required this.path, this.replacedPath});
-
-  final String path;
-  final String? replacedPath;
-}
-
-enum LocalMoveConflictResolution { replace, keepBoth, skip }
-
-typedef LocalMoveConflictResolver =
-    Future<LocalMoveConflictResolution> Function(
-      String sourcePath,
-      String targetPath,
-    );
-
-class LocalItemsMoveResult {
-  const LocalItemsMoveResult({
-    required this.songs,
-    required this.folders,
-    this.inactiveFolders = const [],
-  });
-
-  final List<LocalSongMove> songs;
-  final List<LocalFolderMove> folders;
-  final List<String> inactiveFolders;
-
-  int get itemCount => songs.length + folders.length;
-}
-
-File? selectWindowsUwpDatabaseCandidate(List<File> candidates) {
-  if (candidates.isEmpty) {
-    return null;
-  }
-
-  final scoredCandidates =
-      candidates.map(_scoreWindowsUwpDatabaseCandidate).toList();
-  scoredCandidates.sort((left, right) {
-    final existingSampleComparison = right.existingSampleCount.compareTo(
-      left.existingSampleCount,
-    );
-    if (existingSampleComparison != 0) {
-      return existingSampleComparison;
-    }
-
-    return right.updatedAt.compareTo(left.updatedAt);
-  });
-  return scoredCandidates.first.file;
-}
 
 Future<void> trashPathIfExists(String targetPath) async {
   final type = FileSystemEntity.typeSync(targetPath);
@@ -377,6 +237,23 @@ class LibraryRepository {
            shellThumbnailResolver ?? resolveShellThumbnail;
 
   static final _startupArtistSplitPendingDatabasePaths = <String>{};
+  static const _database = LibraryDatabaseService();
+  static const _audioMetadataService = LibraryAudioMetadataService();
+  static const _songPropertiesService = LibrarySongPropertiesService();
+  static const _artistSplitService = LibraryArtistSplitService(
+    songPropertiesService: _songPropertiesService,
+  );
+  static const _dataTransferService = LibraryDataTransferService();
+  static const _hiddenStorageService = LibraryHiddenStorageService();
+  static const _localMoveService = LibraryLocalMoveService();
+  static const _pendingDeleteService = LibraryPendingDeleteService();
+  static const _settingsService = LibrarySettingsService(database: _database);
+  static const _playbackHistoryService = LibraryPlaybackHistoryService();
+  static const _searchHistoryService = LibrarySearchHistoryService(
+    database: _database,
+  );
+  static const _playlistService = LibraryPlaylistService();
+  static const _preferenceService = LibraryPreferenceService();
 
   final Future<File> Function()? _databaseFileResolver;
   final File Function()? _nowPlayingFileResolver;
@@ -385,9 +262,25 @@ class LibraryRepository {
   final InternetLyricsResolver? _internetLyricsResolver;
   final ShellThumbnailResolver _shellThumbnailResolver;
 
+  LibraryArtworkService get _artworkService => LibraryArtworkService(
+    databaseFileResolver: _resolveDatabaseFile,
+    shellThumbnailResolver: _shellThumbnailResolver,
+  );
+
+  LibraryLyricsService get _lyricsService => LibraryLyricsService(
+    settingsSnapshotResolver: getSettingsSnapshot,
+    internetLyricsResolver: _internetLyricsResolver,
+  );
+
+  LibraryRepositoryPaths get _paths => LibraryRepositoryPaths(
+    databaseFileResolver: _databaseFileResolver,
+    nowPlayingFileResolver: _nowPlayingFileResolver,
+    pendingDeleteFileResolver: _pendingDeleteFileResolver,
+  );
+
   Future<void> initializeLibraryDatabase() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     db.dispose();
   }
 
@@ -398,13 +291,15 @@ class LibraryRepository {
     try {
       final shouldCheckStartupArtistSplits =
           _hasLegacyStartupArtistSplitCandidates(db);
-      _initializeLibrarySchema(db);
+      _database.initializeLibrarySchema(db);
       if (shouldCheckStartupArtistSplits) {
         _startupArtistSplitPendingDatabasePaths.add(databaseFile.path);
       }
       _cleanupInvalidLastPlaylist(db);
       final rows = db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1');
-      return rows.isEmpty ? null : _settingsSnapshotFromRow(rows.single);
+      return rows.isEmpty
+          ? null
+          : _settingsService.settingsSnapshotFromRow(rows.single);
     } finally {
       db.dispose();
     }
@@ -412,23 +307,27 @@ class LibraryRepository {
 
   Future<RecentPageData> getRecentPageData() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       _cleanupInvalidPlaylistItems(db);
-      _cleanupInvalidRecentPlayed(db);
+      _playbackHistoryService.cleanupInvalidRecentPlayed(db);
       final settings = _readLibrarySettings(db);
       final songs = _readSongs(db);
       final playlists = _readPlaylists(db, settings);
       return RecentPageData(
         songs: songs,
-        recentSongs: _readRecentSongs(db, songs),
-        recentPlaylists: _readRecentPlaylists(db),
-        recentAlbums: _readRecentAlbums(db),
-        recentArtists: _readRecentArtists(db),
-        recentSearches: _readRecentSearches(db),
+        recentSongs: _playbackHistoryService.readRecentSongs(db, songs),
+        recentPlaylists: _playbackHistoryService.readRecentPlaylists(db),
+        recentAlbums: _playbackHistoryService.readRecentAlbums(db),
+        recentArtists: _playbackHistoryService.readRecentArtists(db),
+        recentSearches: _searchHistoryService.readRecentSearches(db),
         playlists: playlists,
         favoritePlaylistId: settings.myFavoritesId,
-        nowPlaying: _readNowPlaying(db, songs, settings.nowPlayingId),
+        nowPlaying: _playbackHistoryService.readNowPlaying(
+          db,
+          _resolveNowPlayingFile(),
+          settings.nowPlayingId,
+        ),
         showCount: settings.showCount,
         hideMultiSelectCommandBarAfterOperation:
             settings.hideMultiSelectCommandBarAfterOperation,
@@ -440,7 +339,7 @@ class LibraryRepository {
 
   Future<ShellNavigationData> getShellNavigationData() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       _cleanupInvalidPlaylistItems(db);
       final settings = _readLibrarySettings(db);
@@ -449,8 +348,12 @@ class LibraryRepository {
         songs: songs,
         playlists: _readPlaylists(db, settings),
         folders: _readFolders(db),
-        recentSearches: _readRecentSearches(db),
-        nowPlaying: _readNowPlaying(db, songs, settings.nowPlayingId),
+        recentSearches: _searchHistoryService.readRecentSearches(db),
+        nowPlaying: _playbackHistoryService.readNowPlaying(
+          db,
+          _resolveNowPlayingFile(),
+          settings.nowPlayingId,
+        ),
         rootPath: settings.rootPath,
       );
     } finally {
@@ -460,17 +363,12 @@ class LibraryRepository {
 
   Future<List<SearchHistoryEntry>> getRecentSearches() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
-    try {
-      return _readRecentSearches(db);
-    } finally {
-      db.dispose();
-    }
+    return _searchHistoryService.getRecentSearches(databaseFile);
   }
 
   Future<int> getLibrarySongCount() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       final rows = db.select(
         'SELECT COUNT(*) AS count FROM Music WHERE State = ?',
@@ -484,23 +382,27 @@ class LibraryRepository {
 
   Future<LibraryViewData> getLibraryViewData() async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       _cleanupInvalidPlaylistItems(db);
-      _cleanupInvalidRecentPlayed(db);
+      _playbackHistoryService.cleanupInvalidRecentPlayed(db);
       final settings = _readLibrarySettings(db);
       final songs = _readSongs(db);
       final folders = _readFolders(db);
       final playlists = _readPlaylists(db, settings);
-      final recentSongs = _readRecentSongs(db, songs);
-      final nowPlaying = _readNowPlaying(db, songs, settings.nowPlayingId);
+      final recentSongs = _playbackHistoryService.readRecentSongs(db, songs);
+      final nowPlaying = _playbackHistoryService.readNowPlaying(
+        db,
+        _resolveNowPlayingFile(),
+        settings.nowPlayingId,
+      );
       return LibraryViewData(
         songs: songs,
         recentSongs: recentSongs,
-        recentPlaylists: _readRecentPlaylists(db),
-        recentAlbums: _readRecentAlbums(db),
-        recentArtists: _readRecentArtists(db),
-        recentSearches: _readRecentSearches(db),
+        recentPlaylists: _playbackHistoryService.readRecentPlaylists(db),
+        recentAlbums: _playbackHistoryService.readRecentAlbums(db),
+        recentArtists: _playbackHistoryService.readRecentArtists(db),
+        recentSearches: _searchHistoryService.readRecentSearches(db),
         playlists: playlists,
         folders: folders,
         favoritePlaylistId: settings.myFavoritesId,
@@ -531,7 +433,7 @@ class LibraryRepository {
       final shouldCheck =
           _startupArtistSplitPendingDatabasePaths.remove(databaseFile.path) ||
           _hasLegacyStartupArtistSplitCandidates(db);
-      _initializeLibrarySchema(db);
+      _database.initializeLibrarySchema(db);
       return shouldCheck;
     } finally {
       db.dispose();
@@ -540,276 +442,54 @@ class LibraryRepository {
 
   Future<bool> exportDataTo(String targetPath) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return false;
-    }
-
-    final target = File(targetPath);
-    await target.parent.create(recursive: true);
-    await databaseFile.copy(target.path);
-    return true;
+    return _dataTransferService.exportDataTo(databaseFile, targetPath);
   }
 
   Future<bool> importDataFrom(String sourcePath) async {
-    final source = File(sourcePath);
-    if (!source.existsSync()) {
-      return false;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    await databaseFile.parent.create(recursive: true);
-    final backupFile = File('${databaseFile.path}.import-backup');
-    final hadExistingDatabase = databaseFile.existsSync();
-    final currentRootPath =
-        hadExistingDatabase ? _readDatabaseRootPath(databaseFile) : '';
-    if (hadExistingDatabase) {
-      await databaseFile.copy(backupFile.path);
-    }
-
-    try {
-      await source.copy(databaseFile.path);
-      final importedRootPath = _readDatabaseRootPath(databaseFile);
-      if (currentRootPath.isNotEmpty &&
-          importedRootPath.isNotEmpty &&
-          currentRootPath != importedRootPath) {
-        _replaceRootPathReferences(
-          databaseFile,
-          originalPath: importedRootPath,
-          nextPath: currentRootPath,
-        );
-      } else if (importedRootPath.isNotEmpty) {
-        await scanAllMusicLibrary(importedRootPath);
-      }
-      return true;
-    } catch (_) {
-      if (hadExistingDatabase) {
-        await backupFile.copy(databaseFile.path);
-      } else if (databaseFile.existsSync()) {
-        await databaseFile.delete();
-      }
-      rethrow;
-    } finally {
-      if (backupFile.existsSync()) {
-        await backupFile.delete();
-      }
-    }
+    return _dataTransferService.importDataFrom(
+      databaseFile,
+      sourcePath,
+      rescanLibrary: scanAllMusicLibrary,
+    );
   }
 
   Future<settings.SettingsSnapshot?> getSettingsSnapshot() async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return null;
-    }
-
-    final db = _openInitializedLibraryDatabase(databaseFile);
-    try {
-      _cleanupInvalidLastPlaylist(db);
-      final rows = db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1');
-      if (rows.isEmpty) {
-        return null;
-      }
-      return _settingsSnapshotFromRow(rows.single);
-    } finally {
-      db.dispose();
-    }
+    return _settingsService.getSettingsSnapshot(
+      databaseFile,
+      cleanupInvalidLastPlaylist: _cleanupInvalidLastPlaylist,
+    );
   }
 
   Future<void> updateSettings(settings.AppSettingsUpdate update) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final snapshot = _settingsSnapshotFromRow(
-        db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
-      );
-      final next = snapshot.apply(update);
-      db.execute(
-        '''
-        UPDATE Settings
-        SET
-          RootPath = ?,
-          UseFilenameNotMusicName = ?,
-          SmartMultiArtistRecognition = ?,
-          ShowCount = ?,
-          ThemeColor = ?,
-          NightMode = ?,
-          NightModeStartTime = ?,
-          NightModeEndTime = ?,
-          NotificationDisplay = ?,
-          NotificationSend = ?,
-          AutoLyrics = ?,
-          ShowLyricsInNotification = ?,
-          VoiceAssistantPreferredLanguage = ?,
-          NotificationLyricsSource = ?,
-          PlayerLyricsSource = ?,
-          SaveLyricsImmediately = ?,
-          PreserveInternetLyricsTimestamps = ?,
-          DesktopLyricsEnabled = ?,
-          DesktopLyricsLocked = ?,
-          DesktopLyricsColor = ?,
-          DesktopLyricsStrokeColor = ?,
-          DesktopLyricsFontSize = ?,
-          DesktopLyricsFontFamily = ?,
-          DesktopLyricsOpacity = ?,
-          DesktopLyricsBounds = ?,
-          MusicLibraryCriterion = ?,
-          AlbumsCriterion = ?,
-          SearchArtistsCriterion = ?,
-          SearchAlbumsCriterion = ?,
-          SearchSongsCriterion = ?,
-          SearchPlaylistsCriterion = ?,
-          SearchFoldersCriterion = ?,
-          AutoPlay = ?,
-          ShuffleAfterOneRound = ?,
-          SaveMusicProgress = ?,
-          HideMultiSelectCommandBarAfterOperation = ?,
-          QuitOnClose = ?,
-          MusicProgress = ?,
-          LocalViewMode = ?,
-          LastReleaseNotesVersion = ?
-        WHERE Id = ?
-      ''',
-        [
-          next.rootPath,
-          _boolValue(next.useFilenameNotMusicName),
-          _boolValue(next.smartMultiArtistRecognition),
-          _boolValue(next.showCount),
-          next.themeColor,
-          _nightModeValue(next.nightMode),
-          next.nightModeStartTime,
-          next.nightModeEndTime,
-          _notificationDisplayValue(next.notificationDisplay),
-          _notificationSendValue(next.notificationSend),
-          _boolValue(next.autoLyrics),
-          _boolValue(next.showLyricsInNotification),
-          _preferredLanguageValue(next.preferredLanguage),
-          _lyricsRequestModeValue(next.notificationLyricsSource),
-          _lyricsRequestModeValue(next.playerLyricsSource),
-          _boolValue(next.saveLyricsImmediately),
-          _boolValue(next.preserveInternetLyricsTimestamps),
-          _boolValue(next.desktopLyricsEnabled),
-          _boolValue(next.desktopLyricsLocked),
-          next.desktopLyricsColor,
-          next.desktopLyricsStrokeColor,
-          next.desktopLyricsFontSize,
-          next.desktopLyricsFontFamily,
-          next.desktopLyricsOpacity,
-          next.desktopLyricsBounds,
-          _musicLibrarySortValue(next.musicLibrarySort),
-          _albumSortValue(next.albumsSort),
-          _searchSortValue(next.searchArtistsCriterion),
-          _searchSortValue(next.searchAlbumsCriterion),
-          _searchSortValue(next.searchSongsCriterion),
-          _searchSortValue(next.searchPlaylistsCriterion),
-          _searchSortValue(next.searchFoldersCriterion),
-          _boolValue(next.autoPlay),
-          _boolValue(next.shuffleAfterOneRound),
-          _boolValue(next.saveMusicProgress),
-          _boolValue(next.hideMultiSelectCommandBarAfterOperation),
-          _boolValue(next.quitOnClose),
-          next.saveMusicProgress ? snapshot.musicProgress : 0,
-          _localViewModeValue(next.localViewMode),
-          next.lastReleaseNotesVersion,
-          _settingsRowId(db),
-        ],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _settingsService.updateSettings(databaseFile, update);
   }
 
   Future<void> savePlaybackSettings(
     settings.PlaybackSettingsUpdate update,
   ) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final snapshot = _settingsSnapshotFromRow(
-        db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
-      );
-      final next = snapshot.applyPlaybackSettings(update);
-      db.execute(
-        '''
-        UPDATE Settings
-        SET
-          LastMusicIndex = ?,
-          Volume = ?,
-          IsMuted = ?,
-          Mode = ?,
-          MusicProgress = ?
-        WHERE Id = ?
-      ''',
-        [
-          next.lastMusicIndex,
-          next.volume,
-          _boolValue(next.isMuted),
-          _playbackModeValue(next.mode),
-          next.musicProgress,
-          _settingsRowId(db),
-        ],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _settingsService.savePlaybackSettings(databaseFile, update);
   }
 
   Future<void> updateSongDuration(int songId, int durationSeconds) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE Music
-        SET Duration = ?
-        WHERE Id = ?
-          AND State = ?
-      ''',
-        [durationSeconds, songId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _songPropertiesService.updateSongDuration(
+      databaseFile,
+      songId,
+      durationSeconds,
+    );
   }
 
   Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final snapshot = _settingsSnapshotFromRow(
-        db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
-      );
-      db.execute(
-        '''
-        UPDATE Settings
-        SET
-          LastPage = ?,
-          LastPlaylist = ?
-        WHERE Id = ?
-      ''',
-        [
-          lastPage ?? snapshot.lastPage,
-          lastPlaylistId ?? snapshot.lastPlaylistId,
-          _settingsRowId(db),
-        ],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _settingsService.saveViewState(
+      databaseFile,
+      lastPage: lastPage,
+      lastPlaylistId: lastPlaylistId,
+    );
   }
 
   Future<void> saveMainWindowState({
@@ -817,44 +497,20 @@ class LibraryRepository {
     required bool maximized,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE Settings
-        SET
-          MainWindowBounds = ?,
-          MainWindowMaximized = ?
-        WHERE Id = (
-          SELECT Id
-          FROM Settings
-          ORDER BY Id DESC
-          LIMIT 1
-        )
-      ''',
-        [bounds, _boolValue(maximized)],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _settingsService.saveMainWindowState(
+      databaseFile,
+      bounds: bounds,
+      maximized: maximized,
+    );
   }
 
   Future<void> replaceNowPlaying(List<int> songIds) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      _writeNowPlayingSongIds(db, songIds);
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.replaceNowPlaying(
+      databaseFile,
+      _resolveNowPlayingFile(),
+      songIds,
+    );
   }
 
   Future<void> clearNowPlaying() async {
@@ -863,91 +519,21 @@ class LibraryRepository {
 
   Future<void> removeSongFromNowPlaying(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final nextSongIds =
-          _readNowPlayingSongIdsByPath(
-            db,
-          ).where((queuedSongId) => queuedSongId != songId).toList();
-      _writeNowPlayingSongIds(db, nextSongIds);
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.removeSongFromNowPlaying(
+      databaseFile,
+      _resolveNowPlayingFile(),
+      songId,
+    );
   }
 
   Future<void> removeRecentPlayed(List<int> songIds) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final placeholders = List.filled(songIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE RecentRecord
-        SET State = ?
-        WHERE Type = $_recentRecordTypeSong
-          AND ItemId IN ($placeholders)
-      ''',
-        [_inactiveState, ...songIds.map((songId) => songId.toString())],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.removeRecentPlayed(databaseFile, songIds);
   }
 
   Future<void> clearRecentPlayed() async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE RecentRecord
-        SET State = ?
-        WHERE Type IN (
-          $_recentRecordTypeSong,
-          $_recentRecordTypePlaylist,
-          $_recentRecordTypeAlbum,
-          $_recentRecordTypeArtist
-        )
-      ''',
-        [_inactiveState],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
-
-  void _cleanupInvalidRecentPlayed(Database db) {
-    db.execute(
-      '''
-      UPDATE RecentRecord
-      SET State = ?
-      WHERE Type = $_recentRecordTypeSong
-        AND State = ?
-        AND NOT EXISTS (
-          SELECT 1
-          FROM Music
-          WHERE Music.Id = CAST(RecentRecord.ItemId AS INTEGER)
-            AND Music.State = ?
-        )
-    ''',
-      [_inactiveState, _activeState, _activeState],
-    );
+    await _playbackHistoryService.clearRecentPlayed(databaseFile);
   }
 
   void _cleanupInvalidPlaylistItems(Database db) {
@@ -996,113 +582,23 @@ class LibraryRepository {
   }
 
   Future<void> removeRecentSearches(List<int> entryIds) async {
-    if (entryIds.isEmpty) {
-      return;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final placeholders = List.filled(entryIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('DELETE FROM SearchHistory WHERE Id IN ($placeholders)', [
-        ...entryIds,
-      ]);
-    } finally {
-      db.dispose();
-    }
+    await _searchHistoryService.removeRecentSearches(databaseFile, entryIds);
   }
 
   Future<void> restoreRecentSearches(List<SearchHistoryEntry> entries) async {
-    if (entries.isEmpty) {
-      return;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        final deleteStatement = db.prepare('''
-          DELETE FROM SearchHistory
-          WHERE Query = ? COLLATE NOCASE
-            AND Type = ?
-        ''');
-        final insertStatement = db.prepare('''
-          INSERT INTO SearchHistory (Id, Query, Type, SearchedAt)
-          VALUES (?, ?, ?, ?)
-        ''');
-        try {
-          for (final entry in entries) {
-            final storedType = _toStoredSearchHistoryType(entry.type);
-            deleteStatement.execute([entry.query, storedType]);
-            insertStatement.execute([
-              entry.id,
-              entry.query,
-              storedType,
-              entry.searchedAt,
-            ]);
-          }
-        } finally {
-          insertStatement.dispose();
-          deleteStatement.dispose();
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _searchHistoryService.restoreRecentSearches(databaseFile, entries);
   }
 
   Future<void> restoreRecentPlayed(List<int> songIds) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final placeholders = List.filled(songIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE RecentRecord
-        SET State = ?
-        WHERE Type = $_recentRecordTypeSong
-          AND ItemId IN ($placeholders)
-      ''',
-        [_activeState, ...songIds.map((songId) => songId.toString())],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.restoreRecentPlayed(databaseFile, songIds);
   }
 
   Future<void> clearRecentSearches() async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('DELETE FROM SearchHistory');
-    } finally {
-      db.dispose();
-    }
+    await _searchHistoryService.clearRecentSearches(databaseFile);
   }
 
   Future<PendingSongDelete> beginDeleteSongFromDisk(int songId) async {
@@ -1111,7 +607,7 @@ class LibraryRepository {
     final pendingFile = await _resolvePendingSongDeletesFile();
     try {
       final songPath = _readActiveSongPath(db, songId);
-      final record = _PendingSongDeleteRecord(
+      final record = PendingSongDeleteRecord(
         id: 'delete-${DateTime.now().microsecondsSinceEpoch}-$songId',
         songId: songId,
         songPath: songPath,
@@ -1125,8 +621,7 @@ class LibraryRepository {
         recentRecordIds: _readActiveRecentSongRowIds(db, songId),
         hiddenStorageItemIds: _readActiveHiddenFileRowIds(db, songPath),
       );
-      final records = await _readPendingDeleteRecords(pendingFile);
-      await _writePendingDeleteRecords(pendingFile, [record, ...records]);
+      await _pendingDeleteService.prependRecord(pendingFile, record);
 
       db.execute('BEGIN');
       try {
@@ -1134,11 +629,7 @@ class LibraryRepository {
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
-        final currentRecords = await _readPendingDeleteRecords(pendingFile);
-        await _writePendingDeleteRecords(
-          pendingFile,
-          currentRecords.where((item) => item.id != record.id).toList(),
-        );
+        await _pendingDeleteService.removeRecord(pendingFile, record.id);
         rethrow;
       }
       return PendingSongDelete(id: record.id, songId: songId);
@@ -1150,9 +641,10 @@ class LibraryRepository {
   Future<void> undoDeleteSongFromDisk(String deleteId) async {
     final databaseFile = await _resolveDatabaseFile();
     final pendingFile = await _resolvePendingSongDeletesFile();
-    final records = await _readPendingDeleteRecords(pendingFile);
-    final record = records.whereType<_PendingSongDeleteRecord>().firstWhere(
-      (item) => item.id == deleteId,
+    final records = await _pendingDeleteService.readRecords(pendingFile);
+    final record = _pendingDeleteService.findSongDeleteRecord(
+      records,
+      deleteId,
     );
     final db = sqlite3.open(databaseFile.path);
     try {
@@ -1167,62 +659,26 @@ class LibraryRepository {
     } finally {
       db.dispose();
     }
-    await _writePendingDeleteRecords(
-      pendingFile,
-      records.where((item) => item.id != deleteId).toList(),
-    );
+    await _pendingDeleteService.removeRecord(pendingFile, deleteId);
   }
 
   Future<void> commitDeleteSongFromDisk(String deleteId) async {
     final pendingFile = await _resolvePendingSongDeletesFile();
-    final records = await _readPendingDeleteRecords(pendingFile);
-    final record = records.whereType<_PendingSongDeleteRecord>().firstWhere(
-      (item) => item.id == deleteId,
-    );
-    await _trashPath(record.songPath);
-    await _writePendingDeleteRecords(
+    await _pendingDeleteService.commitSongDelete(
       pendingFile,
-      records.where((item) => item.id != deleteId).toList(),
+      deleteId,
+      _trashPath,
     );
   }
 
   Future<void> commitPendingDeletes() async {
     final pendingFile = await _resolvePendingSongDeletesFile();
-    if (!pendingFile.existsSync()) {
-      return;
-    }
-
-    final records = await _readPendingDeleteRecords(pendingFile);
-    for (final record in records) {
-      await _trashPendingDeleteRecord(record);
-    }
-    await _writePendingDeleteRecords(pendingFile, const []);
+    await _pendingDeleteService.commitPendingDeletes(pendingFile, _trashPath);
   }
 
   Future<void> hideSong(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songPath = _readActiveSongPath(db, songId);
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE Music SET State = ? WHERE Id = ?', [
-          _hiddenState,
-          songId,
-        ]);
-        db.execute('UPDATE File SET State = ? WHERE Path = ?', [
-          _hiddenState,
-          songPath,
-        ]);
-        _upsertHiddenStorageItem(db, 'file', songPath);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _hiddenStorageService.hideSong(databaseFile, songId);
   }
 
   Future<LocalItemsMoveResult> moveSongToFolder(
@@ -1231,69 +687,12 @@ class LibraryRepository {
     LocalMoveConflictResolver? resolveConflict,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songPath = _readActiveSongPath(db, songId);
-      if (_getFileParentPath(songPath) == folderPath) {
-        return const LocalItemsMoveResult(songs: [], folders: []);
-      }
-
-      final targetDirectory = Directory(folderPath);
-      if (targetDirectory.statSync().type != FileSystemEntityType.directory) {
-        throw StateError('Target path is not a folder.');
-      }
-
-      final target = await _resolveLocalFileMoveTarget(
-        sourcePath: songPath,
-        targetFolderPath: folderPath,
-        resolveConflict: resolveConflict,
-      );
-      if (target == null) {
-        return const LocalItemsMoveResult(songs: [], folders: []);
-      }
-
-      await File(songPath).rename(target.path);
-      db.execute('BEGIN');
-      try {
-        final folderId = _readActiveFolderId(db, folderPath) ?? 0;
-        if (target.replacedPath != null) {
-          _markLocalFilePathInactiveInsideTransaction(
-            db,
-            target.replacedPath!,
-            exceptSongId: songId,
-          );
-        }
-        db.execute(
-          '''
-          UPDATE Music
-          SET Path = ?
-          WHERE Id = ?
-            AND State = ?
-        ''',
-          [target.path, songId, _activeState],
-        );
-        db.execute(
-          '''
-          UPDATE File
-          SET Path = ?, ParentId = ?
-          WHERE Path = ?
-        ''',
-          [target.path, folderId, songPath],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-      return LocalItemsMoveResult(
-        songs: [
-          LocalSongMove(id: songId, oldPath: songPath, newPath: target.path),
-        ],
-        folders: const [],
-      );
-    } finally {
-      db.dispose();
-    }
+    return _localMoveService.moveSongToFolder(
+      databaseFile,
+      songId,
+      folderPath,
+      resolveConflict: resolveConflict,
+    );
   }
 
   Future<LocalItemsMoveResult> moveLocalItemsToFolder(
@@ -1302,297 +701,19 @@ class LibraryRepository {
     String targetFolderPath, {
     LocalMoveConflictResolver? resolveConflict,
   }) async {
-    if (songIds.isEmpty && folderPaths.isEmpty) {
-      return const LocalItemsMoveResult(songs: [], folders: []);
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final targetDirectory = Directory(targetFolderPath);
-      if (targetDirectory.statSync().type != FileSystemEntityType.directory) {
-        throw StateError('Target path is not a folder.');
-      }
-
-      final movedSongs = <LocalSongMove>[];
-      final movedFiles = <_LocalFileMove>[];
-      if (songIds.isNotEmpty) {
-        final placeholders = List.filled(songIds.length, '?').join(', ');
-        final rows = db.select(
-          '''
-          SELECT Id AS id, Path AS path
-          FROM Music
-          WHERE Id IN ($placeholders)
-            AND State = ?
-        ''',
-          [...songIds, _activeState],
-        );
-        for (final row in rows) {
-          final songPath = row['path'] as String;
-          if (_getFileParentPath(songPath) == targetFolderPath) {
-            continue;
-          }
-          final target = await _resolveLocalFileMoveTarget(
-            sourcePath: songPath,
-            targetFolderPath: targetFolderPath,
-            resolveConflict: resolveConflict,
-          );
-          if (target == null) {
-            continue;
-          }
-          await File(songPath).rename(target.path);
-          movedFiles.add(
-            _LocalFileMove(
-              oldPath: songPath,
-              newPath: target.path,
-              replacedPath: target.replacedPath,
-            ),
-          );
-          movedSongs.add(
-            LocalSongMove(
-              id: row['id'] as int,
-              oldPath: songPath,
-              newPath: target.path,
-            ),
-          );
-        }
-      }
-
-      final movedFolders = <LocalFolderMove>[];
-      final inactiveFolders = <String>[];
-      for (final folderPath in folderPaths) {
-        if (folderPath == targetFolderPath ||
-            targetFolderPath.startsWith('$folderPath/') ||
-            targetFolderPath.startsWith('$folderPath\\')) {
-          continue;
-        }
-        var targetPath = p.join(targetFolderPath, p.basename(folderPath));
-        if (folderPath == targetPath) {
-          continue;
-        }
-        final targetType = FileSystemEntity.typeSync(targetPath);
-        if (targetType == FileSystemEntityType.notFound) {
-          await Directory(folderPath).rename(targetPath);
-          movedFolders.add(
-            LocalFolderMove(oldPath: folderPath, newPath: targetPath),
-          );
-          continue;
-        }
-
-        if (targetType != FileSystemEntityType.directory) {
-          throw StateError('Target path already exists and is not a folder.');
-        }
-        await _mergeLocalFolderIntoExistingTarget(
-          sourceFolderPath: folderPath,
-          targetFolderPath: targetPath,
-          movedFiles: movedFiles,
-          movedFolders: movedFolders,
-          inactiveFolders: inactiveFolders,
-          resolveConflict: resolveConflict,
-        );
-      }
-
-      db.execute('BEGIN');
-      try {
-        for (final movedFile in movedFiles) {
-          final targetFolderId =
-              _readActiveFolderId(db, p.dirname(movedFile.newPath)) ?? 0;
-          final sourceSongRows = db.select(
-            '''
-            SELECT Id AS id
-            FROM Music
-            WHERE Path = ?
-              AND State = ?
-            LIMIT 1
-          ''',
-            [movedFile.oldPath, _activeState],
-          );
-          final sourceSongId =
-              sourceSongRows.isEmpty ? null : sourceSongRows.first['id'] as int;
-          if (movedFile.replacedPath != null) {
-            _markLocalFilePathInactiveInsideTransaction(
-              db,
-              movedFile.replacedPath!,
-              exceptSongId: sourceSongId,
-            );
-          }
-          if (sourceSongId != null) {
-            if (!movedSongs.any((move) => move.id == sourceSongId)) {
-              movedSongs.add(
-                LocalSongMove(
-                  id: sourceSongId,
-                  oldPath: movedFile.oldPath,
-                  newPath: movedFile.newPath,
-                ),
-              );
-            }
-            db.execute(
-              '''
-              UPDATE Music
-              SET Path = ?
-              WHERE Id = ?
-                AND State = ?
-            ''',
-              [movedFile.newPath, sourceSongId, _activeState],
-            );
-          }
-          db.execute(
-            '''
-            UPDATE File
-            SET Path = ?, ParentId = ?
-            WHERE Path = ?
-          ''',
-            [movedFile.newPath, targetFolderId, movedFile.oldPath],
-          );
-        }
-
-        for (final movedFolder in movedFolders) {
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'Music',
-            oldPath: movedFolder.oldPath,
-            newPath: movedFolder.newPath,
-          );
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'File',
-            oldPath: movedFolder.oldPath,
-            newPath: movedFolder.newPath,
-          );
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'Folder',
-            oldPath: movedFolder.oldPath,
-            newPath: movedFolder.newPath,
-          );
-          final parentFolderId =
-              _readActiveFolderId(db, p.dirname(movedFolder.newPath)) ?? 0;
-          db.execute(
-            '''
-            UPDATE Folder
-            SET ParentId = ?
-            WHERE Path = ?
-              AND State = ?
-          ''',
-            [parentFolderId, movedFolder.newPath, _activeState],
-          );
-        }
-        for (final inactiveFolder in inactiveFolders) {
-          _markLocalFolderInactiveInsideTransaction(db, inactiveFolder);
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-      return LocalItemsMoveResult(
-        songs: movedSongs,
-        folders: movedFolders,
-        inactiveFolders: inactiveFolders,
-      );
-    } finally {
-      db.dispose();
-    }
+    return _localMoveService.moveLocalItemsToFolder(
+      databaseFile,
+      songIds,
+      folderPaths,
+      targetFolderPath,
+      resolveConflict: resolveConflict,
+    );
   }
 
   Future<void> undoMoveLocalItems(LocalItemsMoveResult result) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      for (final movedFolder in result.folders.reversed) {
-        Directory(p.dirname(movedFolder.oldPath)).createSync(recursive: true);
-        await Directory(movedFolder.newPath).rename(movedFolder.oldPath);
-      }
-      for (final movedSong in result.songs) {
-        Directory(p.dirname(movedSong.oldPath)).createSync(recursive: true);
-        await File(movedSong.newPath).rename(movedSong.oldPath);
-      }
-
-      db.execute('BEGIN');
-      try {
-        for (final inactiveFolder in result.inactiveFolders) {
-          db.execute(
-            '''
-            UPDATE Folder
-            SET State = ?
-            WHERE Path = ?
-          ''',
-            [_activeState, inactiveFolder],
-          );
-          db.execute(
-            '''
-            UPDATE HiddenStorageItem
-            SET State = ?
-            WHERE Type = 'folder'
-              AND Path = ?
-          ''',
-            [_inactiveState, inactiveFolder],
-          );
-        }
-        for (final movedSong in result.songs) {
-          final parentFolderId =
-              _readActiveFolderId(db, _getFileParentPath(movedSong.oldPath)) ??
-              0;
-          db.execute(
-            '''
-            UPDATE Music
-            SET Path = ?
-            WHERE Id = ?
-          ''',
-            [movedSong.oldPath, movedSong.id],
-          );
-          db.execute(
-            '''
-            UPDATE File
-            SET Path = ?, ParentId = ?
-            WHERE Path = ?
-          ''',
-            [movedSong.oldPath, parentFolderId, movedSong.newPath],
-          );
-        }
-
-        for (final movedFolder in result.folders.reversed) {
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'Music',
-            oldPath: movedFolder.newPath,
-            newPath: movedFolder.oldPath,
-          );
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'File',
-            oldPath: movedFolder.newPath,
-            newPath: movedFolder.oldPath,
-          );
-          _updatePathPrefixInsideTransaction(
-            db,
-            table: 'Folder',
-            oldPath: movedFolder.newPath,
-            newPath: movedFolder.oldPath,
-          );
-          final parentFolderId =
-              _readActiveFolderId(
-                db,
-                _getFileParentPath(movedFolder.oldPath),
-              ) ??
-              0;
-          db.execute(
-            '''
-            UPDATE Folder
-            SET ParentId = ?
-            WHERE Path = ?
-          ''',
-            [parentFolderId, movedFolder.oldPath],
-          );
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _localMoveService.undoMoveLocalItems(databaseFile, result);
   }
 
   Future<PendingLocalItemsDelete> beginDeleteLocalItems(
@@ -1624,7 +745,7 @@ class LibraryRepository {
             ),
         ...folderPaths,
       ];
-      final record = _PendingLocalItemsDeleteRecord(
+      final record = PendingLocalItemsDeleteRecord(
         id: 'delete-local-${DateTime.now().microsecondsSinceEpoch}',
         songIds: effectiveSongIds,
         folderPaths: folderPaths.toList(),
@@ -1660,8 +781,7 @@ class LibraryRepository {
           folderPaths,
         ),
       );
-      final records = await _readPendingDeleteRecords(pendingFile);
-      await _writePendingDeleteRecords(pendingFile, [record, ...records]);
+      await _pendingDeleteService.prependRecord(pendingFile, record);
 
       db.execute('BEGIN');
       try {
@@ -1672,7 +792,7 @@ class LibraryRepository {
             songRows.map((row) => row.path).toList(),
           );
         }
-        _updateFolderPathStateInsideTransaction(
+        _hiddenStorageService.updateFolderPathStateInsideTransaction(
           db,
           folderPaths,
           _inactiveState,
@@ -1680,11 +800,7 @@ class LibraryRepository {
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
-        final currentRecords = await _readPendingDeleteRecords(pendingFile);
-        await _writePendingDeleteRecords(
-          pendingFile,
-          currentRecords.where((item) => item.id != record.id).toList(),
-        );
+        await _pendingDeleteService.removeRecord(pendingFile, record.id);
         rethrow;
       }
 
@@ -1701,10 +817,11 @@ class LibraryRepository {
   Future<void> undoDeleteLocalItems(String deleteId) async {
     final databaseFile = await _resolveDatabaseFile();
     final pendingFile = await _resolvePendingSongDeletesFile();
-    final records = await _readPendingDeleteRecords(pendingFile);
-    final record = records
-        .whereType<_PendingLocalItemsDeleteRecord>()
-        .firstWhere((item) => item.id == deleteId);
+    final records = await _pendingDeleteService.readRecords(pendingFile);
+    final record = _pendingDeleteService.findLocalItemsDeleteRecord(
+      records,
+      deleteId,
+    );
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -1718,177 +835,41 @@ class LibraryRepository {
     } finally {
       db.dispose();
     }
-    await _writePendingDeleteRecords(
-      pendingFile,
-      records.where((item) => item.id != deleteId).toList(),
-    );
+    await _pendingDeleteService.removeRecord(pendingFile, deleteId);
   }
 
   Future<void> commitDeleteLocalItems(String deleteId) async {
     final pendingFile = await _resolvePendingSongDeletesFile();
-    final records = await _readPendingDeleteRecords(pendingFile);
-    final record = records
-        .whereType<_PendingLocalItemsDeleteRecord>()
-        .firstWhere((item) => item.id == deleteId);
-    await _trashPendingDeleteRecord(record);
-    await _writePendingDeleteRecords(
+    await _pendingDeleteService.commitLocalItemsDelete(
       pendingFile,
-      records.where((item) => item.id != deleteId).toList(),
+      deleteId,
+      _trashPath,
     );
   }
 
   Future<void> hideFolder(String folderPath) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _hideFolderPathStateInsideTransaction(db, folderPath);
-        _upsertHiddenStorageItem(db, 'folder', folderPath);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _hiddenStorageService.hideFolder(databaseFile, folderPath);
   }
 
   Future<void> unhideSong(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songPath = _readSongPath(db, songId);
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE Music SET State = ? WHERE Id = ?', [
-          _activeState,
-          songId,
-        ]);
-        db.execute('UPDATE File SET State = ? WHERE Path = ?', [
-          _activeState,
-          songPath,
-        ]);
-        db.execute(
-          '''
-          UPDATE HiddenStorageItem
-          SET State = ?
-          WHERE Type = ?
-            AND Path = ?
-        ''',
-          [_inactiveState, 'file', songPath],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _hiddenStorageService.unhideSong(databaseFile, songId);
   }
 
   Future<void> unhideFolder(String folderPath) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _updateFolderPathStateInsideTransaction(db, [folderPath], _activeState);
-        db.execute(
-          '''
-          UPDATE HiddenStorageItem
-          SET State = ?
-          WHERE Type = ?
-            AND Path = ?
-        ''',
-          [_inactiveState, 'folder', folderPath],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _hiddenStorageService.unhideFolder(databaseFile, folderPath);
   }
 
   Future<List<HiddenStorageItem>> getHiddenStorageItems() async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return const [];
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _syncStorageStateFromHiddenItems(db);
-        _syncHiddenItemsFromStorageState(db);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-      final rows = db.select(
-        '''
-        SELECT Id AS id, Type AS type, Path AS path
-        FROM HiddenStorageItem
-        WHERE State = ?
-        ORDER BY Type, Path
-      ''',
-        [_activeState],
-      );
-      return [
-        for (final row in rows)
-          HiddenStorageItem(
-            id: row['id'] as int,
-            type: row['type'] as String,
-            path: row['path'] as String,
-          ),
-      ];
-    } finally {
-      db.dispose();
-    }
+    return _hiddenStorageService.getHiddenStorageItems(databaseFile);
   }
 
   Future<void> resumeHiddenStorageItem(HiddenStorageItem item) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        if (item.type == 'folder') {
-          _resumeHiddenFolderInsideTransaction(db, item.path);
-        } else {
-          db.execute('UPDATE Music SET State = ? WHERE Path = ?', [
-            _activeState,
-            item.path,
-          ]);
-          db.execute('UPDATE File SET State = ? WHERE Path = ?', [
-            _activeState,
-            item.path,
-          ]);
-        }
-        db.execute(
-          '''
-          UPDATE HiddenStorageItem
-          SET State = ?
-          WHERE Type = ?
-            AND Path = ?
-        ''',
-          [_inactiveState, item.type, item.path],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _hiddenStorageService.resumeHiddenStorageItem(databaseFile, item);
   }
 
   Future<void> renameFolder(String folderPath, String name) async {
@@ -1932,48 +913,8 @@ class LibraryRepository {
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) async {
-    final nextQuery = query.trim();
-    if (nextQuery.isEmpty) {
-      return null;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    final db = _openInitializedLibraryDatabase(databaseFile);
-    try {
-      final searchedAt = DateTime.now().toUtc().toIso8601String();
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
-          DELETE FROM SearchHistory
-          WHERE Query = ? COLLATE NOCASE
-            AND Type = ?
-        ''',
-          [nextQuery, _toStoredSearchHistoryType(type)],
-        );
-        db.execute(
-          '''
-          INSERT INTO SearchHistory (Query, Type, SearchedAt)
-          VALUES (?, ?, ?)
-        ''',
-          [nextQuery, _toStoredSearchHistoryType(type), searchedAt],
-        );
-        final rows = db.select('SELECT last_insert_rowid() AS id');
-        final id = rows.single['id'] as int;
-        db.execute('COMMIT');
-        return SearchHistoryEntry(
-          id: id,
-          query: nextQuery,
-          type: type,
-          searchedAt: searchedAt,
-        );
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    return _searchHistoryService.addRecentSearch(databaseFile, query, type);
   }
 
   Future<void> updateMusicLibrarySort(
@@ -1984,7 +925,7 @@ class LibraryRepository {
       return;
     }
 
-    final db = _openInitializedLibraryDatabase(databaseFile);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       db.execute('UPDATE Settings SET MusicLibraryCriterion = ? WHERE Id = ?', [
         _toStoredSortCriterion(criterion),
@@ -2046,279 +987,27 @@ class LibraryRepository {
     List<int> songIds = const [],
   ]) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      final nextName = _validatePlaylistName(db, name);
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
-          UPDATE Playlist
-          SET Priority = Priority + 1
-          WHERE State = ?
-            AND Id NOT IN (?, ?)
-            AND Name <> ?
-        ''',
-          [
-            _activeState,
-            settings.myFavoritesId,
-            settings.nowPlayingId,
-            _nowPlayingPlaylistName,
-          ],
-        );
-        db.execute(
-          '''
-          INSERT INTO Playlist (Name, Criterion, Priority, State)
-          VALUES (?, -1, ?, ?)
-        ''',
-          [nextName, 0, _activeState],
-        );
-        final playlistId = db.lastInsertRowId;
-        _setPlaylistSongsState(db, playlistId, songIds, true);
-        db.execute('COMMIT');
-        final playlistSongIds = _uniqueSongIds(songIds);
-        return LibraryPlaylist(
-          id: playlistId,
-          name: nextName,
-          priority: 0,
-          songCount: playlistSongIds.length,
-          songIds: playlistSongIds,
-          sortCriterion: PlaylistSortCriterion.title,
-          isBuiltIn: false,
-        );
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    return _playlistService.createPlaylist(databaseFile, name, songIds);
   }
 
   Future<void> deletePlaylist(int playlistId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      if (playlistId == settings.myFavoritesId ||
-          playlistId == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be deleted.');
-      }
-
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE Playlist SET State = ? WHERE Id = ?', [
-          _inactiveState,
-          playlistId,
-        ]);
-        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
-          _inactiveState,
-          playlistId,
-        ]);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.deletePlaylist(databaseFile, playlistId);
   }
 
   Future<void> restorePlaylist(LibraryPlaylist playlist) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      if (playlist.id == settings.myFavoritesId ||
-          playlist.id == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be restored.');
-      }
-
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
-          UPDATE Playlist
-          SET Priority = Priority + 1
-          WHERE State = ?
-            AND Id NOT IN (?, ?, ?)
-            AND Name <> ?
-            AND Priority >= ?
-        ''',
-          [
-            _activeState,
-            settings.myFavoritesId,
-            settings.nowPlayingId,
-            playlist.id,
-            _nowPlayingPlaylistName,
-            playlist.priority,
-          ],
-        );
-        db.execute(
-          '''
-          UPDATE Playlist
-          SET Name = ?,
-              Criterion = ?,
-              Priority = ?,
-              State = ?
-          WHERE Id = ?
-        ''',
-          [
-            _validatePlaylistName(
-              db,
-              playlist.name,
-              currentPlaylistId: playlist.id,
-            ),
-            _toStoredPlaylistSortCriterion(playlist.sortCriterion),
-            playlist.priority,
-            _activeState,
-            playlist.id,
-          ],
-        );
-        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
-          _inactiveState,
-          playlist.id,
-        ]);
-        _setPlaylistSongsState(db, playlist.id, playlist.songIds, true);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.restorePlaylist(databaseFile, playlist);
   }
 
   Future<void> renamePlaylist(int playlistId, String name) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      if (playlistId == settings.myFavoritesId ||
-          playlistId == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be renamed.');
-      }
-
-      final nextName = _validatePlaylistName(
-        db,
-        name,
-        currentPlaylistId: playlistId,
-      );
-      db.execute('UPDATE Playlist SET Name = ? WHERE Id = ?', [
-        nextName,
-        playlistId,
-      ]);
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.renamePlaylist(databaseFile, playlistId, name);
   }
 
   Future<void> reorderPlaylists(List<int> playlistIds) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      final rows = db.select(
-        '''
-        SELECT Playlist.Id AS id
-        FROM Playlist
-        WHERE Playlist.State = ?
-          AND Playlist.Id NOT IN (?, ?)
-          AND Playlist.Name <> ?
-        ORDER BY
-          CASE WHEN Playlist.Priority < 0 THEN 2147483647 ELSE Playlist.Priority END,
-          LOWER(Playlist.Name),
-          Playlist.Id
-      ''',
-        [
-          _activeState,
-          settings.myFavoritesId,
-          settings.nowPlayingId,
-          _nowPlayingPlaylistName,
-        ],
-      );
-      final currentPlaylistIds = rows.map((row) => row['id'] as int).toList();
-      if (currentPlaylistIds.length <= 1) {
-        return;
-      }
-
-      if (currentPlaylistIds.length != playlistIds.length ||
-          currentPlaylistIds.any(
-            (playlistId) => !playlistIds.contains(playlistId),
-          )) {
-        throw StateError(
-          'Playlist reorder request is out of sync with the current playlist list.',
-        );
-      }
-
-      final firstChangedIndex =
-          playlistIds.indexed
-              .where((entry) => entry.$2 != currentPlaylistIds[entry.$1])
-              .map((entry) => entry.$1)
-              .firstOrNull;
-      if (firstChangedIndex == null) {
-        return;
-      }
-
-      final reversedChangedIndex =
-          playlistIds.reversed.indexed
-              .where(
-                (entry) =>
-                    entry.$2 !=
-                    currentPlaylistIds[currentPlaylistIds.length -
-                        1 -
-                        entry.$1],
-              )
-              .map((entry) => entry.$1)
-              .first;
-      final lastChangedIndex = playlistIds.length - 1 - reversedChangedIndex;
-      final changedPlaylistIds = playlistIds.sublist(
-        firstChangedIndex,
-        lastChangedIndex + 1,
-      );
-      final priorityCases = List.filled(
-        changedPlaylistIds.length,
-        'WHEN ? THEN ?',
-      ).join(' ');
-      final playlistIdPlaceholders = List.filled(
-        changedPlaylistIds.length,
-        '?',
-      ).join(', ');
-      final priorityCaseValues =
-          changedPlaylistIds.indexed
-              .expand((entry) => [entry.$2, firstChangedIndex + entry.$1])
-              .toList();
-
-      db.execute(
-        '''
-        UPDATE Playlist
-        SET Priority = CASE Id $priorityCases END
-        WHERE Id IN ($playlistIdPlaceholders)
-      ''',
-        [...priorityCaseValues, ...changedPlaylistIds],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.reorderPlaylists(databaseFile, playlistIds);
   }
 
   Future<void> setSongFavorite(int songId, bool favorite) async {
@@ -2327,40 +1016,12 @@ class LibraryRepository {
 
   Future<ArtistSplitAnalysisResult> analyzeArtistSplits() async {
     final snapshot = await getLibraryViewData();
-    return artist_split_model.analyzeArtistSplits(snapshot.songs);
+    return _artistSplitService.analyze(snapshot.songs);
   }
 
   Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {
-    if (splits.isEmpty) {
-      return;
-    }
-
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        for (final split in splits) {
-          final artists = _normalizeArtists(split.artists).take(6).toList();
-          db.execute(
-            '''
-            UPDATE Music
-            SET Artist = ?
-            WHERE Id = ?
-              AND State = ?
-          ''',
-            [artists.join(', '), split.songId, _activeState],
-          );
-          _syncSongArtists(db, split.songId, artists);
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _artistSplitService.applySplits(databaseFile, splits);
   }
 
   Future<List<int>> importExternalAudioFiles(List<String> filePaths) async {
@@ -2374,7 +1035,11 @@ class LibraryRepository {
     if (audioFiles.isEmpty) {
       return const [];
     }
-    final metadataByPath = await _readAudioFileMetadataBatch(audioFiles);
+    final metadataByPath = await _audioMetadataService
+        .readAudioFileMetadataBatch(
+          audioFiles,
+          cacheSongArtwork: _cacheSongArtwork,
+        );
 
     final databaseFile = await _resolveDatabaseFile();
     final db = sqlite3.open(databaseFile.path);
@@ -2419,7 +1084,9 @@ class LibraryRepository {
     final db = sqlite3.open(databaseFile.path);
     try {
       final settings = _readLibrarySettings(db);
-      final hiddenPaths = _readActiveHiddenStoragePaths(db);
+      final hiddenPaths = _hiddenStorageService.readActiveHiddenStoragePaths(
+        db,
+      );
       final preparedFolderCount =
           _countScannableFolders(rootPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
@@ -2496,31 +1163,33 @@ class LibraryRepository {
           canCancel: true,
         ),
       );
-      final metadataByPath = await _readAudioFileMetadataBatch(
-        scannedPaths,
-        cancellation: cancellation,
-        onProgress: (filePath, completedCount) {
-          if (addedPathKeys.contains(_pathComparisonKey(filePath))) {
-            readAddedCount += 1;
-          }
-          onProgress?.call(
-            LocalFolderRefreshProgress(
-              stage: LocalFolderRefreshStage.reading,
-              current: completedCount,
-              total: readTotal,
-              currentPath: filePath,
-              checkedFolderCount: checkedFolderCount,
-              folderCount: folderProgressMax(),
-              processedSongCount: completedCount,
-              songCount: scannedPaths.length,
-              addedCount: readAddedCount,
-              updatedCount: movedFiles.length,
-              missingCount: removedPaths.length,
-              canCancel: true,
-            ),
+      final metadataByPath = await _audioMetadataService
+          .readAudioFileMetadataBatch(
+            scannedPaths,
+            cacheSongArtwork: _cacheSongArtwork,
+            cancellation: cancellation,
+            onProgress: (filePath, completedCount) {
+              if (addedPathKeys.contains(_pathComparisonKey(filePath))) {
+                readAddedCount += 1;
+              }
+              onProgress?.call(
+                LocalFolderRefreshProgress(
+                  stage: LocalFolderRefreshStage.reading,
+                  current: completedCount,
+                  total: readTotal,
+                  currentPath: filePath,
+                  checkedFolderCount: checkedFolderCount,
+                  folderCount: folderProgressMax(),
+                  processedSongCount: completedCount,
+                  songCount: scannedPaths.length,
+                  addedCount: readAddedCount,
+                  updatedCount: movedFiles.length,
+                  missingCount: removedPaths.length,
+                  canCancel: true,
+                ),
+              );
+            },
           );
-        },
-      );
       final folders = _nonEmptyScannedFolders(rootPath, scannedPaths);
       final writeTotal = max(scannedPaths.length + 1, 1);
       onProgress?.call(
@@ -2572,25 +1241,12 @@ class LibraryRepository {
 
         final artistAnalysis =
             settings.smartMultiArtistRecognition
-                ? artist_split_model.analyzeArtistSplits(_readSongs(db))
-                : const ArtistSplitAnalysisResult(
-                  directSplits: [],
-                  possibleSplits: [],
-                  mergeSuggestions: [],
-                );
-        for (final split in artistAnalysis.directSplits) {
-          final artists = _normalizeArtists(split.artists).take(6).toList();
-          db.execute(
-            '''
-            UPDATE Music
-            SET Artist = ?
-            WHERE Id = ?
-              AND State = ?
-          ''',
-            [artists.join(', '), split.songId, _activeState],
-          );
-          _syncSongArtists(db, split.songId, artists);
-        }
+                ? _artistSplitService.analyze(_readSongs(db))
+                : _artistSplitService.emptyAnalysis();
+        _artistSplitService.applySplitsInsideTransaction(
+          db,
+          artistAnalysis.directSplits,
+        );
         onProgress?.call(
           LocalFolderRefreshProgress(
             stage: LocalFolderRefreshStage.updating,
@@ -2607,7 +1263,7 @@ class LibraryRepository {
           ),
         );
 
-        final autoLyricsEnabled = _readAutoLyricsEnabled(db);
+        final autoLyricsEnabled = _lyricsService.readAutoLyricsEnabled(db);
         final autoLyricsPaths = addedPaths.toList();
         db.execute('COMMIT');
         if (autoLyricsEnabled) {
@@ -2642,7 +1298,9 @@ class LibraryRepository {
     final db = sqlite3.open(databaseFile.path);
     try {
       final settings = _readLibrarySettings(db);
-      final hiddenPaths = _readActiveHiddenStoragePaths(db);
+      final hiddenPaths = _hiddenStorageService.readActiveHiddenStoragePaths(
+        db,
+      );
       final preparedFolderCount =
           _countScannableFolders(folderPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
@@ -2753,29 +1411,31 @@ class LibraryRepository {
           canCancel: true,
         ),
       );
-      final metadataByPath = await _readAudioFileMetadataBatch(
-        addedPaths,
-        cancellation: cancellation,
-        onProgress: (filePath, completedCount) {
-          readAddedCount += 1;
-          onProgress?.call(
-            LocalFolderRefreshProgress(
-              stage: LocalFolderRefreshStage.reading,
-              current: completedCount,
-              total: readTotal,
-              currentPath: filePath,
-              checkedFolderCount: checkedFolderCount,
-              folderCount: folderProgressMax(),
-              processedSongCount: completedCount,
-              songCount: addedPaths.length,
-              addedCount: readAddedCount,
-              updatedCount: movedFiles.length,
-              missingCount: removedSongs.length,
-              canCancel: true,
-            ),
+      final metadataByPath = await _audioMetadataService
+          .readAudioFileMetadataBatch(
+            addedPaths,
+            cacheSongArtwork: _cacheSongArtwork,
+            cancellation: cancellation,
+            onProgress: (filePath, completedCount) {
+              readAddedCount += 1;
+              onProgress?.call(
+                LocalFolderRefreshProgress(
+                  stage: LocalFolderRefreshStage.reading,
+                  current: completedCount,
+                  total: readTotal,
+                  currentPath: filePath,
+                  checkedFolderCount: checkedFolderCount,
+                  folderCount: folderProgressMax(),
+                  processedSongCount: completedCount,
+                  songCount: addedPaths.length,
+                  addedCount: readAddedCount,
+                  updatedCount: movedFiles.length,
+                  missingCount: removedSongs.length,
+                  canCancel: true,
+                ),
+              );
+            },
           );
-        },
-      );
       final rootPath =
           settings.rootPath.isEmpty ? folderPath : settings.rootPath;
       final folders = _nonEmptyScannedFolders(rootPath, scannedPaths);
@@ -2855,25 +1515,12 @@ class LibraryRepository {
 
         final artistAnalysis =
             settings.smartMultiArtistRecognition
-                ? artist_split_model.analyzeArtistSplits(_readSongs(db))
-                : const ArtistSplitAnalysisResult(
-                  directSplits: [],
-                  possibleSplits: [],
-                  mergeSuggestions: [],
-                );
-        for (final split in artistAnalysis.directSplits) {
-          final artists = _normalizeArtists(split.artists).take(6).toList();
-          db.execute(
-            '''
-            UPDATE Music
-            SET Artist = ?
-            WHERE Id = ?
-              AND State = ?
-          ''',
-            [artists.join(', '), split.songId, _activeState],
-          );
-          _syncSongArtists(db, split.songId, artists);
-        }
+                ? _artistSplitService.analyze(_readSongs(db))
+                : _artistSplitService.emptyAnalysis();
+        _artistSplitService.applySplitsInsideTransaction(
+          db,
+          artistAnalysis.directSplits,
+        );
         onProgress?.call(
           LocalFolderRefreshProgress(
             stage: LocalFolderRefreshStage.updating,
@@ -2889,7 +1536,7 @@ class LibraryRepository {
             missingCount: removedSongs.length,
           ),
         );
-        final autoLyricsEnabled = _readAutoLyricsEnabled(db);
+        final autoLyricsEnabled = _lyricsService.readAutoLyricsEnabled(db);
         final autoLyricsPaths = addedPaths.toList();
         db.execute('COMMIT');
         if (autoLyricsEnabled) {
@@ -2935,89 +1582,12 @@ class LibraryRepository {
 
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readLibrarySettings(db);
-      db.execute('BEGIN');
-      try {
-        _setPlaylistSongsState(db, settings.myFavoritesId, songIds, favorite);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.setSongsFavorite(databaseFile, songIds, favorite);
   }
 
   Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT
-          Id AS id,
-          Path AS path,
-          Name AS title,
-          Artist AS artist,
-          Album AS album,
-          Duration AS duration,
-          PlayCount AS playCount
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      final row = rows.first;
-      final artists = _readSongArtists(db, songId, row['artist'] as String);
-      final file = File(row['path'] as String);
-      final stats = await file.stat();
-      final extension = p.extension(file.path).replaceFirst('.', '');
-      final id3Properties = await _id3TagService.readSongTagProperties(
-        file.path,
-      );
-      final title = _normalizeTagText(id3Properties.title);
-      final artist = _normalizeTagText(id3Properties.artist);
-      final album = _normalizeTagText(id3Properties.album);
-
-      return SongPropertiesSnapshot(
-        songId: songId,
-        path: file.path,
-        title:
-            title.isEmpty ? _normalizeTagText(row['title'] as String) : title,
-        subtitle: id3Properties.subtitle,
-        artist:
-            artist.isEmpty
-                ? _normalizeTagText(row['artist'] as String)
-                : artist,
-        artists: artists,
-        album:
-            album.isEmpty ? _normalizeTagText(row['album'] as String) : album,
-        albumArtist: id3Properties.albumArtist,
-        publisher: id3Properties.publisher,
-        trackNumber: id3Properties.trackNumber,
-        year: id3Properties.year,
-        genre: id3Properties.genre,
-        composers: id3Properties.composers,
-        duration: row['duration'] as int,
-        bitrate: 0,
-        fileSize: stats.size,
-        dateCreated: stats.changed.toIso8601String(),
-        dateModified: stats.modified.toIso8601String(),
-        fileType: extension.toUpperCase(),
-        playCount: row['playCount'] as int,
-      );
-    } finally {
-      db.dispose();
-    }
+    return _songPropertiesService.getSongProperties(databaseFile, songId);
   }
 
   Future<void> updateSongProperties(
@@ -3025,210 +1595,52 @@ class LibraryRepository {
     SongPropertiesUpdate update,
   ) async {
     final databaseFile = await _resolveDatabaseFile();
-    final title = update.title.trim();
-    final artists = _normalizeArtists(update.artists).take(6).toList();
-    final artist = artists.join(', ');
-    final album = update.album.trim();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songRows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      final songPath = songRows.first['path'] as String;
-      await _id3TagService.writeSongTagProperties(
-        songPath,
-        Id3SongTagProperties(
-          title: title,
-          subtitle: update.subtitle.trim(),
-          artist: artist,
-          album: album,
-          albumArtist: update.albumArtist.trim(),
-          publisher: update.publisher.trim(),
-          trackNumber: update.trackNumber,
-          year: update.year,
-          genre: update.genre.trim(),
-          composers: update.composers.trim(),
-        ),
-      );
-
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
-          UPDATE Music
-          SET Name = ?, Artist = ?, Album = ?, PlayCount = ?
-          WHERE Id = ?
-            AND State = ?
-        ''',
-          [title, artist, album, update.playCount, songId, _activeState],
-        );
-        _syncSongArtists(db, songId, artists);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _songPropertiesService.updateSongProperties(
+      databaseFile,
+      songId,
+      update,
+    );
   }
 
   Future<void> updateSongPlayCount(int songId, int playCount) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE Music
-        SET PlayCount = ?
-        WHERE Id = ?
-          AND State = ?
-      ''',
-        [playCount, songId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _songPropertiesService.updateSongPlayCount(
+      databaseFile,
+      songId,
+      playCount,
+    );
   }
 
   Future<void> markSongPlayed(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
-          UPDATE Music
-          SET PlayCount = PlayCount + 1
-          WHERE Id = ?
-            AND State = ?
-        ''',
-          [songId, _activeState],
-        );
-        _recordRecentItemPlayed(db, songId.toString(), _recentRecordTypeSong);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.markSongPlayed(databaseFile, songId);
   }
 
   Future<LyricsSnapshot> getSongLyrics(
     int songId, {
     settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
   }) async {
-    final song = await _getLyricsSongLookup(songId);
-    final sidecarLyrics = await _getSidecarLyrics(song.path);
-
-    if (mode == settings.LyricsRequestMode.embedded) {
-      final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
-      return _createLyricsSnapshot(
-        embeddedLyrics,
-        embeddedLyrics.trim().isEmpty
-            ? LyricsSource.none
-            : LyricsSource.musicFile,
-      );
-    }
-
-    if (mode == settings.LyricsRequestMode.auto) {
-      final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
-      final localSnapshot =
-          sidecarLyrics ??
-          _createLyricsSnapshot(
-            embeddedLyrics,
-            embeddedLyrics.trim().isEmpty
-                ? LyricsSource.none
-                : LyricsSource.musicFile,
-          );
-      if (localSnapshot.isSynced) {
-        return localSnapshot;
-      }
-
-      final internetSnapshot = await _getSyncedInternetLyrics(song);
-      if (internetSnapshot != null) {
-        return internetSnapshot;
-      }
-
-      return localSnapshot;
-    }
-
-    if (mode != settings.LyricsRequestMode.internet && sidecarLyrics != null) {
-      return sidecarLyrics;
-    }
-
-    if (mode == settings.LyricsRequestMode.internet) {
-      final rawLyrics = await _searchInternetLyrics(song);
-      final internetLyrics = await _prepareInternetLyrics(rawLyrics);
-      return _createLyricsSnapshot(
-        internetLyrics,
-        internetLyrics.trim().isEmpty
-            ? LyricsSource.none
-            : LyricsSource.internet,
-      );
-    }
-
-    final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
-    if (embeddedLyrics.trim().isNotEmpty) {
-      return _createLyricsSnapshot(embeddedLyrics, LyricsSource.musicFile);
-    }
-
-    return _createLyricsSnapshot('', LyricsSource.none);
+    final databaseFile = await _resolveDatabaseFile();
+    return _lyricsService.getSongLyrics(databaseFile, songId, mode: mode);
   }
 
   Future<String> readLyricsFromFile(String filePath) async {
-    if (_isScannableAudioFile(filePath)) {
-      return _id3TagService.readEmbeddedLyrics(filePath);
-    }
-
-    return File(filePath).readAsString();
+    return _lyricsService.readLyricsFromFile(filePath);
   }
 
   Future<void> saveSongLyrics(int songId, String rawLyrics) async {
-    final songPath = await _getSongPath(songId);
-    await _writeLyricsToSongPath(songPath, rawLyrics);
+    final databaseFile = await _resolveDatabaseFile();
+    await _lyricsService.saveSongLyrics(databaseFile, songId, rawLyrics);
   }
 
   Future<void> updateLyricsOffset(int songId, int offsetMs) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE Music
-        SET LyricsOffsetMs = ?
-        WHERE Id = ?
-          AND State = ?
-      ''',
-        [offsetMs, songId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _lyricsService.updateLyricsOffset(databaseFile, songId, offsetMs);
   }
 
   Future<LyricsSnapshot> getInternetLyrics(int songId) async {
-    final song = await _getLyricsSongLookup(songId);
-    final rawLyrics = await _searchInternetLyrics(song);
-    final internetLyrics = await _prepareInternetLyrics(rawLyrics);
-    return _createLyricsSnapshot(
-      internetLyrics,
-      internetLyrics.trim().isEmpty ? LyricsSource.none : LyricsSource.internet,
-    );
+    final databaseFile = await _resolveDatabaseFile();
+    return _lyricsService.getInternetLyrics(databaseFile, songId);
   }
 
   Future<LyricsBatchResult> batchAddInternetLyrics({
@@ -3238,266 +1650,23 @@ class LibraryRepository {
     Future<void> Function()? waitIfPaused,
   }) async {
     final snapshot = await getLibraryViewData();
-    var saved = 0;
-    var overwritten = 0;
-    var skipped = 0;
-    var missing = 0;
-    var failed = 0;
-    var backedUp = 0;
-    var backupBytes = 0;
-    var lastRequestStartedAt = DateTime.fromMillisecondsSinceEpoch(0);
-    final details = <LyricsBatchDetail>[];
-
-    for (var index = 0; index < snapshot.songs.length; index += 1) {
-      if (isCanceled?.call() == true) {
-        break;
-      }
-      await waitIfPaused?.call();
-      if (isCanceled?.call() == true) {
-        break;
-      }
-
-      final song = snapshot.songs[index];
-      onProgress?.call(
-        LyricsBatchProgress(
-          currentIndex: index + 1,
-          total: snapshot.songs.length,
-          currentSongTitle: [
-            song.title,
-            song.artist,
-          ].where((part) => part.isNotEmpty).join(' - '),
-          saved: saved,
-          overwritten: overwritten,
-          skipped: skipped,
-          missing: missing,
-          failed: failed,
-          backedUp: backedUp,
-          backupBytes: backupBytes,
-        ),
-      );
-
-      try {
-        final localLyrics = await _getSongLyricsByPath(song.path);
-        final existingRawLyrics = localLyrics.rawText;
-        if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
-          skipped += 1;
-          details.add(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.skipped,
-              reason: LyricsBatchSkipReason.alreadyExists,
-              sourceRawLyrics: existingRawLyrics,
-            ),
-          );
-          continue;
-        }
-
-        final elapsed =
-            DateTime.now().difference(lastRequestStartedAt).inMilliseconds;
-        if (lastRequestStartedAt.millisecondsSinceEpoch > 0 && elapsed < 200) {
-          await Future<void>.delayed(Duration(milliseconds: 200 - elapsed));
-        }
-        lastRequestStartedAt = DateTime.now();
-        final internetLyrics =
-            _internetLyricsResolver == null
-                ? await _searchInternetLyrics(
-                  _LyricsSongLookup(
-                    title: song.title,
-                    artist: song.artist,
-                    album: song.album,
-                    path: song.path,
-                  ),
-                )
-                : await _internetLyricsResolver(song);
-
-        if (internetLyrics.trim().isEmpty) {
-          missing += 1;
-          details.add(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.missing,
-              sourceRawLyrics: existingRawLyrics,
-            ),
-          );
-          continue;
-        }
-
-        if (overwrite &&
-            _normalizeLyricsForCompare(existingRawLyrics) ==
-                _normalizeLyricsForCompare(internetLyrics)) {
-          skipped += 1;
-          details.add(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.skipped,
-              reason: LyricsBatchSkipReason.sameContent,
-              sourceRawLyrics: existingRawLyrics,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-          continue;
-        }
-
-        if (existingRawLyrics.trim().isNotEmpty) {
-          backedUp += 1;
-          backupBytes += utf8.encode(existingRawLyrics).length;
-        }
-        await _writeLyricsToSongPath(song.path, internetLyrics);
-        if (existingRawLyrics.trim().isEmpty) {
-          saved += 1;
-          details.add(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.saved,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-        } else {
-          overwritten += 1;
-          details.add(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.overwritten,
-              sourceRawLyrics: existingRawLyrics,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-        }
-      } on Object {
-        failed += 1;
-        details.add(
-          LyricsBatchDetail(
-            songId: song.id,
-            title: song.title,
-            artist: song.artist,
-            thumbnailPath: song.thumbnailPath,
-            result: LyricsBatchDetailResult.failed,
-          ),
-        );
-      }
-    }
-
-    return LyricsBatchResult(
-      total: snapshot.songs.length,
-      saved: saved,
-      overwritten: overwritten,
-      skipped: skipped,
-      missing: missing,
-      failed: failed,
-      backedUp: backedUp,
-      backupBytes: backupBytes,
-      details: details,
+    return _lyricsService.batchAddInternetLyrics(
+      songs: snapshot.songs,
+      overwrite: overwrite,
+      onProgress: onProgress,
+      isCanceled: isCanceled,
+      waitIfPaused: waitIfPaused,
     );
   }
 
   Future<void> _autoAddInternetLyricsForPaths(List<String> songPaths) async {
-    if (songPaths.isEmpty) {
-      return;
-    }
-    final songPathKeys = songPaths.map(_pathComparisonKey).toSet();
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    final songs = <LibrarySong>[];
-    try {
-      final rows = db.select(
-        '''
-        SELECT
-          Id AS id,
-          Path AS path,
-          Name AS title,
-          Artist AS artist,
-          Album AS album
-        FROM Music
-        WHERE State = ?
-      ''',
-        [_activeState],
-      );
-      for (final row in rows) {
-        final path = row['path'] as String;
-        if (!songPathKeys.contains(_pathComparisonKey(path))) {
-          continue;
-        }
-        songs.add(
-          LibrarySong(
-            id: row['id'] as int,
-            path: path,
-            title:
-                (row['title'] as String?) ?? p.basenameWithoutExtension(path),
-            artist: (row['artist'] as String?) ?? '',
-            artists: _normalizeArtists([(row['artist'] as String?) ?? '']),
-            album: (row['album'] as String?) ?? '',
-            duration: 0,
-            playCount: 0,
-            lyricsOffsetMs: 0,
-            dateAdded: '',
-            favorite: false,
-            thumbnailPath: '',
-          ),
-        );
-      }
-    } finally {
-      db.dispose();
-    }
-    for (final song in songs) {
-      final localLyrics = await _getSongLyricsByPath(song.path);
-      if (localLyrics.rawText.trim().isNotEmpty) {
-        continue;
-      }
-      final internetLyrics =
-          _internetLyricsResolver == null
-              ? await _searchInternetLyrics(
-                _LyricsSongLookup(
-                  title: song.title,
-                  artist: song.artist,
-                  album: song.album,
-                  path: song.path,
-                ),
-              )
-              : await _internetLyricsResolver(song);
-      if (internetLyrics.trim().isNotEmpty) {
-        await _writeLyricsToSongPath(song.path, internetLyrics);
-      }
-    }
+    await _lyricsService.autoAddInternetLyricsForPaths(databaseFile, songPaths);
   }
 
   Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT Path AS path, ThumbnailPath AS thumbnailPath
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      return await _resolveSongArtworkSnapshot(
-        db,
-        songId,
-        rows.first['path'] as String,
-        rows.first['thumbnailPath'] as String,
-      );
-    } finally {
-      db.dispose();
-    }
+    return _artworkService.getSongArtworkSnapshot(databaseFile, songId);
   }
 
   Future<List<SongArtworkSnapshot>> getSongArtworkSnapshots(
@@ -3509,200 +1678,31 @@ class LibraryRepository {
     }
 
     final databaseFile = await _resolveDatabaseFile();
-    final placeholders = List.filled(uniqueIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT Id AS id, Path AS path, ThumbnailPath AS thumbnailPath
-        FROM Music
-        WHERE Id IN ($placeholders)
-          AND State = ?
-      ''',
-        [...uniqueIds, _activeState],
-      );
-      final rowsById = {for (final row in rows) row['id'] as int: row};
-      return [
-        for (final songId in uniqueIds)
-          if (rowsById[songId] case final row?)
-            await _resolveSongArtworkSnapshot(
-              db,
-              songId,
-              row['path'] as String,
-              row['thumbnailPath'] as String,
-            )
-          else
-            _createSongArtworkSnapshot(songId, ''),
-      ];
-    } finally {
-      db.dispose();
-    }
+    return _artworkService.getSongArtworkSnapshots(databaseFile, uniqueIds);
   }
 
   Future<String> prepareSongArtworkSource(String sourcePath) async {
-    final source = File(sourcePath);
-    final cacheDirectory = await _resolveArtworkCacheDirectory();
-    final extension = p.extension(source.path);
-    if (extension.toLowerCase() == '.mp3') {
-      final picture = await _id3TagService.readFirstPicture(source.path);
-      if (picture == null) {
-        throw StateError('No album art found in the selected music file.');
-      }
-
-      final target = File(
-        p.join(
-          cacheDirectory.path,
-          '${DateTime.now().microsecondsSinceEpoch}${_extensionForMimeType(picture.format)}',
-        ),
-      );
-      await target.writeAsBytes(picture.data);
-      return target.path;
-    }
-
-    final target = File(
-      p.join(
-        cacheDirectory.path,
-        '${DateTime.now().microsecondsSinceEpoch}$extension',
-      ),
-    );
-    await source.copy(target.path);
-    return target.path;
+    return _artworkService.prepareSongArtworkSource(sourcePath);
   }
 
   Future<void> saveSongArtwork(int songId, String sourcePath) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songRows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      final songPath = songRows.first['path'] as String;
-      await _id3TagService.writeSongArtwork(
-        songPath,
-        Id3Picture(
-          data: await File(sourcePath).readAsBytes(),
-          format: _getArtworkMimeType(sourcePath),
-        ),
-      );
-
-      db.execute(
-        '''
-        UPDATE Music
-        SET ThumbnailPath = ?
-        WHERE Id = ?
-          AND State = ?
-      ''',
-        [sourcePath, songId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _artworkService.saveSongArtwork(databaseFile, songId, sourcePath);
   }
 
   Future<void> saveAlbumArtwork(String albumName, String sourcePath) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songRows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Album = ?
-          AND State = ?
-      ''',
-        [albumName, _activeState],
-      );
-      final picture = Id3Picture(
-        data: await File(sourcePath).readAsBytes(),
-        format: _getArtworkMimeType(sourcePath),
-      );
-      for (final row in songRows) {
-        await _id3TagService.writeSongArtwork(row['path'] as String, picture);
-      }
-
-      db.execute(
-        '''
-        UPDATE Music
-        SET ThumbnailPath = ?
-        WHERE Album = ?
-          AND State = ?
-      ''',
-        [sourcePath, albumName, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _artworkService.saveAlbumArtwork(databaseFile, albumName, sourcePath);
   }
 
   Future<void> deleteSongArtwork(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songRows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      await _id3TagService.writeSongArtwork(
-        songRows.first['path'] as String,
-        null,
-      );
-
-      db.execute(
-        '''
-        UPDATE Music
-        SET ThumbnailPath = ''
-        WHERE Id = ?
-          AND State = ?
-      ''',
-        [songId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _artworkService.deleteSongArtwork(databaseFile, songId);
   }
 
   Future<void> deleteAlbumArtwork(String albumName) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songRows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Album = ?
-          AND State = ?
-      ''',
-        [albumName, _activeState],
-      );
-      for (final row in songRows) {
-        await _id3TagService.writeSongArtwork(row['path'] as String, null);
-      }
-
-      db.execute(
-        '''
-        UPDATE Music
-        SET ThumbnailPath = ''
-        WHERE Album = ?
-          AND State = ?
-      ''',
-        [albumName, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _artworkService.deleteAlbumArtwork(databaseFile, albumName);
   }
 
   Future<void> addPreferenceItem(
@@ -3712,227 +1712,35 @@ class LibraryRepository {
     String level,
   ) async {
     final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final entityValue = _toPreferenceEntityValue(type);
-      final levelValue = _toPreferenceLevelValue(level);
-      db.execute(
-        '''
-        UPDATE PreferenceItem
-        SET ItemName = ?, IsEnabled = 1, Level = ?
-        WHERE Type = ?
-          AND ItemId = ?
-          AND State = ?
-      ''',
-        [name, levelValue, entityValue, itemId, _activeState],
-      );
-
-      final changedRows =
-          db.select('SELECT changes() AS count').first['count'] as int;
-      if (changedRows == 0) {
-        db.execute(
-          '''
-          INSERT INTO PreferenceItem (Type, ItemId, ItemName, IsEnabled, Level, State)
-          VALUES (?, ?, ?, 1, ?, ?)
-        ''',
-          [entityValue, itemId, name, levelValue, _activeState],
-        );
-      }
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.addPreferenceItem(
+      databaseFile,
+      type,
+      itemId,
+      name,
+      level,
+    );
   }
 
   Future<String?> getPreferenceLevel(String type, String itemId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return null;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT Level AS level
-        FROM PreferenceItem
-        WHERE Type = ?
-          AND ItemId = ?
-          AND IsEnabled = 1
-          AND State = ?
-        LIMIT 1
-      ''',
-        [_toPreferenceEntityValue(type), itemId, _activeState],
-      );
-      if (rows.isEmpty) {
-        return null;
-      }
-      return _toPreferenceLevelName(rows.first['level'] as int);
-    } finally {
-      db.dispose();
-    }
+    return _preferenceService.getPreferenceLevel(databaseFile, type, itemId);
   }
 
   Future<void> removePreferenceItem(String type, String itemId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
-        UPDATE PreferenceItem
-        SET IsEnabled = 0
-        WHERE Type = ?
-          AND ItemId = ?
-          AND State = ?
-      ''',
-        [_toPreferenceEntityValue(type), itemId, _activeState],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.removePreferenceItem(databaseFile, type, itemId);
   }
 
   Future<PreferenceSettingsSnapshot> getPreferenceSettings() async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return PreferenceSettingsSnapshot.defaults();
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final setting = _ensurePreferenceSetting(db);
-      final rows = db.select(
-        '''
-        SELECT
-          PreferenceItem.Id AS id,
-          PreferenceItem.Type AS type,
-          PreferenceItem.ItemId AS itemId,
-          PreferenceItem.ItemName AS itemName,
-          PreferenceItem.IsEnabled AS isEnabled,
-          PreferenceItem.Level AS level,
-          Music.Name AS songName,
-          Music.Path AS songTooltip,
-          EXISTS(
-            SELECT 1
-            FROM MusicArtist
-            WHERE MusicArtist.Name = PreferenceItem.ItemId
-              AND MusicArtist.State = ?
-          ) AS artistValid,
-          EXISTS(
-            SELECT 1
-            FROM Music
-            WHERE Music.Album = PreferenceItem.ItemId
-              AND Music.State = ?
-          ) AS albumValid,
-          Playlist.Name AS playlistName,
-          Folder.Path AS folderName,
-          Folder.Path AS folderTooltip
-        FROM PreferenceItem
-        LEFT JOIN Music
-          ON PreferenceItem.Type = 0
-         AND Music.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-         AND Music.State = ?
-        LEFT JOIN Playlist
-          ON PreferenceItem.Type = 3
-         AND Playlist.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-         AND Playlist.State = ?
-        LEFT JOIN Folder
-          ON PreferenceItem.Type = 4
-         AND (
-           Folder.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-           OR Folder.Path = PreferenceItem.ItemId
-         )
-         AND Folder.State = ?
-        WHERE PreferenceItem.State = ?
-        ORDER BY PreferenceItem.Id DESC
-      ''',
-        [
-          _activeState,
-          _activeState,
-          _activeState,
-          _activeState,
-          _activeState,
-          _activeState,
-        ],
-      );
-      final items = rows.map(_toPreferenceItemSnapshot).toList();
-      return PreferenceSettingsSnapshot(
-        enabled: {
-          PreferenceSectionKey.songs: (setting['Songs'] as int) != 0,
-          PreferenceSectionKey.artists: (setting['Artists'] as int) != 0,
-          PreferenceSectionKey.albums: (setting['Albums'] as int) != 0,
-          PreferenceSectionKey.playlists: (setting['Playlists'] as int) != 0,
-          PreferenceSectionKey.folders: (setting['Folders'] as int) != 0,
-        },
-        songs: _preferenceItemsByType(items, PreferenceEntityType.song),
-        artists: _preferenceItemsByType(items, PreferenceEntityType.artist),
-        albums: _preferenceItemsByType(items, PreferenceEntityType.album),
-        playlists: _preferenceItemsByType(items, PreferenceEntityType.playlist),
-        folders: _preferenceItemsByType(items, PreferenceEntityType.folder),
-        others:
-            items
-                .where(
-                  (item) =>
-                      item.type == PreferenceEntityType.recentAdded ||
-                      item.type == PreferenceEntityType.myFavorites ||
-                      item.type == PreferenceEntityType.mostPlayed ||
-                      item.type == PreferenceEntityType.leastPlayed,
-                )
-                .toList(),
-      );
-    } finally {
-      db.dispose();
-    }
+    return _preferenceService.getPreferenceSettings(databaseFile);
   }
 
   Future<void> updatePreferenceSettings(
     Map<PreferenceSectionKey, bool> enabled,
   ) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final setting = _ensurePreferenceSetting(db);
-      db.execute(
-        '''
-        UPDATE PreferenceSetting
-        SET Songs = ?, Artists = ?, Albums = ?, Playlists = ?, Folders = ?
-        WHERE Id = ?
-      ''',
-        [
-          _preferenceSectionValue(enabled, PreferenceSectionKey.songs, setting),
-          _preferenceSectionValue(
-            enabled,
-            PreferenceSectionKey.artists,
-            setting,
-          ),
-          _preferenceSectionValue(
-            enabled,
-            PreferenceSectionKey.albums,
-            setting,
-          ),
-          _preferenceSectionValue(
-            enabled,
-            PreferenceSectionKey.playlists,
-            setting,
-          ),
-          _preferenceSectionValue(
-            enabled,
-            PreferenceSectionKey.folders,
-            setting,
-          ),
-          setting['Id'] as int,
-        ],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.updatePreferenceSettings(databaseFile, enabled);
   }
 
   Future<void> updatePreferenceItem(
@@ -3941,125 +1749,22 @@ class LibraryRepository {
     PreferenceLevel? level,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT IsEnabled AS isEnabled, Level AS level
-        FROM PreferenceItem
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [itemId, _activeState],
-      );
-      if (rows.isEmpty) {
-        return;
-      }
-      final item = rows.first;
-      db.execute(
-        '''
-        UPDATE PreferenceItem
-        SET IsEnabled = ?, Level = ?
-        WHERE Id = ?
-      ''',
-        [
-          isEnabled == null
-              ? item['isEnabled'] as int
-              : isEnabled
-              ? 1
-              : 0,
-          level == null
-              ? item['level'] as int
-              : _toPreferenceLevelValue(_preferenceLevelName(level)),
-          itemId,
-        ],
-      );
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.updatePreferenceItem(
+      databaseFile,
+      itemId,
+      isEnabled: isEnabled,
+      level: level,
+    );
   }
 
   Future<void> removePreferenceItemById(int itemId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('UPDATE PreferenceItem SET State = ? WHERE Id = ?', [
-        _inactiveState,
-        itemId,
-      ]);
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.removePreferenceItemById(databaseFile, itemId);
   }
 
   Future<void> clearInvalidPreferenceItems(PreferenceEntityType type) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final entityValue = _toPreferenceEntityValue(
-        _preferenceEntityTypeName(type),
-      );
-      switch (type) {
-        case PreferenceEntityType.song:
-          _clearInvalidPreferenceItemsByExists(db, entityValue, '''
-            SELECT 1
-            FROM Music
-            WHERE Music.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-              AND Music.State = ?
-          ''');
-        case PreferenceEntityType.artist:
-          _clearInvalidPreferenceItemsByExists(db, entityValue, '''
-            SELECT 1
-            FROM MusicArtist
-            WHERE MusicArtist.Name = PreferenceItem.ItemId
-              AND MusicArtist.State = ?
-          ''');
-        case PreferenceEntityType.album:
-          _clearInvalidPreferenceItemsByExists(db, entityValue, '''
-            SELECT 1
-            FROM Music
-            WHERE Music.Album = PreferenceItem.ItemId
-              AND Music.State = ?
-          ''');
-        case PreferenceEntityType.playlist:
-          _clearInvalidPreferenceItemsByExists(db, entityValue, '''
-            SELECT 1
-            FROM Playlist
-            WHERE Playlist.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-              AND Playlist.State = ?
-          ''');
-        case PreferenceEntityType.folder:
-          _clearInvalidPreferenceItemsByExists(db, entityValue, '''
-            SELECT 1
-            FROM Folder
-            WHERE (
-              Folder.Id = CAST(PreferenceItem.ItemId AS INTEGER)
-              OR Folder.Path = PreferenceItem.ItemId
-            )
-              AND Folder.State = ?
-          ''');
-        case PreferenceEntityType.recentAdded:
-        case PreferenceEntityType.myFavorites:
-        case PreferenceEntityType.mostPlayed:
-        case PreferenceEntityType.leastPlayed:
-          return;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _preferenceService.clearInvalidPreferenceItems(databaseFile, type);
   }
 
   Future<void> addSongToPlaylist(int playlistId, int songId) async {
@@ -4068,23 +1773,11 @@ class LibraryRepository {
 
   Future<void> addSongsToPlaylist(int playlistId, List<int> songIds) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _setPlaylistSongsState(db, playlistId, songIds, true);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.addSongsToPlaylist(
+      databaseFile,
+      playlistId,
+      songIds,
+    );
   }
 
   Future<void> removeSongFromPlaylist(int playlistId, int songId) async {
@@ -4096,23 +1789,11 @@ class LibraryRepository {
     List<int> songIds,
   ) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _setPlaylistSongsState(db, playlistId, songIds, false);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.removeSongsFromPlaylist(
+      databaseFile,
+      playlistId,
+      songIds,
+    );
   }
 
   Future<void> reorderPlaylistSongs(
@@ -4121,439 +1802,30 @@ class LibraryRepository {
     PlaylistSortCriterion? sortCriterion,
   ]) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final nextSongIds = _uniqueSongIds(songIds);
-      final currentSongIds = _readPlaylistSongIds(db, playlistId);
-      final currentSongIdSet = currentSongIds.toSet();
-      if (currentSongIdSet.length <= 1) {
-        return;
-      }
-
-      if (currentSongIdSet.length != nextSongIds.length ||
-          nextSongIds.any((songId) => !currentSongIdSet.contains(songId))) {
-        throw StateError(
-          'Playlist reorder request is out of sync with the current playlist.',
-        );
-      }
-
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
-          _inactiveState,
-          playlistId,
-        ]);
-        _insertPlaylistSongsInOrder(db, playlistId, nextSongIds);
-        if (sortCriterion != null) {
-          db.execute('UPDATE Playlist SET Criterion = ? WHERE Id = ?', [
-            _toStoredPlaylistSortCriterion(sortCriterion),
-            playlistId,
-          ]);
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playlistService.reorderPlaylistSongs(
+      databaseFile,
+      playlistId,
+      songIds,
+      sortCriterion,
+    );
   }
 
   Future<void> recordPlaylistPlayed(int playlistId) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _recordRecentItemPlayed(
-          db,
-          playlistId.toString(),
-          _recentRecordTypePlaylist,
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await _playbackHistoryService.recordPlaylistPlayed(
+      databaseFile,
+      playlistId,
+    );
   }
 
   Future<void> recordAlbumPlayed(String album) async {
-    await _recordCollectionPlayed(album, _recentRecordTypeAlbum);
+    final databaseFile = await _resolveDatabaseFile();
+    await _playbackHistoryService.recordAlbumPlayed(databaseFile, album);
   }
 
   Future<void> recordArtistPlayed(String artist) async {
-    await _recordCollectionPlayed(artist, _recentRecordTypeArtist);
-  }
-
-  Future<void> _recordCollectionPlayed(String itemId, int type) async {
     final databaseFile = await _resolveDatabaseFile();
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        _recordRecentItemPlayed(db, itemId, type);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
-
-  void _recordRecentItemPlayed(Database db, String itemId, int type) {
-    db.execute(
-      '''
-      UPDATE RecentRecord
-      SET State = ?
-      WHERE Type = ?
-        AND ItemId = ?
-    ''',
-      [_inactiveState, type, itemId],
-    );
-    db.execute(
-      '''
-      INSERT INTO RecentRecord (Type, ItemId, Time, State)
-      VALUES (?, ?, ?, ?)
-    ''',
-      [type, itemId, DateTime.now().toUtc().toIso8601String(), _activeState],
-    );
-  }
-
-  Row _ensurePreferenceSetting(Database db) {
-    var rows = db.select('''
-      SELECT
-        Id,
-        Songs,
-        Artists,
-        Albums,
-        Playlists,
-        Folders,
-        RecentAddedId,
-        MyFavoritesId,
-        MostPlayedId,
-        LeastPlayedId
-      FROM PreferenceSetting
-      ORDER BY Id DESC
-      LIMIT 1
-    ''');
-    if (rows.isEmpty) {
-      db.execute('''
-        INSERT INTO PreferenceSetting (Songs, Artists, Albums, Playlists, Folders)
-        VALUES (0, 0, 0, 0, 0)
-      ''');
-      rows = db.select('''
-        SELECT
-          Id,
-          Songs,
-          Artists,
-          Albums,
-          Playlists,
-          Folders,
-          RecentAddedId,
-          MyFavoritesId,
-          MostPlayedId,
-          LeastPlayedId
-        FROM PreferenceSetting
-        ORDER BY Id DESC
-        LIMIT 1
-      ''');
-    }
-
-    final setting = rows.first;
-    _ensureBuiltinPreferenceItems(db);
-    db.execute(
-      '''
-      UPDATE PreferenceSetting
-      SET
-        RecentAddedId = (SELECT Id FROM PreferenceItem WHERE Type = 5 AND State = ? ORDER BY Id LIMIT 1),
-        MyFavoritesId = (SELECT Id FROM PreferenceItem WHERE Type = 6 AND State = ? ORDER BY Id LIMIT 1),
-        MostPlayedId = (SELECT Id FROM PreferenceItem WHERE Type = 7 AND State = ? ORDER BY Id LIMIT 1),
-        LeastPlayedId = (SELECT Id FROM PreferenceItem WHERE Type = 8 AND State = ? ORDER BY Id LIMIT 1)
-      WHERE Id = ?
-    ''',
-      [
-        _activeState,
-        _activeState,
-        _activeState,
-        _activeState,
-        setting['Id'] as int,
-      ],
-    );
-    return db
-        .select(
-          '''
-          SELECT
-            Id,
-            Songs,
-            Artists,
-            Albums,
-            Playlists,
-            Folders,
-            RecentAddedId,
-            MyFavoritesId,
-            MostPlayedId,
-            LeastPlayedId
-          FROM PreferenceSetting
-          WHERE Id = ?
-          LIMIT 1
-        ''',
-          [setting['Id'] as int],
-        )
-        .first;
-  }
-
-  void _ensureBuiltinPreferenceItems(Database db) {
-    for (final item in const [
-      (type: 5, itemId: '5', itemName: 'Recent Added'),
-      (type: 6, itemId: '6', itemName: 'My Favorites'),
-      (type: 7, itemId: '7', itemName: 'Most Played'),
-      (type: 8, itemId: '8', itemName: 'Least Played'),
-    ]) {
-      final rows = db.select(
-        '''
-        SELECT Id
-        FROM PreferenceItem
-        WHERE Type = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [item.type, _activeState],
-      );
-      if (rows.isEmpty) {
-        db.execute(
-          '''
-          INSERT INTO PreferenceItem (Type, ItemId, ItemName, IsEnabled, Level, State)
-          VALUES (?, ?, ?, 0, 1, ?)
-        ''',
-          [item.type, item.itemId, item.itemName, _activeState],
-        );
-      }
-    }
-  }
-
-  PreferenceItemSnapshot _toPreferenceItemSnapshot(Row row) {
-    final type = _preferenceEntityTypeFromValue(row['type'] as int);
-    final resolved = _resolvePreferenceItem(row, type);
-    return PreferenceItemSnapshot(
-      id: row['id'] as int,
-      type: type,
-      itemId: row['itemId'] as String,
-      name: resolved.name,
-      tooltip: resolved.tooltip,
-      isEnabled: (row['isEnabled'] as int) != 0,
-      level: _preferenceLevelFromValue(row['level'] as int),
-      isValid: resolved.isValid,
-      canRemove: (row['type'] as int) < 5,
-    );
-  }
-
-  ({String name, String tooltip, bool isValid}) _resolvePreferenceItem(
-    Row row,
-    PreferenceEntityType type,
-  ) {
-    final itemId = row['itemId'] as String;
-    final itemName = row['itemName'] as String? ?? '';
-    switch (type) {
-      case PreferenceEntityType.song:
-        final songName = row['songName'] as String?;
-        final songTooltip = row['songTooltip'] as String?;
-        return songName == null
-            ? (
-              name: itemName.isEmpty ? itemId : itemName,
-              tooltip: itemName.isEmpty ? itemId : itemName,
-              isValid: false,
-            )
-            : (name: songName, tooltip: songTooltip!, isValid: true);
-      case PreferenceEntityType.artist:
-        return (
-          name: itemId,
-          tooltip: itemId,
-          isValid: (row['artistValid'] as int) != 0,
-        );
-      case PreferenceEntityType.album:
-        return (
-          name: itemName.isEmpty ? itemId : itemName,
-          tooltip: itemId,
-          isValid: (row['albumValid'] as int) != 0,
-        );
-      case PreferenceEntityType.playlist:
-        final playlistName = row['playlistName'] as String?;
-        return playlistName == null
-            ? (
-              name: itemName.isEmpty ? itemId : itemName,
-              tooltip: itemName.isEmpty ? itemId : itemName,
-              isValid: false,
-            )
-            : (name: playlistName, tooltip: playlistName, isValid: true);
-      case PreferenceEntityType.folder:
-        final folderName = row['folderName'] as String?;
-        final folderTooltip = row['folderTooltip'] as String?;
-        return folderName == null
-            ? (
-              name: itemName.isEmpty ? itemId : itemName,
-              tooltip: itemName.isEmpty ? itemId : itemName,
-              isValid: false,
-            )
-            : (
-              name: _preferenceFolderName(folderName),
-              tooltip: folderTooltip!,
-              isValid: true,
-            );
-      case PreferenceEntityType.recentAdded:
-        return (name: 'Recent Added', tooltip: 'Recent Added', isValid: true);
-      case PreferenceEntityType.myFavorites:
-        return (name: 'My Favorites', tooltip: 'My Favorites', isValid: true);
-      case PreferenceEntityType.mostPlayed:
-        return (name: 'Most Played', tooltip: 'Most Played', isValid: true);
-      case PreferenceEntityType.leastPlayed:
-        return (name: 'Least Played', tooltip: 'Least Played', isValid: true);
-    }
-  }
-
-  List<PreferenceItemSnapshot> _preferenceItemsByType(
-    List<PreferenceItemSnapshot> items,
-    PreferenceEntityType type,
-  ) {
-    return items.where((item) => item.type == type).toList();
-  }
-
-  int _preferenceSectionValue(
-    Map<PreferenceSectionKey, bool> enabled,
-    PreferenceSectionKey key,
-    Row setting,
-  ) {
-    final value = enabled[key];
-    if (value != null) {
-      return value ? 1 : 0;
-    }
-    return setting[_preferenceSectionColumnName(key)] as int;
-  }
-
-  void _clearInvalidPreferenceItemsByExists(
-    Database db,
-    int entityValue,
-    String existsSql,
-  ) {
-    db.execute(
-      '''
-      UPDATE PreferenceItem
-      SET State = ?
-      WHERE Type = ?
-        AND State = ?
-        AND NOT EXISTS ($existsSql)
-    ''',
-      [_inactiveState, entityValue, _activeState, _activeState],
-    );
-  }
-
-  int _settingsRowId(Database db) {
-    return db
-            .select('SELECT Id FROM Settings ORDER BY Id DESC LIMIT 1')
-            .single['Id']
-        as int;
-  }
-
-  settings.SettingsSnapshot _settingsSnapshotFromRow(Row row) {
-    final notificationSend = _notificationSendFromValue(
-      row['NotificationSend'] as int,
-    );
-    return settings.SettingsSnapshot(
-      rootPath: row['RootPath'] as String,
-      useFilenameNotMusicName: (row['UseFilenameNotMusicName'] as int) != 0,
-      smartMultiArtistRecognition:
-          (row['SmartMultiArtistRecognition'] as int) != 0,
-      showCount: (row['ShowCount'] as int) != 0,
-      themeColor: (row['ThemeColor'] as String?) ?? '#0078D7',
-      nightMode: _nightModeFromValue(row['NightMode'] as int),
-      nightModeStartTime: row['NightModeStartTime'] as String,
-      nightModeEndTime: row['NightModeEndTime'] as String,
-      notificationSend: notificationSend,
-      notificationDisplay: _notificationDisplayFromValue(
-        row['NotificationDisplay'] as int,
-      ),
-      showNotifications:
-          notificationSend != settings.NotificationSendMode.never,
-      autoLyrics: (row['AutoLyrics'] as int) != 0,
-      showLyricsInNotification: (row['ShowLyricsInNotification'] as int) != 0,
-      notificationLyricsSource: _lyricsRequestModeFromValue(
-        row['NotificationLyricsSource'] as int,
-      ),
-      playerLyricsSource: _lyricsRequestModeFromValue(
-        row['PlayerLyricsSource'] as int,
-      ),
-      saveLyricsImmediately: true,
-      preserveInternetLyricsTimestamps:
-          (row['PreserveInternetLyricsTimestamps'] as int) != 0,
-      desktopLyricsEnabled: (row['DesktopLyricsEnabled'] as int) != 0,
-      desktopLyricsLocked: (row['DesktopLyricsLocked'] as int) != 0,
-      desktopLyricsColor: (row['DesktopLyricsColor'] as String?) ?? '#4aa8ff',
-      desktopLyricsStrokeColor:
-          (row['DesktopLyricsStrokeColor'] as String?) ?? '',
-      desktopLyricsFontSize: row['DesktopLyricsFontSize'] as int,
-      desktopLyricsFontFamily: row['DesktopLyricsFontFamily'] as String,
-      desktopLyricsOpacity: row['DesktopLyricsOpacity'] as int,
-      desktopLyricsBounds: row['DesktopLyricsBounds'] as String,
-      mainWindowBounds: row['MainWindowBounds'] as String,
-      mainWindowMaximized: (row['MainWindowMaximized'] as int) != 0,
-      preferredLanguage: _preferredLanguageFromValue(
-        row['VoiceAssistantPreferredLanguage'] as int,
-      ),
-      musicLibrarySort: _settingsMusicLibrarySortFromValue(
-        row['MusicLibraryCriterion'] as int,
-      ),
-      albumsSort: _settingsAlbumSortFromValue(row['AlbumsCriterion'] as int),
-      searchArtistsCriterion: _searchSortFromValue(
-        row['SearchArtistsCriterion'] as int,
-      ),
-      searchAlbumsCriterion: _searchSortFromValue(
-        row['SearchAlbumsCriterion'] as int,
-      ),
-      searchSongsCriterion: _searchSortFromValue(
-        row['SearchSongsCriterion'] as int,
-      ),
-      searchPlaylistsCriterion: _searchSortFromValue(
-        row['SearchPlaylistsCriterion'] as int,
-      ),
-      searchFoldersCriterion: _searchSortFromValue(
-        row['SearchFoldersCriterion'] as int,
-      ),
-      lastMusicIndex: row['LastMusicIndex'] as int,
-      volume: (row['Volume'] as num).round(),
-      isMuted: (row['IsMuted'] as int) != 0,
-      mode: _playbackModeFromValue(row['Mode'] as int),
-      musicProgress: (row['MusicProgress'] as num).toDouble(),
-      autoPlay: (row['AutoPlay'] as int) != 0,
-      shuffleAfterOneRound: (row['ShuffleAfterOneRound'] as int) != 0,
-      saveMusicProgress: (row['SaveMusicProgress'] as int) != 0,
-      hideMultiSelectCommandBarAfterOperation:
-          (row['HideMultiSelectCommandBarAfterOperation'] as int) != 0,
-      localViewMode: _localViewModeFromValue(row['LocalViewMode'] as int),
-      quitOnClose: (row['QuitOnClose'] as int) != 0,
-      lastPage:
-          (row['LastPage'] as String?)?.isEmpty ?? true
-              ? '/songs'
-              : row['LastPage'] as String,
-      lastPlaylistId: row['LastPlaylist'] as int,
-      lastReleaseNotesVersion: row['LastReleaseNotesVersion'] as String,
-    );
+    await _playbackHistoryService.recordArtistPlayed(databaseFile, artist);
   }
 
   _LibrarySettings _readLibrarySettings(Database db) {
@@ -4607,22 +1879,6 @@ class LibraryRepository {
       useFilenameNotMusicName: useFilenameNotMusicName,
       smartMultiArtistRecognition: smartMultiArtistRecognition,
     );
-  }
-
-  bool _readAutoLyricsEnabled(Database db) {
-    final hasAutoLyricsColumn = db
-        .select("PRAGMA table_info('Settings')")
-        .any((row) => row['name'] == 'AutoLyrics');
-    if (!hasAutoLyricsColumn) {
-      return false;
-    }
-    final rows = db.select('''
-      SELECT AutoLyrics AS autoLyrics
-      FROM Settings
-      ORDER BY Id
-      LIMIT 1
-    ''');
-    return rows.isNotEmpty && (rows.first['autoLyrics'] as int) != 0;
   }
 
   List<LibrarySong> _readSongs(Database db) {
@@ -4709,19 +1965,6 @@ class LibraryRepository {
       LIMIT 1
     ''',
       [songId, _activeState],
-    );
-    return rows.first['path'] as String;
-  }
-
-  String _readSongPath(Database db, int songId) {
-    final rows = db.select(
-      '''
-      SELECT Path AS path
-      FROM Music
-      WHERE Id = ?
-      LIMIT 1
-    ''',
-      [songId],
     );
     return rows.first['path'] as String;
   }
@@ -4851,272 +2094,6 @@ class LibraryRepository {
     );
   }
 
-  void _updateFolderPathStateInsideTransaction(
-    Database db,
-    List<String> folderPaths,
-    int state,
-  ) {
-    for (final folderPath in folderPaths) {
-      db.execute(
-        '''
-        UPDATE Folder
-        SET State = ?
-        WHERE Path = ?
-          OR Path LIKE ?
-          OR Path LIKE ?
-      ''',
-        [state, folderPath, '$folderPath/%', '$folderPath\\%'],
-      );
-      db.execute(
-        '''
-        UPDATE Music
-        SET State = ?
-        WHERE Path LIKE ?
-          OR Path LIKE ?
-      ''',
-        [state, '$folderPath/%', '$folderPath\\%'],
-      );
-      db.execute(
-        '''
-        UPDATE File
-        SET State = ?
-        WHERE Path LIKE ?
-          OR Path LIKE ?
-      ''',
-        [state, '$folderPath/%', '$folderPath\\%'],
-      );
-    }
-  }
-
-  void _hideFolderPathStateInsideTransaction(Database db, String folderPath) {
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE Path = ?
-    ''',
-      [_hiddenState, folderPath],
-    );
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
-    );
-    db.execute(
-      '''
-      UPDATE Music
-      SET State = ?
-      WHERE Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
-    );
-    db.execute(
-      '''
-      UPDATE File
-      SET State = ?
-      WHERE Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_parentHiddenState, '$folderPath/%', '$folderPath\\%'],
-    );
-  }
-
-  void _resumeHiddenFolderInsideTransaction(Database db, String folderPath) {
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Path = ?
-         OR Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_inactiveState, folderPath, '$folderPath/%', '$folderPath\\%'],
-    );
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE Path = ?
-         OR Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_activeState, folderPath, '$folderPath/%', '$folderPath\\%'],
-    );
-    db.execute(
-      '''
-      UPDATE Music
-      SET State = ?
-      WHERE Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_activeState, '$folderPath/%', '$folderPath\\%'],
-    );
-    db.execute(
-      '''
-      UPDATE File
-      SET State = ?
-      WHERE Path LIKE ?
-         OR Path LIKE ?
-    ''',
-      [_activeState, '$folderPath/%', '$folderPath\\%'],
-    );
-  }
-
-  void _syncHiddenItemsFromStorageState(Database db) {
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Type = 'folder'
-        AND Path IN (SELECT Path FROM Folder WHERE State = ?)
-    ''',
-      [_activeState, _hiddenState],
-    );
-    db.execute(
-      '''
-      INSERT INTO HiddenStorageItem (Type, Path, State)
-      SELECT 'folder', Folder.Path, ?
-      FROM Folder
-      WHERE State = ?
-        AND NOT EXISTS (
-          SELECT 1
-          FROM HiddenStorageItem
-          WHERE HiddenStorageItem.Type = 'folder'
-            AND HiddenStorageItem.Path = Folder.Path
-        )
-    ''',
-      [_activeState, _hiddenState],
-    );
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Type = 'file'
-        AND Path IN (SELECT Path FROM File WHERE State = ?)
-    ''',
-      [_activeState, _hiddenState],
-    );
-    db.execute(
-      '''
-      INSERT INTO HiddenStorageItem (Type, Path, State)
-      SELECT 'file', File.Path, ?
-      FROM File
-      WHERE State = ?
-        AND NOT EXISTS (
-          SELECT 1
-          FROM HiddenStorageItem
-          WHERE HiddenStorageItem.Type = 'file'
-            AND HiddenStorageItem.Path = File.Path
-        )
-    ''',
-      [_activeState, _hiddenState],
-    );
-  }
-
-  void _syncStorageStateFromHiddenItems(Database db) {
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE EXISTS (
-        SELECT 1
-        FROM HiddenStorageItem
-        WHERE HiddenStorageItem.Type = 'folder'
-          AND HiddenStorageItem.Path = Folder.Path
-          AND HiddenStorageItem.State = ?
-      )
-    ''',
-      [_hiddenState, _activeState],
-    );
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE State != ?
-        AND EXISTS (
-          SELECT 1
-          FROM HiddenStorageItem
-          WHERE HiddenStorageItem.Type = 'folder'
-            AND HiddenStorageItem.State = ?
-            AND (
-              Folder.Path LIKE HiddenStorageItem.Path || '/%'
-              OR Folder.Path LIKE HiddenStorageItem.Path || '\\%'
-            )
-        )
-    ''',
-      [_parentHiddenState, _hiddenState, _activeState],
-    );
-    db.execute(
-      '''
-      UPDATE Music
-      SET State = ?
-      WHERE EXISTS (
-        SELECT 1
-        FROM HiddenStorageItem
-        WHERE HiddenStorageItem.Type = 'file'
-          AND HiddenStorageItem.Path = Music.Path
-          AND HiddenStorageItem.State = ?
-      )
-    ''',
-      [_hiddenState, _activeState],
-    );
-    db.execute(
-      '''
-      UPDATE File
-      SET State = ?
-      WHERE EXISTS (
-        SELECT 1
-        FROM HiddenStorageItem
-        WHERE HiddenStorageItem.Type = 'file'
-          AND HiddenStorageItem.Path = File.Path
-          AND HiddenStorageItem.State = ?
-      )
-    ''',
-      [_hiddenState, _activeState],
-    );
-    db.execute(
-      '''
-      UPDATE Music
-      SET State = ?
-      WHERE State != ?
-        AND EXISTS (
-          SELECT 1
-          FROM HiddenStorageItem
-          WHERE HiddenStorageItem.Type = 'folder'
-            AND HiddenStorageItem.State = ?
-            AND (
-              Music.Path LIKE HiddenStorageItem.Path || '/%'
-              OR Music.Path LIKE HiddenStorageItem.Path || '\\%'
-            )
-        )
-    ''',
-      [_parentHiddenState, _hiddenState, _activeState],
-    );
-    db.execute(
-      '''
-      UPDATE File
-      SET State = ?
-      WHERE State != ?
-        AND EXISTS (
-          SELECT 1
-          FROM HiddenStorageItem
-          WHERE HiddenStorageItem.Type = 'folder'
-            AND HiddenStorageItem.State = ?
-            AND (
-              File.Path LIKE HiddenStorageItem.Path || '/%'
-              OR File.Path LIKE HiddenStorageItem.Path || '\\%'
-            )
-        )
-    ''',
-      [_parentHiddenState, _hiddenState, _activeState],
-    );
-  }
-
   void _deleteSongsInsideTransaction(
     Database db,
     List<int> songIds,
@@ -5203,7 +2180,7 @@ class LibraryRepository {
 
   void _restoreDeletedSongInsideTransaction(
     Database db,
-    _PendingSongDeleteRecord record,
+    PendingSongDeleteRecord record,
   ) {
     db.execute('UPDATE Music SET State = ? WHERE Id = ?', [
       _activeState,
@@ -5221,7 +2198,7 @@ class LibraryRepository {
 
   void _restoreDeletedLocalItemsInsideTransaction(
     Database db,
-    _PendingLocalItemsDeleteRecord record,
+    PendingLocalItemsDeleteRecord record,
   ) {
     _restoreRowsById(db, 'Music', record.musicIds);
     _restoreRowsById(db, 'MusicArtist', record.musicArtistIds);
@@ -5397,28 +2374,6 @@ class LibraryRepository {
         .toList();
   }
 
-  ({List<String> folderPaths, List<String> filePaths})
-  _readActiveHiddenStoragePaths(Database db) {
-    final rows = db.select(
-      '''
-      SELECT Type AS type, Path AS path
-      FROM HiddenStorageItem
-      WHERE State = ?
-    ''',
-      [_activeState],
-    );
-    return (
-      folderPaths: [
-        for (final row in rows)
-          if (row['type'] == 'folder') row['path'] as String,
-      ],
-      filePaths: [
-        for (final row in rows)
-          if (row['type'] == 'file') row['path'] as String,
-      ],
-    );
-  }
-
   List<int> _readActiveFolderRowIdsForPaths(
     Database db,
     List<String> folderPaths,
@@ -5486,320 +2441,10 @@ class LibraryRepository {
         .toList();
   }
 
-  void _upsertHiddenStorageItem(Database db, String type, String itemPath) {
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Type = ?
-        AND Path = ?
-    ''',
-      [_activeState, type, itemPath],
-    );
-
-    final changedRows =
-        db.select('SELECT changes() AS count').first['count'] as int;
-    if (changedRows == 0) {
-      db.execute(
-        '''
-        INSERT INTO HiddenStorageItem (Type, Path, State)
-        VALUES (?, ?, ?)
-      ''',
-        [type, itemPath, _activeState],
-      );
-    }
-  }
-
-  Future<bool> _mergeLocalFolderIntoExistingTarget({
-    required String sourceFolderPath,
-    required String targetFolderPath,
-    required List<_LocalFileMove> movedFiles,
-    required List<LocalFolderMove> movedFolders,
-    required List<String> inactiveFolders,
-    LocalMoveConflictResolver? resolveConflict,
-  }) async {
-    var movedAll = true;
-    final entries = Directory(sourceFolderPath).listSync(followLinks: false);
-    for (final entry in entries) {
-      final sourcePath = entry.path;
-      final targetPath = p.join(targetFolderPath, p.basename(sourcePath));
-      final sourceType = FileSystemEntity.typeSync(
-        sourcePath,
-        followLinks: false,
-      );
-
-      if (sourceType == FileSystemEntityType.directory) {
-        final targetType = FileSystemEntity.typeSync(targetPath);
-        if (targetType == FileSystemEntityType.notFound) {
-          await Directory(sourcePath).rename(targetPath);
-          movedFolders.add(
-            LocalFolderMove(oldPath: sourcePath, newPath: targetPath),
-          );
-          continue;
-        }
-        if (targetType != FileSystemEntityType.directory) {
-          throw StateError('Target path already exists and is not a folder.');
-        }
-        final childMovedAll = await _mergeLocalFolderIntoExistingTarget(
-          sourceFolderPath: sourcePath,
-          targetFolderPath: targetPath,
-          movedFiles: movedFiles,
-          movedFolders: movedFolders,
-          inactiveFolders: inactiveFolders,
-          resolveConflict: resolveConflict,
-        );
-        movedAll = childMovedAll && movedAll;
-        continue;
-      }
-
-      if (sourceType == FileSystemEntityType.file) {
-        final target = await _resolveLocalFileMoveTarget(
-          sourcePath: sourcePath,
-          targetFolderPath: targetFolderPath,
-          resolveConflict: resolveConflict,
-        );
-        if (target == null) {
-          movedAll = false;
-          continue;
-        }
-        await File(sourcePath).rename(target.path);
-        movedFiles.add(
-          _LocalFileMove(
-            oldPath: sourcePath,
-            newPath: target.path,
-            replacedPath: target.replacedPath,
-          ),
-        );
-        continue;
-      }
-
-      movedAll = false;
-    }
-
-    if (Directory(sourceFolderPath).listSync(followLinks: false).isEmpty) {
-      await Directory(sourceFolderPath).delete();
-      inactiveFolders.add(sourceFolderPath);
-      return movedAll;
-    }
-    return false;
-  }
-
-  void _markLocalFilePathInactiveInsideTransaction(
-    Database db,
-    String filePath, {
-    int? exceptSongId,
-  }) {
-    if (exceptSongId == null) {
-      db.execute(
-        '''
-        UPDATE Music
-        SET State = ?
-        WHERE Path = ?
-          AND State = ?
-      ''',
-        [_inactiveState, filePath, _activeState],
-      );
-    } else {
-      db.execute(
-        '''
-        UPDATE Music
-        SET State = ?
-        WHERE Path = ?
-          AND Id <> ?
-          AND State = ?
-      ''',
-        [_inactiveState, filePath, exceptSongId, _activeState],
-      );
-    }
-    db.execute(
-      '''
-      UPDATE File
-      SET State = ?
-      WHERE Path = ?
-    ''',
-      [_inactiveState, filePath],
-    );
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Type = 'file'
-        AND Path = ?
-    ''',
-      [_inactiveState, filePath],
-    );
-  }
-
-  void _markLocalFolderInactiveInsideTransaction(
-    Database db,
-    String folderPath,
-  ) {
-    db.execute(
-      '''
-      UPDATE Folder
-      SET State = ?
-      WHERE Path = ?
-    ''',
-      [_inactiveState, folderPath],
-    );
-    db.execute(
-      '''
-      UPDATE HiddenStorageItem
-      SET State = ?
-      WHERE Type = 'folder'
-        AND Path = ?
-    ''',
-      [_inactiveState, folderPath],
-    );
-  }
-
-  Future<_LocalResolvedFileMoveTarget?> _resolveLocalFileMoveTarget({
-    required String sourcePath,
-    required String targetFolderPath,
-    LocalMoveConflictResolver? resolveConflict,
-  }) async {
-    var targetPath = p.join(targetFolderPath, p.basename(sourcePath));
-    if (FileSystemEntity.typeSync(targetPath) ==
-        FileSystemEntityType.notFound) {
-      return _LocalResolvedFileMoveTarget(path: targetPath);
-    }
-
-    final resolution =
-        resolveConflict == null
-            ? LocalMoveConflictResolution.keepBoth
-            : await resolveConflict(sourcePath, targetPath);
-    return switch (resolution) {
-      LocalMoveConflictResolution.skip => null,
-      LocalMoveConflictResolution.keepBoth => _LocalResolvedFileMoveTarget(
-        path: _getAvailableSiblingPath(targetPath),
-      ),
-      LocalMoveConflictResolution.replace => _LocalResolvedFileMoveTarget(
-        path: await _replaceLocalMoveTarget(targetPath),
-        replacedPath: targetPath,
-      ),
-    };
-  }
-
-  Future<String> _replaceLocalMoveTarget(String targetPath) async {
-    await File(targetPath).delete();
-    return targetPath;
-  }
-
-  String _getAvailableSiblingPath(String targetPath) {
-    final extension = p.extension(targetPath);
-    final basePath = targetPath.substring(
-      0,
-      targetPath.length - extension.length,
-    );
-    var index = 1;
-    var nextPath = '$basePath ($index)$extension';
-    while (FileSystemEntity.typeSync(nextPath) !=
-        FileSystemEntityType.notFound) {
-      index += 1;
-      nextPath = '$basePath ($index)$extension';
-    }
-    return nextPath;
-  }
-
-  List<String> _readSongArtists(
-    Database db,
-    int songId,
-    String fallbackArtist,
-  ) {
-    final rows = db.select(
-      '''
-      SELECT Name AS name
-      FROM MusicArtist
-      WHERE MusicId = ?
-        AND State = ?
-      ORDER BY Priority, Id
-    ''',
-      [songId, _activeState],
-    );
-    final artists = _normalizeArtists(
-      rows.map((row) => row['name'] as String).toList(),
-    );
-    if (artists.isNotEmpty) {
-      return artists;
-    }
-
-    return _normalizeArtists([fallbackArtist]);
-  }
-
-  void _syncSongArtists(Database db, int songId, List<String> artists) {
-    db.execute('UPDATE MusicArtist SET State = ? WHERE MusicId = ?', [
-      _inactiveState,
-      songId,
-    ]);
-    if (artists.isEmpty) {
-      return;
-    }
-
-    final values = List.filled(artists.length, '(?, ?, ?, ?)').join(', ');
-    db.execute(
-      '''
-      INSERT INTO MusicArtist (MusicId, Name, Priority, State)
-      VALUES $values
-    ''',
-      [
-        for (final entry in artists.indexed) ...[
-          songId,
-          entry.$2,
-          entry.$1,
-          _activeState,
-        ],
-      ],
-    );
-  }
-
-  Future<Map<String, _AudioFileMetadata>> _readAudioFileMetadataBatch(
-    List<String> filePaths, {
-    LocalFolderScanCancellation? cancellation,
-    void Function(String filePath, int completedCount)? onProgress,
-  }) async {
-    const concurrency = 6;
-    final metadataByPath = <String, _AudioFileMetadata>{};
-    var nextIndex = 0;
-    var completedCount = 0;
-
-    Future<void> worker() async {
-      while (nextIndex < filePaths.length) {
-        cancellation?.throwIfCanceled();
-        final filePath = filePaths[nextIndex];
-        nextIndex += 1;
-        metadataByPath[filePath] = await _readAudioFileMetadata(filePath);
-        completedCount += 1;
-        onProgress?.call(filePath, completedCount);
-        cancellation?.throwIfCanceled();
-      }
-    }
-
-    await Future.wait([
-      for (
-        var workerIndex = 0;
-        workerIndex < min(concurrency, filePaths.length);
-        workerIndex += 1
-      )
-        worker(),
-    ]);
-    return metadataByPath;
-  }
-
-  Future<_AudioFileMetadata> _readAudioFileMetadata(String filePath) async {
-    final properties = await _id3TagService.readSongTagProperties(filePath);
-    final duration = await _id3TagService.readDurationSeconds(filePath);
-    final thumbnailPath = await _cacheSongArtwork(filePath);
-    return _AudioFileMetadata(
-      properties: properties,
-      duration: duration,
-      thumbnailPath: thumbnailPath,
-    );
-  }
-
   int _upsertExternalAudioFile(
     Database db,
     String filePath, {
-    required _AudioFileMetadata metadata,
+    required AudioFileMetadata metadata,
     bool useFilenameNotMusicName = false,
   }) {
     final properties = metadata.properties;
@@ -5808,29 +2453,23 @@ class LibraryRepository {
             ? p.basenameWithoutExtension(filePath)
             : properties.title.trim();
     final artists =
-        _normalizeArtists(
-          properties.artists.isNotEmpty
-              ? properties.artists
-              : [properties.artist],
-        ).take(6).toList();
+        _songPropertiesService
+            .normalizeArtists(
+              properties.artists.isNotEmpty
+                  ? properties.artists
+                  : [properties.artist],
+            )
+            .take(6)
+            .toList();
     final artist = artists.join(', ');
     final album = properties.album.trim();
     final dateAdded = DateTime.now().toIso8601String();
     final rows = db.select(
       '''
-      INSERT INTO Music (
-        Path,
-        Name,
-        Artist,
-        Album,
-        ThumbnailPath,
-        Duration,
-        PlayCount,
-        DateAdded,
-        State
-      )
+      INSERT INTO Music (Path, Name, Artist, Album, ThumbnailPath, Duration, PlayCount, DateAdded, State)
       VALUES (
-        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?,
         COALESCE((SELECT PlayCount FROM Music WHERE Path = ?), 0),
         COALESCE((SELECT DateAdded FROM Music WHERE Path = ?), ?),
         ?
@@ -5858,85 +2497,19 @@ class LibraryRepository {
       ],
     );
     final songId = rows.first['id'] as int;
-    _syncSongArtists(db, songId, artists);
+    _songPropertiesService.syncSongArtists(db, songId, artists);
     return songId;
   }
 
   Future<String> _cacheSongArtwork(String filePath) async {
-    final picture = await _id3TagService.readFirstPicture(filePath);
-    if (picture != null && _isLikelyImage(picture.data)) {
-      return _writeArtworkCacheBytes(
-        picture.data,
-        _extensionForMimeType(picture.format),
-      );
-    }
-
-    final siblingArtwork = _findSiblingFolderArtwork(filePath);
-    if (siblingArtwork != null) {
-      final data = await siblingArtwork.readAsBytes();
-      if (_isLikelyImage(data)) {
-        return _writeArtworkCacheBytes(data, p.extension(siblingArtwork.path));
-      }
-    }
-
-    final shellThumbnail = await _shellThumbnailResolver(filePath);
-    if (shellThumbnail != null && _isLikelyImage(shellThumbnail.data)) {
-      return _writeArtworkCacheBytes(
-        shellThumbnail.data,
-        shellThumbnail.extension,
-      );
-    }
-    return '';
-  }
-
-  Future<String> _writeArtworkCacheBytes(
-    List<int> data,
-    String extension,
-  ) async {
-    final cacheDirectory = await _resolveArtworkCacheDirectory();
-    final artworkHash = sha1.convert(data).toString();
-    final normalizedExtension =
-        extension.isEmpty
-            ? '.jpg'
-            : extension.startsWith('.')
-            ? extension
-            : '.$extension';
-    final target = File(
-      p.join(cacheDirectory.path, '$artworkHash$normalizedExtension'),
-    );
-    if (!target.existsSync()) {
-      await target.writeAsBytes(data);
-    }
-    return target.path;
-  }
-
-  File? _findSiblingFolderArtwork(String filePath) {
-    final directory = Directory(p.dirname(filePath));
-    if (!directory.existsSync()) {
-      return null;
-    }
-    final filesByLowerName = <String, File>{};
-    for (final entity in directory.listSync()) {
-      if (entity is File) {
-        filesByLowerName[p.basename(entity.path).toLowerCase()] = entity;
-      }
-    }
-    for (final baseName in _folderArtworkBaseNames) {
-      for (final extension in _folderArtworkExtensions) {
-        final file = filesByLowerName['$baseName$extension'];
-        if (file != null) {
-          return file;
-        }
-      }
-    }
-    return null;
+    return _artworkService.cacheSongArtwork(filePath);
   }
 
   int _upsertScannedAudioFile(
     Database db,
     String filePath,
     Map<String, int> folderIds, {
-    required _AudioFileMetadata metadata,
+    required AudioFileMetadata metadata,
     required bool useFilenameNotMusicName,
   }) {
     final songId = _upsertExternalAudioFile(
@@ -6005,681 +2578,8 @@ class LibraryRepository {
     }
   }
 
-  String _readDatabaseRootPath(File databaseFile) {
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        'SELECT RootPath AS rootPath FROM Settings ORDER BY Id LIMIT 1',
-      );
-      return rows.isEmpty ? '' : rows.first['rootPath'] as String;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  void _replaceRootPathReferences(
-    File databaseFile, {
-    required String originalPath,
-    required String nextPath,
-  }) {
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE Settings SET RootPath = replace(RootPath, ?, ?)', [
-          originalPath,
-          nextPath,
-        ]);
-        db.execute('UPDATE OR REPLACE Music SET Path = replace(Path, ?, ?)', [
-          originalPath,
-          nextPath,
-        ]);
-        db.execute('UPDATE OR REPLACE Folder SET Path = replace(Path, ?, ?)', [
-          originalPath,
-          nextPath,
-        ]);
-        db.execute('UPDATE OR REPLACE File SET Path = replace(Path, ?, ?)', [
-          originalPath,
-          nextPath,
-        ]);
-        db.execute(
-          'UPDATE OR REPLACE HiddenStorageItem SET Path = replace(Path, ?, ?)',
-          [originalPath, nextPath],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
-
-  Future<String> _getSongPath(int songId) async {
-    final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT Path AS path
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      return rows.first['path'] as String;
-    } finally {
-      db.dispose();
-    }
-  }
-
-  Future<_LyricsSongLookup> _getLyricsSongLookup(int songId) async {
-    final databaseFile = await _resolveDatabaseFile();
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final rows = db.select(
-        '''
-        SELECT
-          Path AS path,
-          Name AS title,
-          Artist AS artist,
-          Album AS album
-        FROM Music
-        WHERE Id = ?
-          AND State = ?
-        LIMIT 1
-      ''',
-        [songId, _activeState],
-      );
-      final row = rows.first;
-      return _LyricsSongLookup(
-        title: row['title'] as String,
-        artist: row['artist'] as String,
-        album: row['album'] as String,
-        path: row['path'] as String,
-      );
-    } finally {
-      db.dispose();
-    }
-  }
-
-  Future<String> _searchInternetLyrics(_LyricsSongLookup song) async {
-    final songMid = await _getSongMid(song);
-    if (songMid.isEmpty) {
-      return '';
-    }
-
-    final uri = Uri.parse(
-      'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
-    ).replace(
-      queryParameters: {'songmid': songMid, 'format': 'json', 'nobase64': '1'},
-    );
-    try {
-      final response = await _fetchLyricsJson(uri);
-      final lyrics =
-          _decodeHtmlEntities(response['lyric'] as String? ?? '').trim();
-      if (lyrics.isEmpty || _isNoLyricsPlaceholder(lyrics)) {
-        return '';
-      }
-
-      return lyrics;
-    } catch (_) {
-      return '';
-    }
-  }
-
-  Future<LyricsSnapshot?> _getSyncedInternetLyrics(
-    _LyricsSongLookup song,
-  ) async {
-    final rawLyrics = await _searchInternetLyrics(song);
-    if (rawLyrics.trim().isEmpty) {
-      return null;
-    }
-
-    final internetLyrics = await _prepareInternetLyrics(rawLyrics);
-    final snapshot = _createLyricsSnapshot(
-      internetLyrics,
-      LyricsSource.internet,
-    );
-    return snapshot.isSynced && snapshot.lines.isNotEmpty ? snapshot : null;
-  }
-
-  Future<String> _prepareInternetLyrics(String rawLyrics) async {
-    if (_isNoLyricsPlaceholder(rawLyrics)) {
-      return '';
-    }
-
-    final snapshot = await getSettingsSnapshot();
-    return (snapshot == null || snapshot.preserveInternetLyricsTimestamps)
-        ? rawLyrics
-        : _stripLyricsTimestamps(rawLyrics);
-  }
-
-  String _stripLyricsTimestamps(String rawText) {
-    final timestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');
-    final metadataRegex = RegExp(
-      r'^\[(ti|ar|al|by|offset):.*\]$',
-      caseSensitive: false,
-    );
-    return rawText
-        .split(RegExp(r'\r\n|[\n\r\u2028\u2029]'))
-        .map((line) {
-          final trimmedLine = line.trim();
-          if (metadataRegex.hasMatch(trimmedLine)) {
-            return '';
-          }
-          return line.replaceAll(timestampRegex, '').trimLeft();
-        })
-        .join('\n')
-        .trim();
-  }
-
-  Future<LyricsSnapshot> _getSongLyricsByPath(String songPath) async {
-    final sidecarLyrics = await _getSidecarLyrics(songPath);
-    if (sidecarLyrics != null) {
-      return sidecarLyrics;
-    }
-
-    final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(songPath);
-    if (embeddedLyrics.trim().isNotEmpty) {
-      return _createLyricsSnapshot(embeddedLyrics, LyricsSource.musicFile);
-    }
-
-    return _createLyricsSnapshot('', LyricsSource.none);
-  }
-
-  Future<String> _getSongMid(_LyricsSongLookup song) async {
-    for (final attempt in _buildLyricsSearchAttempts(song)) {
-      final songMid = await _searchSongMidByKeyword(
-        attempt.keyword,
-        attempt.title,
-        attempt.artist,
-      );
-      if (songMid.isNotEmpty) {
-        return songMid;
-      }
-    }
-
-    return '';
-  }
-
-  List<_LyricsSearchAttempt> _buildLyricsSearchAttempts(
-    _LyricsSongLookup song,
-  ) {
-    final simplifiedTitle = _removeBraces(song.title);
-    final simplifiedArtist = _removeBraces(song.artist);
-    final attempts = [
-      _LyricsSearchAttempt(
-        keyword: '${song.title} ${song.artist}'.trim(),
-        title: song.title,
-        artist: song.artist,
-      ),
-      _LyricsSearchAttempt(
-        keyword: song.title,
-        title: song.title,
-        artist: song.artist,
-      ),
-      _LyricsSearchAttempt(
-        keyword: '$simplifiedTitle ${song.artist}'.trim(),
-        title: simplifiedTitle,
-        artist: song.artist,
-      ),
-      _LyricsSearchAttempt(
-        keyword: '${song.title} $simplifiedArtist'.trim(),
-        title: song.title,
-        artist: simplifiedArtist,
-      ),
-      _LyricsSearchAttempt(
-        keyword: '$simplifiedTitle $simplifiedArtist'.trim(),
-        title: simplifiedTitle,
-        artist: simplifiedArtist,
-      ),
-      _LyricsSearchAttempt(
-        keyword: simplifiedTitle,
-        title: simplifiedTitle,
-        artist: simplifiedArtist,
-      ),
-    ];
-    final seen = <String>{};
-    return [
-      for (final attempt in attempts)
-        if (attempt.keyword.isNotEmpty &&
-            seen.add('${attempt.keyword}\n${attempt.title}\n${attempt.artist}'))
-          attempt,
-    ];
-  }
-
-  Future<String> _searchSongMidByKeyword(
-    String keyword,
-    String title,
-    String artist,
-  ) async {
-    final uri = Uri.parse(
-      'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
-    ).replace(
-      queryParameters: {
-        'cv': '4747474',
-        'ct': '24',
-        'format': 'json',
-        'inCharset': 'utf-8',
-        'outCharset': 'utf-8',
-        'notice': '0',
-        'platform': 'yqq.json',
-        'needNewCode': '1',
-        'key': keyword,
-      },
-    );
-    try {
-      final response = await _fetchLyricsJson(uri);
-      final data = response['data'] as Map<String, Object?>?;
-      final song = data?['song'] as Map<String, Object?>?;
-      final items = song?['itemlist'] as List<Object?>? ?? const [];
-      Map<String, Object?>? bestMatch;
-      var bestScore = -1;
-
-      for (final item in items.whereType<Map<String, Object?>>()) {
-        final score =
-            _evaluateLyricsMatch(title, item['name'] as String? ?? '') * 2 +
-            _evaluateLyricsMatch(artist, item['singer'] as String? ?? '');
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = item;
-        }
-      }
-
-      return bestScore > 0 ? (bestMatch?['mid'] as String? ?? '') : '';
-    } catch (_) {
-      return '';
-    }
-  }
-
-  Future<Map<String, Object?>> _fetchLyricsJson(Uri uri) async {
-    final response = await http
-        .get(
-          uri,
-          headers: const {
-            'accept': 'application/json',
-            'accept-language': 'en-US',
-            'referer': 'https://y.qq.com/portal/player.html',
-            'user-agent': 'Mozilla/5.0',
-          },
-        )
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException('Lyrics request failed: ${response.statusCode}');
-    }
-
-    return jsonDecode(response.body) as Map<String, Object?>;
-  }
-
-  int _evaluateLyricsMatch(String target, String candidate) {
-    final normalizedTarget = _normalizeLyricsLookupText(target);
-    final normalizedCandidate = _normalizeLyricsLookupText(candidate);
-    if (normalizedTarget.isEmpty) {
-      return normalizedCandidate.isNotEmpty ? 20 : 0;
-    }
-    if (normalizedTarget == normalizedCandidate) {
-      return 100;
-    }
-    if (normalizedCandidate.contains(normalizedTarget) ||
-        normalizedTarget.contains(normalizedCandidate)) {
-      return 70;
-    }
-
-    final targetTokens = normalizedTarget
-        .split(RegExp(r'\s+'))
-        .where((token) => token.isNotEmpty);
-    final candidateTokens = normalizedCandidate
-        .split(RegExp(r'\s+'))
-        .where((token) => token.isNotEmpty);
-    var score = 0;
-    for (final token in targetTokens) {
-      if (candidateTokens.any(
-        (candidateToken) =>
-            candidateToken.contains(token) || token.contains(candidateToken),
-      )) {
-        score += 20;
-      }
-    }
-    return score;
-  }
-
-  String _normalizeLyricsLookupText(String value) {
-    return _removeBraces(value)
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\p{L}\p{N}\s]', unicode: true), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _removeBraces(String value) {
-    return value
-        .replaceAll(RegExp(r'\([^)]*\)'), ' ')
-        .replaceAll(RegExp(r'\[[^\]]*]'), ' ')
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _decodeHtmlEntities(String value) {
-    return value
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
-          return String.fromCharCode(int.parse(match.group(1)!));
-        })
-        .replaceAll(r'\n', '\n');
-  }
-
-  bool _isNoLyricsPlaceholder(String rawLyrics) {
-    final normalized =
-        rawLyrics
-            .replaceAll(
-              RegExp(r'\[(ti|ar|al|by|offset):[^\]]*\]', caseSensitive: false),
-              ' ',
-            )
-            .replaceAll(RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]'), ' ')
-            .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '')
-            .toLowerCase();
-    if (normalized.isEmpty) {
-      return false;
-    }
-
-    return normalized.contains('姝ゆ瓕鏇蹭负娌℃湁濉瘝鐨勭函闊充箰璇锋偍娆ｈ祻');
-  }
-
-  String _normalizeLyricsForCompare(String rawLyrics) {
-    return rawLyrics
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .join('\n');
-  }
-
-  Future<LyricsSnapshot?> _getSidecarLyrics(String songPath) async {
-    final lrcFile = File(p.setExtension(songPath, '.lrc'));
-    if (await lrcFile.exists()) {
-      return _createLyricsSnapshot(
-        await lrcFile.readAsString(),
-        LyricsSource.lrcFile,
-      );
-    }
-
-    final textFile = File(p.setExtension(songPath, '.txt'));
-    if (await textFile.exists()) {
-      return _createLyricsSnapshot(
-        await textFile.readAsString(),
-        LyricsSource.textFile,
-      );
-    }
-
-    return null;
-  }
-
-  Future<void> _writeLyricsToSongPath(String songPath, String rawLyrics) async {
-    final lrcFile = File(p.setExtension(songPath, '.lrc'));
-    final textFile = File(p.setExtension(songPath, '.txt'));
-    if (p.extension(songPath).toLowerCase() == '.mp3') {
-      await _id3TagService.writeEmbeddedLyrics(songPath, rawLyrics);
-      if (await lrcFile.exists()) {
-        await lrcFile.writeAsString(rawLyrics);
-      }
-      if (await textFile.exists()) {
-        await textFile.writeAsString(rawLyrics);
-      }
-      return;
-    }
-
-    if (await lrcFile.exists()) {
-      await lrcFile.writeAsString(rawLyrics);
-      if (rawLyrics.trim().isNotEmpty) {
-        return;
-      }
-    }
-
-    if (await textFile.exists()) {
-      await textFile.writeAsString(rawLyrics);
-      if (rawLyrics.trim().isNotEmpty) {
-        return;
-      }
-    }
-
-    await lrcFile.writeAsString(rawLyrics);
-  }
-
-  LyricsSnapshot _createLyricsSnapshot(String rawText, LyricsSource source) {
-    final normalizedText = rawText.replaceFirst('\uFEFF', '').trim();
-    final lines = _parseLyricsLines(normalizedText);
-    return LyricsSnapshot(
-      source: source,
-      isSynced: lines.any((line) => line.timestampMs != null),
-      rawText: normalizedText,
-      lines: lines,
-    );
-  }
-
-  List<LyricsLine> _parseLyricsLines(String rawText) {
-    if (rawText.isEmpty) {
-      return [];
-    }
-
-    final metadataRegex = RegExp(
-      r'^\[(ti|ar|al|by|offset):',
-      caseSensitive: false,
-    );
-    final offsetRegex = RegExp(
-      r'^\[offset:([+-]?\d+)\]$',
-      caseSensitive: false,
-    );
-    final timestampRegex = RegExp(r'\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]');
-    var offsetMs = 0;
-    var lineId = 0;
-    final parsedLines = <LyricsLine>[];
-
-    for (final rawLine in rawText.split(RegExp(r'\r\n|[\n\r\u2028\u2029]'))) {
-      final line = rawLine.trim();
-      if (line.isEmpty) {
-        continue;
-      }
-
-      final offsetMatch = offsetRegex.firstMatch(line);
-      if (offsetMatch != null) {
-        offsetMs = int.parse(offsetMatch.group(1)!);
-        continue;
-      }
-      if (metadataRegex.hasMatch(line)) {
-        continue;
-      }
-
-      final matches = timestampRegex.allMatches(line).toList();
-      final text = line.replaceAll(timestampRegex, '').trim();
-      if (matches.isEmpty) {
-        parsedLines.add(LyricsLine(id: lineId, timestampMs: null, text: text));
-        lineId += 1;
-        continue;
-      }
-
-      for (final match in matches) {
-        final minutes = int.parse(match.group(1)!);
-        final seconds = int.parse(match.group(2)!);
-        final fraction = match.group(3) ?? '0';
-        final fractionMs =
-            fraction.length == 1
-                ? int.parse(fraction) * 100
-                : fraction.length == 2
-                ? int.parse(fraction) * 10
-                : int.parse(fraction.padRight(3, '0').substring(0, 3));
-        parsedLines.add(
-          LyricsLine(
-            id: lineId,
-            timestampMs:
-                minutes * 60000 + seconds * 1000 + fractionMs + offsetMs,
-            text: text,
-          ),
-        );
-        lineId += 1;
-      }
-    }
-
-    parsedLines.sort((left, right) {
-      final leftTimestamp = left.timestampMs;
-      final rightTimestamp = right.timestampMs;
-      if (leftTimestamp == null && rightTimestamp == null) {
-        return left.id.compareTo(right.id);
-      }
-      if (leftTimestamp == null) {
-        return 1;
-      }
-      if (rightTimestamp == null) {
-        return -1;
-      }
-      final timestampCompare = leftTimestamp.compareTo(rightTimestamp);
-      return timestampCompare == 0
-          ? left.id.compareTo(right.id)
-          : timestampCompare;
-    });
-    return parsedLines;
-  }
-
-  Future<SongArtworkSnapshot> _resolveSongArtworkSnapshot(
-    Database db,
-    int songId,
-    String songPath,
-    String thumbnailPath,
-  ) async {
-    if (thumbnailPath.isNotEmpty && File(thumbnailPath).existsSync()) {
-      return _createSongArtworkSnapshot(songId, thumbnailPath);
-    }
-
-    final picture = await _id3TagService.readFirstPicture(songPath);
-    if (picture == null) {
-      return _createSongArtworkSnapshot(songId, '');
-    }
-
-    final cacheDirectory = await _resolveArtworkCacheDirectory();
-    final target = File(
-      p.join(
-        cacheDirectory.path,
-        '${DateTime.now().microsecondsSinceEpoch}_$songId${_extensionForMimeType(picture.format)}',
-      ),
-    );
-    await target.writeAsBytes(picture.data);
-    db.execute(
-      '''
-      UPDATE Music
-      SET ThumbnailPath = ?
-      WHERE Id = ?
-        AND State = ?
-    ''',
-      [target.path, songId, _activeState],
-    );
-    return SongArtworkSnapshot(
-      songId: songId,
-      artworkUrl: target.path,
-      sourceUrl: target.path,
-      sourcePath: target.path,
-      source: SongArtworkSource.embedded,
-    );
-  }
-
-  SongArtworkSnapshot _createSongArtworkSnapshot(
-    int songId,
-    String thumbnailPath,
-  ) {
-    if (thumbnailPath.isEmpty || !File(thumbnailPath).existsSync()) {
-      return SongArtworkSnapshot(
-        songId: songId,
-        artworkUrl: '',
-        sourceUrl: '',
-        sourcePath: '',
-        source: SongArtworkSource.none,
-      );
-    }
-
-    return SongArtworkSnapshot(
-      songId: songId,
-      artworkUrl: thumbnailPath,
-      sourceUrl: thumbnailPath,
-      sourcePath: thumbnailPath,
-      source: SongArtworkSource.cached,
-    );
-  }
-
-  Future<Directory> _resolveArtworkCacheDirectory() async {
-    final databaseFile = await _resolveDatabaseFile();
-    final directory = Directory(
-      p.join(databaseFile.parent.path, 'ArtworkCache'),
-    );
-    if (!directory.existsSync()) {
-      directory.createSync(recursive: true);
-    }
-    return directory;
-  }
-
-  bool _isLikelyImage(List<int> data) {
-    return _isLikelyArtworkImage(data);
-  }
-
   Future<void> _pruneArtworkCache(Database db) async {
-    try {
-      final cacheDirectory = await _resolveArtworkCacheDirectory();
-      final activeThumbnailPaths =
-          db
-              .select(
-                '''
-                SELECT ThumbnailPath AS thumbnailPath
-                FROM Music
-                WHERE State = ?
-                  AND NULLIF(ThumbnailPath, '') IS NOT NULL
-              ''',
-                [_activeState],
-              )
-              .map((row) => row['thumbnailPath'] as String)
-              .toSet();
-      for (final entry in cacheDirectory.listSync()) {
-        if (entry is! File) {
-          continue;
-        }
-        if (activeThumbnailPaths.contains(entry.path)) {
-          continue;
-        }
-        try {
-          await entry.delete();
-        } on Object {
-          // Cache cleanup must not fail the library scan.
-        }
-      }
-    } on Object {
-      // Cache cleanup must not fail the library scan.
-    }
-  }
-
-  String _getArtworkMimeType(String sourcePath) {
-    return switch (p.extension(sourcePath).toLowerCase()) {
-      '.jpg' || '.jpeg' => 'image/jpeg',
-      '.png' => 'image/png',
-      '.webp' => 'image/webp',
-      '.bmp' => 'image/bmp',
-      _ => 'image/jpeg',
-    };
-  }
-
-  String _extensionForMimeType(String mimeType) {
-    return switch (mimeType.toLowerCase()) {
-      'image/jpeg' || 'image/jpg' => '.jpg',
-      'image/png' => '.png',
-      'image/webp' => '.webp',
-      'image/bmp' => '.bmp',
-      _ => '.jpg',
-    };
+    await _artworkService.pruneArtworkCache(db);
   }
 
   List<LibraryFolder> _readFolders(Database db) {
@@ -6708,591 +2608,26 @@ class LibraryRepository {
   }
 
   List<LibraryPlaylist> _readPlaylists(Database db, _LibrarySettings settings) {
-    final playlistRows = db.select(
-      '''
-      SELECT
-        Playlist.Id AS id,
-        Playlist.Name AS name,
-        Playlist.Criterion AS criterion,
-        Playlist.Priority AS priority,
-        COUNT(Music.Id) AS songCount
-      FROM Playlist
-      LEFT JOIN PlaylistItem
-        ON PlaylistItem.PlaylistId = Playlist.Id
-       AND PlaylistItem.State = ?
-      LEFT JOIN Music
-        ON Music.Id = PlaylistItem.ItemId
-       AND Music.State = ?
-      WHERE Playlist.State = ?
-      GROUP BY Playlist.Id, Playlist.Name, Playlist.Criterion, Playlist.Priority
-      ORDER BY
-        CASE
-          WHEN Playlist.Id = ? THEN 0
-          WHEN Playlist.Id = ? THEN 1
-          ELSE 2
-        END,
-        CASE WHEN Playlist.Priority < 0 THEN 2147483647 ELSE Playlist.Priority END,
-        LOWER(Playlist.Name),
-        Playlist.Id
-    ''',
-      [
-        _activeState,
-        _activeState,
-        _activeState,
-        settings.myFavoritesId,
-        settings.nowPlayingId,
-      ],
+    return _playlistService.readPlaylists(
+      db,
+      myFavoritesId: settings.myFavoritesId,
+      nowPlayingId: settings.nowPlayingId,
     );
-    final itemRows = db.select(
-      '''
-      SELECT
-        PlaylistItem.PlaylistId AS playlistId,
-        PlaylistItem.ItemId AS songId
-      FROM PlaylistItem
-      INNER JOIN Playlist
-        ON Playlist.Id = PlaylistItem.PlaylistId
-      INNER JOIN Music
-        ON Music.Id = PlaylistItem.ItemId
-      WHERE PlaylistItem.State = ?
-        AND Playlist.State = ?
-        AND Music.State = ?
-      ORDER BY PlaylistItem.Id
-    ''',
-      [_activeState, _activeState, _activeState],
-    );
-    final playlistSongIds = <int, List<int>>{};
-    for (final row in itemRows) {
-      final playlistId = row['playlistId'] as int;
-      final songIds = playlistSongIds[playlistId] ?? <int>[];
-      songIds.add(row['songId'] as int);
-      playlistSongIds[playlistId] = songIds;
-    }
-
-    return playlistRows.map((row) {
-      final id = row['id'] as int;
-      return LibraryPlaylist(
-        id: id,
-        name: row['name'] as String,
-        priority: row['priority'] as int,
-        songCount: row['songCount'] as int,
-        songIds: playlistSongIds[id] ?? const [],
-        sortCriterion: _fromStoredPlaylistSortCriterion(
-          row['criterion'] as int,
-        ),
-        isBuiltIn: id == settings.myFavoritesId,
-      );
-    }).toList();
-  }
-
-  List<RecentLibrarySong> _readRecentSongs(
-    Database db,
-    List<LibrarySong> songs,
-  ) {
-    final rows = db.select(
-      '''
-      SELECT
-        RecentRecord.ItemId AS itemId,
-        CAST(RecentRecord.Time AS TEXT) AS playedAt
-      FROM RecentRecord
-      INNER JOIN Music
-        ON Music.Id = CAST(RecentRecord.ItemId AS INTEGER)
-      WHERE RecentRecord.Type = $_recentRecordTypeSong
-        AND RecentRecord.State = ?
-        AND Music.State = ?
-      ORDER BY RecentRecord.Id DESC
-      LIMIT ?
-    ''',
-      [_activeState, _activeState, _recentSongLimit],
-    );
-    final songsById = {for (final song in songs) song.id: song};
-    return rows.expand((row) {
-      final song = songsById[int.parse(row['itemId'] as String)];
-      return song == null
-          ? const <RecentLibrarySong>[]
-          : [
-            RecentLibrarySong.fromSong(
-              song,
-              playedAt: row['playedAt'] as String,
-            ),
-          ];
-    }).toList();
-  }
-
-  List<RecentPlaylistPlayback> _readRecentPlaylists(Database db) {
-    final rows = db.select(
-      '''
-      SELECT
-        RecentRecord.Id AS id,
-        RecentRecord.ItemId AS itemId,
-        CAST(RecentRecord.Time AS TEXT) AS playedAt
-      FROM RecentRecord
-      INNER JOIN Playlist
-        ON Playlist.Id = CAST(RecentRecord.ItemId AS INTEGER)
-      WHERE RecentRecord.Type = $_recentRecordTypePlaylist
-        AND RecentRecord.State = ?
-        AND Playlist.State = ?
-      ORDER BY RecentRecord.Id DESC
-      LIMIT ?
-    ''',
-      [_activeState, _activeState, _recentCollectionLimit],
-    );
-    return rows.map((row) {
-      return RecentPlaylistPlayback(
-        id: row['id'] as int,
-        playlistId: int.parse(row['itemId'] as String),
-        playedAt: row['playedAt'] as String,
-      );
-    }).toList();
-  }
-
-  List<RecentAlbumPlayback> _readRecentAlbums(Database db) {
-    final rows = db.select(
-      '''
-      SELECT
-        Id AS id,
-        ItemId AS itemId,
-        CAST(Time AS TEXT) AS playedAt
-      FROM RecentRecord
-      WHERE Type = $_recentRecordTypeAlbum
-        AND State = ?
-      ORDER BY Id DESC
-      LIMIT ?
-    ''',
-      [_activeState, _recentCollectionLimit],
-    );
-    return rows.map((row) {
-      return RecentAlbumPlayback(
-        id: row['id'] as int,
-        album: row['itemId'] as String,
-        playedAt: row['playedAt'] as String,
-      );
-    }).toList();
-  }
-
-  List<RecentArtistPlayback> _readRecentArtists(Database db) {
-    final rows = db.select(
-      '''
-      SELECT
-        RecentRecord.Id AS id,
-        RecentRecord.ItemId AS itemId,
-        CAST(RecentRecord.Time AS TEXT) AS playedAt
-      FROM RecentRecord
-      WHERE RecentRecord.Type = $_recentRecordTypeArtist
-        AND RecentRecord.State = ?
-        AND EXISTS (
-          SELECT 1
-          FROM MusicArtist
-          INNER JOIN Music
-            ON Music.Id = MusicArtist.MusicId
-          WHERE MusicArtist.Name = RecentRecord.ItemId
-            AND MusicArtist.State = ?
-            AND Music.State = ?
-        )
-      ORDER BY RecentRecord.Id DESC
-      LIMIT ?
-    ''',
-      [_activeState, _activeState, _activeState, _recentCollectionLimit],
-    );
-    return rows.map((row) {
-      return RecentArtistPlayback(
-        id: row['id'] as int,
-        artist: row['itemId'] as String,
-        playedAt: row['playedAt'] as String,
-      );
-    }).toList();
-  }
-
-  List<SearchHistoryEntry> _readRecentSearches(Database db) {
-    final rows = db.select('''
-      SELECT
-        Id AS id,
-        Query AS query,
-        Type AS type,
-        SearchedAt AS searchedAt
-      FROM SearchHistory
-      ORDER BY datetime(SearchedAt) DESC, Id DESC
-    ''');
-    return rows.map((row) {
-      return SearchHistoryEntry(
-        id: row['id'] as int,
-        query: row['query'] as String,
-        type: _fromStoredSearchHistoryType(row['type'] as String),
-        searchedAt: row['searchedAt'] as String,
-      );
-    }).toList();
-  }
-
-  NowPlayingSnapshot _readNowPlaying(
-    Database db,
-    List<LibrarySong> songs,
-    int fallbackPlaylistId,
-  ) {
-    final paths = _readNowPlayingPaths();
-    final songIds =
-        paths.isEmpty
-            ? _readPlaylistSongIds(db, fallbackPlaylistId)
-            : _readNowPlayingSongIdsFromPaths(db, paths);
-
-    return NowPlayingSnapshot(playlistId: fallbackPlaylistId, songIds: songIds);
-  }
-
-  List<int> _readNowPlayingSongIdsByPath(Database db) {
-    final paths = _readNowPlayingPaths();
-    return _readNowPlayingSongIdsFromPaths(db, paths);
-  }
-
-  List<int> _readNowPlayingSongIdsFromPaths(Database db, List<String> paths) {
-    if (paths.isEmpty) {
-      return const [];
-    }
-    final placeholders = List.filled(paths.length, '?').join(', ');
-    final rows = db.select(
-      '''
-      SELECT Id AS id, Path AS path
-      FROM Music
-      WHERE Path IN ($placeholders)
-        AND State = ?
-    ''',
-      [...paths, _activeState],
-    );
-    final songIdsByPath = {
-      for (final row in rows) row['path'] as String: row['id'] as int,
-    };
-    return paths.expand((songPath) {
-      final songId = songIdsByPath[songPath];
-      return songId == null ? const <int>[] : [songId];
-    }).toList();
-  }
-
-  List<int> _readPlaylistSongIds(Database db, int playlistId) {
-    if (playlistId <= 0) {
-      return const [];
-    }
-
-    final rows = db.select(
-      '''
-      SELECT PlaylistItem.ItemId AS songId
-      FROM PlaylistItem
-      INNER JOIN Music
-        ON Music.Id = PlaylistItem.ItemId
-      WHERE PlaylistItem.PlaylistId = ?
-        AND PlaylistItem.State = ?
-        AND Music.State = ?
-      ORDER BY PlaylistItem.Id
-    ''',
-      [playlistId, _activeState, _activeState],
-    );
-    return rows.map((row) => row['songId'] as int).toList();
-  }
-
-  List<String> _readNowPlayingPaths() {
-    final file = _resolveNowPlayingFile();
-    try {
-      final data = jsonDecode(file.readAsStringSync());
-      return data is List
-          ? data.whereType<String>().where((item) => item.isNotEmpty).toList()
-          : const [];
-    } on Object {
-      return const [];
-    }
-  }
-
-  void _writeNowPlayingSongIds(Database db, List<int> songIds) {
-    final file = _resolveNowPlayingFile();
-    if (songIds.isEmpty) {
-      file.writeAsStringSync('[]');
-      return;
-    }
-
-    final placeholders = List.filled(songIds.length, '?').join(', ');
-    final rows = db.select(
-      '''
-      SELECT Id AS id, Path AS path
-      FROM Music
-      WHERE Id IN ($placeholders)
-        AND State = ?
-    ''',
-      [...songIds, _activeState],
-    );
-    final pathsById = {
-      for (final row in rows) row['id'] as int: row['path'] as String,
-    };
-    final songPaths =
-        songIds.expand((songId) {
-          final songPath = pathsById[songId];
-          return songPath == null ? const <String>[] : [songPath];
-        }).toList();
-
-    file.writeAsStringSync(jsonEncode(songPaths));
   }
 
   File _resolveNowPlayingFile() {
-    final resolver = _nowPlayingFileResolver;
-    if (resolver != null) {
-      return resolver();
-    }
-    return File(p.join(defaultSmPlayerUserDataPath(), _nowPlayingJsonName));
-  }
-
-  String _validatePlaylistName(
-    Database db,
-    String name, {
-    int? currentPlaylistId,
-  }) {
-    final nextName = name.trim();
-    if (nextName.isEmpty) {
-      throw ArgumentError('Playlist name cannot be empty.');
-    }
-
-    final rows = db.select(
-      '''
-      SELECT Id
-      FROM Playlist
-      WHERE Name = ?
-        AND State = ?
-      LIMIT 1
-    ''',
-      [nextName, _activeState],
-    );
-    if (rows.isNotEmpty && rows.first['Id'] != currentPlaylistId) {
-      throw ArgumentError('Playlist "$nextName" already exists.');
-    }
-
-    return nextName;
-  }
-
-  void _setPlaylistSongsState(
-    Database db,
-    int playlistId,
-    List<int> songIds,
-    bool isActive,
-  ) {
-    final uniqueIds = _uniqueSongIds(songIds);
-    if (uniqueIds.isEmpty) {
-      return;
-    }
-
-    final placeholders = List.filled(uniqueIds.length, '?').join(', ');
-    if (isActive) {
-      db.execute(
-        '''
-        UPDATE PlaylistItem
-        SET State = ?
-        WHERE PlaylistId = ?
-          AND ItemId IN ($placeholders)
-      ''',
-        [_inactiveState, playlistId, ...uniqueIds],
-      );
-      db.execute(
-        '''
-        UPDATE PlaylistItem
-        SET State = ?
-        WHERE Id IN (
-          SELECT MAX(Id)
-          FROM PlaylistItem
-          WHERE PlaylistId = ?
-            AND ItemId IN ($placeholders)
-          GROUP BY ItemId
-        )
-      ''',
-        [_activeState, playlistId, ...uniqueIds],
-      );
-      db.execute(
-        '''
-        INSERT INTO PlaylistItem (PlaylistId, ItemId, State)
-        SELECT ?, Music.Id, ?
-        FROM Music
-        WHERE Music.Id IN ($placeholders)
-          AND Music.State = ?
-          AND NOT EXISTS (
-            SELECT 1
-            FROM PlaylistItem
-            WHERE PlaylistItem.PlaylistId = ?
-              AND PlaylistItem.ItemId = Music.Id
-          )
-      ''',
-        [playlistId, _activeState, ...uniqueIds, _activeState, playlistId],
-      );
-      return;
-    }
-
-    db.execute(
-      '''
-      UPDATE PlaylistItem
-      SET State = ?
-      WHERE PlaylistId = ?
-        AND ItemId IN ($placeholders)
-    ''',
-      [_inactiveState, playlistId, ...uniqueIds],
-    );
-  }
-
-  void _insertPlaylistSongsInOrder(
-    Database db,
-    int playlistId,
-    List<int> songIds,
-  ) {
-    final rows = List.filled(songIds.length, '(?, ?)').join(', ');
-    db.execute(
-      '''
-      WITH OrderedSongs(SongId, Position) AS (
-        VALUES $rows
-      )
-      INSERT INTO PlaylistItem (PlaylistId, ItemId, State)
-      SELECT ?, OrderedSongs.SongId, ?
-      FROM OrderedSongs
-      JOIN Music
-        ON Music.Id = OrderedSongs.SongId
-       AND Music.State = ?
-      ORDER BY OrderedSongs.Position
-    ''',
-      [
-        ...songIds.indexed.expand((entry) => [entry.$2, entry.$1]),
-        playlistId,
-        _activeState,
-        _activeState,
-      ],
-    );
+    return _paths.resolveNowPlayingFile();
   }
 
   Future<File> _resolveDatabaseFile() async {
-    final resolver = _databaseFileResolver;
-    if (resolver != null) {
-      return resolver();
-    }
-
-    if (Platform.isWindows) {
-      final uwpDatabase = _resolveWindowsUwpDatabaseFile();
-      if (uwpDatabase != null) {
-        return uwpDatabase;
-      }
-    }
-
-    final appDataPath = defaultSmPlayerUserDataPath();
-    final databaseFile = File(p.join(appDataPath, _smPlayerDatabaseName));
-    await databaseFile.parent.create(recursive: true);
-    return databaseFile;
+    return _paths.resolveDatabaseFile(
+      windowsUwpDatabaseResolver:
+          _dataTransferService.resolveWindowsUwpDatabaseFile,
+    );
   }
 
   Future<File> _resolvePendingSongDeletesFile() async {
-    final resolver = _pendingDeleteFileResolver;
-    if (resolver != null) {
-      return resolver();
-    }
-    final appDataPath = defaultSmPlayerUserDataPath();
-    return File(p.join(appDataPath, _pendingSongDeletesJsonName));
-  }
-
-  Future<List<_PendingDeleteRecord>> _readPendingDeleteRecords(
-    File file,
-  ) async {
-    if (!file.existsSync()) {
-      return const [];
-    }
-
-    final content = await file.readAsString();
-    final data =
-        content.trim().isEmpty
-            ? const <Object?>[]
-            : jsonDecode(content) as List<dynamic>;
-    return data
-        .whereType<Map<String, Object?>>()
-        .map(_pendingDeleteRecordFromJson)
-        .toList();
-  }
-
-  Future<void> _writePendingDeleteRecords(
-    File file,
-    List<_PendingDeleteRecord> records,
-  ) async {
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
-      '${jsonEncode(records.map((record) => record.toJson()).toList())}\n',
-    );
-  }
-
-  Future<void> _trashPendingDeleteRecord(_PendingDeleteRecord record) async {
-    if (record is _PendingSongDeleteRecord) {
-      await _trashPath(record.songPath);
-      return;
-    }
-
-    final localItemsRecord = record as _PendingLocalItemsDeleteRecord;
-    for (final targetPath in localItemsRecord.targetPaths) {
-      await _trashPath(targetPath);
-    }
-  }
-
-  File? _resolveWindowsUwpDatabaseFile() {
-    final localAppDataPath = Platform.environment['LOCALAPPDATA'];
-    if (localAppDataPath == null) {
-      return null;
-    }
-
-    final packagesDirectory = Directory(p.join(localAppDataPath, 'Packages'));
-    if (!packagesDirectory.existsSync()) {
-      return null;
-    }
-
-    final candidates =
-        packagesDirectory
-            .listSync()
-            .whereType<Directory>()
-            .where(
-              (entry) => p
-                  .basename(entry.path)
-                  .startsWith('${_legacyUwpPackageIdentityName}_'),
-            )
-            .map(
-              (entry) =>
-                  File(p.join(entry.path, 'LocalState', _smPlayerDatabaseName)),
-            )
-            .where((file) => file.existsSync())
-            .toList();
-
-    return selectWindowsUwpDatabaseCandidate(candidates);
-  }
-}
-
-_WindowsUwpDatabaseCandidateScore _scoreWindowsUwpDatabaseCandidate(File file) {
-  return _WindowsUwpDatabaseCandidateScore(
-    file: file,
-    updatedAt: file.lastModifiedSync().millisecondsSinceEpoch,
-    existingSampleCount: _readWindowsUwpDatabaseExistingSampleCount(file),
-  );
-}
-
-int _readWindowsUwpDatabaseExistingSampleCount(File file) {
-  Database? db;
-  try {
-    db = sqlite3.open(file.path);
-    final hasMusicTable =
-        db.select('''
-          SELECT 1 AS found
-          FROM sqlite_master
-          WHERE type = 'table'
-            AND name = 'Music'
-          LIMIT 1
-        ''').isNotEmpty;
-    if (!hasMusicTable) {
-      return 0;
-    }
-
-    final rows = db.select(
-      '''
-      SELECT Path AS path
-      FROM Music
-      WHERE State = ?
-      ORDER BY Id
-      LIMIT 96
-    ''',
-      [_activeState],
-    );
-    return rows.where((row) => File(row['path'] as String).existsSync()).length;
-  } on Object {
-    return 0;
-  } finally {
-    db?.dispose();
+    return _paths.resolvePendingSongDeletesFile();
   }
 }
 
@@ -7320,513 +2655,6 @@ bool _hasLegacyStartupArtistSplitCandidates(Database db) {
   return _tableExists(db, 'Music') &&
       _tableHasRows(db, 'Music') &&
       !_tableExists(db, 'MusicArtist');
-}
-
-Database _openInitializedLibraryDatabase(File databaseFile) {
-  databaseFile.parent.createSync(recursive: true);
-  final db = sqlite3.open(databaseFile.path);
-  _initializeLibrarySchema(db);
-  return db;
-}
-
-void _initializeLibrarySchema(Database db) {
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS Settings (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      RootPath TEXT DEFAULT '',
-      LastMusicIndex INTEGER DEFAULT -1,
-      Mode INTEGER DEFAULT 0,
-      Volume REAL DEFAULT 50,
-      IsNavigationCollapsed INTEGER DEFAULT 1,
-      ThemeColor TEXT DEFAULT '#0078D7',
-      NightMode INTEGER DEFAULT 3,
-      NightModeStartTime TEXT DEFAULT '20:00',
-      NightModeEndTime TEXT DEFAULT '06:00',
-      NotificationSend INTEGER DEFAULT 1,
-      NotificationDisplay INTEGER DEFAULT 1,
-      LastPage TEXT DEFAULT '',
-      LastPlaylist INTEGER DEFAULT 0,
-      LocalViewMode INTEGER DEFAULT 0,
-      MyFavorites INTEGER DEFAULT 0,
-      NowPlaying INTEGER DEFAULT 0,
-      MiniModeWithDropdown INTEGER DEFAULT 0,
-      IsMuted INTEGER DEFAULT 0,
-      AutoPlay INTEGER DEFAULT 0,
-      ShuffleAfterOneRound INTEGER DEFAULT 1,
-      AutoLyrics INTEGER DEFAULT 1,
-      SaveMusicProgress INTEGER DEFAULT 1,
-      MusicProgress REAL DEFAULT 0,
-      MusicLibraryCriterion INTEGER DEFAULT 0,
-      AlbumsCriterion INTEGER DEFAULT -1,
-      HideMultiSelectCommandBarAfterOperation INTEGER DEFAULT 1,
-      ShowCount INTEGER DEFAULT 1,
-      ShowLyricsInNotification INTEGER DEFAULT 0,
-      VoiceAssistantPreferredLanguage INTEGER DEFAULT 0,
-      SearchArtistsCriterion INTEGER DEFAULT -1,
-      SearchAlbumsCriterion INTEGER DEFAULT -1,
-      SearchSongsCriterion INTEGER DEFAULT -1,
-      SearchPlaylistsCriterion INTEGER DEFAULT -1,
-      SearchFoldersCriterion INTEGER DEFAULT -1,
-      LastReleaseNotesVersion TEXT DEFAULT '',
-      RemotePlayPassword TEXT DEFAULT '',
-      UseFilenameNotMusicName INTEGER DEFAULT 0,
-      SmartMultiArtistRecognition INTEGER DEFAULT 1,
-      NotificationLyricsSource INTEGER DEFAULT 0,
-      PlayerLyricsSource INTEGER DEFAULT 3,
-      SaveLyricsImmediately INTEGER DEFAULT 0,
-      PreserveInternetLyricsTimestamps INTEGER DEFAULT 1,
-      DesktopLyricsEnabled INTEGER DEFAULT 0,
-      DesktopLyricsLocked INTEGER DEFAULT 0,
-      DesktopLyricsColor TEXT DEFAULT '#4aa8ff',
-      DesktopLyricsStrokeColor TEXT DEFAULT '#111111',
-      DesktopLyricsFontSize INTEGER DEFAULT 28,
-      DesktopLyricsFontFamily TEXT DEFAULT 'system',
-      DesktopLyricsOpacity INTEGER DEFAULT 88,
-      DesktopLyricsBounds TEXT DEFAULT '',
-      MainWindowBounds TEXT DEFAULT '',
-      MainWindowMaximized INTEGER DEFAULT 0,
-      QuitOnClose INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS Music (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Path TEXT NOT NULL,
-      Name TEXT DEFAULT '',
-      Artist TEXT DEFAULT '',
-      Album TEXT DEFAULT '',
-      AlbumId INTEGER DEFAULT 0,
-      ThumbnailPath TEXT DEFAULT '',
-      Duration INTEGER DEFAULT 0,
-      PlayCount INTEGER DEFAULT 0,
-      LyricsOffsetMs INTEGER DEFAULT 0,
-      DateAdded TEXT DEFAULT '',
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS Album (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name TEXT NOT NULL,
-      Artist TEXT DEFAULT '',
-      ArtworkPath TEXT DEFAULT '',
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  _createMusicArtistTable(db);
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS Folder (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Path TEXT NOT NULL,
-      Criterion INTEGER DEFAULT 0,
-      ParentId INTEGER DEFAULT 0,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS File (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Path TEXT NOT NULL,
-      ParentId INTEGER DEFAULT 0,
-      FileId INTEGER DEFAULT 0,
-      FileType INTEGER DEFAULT 0,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS Playlist (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name TEXT NOT NULL,
-      Criterion INTEGER DEFAULT -1,
-      Priority INTEGER DEFAULT -1,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS PlaylistItem (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      PlaylistId INTEGER NOT NULL,
-      ItemId INTEGER NOT NULL,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS PreferenceSetting (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Songs INTEGER DEFAULT 0,
-      Artists INTEGER DEFAULT 0,
-      Albums INTEGER DEFAULT 0,
-      Playlists INTEGER DEFAULT 0,
-      Folders INTEGER DEFAULT 0,
-      RecentAddedId INTEGER DEFAULT 0,
-      MyFavoritesId INTEGER DEFAULT 0,
-      MostPlayedId INTEGER DEFAULT 0,
-      LeastPlayedId INTEGER DEFAULT 0
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS PreferenceItem (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Type INTEGER DEFAULT 0,
-      ItemId TEXT DEFAULT '',
-      ItemName TEXT DEFAULT '',
-      IsEnabled INTEGER DEFAULT 0,
-      Level INTEGER DEFAULT 0,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS RecentRecord (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Type INTEGER DEFAULT 0,
-      ItemId TEXT DEFAULT '',
-      Time TEXT DEFAULT '',
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS SearchState (
-      Id INTEGER PRIMARY KEY CHECK (Id = 1),
-      LastQuery TEXT DEFAULT ''
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS SearchHistory (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Query TEXT NOT NULL,
-      Type TEXT DEFAULT 'sidebar',
-      SearchedAt TEXT DEFAULT ''
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS HiddenStorageItem (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Type TEXT NOT NULL,
-      Path TEXT NOT NULL,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS RemoteSetting (
-      Id INTEGER PRIMARY KEY CHECK (Id = 1),
-      DeviceId TEXT NOT NULL,
-      DeviceName TEXT DEFAULT '',
-      ShareEnabled INTEGER DEFAULT 0,
-      Port INTEGER DEFAULT 8023,
-      Password TEXT DEFAULT ''
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS AuthorizedDevice (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      DeviceId TEXT DEFAULT '',
-      DeviceName TEXT DEFAULT '',
-      Platform TEXT DEFAULT '',
-      Browser TEXT DEFAULT '',
-      Ip TEXT NOT NULL,
-      TokenHash TEXT DEFAULT '',
-      Auth INTEGER DEFAULT 1,
-      State INTEGER DEFAULT 1,
-      CreateTime TEXT DEFAULT '',
-      UpdateTime TEXT DEFAULT '',
-      LastSeenTime TEXT DEFAULT ''
-    )
-  ''');
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS RemoteHost (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      HostId TEXT NOT NULL,
-      Name TEXT DEFAULT '',
-      BaseUrl TEXT NOT NULL,
-      Platform TEXT DEFAULT '',
-      Token TEXT DEFAULT '',
-      State INTEGER DEFAULT 1,
-      CreateTime TEXT DEFAULT '',
-      UpdateTime TEXT DEFAULT '',
-      LastConnectedTime TEXT DEFAULT ''
-    )
-  ''');
-  _ensureLibrarySchemaColumns(db);
-  if (!_tableHasRows(db, 'Settings')) {
-    db.execute('INSERT INTO Settings DEFAULT VALUES');
-  }
-  db.execute(
-    "INSERT OR IGNORE INTO SearchState (Id, LastQuery) VALUES (1, '')",
-  );
-  db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_music_path ON Music(Path)');
-  db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_album_name
-      ON Album(Name COLLATE NOCASE)
-  ''');
-  db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_music_artist_music_name
-      ON MusicArtist(MusicId, Name COLLATE NOCASE)
-  ''');
-  db.execute(
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_path ON Folder(Path)',
-  );
-  db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_file_path ON File(Path)');
-  db.execute('CREATE INDEX IF NOT EXISTS idx_playlist_name ON Playlist(Name)');
-  db.execute('DROP INDEX IF EXISTS idx_search_history_query_nocase');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_search_history_query_lookup
-      ON SearchHistory(Query COLLATE NOCASE, Type)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_music_artist_name
-      ON MusicArtist(Name COLLATE NOCASE)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_music_artist_music ON MusicArtist(MusicId)
-  ''');
-  db.execute(
-    'CREATE INDEX IF NOT EXISTS idx_folder_parent ON Folder(ParentId)',
-  );
-  db.execute('CREATE INDEX IF NOT EXISTS idx_file_parent ON File(ParentId)');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_playlist_item_playlist
-      ON PlaylistItem(PlaylistId)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_playlist_item_item ON PlaylistItem(ItemId)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_recent_record_type ON RecentRecord(Type)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_preference_item_type_item
-      ON PreferenceItem(Type, ItemId)
-  ''');
-  db.execute('''
-    CREATE INDEX IF NOT EXISTS idx_search_history_time
-      ON SearchHistory(SearchedAt)
-  ''');
-  db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_hidden_storage_item_type_path
-      ON HiddenStorageItem(Type, Path)
-  ''');
-}
-
-void _ensureLibrarySchemaColumns(Database db) {
-  _addColumnsIfMissing(db, 'Settings', {
-    'RootPath': "TEXT DEFAULT ''",
-    'LastMusicIndex': 'INTEGER DEFAULT -1',
-    'Mode': 'INTEGER DEFAULT 0',
-    'Volume': 'REAL DEFAULT 50',
-    'IsNavigationCollapsed': 'INTEGER DEFAULT 1',
-    'ThemeColor': "TEXT DEFAULT '#0078D7'",
-    'NightMode': 'INTEGER DEFAULT 3',
-    'NightModeStartTime': "TEXT DEFAULT '20:00'",
-    'NightModeEndTime': "TEXT DEFAULT '06:00'",
-    'NotificationSend': 'INTEGER DEFAULT 1',
-    'NotificationDisplay': 'INTEGER DEFAULT 1',
-    'LastPage': "TEXT DEFAULT ''",
-    'LastPlaylist': 'INTEGER DEFAULT 0',
-    'LocalViewMode': 'INTEGER DEFAULT 0',
-    'MyFavorites': 'INTEGER DEFAULT 0',
-    'NowPlaying': 'INTEGER DEFAULT 0',
-    'MiniModeWithDropdown': 'INTEGER DEFAULT 0',
-    'IsMuted': 'INTEGER DEFAULT 0',
-    'AutoPlay': 'INTEGER DEFAULT 0',
-    'ShuffleAfterOneRound': 'INTEGER DEFAULT 1',
-    'AutoLyrics': 'INTEGER DEFAULT 1',
-    'SaveMusicProgress': 'INTEGER DEFAULT 1',
-    'MusicProgress': 'REAL DEFAULT 0',
-    'MusicLibraryCriterion': 'INTEGER DEFAULT 0',
-    'AlbumsCriterion': 'INTEGER DEFAULT -1',
-    'HideMultiSelectCommandBarAfterOperation': 'INTEGER DEFAULT 1',
-    'ShowCount': 'INTEGER DEFAULT 1',
-    'ShowLyricsInNotification': 'INTEGER DEFAULT 0',
-    'VoiceAssistantPreferredLanguage': 'INTEGER DEFAULT 0',
-    'SearchArtistsCriterion': 'INTEGER DEFAULT -1',
-    'SearchAlbumsCriterion': 'INTEGER DEFAULT -1',
-    'SearchSongsCriterion': 'INTEGER DEFAULT -1',
-    'SearchPlaylistsCriterion': 'INTEGER DEFAULT -1',
-    'SearchFoldersCriterion': 'INTEGER DEFAULT -1',
-    'LastReleaseNotesVersion': "TEXT DEFAULT ''",
-    'RemotePlayPassword': "TEXT DEFAULT ''",
-    'UseFilenameNotMusicName': 'INTEGER DEFAULT 0',
-    'SmartMultiArtistRecognition': 'INTEGER DEFAULT 1',
-    'NotificationLyricsSource': 'INTEGER DEFAULT 0',
-    'PlayerLyricsSource': 'INTEGER DEFAULT 3',
-    'SaveLyricsImmediately': 'INTEGER DEFAULT 0',
-    'PreserveInternetLyricsTimestamps': 'INTEGER DEFAULT 1',
-    'DesktopLyricsEnabled': 'INTEGER DEFAULT 0',
-    'DesktopLyricsLocked': 'INTEGER DEFAULT 0',
-    'DesktopLyricsColor': "TEXT DEFAULT '#4aa8ff'",
-    'DesktopLyricsStrokeColor': "TEXT DEFAULT '#111111'",
-    'DesktopLyricsFontSize': 'INTEGER DEFAULT 28',
-    'DesktopLyricsFontFamily': "TEXT DEFAULT 'system'",
-    'DesktopLyricsOpacity': 'INTEGER DEFAULT 88',
-    'DesktopLyricsBounds': "TEXT DEFAULT ''",
-    'MainWindowBounds': "TEXT DEFAULT ''",
-    'MainWindowMaximized': 'INTEGER DEFAULT 0',
-    'QuitOnClose': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'Music', {
-    'Path': "TEXT DEFAULT ''",
-    'Name': "TEXT DEFAULT ''",
-    'Artist': "TEXT DEFAULT ''",
-    'Album': "TEXT DEFAULT ''",
-    'AlbumId': 'INTEGER DEFAULT 0',
-    'ThumbnailPath': "TEXT DEFAULT ''",
-    'Duration': 'INTEGER DEFAULT 0',
-    'PlayCount': 'INTEGER DEFAULT 0',
-    'LyricsOffsetMs': 'INTEGER DEFAULT 0',
-    'DateAdded': "TEXT DEFAULT ''",
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'Album', {
-    'Name': "TEXT DEFAULT ''",
-    'Artist': "TEXT DEFAULT ''",
-    'ArtworkPath': "TEXT DEFAULT ''",
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'MusicArtist', {
-    'MusicId': 'INTEGER DEFAULT 0',
-    'Name': "TEXT DEFAULT ''",
-    'Priority': 'INTEGER DEFAULT 0',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'Folder', {
-    'Path': "TEXT DEFAULT ''",
-    'Criterion': 'INTEGER DEFAULT 0',
-    'ParentId': 'INTEGER DEFAULT 0',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'File', {
-    'Path': "TEXT DEFAULT ''",
-    'ParentId': 'INTEGER DEFAULT 0',
-    'FileId': 'INTEGER DEFAULT 0',
-    'FileType': 'INTEGER DEFAULT 0',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'Playlist', {
-    'Name': "TEXT DEFAULT ''",
-    'Criterion': 'INTEGER DEFAULT -1',
-    'Priority': 'INTEGER DEFAULT -1',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'PlaylistItem', {
-    'PlaylistId': 'INTEGER DEFAULT 0',
-    'ItemId': 'INTEGER DEFAULT 0',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'PreferenceSetting', {
-    'Songs': 'INTEGER DEFAULT 0',
-    'Artists': 'INTEGER DEFAULT 0',
-    'Albums': 'INTEGER DEFAULT 0',
-    'Playlists': 'INTEGER DEFAULT 0',
-    'Folders': 'INTEGER DEFAULT 0',
-    'RecentAddedId': 'INTEGER DEFAULT 0',
-    'MyFavoritesId': 'INTEGER DEFAULT 0',
-    'MostPlayedId': 'INTEGER DEFAULT 0',
-    'LeastPlayedId': 'INTEGER DEFAULT 0',
-  });
-  _addColumnsIfMissing(db, 'PreferenceItem', {
-    'Type': 'INTEGER DEFAULT 0',
-    'ItemId': "TEXT DEFAULT ''",
-    'ItemName': "TEXT DEFAULT ''",
-    'IsEnabled': 'INTEGER DEFAULT 0',
-    'Level': 'INTEGER DEFAULT 0',
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'RecentRecord', {
-    'Type': 'INTEGER DEFAULT 0',
-    'ItemId': "TEXT DEFAULT ''",
-    'Time': "TEXT DEFAULT ''",
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'SearchState', {'LastQuery': "TEXT DEFAULT ''"});
-  _addColumnsIfMissing(db, 'SearchHistory', {
-    'Query': "TEXT DEFAULT ''",
-    'Type': "TEXT DEFAULT 'sidebar'",
-    'SearchedAt': "TEXT DEFAULT ''",
-  });
-  _addColumnsIfMissing(db, 'HiddenStorageItem', {
-    'Type': "TEXT DEFAULT ''",
-    'Path': "TEXT DEFAULT ''",
-    'State': 'INTEGER DEFAULT 1',
-  });
-  _addColumnsIfMissing(db, 'RemoteSetting', {
-    'DeviceId': "TEXT DEFAULT ''",
-    'DeviceName': "TEXT DEFAULT ''",
-    'ShareEnabled': 'INTEGER DEFAULT 0',
-    'Port': 'INTEGER DEFAULT 8023',
-    'Password': "TEXT DEFAULT ''",
-  });
-  _addColumnsIfMissing(db, 'AuthorizedDevice', {
-    'DeviceId': "TEXT DEFAULT ''",
-    'DeviceName': "TEXT DEFAULT ''",
-    'Platform': "TEXT DEFAULT ''",
-    'Browser': "TEXT DEFAULT ''",
-    'Ip': "TEXT DEFAULT ''",
-    'TokenHash': "TEXT DEFAULT ''",
-    'Auth': 'INTEGER DEFAULT 1',
-    'State': 'INTEGER DEFAULT 1',
-    'CreateTime': "TEXT DEFAULT ''",
-    'UpdateTime': "TEXT DEFAULT ''",
-    'LastSeenTime': "TEXT DEFAULT ''",
-  });
-  _addColumnsIfMissing(db, 'RemoteHost', {
-    'HostId': "TEXT DEFAULT ''",
-    'Name': "TEXT DEFAULT ''",
-    'BaseUrl': "TEXT DEFAULT ''",
-    'Platform': "TEXT DEFAULT ''",
-    'Token': "TEXT DEFAULT ''",
-    'State': 'INTEGER DEFAULT 1',
-    'CreateTime': "TEXT DEFAULT ''",
-    'UpdateTime': "TEXT DEFAULT ''",
-    'LastConnectedTime': "TEXT DEFAULT ''",
-  });
-}
-
-void _addColumnsIfMissing(
-  Database db,
-  String tableName,
-  Map<String, String> columns,
-) {
-  final existingColumns =
-      db
-          .select("PRAGMA table_info('$tableName')")
-          .map((row) => row['name'] as String)
-          .toSet();
-  for (final entry in columns.entries) {
-    if (!existingColumns.contains(entry.key)) {
-      db.execute(
-        'ALTER TABLE $tableName ADD COLUMN ${entry.key} ${entry.value}',
-      );
-    }
-  }
-}
-
-void _createMusicArtistTable(Database db) {
-  db.execute('''
-    CREATE TABLE IF NOT EXISTS MusicArtist (
-      Id INTEGER PRIMARY KEY AUTOINCREMENT,
-      MusicId INTEGER,
-      Name TEXT,
-      Priority INTEGER DEFAULT 0,
-      State INTEGER DEFAULT 1
-    )
-  ''');
-}
-
-class _WindowsUwpDatabaseCandidateScore {
-  const _WindowsUwpDatabaseCandidateScore({
-    required this.file,
-    required this.updatedAt,
-    required this.existingSampleCount,
-  });
-
-  final File file;
-  final int updatedAt;
-  final int existingSampleCount;
-}
-
-String _getFileParentPath(String filePath) {
-  final separatorIndex = filePath.lastIndexOf(RegExp(r'[\\/]'));
-  return separatorIndex > -1 ? filePath.substring(0, separatorIndex) : '';
 }
 
 bool _isPathInsideFolder(String itemPath, String folderPath) {
@@ -7942,57 +2770,6 @@ MusicLibrarySortCriterion _fromStoredSortCriterion(int value) {
   }
 }
 
-PlaylistSortCriterion _fromStoredPlaylistSortCriterion(int value) {
-  switch (value) {
-    case 1:
-      return PlaylistSortCriterion.artist;
-    case 2:
-      return PlaylistSortCriterion.album;
-    case 3:
-      return PlaylistSortCriterion.duration;
-    case 4:
-      return PlaylistSortCriterion.playCount;
-    case 5:
-      return PlaylistSortCriterion.dateAdded;
-    default:
-      return PlaylistSortCriterion.title;
-  }
-}
-
-SearchHistoryType _fromStoredSearchHistoryType(String value) {
-  switch (value) {
-    case 'artists':
-      return SearchHistoryType.artists;
-    case 'albums':
-      return SearchHistoryType.albums;
-    case 'songs':
-      return SearchHistoryType.songs;
-    case 'playlists':
-      return SearchHistoryType.playlists;
-    case 'folders':
-      return SearchHistoryType.folders;
-    default:
-      return SearchHistoryType.sidebar;
-  }
-}
-
-String _toStoredSearchHistoryType(SearchHistoryType value) {
-  switch (value) {
-    case SearchHistoryType.artists:
-      return 'artists';
-    case SearchHistoryType.albums:
-      return 'albums';
-    case SearchHistoryType.songs:
-      return 'songs';
-    case SearchHistoryType.playlists:
-      return 'playlists';
-    case SearchHistoryType.folders:
-      return 'folders';
-    case SearchHistoryType.sidebar:
-      return 'sidebar';
-  }
-}
-
 int _toStoredSortCriterion(MusicLibrarySortCriterion value) {
   switch (value) {
     case MusicLibrarySortCriterion.artist:
@@ -8033,315 +2810,8 @@ int _toStoredAlbumSortCriterion(AlbumSortCriterion value) {
   }
 }
 
-settings.NightMode _nightModeFromValue(int value) {
-  return switch (value) {
-    0 => settings.NightMode.auto,
-    1 => settings.NightMode.onMode,
-    3 => settings.NightMode.system,
-    _ => settings.NightMode.never,
-  };
-}
-
-int _nightModeValue(settings.NightMode mode) {
-  return switch (mode) {
-    settings.NightMode.auto => 0,
-    settings.NightMode.onMode => 1,
-    settings.NightMode.never => 2,
-    settings.NightMode.system => 3,
-  };
-}
-
-settings.NotificationSendMode _notificationSendFromValue(int value) {
-  return value == 0
-      ? settings.NotificationSendMode.never
-      : settings.NotificationSendMode.musicChanged;
-}
-
-int _notificationSendValue(settings.NotificationSendMode mode) {
-  return switch (mode) {
-    settings.NotificationSendMode.never => 0,
-    settings.NotificationSendMode.musicChanged => 1,
-  };
-}
-
-settings.NotificationDisplayMode _notificationDisplayFromValue(int value) {
-  return switch (value) {
-    0 => settings.NotificationDisplayMode.reminder,
-    2 => settings.NotificationDisplayMode.quick,
-    _ => settings.NotificationDisplayMode.normal,
-  };
-}
-
-int _notificationDisplayValue(settings.NotificationDisplayMode mode) {
-  return switch (mode) {
-    settings.NotificationDisplayMode.reminder => 0,
-    settings.NotificationDisplayMode.normal => 1,
-    settings.NotificationDisplayMode.quick => 2,
-  };
-}
-
-settings.LyricsRequestMode _lyricsRequestModeFromValue(int value) {
-  return switch (value) {
-    1 => settings.LyricsRequestMode.local,
-    2 => settings.LyricsRequestMode.embedded,
-    3 => settings.LyricsRequestMode.auto,
-    _ => settings.LyricsRequestMode.internet,
-  };
-}
-
-int _lyricsRequestModeValue(settings.LyricsRequestMode mode) {
-  return switch (mode) {
-    settings.LyricsRequestMode.internet => 0,
-    settings.LyricsRequestMode.local => 1,
-    settings.LyricsRequestMode.embedded => 2,
-    settings.LyricsRequestMode.auto => 3,
-  };
-}
-
-settings.PreferredLanguage _preferredLanguageFromValue(int value) {
-  return switch (value) {
-    1 => settings.PreferredLanguage.enUS,
-    2 => settings.PreferredLanguage.zhCN,
-    3 => settings.PreferredLanguage.fr,
-    4 => settings.PreferredLanguage.ru,
-    5 => settings.PreferredLanguage.ja,
-    6 => settings.PreferredLanguage.de,
-    7 => settings.PreferredLanguage.ptBR,
-    8 => settings.PreferredLanguage.es,
-    9 => settings.PreferredLanguage.it,
-    10 => settings.PreferredLanguage.zhHant,
-    11 => settings.PreferredLanguage.nl,
-    12 => settings.PreferredLanguage.cs,
-    13 => settings.PreferredLanguage.uk,
-    14 => settings.PreferredLanguage.sv,
-    15 => settings.PreferredLanguage.id,
-    _ => settings.PreferredLanguage.system,
-  };
-}
-
-int _preferredLanguageValue(settings.PreferredLanguage language) {
-  return switch (language) {
-    settings.PreferredLanguage.system => 0,
-    settings.PreferredLanguage.enUS => 1,
-    settings.PreferredLanguage.zhCN => 2,
-    settings.PreferredLanguage.fr => 3,
-    settings.PreferredLanguage.ru => 4,
-    settings.PreferredLanguage.ja => 5,
-    settings.PreferredLanguage.de => 6,
-    settings.PreferredLanguage.ptBR => 7,
-    settings.PreferredLanguage.es => 8,
-    settings.PreferredLanguage.it => 9,
-    settings.PreferredLanguage.zhHant => 10,
-    settings.PreferredLanguage.nl => 11,
-    settings.PreferredLanguage.cs => 12,
-    settings.PreferredLanguage.uk => 13,
-    settings.PreferredLanguage.sv => 14,
-    settings.PreferredLanguage.id => 15,
-  };
-}
-
-settings.MusicLibrarySortCriterion _settingsMusicLibrarySortFromValue(
-  int value,
-) {
-  return switch (value) {
-    1 => settings.MusicLibrarySortCriterion.artist,
-    2 => settings.MusicLibrarySortCriterion.album,
-    3 => settings.MusicLibrarySortCriterion.duration,
-    4 => settings.MusicLibrarySortCriterion.playCount,
-    5 => settings.MusicLibrarySortCriterion.dateAdded,
-    _ => settings.MusicLibrarySortCriterion.title,
-  };
-}
-
-int _musicLibrarySortValue(settings.MusicLibrarySortCriterion value) {
-  return switch (value) {
-    settings.MusicLibrarySortCriterion.artist => 1,
-    settings.MusicLibrarySortCriterion.album => 2,
-    settings.MusicLibrarySortCriterion.duration => 3,
-    settings.MusicLibrarySortCriterion.playCount => 4,
-    settings.MusicLibrarySortCriterion.dateAdded => 5,
-    settings.MusicLibrarySortCriterion.title => 0,
-  };
-}
-
-settings.AlbumSortCriterion _settingsAlbumSortFromValue(int value) {
-  return switch (value) {
-    1 => settings.AlbumSortCriterion.artist,
-    6 => settings.AlbumSortCriterion.name,
-    _ => settings.AlbumSortCriterion.defaultCriterion,
-  };
-}
-
-int _albumSortValue(settings.AlbumSortCriterion value) {
-  return switch (value) {
-    settings.AlbumSortCriterion.artist => 1,
-    settings.AlbumSortCriterion.name => 6,
-    settings.AlbumSortCriterion.defaultCriterion ||
-    settings.AlbumSortCriterion.reverse => -1,
-  };
-}
-
-settings.SearchSortCriterion _searchSortFromValue(int value) {
-  return switch (value) {
-    1 => settings.SearchSortCriterion.artist,
-    2 => settings.SearchSortCriterion.album,
-    3 => settings.SearchSortCriterion.duration,
-    4 => settings.SearchSortCriterion.playCount,
-    5 => settings.SearchSortCriterion.dateAdded,
-    6 => settings.SearchSortCriterion.name,
-    7 => settings.SearchSortCriterion.title,
-    _ => settings.SearchSortCriterion.defaultCriterion,
-  };
-}
-
-int _searchSortValue(settings.SearchSortCriterion value) {
-  return switch (value) {
-    settings.SearchSortCriterion.artist => 1,
-    settings.SearchSortCriterion.album => 2,
-    settings.SearchSortCriterion.duration => 3,
-    settings.SearchSortCriterion.playCount => 4,
-    settings.SearchSortCriterion.dateAdded => 5,
-    settings.SearchSortCriterion.name => 6,
-    settings.SearchSortCriterion.title => 7,
-    settings.SearchSortCriterion.defaultCriterion => -1,
-  };
-}
-
-settings.PlaybackMode _playbackModeFromValue(int value) {
-  return switch (value) {
-    1 => settings.PlaybackMode.repeat,
-    2 => settings.PlaybackMode.repeatOne,
-    3 => settings.PlaybackMode.shuffle,
-    _ => settings.PlaybackMode.once,
-  };
-}
-
-int _playbackModeValue(settings.PlaybackMode value) {
-  return switch (value) {
-    settings.PlaybackMode.repeat => 1,
-    settings.PlaybackMode.repeatOne => 2,
-    settings.PlaybackMode.shuffle => 3,
-    settings.PlaybackMode.once => 0,
-  };
-}
-
 settings.LocalViewMode _localViewModeFromValue(int value) {
   return value == 1 ? settings.LocalViewMode.list : settings.LocalViewMode.grid;
-}
-
-int _localViewModeValue(settings.LocalViewMode value) {
-  return value == settings.LocalViewMode.list ? 1 : 0;
-}
-
-int _boolValue(bool value) {
-  return value ? 1 : 0;
-}
-
-int _toPreferenceEntityValue(String type) {
-  return switch (type) {
-    'song' => 0,
-    'artist' => 1,
-    'album' => 2,
-    'playlist' => 3,
-    'folder' => 4,
-    'recent-added' => 5,
-    'my-favorites' => 6,
-    'most-played' => 7,
-    'least-played' => 8,
-    _ => throw ArgumentError.value(type, 'type'),
-  };
-}
-
-PreferenceEntityType _preferenceEntityTypeFromValue(int type) {
-  return switch (type) {
-    0 => PreferenceEntityType.song,
-    1 => PreferenceEntityType.artist,
-    2 => PreferenceEntityType.album,
-    3 => PreferenceEntityType.playlist,
-    4 => PreferenceEntityType.folder,
-    5 => PreferenceEntityType.recentAdded,
-    6 => PreferenceEntityType.myFavorites,
-    7 => PreferenceEntityType.mostPlayed,
-    8 => PreferenceEntityType.leastPlayed,
-    _ => throw ArgumentError.value(type, 'type'),
-  };
-}
-
-String _preferenceEntityTypeName(PreferenceEntityType type) {
-  return switch (type) {
-    PreferenceEntityType.song => 'song',
-    PreferenceEntityType.artist => 'artist',
-    PreferenceEntityType.album => 'album',
-    PreferenceEntityType.playlist => 'playlist',
-    PreferenceEntityType.folder => 'folder',
-    PreferenceEntityType.recentAdded => 'recent-added',
-    PreferenceEntityType.myFavorites => 'my-favorites',
-    PreferenceEntityType.mostPlayed => 'most-played',
-    PreferenceEntityType.leastPlayed => 'least-played',
-  };
-}
-
-int _toPreferenceLevelValue(String level) {
-  return switch (level) {
-    'do-not-appear' => 0,
-    'dislike' => -1,
-    'normal' => 1,
-    'high' => 2,
-    'higher' => 3,
-    'very-high' => 4,
-    _ => throw ArgumentError.value(level, 'level'),
-  };
-}
-
-PreferenceLevel _preferenceLevelFromValue(int level) {
-  return switch (level) {
-    0 => PreferenceLevel.doNotAppear,
-    -1 => PreferenceLevel.dislike,
-    2 => PreferenceLevel.high,
-    3 => PreferenceLevel.higher,
-    4 => PreferenceLevel.veryHigh,
-    _ => PreferenceLevel.normal,
-  };
-}
-
-String _preferenceLevelName(PreferenceLevel level) {
-  return switch (level) {
-    PreferenceLevel.doNotAppear => 'do-not-appear',
-    PreferenceLevel.dislike => 'dislike',
-    PreferenceLevel.normal => 'normal',
-    PreferenceLevel.high => 'high',
-    PreferenceLevel.higher => 'higher',
-    PreferenceLevel.veryHigh => 'very-high',
-  };
-}
-
-String _toPreferenceLevelName(int level) {
-  return switch (level) {
-    0 => 'do-not-appear',
-    -1 => 'dislike',
-    1 => 'normal',
-    2 => 'high',
-    3 => 'higher',
-    4 => 'very-high',
-    _ => 'normal',
-  };
-}
-
-String _preferenceSectionColumnName(PreferenceSectionKey key) {
-  return switch (key) {
-    PreferenceSectionKey.songs => 'Songs',
-    PreferenceSectionKey.artists => 'Artists',
-    PreferenceSectionKey.albums => 'Albums',
-    PreferenceSectionKey.playlists => 'Playlists',
-    PreferenceSectionKey.folders => 'Folders',
-  };
-}
-
-String _preferenceFolderName(String folderPath) {
-  final separatorIndex = folderPath.lastIndexOf(RegExp(r'[\\/]'));
-  return separatorIndex < 0
-      ? folderPath
-      : folderPath.substring(separatorIndex + 1);
 }
 
 int _toStoredLocalFolderSortCriterion(LocalFolderSortCriterion value) {
@@ -8357,37 +2827,8 @@ int _toStoredLocalFolderSortCriterion(LocalFolderSortCriterion value) {
   }
 }
 
-int _toStoredPlaylistSortCriterion(PlaylistSortCriterion value) {
-  switch (value) {
-    case PlaylistSortCriterion.artist:
-      return 1;
-    case PlaylistSortCriterion.album:
-      return 2;
-    case PlaylistSortCriterion.duration:
-      return 3;
-    case PlaylistSortCriterion.playCount:
-      return 4;
-    case PlaylistSortCriterion.dateAdded:
-      return 5;
-    case PlaylistSortCriterion.title:
-      return 0;
-  }
-}
-
-List<int> _uniqueSongIds(List<int> songIds) {
-  return songIds.map((songId) => songId).toSet().toList();
-}
-
 String _normalizeTagText(String value) {
   return value.trim();
-}
-
-List<String> _normalizeArtists(List<String> artists) {
-  return artists
-      .map(_normalizeTagText)
-      .where((artist) => artist.isNotEmpty)
-      .toSet()
-      .toList();
 }
 
 List<String> findScannableAudioFiles(
@@ -8496,246 +2937,4 @@ int _pathDepth(String path) {
 
 String _pathComparisonKey(String path) {
   return path.replaceAll('\\', '/').toLowerCase();
-}
-
-class _LyricsSongLookup {
-  const _LyricsSongLookup({
-    required this.title,
-    required this.artist,
-    required this.album,
-    required this.path,
-  });
-
-  final String title;
-  final String artist;
-  final String album;
-  final String path;
-}
-
-class LyricsBatchProgress {
-  const LyricsBatchProgress({
-    required this.currentIndex,
-    required this.total,
-    required this.currentSongTitle,
-    required this.saved,
-    required this.overwritten,
-    required this.skipped,
-    required this.missing,
-    required this.failed,
-    required this.backedUp,
-    required this.backupBytes,
-  });
-
-  final int currentIndex;
-  final int total;
-  final String currentSongTitle;
-  final int saved;
-  final int overwritten;
-  final int skipped;
-  final int missing;
-  final int failed;
-  final int backedUp;
-  final int backupBytes;
-}
-
-class LyricsBatchResult {
-  const LyricsBatchResult({
-    required this.total,
-    required this.saved,
-    required this.overwritten,
-    required this.skipped,
-    required this.missing,
-    required this.failed,
-    required this.backedUp,
-    required this.backupBytes,
-    required this.details,
-  });
-
-  final int total;
-  final int saved;
-  final int overwritten;
-  final int skipped;
-  final int missing;
-  final int failed;
-  final int backedUp;
-  final int backupBytes;
-  final List<LyricsBatchDetail> details;
-}
-
-enum LyricsBatchDetailResult { saved, overwritten, skipped, missing, failed }
-
-enum LyricsBatchSkipReason { alreadyExists, sameContent }
-
-class LyricsBatchDetail {
-  const LyricsBatchDetail({
-    required this.songId,
-    required this.title,
-    required this.artist,
-    required this.thumbnailPath,
-    required this.result,
-    this.reason,
-    this.sourceRawLyrics = '',
-    this.targetRawLyrics = '',
-  });
-
-  final int songId;
-  final String title;
-  final String artist;
-  final String thumbnailPath;
-  final LyricsBatchDetailResult result;
-  final LyricsBatchSkipReason? reason;
-  final String sourceRawLyrics;
-  final String targetRawLyrics;
-}
-
-class _LyricsSearchAttempt {
-  const _LyricsSearchAttempt({
-    required this.keyword,
-    required this.title,
-    required this.artist,
-  });
-
-  final String keyword;
-  final String title;
-  final String artist;
-}
-
-abstract class _PendingDeleteRecord {
-  const _PendingDeleteRecord();
-
-  String get id;
-
-  Map<String, Object?> toJson();
-}
-
-_PendingDeleteRecord _pendingDeleteRecordFromJson(Map<String, Object?> json) {
-  return json['type'] == 'local-items'
-      ? _PendingLocalItemsDeleteRecord.fromJson(json)
-      : _PendingSongDeleteRecord.fromJson(json);
-}
-
-class _PendingSongDeleteRecord extends _PendingDeleteRecord {
-  const _PendingSongDeleteRecord({
-    required this.id,
-    required this.songId,
-    required this.songPath,
-    required this.musicArtistIds,
-    required this.playlistItemIds,
-    required this.recentRecordIds,
-    required this.hiddenStorageItemIds,
-  }) : super();
-
-  factory _PendingSongDeleteRecord.fromJson(Map<String, Object?> json) {
-    return _PendingSongDeleteRecord(
-      id: json['id'] as String,
-      songId: json['songId'] as int,
-      songPath: json['songPath'] as String,
-      musicArtistIds: _intListFromJson(json['musicArtistIds']),
-      playlistItemIds: _intListFromJson(json['playlistItemIds']),
-      recentRecordIds: _intListFromJson(json['recentRecordIds']),
-      hiddenStorageItemIds: _intListFromJson(json['hiddenStorageItemIds']),
-    );
-  }
-
-  @override
-  final String id;
-  final int songId;
-  final String songPath;
-  final List<int> musicArtistIds;
-  final List<int> playlistItemIds;
-  final List<int> recentRecordIds;
-  final List<int> hiddenStorageItemIds;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {
-      'id': id,
-      'type': 'song',
-      'songId': songId,
-      'songPath': songPath,
-      'musicArtistIds': musicArtistIds,
-      'playlistItemIds': playlistItemIds,
-      'recentRecordIds': recentRecordIds,
-      'hiddenStorageItemIds': hiddenStorageItemIds,
-    };
-  }
-
-  static List<int> _intListFromJson(Object? value) {
-    return (value as List).map((item) => item as int).toList();
-  }
-}
-
-class _PendingLocalItemsDeleteRecord extends _PendingDeleteRecord {
-  const _PendingLocalItemsDeleteRecord({
-    required this.id,
-    required this.songIds,
-    required this.folderPaths,
-    required this.targetPaths,
-    required this.musicIds,
-    required this.musicArtistIds,
-    required this.playlistItemIds,
-    required this.recentRecordIds,
-    required this.hiddenStorageItemIds,
-    required this.folderIds,
-    required this.fileIds,
-  }) : super();
-
-  factory _PendingLocalItemsDeleteRecord.fromJson(Map<String, Object?> json) {
-    return _PendingLocalItemsDeleteRecord(
-      id: json['id'] as String,
-      songIds: _PendingSongDeleteRecord._intListFromJson(json['songIds']),
-      folderPaths: _stringListFromJson(json['folderPaths']),
-      targetPaths: _stringListFromJson(json['targetPaths']),
-      musicIds: _PendingSongDeleteRecord._intListFromJson(json['musicIds']),
-      musicArtistIds: _PendingSongDeleteRecord._intListFromJson(
-        json['musicArtistIds'],
-      ),
-      playlistItemIds: _PendingSongDeleteRecord._intListFromJson(
-        json['playlistItemIds'],
-      ),
-      recentRecordIds: _PendingSongDeleteRecord._intListFromJson(
-        json['recentRecordIds'],
-      ),
-      hiddenStorageItemIds: _PendingSongDeleteRecord._intListFromJson(
-        json['hiddenStorageItemIds'],
-      ),
-      folderIds: _PendingSongDeleteRecord._intListFromJson(json['folderIds']),
-      fileIds: _PendingSongDeleteRecord._intListFromJson(json['fileIds']),
-    );
-  }
-
-  @override
-  final String id;
-  final List<int> songIds;
-  final List<String> folderPaths;
-  final List<String> targetPaths;
-  final List<int> musicIds;
-  final List<int> musicArtistIds;
-  final List<int> playlistItemIds;
-  final List<int> recentRecordIds;
-  final List<int> hiddenStorageItemIds;
-  final List<int> folderIds;
-  final List<int> fileIds;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {
-      'id': id,
-      'type': 'local-items',
-      'songIds': songIds,
-      'folderPaths': folderPaths,
-      'targetPaths': targetPaths,
-      'musicIds': musicIds,
-      'musicArtistIds': musicArtistIds,
-      'playlistItemIds': playlistItemIds,
-      'recentRecordIds': recentRecordIds,
-      'hiddenStorageItemIds': hiddenStorageItemIds,
-      'folderIds': folderIds,
-      'fileIds': fileIds,
-    };
-  }
-
-  static List<String> _stringListFromJson(Object? value) {
-    return (value as List).map((item) => item as String).toList();
-  }
 }

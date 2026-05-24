@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 import '../data/library_models.dart';
+import 'artwork_floating_action_button.dart';
 import 'default_album_artwork.dart';
 
 class AlbumTileData {
@@ -214,24 +216,25 @@ class _AlbumHoverAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (details) {
-        onPressed(details.globalPosition);
-      },
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: _AlbumTileColors.actionSurface,
-          shape: BoxShape.circle,
-        ),
-        child: SizedBox.square(
-          dimension: 34,
-          child:
+    return Builder(
+      builder: (buttonContext) {
+        return ArtworkFloatingActionButton(
+          tooltip:
+              icon == FluentIcons.play_20_regular
+                  ? context.smPlayerI18n.t('context.play')
+                  : context.smPlayerI18n.t('context.addToPlaylist'),
+          size: 34,
+          iconSize: 17,
+          icon:
               icon == FluentIcons.play_20_regular
                   ? const SmPlayerPlayIcon(size: 17, color: Colors.white)
-                  : Icon(icon, size: 17, color: Colors.white),
-        ),
-      ),
+                  : Icon(icon),
+          onPressed: () {
+            final box = buttonContext.findRenderObject() as RenderBox;
+            onPressed(box.localToGlobal(Offset(0, box.size.height + 6)));
+          },
+        );
+      },
     );
   }
 }
@@ -243,7 +246,6 @@ class _AlbumTileColors {
   static const selectedShadow = Color(0x1f1f2a38);
   static const accentStrong = Color(0xff0063b1);
   static const selectSurface = Color(0xdfffffff);
-  static const actionSurface = Color(0xb81e2228);
   static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff5b697a);
 }

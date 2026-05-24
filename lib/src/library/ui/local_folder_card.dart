@@ -9,6 +9,7 @@ import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
+import 'artwork_floating_action_button.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
 import 'playlist_artwork.dart';
@@ -445,18 +446,18 @@ class _FolderCardActions extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _RoundAction(
+          ArtworkFloatingActionButton(
             tooltip: i18n.t('local.gridFolderPlayInfo', {'name': folder.name}),
-            icon: FluentIcons.play_20_regular,
+            icon: const SmPlayerPlayIcon(size: 20, color: Colors.white),
             onPressed:
                 folder.subtreeSongIds.isEmpty
                     ? null
                     : () => onPlayFolder(folder),
           ),
           const SizedBox(width: 10),
-          _RoundAction(
+          ArtworkFloatingActionButton(
             tooltip: i18n.t('context.addToPlaylist'),
-            icon: FluentIcons.add_20_regular,
+            icon: const Icon(FluentIcons.add_20_regular),
             onPressed:
                 folder.subtreeSongIds.isEmpty
                     ? null
@@ -474,39 +475,6 @@ class _FolderCardActions extends StatelessWidget {
 void _invokeAtButtonBottom(BuildContext context, ValueChanged<Offset> action) {
   final box = context.findRenderObject() as RenderBox;
   action(box.localToGlobal(Offset(0, box.size.height + 6)));
-}
-
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        style: IconButton.styleFrom(
-          fixedSize: const Size(48, 48),
-          backgroundColor: const Color(0xb81e2228),
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0x521e2228),
-          disabledForegroundColor: Colors.white54,
-        ),
-        onPressed: onPressed,
-        icon:
-            icon == FluentIcons.play_20_regular
-                ? const SmPlayerPlayIcon(size: 20)
-                : Icon(icon, size: 20),
-      ),
-    );
-  }
 }
 
 class _LocalIconAction extends StatelessWidget {

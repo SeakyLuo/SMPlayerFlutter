@@ -163,6 +163,42 @@ void main() {
     expect(find.byTooltip('Close'), findsOneWidget);
   });
 
+  testWidgets('ArtistsPage appbar search mirrors Electron night focus style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _ArtistsAppBarPortalTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        brightness: Brightness.dark,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Artists.AppBar.Search')));
+    await tester.pumpAndSettle();
+
+    final fieldDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: find.byKey(
+                          const ValueKey('Artists.AppBar.SearchField'),
+                        ),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+
+    expect(fieldDecoration.color, const Color(0x240078d7));
+    expect(fieldDecoration.border, Border.all(color: Colors.transparent));
+    expect(fieldDecoration.boxShadow?.single.color, const Color(0x240078d7));
+    expect(fieldDecoration.boxShadow?.single.spreadRadius, 3);
+  });
+
   test('formatDuration matches Electron hour display', () {
     expect(formatDuration(65), '1:05');
     expect(formatDuration(3661), '1:01:01');
@@ -1035,10 +1071,12 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
   const _ArtistsAppBarPortalTestApp({
     required this.snapshot,
     required this.i18n,
+    this.brightness = Brightness.light,
   });
 
   final LibraryViewData snapshot;
   final SmPlayerI18n i18n;
+  final Brightness brightness;
 
   @override
   Widget build(BuildContext context) {
@@ -1050,7 +1088,7 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: _artistsPageTestTheme(),
+          theme: _artistsPageTestTheme(brightness: brightness),
           home: Scaffold(
             body: Column(
               children: [
@@ -1075,8 +1113,16 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
   }
 }
 
-ThemeData _artistsPageTestTheme() {
-  return ThemeData(extensions: const [DefaultAlbumArtworkThemeColors.light]);
+ThemeData _artistsPageTestTheme({Brightness brightness = Brightness.light}) {
+  final dark = brightness == Brightness.dark;
+  return ThemeData(
+    brightness: brightness,
+    extensions: [
+      dark
+          ? DefaultAlbumArtworkThemeColors.dark
+          : DefaultAlbumArtworkThemeColors.light,
+    ],
+  );
 }
 
 class _ArtistsSnapshotRouterTestApp extends StatelessWidget {

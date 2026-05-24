@@ -634,6 +634,7 @@ void main() {
               onScanLibrary: (rootPath, {cancellation, onProgress}) {
                 expect(rootPath, '/Users/me/Music');
                 scanRequested = true;
+                return null;
               },
               onUpdateSettings: (update) {
                 lastUpdate = update;

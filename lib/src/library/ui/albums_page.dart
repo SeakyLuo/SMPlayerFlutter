@@ -1254,6 +1254,9 @@ class _AlbumsAppBarActions extends StatelessWidget {
                                 return KeyEventResult.ignored;
                               },
                               child: PageSearchField(
+                                key: const ValueKey(
+                                  'Albums.AppBar.SearchField',
+                                ),
                                 value: searchDraft,
                                 hintText: i18n.t(
                                   'albums.searchAlbumPlaceholder',
@@ -1261,6 +1264,7 @@ class _AlbumsAppBarActions extends StatelessWidget {
                                 focused: searchFocused,
                                 autofocus: true,
                                 height: 36,
+                                appBar: true,
                                 onChanged: onSearchChanged,
                                 onFocusChanged: onSearchFocusChanged,
                                 onSubmitted: onSearchSubmitted,
@@ -1271,14 +1275,9 @@ class _AlbumsAppBarActions extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          SizedBox(
-                            width: 36,
-                            height: 36,
-                            child: IconButton(
-                              tooltip: i18n.t('common.close'),
-                              icon: const Icon(FluentIcons.dismiss_20_regular),
-                              onPressed: onCloseSearch,
-                            ),
+                          AppBarPageSearchCloseButton(
+                            tooltip: i18n.t('common.close'),
+                            onPressed: onCloseSearch,
                           ),
                         ],
                       ),

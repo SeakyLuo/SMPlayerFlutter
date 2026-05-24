@@ -79,65 +79,63 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
             ? 0.0
             : progressSeconds.clamp(0, progressMax).toDouble();
 
+    final buttons = MediaControlButtons(
+      isLoading: widget.isLoading,
+      disabled: widget.disabled,
+      isPlaying: widget.isPlaying,
+      condensed: widget.condensed,
+      progressSeconds: progressValue,
+      progressValue: progressValue,
+      progressMax: progressMax,
+      durationSeconds: widget.durationSeconds,
+      onTogglePlayPause: widget.onTogglePlayPause,
+      onPrevious: widget.onPrevious,
+      onNext: widget.onNext,
+      onSeekChange: (value) {
+        setState(() {
+          _draftProgressSeconds = value;
+        });
+      },
+      onSeekBegin: () {
+        setState(() {
+          _isProgressSeeking = true;
+          _draftProgressSeconds = progressValue;
+        });
+        widget.onBeginSeek();
+      },
+      onSeekEnd: (value) {
+        if (!_isProgressSeeking) {
+          return;
+        }
+        widget.onSeek(value);
+        widget.onEndSeek();
+        setState(() {
+          _isProgressSeeking = false;
+        });
+      },
+    );
+    final utility = MediaControlUtilityRows(
+      trackId: widget.trackId,
+      favorite: widget.favorite,
+      disabled: widget.disabled,
+      volumeValue: clampVolumeValue(widget.volume),
+      isMuted: widget.isMuted,
+      mode: widget.mode,
+      onVolumeChange: widget.onVolumeChange,
+      onToggleMute: widget.onToggleMute,
+      onToggleShuffle: widget.onToggleShuffle,
+      onToggleRepeat: widget.onToggleRepeat,
+      onToggleRepeatOne: widget.onToggleRepeatOne,
+      onToggleFavorite: widget.onToggleFavorite,
+      onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
+      condensed: widget.utilityCondensed,
+      minimal: widget.utilityMinimal,
+      onMoreClick: widget.onMoreClick,
+    );
     return Row(
       children: [
-        Expanded(
-          child: MediaControlButtons(
-            isLoading: widget.isLoading,
-            disabled: widget.disabled,
-            isPlaying: widget.isPlaying,
-            progressSeconds: progressValue,
-            progressValue: progressValue,
-            progressMax: progressMax,
-            durationSeconds: widget.durationSeconds,
-            onTogglePlayPause: widget.onTogglePlayPause,
-            onPrevious: widget.onPrevious,
-            onNext: widget.onNext,
-            onSeekChange: (value) {
-              setState(() {
-                _draftProgressSeconds = value;
-              });
-            },
-            onSeekBegin: () {
-              setState(() {
-                _isProgressSeeking = true;
-                _draftProgressSeconds = progressValue;
-              });
-              widget.onBeginSeek();
-            },
-            onSeekEnd: (value) {
-              if (!_isProgressSeeking) {
-                return;
-              }
-              widget.onSeek(value);
-              widget.onEndSeek();
-              setState(() {
-                _isProgressSeeking = false;
-              });
-            },
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: MediaControlUtilityRows(
-            trackId: widget.trackId,
-            favorite: widget.favorite,
-            disabled: widget.disabled,
-            volumeValue: clampVolumeValue(widget.volume),
-            isMuted: widget.isMuted,
-            mode: widget.mode,
-            onVolumeChange: widget.onVolumeChange,
-            onToggleMute: widget.onToggleMute,
-            onToggleShuffle: widget.onToggleShuffle,
-            onToggleRepeat: widget.onToggleRepeat,
-            onToggleRepeatOne: widget.onToggleRepeatOne,
-            onToggleFavorite: widget.onToggleFavorite,
-            onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
-            condensed: widget.utilityCondensed,
-            minimal: widget.utilityMinimal,
-            onMoreClick: widget.onMoreClick,
-          ),
-        ),
+        Expanded(child: buttons),
+        Align(alignment: Alignment.centerRight, child: utility),
       ],
     );
   }
@@ -149,6 +147,7 @@ class MediaControlButtons extends StatelessWidget {
     required this.isLoading,
     required this.disabled,
     required this.isPlaying,
+    required this.condensed,
     required this.progressSeconds,
     required this.progressValue,
     required this.progressMax,
@@ -164,6 +163,7 @@ class MediaControlButtons extends StatelessWidget {
   final bool isLoading;
   final bool disabled;
   final bool isPlaying;
+  final bool condensed;
   final double progressSeconds;
   final double progressValue;
   final double progressMax;
@@ -181,12 +181,20 @@ class MediaControlButtons extends StatelessWidget {
     final textMuted = MediaControlColors.textMutedFor(context);
     final playTitle =
         isPlaying ? i18n.t('player.pause') : i18n.t('player.play');
+    final transportGap = condensed ? 16.0 : 26.0;
+    final transportHeight = condensed ? 56.0 : 52.0;
+    final primarySize = condensed ? 48.0 : 56.0;
+    final primaryPadding = condensed ? 12.0 : 14.0;
+    final primaryIconSize = primarySize - primaryPadding * 2;
+    final progressHeight = condensed ? 28.0 : 36.0;
+    final progressTextWidth = condensed ? 42.0 : 44.0;
+    final progressTextSize = condensed ? 12.0 : 13.0;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         SizedBox(
-          height: 52,
+          height: transportHeight,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -200,18 +208,20 @@ class MediaControlButtons extends StatelessWidget {
                 disabled: disabled,
                 onPressed: onPrevious,
               ),
-              const SizedBox(width: 26),
+              SizedBox(width: transportGap),
               _PlayerIconButton(
                 key: const ValueKey('MediaControl.PlayPauseButton'),
                 tooltip: playTitle,
                 icon: isPlaying ? _pauseIcon : _playIcon,
                 primary: true,
-                iconSize: 28,
+                buttonSize: primarySize,
+                padding: primaryPadding,
+                iconSize: primaryIconSize,
                 loading: isLoading,
                 disabled: disabled,
                 onPressed: onTogglePlayPause,
               ),
-              const SizedBox(width: 26),
+              SizedBox(width: transportGap),
               _PlayerIconButton(
                 key: const ValueKey('MediaControl.NextButton'),
                 tooltip: i18n.t('player.next'),
@@ -226,15 +236,15 @@ class MediaControlButtons extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 36,
+          height: progressHeight,
           child: Row(
             children: [
               SizedBox(
-                width: 44,
+                width: progressTextWidth,
                 child: Text(
                   formatDuration(progressSeconds),
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: progressTextSize,
                   ).copyWith(color: textMuted),
                 ),
               ),
@@ -254,12 +264,12 @@ class MediaControlButtons extends StatelessWidget {
                         ),
               ),
               SizedBox(
-                width: 44,
+                width: progressTextWidth,
                 child: Text(
                   formatDuration(durationSeconds),
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: progressTextSize,
                   ).copyWith(color: textMuted),
                 ),
               ),

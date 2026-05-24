@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -13,6 +14,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode, SettingsSnapshot;
 
@@ -411,6 +413,86 @@ void main() {
     expect(find.text('2:00'), findsOneWidget);
   });
 
+  testWidgets('NowPlayingFullPage compact footer reuses nav-minimal surface', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(500, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+    mediaController.syncPlaybackProgress(12, durationSeconds: 120);
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+      ),
+      const Size(48, 48),
+    );
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+      ),
+      const Size(34, 34),
+    );
+    expect(
+      tester
+          .getCenter(find.byKey(const ValueKey('MediaControl.PlayPauseButton')))
+          .dx,
+      250,
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+          .right,
+      489,
+    );
+    expect(
+      tester
+          .widget<Icon>(find.byKey(const ValueKey('NowPlayingFull.BackIcon')))
+          .size,
+      16,
+    );
+    expect(
+      tester
+          .widget<Icon>(find.byKey(const ValueKey('NowPlayingFull.QueueIcon')))
+          .size,
+      16,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('NowPlayingFull.QueueLabel')))
+          .style
+          ?.fontSize,
+      13,
+    );
+  });
+
   testWidgets('NowPlayingFullPage favorite button updates current song', (
     tester,
   ) async {
@@ -453,47 +535,48 @@ void main() {
     expect(mediaController.state.track.favorite, isTrue);
   });
 
-  testWidgets('NowPlayingFullPage queue panel does not pin player bar', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1400, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final repository = _FakeNowPlayingRepository(_snapshot);
-    final mediaController = MediaControlController();
-    mediaController.playTrack(
-      const MediaControlTrack(
-        id: 1,
-        title: 'Blue Song',
-        artist: 'Artist A',
-        artworkUrl: '',
-        isLoading: false,
-        favorite: false,
-      ),
-      durationSeconds: 120,
-      queueIndex: 0,
-    );
+  testWidgets(
+    'NowPlayingFullPage queue panel does not raise or pin player bar',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
 
-    await tester.pumpWidget(
-      _NowPlayingFullTestApp(
-        snapshot: _snapshot,
-        i18n: i18n,
-        repository: repository,
-        mediaController: mediaController,
-      ),
-    );
-    await tester.pump();
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.text('Now Playing').first);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Now Playing').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
-  });
+      expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+    },
+  );
 
   testWidgets(
     'NowPlayingFullPage empty queue panel omits header like Electron',
@@ -541,6 +624,105 @@ void main() {
       expect(find.byTooltip('Close'), findsNothing);
     },
   );
+
+  testWidgets('NowPlayingFullPage empty loading queue shows compact loading', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final snapshot = _snapshotWithSongs(
+      _snapshot,
+      _snapshot.songs,
+      nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    );
+    final repository = _FakeNowPlayingRepository(snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: true,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: null,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final loading = tester.widget<SmPlayerLoadingState>(
+      find.byType(SmPlayerLoadingState),
+    );
+    expect(loading.compact, isTrue);
+  });
+
+  testWidgets('NowPlayingFullPage queue rows reuse default artwork fallback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.descendant(
+        of: find.byType(PlaylistControlItem),
+        matching: find.byType(DefaultAlbumArtwork),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  test('NowPlayingFullPage reorders queue downward like Electron', () {
+    expect(reorderNowPlayingFullQueueSongIds(const [1, 2, 3], 0, 2), [2, 1, 3]);
+    expect(reorderNowPlayingFullQueueSongIds(const [1, 2, 3], 2, 0), [3, 1, 2]);
+  });
 
   testWidgets('NowPlayingFullPage lyric rows do not seek on tap', (
     tester,

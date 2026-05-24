@@ -15,6 +15,41 @@ bool areSetsEqual<T>(Set<T> left, Set<T> right) {
   return left.length == right.length && left.every(right.contains);
 }
 
+String getRefreshResultMessage(
+  LocalFolderRefreshResult result,
+  SmPlayerI18n i18n,
+) {
+  final messages = [
+    if (result.filesAdded.isNotEmpty)
+      i18n.t('local.refreshAddedMultiple', {'count': result.filesAdded.length}),
+    if (result.filesRemoved.isNotEmpty)
+      i18n.t('local.refreshRemovedMultiple', {
+        'count': result.filesRemoved.length,
+      }),
+    if (result.filesMoved.isNotEmpty)
+      i18n.t('local.refreshMovedMultiple', {'count': result.filesMoved.length}),
+    if (result.artistSplitsApplied.isNotEmpty)
+      i18n.t('local.refreshArtistSplitsAppliedGroup', {
+        'count': result.artistSplitsApplied.length,
+      }),
+    if (result.artistSplitSuggestions.isNotEmpty)
+      i18n.t('local.refreshArtistSplitSuggestionsGroup', {
+        'count': result.artistSplitSuggestions.length,
+      }),
+    if (result.artistMergeSuggestions.isNotEmpty)
+      i18n.t('local.refreshArtistMergeSuggestionsGroup', {
+        'count': result.artistMergeSuggestions.length,
+      }),
+  ];
+  return messages.isEmpty
+      ? i18n.t('local.refreshNoChange')
+      : messages.join(i18n.t('common.comma'));
+}
+
+bool hasRefreshResultChanges(LocalFolderRefreshResult result) {
+  return result.hasChanges;
+}
+
 enum LocalCompactTreeRowType { folder, song }
 
 class LocalCompactTreeRow {

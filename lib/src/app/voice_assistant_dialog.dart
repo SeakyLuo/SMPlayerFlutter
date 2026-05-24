@@ -1,7 +1,23 @@
-part of 'shell_page.dart';
+import 'dart:async';
+import 'dart:io';
 
-class _VoiceAssistantDialog extends StatefulWidget {
-  const _VoiceAssistantDialog({
+import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+
+bool supportsVoiceAssistant() {
+  return Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isIOS ||
+      Platform.isAndroid;
+}
+
+class VoiceAssistantDialog extends StatefulWidget {
+  const VoiceAssistantDialog({
+    super.key,
     required this.i18n,
     required this.getHint,
     required this.onExecute,
@@ -12,12 +28,12 @@ class _VoiceAssistantDialog extends StatefulWidget {
   final String Function(String command) onExecute;
 
   @override
-  State<_VoiceAssistantDialog> createState() => _VoiceAssistantDialogState();
+  State<VoiceAssistantDialog> createState() => _VoiceAssistantDialogState();
 }
 
 enum _VoiceAssistantCaptureState { idle, capturing, processing }
 
-class _VoiceAssistantDialogState extends State<_VoiceAssistantDialog> {
+class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   late final TextEditingController _controller;
   late final SpeechToText _speechToText;
   late final FlutterTts _tts;

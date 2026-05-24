@@ -1,7 +1,21 @@
-part of 'shell_page.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 
-class _MiniModeSurface extends StatefulWidget {
-  const _MiniModeSurface({
+import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/shell_widgets.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/lyrics/lyric_text_resolver.dart';
+import 'package:smplayer_flutter/src/playback/media_control.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart';
+
+class MiniModeSurface extends StatefulWidget {
+  const MiniModeSurface({
+    super.key,
     required this.state,
     required this.i18n,
     required this.currentSong,
@@ -46,10 +60,10 @@ class _MiniModeSurface extends StatefulWidget {
   final VoidCallback? onWindowDragEnd;
 
   @override
-  State<_MiniModeSurface> createState() => _MiniModeSurfaceState();
+  State<MiniModeSurface> createState() => _MiniModeSurfaceState();
 }
 
-class _MiniModeSurfaceState extends State<_MiniModeSurface> {
+class _MiniModeSurfaceState extends State<MiniModeSurface> {
   Timer? _controlsHideTimer;
   var _controlsVisible = false;
   var _volumeOpen = false;
@@ -176,7 +190,7 @@ class _MiniModeSurfaceState extends State<_MiniModeSurface> {
                         child: Stack(
                           children: [
                             Positioned.fill(
-                              child: _ShellWindowDragRegion(
+                              child: ShellWindowDragRegion(
                                 onWindowDragStart: widget.onWindowDragStart,
                                 onWindowDragEnd: widget.onWindowDragEnd,
                                 child: const SizedBox.expand(),
@@ -537,7 +551,7 @@ class _MiniModeLyricLineState extends State<_MiniModeLyricLine> {
         widget.durationSeconds > 0
             ? widget.progressSeconds / widget.durationSeconds
             : 0.0;
-    final text = _resolveMiniModeLyricText(
+    final text = resolveLyricText(
       lyrics: lyrics,
       progressSeconds: widget.progressSeconds,
       progressRatio: progressRatio,
@@ -606,33 +620,7 @@ class _MiniModeLyricLineState extends State<_MiniModeLyricLine> {
   }
 }
 
-String _resolveMiniModeLyricText({
-  required LyricsSnapshot lyrics,
-  required double progressSeconds,
-  required double progressRatio,
-}) {
-  final timedLines =
-      lyrics.lines.where((line) => line.timestampMs != null).toList();
-  if (timedLines.isNotEmpty) {
-    final progressMs = max(0, (progressSeconds * 1000).floor());
-    var currentText = '';
-    for (final line in timedLines) {
-      if (line.timestampMs! > progressMs) {
-        break;
-      }
-      currentText = line.text;
-    }
-    return _toSingleDisplayLyricLine(currentText);
-  }
-
-  final lyricIndex = min(
-    lyrics.lines.length - 1,
-    (lyrics.lines.length * progressRatio.clamp(0, 1)).floor(),
-  );
-  return _toSingleDisplayLyricLine(lyrics.lines[lyricIndex].text);
-}
-
-String? _resolvePlayerLyricLine({
+String? resolvePlayerLyricLine({
   required LyricsSnapshot? lyrics,
   required LibrarySong? song,
   required double progressSeconds,
@@ -652,24 +640,11 @@ String? _resolvePlayerLyricLine({
       effectiveDurationSeconds > 0
           ? adjustedProgressSeconds / effectiveDurationSeconds
           : 0.0;
-  return _resolveMiniModeLyricText(
+  return resolveLyricText(
     lyrics: snapshot,
     progressSeconds: adjustedProgressSeconds,
     progressRatio: progressRatio,
   );
-}
-
-String _toSingleDisplayLyricLine(String text) {
-  final normalizedText = text
-      .replaceAll(RegExp(r'\\r\\n|\\n|\\r'), '\n')
-      .replaceAll(RegExp(r'\r\n|[\n\r\u2028\u2029]'), '\n');
-  for (final segment in normalizedText.split('\n')) {
-    final candidate = segment.trim();
-    if (candidate.isNotEmpty) {
-      return candidate;
-    }
-  }
-  return '';
 }
 
 class _MiniModeArtwork extends StatelessWidget {

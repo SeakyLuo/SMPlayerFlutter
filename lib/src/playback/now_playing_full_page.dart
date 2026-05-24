@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -46,6 +47,19 @@ class NowPlayingFullPage extends ConsumerStatefulWidget {
 
 const _nowPlayingFullPlayerHeight = 120.0;
 const _nowPlayingFullPlayerTopRadius = 18.0;
+
+@visibleForTesting
+List<int> reorderNowPlayingFullQueueSongIds(
+  List<int> queueSongIds,
+  int oldIndex,
+  int newIndex,
+) {
+  final nextSongIds = queueSongIds.toList();
+  final songId = nextSongIds.removeAt(oldIndex);
+  final targetIndex = oldIndex < newIndex ? newIndex - 1 : newIndex;
+  nextSongIds.insert(targetIndex, songId);
+  return nextSongIds;
+}
 
 class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
@@ -178,7 +192,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     padding: _contentPadding(MediaQuery.sizeOf(context).width),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final compact = MediaQuery.sizeOf(context).width <= 800;
+                        final compact = MediaQuery.sizeOf(context).width <= 760;
                         return compact
                             ? _buildCompactStage(
                               currentSong,
@@ -235,6 +249,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                       songs: queueSongs,
                       songIds: queueSongIds,
                       mediaControlState: mediaControlState,
+                      loading: mediaControlState.track.isLoading,
                       selection: _selection,
                       scrollController: _queueController,
                       playlists: customPlaylists,
@@ -480,38 +495,47 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
       MediaQuery.sizeOf(context).height * 0.44,
       320.0,
     );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-      child: Column(
-        children: [
-          SizedBox(
-            width: artworkSize,
-            child: _NowPlayingFullArtwork(
-              song: currentSong,
-              artworkPath: displayArtworkPath,
-              artworkSize: artworkSize,
-              compact: true,
-            ),
+    return SingleChildScrollView(
+      clipBehavior: Clip.none,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: artworkSize,
+                child: _NowPlayingFullArtwork(
+                  song: currentSong,
+                  artworkPath: displayArtworkPath,
+                  artworkSize: artworkSize,
+                  compact: true,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: lyricStageHeight,
+                child: _NowPlayingFullLyricsStage(
+                  song: currentSong,
+                  progressSeconds: mediaControlState.progressSeconds,
+                  durationSeconds: mediaControlState.durationSeconds,
+                  isPlaying: mediaControlState.isPlaying,
+                  i18n: i18n,
+                  onSeek: ref.read(mediaControlControllerProvider).onSeek,
+                  onTogglePlayPause:
+                      ref
+                          .read(mediaControlControllerProvider)
+                          .onTogglePlayPause,
+                  refreshRevision: _lyricsRefreshRevision,
+                  compact: true,
+                  midCompact: false,
+                  anchorOffset: null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 18),
-          SizedBox(
-            height: lyricStageHeight,
-            child: _NowPlayingFullLyricsStage(
-              song: currentSong,
-              progressSeconds: mediaControlState.progressSeconds,
-              durationSeconds: mediaControlState.durationSeconds,
-              isPlaying: mediaControlState.isPlaying,
-              i18n: i18n,
-              onSeek: ref.read(mediaControlControllerProvider).onSeek,
-              onTogglePlayPause:
-                  ref.read(mediaControlControllerProvider).onTogglePlayPause,
-              refreshRevision: _lyricsRefreshRevision,
-              compact: true,
-              midCompact: false,
-              anchorOffset: null,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -877,6 +901,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-music-info',
                 text: i18n.t('context.seeMusicInfo'),
                 icon: FluentIcons.info_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.properties);
                 },
@@ -885,6 +910,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-lyrics',
                 text: i18n.t('context.seeLyrics'),
                 icon: FluentIcons.comment_text_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.lyrics);
                 },
@@ -893,6 +919,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 key: 'see-album-art',
                 text: i18n.t('context.seeAlbumArt'),
                 icon: FluentIcons.image_20_regular,
+                keepOpen: true,
                 onPressed: () {
                   _openMusicDialog(SongDialogMode.albumArt);
                 },
@@ -1151,10 +1178,9 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
-    final nextSongIds = queueSongIds.toList();
-    final songId = nextSongIds.removeAt(oldIndex);
-    nextSongIds.insert(newIndex, songId);
-    _replaceQueue(nextSongIds);
+    _replaceQueue(
+      reorderNowPlayingFullQueueSongIds(queueSongIds, oldIndex, newIndex),
+    );
   }
 
   void _removeQueueIndex(List<int> queueSongIds, int queueIndex) {
@@ -1292,8 +1318,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   void _openMusicDialog(SongDialogMode mode, [LibrarySong? song]) {
+    _playerBarHideTimer?.cancel();
     setState(() {
       _isPlaylistOpen = false;
+      _isPlayerBarRaised = true;
       _dialogSong = song;
       _dialogMode = mode;
     });
@@ -1616,7 +1644,12 @@ class _NowPlayingFullTopBar extends StatelessWidget {
                           side: BorderSide(color: colors.border),
                         ),
                       ),
-                      icon: const Icon(FluentIcons.arrow_left_24_regular),
+                      iconSize: 16,
+                      icon: const Icon(
+                        FluentIcons.arrow_left_24_regular,
+                        key: ValueKey('NowPlayingFull.BackIcon'),
+                        size: 16,
+                      ),
                       onPressed: onClose,
                     ),
                   ),
@@ -1640,14 +1673,23 @@ class _NowPlayingFullTopBar extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: colors.border),
                     ),
+                    textStyle: TextStyle(
+                      fontSize: compact ? 13 : 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     FluentIcons.music_note_2_20_regular,
-                    size: 18,
+                    key: const ValueKey('NowPlayingFull.QueueIcon'),
+                    size: compact ? 16 : 18,
                   ),
                   label: Text(
+                    key: const ValueKey('NowPlayingFull.QueueLabel'),
                     i18n.t('common.nowPlaying'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: compact ? 13 : 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   onPressed: onTogglePlaylist,
                 ),
@@ -1774,6 +1816,31 @@ class _NowPlayingFullArtwork extends StatelessWidget {
     final artworkFile = artworkPath.isEmpty ? null : File(artworkPath);
     final colors = NowPlayingFullThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
+    final artworkRadius = compact ? 16.0 : 18.0;
+    final artworkShadows =
+        compact
+            ? [
+              BoxShadow(
+                color:
+                    night ? const Color(0x52000000) : const Color(0x47665870),
+                blurRadius: 88,
+                offset: const Offset(0, 34),
+              ),
+              BoxShadow(
+                color:
+                    night ? const Color(0x2e000000) : const Color(0x29665870),
+                blurRadius: 26,
+                offset: const Offset(0, 12),
+              ),
+            ]
+            : [
+              BoxShadow(
+                color:
+                    night ? const Color(0x61000000) : const Color(0x38665870),
+                blurRadius: night ? 86 : 76,
+                offset: const Offset(0, 28),
+              ),
+            ];
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1783,18 +1850,11 @@ class _NowPlayingFullArtwork extends StatelessWidget {
           dimension: artworkSize,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      night ? const Color(0x61000000) : const Color(0x38665870),
-                  blurRadius: night ? 86 : 76,
-                  offset: const Offset(0, 28),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(artworkRadius),
+              boxShadow: artworkShadows,
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(artworkRadius),
               child:
                   artworkFile != null && artworkFile.existsSync()
                       ? Image.file(artworkFile, fit: BoxFit.cover)
@@ -1802,7 +1862,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: compact ? 22 : 28),
         Text(
           song?.title ?? context.smPlayerI18n.t('nowPlaying.noActiveTrack'),
           maxLines: 2,
@@ -1832,7 +1892,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
                     : null,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 7 : 8),
         Text(
           song == null ? '' : _displayArtists(song!, context.smPlayerI18n),
           maxLines: 2,
@@ -1845,7 +1905,7 @@ class _NowPlayingFullArtwork extends StatelessWidget {
             height: compact ? 1.35 : 1.28,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 7 : 8),
         Text(
           song == null ? '' : _displayAlbum(song!, context.smPlayerI18n),
           maxLines: 3,
@@ -1903,6 +1963,7 @@ class _NowPlayingFullLyricsStageState
   int? _lyricsSongId;
   var _loading = false;
   var _previewing = false;
+  var _dragging = false;
   int? _previewIndex;
   Timer? _restoreTimer;
 
@@ -1951,6 +2012,7 @@ class _NowPlayingFullLyricsStageState
       _lyrics = null;
       _loading = true;
       _previewing = false;
+      _dragging = false;
       _previewIndex = null;
     });
     final lyrics = await ref
@@ -2055,6 +2117,30 @@ class _NowPlayingFullLyricsStageState
     });
   }
 
+  void _beginLyricsDrag() {
+    _restoreTimer?.cancel();
+    if (!_dragging || !_previewing) {
+      setState(() {
+        _dragging = true;
+        _previewing = true;
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _previewFromScroll();
+      }
+    });
+  }
+
+  void _finishLyricsDrag() {
+    if (!_dragging) {
+      return;
+    }
+    setState(() {
+      _dragging = false;
+    });
+  }
+
   int _nearestLineIndex(List<_ImmersiveLyricsLine> lines) {
     var nearestIndex = 0;
     var nearestDistance = double.infinity;
@@ -2089,6 +2175,7 @@ class _NowPlayingFullLyricsStageState
     }
     setState(() {
       _previewing = false;
+      _dragging = false;
       _previewIndex = null;
     });
   }
@@ -2151,6 +2238,102 @@ class _NowPlayingFullLyricsStageState
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
+            final lyricsScroll = MouseRegion(
+              cursor:
+                  _dragging
+                      ? SystemMouseCursors.grabbing
+                      : SystemMouseCursors.grab,
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        _previewFromScroll();
+                      }
+                    });
+                  }
+                },
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                      PointerDeviceKind.invertedStylus,
+                    },
+                  ),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onVerticalDragStart: (_) {
+                      _beginLyricsDrag();
+                    },
+                    onVerticalDragUpdate: (details) {
+                      _scrollLyricsBy(-details.delta.dy);
+                    },
+                    onVerticalDragEnd: (_) {
+                      _finishLyricsDrag();
+                    },
+                    onVerticalDragCancel: _finishLyricsDrag,
+                    child: ListView.separated(
+                      controller: _scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        0,
+                        constraints.maxHeight / 2,
+                        widget.compact ? 0 : 20,
+                        constraints.maxHeight / 2,
+                      ),
+                      itemCount: displayLines.length,
+                      separatorBuilder: (_, _) => SizedBox(height: _lyricGap()),
+                      itemBuilder: (context, index) {
+                        final line = displayLines[index];
+                        if (hasLyrics) {
+                          _lineKeys[index] = _lineKeys[index] ?? GlobalKey();
+                        }
+                        final active = line.active;
+                        return ConstrainedBox(
+                          key: hasLyrics ? _lineKeys[index] : null,
+                          constraints: BoxConstraints(
+                            minHeight: _lyricMinHeight(),
+                          ),
+                          child: Center(
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color:
+                                    active
+                                        ? colors.text
+                                        : colors.muted.withValues(alpha: 0.52),
+                                fontSize:
+                                    active
+                                        ? _activeLyricFontSize()
+                                        : _lyricFontSize(),
+                                fontWeight:
+                                    widget.compact && active
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                height: widget.compact && active ? 1.34 : 1.35,
+                              ),
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOutCubic,
+                                scale: active && !widget.compact ? 1.02 : 1,
+                                child: Text(
+                                  line.text,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            );
             return NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification is ScrollUpdateNotification &&
@@ -2159,135 +2342,76 @@ class _NowPlayingFullLyricsStageState
                 }
                 return false;
               },
-              child: ShaderMask(
-                shaderCallback:
-                    (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black,
-                        Colors.black,
-                        Colors.transparent,
-                      ],
-                      stops: [0, 0.17, 0.83, 1],
-                    ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: Listener(
-                  onPointerSignal: (event) {
-                    if (event is PointerScrollEvent) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) {
-                          _previewFromScroll();
-                        }
-                      });
-                    }
-                  },
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(
-                      dragDevices: {
-                        PointerDeviceKind.touch,
-                        PointerDeviceKind.mouse,
-                        PointerDeviceKind.trackpad,
-                        PointerDeviceKind.stylus,
-                        PointerDeviceKind.invertedStylus,
-                      },
-                    ),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onVerticalDragUpdate: (details) {
-                        _scrollLyricsBy(-details.delta.dy);
-                      },
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        padding: EdgeInsets.fromLTRB(
-                          0,
-                          constraints.maxHeight / 2,
-                          widget.compact ? 0 : 20,
-                          constraints.maxHeight / 2,
-                        ),
-                        itemCount: displayLines.length,
-                        separatorBuilder:
-                            (_, _) => SizedBox(height: _lyricGap()),
-                        itemBuilder: (context, index) {
-                          final line = displayLines[index];
-                          if (hasLyrics) {
-                            _lineKeys[index] = _lineKeys[index] ?? GlobalKey();
-                          }
-                          final active = line.active;
-                          return ConstrainedBox(
-                            key: hasLyrics ? _lineKeys[index] : null,
-                            constraints: BoxConstraints(
-                              minHeight: _lyricMinHeight(),
-                            ),
-                            child: Center(
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 180),
-                                curve: Curves.easeOutCubic,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color:
-                                      active
-                                          ? colors.text
-                                          : colors.muted.withValues(
-                                            alpha: 0.52,
-                                          ),
-                                  fontSize:
-                                      active
-                                          ? _activeLyricFontSize()
-                                          : _lyricFontSize(),
-                                  fontWeight:
-                                      widget.compact && active
-                                          ? FontWeight.w700
-                                          : FontWeight.w600,
-                                  height:
-                                      widget.compact && active ? 1.34 : 1.35,
-                                ),
-                                child: AnimatedScale(
-                                  duration: const Duration(milliseconds: 180),
-                                  curve: Curves.easeOutCubic,
-                                  scale: active && !widget.compact ? 1.02 : 1,
-                                  child: Text(
-                                    line.text,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+              child:
+                  widget.compact
+                      ? lyricsScroll
+                      : ShaderMask(
+                        shaderCallback:
+                            (rect) => const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black,
+                                Colors.black,
+                                Colors.transparent,
+                              ],
+                              stops: [0, 0.17, 0.83, 1],
+                            ).createShader(rect),
+                        blendMode: BlendMode.dstIn,
+                        child: lyricsScroll,
                       ),
-                    ),
-                  ),
-                ),
-              ),
             );
           },
         ),
         if (previewLine != null)
           LayoutBuilder(
             builder: (context, constraints) {
+              final viewportWidth = MediaQuery.sizeOf(context).width;
+              final seekButtonRight =
+                  widget.compact
+                      ? (constraints.maxWidth - viewportWidth) / 2 + 10
+                      : 0.0;
+              final seekButtonIconSize = widget.compact ? 16.0 : 18.0;
+              final seekButtonGap = widget.compact ? 6.0 : 8.0;
               return Positioned(
-                top: _anchorOffset(constraints.maxHeight) - 17,
-                right: 0,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    foregroundColor: colors.text,
-                    backgroundColor: colors.panel,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      side: BorderSide(color: colors.border),
+                top: _anchorOffset(constraints.maxHeight),
+                right: seekButtonRight,
+                child: FractionalTranslation(
+                  translation: const Offset(0, -0.5),
+                  child: TextButton(
+                    key: const ValueKey('NowPlayingFull.LyricSeekButton'),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.fromLTRB(10, 0, 12, 0),
+                      foregroundColor: colors.text,
+                      backgroundColor: colors.panel,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        side: BorderSide(color: colors.border),
+                      ),
                     ),
-                  ),
-                  onPressed: () {
-                    _seekToLine(previewLine);
-                  },
-                  icon: const SmPlayerPlayIcon(size: 18),
-                  label: Text(
-                    _formatLyricSeekTime(previewLine.seekSeconds),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    onPressed: () {
+                      _seekToLine(previewLine);
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SmPlayerPlayIcon(
+                          key: const ValueKey('NowPlayingFull.LyricSeekIcon'),
+                          size: seekButtonIconSize,
+                        ),
+                        SizedBox(width: seekButtonGap),
+                        Text(
+                          _formatLyricSeekTime(previewLine.seekSeconds),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -2336,7 +2460,12 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth <= 520;
         final compactUtility = constraints.maxWidth <= 800;
-        final sideWidth = compact ? 68.0 : 80.0;
+        final sideWidth =
+            compactUtility
+                ? compact
+                    ? 68.0
+                    : 80.0
+                : 280.0;
         final transportDisabled = disabled || song?.id == null;
         return Container(
           padding: EdgeInsets.fromLTRB(
@@ -2671,6 +2800,7 @@ class _NowPlayingFullPlaylist extends StatefulWidget {
     required this.songs,
     required this.songIds,
     required this.mediaControlState,
+    required this.loading,
     required this.selection,
     required this.scrollController,
     required this.playlists,
@@ -2706,6 +2836,7 @@ class _NowPlayingFullPlaylist extends StatefulWidget {
   final List<LibrarySong> songs;
   final List<int> songIds;
   final MediaControlState mediaControlState;
+  final bool loading;
   final PageSelectionController<int> selection;
   final ScrollController scrollController;
   final List<MultiSelectCommandBarPlaylist> playlists;
@@ -2746,6 +2877,7 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
   List<LibrarySong> get songs => widget.songs;
   List<int> get songIds => widget.songIds;
   MediaControlState get mediaControlState => widget.mediaControlState;
+  bool get loading => widget.loading;
   PageSelectionController<int> get selection => widget.selection;
   ScrollController get scrollController => widget.scrollController;
   List<MultiSelectCommandBarPlaylist> get playlists => widget.playlists;
@@ -2859,7 +2991,7 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
         decoration: decoration,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
-          child: _QueueEmptyState(i18n: i18n),
+          child: _QueueEmptyState(loading: loading),
         ),
       );
     }
@@ -2872,7 +3004,10 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
             Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(30, 26, 20, 14),
+                  padding:
+                      fullScreen
+                          ? const EdgeInsets.fromLTRB(20, 26, 20, 14)
+                          : const EdgeInsets.fromLTRB(30, 26, 20, 14),
                   child: Row(
                     children: [
                       Expanded(
@@ -2917,7 +3052,7 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
                 Expanded(
                   child:
                       songs.isEmpty
-                          ? _QueueEmptyState(i18n: i18n)
+                          ? _QueueEmptyState(loading: loading)
                           : ReorderableListView.builder(
                             scrollController: scrollController,
                             padding: _listPadding(),
@@ -3414,11 +3549,15 @@ List<int> _insertQueueEntries(
 }
 
 class _QueueEmptyState extends StatelessWidget {
-  const _QueueEmptyState({required SmPlayerI18n i18n});
+  const _QueueEmptyState({required this.loading});
+
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.shrink();
+    return loading
+        ? const SmPlayerLoadingState(compact: true)
+        : const SizedBox.shrink();
   }
 }
 

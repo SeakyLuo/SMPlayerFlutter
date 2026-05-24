@@ -18,6 +18,7 @@ import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_track_factory.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
+import 'artwork_floating_action_button.dart';
 import 'artists_page_model.dart'
     show compareArtistText, getArtistQuickJumpBucket, getSongArtists;
 import 'command_bar.dart';
@@ -479,6 +480,20 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                       ),
                     ),
                   ),
+                  if (compact && _quickJumpPanelOpen)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        key: const ValueKey(
+                          'MusicLibrary.QuickJumpDismissBarrier',
+                        ),
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () {
+                          setState(() {
+                            _quickJumpPanelOpen = false;
+                          });
+                        },
+                      ),
+                    ),
                   if (compact && _quickJumpPanelOpen)
                     _QuickJumpPanel(
                       activeKey: activeQuickJumpKey,
@@ -1941,27 +1956,19 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 120),
                   opacity: _hovered ? 1 : 0,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
+                  child: Center(
+                    child: ArtworkFloatingActionButton(
                       key: ValueKey(
                         'MusicLibrary.ArtworkPlay.${widget.song.id}',
                       ),
-                      onTap: widget.onPlay,
-                      child: Center(
-                        child: Container(
-                          width: widget.size - 8,
-                          height: widget.size - 8,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _LibraryColors.overlayPlay,
-                          ),
-                          child: const SmPlayerPlayIcon(
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
+                      tooltip: context.smPlayerI18n.t('context.play'),
+                      size: widget.size - 8,
+                      iconSize: 16,
+                      icon: const SmPlayerPlayIcon(
+                        color: Colors.white,
+                        size: 16,
                       ),
+                      onPressed: widget.onPlay,
                     ),
                   ),
                 ),
@@ -2533,7 +2540,6 @@ class _LibraryColors {
   static const disabled = Color(0x3d5b697a);
   static const artwork = Color(0xffe8eef5);
   static const artworkIcon = Color(0xff607085);
-  static const overlayPlay = Color(0xb81e2228);
 }
 
 class _LibraryQuickJumpPanelColors {

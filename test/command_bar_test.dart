@@ -603,7 +603,7 @@ void main() {
               }.contains(item.key),
             )
             .map((item) => item.keepOpen),
-        everyElement(isFalse),
+        everyElement(isTrue),
       );
     },
   );

@@ -1,18 +1,21 @@
-part of 'shell_page.dart';
+import 'dart:io';
+import 'dart:math';
 
-bool _usesNativeDesktopLyricsWindow() {
+import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/lyrics/lyric_text_resolver.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart';
+
+bool usesNativeDesktopLyricsWindow() {
   return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 }
 
-bool _supportsVoiceAssistant() {
-  return Platform.isWindows ||
-      Platform.isMacOS ||
-      Platform.isIOS ||
-      Platform.isAndroid;
-}
-
-class _DesktopLyricsOverlay extends StatefulWidget {
-  const _DesktopLyricsOverlay({
+class DesktopLyricsOverlay extends StatefulWidget {
+  const DesktopLyricsOverlay({
+    super.key,
     required this.song,
     required this.settings,
     required this.repository,
@@ -45,10 +48,10 @@ class _DesktopLyricsOverlay extends StatefulWidget {
   final VoidCallback onOpenSettings;
 
   @override
-  State<_DesktopLyricsOverlay> createState() => _DesktopLyricsOverlayState();
+  State<DesktopLyricsOverlay> createState() => _DesktopLyricsOverlayState();
 }
 
-class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
+class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
   LyricsSnapshot? _lyrics;
   var _loadingSongId = 0;
 
@@ -59,7 +62,7 @@ class _DesktopLyricsOverlayState extends State<_DesktopLyricsOverlay> {
   }
 
   @override
-  void didUpdateWidget(covariant _DesktopLyricsOverlay oldWidget) {
+  void didUpdateWidget(covariant DesktopLyricsOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.song.id != widget.song.id ||
         oldWidget.settings.playerLyricsSource !=
@@ -445,7 +448,7 @@ String _resolveDesktopLyricText({
     0.0,
     progressSeconds + song.lyricsOffsetMs / 1000,
   );
-  final lyricText = _resolveMiniModeLyricText(
+  final lyricText = resolveLyricText(
     lyrics: snapshot,
     progressSeconds: adjustedProgressSeconds,
     progressRatio: adjustedProgressSeconds / song.duration,
