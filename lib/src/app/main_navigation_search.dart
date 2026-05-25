@@ -141,8 +141,15 @@ class _MainNavigationViewSearchBoxState
                       SizedBox(
                         width: 40,
                         height: 40,
-                        child: _SearchCommitButton(
+                        child: SearchCommitIconButton(
                           tooltip: widget.i18n.t('common.search'),
+                          foreground: SearchCommitIconButton.foregroundFor(
+                            context,
+                          ),
+                          hoverForeground:
+                              SearchCommitIconButton.hoverForegroundFor(
+                                context,
+                              ),
                           onPressed: () {
                             widget.onSubmitted(_controller.text);
                           },

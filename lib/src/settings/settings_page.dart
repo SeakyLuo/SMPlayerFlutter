@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
@@ -445,7 +444,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
       setState(() {
-        _appVersion = smPlayerAppVersion;
+        _appVersion = null;
       });
     }
   }

@@ -518,7 +518,7 @@ class LibraryLyricsService {
   String _stripLyricsTimestamps(String rawText) {
     final timestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');
     final metadataRegex = RegExp(
-      r'^\[(ti|ar|al|by|offset):.*\]$',
+      r'^\[(ti|ar|al|au|by|offset|re|ve|length):.*\]$',
       caseSensitive: false,
     );
     return rawText
@@ -829,7 +829,7 @@ class LibraryLyricsService {
     }
 
     final metadataRegex = RegExp(
-      r'^\[(ti|ar|al|by|offset):',
+      r'^\[(ti|ar|al|au|by|offset|re|ve|length):',
       caseSensitive: false,
     );
     final offsetRegex = RegExp(

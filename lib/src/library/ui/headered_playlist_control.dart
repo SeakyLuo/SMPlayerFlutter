@@ -44,7 +44,7 @@ part 'headered_playlist_theme.dart';
 
 enum HeaderedPlaylistType { album, playlist, favorites }
 
-const _compactHeaderTopInset = 72.0;
+const _compactHeaderTopInset = 0.0;
 
 typedef HeaderedPlaylistTrackHandler =
     void Function(int trackId, List<int> queueSongIds);

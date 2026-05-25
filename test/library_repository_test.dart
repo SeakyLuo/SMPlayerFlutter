@@ -1584,40 +1584,75 @@ void main() {
     expect(automatic.source, LyricsSource.lrcFile);
   });
 
-  test('external audio import falls back to sibling folder artwork', () async {
+  test('getSongLyrics ignores extended Electron metadata tags', () async {
     final directory = await Directory.systemTemp.createTemp(
-      'smplayer-folder-artwork-',
+      'smplayer-lyrics-metadata-',
     );
     addTearDown(() async {
       await directory.delete(recursive: true);
     });
-    final songFile = File('${directory.path}/NoEmbeddedArtwork.mp3');
-    final folderArtwork = File('${directory.path}/Folder.JPG');
+    final songFile = File('${directory.path}/Metadata.mp3');
     await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
-    await folderArtwork.writeAsBytes(_pngBytes);
-
+    await File(p.setExtension(songFile.path, '.lrc')).writeAsString('''
+[ti:Title]
+[ar:Artist]
+[al:Album]
+[au:Writer]
+[re:Editor]
+[ve:1.0]
+[length:03:20]
+[00:01.00]First line
+''');
     final databaseFile = File('${directory.path}/SMPlayerSettings.db');
-    _createScanDatabase(databaseFile, '${directory.path}/Hidden');
+    _createLyricsModeDatabase(databaseFile, songFile.path);
     final repository = LibraryRepository(
       databaseFileResolver: () async => databaseFile,
     );
 
-    await repository.importExternalAudioFiles([songFile.path]);
+    final lyrics = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.local,
+    );
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final thumbnailPath =
-          db.select('SELECT ThumbnailPath FROM Music WHERE Path = ?', [
-                songFile.path,
-              ]).single['ThumbnailPath']
-              as String;
-      expect(thumbnailPath, isNotEmpty);
-      expect(File(thumbnailPath).existsSync(), isTrue);
-      expect(File(thumbnailPath).readAsBytesSync(), _pngBytes);
-    } finally {
-      db.dispose();
-    }
+    expect(lyrics.lines.map((line) => line.text), ['First line']);
   });
+
+  test(
+    'external audio import ignores sibling folder artwork like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-folder-artwork-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/NoEmbeddedArtwork.mp3');
+      final folderArtwork = File('${directory.path}/Folder.JPG');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      await folderArtwork.writeAsBytes(_pngBytes);
+
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createScanDatabase(databaseFile, '${directory.path}/Hidden');
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+        shellThumbnailResolver: (_) async => null,
+      );
+
+      await repository.importExternalAudioFiles([songFile.path]);
+
+      final db = sqlite3.open(databaseFile.path);
+      try {
+        final thumbnailPath =
+            db.select('SELECT ThumbnailPath FROM Music WHERE Path = ?', [
+                  songFile.path,
+                ]).single['ThumbnailPath']
+                as String;
+        expect(thumbnailPath, isEmpty);
+      } finally {
+        db.dispose();
+      }
+    },
+  );
 
   test('external audio import falls back to shell thumbnail', () async {
     final directory = await Directory.systemTemp.createTemp(

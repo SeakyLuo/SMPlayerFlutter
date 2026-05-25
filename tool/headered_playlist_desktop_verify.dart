@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
   await windowManager.setSize(const Size(1200, 800));
   await windowManager.center();
   await windowManager.show();
+  debugPrint('Headered verify runApp');
   runApp(const _VerifyApp());
 }
 
@@ -22,10 +24,14 @@ class _VerifyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Headered verify build');
     return ProviderScope(
       overrides: [smPlayerI18nProvider.overrideWith((ref) async => _i18n)],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          extensions: const [DefaultAlbumArtworkThemeColors.light],
+        ),
         home: Scaffold(
           body: SmPlayerI18nScope(
             i18n: _i18n,

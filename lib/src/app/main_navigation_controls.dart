@@ -166,51 +166,6 @@ class _MainNavigationViewItemButtonState
   }
 }
 
-class _SearchCommitButton extends StatefulWidget {
-  const _SearchCommitButton({required this.tooltip, required this.onPressed});
-
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  State<_SearchCommitButton> createState() => _SearchCommitButtonState();
-}
-
-class _SearchCommitButtonState extends State<_SearchCommitButton> {
-  var _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MainNavigationViewColors.of(context);
-    return Semantics(
-      button: true,
-      label: widget.tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) {
-          setState(() {
-            _hovered = true;
-          });
-        },
-        onExit: (_) {
-          setState(() {
-            _hovered = false;
-          });
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Icon(
-            FluentIcons.search_24_regular,
-            size: 19,
-            color: _hovered ? colors.accentStrong : colors.textMuted,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MainNavigationItemIcon extends StatelessWidget {
   const _MainNavigationItemIcon({required this.item, required this.color});
 
