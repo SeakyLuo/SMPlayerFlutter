@@ -9,7 +9,6 @@ import 'folder_update_result_sections.dart';
 import 'folder_update_result_tab.dart';
 import 'folder_update_result_tab_button.dart';
 import 'local_folder_model.dart';
-import 'local_page_quick_jump.dart';
 import 'popup_dialog.dart';
 
 class FolderUpdateResultDialog extends StatefulWidget {
@@ -119,7 +118,7 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       width: 780,
       height: 760,
       onClose: widget.onClose,
-      navChildren: [Expanded(child: PopupDialogTitle(title))],
+      navChildren: [Expanded(child: _FolderUpdateResultTitle(title))],
       child: Padding(
         padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
         child: Column(
@@ -145,10 +144,20 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(child: _buildActiveTabContent()),
+            Expanded(child: _buildActiveTabPane()),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActiveTabPane() {
+    if (_activeTab == FolderUpdateResultTab.artists) {
+      return _buildActiveTabContent();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_buildActiveTabContent()],
     );
   }
 
@@ -210,5 +219,27 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         });
       }
     }
+  }
+}
+
+class _FolderUpdateResultTitle extends StatelessWidget {
+  const _FolderUpdateResultTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = PopupDialogColors.resolve(context);
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: colors.textStrong,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        height: 1.25,
+      ),
+    );
   }
 }

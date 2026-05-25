@@ -32,6 +32,7 @@ class LocalGridContent extends StatelessWidget {
     required this.sortMode,
     required this.currentSortMode,
     required this.queueSongIds,
+    required this.folderQueueSongIds,
     required this.compactTreeRows,
     required this.compactQueueSongIds,
     required this.i18n,
@@ -76,6 +77,7 @@ class LocalGridContent extends StatelessWidget {
   final LocalSortMode sortMode;
   final LocalSortMode currentSortMode;
   final List<int> queueSongIds;
+  final List<int> folderQueueSongIds;
   final List<LocalCompactTreeRow> compactTreeRows;
   final List<int> compactQueueSongIds;
   final SmPlayerI18n i18n;
@@ -169,6 +171,7 @@ class LocalGridContent extends StatelessWidget {
       sortMode: sortMode,
       currentSortMode: currentSortMode,
       queueSongIds: queueSongIds,
+      folderQueueSongIds: folderQueueSongIds,
       i18n: i18n,
       onPlayTrack: onPlayTrack,
       onTogglePlayPause: onTogglePlayPause,
@@ -596,6 +599,7 @@ class _LocalSongGrid extends StatelessWidget {
     required this.sortMode,
     required this.currentSortMode,
     required this.queueSongIds,
+    required this.folderQueueSongIds,
     required this.i18n,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
@@ -619,6 +623,7 @@ class _LocalSongGrid extends StatelessWidget {
   final LocalSortMode sortMode;
   final LocalSortMode currentSortMode;
   final List<int> queueSongIds;
+  final List<int> folderQueueSongIds;
   final SmPlayerI18n i18n;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
   final VoidCallback onTogglePlayPause;
@@ -649,7 +654,7 @@ class _LocalSongGrid extends StatelessWidget {
                       playing: song.id == selectedTrackId && isPlaying,
                       selectionMode: multiSelect,
                       i18n: i18n,
-                      onPlay: () => onPlayTrack(song.id, queueSongIds),
+                      onPlay: () => onPlayTrack(song.id, folderQueueSongIds),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
                       onPlayNext: () => onPlayNext(song.id),
@@ -682,7 +687,7 @@ class _LocalSongGrid extends StatelessWidget {
                         i18n,
                       ),
                       i18n: i18n,
-                      onPlay: () => onPlayTrack(song.id, queueSongIds),
+                      onPlay: () => onPlayTrack(song.id, folderQueueSongIds),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
                       onAddSong: (position) => onAddSong(song, position),

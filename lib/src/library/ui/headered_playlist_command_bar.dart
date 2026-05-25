@@ -10,6 +10,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   ) {
     final colors = HeaderedPlaylistThemeColors.of(context);
+    final compact = MediaQuery.sizeOf(context).width <= 720;
     return SmPlayerTextIconButtonTheme(
       colors: SmPlayerTextIconButtonColors.of(context).copyWith(
         commandText: colors.commandText,
@@ -19,8 +20,12 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
       ),
       child: CommandBar(
         key: const ValueKey('HeaderedPlaylist.CommandBar'),
+        style: CommandBarStyleVariant.headeredPlaylist,
         overflowLabel: i18n.t('player.more'),
-        primaryAlignment: CommandBarPrimaryAlignment.center,
+        primaryAlignment:
+            compact
+                ? CommandBarPrimaryAlignment.center
+                : CommandBarPrimaryAlignment.start,
         children: [
           CommandBarButton(
             icon: FluentIcons.arrow_shuffle_20_regular,

@@ -337,7 +337,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       final packageInfo = await PackageInfo.fromPlatform();
       return packageInfo.version;
     } catch (_) {
-      return smPlayerAppVersion;
+      return '';
     }
   }
 

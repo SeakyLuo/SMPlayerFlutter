@@ -273,6 +273,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     final showLocalSectionHeaders =
         childFolders.isNotEmpty && currentSongs.isNotEmpty;
     final visibleSongIds = currentSongs.map((song) => song.id).toList();
+    final folderQueueSongIds =
+        currentNode.directSongIds
+            .map((songId) => songsById[songId]!)
+            .where((song) => matchesSongSearch(song, widget.searchQuery))
+            .map((song) => song.id)
+            .toList();
     final currentNodeDirectSongIdSet = currentNode.directSongIds.toSet();
     final hasSubfolderSongs = currentNode.subtreeSongIds.any(
       (songId) => !currentNodeDirectSongIdSet.contains(songId),
@@ -630,6 +636,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 sortMode: _sortMode,
                                 currentSortMode: currentSortMode,
                                 queueSongIds: visibleSongIds,
+                                folderQueueSongIds: folderQueueSongIds,
                                 compactTreeRows: localCompactFolderTreeRows,
                                 compactQueueSongIds:
                                     localCompactFolderTreeSongIds,

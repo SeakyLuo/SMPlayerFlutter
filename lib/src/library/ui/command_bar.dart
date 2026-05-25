@@ -5,9 +5,9 @@ import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 
-enum CommandBarStyleVariant { standard, appBar }
+enum CommandBarStyleVariant { standard, appBar, headeredPlaylist }
 
-enum CommandBarPrimaryAlignment { end, center }
+enum CommandBarPrimaryAlignment { start, end, center }
 
 class CommandBar extends StatefulWidget {
   const CommandBar({
@@ -60,11 +60,14 @@ class _CommandBarState extends State<CommandBar> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 720;
     final style = switch (widget.style) {
       CommandBarStyleVariant.standard => _CommandBarStyleData.standard(),
       CommandBarStyleVariant.appBar => _CommandBarStyleData.appBar(
         Theme.of(context).brightness,
       ),
+      CommandBarStyleVariant.headeredPlaylist =>
+        _CommandBarStyleData.headeredPlaylist(compact: compact),
     };
     _scheduleMeasure();
     final toolbar = ConstrainedBox(
@@ -96,7 +99,8 @@ class _CommandBarState extends State<CommandBar> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final maxWidth =
-                          constraints.maxWidth.isFinite
+                          constraints.maxWidth.isFinite &&
+                                  constraints.maxWidth > 0
                               ? constraints.maxWidth
                               : MediaQuery.sizeOf(context).width;
                       final overflow = _resolveCommandBarOverflow(
@@ -170,17 +174,26 @@ class _CommandBarState extends State<CommandBar> {
                       }
 
                       final primaryRow =
-                          widget.primaryAlignment ==
-                                  CommandBarPrimaryAlignment.center
+                          widget.primaryAlignment !=
+                                  CommandBarPrimaryAlignment.end
                               ? ClipRect(
                                 child: Align(
-                                  alignment: Alignment.center,
+                                  alignment:
+                                      widget.primaryAlignment ==
+                                              CommandBarPrimaryAlignment.center
+                                          ? Alignment.center
+                                          : Alignment.centerLeft,
                                   child: OverflowBox(
                                     minWidth: 0,
                                     maxWidth: double.infinity,
                                     minHeight: 0,
                                     maxHeight: style.visibleRowHeight,
-                                    alignment: Alignment.center,
+                                    alignment:
+                                        widget.primaryAlignment ==
+                                                CommandBarPrimaryAlignment
+                                                    .center
+                                            ? Alignment.center
+                                            : Alignment.centerLeft,
                                     child: visibleRow(includeMore: true),
                                   ),
                                 ),
@@ -504,7 +517,6 @@ double _estimateCommandBarItemWidth(BuildContext context, Widget child) {
           style.iconGap +
           labelWidth +
           style.horizontalPadding * 2 +
-          style.borderWidth * 2 +
           style.buttonMargin.horizontal)
       .ceilToDouble();
 }
@@ -712,6 +724,38 @@ class _CommandBarStyleData {
       iconSize: 19,
       iconGap: 7,
       transparent: true,
+    );
+  }
+
+  static _CommandBarStyleData headeredPlaylist({required bool compact}) {
+    return _CommandBarStyleData(
+      toolbarMinHeight: compact ? 44 : 48,
+      visibleRowHeight: compact ? 46 : 48,
+      toolbarPadding: EdgeInsets.zero,
+      contentHorizontalPadding: compact ? 8 : 12,
+      primaryAlignment: MainAxisAlignment.start,
+      visibleAlignment: Alignment.centerLeft,
+      buttonMargin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+      minWidth: 44,
+      minHeight: compact ? 38 : 40,
+      maxWidth: null,
+      horizontalPadding: compact ? 10 : 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: CommandBarColors.buttonBorder,
+      surface: CommandBarColors.buttonSurface,
+      hoverSurface: CommandBarColors.buttonHoverSurface,
+      pressedSurface: CommandBarColors.buttonPressedSurface,
+      foreground: CommandBarColors.textStrong,
+      highlightColor: CommandBarColors.buttonInsetHighlight,
+      shadow: const [],
+      disabledOpacity: 0.45,
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      fontVariations: const [FontVariation.weight(720)],
+      iconSize: 20,
+      iconGap: 8,
+      transparent: false,
     );
   }
 }

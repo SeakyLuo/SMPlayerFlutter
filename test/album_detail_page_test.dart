@@ -305,22 +305,27 @@ void main() {
       moreOrLessEquals(24, epsilon: 1),
     );
     expect(find.text('Rename'), findsOneWidget);
-    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Delete', skipOffstage: false), findsOneWidget);
     expect(find.text('Clear', skipOffstage: false), findsWidgets);
     final commandBar = find.byKey(
       const ValueKey('HeaderedPlaylist.CommandBar'),
     );
-    final commandClear = find.descendant(
-      of: commandBar,
-      matching: find.text('Clear'),
-    );
-    final commandDelete = find.descendant(
-      of: commandBar,
-      matching: find.text('Delete'),
+    final commandButtonsRect = _unionRects([
+      for (final label in [
+        'Shuffle',
+        'Multi Select',
+        'Sort',
+        'Rename',
+      ])
+        _commandBarButtonRectForLabel(tester, label),
+    ]);
+    expect(
+      commandButtonsRect.left,
+      moreOrLessEquals(tester.getRect(commandBar).left, epsilon: 1),
     );
     expect(
-      tester.getRect(commandClear).top,
-      lessThanOrEqualTo(tester.getRect(commandDelete).top),
+      commandButtonsRect.center.dx,
+      lessThan(tester.getRect(commandBar).center.dx),
     );
   });
 

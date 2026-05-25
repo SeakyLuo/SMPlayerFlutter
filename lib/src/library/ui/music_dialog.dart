@@ -1162,7 +1162,7 @@ Uri musicLyricsSearchUri({
 
 final _lyricsTimestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');
 final _lyricsMetadataRegex = RegExp(
-  r'^\[(ti|ar|al|by|offset):.*\]$',
+  r'^\[(ti|ar|al|au|by|offset|re|ve|length):.*\]$',
   caseSensitive: false,
 );
 final _lyricsLineBreakRegex = RegExp(r'\r\n|[\n\r\u2028\u2029]');

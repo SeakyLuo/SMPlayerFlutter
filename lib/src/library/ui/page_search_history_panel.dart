@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'command_bar_colors.dart';
+import 'search_commit_icon_button.dart';
 
 class PageSearchHistoryPanel extends StatelessWidget {
   const PageSearchHistoryPanel({
@@ -175,13 +176,12 @@ class _PageSearchFieldState extends State<PageSearchField> {
               SizedBox(
                 width: widget.height,
                 height: widget.height,
-                child: _PageSearchIconButton(
-                  tooltip: widget.searchTooltip,
-                  icon: FluentIcons.search_24_regular,
-                  iconSize: 19,
-                  borderRadius: 0,
+                child: SearchCommitIconButton(
+                  tooltip: widget.searchTooltip ?? widget.hintText,
                   foreground: colors.textMuted,
-                  hoverBackground: colors.iconButtonHover,
+                  hoverForeground: colors.accent,
+                  hoverBackground:
+                      SearchCommitIconButton.transparentHoverBackground,
                   onPressed: widget.onSubmitted,
                 ),
               ),
@@ -675,12 +675,12 @@ class _PageSearchColors {
     dropdownSurface: Color(0xf5f4f6f9),
     dropdownShadow: Color(0x2935495f),
     header: Color(0x945f625f),
-    accent: Color(0xff0063b1),
+    accent: SearchCommitIconButton.lightHoverForeground,
     textStrong: Color(0xff1f252b),
-    textMuted: Color(0xff5f625f),
+    textMuted: SearchCommitIconButton.lightForeground,
   );
 
-  static const darkAppBar = _PageSearchColors(
+  static const dark = _PageSearchColors(
     searchSurface: Color(0x0effffff),
     focusedSurface: Color(0x240078d7),
     border: Colors.transparent,
@@ -692,17 +692,17 @@ class _PageSearchColors {
     dropdownSurface: Color(0xf5181e26),
     dropdownShadow: Color(0x57000000),
     header: Color(0xadCBD5E1),
-    accent: Color(0xfff6f9fc),
+    accent: SearchCommitIconButton.darkHoverForeground,
     textStrong: Color(0xfff6f9fc),
-    textMuted: Color(0xadcbd5e1),
+    textMuted: SearchCommitIconButton.darkForeground,
   );
 
   static _PageSearchColors resolve(
     BuildContext context, {
     required bool appBar,
   }) {
-    if (appBar && Theme.of(context).brightness == Brightness.dark) {
-      return darkAppBar;
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return dark;
     }
     return light;
   }

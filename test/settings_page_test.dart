@@ -258,15 +258,24 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          home: SettingsPage(
-            appVersion: '3.0.3',
-            onLoadSystemFonts: () async => const [],
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: Scaffold(
+            body: SettingsPage(
+              appVersion: '3.1.0',
+              onLoadSystemFonts: () async => const [],
+            ),
           ),
         ),
       ),
     );
 
-    final footer = find.text('简音播放器 3.0.3');
+    final footer = find.text('简音播放器 3.1.0');
     expect(footer, findsOneWidget);
     expect(tester.getCenter(footer).dx, closeTo(600, 1));
     final footerText = tester.widget<Text>(footer);

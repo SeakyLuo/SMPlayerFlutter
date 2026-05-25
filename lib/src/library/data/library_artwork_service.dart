@@ -20,26 +20,6 @@ class ShellThumbnail {
   final String extension;
 }
 
-const _folderArtworkBaseNames = {
-  'cover',
-  'folder',
-  'front',
-  'album',
-  'albumart',
-  'albumart_{00000000-0000-0000-0000-000000000000}_large',
-  'albumart_{00000000-0000-0000-0000-000000000000}_small',
-  'albumartlarge',
-  'albumartsmall',
-};
-const _folderArtworkExtensions = {
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.webp',
-  '.bmp',
-  '.gif',
-};
-
 class LibraryArtworkService {
   const LibraryArtworkService({
     required Future<File> Function() databaseFileResolver,
@@ -295,14 +275,6 @@ class LibraryArtworkService {
       );
     }
 
-    final siblingArtwork = _findSiblingFolderArtwork(filePath);
-    if (siblingArtwork != null) {
-      final data = await siblingArtwork.readAsBytes();
-      if (_isLikelyImage(data)) {
-        return _writeArtworkCacheBytes(data, p.extension(siblingArtwork.path));
-      }
-    }
-
     final shellThumbnail = await _shellThumbnailResolver(filePath);
     if (shellThumbnail != null && _isLikelyImage(shellThumbnail.data)) {
       return _writeArtworkCacheBytes(
@@ -430,28 +402,6 @@ class LibraryArtworkService {
       await target.writeAsBytes(data);
     }
     return target.path;
-  }
-
-  File? _findSiblingFolderArtwork(String filePath) {
-    final directory = Directory(p.dirname(filePath));
-    if (!directory.existsSync()) {
-      return null;
-    }
-    final filesByLowerName = <String, File>{};
-    for (final entity in directory.listSync()) {
-      if (entity is File) {
-        filesByLowerName[p.basename(entity.path).toLowerCase()] = entity;
-      }
-    }
-    for (final baseName in _folderArtworkBaseNames) {
-      for (final extension in _folderArtworkExtensions) {
-        final file = filesByLowerName['$baseName$extension'];
-        if (file != null) {
-          return file;
-        }
-      }
-    }
-    return null;
   }
 
   Future<Directory> _resolveArtworkCacheDirectory() async {

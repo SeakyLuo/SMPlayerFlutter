@@ -9,7 +9,6 @@ import 'package:just_audio/just_audio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
-import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_actions.dart';
@@ -381,6 +380,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                     _isMiniMode
                         ? _buildMiniModeHost()
                         : Stack(
+                          fit: StackFit.expand,
                           children: [
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 180),
@@ -1043,7 +1043,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                         onToggleLock: _toggleDesktopLyricsLock,
                                         onClose: _disableDesktopLyrics,
                                         onOpenSettings: () {
-                                          _navigateTo('/settings');
+                                          _navigateTo(
+                                            '/settings#desktop-lyrics',
+                                          );
                                         },
                                       ),
                                     ),
