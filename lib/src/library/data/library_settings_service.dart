@@ -3,9 +3,13 @@ import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_database_service.dart';
+import 'library_models.dart';
+import 'library_read_service.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 
 typedef SettingsDatabaseCleanup = void Function(Database db);
+
+const _activeState = 1;
 
 class LibrarySettingsService {
   const LibrarySettingsService({required LibraryDatabaseService database})
@@ -176,6 +180,69 @@ class LibrarySettingsService {
           next.musicProgress,
           _settingsRowId(db),
         ],
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> updateMusicLibrarySort(
+    File databaseFile,
+    MusicLibrarySortCriterion criterion,
+  ) async {
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
+    try {
+      db.execute('UPDATE Settings SET MusicLibraryCriterion = ? WHERE Id = ?', [
+        toStoredSortCriterion(criterion),
+        1,
+      ]);
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> updateAlbumsSort(
+    File databaseFile,
+    AlbumSortCriterion criterion,
+  ) async {
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('UPDATE Settings SET AlbumsCriterion = ? WHERE Id = ?', [
+        toStoredAlbumSortCriterion(criterion),
+        1,
+      ]);
+    } finally {
+      db.dispose();
+    }
+  }
+
+  Future<void> updateLocalFolderSort(
+    File databaseFile,
+    String folderPath,
+    LocalFolderSortCriterion criterion,
+  ) async {
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE Folder
+        SET Criterion = ?
+        WHERE Path = ?
+          AND State = ?
+      ''',
+        [toStoredLocalFolderSortCriterion(criterion), folderPath, _activeState],
       );
     } finally {
       db.dispose();

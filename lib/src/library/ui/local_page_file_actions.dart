@@ -69,7 +69,7 @@ extension _LocalPageFileActions on _LocalPageState {
       if (!mounted) {
         return;
       }
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
       if (result.itemCount > 0) {
         showUndoableSnackBar(
           context: context,
@@ -81,7 +81,7 @@ extension _LocalPageFileActions on _LocalPageState {
             await ref
                 .read(libraryRepositoryProvider)
                 .undoMoveLocalItems(result);
-            ref.invalidate(libraryViewDataProvider);
+            ref.invalidate(libraryContentDataProvider);
           },
         );
       }
@@ -158,7 +158,7 @@ extension _LocalPageFileActions on _LocalPageState {
     String deleteId,
     String message,
   ) async {
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     if (!mounted) {
       await ref
           .read(libraryRepositoryProvider)
@@ -174,7 +174,7 @@ extension _LocalPageFileActions on _LocalPageState {
         await ref
             .read(libraryRepositoryProvider)
             .undoDeleteLocalItems(deleteId);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
     if (closedReason != SnackBarClosedReason.action) {

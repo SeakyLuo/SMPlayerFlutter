@@ -50,11 +50,13 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final shellColors = ShellThemeColors.of(context);
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
-    final snapshot = ref.watch(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+    final recentData = ref.watch(recentPageDataProvider).valueOrNull;
     final title = _workspaceTitle(
       path: currentPath,
       location: currentLocation,
       snapshot: snapshot,
+      recentData: recentData,
       i18n: i18n,
     );
     final rawHeaderedPlaylistAppBar = ref.watch(
@@ -548,7 +550,8 @@ class _WorkspaceHeader extends StatelessWidget {
 String _workspaceTitle({
   required String path,
   required String location,
-  required LibraryViewData? snapshot,
+  required LibraryContentData? snapshot,
+  required RecentPageData? recentData,
   required SmPlayerI18n i18n,
 }) {
   final uri = Uri.parse(location);
@@ -592,7 +595,7 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/recent')) {
-    if (snapshot != null && _hasRecentContent(snapshot)) {
+    if (snapshot != null && _hasRecentContent(snapshot, recentData)) {
       return '';
     }
     return i18n.t('common.recent');
@@ -643,16 +646,19 @@ String _workspaceTitle({
       : i18n.t('library.allSongs');
 }
 
-bool _hasRecentContent(LibraryViewData snapshot) {
+bool _hasRecentContent(
+  LibraryContentData snapshot,
+  RecentPageData? recentData,
+) {
   return snapshot.songs.isNotEmpty ||
-      snapshot.recentSongs.isNotEmpty ||
-      snapshot.recentPlaylists.isNotEmpty ||
-      snapshot.recentAlbums.isNotEmpty ||
-      snapshot.recentArtists.isNotEmpty ||
+      (recentData?.recentSongs.isNotEmpty ?? false) ||
+      (recentData?.recentPlaylists.isNotEmpty ?? false) ||
+      (recentData?.recentAlbums.isNotEmpty ?? false) ||
+      (recentData?.recentArtists.isNotEmpty ?? false) ||
       snapshot.recentSearches.isNotEmpty;
 }
 
-int _artistCount(LibraryViewData snapshot) {
+int _artistCount(LibraryContentData snapshot) {
   final names = <String>{};
   for (final song in snapshot.songs) {
     names.addAll(artists_model.getSongArtists(song));
@@ -660,7 +666,7 @@ int _artistCount(LibraryViewData snapshot) {
   return names.length;
 }
 
-int _albumCount(LibraryViewData snapshot) {
+int _albumCount(LibraryContentData snapshot) {
   return snapshot.songs
       .map(canonicalAlbumName)
       .where((album) => album.isNotEmpty)

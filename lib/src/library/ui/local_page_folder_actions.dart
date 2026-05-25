@@ -46,7 +46,7 @@ extension _LocalPageFolderActions on _LocalPageState {
     _updateLocalPageState(() {
       _createdFolderPaths.add(relativePath);
     });
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _renameFolder({
@@ -74,7 +74,7 @@ extension _LocalPageFolderActions on _LocalPageState {
     }
 
     await ref.read(libraryRepositoryProvider).renameFolder(folder.path, name);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
 
     if (folder.relativePath == widget.currentRelativePath && mounted) {
       final parentPath = getParentPath(folder.relativePath);
@@ -85,7 +85,7 @@ extension _LocalPageFolderActions on _LocalPageState {
 
   Future<void> _hideFolder(FolderNode folder) async {
     await ref.read(libraryRepositoryProvider).hideFolder(folder.path);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     if (mounted) {
       _updateLocalPageState(_clearMultiSelectStatus);
       showUndoableSnackBar(
@@ -99,7 +99,7 @@ extension _LocalPageFolderActions on _LocalPageState {
         }),
         onUndo: () async {
           await ref.read(libraryRepositoryProvider).unhideFolder(folder.path);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
       );
     }

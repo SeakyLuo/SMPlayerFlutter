@@ -48,10 +48,7 @@ void main() {
     expect(mainWindow.existsSync(), isTrue);
 
     final appDelegateText = appDelegate.readAsStringSync();
-    expect(
-      appDelegateText,
-      contains('securityScopedExternalFileBookmarks'),
-    );
+    expect(appDelegateText, contains('securityScopedExternalFileBookmarks'));
     expect(
       appDelegateText,
       contains('url.startAccessingSecurityScopedResource()'),

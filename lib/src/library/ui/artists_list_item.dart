@@ -100,7 +100,6 @@ class _ArtistListArtworkState extends State<ArtistListArtwork> {
     final song = widget.artist.songs.firstWhere(
       (song) => song.id == widget.artist.artworkSongId,
     );
-    final file = song.thumbnailPath.isEmpty ? null : File(song.thumbnailPath);
     return MouseRegion(
       onEnter: (_) {
         setState(() {
@@ -119,15 +118,16 @@ class _ArtistListArtworkState extends State<ArtistListArtwork> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              file != null && file.existsSync()
-                  ? Image.file(file, fit: BoxFit.cover)
-                  : const DecoratedBox(
-                    decoration: BoxDecoration(color: _ArtistsColors.artwork),
-                    child: Icon(
-                      FluentIcons.person_24_regular,
-                      color: _ArtistsColors.artworkIcon,
-                    ),
+              SongArtwork(
+                artworkPath: song.thumbnailPath,
+                fallback: const DecoratedBox(
+                  decoration: BoxDecoration(color: _ArtistsColors.artwork),
+                  child: Icon(
+                    FluentIcons.person_24_regular,
+                    color: _ArtistsColors.artworkIcon,
                   ),
+                ),
+              ),
               IgnorePointer(
                 ignoring: !_hovered,
                 child: AnimatedOpacity(

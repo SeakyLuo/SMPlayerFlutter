@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_version.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_workspace.dart';
@@ -328,6 +329,29 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
               ? 10
               : SmPlayerShellMetrics.playerTopRadius + 10,
         ),
+        smPlayerShellActionsProvider.overrideWithValue(
+          SmPlayerShellActions(
+            onOpenVoiceAssistant:
+                supportsVoiceAssistant()
+                    ? () {
+                      final snapshot =
+                          ref.read(libraryContentDataProvider).valueOrNull;
+                      final i18n =
+                          ref.read(smPlayerI18nProvider).value ??
+                          context.smPlayerI18n;
+                      _showVoiceAssistantDialog(snapshot, i18n);
+                    }
+                    : null,
+            onExitWindowFullScreen: () async {
+              await _desktopFeatureService.setWindowFullScreen(false);
+              if (mounted && _isWindowFullScreen) {
+                setState(() {
+                  _isWindowFullScreen = false;
+                });
+              }
+            },
+          ),
+        ),
       ],
       child: Focus(
         autofocus: true,
@@ -447,7 +471,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                       builder: (context, ref, _) {
                                         final snapshot =
                                             ref
-                                                .watch(libraryViewDataProvider)
+                                                .watch(
+                                                  libraryContentDataProvider,
+                                                )
                                                 .valueOrNull;
                                         final i18n =
                                             ref
@@ -571,7 +597,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                                   ),
                                             );
                                             ref.invalidate(
-                                              libraryViewDataProvider,
+                                              libraryContentDataProvider,
                                             );
                                           },
                                           onPlaylistRandomPlay: (playlistId) {
@@ -646,7 +672,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                           final snapshot =
                                               ref
                                                   .watch(
-                                                    libraryViewDataProvider,
+                                                    libraryContentDataProvider,
                                                   )
                                                   .valueOrNull;
                                           _scheduleRestorePlaybackTrack(
@@ -669,9 +695,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                                 locale: smPlayerFallbackLocale,
                                                 messages: {},
                                               );
+                                          final recentSongs =
+                                              ref
+                                                  .watch(recentPageDataProvider)
+                                                  .valueOrNull
+                                                  ?.recentSongs ??
+                                              const <RecentLibrarySong>[];
                                           _syncDesktopFeatures(
                                             i18n: i18n,
                                             snapshot: snapshot,
+                                            recentSongs: recentSongs,
                                             mediaControlState:
                                                 mediaControlState,
                                             currentSong: currentSong,
@@ -959,7 +992,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                 builder: (context, ref, _) {
                                   final snapshot =
                                       ref
-                                          .watch(libraryViewDataProvider)
+                                          .watch(libraryContentDataProvider)
                                           .valueOrNull;
                                   final state = _mediaControlController.state;
                                   final currentSong = _resolvePlayerSong(
@@ -1067,11 +1100,20 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                               ArtistSplitReviewDialog(
                                 result: result,
                                 applying: _startupArtistSplitApplying,
+                                artworkPathBySongId: {
+                                  for (final song
+                                      in ref
+                                              .watch(libraryContentDataProvider)
+                                              .valueOrNull
+                                              ?.songs ??
+                                          const <LibrarySong>[])
+                                    song.id: song.thumbnailPath,
+                                },
                                 onCancel: () {
                                   _dismissStartupArtistSplitReview();
                                 },
                                 onApply: (splits) {
-                                  unawaited(_applyStartupArtistSplits(splits));
+                                  return _applyStartupArtistSplits(splits);
                                 },
                               ),
                           ],
@@ -1086,7 +1128,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
 
   LibrarySong? _resolvePlayerSong(
     MediaControlState mediaControlState,
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
   ) {
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     final songsById = {for (final song in songs) song.id: song};

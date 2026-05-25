@@ -676,7 +676,7 @@ void main() {
     tester,
   ) async {
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [],
         recentSongs: [],
         recentPlaylists: [],
@@ -709,7 +709,7 @@ void main() {
     'shell hides Recent workspace header when recent page has content',
     (tester) async {
       final repository = _SnapshotRepository(
-        const LibraryViewData(
+        const LibraryContentData(
           songs: [
             LibrarySong(
               id: 1,
@@ -774,7 +774,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -842,7 +842,7 @@ void main() {
     );
     final navigations = <String>[];
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -892,7 +892,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 20,
@@ -945,7 +945,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -997,7 +997,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -1056,7 +1056,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -1107,7 +1107,7 @@ void main() {
       ),
     );
     final repository = _SnapshotRepository(
-      const LibraryViewData(
+      const LibraryContentData(
         songs: [
           LibrarySong(
             id: 10,
@@ -1345,12 +1345,12 @@ class _StartupRepository extends LibraryRepository {
 class _SnapshotRepository extends _StartupRepository {
   _SnapshotRepository(this.snapshot);
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   var artworkSnapshotRequestCount = 0;
   final artworkSnapshotSongIds = <int>[];
 
   @override
-  Future<LibraryViewData> getLibraryViewData() async {
+  Future<LibraryContentData> getLibraryContentData() async {
     return snapshot;
   }
 

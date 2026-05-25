@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -65,6 +66,7 @@ enum MenuFlyoutLayer { defaultLayer, dialog }
 Future<void> showMenuFlyout(
   BuildContext context, {
   required List<MenuFlyoutItem> items,
+  ValueListenable<List<MenuFlyoutItem>>? itemsListenable,
   Offset? position,
   bool avoidPlayerBar = true,
   MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
@@ -73,9 +75,12 @@ Future<void> showMenuFlyout(
     context,
     rootOverlay: layer == MenuFlyoutLayer.dialog,
   );
-  final button = context.findRenderObject() as RenderBox;
   final resolvedPosition =
-      position ?? button.localToGlobal(Offset(0, button.size.height + 4));
+      position ??
+      () {
+        final button = context.findRenderObject() as RenderBox;
+        return button.localToGlobal(Offset(0, button.size.height + 4));
+      }();
   final hasExplicitPosition = position != null;
 
   final completer = Completer<void>();
@@ -93,6 +98,7 @@ Future<void> showMenuFlyout(
     builder:
         (overlayContext) => _MenuFlyoutOverlay(
           items: items,
+          itemsListenable: itemsListenable,
           anchorContext: context,
           requestedPosition: resolvedPosition,
           hasExplicitPosition: hasExplicitPosition,
@@ -115,6 +121,7 @@ const _menuFlyoutPlayerBarHeight = 120.0;
 class _MenuFlyoutOverlay extends StatefulWidget {
   const _MenuFlyoutOverlay({
     required this.items,
+    required this.itemsListenable,
     required this.anchorContext,
     required this.requestedPosition,
     required this.hasExplicitPosition,
@@ -123,6 +130,7 @@ class _MenuFlyoutOverlay extends StatefulWidget {
   });
 
   final List<MenuFlyoutItem> items;
+  final ValueListenable<List<MenuFlyoutItem>>? itemsListenable;
   final BuildContext anchorContext;
   final Offset requestedPosition;
   final bool hasExplicitPosition;
@@ -158,6 +166,22 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }
 
   @override
+  void didUpdateWidget(_MenuFlyoutOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items == widget.items) {
+      return;
+    }
+    setState(() {
+      _panels = [
+        _MenuFlyoutPanelState(
+          items: widget.items,
+          position: _panels.first.position,
+        ),
+      ];
+    });
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _anchorScrollPosition?.removeListener(_requestPositionUpdate);
@@ -172,6 +196,27 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final itemsListenable = widget.itemsListenable;
+    if (itemsListenable != null) {
+      return ValueListenableBuilder<List<MenuFlyoutItem>>(
+        valueListenable: itemsListenable,
+        builder:
+            (context, items, _) =>
+                _buildOverlay(context, items == widget.items ? null : items),
+      );
+    }
+    return _buildOverlay(context, null);
+  }
+
+  Widget _buildOverlay(BuildContext context, List<MenuFlyoutItem>? liveItems) {
+    if (liveItems != null && _panels.first.items != liveItems) {
+      _panels = [
+        _MenuFlyoutPanelState(
+          items: liveItems,
+          position: _panels.first.position,
+        ),
+      ];
+    }
     final size = MediaQuery.sizeOf(context);
     final boundaryBottom = _boundaryBottom(size);
     final panels = _resolvedPanels(size, boundaryBottom);
@@ -255,11 +300,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
             .copyWith(
               position:
                   index == 0
-                      ? _resolvedRequestedPosition(
-                        rootHeight: _menuFlyoutItemsHeight(
-                          _panels[index].items,
-                        ),
-                      )
+                      ? _resolvedRequestedPosition()
                       : _panels[index].position,
             )
             .resolve(
@@ -274,7 +315,10 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
     ];
   }
 
-  Offset _resolvedRequestedPosition({required double rootHeight}) {
+  Offset _resolvedRequestedPosition() {
+    if (widget.hasExplicitPosition) {
+      return widget.requestedPosition;
+    }
     if (!widget.anchorContext.mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -290,18 +334,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
           widget.onClose();
         }
       });
-      return widget.requestedPosition;
-    }
-    if (widget.hasExplicitPosition) {
-      final anchorRect =
-          renderObject.localToGlobal(Offset.zero) & renderObject.size;
-      if (widget.requestedPosition.dy < anchorRect.top) {
-        final gap = anchorRect.top - widget.requestedPosition.dy;
-        return Offset(
-          widget.requestedPosition.dx,
-          anchorRect.top - rootHeight - gap,
-        );
-      }
       return widget.requestedPosition;
     }
     return renderObject.localToGlobal(Offset(0, renderObject.size.height + 4));

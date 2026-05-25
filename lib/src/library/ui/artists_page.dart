@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -25,12 +24,12 @@ import 'command_bar.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
 import 'multi_select_command_bar.dart';
-import 'default_album_artwork.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'music_dialog.dart';
 import 'page_selection_store.dart';
 import 'page_search_history_panel.dart';
+import 'song_artwork.dart';
 import '../../platform/desktop_features.dart';
 import 'quick_jump_tooltip.dart';
 
@@ -135,7 +134,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
     final mediaState = ref.watch(mediaControlControllerProvider).state;
 
     if (i18nValue.isLoading) {
@@ -586,7 +585,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   unawaited(revealItemInFolder(path));
                 },
                 onSaved: () {
-                  ref.invalidate(libraryViewDataProvider);
+                  ref.invalidate(libraryContentDataProvider);
                 },
                 onClose: () {
                   setState(() {
@@ -619,7 +618,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       return;
     }
 
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final suggestions = searchArtists(artistGroups, query);
@@ -667,7 +666,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             invalidateRecentSearchData(ref);
           }),
     );
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final exactMatches =
@@ -699,7 +698,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _clearArtistRecentSearches() {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final entryIds =
         snapshot.recentSearches
             .where((entry) => entry.type == SearchHistoryType.artists)
@@ -736,7 +735,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _scrollToArtist(String artistName) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);
     final artistIndex = artistGroups.indexWhere(
@@ -787,7 +786,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       return;
     }
 
-    final songs = ref.read(libraryViewDataProvider).value?.songs ?? const [];
+    final songs = ref.read(libraryContentDataProvider).value?.songs ?? const [];
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     ref
@@ -798,11 +797,11 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           queueIndex: 0,
         );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playTrackInQueue(int songId, List<int> queueSongIds) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId]!;
     final queueIndex = queueSongIds.indexOf(songId);
@@ -814,11 +813,11 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -828,7 +827,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playShuffledSongIds(
@@ -866,7 +865,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     if (!mounted) {
       return;
     }
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songIds = songs.map((song) => song.id).toList();
     final customPlaylists =
         snapshot.playlists
@@ -1008,13 +1007,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem(preferenceType, label);
-                ref.invalidate(libraryViewDataProvider);
+                ref.invalidate(libraryContentDataProvider);
               },
       onSetPreference: (level) async {
         await ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem(preferenceType, label, label, level);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -1026,7 +1025,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final preferenceLevel = await ref
@@ -1055,7 +1054,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryViewDataProvider);
+                  ref.invalidate(libraryContentDataProvider);
                 },
         onPlay: () {
           _playSongIds(queueSongIds);
@@ -1113,7 +1112,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -1157,7 +1156,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _showSongAddToMenu(BuildContext buttonContext, LibrarySong song) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = context.smPlayerI18n;
     final playlists =
         snapshot.playlists

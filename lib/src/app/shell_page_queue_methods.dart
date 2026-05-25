@@ -5,7 +5,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     final songIds = songs.map((song) => song.id).toList();
     final firstSong = songs.first;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _mediaControlController.playTrack(
       mediaControlTrackForSong(firstSong, context.smPlayerI18n),
       durationSeconds: firstSong.duration.toDouble(),
@@ -18,7 +18,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   bool _playPreviousFromCurrentQueue() {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (snapshot == null) {
       return false;
     }
@@ -47,7 +47,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   bool _playQueueDirection({required bool forward, required bool automatic}) {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (snapshot == null) {
       return false;
     }
@@ -81,7 +81,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   bool _shuffleAndPlayNextRound(
-    LibraryViewData snapshot,
+    LibraryContentData snapshot,
     List<int> playbackSongIds,
   ) {
     final nextSongIds = shuffleNextRoundSongIds(
@@ -91,11 +91,11 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     return _playQueueSong(snapshot, nextSongIds.first, 0);
   }
 
-  List<int> _playbackSongIds(LibraryViewData snapshot) {
+  List<int> _playbackSongIds(LibraryContentData snapshot) {
     return normalizePlaybackQueueSongIds(
       snapshot.nowPlaying.songIds,
       snapshot.songs.map((song) => song.id),
@@ -103,7 +103,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   int _currentQueueIndex(
-    LibraryViewData snapshot, [
+    LibraryContentData snapshot, [
     List<int>? playbackSongIds,
   ]) {
     return currentPlaybackQueueIndex(
@@ -114,7 +114,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   void _playQueueIndex(
-    LibraryViewData snapshot,
+    LibraryContentData snapshot,
     List<int> playbackSongIds,
     int queueIndex,
   ) {
@@ -128,7 +128,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     }
   }
 
-  bool _playQueueSong(LibraryViewData snapshot, int songId, int queueIndex) {
+  bool _playQueueSong(LibraryContentData snapshot, int songId, int queueIndex) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId];
     if (song == null) {
@@ -157,7 +157,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
 
   Future<void> _randomPlayPlaylist(WidgetRef ref, int playlistId) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final playlist = snapshot.playlists.firstWhere(
       (playlist) => playlist.id == playlistId,
     );
@@ -175,6 +175,6 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 }

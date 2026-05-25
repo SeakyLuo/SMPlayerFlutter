@@ -58,7 +58,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
   }
 
   void _playTrack(int trackId, List<int> queueSongIds) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[trackId]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -69,7 +69,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
           durationSeconds: song.duration.toDouble(),
           queueIndex: max(0, queueSongIds.indexOf(trackId)),
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _updateLocalPageState(() {
       _selectedSongIds
         ..clear()
@@ -81,7 +81,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -91,7 +91,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _jumpToSongKey(

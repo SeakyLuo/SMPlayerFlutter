@@ -329,6 +329,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 selectedTrackId: null,
                 isPlaying: false,
                 onPlay: (_) {},
+                onApplyArtistSplits:
+                    (splits) => _applyScanResultArtistSplits(splits, i18n),
+                onDismissArtistSplitSuggestions:
+                    _dismissScanResultArtistSplitSuggestions,
                 onClose: () {
                   setState(() {
                     _scanResultDialog = null;
@@ -388,6 +392,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ArtistSplitReviewDialog(
                 result: result,
                 applying: _smartArtistApplyRunning,
+                artworkPathBySongId: {
+                  for (final song in widget.librarySongs)
+                    song.id: song.thumbnailPath,
+                },
                 onCancel: () {
                   if (_smartArtistApplyRunning) {
                     return;
@@ -397,7 +405,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   });
                 },
                 onApply: (splits) {
-                  unawaited(_applySmartArtistFix(splits, i18n));
+                  return _applySmartArtistFix(splits, i18n);
                 },
               ),
             if (_showLyricsBatchDetails && _lyricsBatchResult != null)
@@ -871,6 +879,68 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _applyScanResultArtistSplits(
+    List<ArtistSplitResultItem> splits,
+    SmPlayerI18n i18n,
+  ) async {
+    if (splits.isEmpty) {
+      return;
+    }
+
+    await widget.libraryRepository.applyArtistSplits(splits);
+    if (!mounted) {
+      return;
+    }
+    _showMessage(i18n.t('common.saved'));
+    setState(() {
+      final current = _scanResultDialog;
+      if (current == null) {
+        return;
+      }
+      final appliedSongIds = splits.map((split) => split.songId).toSet();
+      _scanResultDialog = (
+        folder: current.folder,
+        result: LocalFolderRefreshResult(
+          filesAdded: current.result.filesAdded,
+          filesRemoved: current.result.filesRemoved,
+          filesMoved: current.result.filesMoved,
+          artistSplitsApplied:
+              current.result.artistSplitsApplied
+                  .where((item) => !appliedSongIds.contains(item.songId))
+                  .toList(),
+          artistSplitSuggestions:
+              current.result.artistSplitSuggestions
+                  .where((item) => !appliedSongIds.contains(item.songId))
+                  .toList(),
+          artistMergeSuggestions:
+              current.result.artistMergeSuggestions
+                  .where((item) => !appliedSongIds.contains(item.songId))
+                  .toList(),
+        ),
+      );
+    });
+  }
+
+  void _dismissScanResultArtistSplitSuggestions() {
+    setState(() {
+      final current = _scanResultDialog;
+      if (current == null) {
+        return;
+      }
+      _scanResultDialog = (
+        folder: current.folder,
+        result: LocalFolderRefreshResult(
+          filesAdded: current.result.filesAdded,
+          filesRemoved: current.result.filesRemoved,
+          filesMoved: current.result.filesMoved,
+          artistSplitsApplied: const [],
+          artistSplitSuggestions: const [],
+          artistMergeSuggestions: const [],
+        ),
+      );
+    });
   }
 
   void _showMessage(String message) {

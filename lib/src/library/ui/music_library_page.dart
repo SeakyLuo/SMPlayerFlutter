@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'dart:ui' show ImageFilter;
 
@@ -30,6 +29,7 @@ import 'music_dialog.dart';
 import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
 import 'song_display_helpers.dart' as song_display;
+import 'song_artwork.dart';
 import '../../platform/desktop_features.dart';
 
 const _quickJumpKeys = [
@@ -182,7 +182,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
 
     if (i18nValue.isLoading) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
@@ -467,7 +467,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                   unawaited(revealItemInFolder(path));
                                 },
                                 onSaved: () {
-                                  ref.invalidate(libraryViewDataProvider);
+                                  ref.invalidate(libraryContentDataProvider);
                                 },
                                 onClose: () {
                                   setState(() {
@@ -652,7 +652,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final preferenceLevel = await ref
@@ -738,7 +738,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         preferenceLevel: preferenceLevel,
         showSelect: false,
@@ -749,7 +749,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryViewDataProvider);
+                  ref.invalidate(libraryContentDataProvider);
                 },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -840,7 +840,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(libraryViewDataProvider).value!;
+        final snapshot = ref.read(libraryContentDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -887,7 +887,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     if (shuffle) {
       queueSongIds.shuffle(Random());
     }
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -898,11 +898,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -912,11 +912,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _addNextAndPlay(int songId) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId]!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
@@ -940,7 +940,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _jumpToKey(Map<String, int> quickJumpMap, String key, bool compact) {
@@ -1920,10 +1920,6 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
 
   @override
   Widget build(BuildContext context) {
-    final file =
-        widget.song.thumbnailPath.isEmpty
-            ? null
-            : File(widget.song.thumbnailPath);
     return MouseRegion(
       onEnter: (_) {
         setState(() {
@@ -1942,15 +1938,16 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              file != null && file.existsSync()
-                  ? Image.file(file, fit: BoxFit.cover)
-                  : const DecoratedBox(
-                    decoration: BoxDecoration(color: _LibraryColors.artwork),
-                    child: Icon(
-                      FluentIcons.music_note_2_24_regular,
-                      color: _LibraryColors.artworkIcon,
-                    ),
+              SongArtwork(
+                artworkPath: widget.song.thumbnailPath,
+                fallback: const DecoratedBox(
+                  decoration: BoxDecoration(color: _LibraryColors.artwork),
+                  child: Icon(
+                    FluentIcons.music_note_2_24_regular,
+                    color: _LibraryColors.artworkIcon,
                   ),
+                ),
+              ),
               IgnorePointer(
                 ignoring: !_hovered,
                 child: AnimatedOpacity(

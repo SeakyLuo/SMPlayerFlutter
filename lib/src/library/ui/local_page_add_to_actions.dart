@@ -35,7 +35,7 @@ extension _LocalPageAddToActions on _LocalPageState {
     required List<int> songIds,
     required String defaultPlaylistName,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
@@ -69,7 +69,7 @@ extension _LocalPageAddToActions on _LocalPageState {
   Future<void> _createPlaylist(
     String defaultName,
     List<int> songIds,
-    LibraryViewData snapshot,
+    LibraryContentData snapshot,
     SmPlayerI18n i18n,
   ) async {
     final name = await _requestPlaylistName(
@@ -82,7 +82,7 @@ extension _LocalPageAddToActions on _LocalPageState {
     }
 
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<String?> _requestPlaylistName({

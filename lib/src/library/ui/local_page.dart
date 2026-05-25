@@ -123,7 +123,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
 
     if (i18nValue.isLoading) {
       return const LocalPageScaffold(child: SmPlayerLoadingState());
@@ -148,7 +148,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   Widget _buildPage(
     BuildContext context,
-    LibraryViewData snapshot,
+    LibraryContentData snapshot,
     SmPlayerI18n i18n,
   ) {
     if (snapshot.rootPath.isEmpty) {
@@ -914,6 +914,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   onPlay: (songId) {
                     _playTrack(songId, [songId]);
                   },
+                  onApplyArtistSplits:
+                      (splits) => _applyFolderUpdateArtistSplits(splits, i18n),
+                  onDismissArtistSplitSuggestions:
+                      _dismissFolderUpdateArtistSplitSuggestions,
                   onClose: () {
                     setState(() {
                       _refreshResultDialog = null;
@@ -939,7 +943,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     unawaited(revealItemInFolder(path));
                   },
                   onSaved: () {
-                    ref.invalidate(libraryViewDataProvider);
+                    ref.invalidate(libraryContentDataProvider);
                   },
                   onClose: () {
                     setState(() {

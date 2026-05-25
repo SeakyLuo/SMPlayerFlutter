@@ -7,7 +7,7 @@ import 'local_page_shell.dart';
 
 Widget buildLocalPageEmptyContent({
   required SmPlayerI18n i18n,
-  required LibraryViewData snapshot,
+  required LibraryContentData snapshot,
   required String searchQuery,
   required VoidCallback onOpenSettings,
 }) {

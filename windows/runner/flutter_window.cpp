@@ -9,6 +9,7 @@
 #include <shobjidl.h>
 #include <systemmediatransportcontrolsinterop.h>
 #include <algorithm>
+#include <cstdint>
 #include <cwchar>
 #include <string>
 #include <variant>
@@ -32,6 +33,9 @@ constexpr int kHotKeyPlayPause = 5001;
 constexpr int kHotKeyPrevious = 5002;
 constexpr int kHotKeyNext = 5003;
 constexpr int kHotKeyStop = 5004;
+constexpr int kTaskbarButtonPrevious = 5101;
+constexpr int kTaskbarButtonPlayPause = 5102;
+constexpr int kTaskbarButtonNext = 5103;
 constexpr wchar_t kWindowsAppUserModelId[] = L"com.seaky.simplemelodyplayer";
 constexpr ULONG_PTR kOpenExternalArgumentsCopyDataType = 0x534D504F;
 constexpr wchar_t kDesktopLyricsWindowClass[] = L"SMPlayerDesktopLyricsWindow";
@@ -122,6 +126,65 @@ std::wstring EncodableString(const flutter::EncodableMap& map, const char* key) 
   }
   const auto* value = std::get_if<std::string>(&iterator->second);
   return value == nullptr ? std::wstring() : Utf16FromUtf8(*value);
+}
+
+HICON CreateTaskbarGlyphIcon(const wchar_t* glyph) {
+  constexpr int kIconSize = 32;
+  BITMAPV5HEADER bitmap_header = {};
+  bitmap_header.bV5Size = sizeof(BITMAPV5HEADER);
+  bitmap_header.bV5Width = kIconSize;
+  bitmap_header.bV5Height = -kIconSize;
+  bitmap_header.bV5Planes = 1;
+  bitmap_header.bV5BitCount = 32;
+  bitmap_header.bV5Compression = BI_BITFIELDS;
+  bitmap_header.bV5RedMask = 0x00ff0000;
+  bitmap_header.bV5GreenMask = 0x0000ff00;
+  bitmap_header.bV5BlueMask = 0x000000ff;
+  bitmap_header.bV5AlphaMask = 0xff000000;
+
+  HDC screen_dc = ::GetDC(nullptr);
+  void* bits = nullptr;
+  HBITMAP color_bitmap = ::CreateDIBSection(
+      screen_dc, reinterpret_cast<BITMAPINFO*>(&bitmap_header), DIB_RGB_COLORS,
+      &bits, nullptr, 0);
+  HDC memory_dc = ::CreateCompatibleDC(screen_dc);
+  HGDIOBJ old_bitmap = ::SelectObject(memory_dc, color_bitmap);
+
+  HFONT font = ::CreateFontW(-22, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                             CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                             DEFAULT_PITCH | FF_DONTCARE,
+                             L"Segoe MDL2 Assets");
+  HGDIOBJ old_font = ::SelectObject(memory_dc, font);
+  ::SetBkMode(memory_dc, TRANSPARENT);
+  ::SetTextColor(memory_dc, RGB(255, 255, 255));
+  RECT rect{0, 0, kIconSize, kIconSize};
+  ::DrawTextW(memory_dc, glyph, -1, &rect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+  auto* pixels = static_cast<uint32_t*>(bits);
+  for (int index = 0; index < kIconSize * kIconSize; index += 1) {
+    if ((pixels[index] & 0x00ffffff) != 0) {
+      pixels[index] |= 0xff000000;
+    }
+  }
+
+  ::SelectObject(memory_dc, old_font);
+  ::DeleteObject(font);
+  ::SelectObject(memory_dc, old_bitmap);
+  ::DeleteDC(memory_dc);
+
+  HBITMAP mask_bitmap = ::CreateBitmap(kIconSize, kIconSize, 1, 1, nullptr);
+  ICONINFO icon_info = {};
+  icon_info.fIcon = TRUE;
+  icon_info.hbmColor = color_bitmap;
+  icon_info.hbmMask = mask_bitmap;
+  HICON icon = ::CreateIconIndirect(&icon_info);
+
+  ::DeleteObject(mask_bitmap);
+  ::DeleteObject(color_bitmap);
+  ::ReleaseDC(nullptr, screen_dc);
+  return icon;
 }
 
 COLORREF ColorFromHex(const std::wstring& value, COLORREF fallback) {
@@ -350,6 +413,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   RegisterDesktopFeatureChannel();
   RegisterGlobalMediaHotkeys();
+  taskbar_button_created_message_ =
+      ::RegisterWindowMessageW(L"TaskbarButtonCreated");
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   native_splash_visible_ = true;
   ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_HIDE);
@@ -486,6 +551,98 @@ void FlutterWindow::UnregisterGlobalMediaHotkeys() {
   hot_key_window_ = nullptr;
 }
 
+void FlutterWindow::EnsureTaskbarToolbar() {
+  if (taskbar_buttons_added_) {
+    return;
+  }
+
+  if (!taskbar_list_) {
+    if (FAILED(::CoCreateInstance(CLSID_TaskbarList, nullptr,
+                                  CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&taskbar_list_)))) {
+      return;
+    }
+    if (FAILED(taskbar_list_->HrInit())) {
+      taskbar_list_.Reset();
+      return;
+    }
+  }
+
+  if (taskbar_previous_icon_ == nullptr) {
+    taskbar_previous_icon_ = CreateTaskbarGlyphIcon(L"\xE100");
+  }
+  if (taskbar_play_icon_ == nullptr) {
+    taskbar_play_icon_ = CreateTaskbarGlyphIcon(L"\xE102");
+  }
+  if (taskbar_pause_icon_ == nullptr) {
+    taskbar_pause_icon_ = CreateTaskbarGlyphIcon(L"\xE103");
+  }
+  if (taskbar_next_icon_ == nullptr) {
+    taskbar_next_icon_ = CreateTaskbarGlyphIcon(L"\xE101");
+  }
+  if (taskbar_previous_icon_ == nullptr || taskbar_play_icon_ == nullptr ||
+      taskbar_pause_icon_ == nullptr || taskbar_next_icon_ == nullptr) {
+    return;
+  }
+
+  THUMBBUTTON buttons[3] = {};
+  buttons[0].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[0].iId = kTaskbarButtonPrevious;
+  buttons[0].hIcon = taskbar_previous_icon_;
+  buttons[0].dwFlags = THBF_DISABLED;
+  wcscpy_s(buttons[0].szTip, L"Previous");
+
+  buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[1].iId = kTaskbarButtonPlayPause;
+  buttons[1].hIcon = taskbar_play_icon_;
+  buttons[1].dwFlags = THBF_DISABLED;
+  wcscpy_s(buttons[1].szTip, L"Play");
+
+  buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[2].iId = kTaskbarButtonNext;
+  buttons[2].hIcon = taskbar_next_icon_;
+  buttons[2].dwFlags = THBF_DISABLED;
+  wcscpy_s(buttons[2].szTip, L"Next");
+
+  if (SUCCEEDED(taskbar_list_->ThumbBarAddButtons(GetHandle(), 3, buttons))) {
+    taskbar_buttons_added_ = true;
+  }
+}
+
+void FlutterWindow::UpdateTaskbarToolbar(bool active, bool playing) {
+  taskbar_media_active_ = active;
+  taskbar_media_playing_ = playing;
+  if (!active && !taskbar_buttons_added_) {
+    return;
+  }
+  EnsureTaskbarToolbar();
+  if (!taskbar_buttons_added_ || !taskbar_list_) {
+    return;
+  }
+
+  const THUMBBUTTONFLAGS flags = active ? THBF_ENABLED : THBF_DISABLED;
+  THUMBBUTTON buttons[3] = {};
+  buttons[0].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[0].iId = kTaskbarButtonPrevious;
+  buttons[0].hIcon = taskbar_previous_icon_;
+  buttons[0].dwFlags = flags;
+  wcscpy_s(buttons[0].szTip, L"Previous");
+
+  buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[1].iId = kTaskbarButtonPlayPause;
+  buttons[1].hIcon = playing ? taskbar_pause_icon_ : taskbar_play_icon_;
+  buttons[1].dwFlags = flags;
+  wcscpy_s(buttons[1].szTip, playing ? L"Pause" : L"Play");
+
+  buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
+  buttons[2].iId = kTaskbarButtonNext;
+  buttons[2].hIcon = taskbar_next_icon_;
+  buttons[2].dwFlags = flags;
+  wcscpy_s(buttons[2].szTip, L"Next");
+
+  taskbar_list_->ThumbBarUpdateButtons(GetHandle(), 3, buttons);
+}
+
 void FlutterWindow::SendDesktopCommand(const std::string& command) {
   if (!desktop_feature_channel_) {
     return;
@@ -553,6 +710,7 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
       updater.ClearAll();
       updater.Update();
     }
+    UpdateTaskbarToolbar(false, false);
     return;
   }
 
@@ -624,6 +782,7 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
         EncodableBool(state, "playing")
             ? media::SystemMediaTransportControlsPlaybackStatus::Playing
             : media::SystemMediaTransportControlsPlaybackStatus::Paused);
+    UpdateTaskbarToolbar(true, EncodableBool(state, "playing"));
 
     auto updater = controls.DisplayUpdater();
     updater.ClearAll();
@@ -1007,6 +1166,23 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
 
 void FlutterWindow::OnDestroy() {
   DestroyDesktopLyricsWindow();
+  if (taskbar_previous_icon_ != nullptr) {
+    ::DestroyIcon(taskbar_previous_icon_);
+    taskbar_previous_icon_ = nullptr;
+  }
+  if (taskbar_play_icon_ != nullptr) {
+    ::DestroyIcon(taskbar_play_icon_);
+    taskbar_play_icon_ = nullptr;
+  }
+  if (taskbar_pause_icon_ != nullptr) {
+    ::DestroyIcon(taskbar_pause_icon_);
+    taskbar_pause_icon_ = nullptr;
+  }
+  if (taskbar_next_icon_ != nullptr) {
+    ::DestroyIcon(taskbar_next_icon_);
+    taskbar_next_icon_ = nullptr;
+  }
+  taskbar_list_.Reset();
   if (media_session_ && media_session_->controls) {
     media_session_->controls.ButtonPressed(
         media_session_->button_pressed_token);
@@ -1051,6 +1227,21 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COMMAND:
+      if (HIWORD(wparam) == THBN_CLICKED) {
+        switch (LOWORD(wparam)) {
+          case kTaskbarButtonPrevious:
+            SendDesktopCommand("previous");
+            return 0;
+          case kTaskbarButtonPlayPause:
+            SendDesktopCommand("play-pause");
+            return 0;
+          case kTaskbarButtonNext:
+            SendDesktopCommand("next");
+            return 0;
+        }
+      }
+      break;
     case WM_COPYDATA: {
       const auto* copy_data = reinterpret_cast<COPYDATASTRUCT*>(lparam);
       if (copy_data->dwData != kOpenExternalArgumentsCopyDataType) {
@@ -1095,6 +1286,14 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+  }
+
+  if (taskbar_button_created_message_ != 0 &&
+      message == taskbar_button_created_message_) {
+    taskbar_buttons_added_ = false;
+    taskbar_list_.Reset();
+    UpdateTaskbarToolbar(taskbar_media_active_, taskbar_media_playing_);
+    return 0;
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);

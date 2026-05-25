@@ -237,12 +237,12 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     );
     _playbackRuntimeSettingsRestored = true;
     _scheduleRestorePlaybackTrack(
-      ref.read(libraryViewDataProvider).valueOrNull,
+      ref.read(libraryContentDataProvider).valueOrNull,
     );
     unawaited(_checkReleaseNotesVersion());
   }
 
-  void _scheduleRestorePlaybackTrack(LibraryViewData? snapshot) {
+  void _scheduleRestorePlaybackTrack(LibraryContentData? snapshot) {
     if (_playbackTrackRestored ||
         _playbackTrackRestoreScheduled ||
         !_playbackRuntimeSettingsRestored ||
@@ -255,7 +255,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       if (!mounted || _playbackTrackRestored) {
         return;
       }
-      final latestSnapshot = ref.read(libraryViewDataProvider).valueOrNull;
+      final latestSnapshot = ref.read(libraryContentDataProvider).valueOrNull;
       if (latestSnapshot == null) {
         return;
       }
@@ -263,7 +263,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     });
   }
 
-  void _restorePlaybackTrackFromSnapshot(LibraryViewData snapshot) {
+  void _restorePlaybackTrackFromSnapshot(LibraryContentData snapshot) {
     if (_playbackTrackRestored) {
       return;
     }
@@ -383,7 +383,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     });
     try {
       await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
       if (!mounted) {
         return;
       }

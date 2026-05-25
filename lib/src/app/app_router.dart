@@ -192,7 +192,7 @@ GoRouter createSmPlayerRouter({
                           ref.watch(librarySongCountProvider).valueOrNull,
                       librarySongs:
                           ref
-                              .watch(libraryViewDataProvider)
+                              .watch(libraryContentDataProvider)
                               .valueOrNull
                               ?.songs ??
                           const [],

@@ -8,7 +8,10 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         return Consumer(
           builder: (context, ref, _) {
             final mediaControlState = _mediaControlController.state;
-            final snapshot = ref.watch(libraryViewDataProvider).valueOrNull;
+            final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+            final recentSongs =
+                ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+                const <RecentLibrarySong>[];
             final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
             final settings = _settingsController.snapshot;
             final i18n =
@@ -20,6 +23,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
             _syncDesktopFeatures(
               i18n: i18n,
               snapshot: snapshot,
+              recentSongs: recentSongs,
               mediaControlState: mediaControlState,
               currentSong: currentSong,
             );
@@ -69,7 +73,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   Future<void> _quickPlayLibraryAsync(WidgetRef ref) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     if (songs.isEmpty) {
       return;
@@ -89,7 +93,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     await repository.replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _mediaControlController.playTrack(
       mediaControlTrackForSong(firstSong, i18n),
       durationSeconds: firstSong.duration.toDouble(),
@@ -107,11 +111,11 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
   }
 
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final before = snapshot?.nowPlaying.songIds ?? const <int>[];
     final insertedIndex = before.length;
     ref.read(libraryRepositoryProvider).replaceNowPlaying([...before, song.id]);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -119,14 +123,18 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
       }),
       () {
         final current =
-            ref.read(libraryViewDataProvider).valueOrNull?.nowPlaying.songIds ??
+            ref
+                .read(libraryContentDataProvider)
+                .valueOrNull
+                ?.nowPlaying
+                .songIds ??
             before;
         ref
             .read(libraryRepositoryProvider)
             .replaceNowPlaying(
               removePlaybackQueueRange(current, insertedIndex, 1),
             );
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -143,7 +151,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     ref.read(libraryRepositoryProvider).addSongsToPlaylist(playlistId, [
       song.id,
     ]);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -153,7 +161,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         ref
             .read(libraryRepositoryProvider)
             .removeSongFromPlaylist(playlistId, song.id);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -175,10 +183,10 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required BuildContext context,
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required LibraryViewData? snapshot,
+    required LibraryContentData? snapshot,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(libraryViewDataProvider.future);
+        snapshot ?? await ref.read(libraryContentDataProvider.future);
     if (!context.mounted || currentSnapshot == null) {
       return;
     }
@@ -205,7 +213,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
     await _settingsController.saveViewState(lastPlaylistId: playlist.id);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     if (!mounted) {
       return;
     }
@@ -214,11 +222,11 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   Future<void> _duplicatePlaylistFromNavigation({
     required WidgetRef ref,
-    required LibraryViewData? snapshot,
+    required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(libraryViewDataProvider.future);
+        snapshot ?? await ref.read(libraryContentDataProvider.future);
     if (currentSnapshot == null) {
       return;
     }
@@ -228,18 +236,18 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
           getNextPlaylistName(playlist.name, currentSnapshot.playlists),
           playlist.songIds,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _renamePlaylistFromNavigation({
     required BuildContext context,
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required LibraryViewData? snapshot,
+    required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(libraryViewDataProvider.future);
+        snapshot ?? await ref.read(libraryContentDataProvider.future);
     if (currentSnapshot == null || !context.mounted) {
       return;
     }
@@ -265,27 +273,27 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     }
 
     await ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _deletePlaylistFromNavigation({
     required WidgetRef ref,
     required SmPlayerI18n i18n,
-    required LibraryViewData? snapshot,
+    required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
     final currentSnapshot =
-        snapshot ?? await ref.read(libraryViewDataProvider.future);
+        snapshot ?? await ref.read(libraryContentDataProvider.future);
     if (currentSnapshot == null) {
       return;
     }
     await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _showUndo(
       i18n.t('notification.playlistRemoved', {'name': playlist.name}),
       () async {
         await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }

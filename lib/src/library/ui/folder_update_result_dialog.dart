@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -8,6 +10,7 @@ import 'folder_update_result_tab.dart';
 import 'folder_update_result_tab_button.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
+import 'popup_dialog.dart';
 
 class FolderUpdateResultDialog extends StatefulWidget {
   const FolderUpdateResultDialog({
@@ -18,6 +21,8 @@ class FolderUpdateResultDialog extends StatefulWidget {
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlay,
+    required this.onApplyArtistSplits,
+    required this.onDismissArtistSplitSuggestions,
     required this.onClose,
   });
 
@@ -27,6 +32,9 @@ class FolderUpdateResultDialog extends StatefulWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final ValueChanged<int> onPlay;
+  final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
+  onApplyArtistSplits;
+  final VoidCallback onDismissArtistSplitSuggestions;
   final VoidCallback onClose;
 
   @override
@@ -36,6 +44,7 @@ class FolderUpdateResultDialog extends StatefulWidget {
 
 class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
   late FolderUpdateResultTab _activeTab;
+  var _artistSplitsApplying = false;
 
   @override
   void initState() {
@@ -104,72 +113,40 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         ),
     ];
 
-    return ColoredBox(
-      color: const Color(0x3d181e26),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 780, maxHeight: 760),
-          child: Container(
-            margin: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xfafafcff),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x80b9c3d2)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x47342d3c),
-                  blurRadius: 80,
-                  offset: Offset(0, 26),
-                ),
-              ],
+    return PopupDialog(
+      navLabel: title,
+      ariaLabel: title,
+      width: 780,
+      height: 760,
+      onClose: widget.onClose,
+      navChildren: [Expanded(child: PopupDialogTitle(title))],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final tab in tabs) ...[
+                    FolderUpdateResultTabButton(
+                      item: tab,
+                      selected: tab.tab == _activeTab,
+                      onPressed: () {
+                        setState(() {
+                          _activeTab = tab.tab;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _FolderUpdateHeader(title: title, onClose: widget.onClose),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
-                    child:
-                        !widget.result.hasChanges
-                            ? Text(
-                              i18n.t('local.refreshNoChange'),
-                              style: const TextStyle(
-                                color: LocalPageColors.textMuted,
-                              ),
-                            )
-                            : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: [
-                                      for (final tab in tabs) ...[
-                                        FolderUpdateResultTabButton(
-                                          item: tab,
-                                          selected: tab.tab == _activeTab,
-                                          onPressed: () {
-                                            setState(() {
-                                              _activeTab = tab.tab;
-                                            });
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Expanded(child: _buildActiveTabContent()),
-                              ],
-                            ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+            const SizedBox(height: 16),
+            Expanded(child: _buildActiveTabContent()),
+          ],
         ),
       ),
     );
@@ -210,61 +187,28 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       ),
       FolderUpdateResultTab.artists => FolderUpdateResultArtistSection(
         result: widget.result,
+        applying: _artistSplitsApplying,
+        artworkPathBySongId: {
+          for (final song in widget.songs) song.id: song.thumbnailPath,
+        },
+        onApply: _applyArtistSplits,
+        onClose: widget.onDismissArtistSplitSuggestions,
       ),
     };
   }
-}
 
-class _FolderUpdateHeader extends StatelessWidget {
-  const _FolderUpdateHeader({required this.title, required this.onClose});
-
-  final String title;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 78,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 18, 28, 14),
-        child: Row(
-          children: [
-            const SizedBox(width: 42),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: LocalPageColors.textStrong,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 42,
-              height: 40,
-              child: IconButton(
-                tooltip: context.smPlayerI18n.t('common.close'),
-                onPressed: onClose,
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xebffffff),
-                  foregroundColor: LocalPageColors.commandText,
-                  side: const BorderSide(color: Color(0x9ebec8d6)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: EdgeInsets.zero,
-                ),
-                icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _applyArtistSplits(List<ArtistSplitResultItem> splits) async {
+    setState(() {
+      _artistSplitsApplying = true;
+    });
+    try {
+      await widget.onApplyArtistSplits(splits);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _artistSplitsApplying = false;
+        });
+      }
+    }
   }
 }

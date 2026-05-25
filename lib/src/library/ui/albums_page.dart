@@ -183,7 +183,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
 
     if (i18nValue.isLoading) {
       return const _AlbumsPagePanel(child: SmPlayerLoadingState());
@@ -629,7 +629,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 
   void _clearRecentSearches() {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final entryIds =
         snapshot.recentSearches
             .where((entry) => entry.type == SearchHistoryType.albums)
@@ -723,7 +723,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(libraryViewDataProvider).value!;
+        final snapshot = ref.read(libraryContentDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -792,13 +792,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('album', album.name);
-                ref.invalidate(libraryViewDataProvider);
+                ref.invalidate(libraryContentDataProvider);
               },
       onSetPreference: (level) {
         ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('album', album.name, album.name, level);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -807,7 +807,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     Offset position,
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
-    LibraryViewData snapshot,
+    LibraryContentData snapshot,
     SmPlayerI18n i18n,
   ) {
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
@@ -861,7 +861,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     if (shuffle) {
       queueSongIds.shuffle(Random());
     }
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
@@ -872,7 +872,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
@@ -880,7 +880,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final insertedIndex = snapshot.nowPlaying.songIds.length;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
@@ -888,7 +888,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ...snapshot.nowPlaying.songIds,
       ...songIds,
     ]);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _showUndoSnackBar(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -901,7 +901,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           }),
       () async {
         final currentSongIds =
-            ref.read(libraryViewDataProvider).valueOrNull?.nowPlaying.songIds ??
+            ref
+                .read(libraryContentDataProvider)
+                .valueOrNull
+                ?.nowPlaying
+                .songIds ??
             [...snapshot.nowPlaying.songIds, ...songIds];
         final nextSongIds =
             currentSongIds.toList()..removeRange(
@@ -911,7 +915,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         await ref
             .read(libraryRepositoryProvider)
             .replaceNowPlaying(nextSongIds);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -924,7 +928,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final targetPlaylist = snapshot.playlists.firstWhere(
       (playlist) => playlist.id == playlistId,
@@ -933,7 +937,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _showUndoSnackBar(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -948,7 +952,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -961,7 +965,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       return;
     }
 
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
     await setSongsFavorite(ref, songIds, favorite);

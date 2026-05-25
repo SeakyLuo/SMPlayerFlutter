@@ -1,7 +1,10 @@
 part of 'shell_page.dart';
 
 extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
-  String _getVoiceAssistantHint(LibraryViewData? snapshot, SmPlayerI18n i18n) {
+  String _getVoiceAssistantHint(
+    LibraryContentData? snapshot,
+    SmPlayerI18n i18n,
+  ) {
     final songs = snapshot?.songs ?? const <LibrarySong>[];
     final song = songs.isEmpty ? null : songs[Random().nextInt(songs.length)];
     final hintType = Random().nextInt(3);
@@ -22,7 +25,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
 
   String _executeVoiceAssistantCommand(
     String rawCommand,
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
   ) {
     final command = rawCommand.trim();
@@ -176,7 +179,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
 
   String? _executeVoiceAssistantCommandResult(
     VoiceAssistantCommandResult result,
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
   ) {
     switch (result.type) {
@@ -408,7 +411,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
   }
 
   String _playPlaylistByName(
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
     String query,
   ) {
@@ -435,7 +438,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
   }
 
   String _playMatchingSongsInPlaylist(
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
     String playlistQuery,
     String songQuery,
@@ -458,7 +461,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
   }
 
   String _playMatchedSongs(
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
     String query,
     bool Function(LibrarySong song, String query) matches,

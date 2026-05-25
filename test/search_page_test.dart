@@ -725,7 +725,7 @@ class _SearchPageRouterTestApp extends StatelessWidget {
   });
 
   final GoRouter router;
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
 
@@ -734,7 +734,7 @@ class _SearchPageRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
       ],
       child: SmPlayerI18nScope(
@@ -758,7 +758,7 @@ class _SearchPageTestApp extends StatelessWidget {
     this.themeMode = ThemeMode.light,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final Widget child;
@@ -769,7 +769,7 @@ class _SearchPageTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
       ],
       child: SmPlayerI18nScope(
@@ -860,7 +860,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -916,7 +916,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-final _artistPreviewSnapshot = LibraryViewData(
+final _artistPreviewSnapshot = LibraryContentData(
   songs: [
     for (var index = 0; index < 11; index += 1)
       LibrarySong(
@@ -957,7 +957,7 @@ final _artistPreviewSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _playlistOrderSnapshot = LibraryViewData(
+const _playlistOrderSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1011,7 +1011,7 @@ const _playlistOrderSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _songSortQueueSnapshot = LibraryViewData(
+const _songSortQueueSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,

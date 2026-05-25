@@ -967,8 +967,8 @@ class _MainNavigationShellRepository extends LibraryRepository {
   Future<void> commitPendingDeletes() async {}
 
   @override
-  Future<LibraryViewData> getLibraryViewData() async {
-    return LibraryViewData(
+  Future<LibraryContentData> getLibraryContentData() async {
+    return LibraryContentData(
       songs: [],
       recentSearches: [
         for (final entry in recordedSearches.indexed)

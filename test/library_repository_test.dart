@@ -778,7 +778,7 @@ void main() {
     },
   );
 
-  test('getLibraryViewData cleans invalid recent played records', () async {
+  test('getRecentPageData cleans invalid recent played records', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-recent-cleanup-',
     );
@@ -806,7 +806,7 @@ void main() {
       databaseFileResolver: () async => databaseFile,
     );
 
-    final snapshot = await repository.getLibraryViewData();
+    final snapshot = await repository.getRecentPageData();
 
     expect(snapshot.recentSongs.map((song) => song.id), [1]);
     final checkDb = sqlite3.open(databaseFile.path);
@@ -822,7 +822,7 @@ void main() {
     }
   });
 
-  test('getLibraryViewData cleans invalid playlist items', () async {
+  test('getLibraryContentData cleans invalid playlist items', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-playlist-cleanup-',
     );
@@ -864,7 +864,7 @@ void main() {
       databaseFileResolver: () async => databaseFile,
     );
 
-    final snapshot = await repository.getLibraryViewData();
+    final snapshot = await repository.getLibraryContentData();
 
     expect(snapshot.playlists.single.songIds, [1]);
     final checkDb = sqlite3.open(databaseFile.path);

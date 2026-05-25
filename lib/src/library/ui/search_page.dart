@@ -28,6 +28,7 @@ import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -152,7 +153,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
     final i18n =
         ref.watch(smPlayerI18nProvider).value ??
@@ -702,7 +703,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           card.title,
           level,
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _undoSearchResultPreference(
@@ -719,7 +720,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           preferenceType,
           _searchResultPreferenceId(preferenceType, card),
         );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<String?> _getSongPreferenceLevel(LibrarySong song) {
@@ -732,14 +733,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addPreferenceItem('song', '${song.id}', song.title, level);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _undoSongPreference(LibrarySong song) async {
     await ref
         .read(libraryRepositoryProvider)
         .removePreferenceItem('song', '${song.id}');
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _recordRecentSearch() {
@@ -841,7 +842,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
     }
     _playSongIds(shuffleSearchSongIds(card.songIds));
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playTrack(LibrarySong song, int index, List<int> songIds) {
@@ -853,7 +854,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           queueIndex: index,
         );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playSongIds(List<int> songIds) {
@@ -861,7 +862,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return;
     }
 
-    final songs = ref.read(libraryViewDataProvider).value!.songs;
+    final songs = ref.read(libraryContentDataProvider).value!.songs;
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     ref
@@ -872,11 +873,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           queueIndex: 0,
         );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playNext(LibrarySong song) {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final queueSongIds = snapshot.nowPlaying.songIds.toList();
     queueSongIds.remove(song.id);
     final selectedQueueIndex =
@@ -886,12 +887,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       song.id,
     );
     ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
@@ -2539,10 +2540,7 @@ class _SearchCardArtwork extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: SizedBox.square(
           dimension: size,
-          child:
-              file != null && file!.existsSync()
-                  ? Image.file(file!, fit: BoxFit.cover)
-                  : const DefaultAlbumArtwork(),
+          child: SongArtwork(artworkPath: file?.path),
         ),
       ),
     );

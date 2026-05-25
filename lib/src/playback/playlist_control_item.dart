@@ -1,19 +1,18 @@
-import 'dart:io';
-
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
-import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show formatDuration;
 
-enum PlaylistControlItemVariant { standard, headeredPlaylist }
+enum PlaylistControlItemVariant { standard, headeredPlaylist, compact }
 
 enum PlaylistControlDropPosition { before, after }
 
@@ -77,14 +76,55 @@ class PlaylistControlItem extends StatefulWidget {
 }
 
 class _PlaylistControlItemState extends State<PlaylistControlItem> {
+  final _focusNode = FocusNode(debugLabel: 'PlaylistControlItem');
   var _hovered = false;
+  var _focused = false;
   var _swipeOffset = 0.0;
   PointerDeviceKind? _pointerKind;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    setState(() {
+      _focused = _focusNode.hasFocus;
+    });
+  }
 
   void _resetSwipe() {
     setState(() {
       _swipeOffset = 0;
     });
+  }
+
+  void _activateRow() {
+    if (widget.selectionMode) {
+      widget.onToggleSelection();
+      return;
+    }
+    if (_swipeOffset != 0) {
+      _resetSwipe();
+      return;
+    }
+    widget.onPlayTrack();
+  }
+
+  void _activateRowFromKeyboard() {
+    if (widget.selectionMode) {
+      widget.onToggleSelection();
+      return;
+    }
+    widget.onPlayTrack();
   }
 
   bool get _swipeEnabled =>
@@ -123,25 +163,31 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final hasAlbumColumn = widget.showAlbum;
     final headeredPlaylist =
         widget.variant == PlaylistControlItemVariant.headeredPlaylist;
-    final compact = MediaQuery.sizeOf(context).width <= 720;
-    final rowHeight = headeredPlaylist ? (compact ? 86.0 : 88.0) : 82.0;
+    final compactVariant = widget.variant == PlaylistControlItemVariant.compact;
+    final viewportCompact = MediaQuery.sizeOf(context).width <= 720;
+    final rowHeight =
+        compactVariant
+            ? 78.0
+            : headeredPlaylist
+            ? (viewportCompact ? 86.0 : 88.0)
+            : 82.0;
     final rowPadding =
-        headeredPlaylist
-            ? compact
+        compactVariant
+            ? const EdgeInsets.fromLTRB(10, 10, 12, 10)
+            : headeredPlaylist
+            ? viewportCompact
                 ? const EdgeInsets.fromLTRB(10, 10, 12, 10)
                 : const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
             : const EdgeInsets.fromLTRB(18, 10, 22, 10);
-    final artworkGap = headeredPlaylist && !compact ? 22.0 : 14.0;
+    final artworkGap =
+        compactVariant
+            ? 12.0
+            : headeredPlaylist && !viewportCompact
+            ? 22.0
+            : 14.0;
     final dropPosition = widget.dropPosition;
     final content = InkWell(
-      onTap:
-          widget.selectionMode
-              ? widget.onToggleSelection
-              : _swipeOffset != 0
-              ? _resetSwipe
-              : widget.current
-              ? widget.onTogglePlayPause
-              : widget.onPlayTrack,
+      onTap: _activateRow,
       onSecondaryTapDown: (details) {
         widget.onOpenContextMenu?.call(details.globalPosition);
       },
@@ -173,7 +219,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth <= 720;
+            final compact = compactVariant || constraints.maxWidth <= 720;
             return Row(
               children: [
                 _QueueArtwork(
@@ -184,6 +230,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   selectionMode: widget.selectionMode,
                   selected: widget.selected,
                   onPlayTrack: widget.onPlayTrack,
+                  onTogglePlayPause: widget.onTogglePlayPause,
                 ),
                 SizedBox(width: artworkGap),
                 Expanded(
@@ -209,6 +256,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         addToPlaylistLabel: widget.addToPlaylistLabel,
                         favoriteLabel: widget.favoriteLabel,
                         moreLabel: widget.moreLabel,
+                        compactVariant: compactVariant,
+                        showHoverActions:
+                            !compactVariant || _hovered || _focused,
                         onToggleFavoriteClick: widget.onToggleFavoriteClick,
                         onAddToPlaylistClick: widget.onAddToPlaylistClick,
                         onPlayNextClick: widget.onPlayNextClick,
@@ -227,6 +277,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     addToPlaylistLabel: widget.addToPlaylistLabel,
                     favoriteLabel: widget.favoriteLabel,
                     moreLabel: widget.moreLabel,
+                    compactVariant: compactVariant,
+                    showHoverActions: !compactVariant || _hovered || _focused,
                     onToggleFavoriteClick: widget.onToggleFavoriteClick,
                     onAddToPlaylistClick: widget.onAddToPlaylistClick,
                     onPlayNextClick: widget.onPlayNextClick,
@@ -256,9 +308,14 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     ),
                   ),
                 ],
-                const SizedBox(width: 18),
+                SizedBox(width: compactVariant ? 12 : 18),
                 SizedBox(
-                  width: headeredPlaylist && !compact ? 74 : 42,
+                  width:
+                      compactVariant
+                          ? 20
+                          : headeredPlaylist && !compact
+                          ? 74
+                          : 42,
                   child: Text(
                     formatDuration(widget.song.duration.toDouble()),
                     textAlign: TextAlign.end,
@@ -278,8 +335,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         ),
       ),
     );
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
+    final row = MouseRegion(
       onEnter: (_) {
         setState(() {
           _hovered = true;
@@ -293,6 +349,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       child: Listener(
         onPointerDown: (event) {
           _pointerKind = event.kind;
+          _focusNode.requestFocus();
         },
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
@@ -368,6 +425,26 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         ),
       ),
     );
+    return Semantics(
+      button: true,
+      child: FocusableActionDetector(
+        focusNode: _focusNode,
+        mouseCursor: SystemMouseCursors.click,
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _activateRowFromKeyboard();
+              return null;
+            },
+          ),
+        },
+        child: row,
+      ),
+    );
   }
 }
 
@@ -377,6 +454,7 @@ class _QueueDropIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
+      key: const ValueKey('PlaylistControlItem.DropIndicator'),
       decoration: BoxDecoration(
         color: _PlaylistControlItemColors.accentStrong,
         borderRadius: BorderRadius.circular(999),
@@ -430,6 +508,7 @@ class _QueueArtwork extends StatelessWidget {
     required this.selectionMode,
     required this.selected,
     required this.onPlayTrack,
+    required this.onTogglePlayPause,
   });
 
   final LibrarySong song;
@@ -439,10 +518,10 @@ class _QueueArtwork extends StatelessWidget {
   final bool selectionMode;
   final bool selected;
   final VoidCallback onPlayTrack;
+  final VoidCallback onTogglePlayPause;
 
   @override
   Widget build(BuildContext context) {
-    final file = song.thumbnailPath.isEmpty ? null : File(song.thumbnailPath);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -450,10 +529,7 @@ class _QueueArtwork extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           child: SizedBox.square(
             dimension: 56,
-            child:
-                file != null && file.existsSync()
-                    ? Image.file(file, fit: BoxFit.cover)
-                    : const DefaultAlbumArtwork(),
+            child: SongArtwork(artworkPath: song.thumbnailPath),
           ),
         ),
         if (selectionMode)
@@ -478,17 +554,30 @@ class _QueueArtwork extends StatelessWidget {
               ),
             ),
           )
-        else if (current && playing && !hovered)
-          const Positioned.fill(child: _QueuePlayingOverlay())
+        else if (current && !hovered)
+          const Positioned.fill(
+            key: ValueKey('PlaylistControlItem.PlayingOverlay'),
+            child: _QueuePlayingOverlay(),
+          )
         else if (hovered)
           Positioned.fill(
             child: Center(
               child: ArtworkFloatingActionButton(
-                tooltip: context.smPlayerI18n.t('context.play'),
+                tooltip:
+                    current && playing
+                        ? context.smPlayerI18n.t('player.pause')
+                        : context.smPlayerI18n.t('context.play'),
                 size: 38,
                 iconSize: 17,
-                icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
-                onPressed: onPlayTrack,
+                icon:
+                    current && playing
+                        ? const Icon(
+                          FluentIcons.pause_20_filled,
+                          size: 17,
+                          color: Colors.white,
+                        )
+                        : const SmPlayerPlayIcon(size: 17, color: Colors.white),
+                onPressed: current && playing ? onTogglePlayPause : onPlayTrack,
               ),
             ),
           ),
@@ -566,6 +655,7 @@ class _QueueCopy extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
+          key: const ValueKey('PlaylistControlItem.Title'),
           song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -673,6 +763,8 @@ class _QueueActions extends StatelessWidget {
   const _QueueActions({
     required this.favorite,
     required this.compact,
+    required this.compactVariant,
+    required this.showHoverActions,
     this.playNextLabel,
     this.removeLabel,
     this.addToPlaylistLabel,
@@ -687,6 +779,8 @@ class _QueueActions extends StatelessWidget {
 
   final bool favorite;
   final bool compact;
+  final bool compactVariant;
+  final bool showHoverActions;
   final String? playNextLabel;
   final String? removeLabel;
   final String? addToPlaylistLabel;
@@ -700,10 +794,42 @@ class _QueueActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final iconButtonStyle =
+        compactVariant
+            ? IconButton.styleFrom(
+              minimumSize: const Size.square(34),
+              fixedSize: const Size.square(34),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            )
+            : null;
+    final iconButtonConstraints =
+        compactVariant
+            ? const BoxConstraints.tightFor(width: 34, height: 34)
+            : null;
+    Widget hoverAction(Widget child) {
+      if (!compactVariant) {
+        return child;
+      }
+      return IgnorePointer(
+        ignoring: !showHoverActions,
+        child: AnimatedOpacity(
+          opacity: showHoverActions ? 1 : 0,
+          duration: const Duration(milliseconds: 120),
+          child: child,
+        ),
+      );
+    }
+
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (!compact && onToggleFavoriteClick != null)
+        if (!compactVariant && !compact && onToggleFavoriteClick != null)
           IconButton(
+            key: const ValueKey('PlaylistControlItem.FavoriteAction'),
             tooltip: favoriteLabel,
             icon: Icon(
               favorite
@@ -717,17 +843,21 @@ class _QueueActions extends StatelessWidget {
                     : _PlaylistControlItemColors.textMuted,
             onPressed: onToggleFavoriteClick,
           ),
-        if (!compact && onToggleFavoriteClick == null && favorite)
+        if (!compactVariant &&
+            !compact &&
+            onToggleFavoriteClick == null &&
+            favorite)
           const Icon(
             FluentIcons.heart_20_filled,
             size: 18,
             color: _PlaylistControlItemColors.favorite,
           ),
-        if (!compact) const SizedBox(width: 4),
-        if (onAddToPlaylistClick != null)
+        if (!compactVariant && !compact) const SizedBox(width: 4),
+        if (!compactVariant && onAddToPlaylistClick != null)
           Builder(
             builder:
                 (buttonContext) => IconButton(
+                  key: const ValueKey('PlaylistControlItem.AddToAction'),
                   tooltip: addToPlaylistLabel,
                   icon: const Icon(FluentIcons.add_20_regular, size: 18),
                   color: _PlaylistControlItemColors.textMuted,
@@ -736,14 +866,20 @@ class _QueueActions extends StatelessWidget {
                   },
                 ),
           ),
-        IconButton(
-          tooltip: playNextLabel,
-          icon: const Icon(FluentIcons.next_20_regular, size: 18),
-          color: _PlaylistControlItemColors.textMuted,
-          onPressed: onPlayNextClick,
-        ),
-        if (onRemoveFromListClick != null)
+        hoverAction(
           IconButton(
+            key: const ValueKey('PlaylistControlItem.PlayNextAction'),
+            tooltip: playNextLabel,
+            icon: const Icon(FluentIcons.next_20_regular, size: 18),
+            color: _PlaylistControlItemColors.textMuted,
+            style: iconButtonStyle,
+            constraints: iconButtonConstraints,
+            onPressed: onPlayNextClick,
+          ),
+        ),
+        if (!compactVariant && onRemoveFromListClick != null)
+          IconButton(
+            key: const ValueKey('PlaylistControlItem.RemoveAction'),
             tooltip: removeLabel,
             icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
             color: _PlaylistControlItemColors.textMuted,
@@ -752,23 +888,45 @@ class _QueueActions extends StatelessWidget {
         if (onOpenContextMenu != null)
           Builder(
             builder:
-                (buttonContext) => IconButton(
-                  tooltip: moreLabel,
-                  icon: const Icon(
-                    FluentIcons.more_horizontal_20_regular,
-                    size: 18,
+                (buttonContext) => hoverAction(
+                  IconButton(
+                    key: const ValueKey('PlaylistControlItem.MoreAction'),
+                    tooltip: moreLabel,
+                    icon: const Icon(
+                      FluentIcons.more_horizontal_20_regular,
+                      size: 18,
+                    ),
+                    color: _PlaylistControlItemColors.textMuted,
+                    style: iconButtonStyle,
+                    constraints: iconButtonConstraints,
+                    onPressed: () {
+                      final box = buttonContext.findRenderObject() as RenderBox;
+                      final offset = box.localToGlobal(
+                        Offset(0, box.size.height + 8),
+                      );
+                      onOpenContextMenu!(offset);
+                    },
                   ),
-                  color: _PlaylistControlItemColors.textMuted,
-                  onPressed: () {
-                    final box = buttonContext.findRenderObject() as RenderBox;
-                    final offset = box.localToGlobal(
-                      Offset(0, box.size.height + 8),
-                    );
-                    onOpenContextMenu!(offset);
-                  },
                 ),
           ),
       ],
+    );
+    if (!compactVariant) {
+      return actions;
+    }
+    return AnimatedContainer(
+      key: const ValueKey('PlaylistControlItem.Actions'),
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      width: showHoverActions ? 68 : 34,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(),
+      child: OverflowBox(
+        alignment: Alignment.centerRight,
+        minWidth: 68,
+        maxWidth: 68,
+        child: actions,
+      ),
     );
   }
 }

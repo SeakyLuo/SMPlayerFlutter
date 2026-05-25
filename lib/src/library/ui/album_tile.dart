@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -7,7 +5,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 import '../data/library_models.dart';
 import 'artwork_floating_action_button.dart';
-import 'default_album_artwork.dart';
+import 'song_artwork.dart';
 
 class AlbumTileData {
   const AlbumTileData({
@@ -186,17 +184,12 @@ class AlbumArtControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final firstSong = album.artworkSong ?? getAlbumArtworkSong(album.songs);
-    final file =
-        firstSong.thumbnailPath.isEmpty ? null : File(firstSong.thumbnailPath);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox.square(
         dimension: 156,
-        child:
-            file != null && file.existsSync()
-                ? Image.file(file, fit: BoxFit.cover)
-                : const DefaultAlbumArtwork(),
+        child: SongArtwork(artworkPath: firstSong.thumbnailPath),
       ),
     );
   }

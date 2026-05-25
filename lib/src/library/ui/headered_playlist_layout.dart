@@ -18,7 +18,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
     final windowDragCallbacks = ref.watch(smPlayerWindowDragProvider);
     final hideMultiSelectCommandBarAfterOperation =
         ref
-            .watch(libraryViewDataProvider)
+            .watch(libraryContentDataProvider)
             .valueOrNull
             ?.hideMultiSelectCommandBarAfterOperation ??
         true;
@@ -350,7 +350,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
               onPlay: widget.onTogglePlayPause,
               onReveal: _revealPath,
               onSaved: () {
-                ref.invalidate(libraryViewDataProvider);
+                ref.invalidate(libraryContentDataProvider);
               },
               onClose: () {
                 _updateState(() {

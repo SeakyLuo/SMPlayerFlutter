@@ -578,7 +578,7 @@ void main() {
     final repository = _ValueListenableLibraryRepository(snapshot);
 
     await tester.pumpWidget(
-      _LibraryViewDataListenableTestApp(
+      _LibraryContentDataListenableTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -605,7 +605,7 @@ void main() {
     final repository = _ValueListenableLibraryRepository(snapshot);
 
     await tester.pumpWidget(
-      _LibraryViewDataListenableTestApp(
+      _LibraryContentDataListenableTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -1069,7 +1069,7 @@ class _MusicLibraryRouterTestApp extends StatelessWidget {
     required this.router,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
 
@@ -1078,7 +1078,7 @@ class _MusicLibraryRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -1101,7 +1101,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
     this.brightness,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
@@ -1113,7 +1113,7 @@ class _MusicLibraryTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
         if (mediaController != null)
@@ -1135,14 +1135,14 @@ class _MusicLibraryTestApp extends StatelessWidget {
   }
 }
 
-class _LibraryViewDataListenableTestApp extends StatelessWidget {
-  const _LibraryViewDataListenableTestApp({
+class _LibraryContentDataListenableTestApp extends StatelessWidget {
+  const _LibraryContentDataListenableTestApp({
     required this.snapshot,
     required this.i18n,
     required this.repository,
   });
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
   final SmPlayerI18n i18n;
   final _ValueListenableLibraryRepository repository;
 
@@ -1155,24 +1155,24 @@ class _LibraryViewDataListenableTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: _LibraryViewDataInvalidator(snapshot: snapshot),
+        child: _LibraryContentDataInvalidator(snapshot: snapshot),
       ),
     );
   }
 }
 
-class _LibraryViewDataInvalidator extends ConsumerStatefulWidget {
-  const _LibraryViewDataInvalidator({required this.snapshot});
+class _LibraryContentDataInvalidator extends ConsumerStatefulWidget {
+  const _LibraryContentDataInvalidator({required this.snapshot});
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
 
   @override
-  ConsumerState<_LibraryViewDataInvalidator> createState() =>
-      _LibraryViewDataInvalidatorState();
+  ConsumerState<_LibraryContentDataInvalidator> createState() =>
+      _LibraryContentDataInvalidatorState();
 }
 
-class _LibraryViewDataInvalidatorState
-    extends ConsumerState<_LibraryViewDataInvalidator> {
+class _LibraryContentDataInvalidatorState
+    extends ConsumerState<_LibraryContentDataInvalidator> {
   @override
   void initState() {
     super.initState();
@@ -1180,7 +1180,7 @@ class _LibraryViewDataInvalidatorState
   }
 
   @override
-  void didUpdateWidget(_LibraryViewDataInvalidator oldWidget) {
+  void didUpdateWidget(_LibraryContentDataInvalidator oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.snapshot != widget.snapshot) {
       oldWidget.snapshot.removeListener(_invalidateSnapshot);
@@ -1203,7 +1203,7 @@ class _LibraryViewDataInvalidatorState
   }
 
   void _invalidateSnapshot() {
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 }
 
@@ -1381,15 +1381,15 @@ class _FakeLibraryRepository extends LibraryRepository {
 class _ValueListenableLibraryRepository extends _FakeLibraryRepository {
   _ValueListenableLibraryRepository(this.snapshot);
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
 
   @override
-  Future<LibraryViewData> getLibraryViewData() async {
+  Future<LibraryContentData> getLibraryContentData() async {
     return snapshot.value;
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1460,7 +1460,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-final _snapshotWithoutBlue = LibraryViewData(
+final _snapshotWithoutBlue = LibraryContentData(
   songs: _snapshot.songs.where((song) => song.id != 1).toList(),
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1479,7 +1479,7 @@ final _snapshotWithoutBlue = LibraryViewData(
   databasePath: _snapshot.databasePath,
 );
 
-final _quickJumpSnapshot = LibraryViewData(
+final _quickJumpSnapshot = LibraryContentData(
   songs: _quickJumpSongs,
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1519,7 +1519,7 @@ final _quickJumpSongs = List.generate(40, (index) {
   );
 });
 
-const _accentQuickJumpSnapshot = LibraryViewData(
+const _accentQuickJumpSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 200,
@@ -1552,7 +1552,7 @@ const _accentQuickJumpSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _longDurationSnapshot = LibraryViewData(
+const _longDurationSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 300,
@@ -1585,7 +1585,7 @@ const _longDurationSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _unknownAlbumSortSnapshot = LibraryViewData(
+const _unknownAlbumSortSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 30,
@@ -1632,7 +1632,7 @@ const _unknownAlbumSortSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-final _unknownAlbumTitleSortSnapshot = LibraryViewData(
+final _unknownAlbumTitleSortSnapshot = LibraryContentData(
   songs: _unknownAlbumSortSnapshot.songs,
   recentSongs: _unknownAlbumSortSnapshot.recentSongs,
   recentPlaylists: _unknownAlbumSortSnapshot.recentPlaylists,
@@ -1651,7 +1651,7 @@ final _unknownAlbumTitleSortSnapshot = LibraryViewData(
   databasePath: _unknownAlbumSortSnapshot.databasePath,
 );
 
-final _foldersSnapshot = LibraryViewData(
+final _foldersSnapshot = LibraryContentData(
   songs: _snapshot.songs,
   recentSongs: _snapshot.recentSongs,
   recentPlaylists: _snapshot.recentPlaylists,
@@ -1674,7 +1674,7 @@ final _foldersSnapshot = LibraryViewData(
   databasePath: _snapshot.databasePath,
 );
 
-const _favoriteSnapshot = LibraryViewData(
+const _favoriteSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1707,7 +1707,7 @@ const _favoriteSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _emptySearchSnapshot = LibraryViewData(
+const _emptySearchSnapshot = LibraryContentData(
   songs: [],
   recentSongs: [],
   recentPlaylists: [],
@@ -1725,7 +1725,7 @@ const _emptySearchSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _artistFallbackSnapshot = LibraryViewData(
+const _artistFallbackSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 4,

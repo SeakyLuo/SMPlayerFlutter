@@ -1017,7 +1017,7 @@ class _LocalPageTestApp extends StatelessWidget {
     this.onScanLibrary,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1029,7 +1029,7 @@ class _LocalPageTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1057,7 +1057,7 @@ class _LocalPageRouterTestApp extends StatelessWidget {
     required this.mediaController,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1094,7 +1094,7 @@ class _LocalPageRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1118,7 +1118,7 @@ class _LocalPageSearchQueryTestApp extends StatelessWidget {
     required this.searchQuery,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository repository;
   final MediaControlController mediaController;
@@ -1129,7 +1129,7 @@ class _LocalPageSearchQueryTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
       ],
@@ -1457,7 +1457,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1527,7 +1527,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _snapshotWithTargetFolder = LibraryViewData(
+const _snapshotWithTargetFolder = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1598,8 +1598,8 @@ const _snapshotWithTargetFolder = LibraryViewData(
   databasePath: '',
 );
 
-LibraryViewData _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
-  return LibraryViewData(
+LibraryContentData _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
+  return LibraryContentData(
     songs: _snapshot.songs,
     recentSongs: _snapshot.recentSongs,
     recentPlaylists: _snapshot.recentPlaylists,
@@ -1622,10 +1622,10 @@ LibraryViewData _snapshotWithLocalViewMode(LocalViewMode localViewMode) {
   );
 }
 
-LibraryViewData _snapshotWithTargetFolderAndLocalViewMode(
+LibraryContentData _snapshotWithTargetFolderAndLocalViewMode(
   LocalViewMode localViewMode,
 ) {
-  return LibraryViewData(
+  return LibraryContentData(
     songs: _snapshotWithTargetFolder.songs,
     recentSongs: _snapshotWithTargetFolder.recentSongs,
     recentPlaylists: _snapshotWithTargetFolder.recentPlaylists,
@@ -1648,11 +1648,11 @@ LibraryViewData _snapshotWithTargetFolderAndLocalViewMode(
   );
 }
 
-LibraryViewData _manyLocalSongsSnapshot(
+LibraryContentData _manyLocalSongsSnapshot(
   LocalViewMode localViewMode,
   int count,
 ) {
-  return LibraryViewData(
+  return LibraryContentData(
     songs: [
       for (var index = 0; index < count; index += 1)
         LibrarySong(
@@ -1692,8 +1692,8 @@ LibraryViewData _manyLocalSongsSnapshot(
   );
 }
 
-LibraryViewData _snapshotWithRoot(String rootPath) {
-  return LibraryViewData(
+LibraryContentData _snapshotWithRoot(String rootPath) {
+  return LibraryContentData(
     songs: [
       LibrarySong(
         id: 1,
@@ -1739,8 +1739,8 @@ LibraryViewData _snapshotWithRoot(String rootPath) {
   );
 }
 
-LibraryViewData _emptySnapshotWithRoot(String rootPath) {
-  return LibraryViewData(
+LibraryContentData _emptySnapshotWithRoot(String rootPath) {
+  return LibraryContentData(
     songs: const [],
     recentSongs: const [],
     recentPlaylists: const [],

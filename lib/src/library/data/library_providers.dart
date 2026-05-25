@@ -27,12 +27,14 @@ final librarySongCountProvider = FutureProvider<int>((ref) {
   return ref.watch(libraryRepositoryProvider).getLibrarySongCount();
 });
 
-final libraryViewDataProvider = FutureProvider<LibraryViewData>((ref) async {
-  return ref.watch(libraryRepositoryProvider).getLibraryViewData();
+final libraryContentDataProvider = FutureProvider<LibraryContentData>((
+  ref,
+) async {
+  return ref.watch(libraryRepositoryProvider).getLibraryContentData();
 });
 
 void invalidateRecentSearchData(WidgetRef ref) {
-  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(libraryContentDataProvider);
   ref.invalidate(recentPageDataProvider);
   ref.invalidate(shellNavigationDataProvider);
   ref.invalidate(recentSearchesProvider);

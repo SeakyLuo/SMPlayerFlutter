@@ -552,8 +552,8 @@ class ShellNavigationData {
   final String rootPath;
 }
 
-class LibraryViewData {
-  const LibraryViewData({
+class LibraryContentData {
+  const LibraryContentData({
     required this.songs,
     required this.hasLibrary,
     required this.sortCriterion,

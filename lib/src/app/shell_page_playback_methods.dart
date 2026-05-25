@@ -44,7 +44,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     _mediaControlController.onSeek(state.progressSeconds + deltaSeconds);
   }
 
-  bool _isPlaybackQueueEmpty(LibraryViewData? snapshot) {
+  bool _isPlaybackQueueEmpty(LibraryContentData? snapshot) {
     return snapshot == null || _playbackSongIds(snapshot).isEmpty;
   }
 
@@ -55,7 +55,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return true;
     }
 
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (_isPlaybackQueueEmpty(snapshot)) {
       return false;
     }
@@ -73,7 +73,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   void _shuffleCurrentPlaybackQueue() {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (snapshot == null) {
       return;
     }
@@ -88,7 +88,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     final nextQueueIndex = currentPlaybackQueueIndex(
       nextSongIds,
       _mediaControlController.state.track.id,
@@ -116,7 +116,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
 
     final song = _resolvePlayerSong(
       state,
-      ref.read(libraryViewDataProvider).valueOrNull,
+      ref.read(libraryContentDataProvider).valueOrNull,
     );
     if (song == null) {
       return;
@@ -323,7 +323,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         if (!mounted) {
           return;
         }
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       } finally {
         if (_finishingAudioTrackId == activeTrackId) {
           _finishingAudioTrackId = null;

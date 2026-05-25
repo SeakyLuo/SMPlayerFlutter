@@ -8,7 +8,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
     LibrarySong song,
     int index,
   ) async {
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
         .read(libraryRepositoryProvider)
         .getPreferenceLevel('song', '${song.id}');
@@ -106,7 +106,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         preferenceLevel: preferenceLevel,
         onUndoPreference:
@@ -116,7 +116,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
                   ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryViewDataProvider);
+                  ref.invalidate(libraryContentDataProvider);
                 },
         onDelete: () {
           unawaited(
