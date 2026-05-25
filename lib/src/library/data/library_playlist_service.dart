@@ -11,6 +11,48 @@ const _nowPlayingPlaylistName = 'Now Playing';
 class LibraryPlaylistService {
   const LibraryPlaylistService();
 
+  void cleanupInvalidPlaylistItems(Database db) {
+    db.execute(
+      '''
+      UPDATE PlaylistItem
+      SET State = ?
+      WHERE State = ?
+        AND (
+          NOT EXISTS (
+            SELECT 1
+            FROM Playlist
+            WHERE Playlist.Id = PlaylistItem.PlaylistId
+              AND Playlist.State = ?
+          )
+          OR NOT EXISTS (
+            SELECT 1
+            FROM Music
+            WHERE Music.Id = PlaylistItem.ItemId
+              AND Music.State = ?
+          )
+        )
+    ''',
+      [_inactiveState, _activeState, _activeState, _activeState],
+    );
+  }
+
+  void cleanupInvalidLastPlaylist(Database db) {
+    db.execute(
+      '''
+      UPDATE Settings
+      SET LastPlaylist = MyFavorites
+      WHERE LastPlaylist > 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM Playlist
+          WHERE Playlist.Id = Settings.LastPlaylist
+            AND Playlist.State = ?
+        )
+    ''',
+      [_activeState],
+    );
+  }
+
   List<LibraryPlaylist> readPlaylists(
     Database db, {
     required int myFavoritesId,

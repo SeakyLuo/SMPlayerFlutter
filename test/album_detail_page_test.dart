@@ -824,14 +824,14 @@ class _AlbumDetailTestApp extends StatelessWidget {
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final String albumName;
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -876,7 +876,7 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
   final bool canSetPreferred;
   final bool showPortalProbe;
   final int songCount;
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
   final Future<void> Function(String level)? onSetPreferred;
@@ -887,7 +887,7 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(_FakeLibraryRepository()),
         if (onWindowDragStart != null && onWindowDragEnd != null)
           smPlayerWindowDragProvider.overrideWithValue(
@@ -1071,7 +1071,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -1142,7 +1142,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-final _longAlbumSnapshot = LibraryViewData(
+final _longAlbumSnapshot = LibraryContentData(
   songs: [
     ..._snapshot.songs,
     for (var index = 0; index < 16; index += 1)
@@ -1177,8 +1177,8 @@ final _longAlbumSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-LibraryViewData _snapshotWithHideAfterOperation(bool value) {
-  return LibraryViewData(
+LibraryContentData _snapshotWithHideAfterOperation(bool value) {
+  return LibraryContentData(
     songs: _snapshot.songs,
     recentSongs: _snapshot.recentSongs,
     recentPlaylists: _snapshot.recentPlaylists,

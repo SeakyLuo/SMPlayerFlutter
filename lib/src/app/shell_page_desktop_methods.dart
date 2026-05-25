@@ -5,7 +5,8 @@ part of 'shell_page.dart';
 extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   void _syncDesktopFeatures({
     required SmPlayerI18n i18n,
-    required LibraryViewData? snapshot,
+    required LibraryContentData? snapshot,
+    required List<LibrarySong> recentSongs,
     required MediaControlState mediaControlState,
     required LibrarySong? currentSong,
   }) {
@@ -25,11 +26,10 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       quitOnClose: settings.quitOnClose,
       labels: DesktopTrayLabels.fromI18n(i18n),
       recentSongs:
-          snapshot?.recentSongs
+          recentSongs
               .take(desktopRecentSongLimit)
               .map(DesktopRecentSong.fromLibrarySong)
-              .toList() ??
-          const [],
+              .toList(),
     );
     if (_lastDesktopTraySignature != trayState.signature) {
       _lastDesktopTraySignature = trayState.signature;
@@ -99,7 +99,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           .getSongArtworkSnapshot(currentSong.id)
           .then((snapshot) {
             if (mounted && snapshot.artworkUrl.isNotEmpty) {
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             }
           })
           .whenComplete(() {
@@ -123,7 +123,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           .getSongArtworkSnapshot(song.id)
           .then((snapshot) {
             if (mounted && snapshot.artworkUrl.isNotEmpty) {
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             }
           })
           .whenComplete(() {
@@ -378,7 +378,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   void _executeExternalVoiceCommand(String command) {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final i18n =
         ref.read(smPlayerI18nProvider).valueOrNull ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
@@ -392,7 +392,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    final snapshot = await repository.getLibraryViewData();
+    final snapshot = await repository.getLibraryContentData();
     final openedSongIdSet = openedSongIds.toSet();
     final queueWithoutOpened =
         snapshot.nowPlaying.songIds
@@ -412,7 +412,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _settingsController.savePlaybackSettingsImmediate(
       PlaybackSettingsUpdate(lastMusicIndex: insertIndex, musicProgress: 0),
     );
@@ -442,7 +442,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   void _playRecentSongFromPlatform(int songId) {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final songsById = {
       for (final song in snapshot?.songs ?? const <LibrarySong>[])
         song.id: song,
@@ -453,7 +453,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     }
 
     ref.read(libraryRepositoryProvider).replaceNowPlaying([song.id]);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _mediaControlController.playTrack(
       mediaControlTrackForSong(song, context.smPlayerI18n),
       durationSeconds: song.duration.toDouble(),
@@ -503,7 +503,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   LibrarySong? _currentDesktopLyricsSong() {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     return _resolvePlayerSong(_mediaControlController.state, snapshot);
   }
 
@@ -513,7 +513,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           .read(libraryRepositoryProvider)
           .updateLyricsOffset(song.id, clampedDesktopLyricsOffset(offsetMs))
           .then((_) {
-            ref.invalidate(libraryViewDataProvider);
+            ref.invalidate(libraryContentDataProvider);
             _lastDesktopLyricsSignature = null;
             if (mounted) {
               setState(() {});
@@ -576,7 +576,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _showVoiceAssistantDialog(
-    LibraryViewData? snapshot,
+    LibraryContentData? snapshot,
     SmPlayerI18n i18n,
   ) async {
     await showDialog<void>(

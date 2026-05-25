@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +22,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
@@ -53,6 +53,8 @@ const _recentArtistMinColumnWidth = 260.0;
 const _recentArtistColumnGap = 12.0;
 const _recentArtistRowHeight = 72.0;
 const _recentArtistRowGap = 2.0;
+const _recentSongTileWidth = 270.0;
+const _recentSongTileColumnGap = 28.0;
 
 class RecentPage extends ConsumerStatefulWidget {
   const RecentPage({super.key});
@@ -1307,7 +1309,9 @@ class _RecentSongGrid extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = ((constraints.maxWidth + 28) / (270 + 28))
+        final metrics = _RecentSongTileMetrics.forWidth(constraints.maxWidth);
+        final columns = ((constraints.maxWidth + _recentSongTileColumnGap) /
+                (_recentSongTileWidth + _recentSongTileColumnGap))
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
@@ -1318,7 +1322,7 @@ class _RecentSongGrid extends StatelessWidget {
                 contentExtentForGroup:
                     (group) =>
                         ((group.items.length + columns - 1) ~/ columns) *
-                        (constraints.maxWidth <= 520 ? 104.0 : 136.0),
+                        metrics.rowExtent,
                 onTimelineLabelChange: onTimelineLabelChange,
                 slivers: [
                   for (final group in groups) ...[
@@ -1338,8 +1342,8 @@ class _RecentSongGrid extends StatelessWidget {
                     SliverGrid.builder(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        mainAxisExtent: constraints.maxWidth <= 520 ? 104 : 136,
-                        crossAxisSpacing: 28,
+                        mainAxisExtent: metrics.rowExtent,
+                        crossAxisSpacing: _recentSongTileColumnGap,
                         mainAxisSpacing: 0,
                       ),
                       itemCount: group.items.length,
@@ -1354,6 +1358,7 @@ class _RecentSongGrid extends StatelessWidget {
                               song.id == mediaControlState.track.id &&
                               mediaControlState.isPlaying,
                           multiSelect: multiSelect,
+                          metrics: metrics,
                           onPlayTrack: () {
                             onPlaySong(
                               song,
@@ -1388,6 +1393,7 @@ class _GridViewMusicItemControl extends StatefulWidget {
     required this.current,
     required this.playing,
     required this.multiSelect,
+    required this.metrics,
     required this.onPlayTrack,
     required this.onToggleSelection,
     required this.onOpenContextMenu,
@@ -1399,6 +1405,7 @@ class _GridViewMusicItemControl extends StatefulWidget {
   final bool current;
   final bool playing;
   final bool multiSelect;
+  final _RecentSongTileMetrics metrics;
   final VoidCallback onPlayTrack;
   final VoidCallback onToggleSelection;
   final ValueChanged<Offset> onOpenContextMenu;
@@ -1413,10 +1420,11 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
 
   @override
   Widget build(BuildContext context) {
-    final file =
-        widget.song.thumbnailPath.isEmpty
-            ? null
-            : File(widget.song.thumbnailPath);
+    final colors = _RecentSongTileColors.of(context);
+    final active = widget.selected || _hovered;
+    final textColor = widget.current ? colors.currentText : colors.textStrong;
+    final artistColor = widget.current ? colors.currentMuted : colors.textMuted;
+    final detailColor = widget.current ? colors.currentSoft : colors.textSoft;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -1431,6 +1439,9 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
       },
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
+        splashFactory: NoSplash.splashFactory,
+        hoverColor: Colors.transparent,
+        highlightColor: Colors.transparent,
         onSecondaryTapDown: (details) {
           widget.onOpenContextMenu(details.globalPosition);
         },
@@ -1438,13 +1449,13 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
             widget.multiSelect ? widget.onToggleSelection : widget.onPlayTrack,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.fromLTRB(3, 3, 8, 3),
+          curve: Curves.ease,
+          padding: widget.metrics.padding,
           decoration: BoxDecoration(
-            color:
-                widget.selected || _hovered
-                    ? _RecentColors.accentSoft
-                    : Colors.transparent,
+            color: active ? colors.activeSurface : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
+            border: active ? Border.all(color: colors.activeBorder) : null,
+            boxShadow: active ? colors.activeShadow : const [],
           ),
           child: Row(
             children: [
@@ -1454,19 +1465,21 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: SizedBox.square(
-                      dimension: 110,
-                      child:
-                          file != null && file.existsSync()
-                              ? Image.file(file, fit: BoxFit.cover)
-                              : const DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: _RecentColors.artwork,
-                                ),
-                                child: Icon(
-                                  FluentIcons.music_note_2_24_regular,
-                                  color: _RecentColors.artworkIcon,
-                                ),
-                              ),
+                      dimension: widget.metrics.artworkSize,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.artworkSurface,
+                          border: Border.all(color: colors.artworkBorder),
+                          boxShadow: active ? colors.artworkShadow : const [],
+                        ),
+                        child: SongArtwork(
+                          artworkPath: widget.song.thumbnailPath,
+                          fallback: Icon(
+                            FluentIcons.music_note_2_24_regular,
+                            color: colors.artworkIcon,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   if (widget.multiSelect || widget.selected)
@@ -1474,9 +1487,14 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                       top: -6,
                       right: -6,
                       child: DecoratedBox(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: _RecentColors.accent,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: colors.selectionMarkBorder,
+                            width: 2,
+                          ),
+                          boxShadow: colors.selectionMarkShadow,
                         ),
                         child: SizedBox.square(
                           dimension: 30,
@@ -1496,7 +1514,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                       child: Center(
                         child: ArtworkFloatingActionButton(
                           tooltip: context.smPlayerI18n.t('context.play'),
-                          size: 38,
+                          size: 48,
                           iconSize: 19,
                           icon:
                               widget.playing
@@ -1511,7 +1529,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                     ),
                 ],
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: widget.metrics.copyGap),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1522,12 +1540,10 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                       maxLines: widget.detailLabel.isEmpty ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color:
-                            widget.current
-                                ? _RecentColors.accent
-                                : _RecentColors.textStrong,
+                        color: textColor,
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        height: 1.32,
+                        fontVariations: const [FontVariation('wght', 650)],
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -1535,10 +1551,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                       displayArtists(widget.song),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _RecentColors.textMuted,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: artistColor, fontSize: 13),
                     ),
                     if (widget.detailLabel.isNotEmpty) ...[
                       const SizedBox(height: 5),
@@ -1546,9 +1559,10 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                         widget.detailLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _RecentColors.textSoft,
+                        style: TextStyle(
+                          color: detailColor,
                           fontSize: 12,
+                          height: 1.25,
                         ),
                       ),
                     ],
@@ -1884,8 +1898,6 @@ class _CollectionCardState extends State<_CollectionCard> {
   @override
   Widget build(BuildContext context) {
     final imagePath = widget.imagePath;
-    final file =
-        imagePath == null || imagePath.isEmpty ? null : File(imagePath);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -1923,19 +1935,19 @@ class _CollectionCardState extends State<_CollectionCard> {
                     borderRadius: BorderRadius.circular(12),
                     child: SizedBox.square(
                       dimension: 156,
-                      child:
-                          file != null && file.existsSync()
-                              ? Image.file(file, fit: BoxFit.cover)
-                              : DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  color: _RecentColors.artwork,
-                                ),
-                                child: Icon(
-                                  widget.icon,
-                                  color: _RecentColors.artworkIcon,
-                                  size: 42,
-                                ),
-                              ),
+                      child: SongArtwork(
+                        artworkPath: imagePath,
+                        fallback: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: _RecentColors.artwork,
+                          ),
+                          child: Icon(
+                            widget.icon,
+                            color: _RecentColors.artworkIcon,
+                            size: 42,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2024,7 +2036,6 @@ class _ArtistRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = imagePath.isEmpty ? null : File(imagePath);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: InkWell(
@@ -2045,18 +2056,16 @@ class _ArtistRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
                 child: SizedBox.square(
                   dimension: 52,
-                  child:
-                      file != null && file.existsSync()
-                          ? Image.file(file, fit: BoxFit.cover)
-                          : const DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: _RecentColors.artwork,
-                            ),
-                            child: Icon(
-                              FluentIcons.people_24_regular,
-                              color: _RecentColors.artworkIcon,
-                            ),
-                          ),
+                  child: SongArtwork(
+                    artworkPath: imagePath,
+                    fallback: const DecoratedBox(
+                      decoration: BoxDecoration(color: _RecentColors.artwork),
+                      child: Icon(
+                        FluentIcons.people_24_regular,
+                        color: _RecentColors.artworkIcon,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -2281,6 +2290,133 @@ List<_RecentTimeGroup<T>> _groupRecentItems<T>(
 
 const _recentTimeGroupHeaderExtent = 36.0;
 
+class _RecentSongTileMetrics {
+  const _RecentSongTileMetrics({
+    required this.rowExtent,
+    required this.artworkSize,
+    required this.padding,
+    required this.copyGap,
+  });
+
+  final double rowExtent;
+  final double artworkSize;
+  final EdgeInsets padding;
+  final double copyGap;
+
+  static _RecentSongTileMetrics forWidth(double width) {
+    if (width <= 520) {
+      return const _RecentSongTileMetrics(
+        rowExtent: 104,
+        artworkSize: 72,
+        padding: EdgeInsets.fromLTRB(2, 2, 8, 2),
+        copyGap: 10,
+      );
+    }
+    if (width < _recentMinimalContentBreakpoint) {
+      return const _RecentSongTileMetrics(
+        rowExtent: 104,
+        artworkSize: 84,
+        padding: EdgeInsets.fromLTRB(2, 2, 6, 2),
+        copyGap: 10,
+      );
+    }
+    return const _RecentSongTileMetrics(
+      rowExtent: 136,
+      artworkSize: 110,
+      padding: EdgeInsets.fromLTRB(3, 3, 8, 3),
+      copyGap: 12,
+    );
+  }
+}
+
+class _RecentSongTileColors {
+  const _RecentSongTileColors({
+    required this.activeSurface,
+    required this.activeBorder,
+    required this.activeShadow,
+    required this.artworkSurface,
+    required this.artworkBorder,
+    required this.artworkShadow,
+    required this.artworkIcon,
+    required this.selectionMarkBorder,
+    required this.selectionMarkShadow,
+    required this.textStrong,
+    required this.textMuted,
+    required this.textSoft,
+    required this.currentText,
+    required this.currentMuted,
+    required this.currentSoft,
+  });
+
+  final Color activeSurface;
+  final Color activeBorder;
+  final List<BoxShadow> activeShadow;
+  final Color artworkSurface;
+  final Color artworkBorder;
+  final List<BoxShadow> artworkShadow;
+  final Color artworkIcon;
+  final Color selectionMarkBorder;
+  final List<BoxShadow> selectionMarkShadow;
+  final Color textStrong;
+  final Color textMuted;
+  final Color textSoft;
+  final Color currentText;
+  final Color currentMuted;
+  final Color currentSoft;
+
+  static const light = _RecentSongTileColors(
+    activeSurface: Color(0x140078d7),
+    activeBorder: Color(0x290078d7),
+    activeShadow: [
+      BoxShadow(color: Color(0x1a1d2a3c), blurRadius: 18, offset: Offset(0, 8)),
+    ],
+    artworkSurface: Color(0xc2ffffff),
+    artworkBorder: Color(0x2e748499),
+    artworkShadow: [
+      BoxShadow(color: Color(0x47202d3f), blurRadius: 10, offset: Offset(2, 2)),
+    ],
+    artworkIcon: Color(0xff0078d7),
+    selectionMarkBorder: Color(0xebffffff),
+    selectionMarkShadow: [
+      BoxShadow(color: Color(0x471f56a8), blurRadius: 16, offset: Offset(0, 8)),
+    ],
+    textStrong: _RecentColors.textStrong,
+    textMuted: _RecentColors.textMuted,
+    textSoft: _RecentColors.textSoft,
+    currentText: _RecentColors.accentStrong,
+    currentMuted: Color(0xff226ba4),
+    currentSoft: Color(0xff4f7fa7),
+  );
+
+  static const dark = _RecentSongTileColors(
+    activeSurface: Color(0x240078d7),
+    activeBorder: Color(0x3d0078d7),
+    activeShadow: [
+      BoxShadow(color: Color(0x38000000), blurRadius: 18, offset: Offset(0, 8)),
+    ],
+    artworkSurface: Color(0x14ffffff),
+    artworkBorder: _RecentColors.nightBorder,
+    artworkShadow: [
+      BoxShadow(color: Color(0x38000000), blurRadius: 10, offset: Offset(2, 2)),
+    ],
+    artworkIcon: _RecentColors.nightAccentText,
+    selectionMarkBorder: Color(0xb8f6f9fc),
+    selectionMarkShadow: [
+      BoxShadow(color: Color(0x57000000), blurRadius: 18, offset: Offset(0, 8)),
+    ],
+    textStrong: _RecentColors.nightText,
+    textMuted: _RecentColors.nightMuted,
+    textSoft: _RecentColors.nightSubtle,
+    currentText: _RecentColors.nightAccentText,
+    currentMuted: Color(0xc2459de2),
+    currentSoft: Color(0x9e459de2),
+  );
+
+  static _RecentSongTileColors of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
+}
+
 int _recentCollectionColumnCount(double width) {
   final available = (width - 22).clamp(0.0, double.infinity);
   return ((available + _recentCollectionColumnGap) /
@@ -2318,6 +2454,7 @@ class _RecentColors {
   static const artworkIcon = Color(0xff607085);
   static const nightText = Color(0xfff6f9fc);
   static const nightMuted = Color(0xadcbd5e1);
+  static const nightSubtle = Color(0x75cbd5e1);
   static const nightBorder = Color(0x1fd6e0ec);
   static const nightAccentText = Color(0xff459de2);
   static const nightControlSurface = Color(0x0effffff);

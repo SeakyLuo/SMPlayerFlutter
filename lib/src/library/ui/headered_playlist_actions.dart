@@ -32,7 +32,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       widget.onPlayNext!(songId);
       return;
     }
-    final snapshot = ref.read(libraryViewDataProvider).value!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final nextQueue = snapshot.nowPlaying.songIds.toList();
     final currentIndex =
         widget.selectedTrackId == null
@@ -116,7 +116,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
           await ref
               .read(libraryRepositoryProvider)
               .setSongsFavorite(songIds, true);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         songsRemovedUndoMessage(
           i18n: i18n,
@@ -136,7 +136,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
           await ref
               .read(libraryRepositoryProvider)
               .addSongsToPlaylist(playlist.id, songIds);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         songsRemovedUndoMessage(
           i18n: i18n,
@@ -161,7 +161,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
   void _hideSelectionAfterOperation([
     bool? hideMultiSelectCommandBarAfterOperation,
   ]) {
-    final snapshot = ref.read(libraryViewDataProvider).valueOrNull;
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     _updateState(() {
       _selection.hideAfterOperation(
         hideMultiSelectCommandBarAfterOperation ??
@@ -194,7 +194,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     }
 
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _openMusicDialog(LibrarySong song, SongDialogMode mode) {

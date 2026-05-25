@@ -417,7 +417,7 @@ void main() {
             snapshotLoads += 1;
             return _recentPageData(_snapshotWithRecentAlbums);
           }),
-          libraryViewDataProvider.overrideWith(
+          libraryContentDataProvider.overrideWith(
             (ref) async => _snapshotWithRecentAlbums,
           ),
           libraryRepositoryProvider.overrideWithValue(repository),
@@ -536,7 +536,7 @@ class _RecentTestApp extends StatelessWidget {
     this.repository,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
 
@@ -548,7 +548,7 @@ class _RecentTestApp extends StatelessWidget {
         recentPageDataProvider.overrideWith(
           (ref) async => _recentPageData(snapshot),
         ),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         libraryRepositoryProvider.overrideWithValue(
           repository ?? _FakeLibraryRepository(),
         ),
@@ -564,7 +564,7 @@ class _RecentTestApp extends StatelessWidget {
   }
 }
 
-RecentPageData _recentPageData(LibraryViewData data) {
+RecentPageData _recentPageData(LibraryContentData data) {
   return RecentPageData(
     songs: data.songs,
     recentSongs: data.recentSongs,
@@ -589,7 +589,7 @@ class _RecentRouterTestApp extends StatelessWidget {
   });
 
   final GoRouter router;
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
 
   @override
@@ -600,7 +600,7 @@ class _RecentRouterTestApp extends StatelessWidget {
         recentPageDataProvider.overrideWith(
           (ref) async => _recentPageData(snapshot),
         ),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -746,7 +746,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -798,7 +798,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _snapshotWithSearches = LibraryViewData(
+const _snapshotWithSearches = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -834,7 +834,7 @@ const _snapshotWithSearches = LibraryViewData(
   databasePath: '',
 );
 
-const _snapshotWithArtistSearch = LibraryViewData(
+const _snapshotWithArtistSearch = LibraryContentData(
   songs: [],
   recentSearches: [
     SearchHistoryEntry(
@@ -855,7 +855,7 @@ const _snapshotWithArtistSearch = LibraryViewData(
   databasePath: '',
 );
 
-const _snapshotWithRecentPlayed = LibraryViewData(
+const _snapshotWithRecentPlayed = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -901,7 +901,7 @@ const _snapshotWithRecentPlayed = LibraryViewData(
   databasePath: '',
 );
 
-const _snapshotWithRecentAlbums = LibraryViewData(
+const _snapshotWithRecentAlbums = LibraryContentData(
   songs: [
     LibrarySong(
       id: 21,

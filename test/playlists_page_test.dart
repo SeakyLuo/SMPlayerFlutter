@@ -160,7 +160,7 @@ class _PlaylistTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => _i18n),
-        libraryViewDataProvider.overrideWith((ref) async => _snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => _snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -182,7 +182,7 @@ class _PlaylistAppBarPortalTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => _i18n),
-        libraryViewDataProvider.overrideWith((ref) async => _snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => _snapshot),
       ],
       child: MaterialApp(
         theme: _playlistsPageTestTheme(),
@@ -320,7 +320,7 @@ const _i18n = SmPlayerI18n(
   },
 );
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,

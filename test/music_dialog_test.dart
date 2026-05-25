@@ -146,16 +146,59 @@ void main() {
     expect(repository.savedLyrics, '[00:03.00]Saved line');
     await tester.pump(const Duration(seconds: 3));
   });
+
+  testWidgets('MusicDialog play button starts dialog song like Electron', (
+    tester,
+  ) async {
+    int? playedTrackId;
+    List<int>? playedQueueSongIds;
+    var toggledCurrentTrack = false;
+
+    await tester.pumpWidget(
+      _MusicDialogTestApp(
+        repository: _FakeMusicDialogRepository(),
+        initialMode: SongDialogMode.properties,
+        currentTrackId: 2,
+        isPlaying: true,
+        queueSongIds: const [2],
+        onPlay: () {
+          toggledCurrentTrack = true;
+        },
+        onPlayTrack: (trackId, queueSongIds) {
+          playedTrackId = trackId;
+          playedQueueSongIds = queueSongIds;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Play'));
+    await tester.pump();
+
+    expect(toggledCurrentTrack, isFalse);
+    expect(playedTrackId, 1);
+    expect(playedQueueSongIds, [2, 1]);
+  });
 }
 
 class _MusicDialogTestApp extends StatelessWidget {
   const _MusicDialogTestApp({
     required this.repository,
     required this.initialMode,
+    this.currentTrackId,
+    this.isPlaying = false,
+    this.queueSongIds = const <int>[],
+    this.onPlay,
+    this.onPlayTrack,
   });
 
   final _FakeMusicDialogRepository repository;
   final SongDialogMode initialMode;
+  final int? currentTrackId;
+  final bool isPlaying;
+  final List<int> queueSongIds;
+  final VoidCallback? onPlay;
+  final MusicDialogPlayTrackCallback? onPlayTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +212,11 @@ class _MusicDialogTestApp extends StatelessWidget {
             body: MusicDialog(
               song: _currentSong,
               initialMode: initialMode,
+              currentTrackId: currentTrackId,
+              isPlaying: isPlaying,
+              queueSongIds: queueSongIds,
+              onPlay: onPlay,
+              onPlayTrack: onPlayTrack,
               onClose: () {},
             ),
           ),
@@ -196,8 +244,8 @@ class _FakeMusicDialogRepository extends LibraryRepository {
   bool internetLyricsRequested = false;
 
   @override
-  Future<LibraryViewData> getLibraryViewData() async {
-    return LibraryViewData(
+  Future<LibraryContentData> getLibraryContentData() async {
+    return LibraryContentData(
       songs: [
         _currentSong,
         LibrarySong(

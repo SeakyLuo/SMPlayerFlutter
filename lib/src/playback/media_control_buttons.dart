@@ -465,22 +465,11 @@ class _PlayerArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final path = artworkPath;
-    if (path != null && path.isNotEmpty) {
-      final file = File(path);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) {
-            onError?.call();
-            return _playerDefaultAlbumArtwork();
-          },
-        );
-      }
-    }
-
-    return _playerDefaultAlbumArtwork();
+    return SongArtwork(
+      artworkPath: artworkPath,
+      fallback: _playerDefaultAlbumArtwork(),
+      onError: onError,
+    );
   }
 }
 

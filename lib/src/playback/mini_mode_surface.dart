@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,8 @@ import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/lyrics/lyric_text_resolver.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
@@ -654,12 +655,11 @@ class _MiniModeArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = path.isEmpty ? null : File(path);
-    if (file != null && file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover);
-    }
-    return const Center(
-      child: Icon(Icons.music_note_rounded, color: Colors.white24, size: 120),
+    return SizedBox.expand(
+      child: SongArtwork(
+        artworkPath: path,
+        fallback: const DefaultAlbumArtwork(logoOpacity: 0.9),
+      ),
     );
   }
 }

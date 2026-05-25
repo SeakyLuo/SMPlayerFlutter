@@ -87,6 +87,8 @@ void main() {
         selectedTrackId: 1,
         isPlaying: true,
         onPlay: (_) {},
+        onApplyArtistSplits: (_) {},
+        onDismissArtistSplitSuggestions: _noop,
         onClose: _noop,
       ),
     );
@@ -109,7 +111,8 @@ Future<void> _capture(WidgetTester tester, String name, Widget child) async {
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
   final boundary =
       key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   final image = await boundary.toImage(pixelRatio: 1);

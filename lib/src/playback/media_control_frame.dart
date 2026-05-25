@@ -1,5 +1,174 @@
 part of 'media_control.dart';
 
+class MediaControlPlayerFrame extends StatelessWidget {
+  const MediaControlPlayerFrame({
+    super.key,
+    required this.artworkPath,
+    required this.child,
+    this.borderRadius = const BorderRadius.vertical(top: Radius.circular(18)),
+  });
+
+  final String? artworkPath;
+  final Widget child;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: LayoutBuilder(
+        builder: (context, outerConstraints) {
+          final compact = outerConstraints.maxWidth <= _playerCompactBreakpoint;
+          return _PlayerBarShadowFrame(
+            compact: compact,
+            child: ClipRRect(
+              borderRadius: borderRadius,
+              child: _PlayerLiquidGlassFrame(
+                child: _PlayerTintedFrame(
+                  artworkPath: artworkPath,
+                  child: child,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class MediaControlSurfaceBar extends StatelessWidget {
+  const MediaControlSurfaceBar({
+    super.key,
+    required this.artworkPath,
+    required this.padding,
+    required this.leading,
+    required this.surfaceFlex,
+    required this.trackId,
+    required this.isLoading,
+    required this.favorite,
+    required this.disabled,
+    required this.isPlaying,
+    required this.volume,
+    required this.isMuted,
+    required this.mode,
+    required this.progressSeconds,
+    required this.durationSeconds,
+    required this.onTogglePlayPause,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onSeek,
+    required this.onBeginSeek,
+    required this.onEndSeek,
+    required this.onVolumeChange,
+    required this.onToggleMute,
+    required this.onToggleShuffle,
+    required this.onToggleRepeat,
+    required this.onToggleRepeatOne,
+    required this.onToggleFavorite,
+    required this.utilityCondensed,
+    required this.onMoreClick,
+    this.borderRadius = const BorderRadius.vertical(top: Radius.circular(18)),
+    this.leadingFlex,
+    this.leadingWidth,
+    this.utilityWidth,
+    this.onOpenVoiceAssistant,
+    this.condensed = false,
+    this.navMinimal = false,
+    this.utilityMinimal = false,
+  });
+
+  final String? artworkPath;
+  final EdgeInsetsGeometry padding;
+  final Widget leading;
+  final int? leadingFlex;
+  final double? leadingWidth;
+  final double? utilityWidth;
+  final int surfaceFlex;
+  final int? trackId;
+  final bool isLoading;
+  final bool favorite;
+  final bool disabled;
+  final bool isPlaying;
+  final int volume;
+  final bool isMuted;
+  final PlaybackMode mode;
+  final double progressSeconds;
+  final double durationSeconds;
+  final VoidCallback onTogglePlayPause;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final ValueChanged<double> onSeek;
+  final VoidCallback onBeginSeek;
+  final VoidCallback onEndSeek;
+  final ValueChanged<int> onVolumeChange;
+  final VoidCallback onToggleMute;
+  final VoidCallback onToggleShuffle;
+  final VoidCallback onToggleRepeat;
+  final VoidCallback onToggleRepeatOne;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback? onOpenVoiceAssistant;
+  final bool condensed;
+  final bool navMinimal;
+  final bool utilityCondensed;
+  final bool utilityMinimal;
+  final ValueChanged<BuildContext> onMoreClick;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return MediaControlPlayerFrame(
+      artworkPath: artworkPath,
+      borderRadius: borderRadius,
+      child: Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            if (leadingWidth == null)
+              Expanded(flex: leadingFlex!, child: leading)
+            else
+              SizedBox(width: leadingWidth, child: leading),
+            Expanded(
+              flex: surfaceFlex,
+              child: MediaControlSurface(
+                trackId: trackId,
+                isLoading: isLoading,
+                favorite: favorite,
+                disabled: disabled,
+                isPlaying: isPlaying,
+                volume: volume,
+                isMuted: isMuted,
+                mode: mode,
+                progressSeconds: progressSeconds,
+                durationSeconds: durationSeconds,
+                onTogglePlayPause: onTogglePlayPause,
+                onPrevious: onPrevious,
+                onNext: onNext,
+                onSeek: onSeek,
+                onBeginSeek: onBeginSeek,
+                onEndSeek: onEndSeek,
+                onVolumeChange: onVolumeChange,
+                onToggleMute: onToggleMute,
+                onToggleShuffle: onToggleShuffle,
+                onToggleRepeat: onToggleRepeat,
+                onToggleRepeatOne: onToggleRepeatOne,
+                onToggleFavorite: onToggleFavorite,
+                onOpenVoiceAssistant: onOpenVoiceAssistant,
+                condensed: condensed,
+                navMinimal: navMinimal,
+                utilityCondensed: utilityCondensed,
+                utilityMinimal: utilityMinimal,
+                utilityWidth: utilityWidth,
+                onMoreClick: onMoreClick,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PlayerBarShadowFrame extends StatelessWidget {
   const _PlayerBarShadowFrame({required this.compact, required this.child});
 

@@ -103,7 +103,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final recentSongs =
+        ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+        const <RecentLibrarySong>[];
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
     final i18n = context.smPlayerI18n;
 
@@ -282,6 +285,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   buttonContext: buttonContext,
                   snapshot: snapshot,
                   queueSongs: queueSongs,
+                  recentSongs: recentSongs,
                 );
               },
             ),
@@ -322,6 +326,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                               buttonContext: buttonContext,
                               snapshot: snapshot,
                               queueSongs: queueSongs,
+                              recentSongs: recentSongs,
                             );
                           },
                           onOverflowPressedWithContext: (buttonContext) {
@@ -331,6 +336,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                 items: _buildShuffleMenuItems(
                                   snapshot: snapshot,
                                   queueSongs: queueSongs,
+                                  recentSongs: recentSongs,
                                 ),
                               ),
                             );
@@ -602,7 +608,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           .onTogglePlayPause,
                   onReveal: _revealPath,
                   onSaved: () {
-                    ref.invalidate(libraryViewDataProvider);
+                    ref.invalidate(libraryContentDataProvider);
                   },
                   onClose: () {
                     setState(() {
@@ -637,7 +643,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       return;
     }
 
-    final songs = ref.read(libraryViewDataProvider).value?.songs ?? const [];
+    final songs = ref.read(libraryContentDataProvider).value?.songs ?? const [];
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
     ref
@@ -650,7 +656,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     _replaceQueue(songIds);
   }
 
-  Future<void> _quickPlay(LibraryViewData snapshot) async {
+  Future<void> _quickPlay(LibraryContentData snapshot) async {
     final preferences =
         await ref.read(libraryRepositoryProvider).getPreferenceSettings();
     _playSongIds(
@@ -666,7 +672,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   void _replaceQueue(List<int> songIds) {
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _removeQueueIndex(
@@ -815,7 +821,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         .read(libraryRepositoryProvider)
                         .removePreferenceItem('song', '${song.id}')
                         .then((_) {
-                          ref.invalidate(libraryViewDataProvider);
+                          ref.invalidate(libraryContentDataProvider);
                         }),
                   );
                 },
@@ -877,7 +883,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -951,24 +957,30 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   void _showShuffleMenu({
     required BuildContext buttonContext,
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required List<LibrarySong> queueSongs,
+    required List<LibrarySong> recentSongs,
   }) {
     showMenuFlyout(
       buttonContext,
-      items: _buildShuffleMenuItems(snapshot: snapshot, queueSongs: queueSongs),
+      items: _buildShuffleMenuItems(
+        snapshot: snapshot,
+        queueSongs: queueSongs,
+        recentSongs: recentSongs,
+      ),
     );
   }
 
   List<MenuFlyoutItem> _buildShuffleMenuItems({
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required List<LibrarySong> queueSongs,
+    required List<LibrarySong> recentSongs,
   }) {
     return buildShuffleMenuFlyoutItems(
       i18n: context.smPlayerI18n,
       songs: queueSongs,
       librarySongs: snapshot.songs,
-      recentSongs: snapshot.recentSongs,
+      recentSongs: recentSongs,
       playlists: snapshot.playlists,
       folders: snapshot.folders,
       randomLimit: quickPlayLimit,
@@ -1028,7 +1040,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -1048,7 +1060,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   ) async {
     final removedEntries = _queueEntriesForSong(queueSongIds, song.id);
     await ref.read(libraryRepositoryProvider).hideSong(song.id);
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     _replaceQueue([
       for (final songId in queueSongIds)
         if (songId != song.id) songId,
@@ -1062,9 +1074,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       }),
       () async {
         await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
         final snapshot =
-            await ref.read(libraryRepositoryProvider).getLibraryViewData();
+            await ref.read(libraryRepositoryProvider).getLibraryContentData();
         _replaceQueue(
           _insertQueueEntries(snapshot.nowPlaying.songIds, removedEntries),
         );

@@ -26,7 +26,7 @@ extension _LocalPageScanActions on _LocalPageState {
       if (!mounted) {
         return;
       }
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
       _updateLocalPageState(() {
         _refreshProgress = null;
         _localOperationTitle = null;
@@ -112,7 +112,7 @@ extension _LocalPageScanActions on _LocalPageState {
                 cancellation: cancellation,
                 onProgress: _setScanProgress,
               );
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
       if (mounted) {
         _updateLocalPageState(() {
           _refreshResultDialog = (
@@ -159,6 +159,73 @@ extension _LocalPageScanActions on _LocalPageState {
     if (confirmed) {
       cancellation.cancel();
     }
+  }
+
+  Future<void> _applyFolderUpdateArtistSplits(
+    List<ArtistSplitResultItem> splits,
+    SmPlayerI18n i18n,
+  ) async {
+    if (splits.isEmpty) {
+      return;
+    }
+
+    await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
+    ref.invalidate(libraryContentDataProvider);
+    if (!mounted) {
+      return;
+    }
+    _showMessage(i18n.t('common.saved'));
+    _updateLocalPageState(() {
+      final current = _refreshResultDialog;
+      if (current == null) {
+        return;
+      }
+      final splitSongIds = splits.map((split) => split.songId).toSet();
+      final mergeSongIds =
+          current.result.artistMergeSuggestions
+              .map((item) => item.songId)
+              .toSet();
+      _refreshResultDialog = (
+        folder: current.folder,
+        result: LocalFolderRefreshResult(
+          filesAdded: current.result.filesAdded,
+          filesRemoved: current.result.filesRemoved,
+          filesMoved: current.result.filesMoved,
+          artistSplitsApplied: [
+            ...current.result.artistSplitsApplied,
+            ...splits.where((split) => !mergeSongIds.contains(split.songId)),
+          ],
+          artistSplitSuggestions:
+              current.result.artistSplitSuggestions
+                  .where((item) => !splitSongIds.contains(item.songId))
+                  .toList(),
+          artistMergeSuggestions:
+              current.result.artistMergeSuggestions
+                  .where((item) => !splitSongIds.contains(item.songId))
+                  .toList(),
+        ),
+      );
+    });
+  }
+
+  void _dismissFolderUpdateArtistSplitSuggestions() {
+    _updateLocalPageState(() {
+      final current = _refreshResultDialog;
+      if (current == null) {
+        return;
+      }
+      _refreshResultDialog = (
+        folder: current.folder,
+        result: LocalFolderRefreshResult(
+          filesAdded: current.result.filesAdded,
+          filesRemoved: current.result.filesRemoved,
+          filesMoved: current.result.filesMoved,
+          artistSplitsApplied: current.result.artistSplitsApplied,
+          artistSplitSuggestions: const [],
+          artistMergeSuggestions: const [],
+        ),
+      );
+    });
   }
 
   void _clearScanOverlay() {

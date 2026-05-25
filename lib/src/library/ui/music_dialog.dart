@@ -17,6 +17,9 @@ import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+typedef MusicDialogPlayTrackCallback =
+    void Function(int trackId, List<int> queueSongIds);
+
 enum SongDialogMode { properties, lyrics, albumArt }
 
 class AlbumArtRecommendation {
@@ -57,6 +60,10 @@ class MusicDialog extends ConsumerStatefulWidget {
     required this.onClose,
     this.canPause = false,
     this.onPlay,
+    this.currentTrackId,
+    this.isPlaying = false,
+    this.queueSongIds = const <int>[],
+    this.onPlayTrack,
     this.onReveal,
     this.onSaved,
   });
@@ -66,6 +73,10 @@ class MusicDialog extends ConsumerStatefulWidget {
   final VoidCallback onClose;
   final bool canPause;
   final VoidCallback? onPlay;
+  final int? currentTrackId;
+  final bool isPlaying;
+  final List<int> queueSongIds;
+  final MusicDialogPlayTrackCallback? onPlayTrack;
   final ValueChanged<String>? onReveal;
   final VoidCallback? onSaved;
 
@@ -190,8 +201,18 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final currentTrackId = widget.currentTrackId;
+    final isCurrentSong =
+        currentTrackId == null
+            ? widget.canPause
+            : currentTrackId == widget.song.id;
+    final canPause =
+        currentTrackId == null
+            ? widget.canPause
+            : isCurrentSong && widget.isPlaying;
+    final canPlay = widget.onPlay != null || widget.onPlayTrack != null;
     final librarySongs =
-        ref.watch(libraryViewDataProvider).valueOrNull?.songs ??
+        ref.watch(libraryContentDataProvider).valueOrNull?.songs ??
         const <LibrarySong>[];
     if (_artworkMissing &&
         !_artworkRecommendationLoading &&
@@ -274,9 +295,9 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 fileTypeController: _fileTypeController,
                 genreController: _genreController,
                 pathController: _pathController,
-                canPause: widget.canPause,
+                canPause: canPause,
                 propertiesDirty: _propertiesDirty,
-                onPlay: widget.onPlay,
+                onPlay: canPlay ? _play : null,
                 onSave: _saveProperties,
                 onReset: _resetProperties,
                 onClearPlayCount: _clearPlayCount,
@@ -444,7 +465,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
 
     final i18n = context.smPlayerI18n;
-    final songs = ref.read(libraryViewDataProvider).valueOrNull?.songs;
+    final songs = ref.read(libraryContentDataProvider).valueOrNull?.songs;
     if (songs == null) {
       return;
     }
@@ -1032,8 +1053,25 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     });
   }
 
+  void _play() {
+    final currentTrackId = widget.currentTrackId;
+    if (currentTrackId == null || currentTrackId == widget.song.id) {
+      widget.onPlay?.call();
+      return;
+    }
+
+    widget.onPlayTrack?.call(widget.song.id, _playQueueSongIds);
+  }
+
+  List<int> get _playQueueSongIds {
+    if (widget.queueSongIds.contains(widget.song.id)) {
+      return widget.queueSongIds;
+    }
+    return [...widget.queueSongIds, widget.song.id];
+  }
+
   void _notifySaved() {
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
     widget.onSaved?.call();
   }
 

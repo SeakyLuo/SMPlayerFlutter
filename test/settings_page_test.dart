@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
@@ -828,6 +829,69 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     },
   );
+
+  testWidgets('SettingsPage applies edited smart artist split values', (
+    tester,
+  ) async {
+    final directSplit = ArtistSplitResultItem(
+      songId: 101,
+      title: 'Edit Split Song',
+      artist: 'Alpha / Beta',
+      artists: const ['Alpha', 'Beta'],
+    );
+    final repository = _FakeLibraryRepository(
+      ArtistSplitAnalysisResult(
+        directSplits: [directSplit],
+        possibleSplits: const [],
+        mergeSuggestions: const [],
+      ),
+    );
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: Scaffold(
+            body: SettingsPage(
+              libraryRepository: repository,
+              onLoadSystemFonts: () async => const [],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('智能修正歌手'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('智能修正'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(FluentIcons.edit_20_regular));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Beta'), 'Gamma');
+    await tester.tap(find.byIcon(FluentIcons.checkmark_20_regular).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('更新歌手（1）'));
+    await tester.pumpAndSettle();
+
+    expect(repository.appliedSplits.single.songId, 101);
+    expect(repository.appliedSplits.single.artists, ['Alpha', 'Gamma']);
+    await tester.pump(const Duration(seconds: 3));
+  });
 
   testWidgets('SettingsPage import and export actions return to idle', (
     tester,

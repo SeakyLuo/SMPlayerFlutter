@@ -18,6 +18,7 @@ class MediaControlUtilityRows extends StatelessWidget {
     this.onOpenVoiceAssistant,
     this.condensed = false,
     this.minimal = false,
+    this.width,
     required this.onMoreClick,
   });
 
@@ -36,6 +37,7 @@ class MediaControlUtilityRows extends StatelessWidget {
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
   final bool minimal;
+  final double? width;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
@@ -47,7 +49,9 @@ class MediaControlUtilityRows extends StatelessWidget {
     final utilityIconSize = utilityButtonSize - utilityButtonPadding * 2;
 
     return SizedBox(
-      width: minimal ? (compactMinimal ? 68 : 80) : (condensed ? 132 : 280),
+      width:
+          width ??
+          (minimal ? (compactMinimal ? 68 : 80) : (condensed ? 132 : 280)),
       child: Padding(
         padding:
             condensed || minimal
@@ -64,16 +68,39 @@ class MediaControlUtilityRows extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child:
                       condensed
-                          ? _PlayerCompactVolumeAction(
-                            tooltip:
-                                isMuted
-                                    ? i18n.t('player.unmute')
-                                    : i18n.t('player.mute'),
-                            icon: playerVolumeIcon(volumeValue, isMuted),
-                            active: isMuted,
-                            disabled: false,
-                            volumeValue: volumeValue,
-                            onVolumeChange: onVolumeChange,
+                          ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _PlayerCompactVolumeAction(
+                                tooltip:
+                                    isMuted
+                                        ? i18n.t('player.unmute')
+                                        : i18n.t('player.mute'),
+                                icon: playerVolumeIcon(volumeValue, isMuted),
+                                active: isMuted,
+                                disabled: false,
+                                volumeValue: volumeValue,
+                                onVolumeChange: onVolumeChange,
+                              ),
+                              const SizedBox(width: 8),
+                              if (trackId != null)
+                                _PlayerIconButton(
+                                  tooltip:
+                                      favorite
+                                          ? i18n.t('player.unlike')
+                                          : i18n.t('player.like'),
+                                  icon:
+                                      favorite
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                  active: favorite,
+                                  disabled: disabled,
+                                  favorite: favorite,
+                                  onPressed: onToggleFavorite,
+                                )
+                              else
+                                const SizedBox(width: 36),
+                            ],
                           )
                           : SizedBox(
                             width: 248,

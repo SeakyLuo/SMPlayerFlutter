@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
 part 'media_control_frame.dart';
@@ -34,7 +35,6 @@ const _artworkColorMaxValue = 205;
 const _artworkColorGridDivisions = 16;
 const _defaultArtworkAccentColor = Color(0xff5b87b6);
 
-@visibleForTesting
 String? resolvePlayerArtworkPath(
   MediaControlTrack track,
   LibrarySong? currentSong,
@@ -42,7 +42,6 @@ String? resolvePlayerArtworkPath(
   return currentSong == null ? track.artworkUrl : currentSong.thumbnailPath;
 }
 
-@visibleForTesting
 double resolvePlayerDurationSeconds(
   double durationSeconds,
   LibrarySong? currentSong,
@@ -154,155 +153,122 @@ class MediaControl extends StatelessWidget {
       currentSong,
     );
 
-    return Material(
-      color: Colors.transparent,
-      child: LayoutBuilder(
-        builder: (context, outerConstraints) {
-          final outerCompact =
-              outerConstraints.maxWidth <= _playerCompactBreakpoint;
-          return _PlayerBarShadowFrame(
-            compact: outerCompact,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(18),
-              ),
-              child: _PlayerLiquidGlassFrame(
-                child: _PlayerTintedFrame(
-                  artworkPath: artworkPath,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final compact =
-                          constraints.maxWidth <= _playerCompactBreakpoint;
-                      final condensedUtility =
-                          constraints.maxWidth <=
-                          _playerCondensedUtilityBreakpoint;
-                      final narrowCompact = constraints.maxWidth <= 520;
-                      final clampedVolume = clampVolumeValue(volume);
-                      final transportDisabled = disabled || track.id == null;
-                      final playerPadding =
-                          compact
-                              ? narrowCompact
-                                  ? const EdgeInsets.fromLTRB(12, 9, 12, 11)
-                                  : const EdgeInsets.fromLTRB(16, 8, 16, 10)
-                              : const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth <= _playerCompactBreakpoint;
+        final condensedUtility =
+            constraints.maxWidth <= _playerCondensedUtilityBreakpoint;
+        final narrowCompact = constraints.maxWidth <= 520;
+        final clampedVolume = clampVolumeValue(volume);
+        final transportDisabled = disabled || track.id == null;
+        final playerPadding =
+            compact
+                ? narrowCompact
+                    ? const EdgeInsets.fromLTRB(12, 9, 12, 11)
+                    : const EdgeInsets.fromLTRB(16, 8, 16, 10)
+                : const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
 
-                      if (compact) {
-                        return Padding(
-                          padding: playerPadding,
-                          child: _CompactMediaControlLayout(
-                            narrow: narrowCompact,
-                            track: track,
-                            disabled: transportDisabled,
-                            isPlaying: isPlaying,
-                            volume: clampedVolume,
-                            isMuted: isMuted,
-                            mode: mode,
-                            progressSeconds: progressSeconds,
-                            durationSeconds: effectiveDurationSeconds,
-                            onTogglePlayPause: onTogglePlayPause,
-                            onPrevious: onPrevious,
-                            onNext: onNext,
-                            onSeek: onSeek,
-                            onBeginSeek: onBeginSeek,
-                            onEndSeek: onEndSeek,
-                            onVolumeChange: onVolumeChange,
-                            onToggleMute: onToggleMute,
-                            onToggleShuffle: onToggleShuffle,
-                            onToggleRepeat: onToggleRepeat,
-                            onToggleRepeatOne: onToggleRepeatOne,
-                            onToggleFavorite: onToggleFavorite,
-                            onQuickPlay: onQuickPlay,
-                            onOpenNowPlaying: onOpenNowPlaying,
-                            onToggleWindowFullScreen: onToggleWindowFullScreen,
-                            isWindowFullScreen: isWindowFullScreen,
-                            onEnterMiniMode: onEnterMiniMode,
-                            onOpenVoiceAssistant: onOpenVoiceAssistant,
-                            playbackNoticeKey: playbackNoticeKey,
-                            currentLyricsLine: currentLyricsLine,
-                            currentSong: currentSong,
-                            onArtworkError: onArtworkError,
-                            playlists: playlists,
-                            preferenceLevel: preferenceLevel,
-                            onResolvePreferenceLevel: onResolvePreferenceLevel,
-                            onAddToNowPlaying: onAddToNowPlaying,
-                            onCreatePlaylist: onCreatePlaylist,
-                            onAddToPlaylist: onAddToPlaylist,
-                            onUndoPreference: onUndoPreference,
-                            onSetPreference: onSetPreference,
-                            onSeeArtist: onSeeArtist ?? onOpenNowPlaying,
-                            onSeeAlbum: onSeeAlbum ?? onOpenNowPlaying,
-                            onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
-                            onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
-                            onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
-                            onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
-                          ),
-                        );
-                      }
-
-                      return Padding(
-                        padding: playerPadding,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 9,
-                              child: _PlayerTrack(
-                                track: track,
-                                artworkPath: artworkPath,
-                                currentLyricsLine: currentLyricsLine,
-                                onArtworkError: onArtworkError,
-                                disabled: track.id == null,
-                                onOpenNowPlaying: onOpenNowPlaying,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 19,
-                              child: MediaControlSurface(
-                                trackId: track.id,
-                                isLoading: track.isLoading,
-                                favorite: track.favorite,
-                                disabled: transportDisabled,
-                                isPlaying: isPlaying,
-                                volume: clampedVolume,
-                                isMuted: isMuted,
-                                mode: mode,
-                                progressSeconds: progressSeconds,
-                                durationSeconds: effectiveDurationSeconds,
-                                onTogglePlayPause: onTogglePlayPause,
-                                onPrevious: onPrevious,
-                                onNext: onNext,
-                                onSeek: onSeek,
-                                onBeginSeek: onBeginSeek,
-                                onEndSeek: onEndSeek,
-                                onVolumeChange: onVolumeChange,
-                                onToggleMute: onToggleMute,
-                                onToggleShuffle: onToggleShuffle,
-                                onToggleRepeat: onToggleRepeat,
-                                onToggleRepeatOne: onToggleRepeatOne,
-                                onToggleFavorite: onToggleFavorite,
-                                onOpenVoiceAssistant: onOpenVoiceAssistant,
-                                utilityCondensed: condensedUtility,
-                                onMoreClick: (moreButtonContext) {
-                                  _showPlayerMoreMenu(
-                                    moreButtonContext,
-                                    i18n: _mediaControlI18n(context),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+        if (compact) {
+          return MediaControlPlayerFrame(
+            artworkPath: artworkPath,
+            child: Padding(
+              padding: playerPadding,
+              child: _CompactMediaControlLayout(
+                narrow: narrowCompact,
+                track: track,
+                disabled: transportDisabled,
+                isPlaying: isPlaying,
+                volume: clampedVolume,
+                isMuted: isMuted,
+                mode: mode,
+                progressSeconds: progressSeconds,
+                durationSeconds: effectiveDurationSeconds,
+                onTogglePlayPause: onTogglePlayPause,
+                onPrevious: onPrevious,
+                onNext: onNext,
+                onSeek: onSeek,
+                onBeginSeek: onBeginSeek,
+                onEndSeek: onEndSeek,
+                onVolumeChange: onVolumeChange,
+                onToggleMute: onToggleMute,
+                onToggleShuffle: onToggleShuffle,
+                onToggleRepeat: onToggleRepeat,
+                onToggleRepeatOne: onToggleRepeatOne,
+                onToggleFavorite: onToggleFavorite,
+                onQuickPlay: onQuickPlay,
+                onOpenNowPlaying: onOpenNowPlaying,
+                onToggleWindowFullScreen: onToggleWindowFullScreen,
+                isWindowFullScreen: isWindowFullScreen,
+                onEnterMiniMode: onEnterMiniMode,
+                onOpenVoiceAssistant: onOpenVoiceAssistant,
+                playbackNoticeKey: playbackNoticeKey,
+                currentLyricsLine: currentLyricsLine,
+                currentSong: currentSong,
+                onArtworkError: onArtworkError,
+                playlists: playlists,
+                preferenceLevel: preferenceLevel,
+                onResolvePreferenceLevel: onResolvePreferenceLevel,
+                onAddToNowPlaying: onAddToNowPlaying,
+                onCreatePlaylist: onCreatePlaylist,
+                onAddToPlaylist: onAddToPlaylist,
+                onUndoPreference: onUndoPreference,
+                onSetPreference: onSetPreference,
+                onSeeArtist: onSeeArtist ?? onOpenNowPlaying,
+                onSeeAlbum: onSeeAlbum ?? onOpenNowPlaying,
+                onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
+                onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
+                onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
+                onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
               ),
             ),
           );
-        },
-      ),
+        }
+
+        return MediaControlSurfaceBar(
+          artworkPath: artworkPath,
+          padding: playerPadding,
+          leadingFlex: 9,
+          surfaceFlex: 19,
+          leading: _PlayerTrack(
+            track: track,
+            artworkPath: artworkPath,
+            currentLyricsLine: currentLyricsLine,
+            onArtworkError: onArtworkError,
+            disabled: track.id == null,
+            onOpenNowPlaying: onOpenNowPlaying,
+          ),
+          trackId: track.id,
+          isLoading: track.isLoading,
+          favorite: track.favorite,
+          disabled: transportDisabled,
+          isPlaying: isPlaying,
+          volume: clampedVolume,
+          isMuted: isMuted,
+          mode: mode,
+          progressSeconds: progressSeconds,
+          durationSeconds: effectiveDurationSeconds,
+          onTogglePlayPause: onTogglePlayPause,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onSeek: onSeek,
+          onBeginSeek: onBeginSeek,
+          onEndSeek: onEndSeek,
+          onVolumeChange: onVolumeChange,
+          onToggleMute: onToggleMute,
+          onToggleShuffle: onToggleShuffle,
+          onToggleRepeat: onToggleRepeat,
+          onToggleRepeatOne: onToggleRepeatOne,
+          onToggleFavorite: onToggleFavorite,
+          onOpenVoiceAssistant: onOpenVoiceAssistant,
+          utilityCondensed: condensedUtility,
+          onMoreClick: (moreButtonContext) {
+            _showPlayerMoreMenu(
+              moreButtonContext,
+              i18n: _mediaControlI18n(context),
+            );
+          },
+        );
+      },
     );
   }
 

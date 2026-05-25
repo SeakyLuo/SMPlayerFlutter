@@ -629,7 +629,7 @@ class _AlbumsRouterTestApp extends StatelessWidget {
     required this.router,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final GoRouter router;
 
@@ -638,7 +638,7 @@ class _AlbumsRouterTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -659,7 +659,7 @@ class _AlbumsTestApp extends StatelessWidget {
     this.mediaController,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
@@ -669,7 +669,7 @@ class _AlbumsTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
         if (mediaController != null)
@@ -694,7 +694,7 @@ class _AlbumsAppBarPortalTestApp extends StatelessWidget {
     required this.i18n,
   });
 
-  final LibraryViewData snapshot;
+  final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
 
   @override
@@ -702,7 +702,7 @@ class _AlbumsAppBarPortalTestApp extends StatelessWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
-        libraryViewDataProvider.overrideWith((ref) async => snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -739,7 +739,7 @@ class _AlbumsSnapshotListenableTestApp extends StatelessWidget {
     required this.repository,
   });
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
   final SmPlayerI18n i18n;
   final _ValueListenableAlbumsRepository repository;
 
@@ -761,7 +761,7 @@ class _AlbumsSnapshotListenableTestApp extends StatelessWidget {
 class _AlbumsSnapshotInvalidator extends ConsumerStatefulWidget {
   const _AlbumsSnapshotInvalidator({required this.snapshot});
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
 
   @override
   ConsumerState<_AlbumsSnapshotInvalidator> createState() =>
@@ -800,7 +800,7 @@ class _AlbumsSnapshotInvalidatorState
   }
 
   void _invalidateSnapshot() {
-    ref.invalidate(libraryViewDataProvider);
+    ref.invalidate(libraryContentDataProvider);
   }
 }
 
@@ -899,15 +899,15 @@ class _FakeLibraryRepository extends LibraryRepository {
 class _ValueListenableAlbumsRepository extends _FakeLibraryRepository {
   _ValueListenableAlbumsRepository(this.snapshot);
 
-  final ValueNotifier<LibraryViewData> snapshot;
+  final ValueNotifier<LibraryContentData> snapshot;
 
   @override
-  Future<LibraryViewData> getLibraryViewData() async {
+  Future<LibraryContentData> getLibraryContentData() async {
     return snapshot.value;
   }
 }
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -986,7 +986,7 @@ const _snapshot = LibraryViewData(
   databasePath: '',
 );
 
-const _albumSortDefaultSnapshot = LibraryViewData(
+const _albumSortDefaultSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 20,
@@ -1033,7 +1033,7 @@ const _albumSortDefaultSnapshot = LibraryViewData(
   databasePath: '',
 );
 
-final _albumSortArtistSnapshot = LibraryViewData(
+final _albumSortArtistSnapshot = LibraryContentData(
   songs: _albumSortDefaultSnapshot.songs,
   recentSongs: _albumSortDefaultSnapshot.recentSongs,
   recentPlaylists: _albumSortDefaultSnapshot.recentPlaylists,

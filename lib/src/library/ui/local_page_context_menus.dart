@@ -63,7 +63,7 @@ extension _LocalPageContextMenus on _LocalPageState {
     required Map<String, FolderNode> nodes,
     required Map<int, LibrarySong> songsById,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final preferenceLevel = await ref
@@ -195,7 +195,7 @@ extension _LocalPageContextMenus on _LocalPageState {
     required Map<String, FolderNode> nodes,
     required Map<int, LibrarySong> songsById,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final preferenceLevel = await ref
@@ -282,7 +282,7 @@ extension _LocalPageContextMenus on _LocalPageState {
     required LibrarySong song,
     required List<int> queueSongIds,
     required List<MultiSelectCommandBarPlaylist> playlists,
-    required LibraryViewData snapshot,
+    required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
     final mediaState = ref.read(mediaControlControllerProvider).state;
@@ -332,7 +332,7 @@ extension _LocalPageContextMenus on _LocalPageState {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryViewDataProvider);
+          ref.invalidate(libraryContentDataProvider);
         },
         preferenceLevel: preferenceLevel,
         onUndoPreference:
@@ -342,7 +342,7 @@ extension _LocalPageContextMenus on _LocalPageState {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryViewDataProvider);
+                  ref.invalidate(libraryContentDataProvider);
                 },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -458,13 +458,13 @@ extension _LocalPageContextMenus on _LocalPageState {
                 await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('folder', '${folder.id}');
-                ref.invalidate(libraryViewDataProvider);
+                ref.invalidate(libraryContentDataProvider);
               },
       onSetPreference: (level) async {
         await ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('folder', '${folder.id}', folder.name, level);
-        ref.invalidate(libraryViewDataProvider);
+        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -486,7 +486,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       await ref
           .read(libraryRepositoryProvider)
           .updateLocalFolderSort(folder.path, sortMode);
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
     }
   }
 
@@ -504,7 +504,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       await ref
           .read(libraryRepositoryProvider)
           .updateLocalFolderSort(folder.path, sortMode);
-      ref.invalidate(libraryViewDataProvider);
+      ref.invalidate(libraryContentDataProvider);
     }
     if (folder.relativePath == widget.currentRelativePath) {
       _updateLocalPageState(() {

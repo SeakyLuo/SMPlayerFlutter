@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <wrl/client.h>
 
 #include "win32_window.h"
 
@@ -43,6 +44,8 @@ class FlutterWindow : public Win32Window {
   void SendDesktopLyricsBounds();
   void ApplyWindowControlsLight(bool light);
   void UpdateMediaSession(const flutter::EncodableMap& state);
+  void EnsureTaskbarToolbar();
+  void UpdateTaskbarToolbar(bool active, bool playing);
   void UpdateDesktopLyricsWindow(const flutter::EncodableMap& state);
   void HideDesktopLyricsWindow();
   void DestroyDesktopLyricsWindow();
@@ -61,6 +64,15 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_feature_channel_;
   std::unique_ptr<WindowsMediaSessionState> media_session_;
+  Microsoft::WRL::ComPtr<ITaskbarList3> taskbar_list_;
+  UINT taskbar_button_created_message_ = 0;
+  bool taskbar_buttons_added_ = false;
+  bool taskbar_media_active_ = false;
+  bool taskbar_media_playing_ = false;
+  HICON taskbar_previous_icon_ = nullptr;
+  HICON taskbar_play_icon_ = nullptr;
+  HICON taskbar_pause_icon_ = nullptr;
+  HICON taskbar_next_icon_ = nullptr;
   bool native_splash_visible_ = false;
   HWND hot_key_window_ = nullptr;
   HWND desktop_lyrics_window_ = nullptr;

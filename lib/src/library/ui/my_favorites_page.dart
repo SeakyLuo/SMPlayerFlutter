@@ -15,7 +15,7 @@ class MyFavoritesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryViewDataProvider);
+    final snapshotValue = ref.watch(libraryContentDataProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const _FavoritesPagePanel(child: SmPlayerLoadingState());
@@ -102,26 +102,26 @@ class MyFavoritesPage extends ConsumerWidget {
               ref
                   .read(libraryRepositoryProvider)
                   .addSongToPlaylist(playlistId, songId);
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onAddSongsToPlaylist: (playlistId, songIds) {
               ref
                   .read(libraryRepositoryProvider)
                   .addSongsToPlaylist(playlistId, songIds);
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onRemoveSongs: (songIds) async {
               await ref
                   .read(libraryRepositoryProvider)
                   .setSongsFavorite(songIds, false);
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onClear: () {
               final songIds = songs.map((song) => song.id).toList();
               ref
                   .read(libraryRepositoryProvider)
                   .setSongsFavorite(songIds, false);
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onSetPreferred: (level) async {
               await ref
@@ -132,7 +132,7 @@ class MyFavoritesPage extends ConsumerWidget {
                     i18n.t('common.myFavorites'),
                     level,
                   );
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onSortSongs: (songIds, sortCriterion) {
               ref
@@ -142,7 +142,7 @@ class MyFavoritesPage extends ConsumerWidget {
                     songIds,
                     sortCriterion,
                   );
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
             onArtistClick: (artist) {
               context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
@@ -154,7 +154,7 @@ class MyFavoritesPage extends ConsumerWidget {
               ref
                   .read(libraryRepositoryProvider)
                   .setSongFavorite(songId, favorite);
-              ref.invalidate(libraryViewDataProvider);
+              ref.invalidate(libraryContentDataProvider);
             },
           ),
         );
@@ -165,7 +165,7 @@ class MyFavoritesPage extends ConsumerWidget {
 
 void _playTrack(
   WidgetRef ref,
-  LibraryViewData snapshot,
+  LibraryContentData snapshot,
   SmPlayerI18n i18n,
   int trackId,
   List<int> queueSongIds,
@@ -180,10 +180,10 @@ void _playTrack(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
-  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(libraryContentDataProvider);
 }
 
-void _playNext(WidgetRef ref, LibraryViewData snapshot, int songId) {
+void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
   final queueSongIds = snapshot.nowPlaying.songIds.toList();
   final currentTrackId =
       ref.read(mediaControlControllerProvider).state.track.id;
@@ -191,7 +191,7 @@ void _playNext(WidgetRef ref, LibraryViewData snapshot, int songId) {
       currentTrackId == null ? -1 : queueSongIds.indexOf(currentTrackId);
   queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
   ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-  ref.invalidate(libraryViewDataProvider);
+  ref.invalidate(libraryContentDataProvider);
 }
 
 class _FavoritesPagePanel extends StatelessWidget {

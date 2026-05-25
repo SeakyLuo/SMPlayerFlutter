@@ -23,6 +23,7 @@ class MultiSelectCommandBar extends StatelessWidget {
     this.showAddTo = true,
     this.onPlay,
     this.addToSongIds = const [],
+    this.defaultPlaylistName,
     this.includeNowPlayingInAddTo = false,
     this.includeFavoritesInAddTo = false,
     this.onAddToNowPlaying,
@@ -44,6 +45,7 @@ class MultiSelectCommandBar extends StatelessWidget {
   final bool showAddTo;
   final VoidCallback? onPlay;
   final List<int> addToSongIds;
+  final String? defaultPlaylistName;
   final bool includeNowPlayingInAddTo;
   final bool includeFavoritesInAddTo;
   final VoidCallback? onAddToNowPlaying;
@@ -271,6 +273,8 @@ class MultiSelectCommandBar extends StatelessWidget {
                                         enabled: hasSelection,
                                         compact: compactPhone,
                                         songIds: addToSongIds,
+                                        defaultPlaylistName:
+                                            defaultPlaylistName,
                                         playlists: playlists,
                                         includeNowPlaying:
                                             includeNowPlayingInAddTo,
@@ -480,6 +484,7 @@ class _MultiSelectAddToAction extends StatelessWidget {
     required this.enabled,
     required this.compact,
     required this.songIds,
+    required this.defaultPlaylistName,
     required this.playlists,
     required this.includeNowPlaying,
     required this.includeFavorites,
@@ -495,6 +500,7 @@ class _MultiSelectAddToAction extends StatelessWidget {
   final bool enabled;
   final bool compact;
   final List<int> songIds;
+  final String? defaultPlaylistName;
   final List<MultiSelectCommandBarPlaylist> playlists;
   final bool includeNowPlaying;
   final bool includeFavorites;
@@ -524,6 +530,7 @@ class _MultiSelectAddToAction extends StatelessWidget {
               i18n: i18n,
               songIds: menuSongIds,
               playlists: playlists,
+              defaultPlaylistName: defaultPlaylistName,
               currentPlaylistName: currentPlaylistName,
               excludePlaylistName: excludePlaylistName,
               includeNowPlaying: includeNowPlaying,

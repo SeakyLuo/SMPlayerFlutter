@@ -372,6 +372,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool showPreference = true,
   bool showMoveToFolder = false,
   bool showAlbumArt = true,
+  bool keepViewActionsOpen = true,
 }) {
   final items = <MenuFlyoutItem>[
     if (isCurrentTrack && isPlaying)
@@ -512,14 +513,14 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         key: 'see-music-info',
         text: i18n.t('context.seeMusicInfo'),
         icon: FluentIcons.info_20_regular,
-        keepOpen: true,
+        keepOpen: keepViewActionsOpen,
         onPressed: onSeeMusicInfo,
       ),
       MenuFlyoutItem(
         key: 'see-lyrics',
         text: i18n.t('context.seeLyrics'),
         icon: FluentIcons.comment_text_20_regular,
-        keepOpen: true,
+        keepOpen: keepViewActionsOpen,
         onPressed: onSeeLyrics,
       ),
       if (showAlbumArt)
@@ -527,7 +528,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
           key: 'see-album-art',
           text: i18n.t('context.seeAlbumArt'),
           icon: FluentIcons.image_20_regular,
-          keepOpen: true,
+          keepOpen: keepViewActionsOpen,
           onPressed: onSeeAlbumArt,
         ),
       MenuFlyoutItem(

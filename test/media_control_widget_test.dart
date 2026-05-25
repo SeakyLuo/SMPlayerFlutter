@@ -116,6 +116,69 @@ void main() {
     },
   );
 
+  testWidgets('MediaControl wide player uses one shared player frame', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 220);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                ),
+                currentSong: _song,
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 12,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(MediaControlPlayerFrame), findsOneWidget);
+    expect(find.byType(MediaControlSurfaceBar), findsOneWidget);
+    expect(find.byType(MediaControlSurface), findsOneWidget);
+  });
+
   testWidgets('MediaControl uses Electron-style night player colors', (
     tester,
   ) async {

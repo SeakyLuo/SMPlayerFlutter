@@ -1,14 +1,15 @@
-import 'dart:io';
+import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/settings/artist_split_review_panel.dart';
 
-import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'default_album_artwork.dart';
 import 'folder_update_result_file_title.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
+import 'song_artwork.dart';
 
 class FolderUpdateResultFileSection extends StatelessWidget {
   const FolderUpdateResultFileSection({
@@ -97,18 +98,10 @@ class FolderUpdateResultArtwork extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child:
-                song.thumbnailPath.isEmpty
-                    ? const DefaultAlbumArtwork(logoOpacity: 0.9)
-                    : Image.file(
-                      File(song.thumbnailPath),
-                      width: 42,
-                      height: 42,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (_, _, _) =>
-                              const DefaultAlbumArtwork(logoOpacity: 0.9),
-                    ),
+            child: SongArtwork(
+              artworkPath: song.thumbnailPath,
+              fallback: const DefaultAlbumArtwork(logoOpacity: 0.9),
+            ),
           ),
           if (current)
             Container(
@@ -221,63 +214,35 @@ class _FolderUpdateResultRow extends StatelessWidget {
 }
 
 class FolderUpdateResultArtistSection extends StatelessWidget {
-  const FolderUpdateResultArtistSection({super.key, required this.result});
+  const FolderUpdateResultArtistSection({
+    super.key,
+    required this.result,
+    required this.applying,
+    required this.artworkPathBySongId,
+    required this.onApply,
+    required this.onClose,
+  });
 
   final LocalFolderRefreshResult result;
+  final bool applying;
+  final Map<int, String> artworkPathBySongId;
+  final FutureOr<void> Function(List<ArtistSplitResultItem> splits) onApply;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final separator = i18n.t('common.artistSeparator');
-    final items = [
-      ...result.artistSplitsApplied,
-      ...result.artistSplitSuggestions,
-      ...result.artistMergeSuggestions,
-    ];
-
-    return ListView.separated(
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return Container(
-          constraints: const BoxConstraints(minHeight: 66),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color:
-                index.isEven
-                    ? const Color(0xd1f6f9fd)
-                    : const Color(0xb8ffffff),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textStrong,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${item.artist} -> ${item.artists.join(separator)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textMuted,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Material(
+      color: Colors.transparent,
+      child: ArtistSplitReviewPanel(
+        directSplits: result.artistSplitsApplied,
+        possibleSplits: result.artistSplitSuggestions,
+        mergeSuggestions: result.artistMergeSuggestions,
+        applying: applying,
+        artworkPathBySongId: artworkPathBySongId,
+        embeddedInFolderUpdateResult: true,
+        onApply: onApply,
+        onClose: onClose,
+      ),
     );
   }
 }

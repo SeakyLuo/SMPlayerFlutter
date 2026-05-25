@@ -21,6 +21,8 @@ class PopupDialog extends StatelessWidget {
     this.closeOnBackdrop = false,
     this.width = 780,
     this.height = 760,
+    this.horizontalInset = 48,
+    this.verticalInset = 48,
   });
 
   final String className;
@@ -36,6 +38,8 @@ class PopupDialog extends StatelessWidget {
   final bool closeOnBackdrop;
   final double width;
   final double height;
+  final double horizontalInset;
+  final double verticalInset;
 
   @override
   Widget build(BuildContext context) {
@@ -66,14 +70,10 @@ class PopupDialog extends StatelessWidget {
               Center(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final dialogWidth = (constraints.maxWidth - 48).clamp(
-                      0.0,
-                      width,
-                    );
-                    final dialogHeight = (constraints.maxHeight - 48).clamp(
-                      0.0,
-                      height,
-                    );
+                    final dialogWidth = (constraints.maxWidth - horizontalInset)
+                        .clamp(0.0, width);
+                    final dialogHeight = (constraints.maxHeight - verticalInset)
+                        .clamp(0.0, height);
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},

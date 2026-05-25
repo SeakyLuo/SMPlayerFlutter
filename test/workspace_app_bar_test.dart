@@ -104,7 +104,7 @@ const _i18n = SmPlayerI18n(
   },
 );
 
-const _snapshot = LibraryViewData(
+const _snapshot = LibraryContentData(
   songs: [
     LibrarySong(
       id: 1,
@@ -144,7 +144,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => _i18n),
-        libraryViewDataProvider.overrideWith((ref) async => _snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => _snapshot),
         workspaceAppBarPortalProvider.overrideWith(
           (ref) => WorkspaceAppBarPortalEntry(
             owner: Object(),

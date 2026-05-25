@@ -416,16 +416,11 @@ class AlbumArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final firstSong = getAlbumArtworkSong(album.songs);
-    final file =
-        firstSong.thumbnailPath.isEmpty ? null : File(firstSong.thumbnailPath);
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: SizedBox.square(
         dimension: 72,
-        child:
-            file != null && file.existsSync()
-                ? Image.file(file, fit: BoxFit.cover)
-                : const DefaultAlbumArtwork(),
+        child: SongArtwork(artworkPath: firstSong.thumbnailPath),
       ),
     );
   }
