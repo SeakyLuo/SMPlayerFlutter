@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'library_database_service.dart';
 import 'library_models.dart';
+import 'library_time_codec.dart';
 
 class LibrarySearchHistoryService {
   const LibrarySearchHistoryService({required LibraryDatabaseService database})
@@ -123,7 +124,7 @@ class LibrarySearchHistoryService {
 
     final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
-      final searchedAt = DateTime.now().toUtc().toIso8601String();
+      final searchedAt = LibraryTimeCodec.nowUnixMillisecondsString();
       db.execute('BEGIN');
       try {
         db.execute(
@@ -167,9 +168,9 @@ class LibrarySearchHistoryService {
         Type AS type,
         SearchedAt AS searchedAt
       FROM SearchHistory
-      ORDER BY datetime(SearchedAt) DESC, Id DESC
+      ORDER BY Id DESC
     ''');
-    return rows.map((row) {
+    final entries = rows.map((row) {
       return SearchHistoryEntry(
         id: row['id'] as int,
         query: row['query'] as String,
@@ -177,6 +178,13 @@ class LibrarySearchHistoryService {
         searchedAt: row['searchedAt'] as String,
       );
     }).toList();
+    entries.sort((left, right) {
+      final timeCompare = LibraryTimeCodec.toSortMilliseconds(
+        right.searchedAt,
+      ).compareTo(LibraryTimeCodec.toSortMilliseconds(left.searchedAt));
+      return timeCompare != 0 ? timeCompare : right.id.compareTo(left.id);
+    });
+    return entries;
   }
 }
 

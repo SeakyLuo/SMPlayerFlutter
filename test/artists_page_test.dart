@@ -199,6 +199,12 @@ void main() {
       i18n,
     );
     expect(artistsWithoutArtwork.single.artworkSongId, 4);
+
+    final artistsWithoutArtworkTicks = buildArtistGroups(
+      _artistLatestFallbackSongsWithDotNetTicks,
+      i18n,
+    );
+    expect(artistsWithoutArtworkTicks.single.artworkSongId, 4);
   });
 
   test(
@@ -6179,6 +6185,37 @@ const _artistLatestFallbackSongs = [
     playCount: 0,
     lyricsOffsetMs: 0,
     dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  ),
+];
+
+const _artistLatestFallbackSongsWithDotNetTicks = [
+  LibrarySong(
+    id: 3,
+    path: r'C:\Music\older-ticks.mp3',
+    title: 'Older Song (Ticks)',
+    artist: 'Artist A',
+    artists: ['Artist A'],
+    album: 'A Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '637269492000000000',
+    favorite: false,
+    thumbnailPath: '',
+  ),
+  LibrarySong(
+    id: 4,
+    path: r'C:\Music\latest-ticks.mp3',
+    title: 'Latest Song (Ticks)',
+    artist: 'Artist A',
+    artists: ['Artist A'],
+    album: 'B Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '637270356960000000',
     favorite: false,
     thumbnailPath: '',
   ),

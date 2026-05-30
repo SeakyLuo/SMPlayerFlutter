@@ -339,7 +339,14 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       SearchHistoryType.sidebar,
     );
     final customPlaylists =
-        widget.playlists.where((playlist) => !playlist.isBuiltIn).toList();
+        widget.playlists
+            .where(
+              (playlist) =>
+                  !playlist.isBuiltIn &&
+                  playlist.name != widget.i18n.t('common.nowPlaying') &&
+                  playlist.name != 'Now Playing',
+            )
+            .toList();
     final resolvedAppName = _navigationAppName(
       widget.i18n,
       View.of(context).platformDispatcher.locale,
@@ -512,7 +519,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 return Column(
                                   children: [
                                     ...libraryAndPlayback,
-                                    playlistSection,
+                                    Expanded(child: playlistSection),
                                   ],
                                 );
                               },

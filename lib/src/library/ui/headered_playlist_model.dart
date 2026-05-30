@@ -140,6 +140,9 @@ String validatePlaylistName(
   )) {
     return i18n.t('playlists.nameUsed');
   }
+  if (isBadNewPlaylistName(name, i18n)) {
+    return i18n.t('playlists.nameUsed');
+  }
 
   if (name.contains('+++++') || name.contains('{0}') || name.contains('{1}')) {
     return i18n.t('playlists.nameSpecial');
