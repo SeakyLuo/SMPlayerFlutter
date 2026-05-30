@@ -7,6 +7,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <shobjidl.h>
 #include <string>
 #include <vector>
 #include <wrl/client.h>

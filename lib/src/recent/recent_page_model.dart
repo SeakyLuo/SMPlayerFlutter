@@ -1,5 +1,6 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/data/library_time_codec.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 
@@ -134,14 +135,14 @@ List<RecentArtistView> buildRecentArtistViews(
 }
 
 int dateValue(String value) {
-  return DateTime.tryParse(value)?.millisecondsSinceEpoch ?? 0;
+  return LibraryTimeCodec.toSortMilliseconds(value);
 }
 
 String categorizeRecentDate(String value, SmPlayerI18n i18n) {
-  final date = DateTime.tryParse(value)?.toLocal();
-  if (date == null) {
+  if (value.trim().isEmpty) {
     return '';
   }
+  final date = LibraryTimeCodec.parseStoredDateTime(value).toLocal();
   final now = DateTime.now();
 
   if (sameCalendarDate(date, now)) {
@@ -173,10 +174,10 @@ String categorizeRecentDate(String value, SmPlayerI18n i18n) {
 }
 
 String formatRecentDateTime(String value) {
-  final date = DateTime.tryParse(value)?.toLocal();
-  if (date == null) {
+  if (value.trim().isEmpty) {
     return '';
   }
+  final date = LibraryTimeCodec.parseStoredDateTime(value).toLocal();
   final now = DateTime.now();
   final datePart =
       date.year == now.year

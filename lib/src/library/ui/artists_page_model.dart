@@ -1,6 +1,7 @@
 import 'package:lpinyin/lpinyin.dart';
 
 import '../../i18n/app_i18n.dart';
+import '../data/library_time_codec.dart';
 import '../data/library_models.dart';
 import 'song_display_helpers.dart' as song_display;
 
@@ -126,9 +127,9 @@ List<ArtistGroup> buildArtistGroups(
                   (song) => song.thumbnailPath.isNotEmpty,
                 )
                 : (entry.value.toList()..sort(
-                      (left, right) => DateTime.parse(
+                      (left, right) => _parseSongDateAdded(
                         right.dateAdded,
-                      ).compareTo(DateTime.parse(left.dateAdded)),
+                      ).compareTo(_parseSongDateAdded(left.dateAdded)),
                     ))
                     .first;
 
@@ -142,6 +143,10 @@ List<ArtistGroup> buildArtistGroups(
 
   artists.sort((left, right) => compareArtistText(left.name, right.name));
   return artists;
+}
+
+DateTime _parseSongDateAdded(String rawValue) {
+  return LibraryTimeCodec.parseStoredDateTime(rawValue);
 }
 
 List<AlbumGroup> buildAlbumGroups(List<LibrarySong> songs, SmPlayerI18n i18n) {

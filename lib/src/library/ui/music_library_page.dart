@@ -18,6 +18,7 @@ import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_track_factory.dart';
 import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
+import '../data/library_time_codec.dart';
 import '../data/library_providers.dart';
 import 'artwork_floating_action_button.dart';
 import 'artists_page_model.dart'
@@ -2768,7 +2769,7 @@ String _formatDateTime(String value) {
 }
 
 DateTime _parseDate(String value) {
-  return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  return LibraryTimeCodec.parseStoredDateTime(value).toLocal();
 }
 
 class _LibraryColors {

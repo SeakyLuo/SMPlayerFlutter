@@ -13,6 +13,7 @@ import 'library_local_scan_service.dart';
 import 'library_models.dart';
 import 'library_read_service.dart';
 import 'library_song_properties_service.dart';
+import 'library_time_codec.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -807,7 +808,7 @@ class LibraryLocalRefreshService {
             .toList();
     final artist = artists.join(', ');
     final album = properties.album.trim();
-    final dateAdded = DateTime.now().toIso8601String();
+    final dateAdded = LibraryTimeCodec.nowUnixMillisecondsString();
     final rows = db.select(
       '''
       INSERT INTO Music (Path, Name, Artist, Album, ThumbnailPath, Duration, PlayCount, DateAdded, State)

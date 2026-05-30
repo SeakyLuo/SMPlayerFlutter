@@ -704,7 +704,7 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
   if (!EncodableBool(state, "active")) {
     if (media_session_ && media_session_->controls) {
       media_session_->controls.PlaybackStatus(
-          media::SystemMediaTransportControlsPlaybackStatus::Closed);
+          media::MediaPlaybackStatus::Closed);
       media_session_->controls.IsEnabled(false);
       auto updater = media_session_->controls.DisplayUpdater();
       updater.ClearAll();
@@ -780,8 +780,8 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
     controls.IsNextEnabled(true);
     controls.PlaybackStatus(
         EncodableBool(state, "playing")
-            ? media::SystemMediaTransportControlsPlaybackStatus::Playing
-            : media::SystemMediaTransportControlsPlaybackStatus::Paused);
+            ? media::MediaPlaybackStatus::Playing
+            : media::MediaPlaybackStatus::Paused);
     UpdateTaskbarToolbar(true, EncodableBool(state, "playing"));
 
     auto updater = controls.DisplayUpdater();
@@ -1189,8 +1189,7 @@ void FlutterWindow::OnDestroy() {
     media_session_->controls.PlaybackPositionChangeRequested(
         media_session_->playback_position_changed_token);
     media_session_->controls.PlaybackStatus(
-        winrt::Windows::Media::
-            SystemMediaTransportControlsPlaybackStatus::Closed);
+        winrt::Windows::Media::MediaPlaybackStatus::Closed);
     media_session_->controls.IsEnabled(false);
     media_session_.reset();
   }
