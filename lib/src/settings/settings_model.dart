@@ -114,6 +114,7 @@ class SettingsSnapshot {
     required this.musicProgress,
     required this.autoPlay,
     required this.shuffleAfterOneRound,
+    required this.previousButtonRestartsTrack,
     required this.saveMusicProgress,
     required this.hideMultiSelectCommandBarAfterOperation,
     required this.localViewMode,
@@ -166,6 +167,7 @@ class SettingsSnapshot {
       musicProgress = 0,
       autoPlay = false,
       shuffleAfterOneRound = true,
+      previousButtonRestartsTrack = true,
       saveMusicProgress = true,
       hideMultiSelectCommandBarAfterOperation = true,
       localViewMode = LocalViewMode.grid,
@@ -216,6 +218,7 @@ class SettingsSnapshot {
   final double musicProgress;
   final bool autoPlay;
   final bool shuffleAfterOneRound;
+  final bool previousButtonRestartsTrack;
   final bool saveMusicProgress;
   final bool hideMultiSelectCommandBarAfterOperation;
   final LocalViewMode localViewMode;
@@ -275,6 +278,7 @@ class SettingsSnapshot {
     double? musicProgress,
     bool? autoPlay,
     bool? shuffleAfterOneRound,
+    bool? previousButtonRestartsTrack,
     bool? saveMusicProgress,
     bool? hideMultiSelectCommandBarAfterOperation,
     LocalViewMode? localViewMode,
@@ -340,6 +344,8 @@ class SettingsSnapshot {
       musicProgress: musicProgress ?? this.musicProgress,
       autoPlay: autoPlay ?? this.autoPlay,
       shuffleAfterOneRound: shuffleAfterOneRound ?? this.shuffleAfterOneRound,
+      previousButtonRestartsTrack:
+          previousButtonRestartsTrack ?? this.previousButtonRestartsTrack,
       saveMusicProgress: saveMusicProgress ?? this.saveMusicProgress,
       hideMultiSelectCommandBarAfterOperation:
           hideMultiSelectCommandBarAfterOperation ??
@@ -391,6 +397,7 @@ class AppSettingsUpdate {
     this.searchFoldersCriterion,
     this.autoPlay,
     this.shuffleAfterOneRound,
+    this.previousButtonRestartsTrack,
     this.saveMusicProgress,
     this.hideMultiSelectCommandBarAfterOperation,
     this.localViewMode,
@@ -433,6 +440,7 @@ class AppSettingsUpdate {
   final SearchSortCriterion? searchFoldersCriterion;
   final bool? autoPlay;
   final bool? shuffleAfterOneRound;
+  final bool? previousButtonRestartsTrack;
   final bool? saveMusicProgress;
   final bool? hideMultiSelectCommandBarAfterOperation;
   final LocalViewMode? localViewMode;
@@ -479,6 +487,7 @@ extension AppSettingsUpdateApply on SettingsSnapshot {
       searchFoldersCriterion: update.searchFoldersCriterion,
       autoPlay: update.autoPlay,
       shuffleAfterOneRound: update.shuffleAfterOneRound,
+      previousButtonRestartsTrack: update.previousButtonRestartsTrack,
       saveMusicProgress: update.saveMusicProgress,
       musicProgress: nextSaveMusicProgress ? musicProgress : 0,
       hideMultiSelectCommandBarAfterOperation:

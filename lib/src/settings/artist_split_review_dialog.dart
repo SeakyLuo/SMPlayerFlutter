@@ -42,6 +42,9 @@ class _ArtistSplitReviewDialogState extends State<ArtistSplitReviewDialog> {
         widget.title ?? i18n.t('local.startupArtistSplitSuggestionsTitle');
 
     return PopupDialog(
+      overlayClassName: 'artist-split-review-overlay',
+      className: 'artist-split-review-dialog ContentDialog',
+      navClassName: 'artist-split-review-nav',
       navLabel: title,
       ariaLabel: title,
       width: 760,

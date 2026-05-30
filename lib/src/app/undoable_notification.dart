@@ -105,11 +105,15 @@ Future<SnackBarClosedReason> showAppNotification({
   required BuildContext context,
   required String message,
   Duration duration = appNotificationDuration,
+  String? actionLabel,
+  FutureOr<void> Function()? onAction,
 }) {
   return _showAppOverlayNotification(
     context: context,
     message: message,
     duration: duration,
+    actionLabel: actionLabel,
+    onAction: onAction,
   );
 }
 

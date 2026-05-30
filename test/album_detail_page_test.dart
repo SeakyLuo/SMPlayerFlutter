@@ -200,7 +200,26 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.ListHeader'))),
       const Size(1100, 42),
     );
-    expect(tester.getSize(find.text('Duration')).width, greaterThan(50));
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('HeaderedPlaylist.DurationHeaderSlot')),
+          )
+          .width,
+      20,
+    );
+    expect(tester.getSize(find.text('Duration')).width, greaterThan(20));
+    expect(
+      tester.getRect(find.text('Duration')).right,
+      lessThanOrEqualTo(
+        tester
+                .getRect(
+                  find.byKey(const ValueKey('HeaderedPlaylist.ListHeader')),
+                )
+                .right -
+            14,
+      ),
+    );
     final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
     expect(tester.getSize(firstRow), const Size(1100, 88));
     expect(
@@ -295,6 +314,20 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('HeaderedPlaylist.Row.1'))),
       const Size(1100, 88),
     );
+    expect(
+      tester
+          .getSize(
+            find.descendant(
+              of: find.byKey(const ValueKey('HeaderedPlaylist.Row.1')),
+              matching: find.byKey(
+                const ValueKey('PlaylistControlItem.Duration'),
+              ),
+            ),
+          )
+          .width,
+      20,
+    );
+    expect(tester.getSize(find.text('2:00')).height, lessThan(24));
     final titleText = tester.widget<Text>(find.text('Mix'));
     expect(titleText.style?.fontSize, 48);
     expect(titleText.style?.fontWeight, FontWeight.w600);
@@ -316,6 +349,7 @@ void main() {
         'Multi Select',
         'Sort',
         'Rename',
+        'Clear',
       ])
         _commandBarButtonRectForLabel(tester, label),
     ]);
@@ -328,6 +362,69 @@ void main() {
       lessThan(tester.getRect(commandBar).center.dx),
     );
   });
+
+  testWidgets(
+    'HeaderedPlaylistControl narrow header keeps duration label visible',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final zhI18n = SmPlayerI18n(
+        locale: 'zh-CN',
+        messages: {
+          ...i18n.messages,
+          'headeredPlaylist.songArtist': '歌名/歌手',
+          'table.duration': '时长',
+        },
+      );
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: zhI18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          removable: true,
+          canClear: true,
+          showAlbum: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final durationHeader = tester.widget<Text>(find.text('时长'));
+      expect(durationHeader.maxLines, 1);
+      expect(durationHeader.softWrap, isFalse);
+      expect(durationHeader.overflow, TextOverflow.visible);
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('HeaderedPlaylist.DurationHeaderSlot')),
+            )
+            .width,
+        20,
+      );
+      expect(
+        tester.getRect(find.text('时长')).right,
+        lessThanOrEqualTo(
+          tester
+                  .getRect(
+                    find.byKey(const ValueKey('HeaderedPlaylist.ListHeader')),
+                  )
+                  .right -
+              14,
+        ),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('HeaderedPlaylist.ListHeader')),
+        ),
+        const Size(1100, 42),
+      );
+    },
+  );
 
   testWidgets('HeaderedPlaylistControl reuses Electron metrics for favorites', (
     tester,
@@ -498,6 +595,43 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('portal:Mix'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Album detail compact appbar portal keeps Electron page title empty',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(700, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.album,
+          title: 'Blue Hour',
+          showPortalProbe: true,
+          songCount: 12,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+        const Offset(0, -180),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('HeaderedPlaylist.PortalProbe')),
+        findsOneWidget,
+      );
+      expect(find.text('portal:'), findsOneWidget);
+      expect(find.text('portal:Blue Hour'), findsNothing);
     },
   );
 
@@ -741,6 +875,25 @@ void main() {
       collapsedCommandBarRect.bottom,
       moreOrLessEquals(collapsedCoverRect.bottom, epsilon: 1),
     );
+    final backdropClip = find.byKey(
+      const ValueKey('HeaderedPlaylist.HeroBackdropClip'),
+    );
+    expect(
+      find.ancestor(of: find.byType(BackdropFilter), matching: backdropClip),
+      findsOneWidget,
+    );
+    expect(
+      tester.getRect(backdropClip).height,
+      moreOrLessEquals(126, epsilon: 1),
+    );
+    final backdropRect = tester.getRect(
+      find.byKey(const ValueKey('HeaderedPlaylist.Backdrop')),
+    );
+    expect(backdropRect.height, moreOrLessEquals(126, epsilon: 1));
+    expect(
+      backdropRect.bottom,
+      lessThanOrEqualTo(tester.getRect(backdropClip).bottom + 1),
+    );
 
     await tester.dragFrom(const Offset(600, 340), const Offset(0, 60));
     await tester.pumpAndSettle();
@@ -816,6 +969,24 @@ void main() {
     expect(find.text('Unknown Album Song'), findsNothing);
     expect(find.textContaining('Album Not Found'), findsOneWidget);
   });
+
+  testWidgets(
+    'AlbumDetailPage accepts decoded query album names with percent',
+    (tester) async {
+      await tester.pumpWidget(
+        _AlbumDetailTestApp(
+          albumName: '100% Hits',
+          i18n: i18n,
+          snapshot: _percentAlbumSnapshot,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('100% Hits'), findsOneWidget);
+      expect(find.text('Percent Song'), findsOneWidget);
+      expect(find.textContaining('Album Not Found'), findsNothing);
+    },
+  );
 }
 
 class _AlbumDetailTestApp extends StatelessWidget {
@@ -1145,6 +1316,41 @@ const _snapshot = LibraryContentData(
   showCount: true,
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
+);
+
+final _percentAlbumSnapshot = LibraryContentData(
+  songs: [
+    ..._snapshot.songs,
+    const LibrarySong(
+      id: 21,
+      path: r'C:\Music\percent.mp3',
+      title: 'Percent Song',
+      artist: 'Artist P',
+      artists: ['Artist P'],
+      album: '100% Hits',
+      duration: 100,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: _snapshot.recentSongs,
+  recentPlaylists: _snapshot.recentPlaylists,
+  recentAlbums: _snapshot.recentAlbums,
+  recentArtists: _snapshot.recentArtists,
+  recentSearches: _snapshot.recentSearches,
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation:
+      _snapshot.hideMultiSelectCommandBarAfterOperation,
+  databasePath: _snapshot.databasePath,
 );
 
 final _longAlbumSnapshot = LibraryContentData(

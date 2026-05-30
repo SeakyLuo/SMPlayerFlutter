@@ -17,7 +17,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     return _playQueueDirection(forward: true, automatic: automatic);
   }
 
-  bool _playPreviousFromCurrentQueue() {
+  bool _playPreviousFromCurrentQueue({bool forcePrevious = false}) {
     final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (snapshot == null) {
       return false;
@@ -27,10 +27,13 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return false;
     }
     final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
-    if (shouldRestartCurrentTrackForPrevious(
-      progressSeconds: progressSeconds,
-      queueLength: playbackSongIds.length,
-    )) {
+    if (!forcePrevious &&
+        shouldRestartCurrentTrackForPrevious(
+          progressSeconds: progressSeconds,
+          queueLength: playbackSongIds.length,
+          restartAfterThresholdEnabled:
+              _settingsController.snapshot.previousButtonRestartsTrack,
+        )) {
       unawaited(_audioPlayer.seek(Duration.zero));
       _syncingAudioPlayer = true;
       _mediaControlController.syncPlaybackProgress(0);

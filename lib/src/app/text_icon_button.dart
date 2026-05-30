@@ -11,6 +11,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     required this.onPressed,
     this.child,
     this.icon,
+    this.iconWidget,
     this.loading = false,
     this.active = false,
     this.disabled = false,
@@ -33,6 +34,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Widget? child;
   final IconData? icon;
+  final Widget? iconWidget;
   final bool loading;
   final bool active;
   final bool disabled;
@@ -106,6 +108,11 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                     color: foreground,
                   ),
                 )
+              else if (widget.iconWidget case final iconWidget?)
+                IconTheme(
+                  data: IconThemeData(size: widget.iconSize, color: foreground),
+                  child: iconWidget,
+                )
               else if (widget.icon case final icon?)
                 isMultiSelectIcon(icon)
                     ? UniformMultiSelectIcon(
@@ -116,7 +123,9 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                     ? SmPlayerPlayIcon(size: widget.iconSize, color: foreground)
                     : Icon(icon, size: widget.iconSize, color: foreground),
               if (widget.showLabel) ...[
-                if (widget.loading || widget.icon != null)
+                if (widget.loading ||
+                    widget.icon != null ||
+                    widget.iconWidget != null)
                   SizedBox(width: widget.iconGap),
                 Flexible(
                   child: DefaultTextStyle.merge(

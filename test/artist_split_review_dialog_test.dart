@@ -141,6 +141,7 @@ void main() {
             selectedTrackId: null,
             isPlaying: false,
             onPlay: (_) {},
+            onOpenSongMenu: (_, _) {},
             onApplyArtistSplits: (splits) {
               appliedSplits = splits;
             },

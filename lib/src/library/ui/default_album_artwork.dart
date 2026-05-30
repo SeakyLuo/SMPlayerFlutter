@@ -6,10 +6,10 @@ class DefaultAlbumArtwork extends StatelessWidget {
   const DefaultAlbumArtwork({
     super.key,
     this.logoScale = 0.68,
-    this.lightShadowOffset = 8,
-    this.darkShadowOffset = 10,
-    this.lightShadowBlur = 8,
-    this.darkShadowBlur = 10,
+    this.lightShadowOffset = 10,
+    this.darkShadowOffset = 12,
+    this.lightShadowBlur = 18,
+    this.darkShadowBlur = 22,
     this.logoOpacity = 1,
   });
 
@@ -23,7 +23,6 @@ class DefaultAlbumArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DefaultAlbumArtworkThemeColors.of(context);
-    final logoBoundsScale = logoScale * 0.86;
     return DecoratedBox(
       decoration: BoxDecoration(color: colors.background),
       child: Stack(
@@ -50,8 +49,8 @@ class DefaultAlbumArtwork extends StatelessWidget {
           ),
           Center(
             child: FractionallySizedBox(
-              widthFactor: logoBoundsScale,
-              heightFactor: logoBoundsScale,
+              widthFactor: logoScale,
+              heightFactor: logoScale,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -77,16 +76,16 @@ class DefaultAlbumArtwork extends StatelessWidget {
                           BlendMode.srcIn,
                         ),
                         child: Image.asset(
-                          'assets/branding/monotone_no_bg.png',
+                          'assets/branding/app-icon.png',
                           fit: BoxFit.contain,
                         ),
                       ),
                     ),
                   ),
                   Opacity(
-                    opacity: logoOpacity,
+                    opacity: logoOpacity * colors.logoOpacity,
                     child: Image.asset(
-                      'assets/branding/monotone_no_bg.png',
+                      'assets/branding/app-icon.png',
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -107,6 +106,7 @@ class DefaultAlbumArtworkThemeColors
     required this.radialGradient,
     required this.linearGradient,
     required this.shadowColor,
+    required this.logoOpacity,
     required this.useDarkShadowMetrics,
   });
 
@@ -114,13 +114,15 @@ class DefaultAlbumArtworkThemeColors
   final List<Color> radialGradient;
   final List<Color> linearGradient;
   final Color shadowColor;
+  final double logoOpacity;
   final bool useDarkShadowMetrics;
 
   static const light = DefaultAlbumArtworkThemeColors(
     background: Color(0xf0f7f9fc),
     radialGradient: [Color(0x45ffffff), Color(0x24ffffff), Color(0x00ffffff)],
     linearGradient: [Color(0x24ffffff), Color(0x00ffffff)],
-    shadowColor: Color(0x18263952),
+    shadowColor: Color(0x1f263952),
+    logoOpacity: 0.9,
     useDarkShadowMetrics: false,
   );
 
@@ -128,7 +130,8 @@ class DefaultAlbumArtworkThemeColors
     background: Color(0xf511161c),
     radialGradient: [Color(0x10ffffff), Color(0x08ffffff), Color(0x00ffffff)],
     linearGradient: [Color(0x0affffff), Color(0x00000000)],
-    shadowColor: Color(0x42000000),
+    shadowColor: Color(0x52000000),
+    logoOpacity: 0.78,
     useDarkShadowMetrics: true,
   );
 

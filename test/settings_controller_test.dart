@@ -43,6 +43,7 @@ void main() {
           searchFoldersCriterion: SearchSortCriterion.dateAdded,
           autoPlay: true,
           shuffleAfterOneRound: false,
+          previousButtonRestartsTrack: false,
           saveMusicProgress: false,
           localViewMode: LocalViewMode.list,
           quitOnClose: false,
@@ -106,6 +107,7 @@ void main() {
       );
       expect(controller.snapshot.autoPlay, isTrue);
       expect(controller.snapshot.shuffleAfterOneRound, isFalse);
+      expect(controller.snapshot.previousButtonRestartsTrack, isFalse);
       expect(controller.snapshot.saveMusicProgress, isFalse);
       expect(controller.snapshot.localViewMode, LocalViewMode.list);
       expect(controller.snapshot.quitOnClose, isFalse);
@@ -191,6 +193,7 @@ void main() {
       expect(restored.snapshot.musicProgress, 0);
       expect(restored.snapshot.autoPlay, isTrue);
       expect(restored.snapshot.shuffleAfterOneRound, isFalse);
+      expect(restored.snapshot.previousButtonRestartsTrack, isFalse);
       expect(restored.snapshot.saveMusicProgress, isFalse);
       expect(restored.snapshot.localViewMode, LocalViewMode.list);
       expect(restored.snapshot.quitOnClose, isFalse);
@@ -214,6 +217,7 @@ void main() {
       expect(controller.snapshot.mode, PlaybackMode.once);
       expect(controller.snapshot.musicProgress, 0);
       expect(controller.snapshot.shuffleAfterOneRound, isTrue);
+      expect(controller.snapshot.previousButtonRestartsTrack, isTrue);
       expect(
         controller.snapshot.hideMultiSelectCommandBarAfterOperation,
         isTrue,

@@ -11,24 +11,29 @@ class UniformMultiSelectIcon extends StatelessWidget {
     super.key,
     required this.size,
     required this.color,
+    this.strokeWidth = 1.7,
   });
 
   final double size;
   final Color color;
+  final double strokeWidth;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _UniformMultiSelectIconPainter(color)),
+      child: CustomPaint(
+        painter: _UniformMultiSelectIconPainter(color, strokeWidth),
+      ),
     );
   }
 }
 
 class _UniformMultiSelectIconPainter extends CustomPainter {
-  const _UniformMultiSelectIconPainter(this.color);
+  const _UniformMultiSelectIconPainter(this.color, this.strokeWidth);
 
   final Color color;
+  final double strokeWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -37,7 +42,7 @@ class _UniformMultiSelectIconPainter extends CustomPainter {
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.7 * scale
+          ..strokeWidth = strokeWidth * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
 
@@ -67,6 +72,6 @@ class _UniformMultiSelectIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _UniformMultiSelectIconPainter oldDelegate) {
-    return oldDelegate.color != color;
+    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
   }
 }

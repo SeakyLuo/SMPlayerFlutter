@@ -290,7 +290,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
             title: i18n.t('playlists.newName'),
             defaultValue: defaultPlaylistName ?? i18n.t('playlists.newName'),
             placeholder: i18n.t('playlists.namePlaceholder'),
-            confirmText: i18n.t('playlists.create'),
+            confirmText: i18n.t('common.confirm'),
           );
           if (name != null) {
             onCreatePlaylistWithName(name);
@@ -339,6 +339,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required VoidCallback onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
+  VoidCallback? onRequestCreatePlaylist,
   ValueChanged<String>? onCreatePlaylistWithName,
   required ValueChanged<int> onAddToPlaylist,
   required VoidCallback onRemove,
@@ -396,7 +397,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'play-next',
         text: i18n.t('context.playNext'),
-        icon: FluentIcons.next_20_regular,
+        usePlayNextIcon: true,
         onPressed: onPlayNext,
       ),
     );
@@ -414,6 +415,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     defaultPlaylistName: defaultPlaylistName,
     onAddToNowPlaying: onAddToNowPlaying,
     onToggleFavorite: isFavorite ? null : onToggleFavorite,
+    onRequestCreatePlaylist: onRequestCreatePlaylist,
     onCreatePlaylist: onCreatePlaylist,
     onCreatePlaylistWithName: onCreatePlaylistWithName,
     onAddToPlaylist: onAddToPlaylist,

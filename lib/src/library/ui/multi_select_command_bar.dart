@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -352,11 +353,10 @@ class MultiSelectCommandBar extends StatelessWidget {
                                         builder: (moreButtonContext) {
                                           return IconButton(
                                             tooltip: i18n.t('player.more'),
-                                            icon: const Icon(
-                                              FluentIcons
-                                                  .more_horizontal_24_regular,
-                                              size: 16,
-                                            ),
+                                            icon:
+                                                const SmPlayerMoreHorizontalIcon(
+                                                  size: 16,
+                                                ),
                                             style: _multiSelectMoreButtonStyle(
                                               compactPhone,
                                             ),

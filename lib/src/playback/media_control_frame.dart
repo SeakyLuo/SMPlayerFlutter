@@ -54,8 +54,10 @@ class MediaControlSurfaceBar extends StatelessWidget {
     required this.mode,
     required this.progressSeconds,
     required this.durationSeconds,
+    required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    this.onForcePrevious,
     required this.onNext,
     required this.onSeek,
     required this.onBeginSeek,
@@ -95,8 +97,10 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final PlaybackMode mode;
   final double progressSeconds;
   final double durationSeconds;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
   final VoidCallback onBeginSeek;
@@ -141,8 +145,10 @@ class MediaControlSurfaceBar extends StatelessWidget {
                 mode: mode,
                 progressSeconds: progressSeconds,
                 durationSeconds: durationSeconds,
+                previousButtonRestartsTrack: previousButtonRestartsTrack,
                 onTogglePlayPause: onTogglePlayPause,
                 onPrevious: onPrevious,
+                onForcePrevious: onForcePrevious,
                 onNext: onNext,
                 onSeek: onSeek,
                 onBeginSeek: onBeginSeek,

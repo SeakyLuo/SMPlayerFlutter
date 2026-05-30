@@ -26,6 +26,7 @@ import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playing_wave.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 
 import 'recent_page_model.dart';
@@ -101,13 +102,14 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     required bool showPortal,
     required String routePath,
     required SmPlayerI18n i18n,
+    required String title,
     required int addedCount,
     required int playedCount,
     required int searchesCount,
     required bool showCount,
   }) {
     final signature =
-        '$showPortal:$routePath:$_activeTab:$addedCount:$playedCount:$searchesCount:$showCount';
+        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$searchesCount:$showCount';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -127,6 +129,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        title: title,
         replacesTitle: true,
         content: _RecentAppBarTabs(
           i18n: i18n,
@@ -256,6 +259,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 showPortal: useWorkspaceAppBar,
                 routePath: '/recent',
                 i18n: i18n,
+                title: i18n.t('common.recent'),
                 addedCount: addedSongs.length,
                 playedCount: recentPlayedCount,
                 searchesCount: snapshot.recentSearches.length,
@@ -1349,29 +1353,43 @@ class _RecentSongGrid extends StatelessWidget {
                       itemCount: group.items.length,
                       itemBuilder: (context, index) {
                         final song = group.items[index];
-                        return _GridViewMusicItemControl(
-                          song: song,
-                          detailLabel: getDetailLabel(song),
-                          selected: selectedSongIds.contains(song.id),
-                          current: song.id == mediaControlState.track.id,
-                          playing:
-                              song.id == mediaControlState.track.id &&
-                              mediaControlState.isPlaying,
-                          multiSelect: multiSelect,
-                          metrics: metrics,
-                          onPlayTrack: () {
-                            onPlaySong(
-                              song,
-                              queueSongIds,
-                              queueSongIds.indexOf(song.id),
-                            );
-                          },
-                          onToggleSelection: () {
-                            onToggleSelection(song.id);
-                          },
-                          onOpenContextMenu: (position) {
-                            onOpenContextMenu(position, song, queueSongIds);
-                          },
+                        return LayoutBuilder(
+                          builder:
+                              (context, constraints) => Align(
+                                alignment: Alignment.topCenter,
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: _GridViewMusicItemControl(
+                                    song: song,
+                                    detailLabel: getDetailLabel(song),
+                                    selected: selectedSongIds.contains(song.id),
+                                    current:
+                                        song.id == mediaControlState.track.id,
+                                    playing:
+                                        song.id == mediaControlState.track.id &&
+                                        mediaControlState.isPlaying,
+                                    multiSelect: multiSelect,
+                                    metrics: metrics,
+                                    onPlayTrack: () {
+                                      onPlaySong(
+                                        song,
+                                        queueSongIds,
+                                        queueSongIds.indexOf(song.id),
+                                      );
+                                    },
+                                    onToggleSelection: () {
+                                      onToggleSelection(song.id);
+                                    },
+                                    onOpenContextMenu: (position) {
+                                      onOpenContextMenu(
+                                        position,
+                                        song,
+                                        queueSongIds,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
                         );
                       },
                     ),
@@ -1450,11 +1468,11 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.ease,
+          height: widget.metrics.tileExtent,
           padding: widget.metrics.padding,
           decoration: BoxDecoration(
             color: active ? colors.activeSurface : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: active ? Border.all(color: colors.activeBorder) : null,
             boxShadow: active ? colors.activeShadow : const [],
           ),
           child: Row(
@@ -1474,10 +1492,6 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                         ),
                         child: SongArtwork(
                           artworkPath: widget.song.thumbnailPath,
-                          fallback: Icon(
-                            FluentIcons.music_note_2_24_regular,
-                            color: colors.artworkIcon,
-                          ),
                         ),
                       ),
                     ),
@@ -1518,13 +1532,24 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                           iconSize: 19,
                           icon:
                               widget.playing
-                                  ? const Icon(FluentIcons.pause_20_filled)
+                                  ? const SmPlayerPauseIcon(
+                                    size: 19,
+                                    color: Colors.white,
+                                  )
                                   : const SmPlayerPlayIcon(
                                     size: 19,
                                     color: Colors.white,
                                   ),
                           onPressed: widget.onPlayTrack,
                         ),
+                      ),
+                    ),
+                  if (widget.current && !_hovered && !widget.multiSelect)
+                    Positioned.fill(
+                      child: SmPlayerPlayingWaveGlass(
+                        playing: widget.playing,
+                        dimension: 48,
+                        keyPrefix: 'RecentSong.Playing.${widget.song.id}',
                       ),
                     ),
                 ],
@@ -1548,7 +1573,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      displayArtists(widget.song),
+                      displayArtists(widget.song, context.smPlayerI18n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: artistColor, fontSize: 13),
@@ -2056,16 +2081,7 @@ class _ArtistRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
                 child: SizedBox.square(
                   dimension: 52,
-                  child: SongArtwork(
-                    artworkPath: imagePath,
-                    fallback: const DecoratedBox(
-                      decoration: BoxDecoration(color: _RecentColors.artwork),
-                      child: Icon(
-                        FluentIcons.people_24_regular,
-                        color: _RecentColors.artworkIcon,
-                      ),
-                    ),
-                  ),
+                  child: SongArtwork(artworkPath: imagePath),
                 ),
               ),
               const SizedBox(width: 12),
@@ -2293,12 +2309,14 @@ const _recentTimeGroupHeaderExtent = 36.0;
 class _RecentSongTileMetrics {
   const _RecentSongTileMetrics({
     required this.rowExtent,
+    required this.tileExtent,
     required this.artworkSize,
     required this.padding,
     required this.copyGap,
   });
 
   final double rowExtent;
+  final double tileExtent;
   final double artworkSize;
   final EdgeInsets padding;
   final double copyGap;
@@ -2307,6 +2325,7 @@ class _RecentSongTileMetrics {
     if (width <= 520) {
       return const _RecentSongTileMetrics(
         rowExtent: 104,
+        tileExtent: 78,
         artworkSize: 72,
         padding: EdgeInsets.fromLTRB(2, 2, 8, 2),
         copyGap: 10,
@@ -2315,6 +2334,7 @@ class _RecentSongTileMetrics {
     if (width < _recentMinimalContentBreakpoint) {
       return const _RecentSongTileMetrics(
         rowExtent: 104,
+        tileExtent: 92,
         artworkSize: 84,
         padding: EdgeInsets.fromLTRB(2, 2, 6, 2),
         copyGap: 10,
@@ -2322,6 +2342,7 @@ class _RecentSongTileMetrics {
     }
     return const _RecentSongTileMetrics(
       rowExtent: 136,
+      tileExtent: 116,
       artworkSize: 110,
       padding: EdgeInsets.fromLTRB(3, 3, 8, 3),
       copyGap: 12,
@@ -2332,7 +2353,6 @@ class _RecentSongTileMetrics {
 class _RecentSongTileColors {
   const _RecentSongTileColors({
     required this.activeSurface,
-    required this.activeBorder,
     required this.activeShadow,
     required this.artworkSurface,
     required this.artworkBorder,
@@ -2349,7 +2369,6 @@ class _RecentSongTileColors {
   });
 
   final Color activeSurface;
-  final Color activeBorder;
   final List<BoxShadow> activeShadow;
   final Color artworkSurface;
   final Color artworkBorder;
@@ -2366,9 +2385,9 @@ class _RecentSongTileColors {
 
   static const light = _RecentSongTileColors(
     activeSurface: Color(0x140078d7),
-    activeBorder: Color(0x290078d7),
     activeShadow: [
       BoxShadow(color: Color(0x1a1d2a3c), blurRadius: 18, offset: Offset(0, 8)),
+      BoxShadow(color: Color(0x290078d7), spreadRadius: 1),
     ],
     artworkSurface: Color(0xc2ffffff),
     artworkBorder: Color(0x2e748499),
@@ -2390,9 +2409,9 @@ class _RecentSongTileColors {
 
   static const dark = _RecentSongTileColors(
     activeSurface: Color(0x240078d7),
-    activeBorder: Color(0x3d0078d7),
     activeShadow: [
       BoxShadow(color: Color(0x38000000), blurRadius: 18, offset: Offset(0, 8)),
+      BoxShadow(color: Color(0x3d0078d7), spreadRadius: 1),
     ],
     artworkSurface: Color(0x14ffffff),
     artworkBorder: _RecentColors.nightBorder,

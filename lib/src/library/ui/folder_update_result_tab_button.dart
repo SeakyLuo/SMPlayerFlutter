@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'folder_update_result_tab.dart';
-import 'local_page_quick_jump.dart';
+import 'popup_dialog.dart';
 
 class FolderUpdateResultTabButton extends StatelessWidget {
   const FolderUpdateResultTabButton({
@@ -17,19 +17,28 @@ class FolderUpdateResultTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground =
-        selected ? LocalPageColors.accentStrong : LocalPageColors.commandText;
+    final colors = PopupDialogColors.resolve(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final foreground = selected ? colors.accentStrong : colors.text;
+    final background =
+        selected
+            ? colors.accent.withValues(alpha: nightMode ? 0.22 : 0.14)
+            : Colors.white.withValues(alpha: nightMode ? 0.06 : 0.68);
+    final border =
+        selected
+            ? colors.accent.withValues(alpha: nightMode ? 0.42 : 0.34)
+            : colors.buttonBorder;
+    final hover = colors.accent.withValues(alpha: nightMode ? 0.18 : 0.10);
     return SizedBox(
       height: 34,
       child: Material(
-        color: selected ? const Color(0x240078d7) : const Color(0xadffffff),
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? const Color(0x570078d7) : const Color(0x477e8b9a),
-          ),
-        ),
+        color: background,
+        shape: StadiumBorder(side: BorderSide(color: border)),
         child: InkWell(
           customBorder: const StadiumBorder(),
+          hoverColor: hover,
+          focusColor: hover,
+          splashColor: hover,
           onTap: onPressed,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -52,8 +61,11 @@ class FolderUpdateResultTabButton extends StatelessWidget {
                   height: 22,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 7),
-                  decoration: const ShapeDecoration(
-                    color: Color(0x247e8b9a),
+                  decoration: ShapeDecoration(
+                    color:
+                        nightMode
+                            ? Colors.white.withValues(alpha: 0.10)
+                            : const Color(0x247e8b9a),
                     shape: StadiumBorder(),
                   ),
                   child: Text(

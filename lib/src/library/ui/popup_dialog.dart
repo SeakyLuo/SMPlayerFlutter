@@ -3,9 +3,25 @@ import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
-class PopupDialog extends StatelessWidget {
+const popupDialogMobileBreakpoint = 720.0;
+
+typedef PopupDialogCloseHandler = VoidCallback;
+
+final List<PopupDialogCloseHandler> _popupDialogCloseHandlers = [];
+
+bool closeTopPopupDialog() {
+  final closeHandler = _popupDialogCloseHandlers.lastOrNull;
+  if (closeHandler == null) {
+    return false;
+  }
+  closeHandler();
+  return true;
+}
+
+class PopupDialog extends StatefulWidget {
   const PopupDialog({
     super.key,
     required this.navLabel,
@@ -23,6 +39,8 @@ class PopupDialog extends StatelessWidget {
     this.height = 760,
     this.horizontalInset = 48,
     this.verticalInset = 48,
+    this.onWindowDragStart,
+    this.onWindowDragEnd,
   });
 
   final String className;
@@ -40,6 +58,30 @@ class PopupDialog extends StatelessWidget {
   final double height;
   final double horizontalInset;
   final double verticalInset;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+
+  @override
+  State<PopupDialog> createState() => _PopupDialogState();
+}
+
+class _PopupDialogState extends State<PopupDialog> {
+  late final PopupDialogCloseHandler _closeHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    _closeHandler = () {
+      widget.onClose();
+    };
+    _popupDialogCloseHandlers.add(_closeHandler);
+  }
+
+  @override
+  void dispose() {
+    _popupDialogCloseHandlers.remove(_closeHandler);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,109 +89,345 @@ class PopupDialog extends StatelessWidget {
         context.maybeSmPlayerI18n ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
     final colors = PopupDialogColors.resolve(context);
+    final dialogClasses = _PopupDialogClassNames(
+      className: widget.className,
+      navClassName: widget.navClassName,
+    );
 
-    return Material(
-      color: Colors.transparent,
-      child: Semantics(
-        label: ariaLabel ?? navLabel,
-        namesRoute: true,
-        scopesRoute: true,
-        explicitChildNodes: true,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: closeOnBackdrop ? onClose : null,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(color: colors.overlay),
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent ||
+            event.logicalKey != LogicalKeyboardKey.escape) {
+          return KeyEventResult.ignored;
+        }
+        if (_popupDialogCloseHandlers.lastOrNull != _closeHandler) {
+          return KeyEventResult.ignored;
+        }
+        widget.onClose();
+        return KeyEventResult.handled;
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: Semantics(
+          label: widget.ariaLabel ?? widget.navLabel,
+          namesRoute: true,
+          scopesRoute: true,
+          explicitChildNodes: true,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.closeOnBackdrop ? widget.onClose : null,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: colors.overlay),
+                  ),
                 ),
-              ),
-              Center(
-                child: LayoutBuilder(
+                LayoutBuilder(
                   builder: (context, constraints) {
-                    final dialogWidth = (constraints.maxWidth - horizontalInset)
-                        .clamp(0.0, width);
-                    final dialogHeight = (constraints.maxHeight - verticalInset)
-                        .clamp(0.0, height);
-                    return GestureDetector(
+                    final mobile =
+                        constraints.maxWidth <= popupDialogMobileBreakpoint;
+                    final dialogWidth =
+                        mobile
+                            ? constraints.maxWidth
+                            : (constraints.maxWidth - widget.horizontalInset)
+                                .clamp(0.0, widget.width);
+                    final dialogHeight =
+                        mobile
+                            ? constraints.maxHeight
+                            : (constraints.maxHeight - widget.verticalInset)
+                                .clamp(0.0, widget.height);
+                    final dialog = GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},
                       child: SizedBox(
+                        key: const ValueKey('popup-dialog-shell'),
                         width: dialogWidth,
                         height: dialogHeight,
                         child: Container(
                           decoration: BoxDecoration(
                             color: colors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: colors.border),
-                            boxShadow: [
-                              BoxShadow(
-                                color: colors.shadow,
-                                blurRadius: 80,
-                                offset: const Offset(0, 26),
-                              ),
-                            ],
+                            borderRadius: BorderRadius.circular(
+                              mobile ? 0 : 12,
+                            ),
+                            border:
+                                mobile
+                                    ? null
+                                    : Border.all(color: colors.border),
+                            boxShadow:
+                                mobile
+                                    ? null
+                                    : [
+                                      BoxShadow(
+                                        color: colors.shadow,
+                                        blurRadius: 80,
+                                        offset: const Offset(0, 26),
+                                      ),
+                                    ],
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: Column(
                             children: [
                               Semantics(
-                                label: navLabel,
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    28,
-                                    22,
-                                    28,
-                                    18,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      ...navChildren,
-                                      const Spacer(),
-                                      Tooltip(
-                                        message: i18n.t('common.close'),
-                                        child: IconButton(
-                                          style: IconButton.styleFrom(
-                                            fixedSize: const Size.square(42),
-                                            foregroundColor: colors.text,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              side: BorderSide(
-                                                color: colors.buttonBorder,
-                                              ),
+                                label: widget.navLabel,
+                                child: GestureDetector(
+                                  key: const ValueKey('popup-dialog-nav'),
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanStart:
+                                      widget.onWindowDragStart == null
+                                          ? null
+                                          : (_) => widget.onWindowDragStart!(),
+                                  onPanEnd:
+                                      widget.onWindowDragEnd == null
+                                          ? null
+                                          : (_) => widget.onWindowDragEnd!(),
+                                  onPanCancel: widget.onWindowDragEnd,
+                                  child: Padding(
+                                    padding:
+                                        mobile
+                                            ? const EdgeInsets.fromLTRB(
+                                              12,
+                                              44,
+                                              12,
+                                              10,
+                                            )
+                                            : const EdgeInsets.fromLTRB(
+                                              28,
+                                              22,
+                                              28,
+                                              18,
                                             ),
-                                            backgroundColor:
-                                                colors.buttonSurface,
-                                          ),
-                                          icon: const Icon(
-                                            FluentIcons.dismiss_20_regular,
-                                            size: 18,
-                                          ),
-                                          onPressed: onClose,
+                                    child: Row(
+                                      children: [
+                                        ..._navChildrenForMode(
+                                          widget.navChildren,
+                                          mobile: mobile,
+                                          dialogClasses: dialogClasses,
                                         ),
-                                      ),
-                                    ],
+                                        if (!mobile) const Spacer(),
+                                        if (!mobile)
+                                          Tooltip(
+                                            message: i18n.t('common.close'),
+                                            child: _PopupDialogCloseButton(
+                                              colors: colors,
+                                              onClose: widget.onClose,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                              if (afterNav != null) afterNav!,
-                              Expanded(child: child),
-                              if (footer != null) footer!,
+                              if (widget.afterNav != null) widget.afterNav!,
+                              Expanded(child: widget.child),
+                              if (widget.footer != null) widget.footer!,
                             ],
                           ),
                         ),
                       ),
                     );
+
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Align(
+                          alignment:
+                              mobile ? Alignment.topCenter : Alignment.center,
+                          child: dialog,
+                        ),
+                        if (!mobile)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 138,
+                            height: 32,
+                            child: GestureDetector(
+                              key: const ValueKey(
+                                'popup-dialog-window-drag-strip',
+                              ),
+                              behavior: HitTestBehavior.opaque,
+                              onPanStart:
+                                  widget.onWindowDragStart == null
+                                      ? null
+                                      : (_) => widget.onWindowDragStart!(),
+                              onPanEnd:
+                                  widget.onWindowDragEnd == null
+                                      ? null
+                                      : (_) => widget.onWindowDragEnd!(),
+                              onPanCancel: widget.onWindowDragEnd,
+                            ),
+                          ),
+                        if (mobile)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 138,
+                            height: 32,
+                            child: _PopupDialogMobileTitleBar(
+                              title: i18n.t('app.shell'),
+                              colors: colors,
+                              onClose: widget.onClose,
+                              onWindowDragStart: widget.onWindowDragStart,
+                              onWindowDragEnd: widget.onWindowDragEnd,
+                            ),
+                          ),
+                      ],
+                    );
                   },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  List<Widget> _navChildrenForMode(
+    List<Widget> children, {
+    required bool mobile,
+    required _PopupDialogClassNames dialogClasses,
+  }) {
+    if (!mobile || !dialogClasses.usesMobileTabGrid) {
+      return children;
+    }
+    return [
+      for (final child in children)
+        if (child is PopupDialogTab) Expanded(child: child) else child,
+    ];
+  }
+}
+
+class _PopupDialogClassNames {
+  const _PopupDialogClassNames({
+    required this.className,
+    required this.navClassName,
+  });
+
+  final String className;
+  final String navClassName;
+
+  bool get usesMobileTabGrid {
+    if (_contains(className, 'release-notes-dialog') ||
+        _contains(className, 'artist-split-review-dialog') ||
+        _contains(className, 'album-art-library-picker-dialog') ||
+        _contains(className, 'remote-share-dialog') ||
+        _contains(className, 'voice-assistant-help-dialog') ||
+        _contains(className, 'preference-modal')) {
+      return false;
+    }
+    return _contains(navClassName, 'music-dialog-pivot') ||
+        _contains(className, 'music-dialog') ||
+        _contains(className, 'album-artwork-dialog');
+  }
+
+  bool _contains(String source, String token) {
+    return source.split(' ').contains(token);
+  }
+}
+
+class _PopupDialogCloseButton extends StatelessWidget {
+  const _PopupDialogCloseButton({required this.colors, required this.onClose});
+
+  final PopupDialogResolvedColors colors;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      height: 40,
+      child: IconButton(
+        key: const ValueKey('popup-dialog-close-button'),
+        style: IconButton.styleFrom(
+          fixedSize: const Size(42, 40),
+          foregroundColor: colors.text,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: colors.buttonBorder),
+          ),
+          backgroundColor: colors.buttonSurface,
+          hoverColor: colors.buttonHoverSurface,
+        ),
+        icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
+        onPressed: onClose,
+      ),
+    );
+  }
+}
+
+class _PopupDialogMobileTitleBar extends StatelessWidget {
+  const _PopupDialogMobileTitleBar({
+    required this.title,
+    required this.colors,
+    required this.onClose,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
+  });
+
+  final String title;
+  final PopupDialogResolvedColors colors;
+  final VoidCallback onClose;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      key: const ValueKey('popup-dialog-mobile-titlebar'),
+      color: Colors.transparent,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            height: 32,
+            child: IconButton(
+              key: const ValueKey('popup-dialog-mobile-back-button'),
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                fixedSize: const Size(40, 32),
+                foregroundColor: colors.text,
+                backgroundColor: Colors.transparent,
+                hoverColor: colors.mobileBackHoverSurface,
+                shape: const RoundedRectangleBorder(),
+              ),
+              icon: const Icon(FluentIcons.arrow_left_20_regular, size: 18),
+              onPressed: onClose,
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanStart:
+                  onWindowDragStart == null
+                      ? null
+                      : (_) => onWindowDragStart!(),
+              onPanEnd:
+                  onWindowDragEnd == null ? null : (_) => onWindowDragEnd!(),
+              onPanCancel: onWindowDragEnd,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6, 0, 10, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -176,9 +454,14 @@ class PopupDialogTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
-    return TextButton(
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+    final button = TextButton(
       style: TextButton.styleFrom(
-        fixedSize: const Size(138, 40),
+        fixedSize: mobile ? null : const Size(138, 40),
+        minimumSize: mobile ? const Size(0, 40) : const Size(138, 40),
+        maximumSize:
+            mobile ? const Size(double.infinity, 40) : const Size(138, 40),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         foregroundColor: selected ? colors.accent : colors.text,
         backgroundColor:
@@ -209,6 +492,10 @@ class PopupDialogTab extends StatelessWidget {
         ],
       ),
     );
+    if (!mobile) {
+      return button;
+    }
+    return SizedBox(width: double.infinity, height: 40, child: button);
   }
 }
 
@@ -511,13 +798,15 @@ class PopupDialogTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     return Text(
       text,
       textAlign: centered ? TextAlign.center : TextAlign.start,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
         color: colors.textStrong,
-        fontSize: 22,
+        fontSize: mobile ? 18 : 22,
         fontWeight: FontWeight.w500,
         height: 1.25,
       ),
@@ -740,6 +1029,8 @@ class PopupDialogResolvedColors
     required this.shadow,
     required this.buttonSurface,
     required this.activeButtonSurface,
+    required this.buttonHoverSurface,
+    required this.mobileBackHoverSurface,
     required this.buttonBorder,
     required this.activeButtonBorder,
     required this.accent,
@@ -760,6 +1051,8 @@ class PopupDialogResolvedColors
   final Color shadow;
   final Color buttonSurface;
   final Color activeButtonSurface;
+  final Color buttonHoverSurface;
+  final Color mobileBackHoverSurface;
   final Color buttonBorder;
   final Color activeButtonBorder;
   final Color accent;
@@ -780,6 +1073,8 @@ class PopupDialogResolvedColors
     shadow: PopupDialogColors.shadow,
     buttonSurface: PopupDialogColors.buttonSurface,
     activeButtonSurface: PopupDialogColors.activeButtonSurface,
+    buttonHoverSurface: Color(0xfaf7fafe),
+    mobileBackHoverSurface: PopupDialogColors.accentSoft,
     buttonBorder: PopupDialogColors.buttonBorder,
     activeButtonBorder: PopupDialogColors.activeButtonBorder,
     accent: PopupDialogColors.accent,
@@ -801,6 +1096,8 @@ class PopupDialogResolvedColors
     shadow: PopupDialogColors.nightShadow,
     buttonSurface: PopupDialogColors.nightButtonSurface,
     activeButtonSurface: PopupDialogColors.nightActiveButtonSurface,
+    buttonHoverSurface: Color(0x290078d7),
+    mobileBackHoverSurface: Color(0x290078d7),
     buttonBorder: PopupDialogColors.nightButtonBorder,
     activeButtonBorder: PopupDialogColors.nightActiveButtonBorder,
     accent: PopupDialogColors.accent,

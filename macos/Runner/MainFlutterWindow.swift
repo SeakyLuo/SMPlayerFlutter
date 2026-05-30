@@ -204,6 +204,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
 
   private func pickDirectory(arguments: Any?, result: @escaping FlutterResult) {
     let arguments = flutterStringMap(arguments)
+    applyPickerLanguage(arguments?["locale"] as? String)
     let panel = NSOpenPanel()
     if let title = arguments?["title"] as? String {
       panel.title = title
@@ -229,6 +230,73 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       self.storeSecurityScopedDirectoryAccess(url)
       result(url.path)
     }
+  }
+
+  private func applyPickerLanguage(_ locale: String?) {
+    guard let languages = Self.appleLanguages(for: locale) else {
+      return
+    }
+    UserDefaults.standard.set(languages, forKey: "AppleLanguages")
+    UserDefaults.standard.synchronize()
+  }
+
+  private static func appleLanguages(for locale: String?) -> [String]? {
+    guard let locale, !locale.isEmpty else {
+      return nil
+    }
+    let normalized = locale.replacingOccurrences(of: "_", with: "-").lowercased()
+    if normalized == "system" {
+      return nil
+    }
+    if normalized.hasPrefix("zh") {
+      if normalized.contains("hant") ||
+          normalized.contains("-tw") ||
+          normalized.contains("-hk") ||
+          normalized.contains("-mo") {
+        return ["zh-Hant", "zh-Hant-HK", "en"]
+      }
+      return ["zh-Hans", "zh-Hans-CN", "en"]
+    }
+    if normalized.hasPrefix("pt-br") {
+      return ["pt-BR", "pt", "en"]
+    }
+    if normalized.hasPrefix("en") {
+      return ["en"]
+    }
+    if normalized.hasPrefix("fr") {
+      return ["fr", "en"]
+    }
+    if normalized.hasPrefix("ru") {
+      return ["ru", "en"]
+    }
+    if normalized.hasPrefix("ja") {
+      return ["ja", "en"]
+    }
+    if normalized.hasPrefix("de") {
+      return ["de", "en"]
+    }
+    if normalized.hasPrefix("es") {
+      return ["es", "en"]
+    }
+    if normalized.hasPrefix("it") {
+      return ["it", "en"]
+    }
+    if normalized.hasPrefix("nl") {
+      return ["nl", "en"]
+    }
+    if normalized.hasPrefix("cs") {
+      return ["cs", "en"]
+    }
+    if normalized.hasPrefix("uk") {
+      return ["uk", "en"]
+    }
+    if normalized.hasPrefix("sv") {
+      return ["sv", "en"]
+    }
+    if normalized.hasPrefix("id") {
+      return ["id", "en"]
+    }
+    return [locale, "en"]
   }
 
   private func storeSecurityScopedDirectoryAccess(_ url: URL) {

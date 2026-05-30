@@ -4,6 +4,8 @@ import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 const smPlayerFallbackLocale = 'en-US';
 const smPlayerSupportedLocaleNames = {
@@ -29,7 +31,10 @@ final smPlayerSupportedLocales =
 
 final smPlayerI18nProvider = FutureProvider<SmPlayerI18n>((ref) async {
   final platformLocale = PlatformDispatcher.instance.locale;
-  final locale = resolveSmPlayerLocale(platformLocale);
+  final locale = resolveSmPlayerPreferredLocale(
+    smPlayerGlobalSettingsSnapshot.preferredLanguage,
+    platformLocale,
+  );
   final fallbackMessages = await _loadLocaleMessages(smPlayerFallbackLocale);
   if (locale == smPlayerFallbackLocale) {
     return SmPlayerI18n(locale: locale, messages: fallbackMessages);
@@ -103,6 +108,30 @@ String resolveSmPlayerLocale(Locale locale) {
   return smPlayerSupportedLocaleNames.contains(languageCode)
       ? languageCode
       : smPlayerFallbackLocale;
+}
+
+String resolveSmPlayerPreferredLocale(
+  PreferredLanguage preferredLanguage,
+  Locale platformLocale,
+) {
+  return switch (preferredLanguage) {
+    PreferredLanguage.system => resolveSmPlayerLocale(platformLocale),
+    PreferredLanguage.enUS => 'en-US',
+    PreferredLanguage.zhCN => 'zh-CN',
+    PreferredLanguage.fr => 'fr',
+    PreferredLanguage.ru => 'ru',
+    PreferredLanguage.ja => 'ja',
+    PreferredLanguage.de => 'de',
+    PreferredLanguage.ptBR => 'pt-BR',
+    PreferredLanguage.es => 'es',
+    PreferredLanguage.it => 'it',
+    PreferredLanguage.zhHant => 'zh-Hant',
+    PreferredLanguage.nl => 'nl',
+    PreferredLanguage.cs => 'cs',
+    PreferredLanguage.uk => 'uk',
+    PreferredLanguage.sv => 'sv',
+    PreferredLanguage.id => 'id',
+  };
 }
 
 Locale smPlayerLocaleFromName(String locale) {

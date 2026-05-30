@@ -1,8 +1,10 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
+import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
@@ -429,6 +431,42 @@ void main() {
     expect(selected, 'mix');
   });
 
+  testWidgets('MenuFlyout uses the AlbumsPage uniform multi-select icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'select',
+                        text: 'Select',
+                        icon: FluentIcons.multiselect_ltr_20_regular,
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(UniformMultiSelectIcon), findsOneWidget);
+  });
+
   testWidgets('MenuFlyout closes on Escape like Electron flyouts', (
     tester,
   ) async {
@@ -514,6 +552,200 @@ void main() {
 
     expect(actionContext, same(sourceContext));
   });
+
+  testWidgets('MenuFlyout does not scroll when all items fit', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'second',
+                        text: 'Second',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('Second'), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
+    expect(find.byType(Scrollable), findsNothing);
+  });
+
+  testWidgets('MenuFlyout root does not scroll like Electron root flyouts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 220);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    position: const Offset(8, 8),
+                    avoidPlayerBar: false,
+                    items: [
+                      for (var index = 0; index < 8; index += 1)
+                        MenuFlyoutItem(
+                          key: 'item-$index',
+                          text: 'Item $index',
+                          onPressed: () {},
+                        ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ListView), findsNothing);
+    expect(find.byType(Scrollable), findsNothing);
+  });
+
+  testWidgets('MenuFlyout submenu does not scroll when all items fit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    position: const Offset(8, 8),
+                    avoidPlayerBar: false,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'parent',
+                        text: 'Parent',
+                        submenu: [
+                          for (var index = 0; index < 3; index += 1)
+                            MenuFlyoutItem(
+                              key: 'submenu-item-$index',
+                              text: 'Submenu Item $index',
+                              onPressed: () {},
+                            ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Parent')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submenu Item 0'), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
+    expect(find.byType(Scrollable), findsNothing);
+  });
+
+  testWidgets(
+    'MenuFlyout submenu scrolls when items exceed the available height',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 220);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showMenuFlyout(
+                      context,
+                      position: const Offset(8, 8),
+                      avoidPlayerBar: false,
+                      items: [
+                        MenuFlyoutItem(
+                          key: 'parent',
+                          text: 'Parent',
+                          submenu: [
+                            for (var index = 0; index < 8; index += 1)
+                              MenuFlyoutItem(
+                                key: 'submenu-item-$index',
+                                text: 'Submenu Item $index',
+                                onPressed: () {},
+                              ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                  child: const Text('Open'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(find.text('Parent')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListView), findsOneWidget);
+      expect(find.byType(Scrollable), findsOneWidget);
+    },
+  );
 
   test(
     'MusicMenuFlyout mirrors Electron Add To filtering and View submenu',

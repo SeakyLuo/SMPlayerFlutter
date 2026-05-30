@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
 class MenuFlyoutItem {
   const MenuFlyoutItem({
@@ -16,6 +17,7 @@ class MenuFlyoutItem {
     this.iconColor,
     this.useAlbumIcon = false,
     this.usePlaylistIcon = false,
+    this.usePlayNextIcon = false,
     this.disabled = false,
     this.checked = false,
     this.submenu = const [],
@@ -33,6 +35,7 @@ class MenuFlyoutItem {
       iconColor = null,
       useAlbumIcon = false,
       usePlaylistIcon = false,
+      usePlayNextIcon = false,
       disabled = false,
       checked = false,
       submenu = const [],
@@ -50,6 +53,7 @@ class MenuFlyoutItem {
   final Color? iconColor;
   final bool useAlbumIcon;
   final bool usePlaylistIcon;
+  final bool usePlayNextIcon;
   final bool disabled;
   final bool checked;
   final List<MenuFlyoutItem> submenu;
@@ -449,6 +453,20 @@ class _MenuFlyoutPanel extends StatelessWidget {
     final colors = MenuFlyoutThemeColors.of(context);
     final maxHeight = (boundaryBottom - state.position.dy - _menuFlyoutMargin)
         .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
+    final itemsContentHeight = _menuFlyoutItemsContentHeight(state.items);
+    final maxContentHeight = maxHeight - _menuFlyoutPadding * 2;
+    final scrollable = depth > 0 && itemsContentHeight > maxContentHeight;
+    final itemWidgets = [
+      for (final item in state.items)
+        _MenuFlyoutItemWidget(
+          item: item,
+          depth: depth,
+          anchorContext: anchorContext,
+          onClose: onClose,
+          onItemEntered: onItemEntered,
+          onSubmenuEntered: onSubmenuEntered,
+        ),
+    ];
     return Positioned(
       left: state.position.dx,
       top: state.position.dy,
@@ -456,7 +474,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
         constraints: BoxConstraints(
           minWidth: _menuFlyoutWidth,
           maxWidth: _menuFlyoutMaxWidth,
-          maxHeight: maxHeight,
+          maxHeight: scrollable ? maxHeight : double.infinity,
         ),
         child: Semantics(
           container: true,
@@ -476,21 +494,17 @@ class _MenuFlyoutPanel extends StatelessWidget {
             ),
             child: Padding(
               padding: const EdgeInsets.all(_menuFlyoutPadding),
-              child: ListView(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                children: [
-                  for (final item in state.items)
-                    _MenuFlyoutItemWidget(
-                      item: item,
-                      depth: depth,
-                      anchorContext: anchorContext,
-                      onClose: onClose,
-                      onItemEntered: onItemEntered,
-                      onSubmenuEntered: onSubmenuEntered,
-                    ),
-                ],
-              ),
+              child:
+                  scrollable
+                      ? ListView(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        children: itemWidgets,
+                      )
+                      : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: itemWidgets,
+                      ),
             ),
           ),
         ),
@@ -670,8 +684,35 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                               ),
                             ),
                           )
+                          : item.usePlayNextIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: SmPlayerPlayNextIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
                           : item.icon == null
                           ? null
+                          : isMultiSelectIcon(item.icon!)
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: UniformMultiSelectIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                                strokeWidth: 1.35,
+                              ),
+                            ),
+                          )
                           : Icon(
                             item.icon,
                             size: 18,
@@ -725,16 +766,19 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
 }
 
 double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
-  return _menuFlyoutPadding * 2 +
-      items.fold<double>(0, (height, item) {
-        if (item.separator) {
-          return height + _menuFlyoutSeparatorHeight;
-        }
-        if (item.content != null) {
-          return height + item.contentHeight;
-        }
-        return height + _menuFlyoutItemHeight;
-      });
+  return _menuFlyoutPadding * 2 + _menuFlyoutItemsContentHeight(items);
+}
+
+double _menuFlyoutItemsContentHeight(List<MenuFlyoutItem> items) {
+  return items.fold<double>(0, (height, item) {
+    if (item.separator) {
+      return height + _menuFlyoutSeparatorHeight;
+    }
+    if (item.content != null) {
+      return height + item.contentHeight;
+    }
+    return height + _menuFlyoutItemHeight;
+  });
 }
 
 class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {

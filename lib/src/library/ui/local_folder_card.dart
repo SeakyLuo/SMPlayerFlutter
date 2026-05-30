@@ -237,16 +237,21 @@ class LocalFolderCard extends StatelessWidget {
               ),
               if (!multiSelect) ...[
                 const SizedBox(width: 8),
-                _LocalIconAction(
+                ArtworkFloatingActionButton(
                   tooltip: i18n.t('local.gridFolderPlayInfo', {
                     'name': folder.name,
                   }),
-                  icon: FluentIcons.play_20_regular,
+                  size: 34,
+                  iconSize: 17,
+                  icon: const SmPlayerPlayIcon(size: 17, color: Colors.white),
                   onPressed: () => onPlayFolder(folder),
                 ),
-                _LocalIconAction(
+                const SizedBox(width: 6),
+                ArtworkFloatingActionButton(
                   tooltip: i18n.t('context.addToPlaylist'),
-                  icon: FluentIcons.add_20_regular,
+                  size: 34,
+                  iconSize: 17,
+                  icon: const Icon(FluentIcons.add_20_regular),
                   onPressed:
                       folder.subtreeSongIds.isEmpty
                           ? null
@@ -255,6 +260,7 @@ class LocalFolderCard extends StatelessWidget {
                             (position) => onAddFolder(folder, position),
                           ),
                 ),
+                const SizedBox(width: 6),
                 _LocalIconAction(
                   tooltip: i18n.t('local.updateFolder'),
                   icon: FluentIcons.arrow_sync_20_regular,

@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -13,6 +17,7 @@ import 'package:smplayer_flutter/src/library/ui/album_tile.dart'
     show getAlbumArtworkSong;
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -56,6 +61,7 @@ void main() {
       'context.seeAlbumArt': '查看专辑插图',
       'local.sortReverseList': 'Reverse List',
       'nowPlaying.randomPlay': '随机播放',
+      'nowPlaying.loading': '加载中',
       'notification.songAddedTo': 'Added {title} to {target}',
       'notification.songsAddedTo': 'Added {count} songs to {target}',
       'playlists.newPlaylist': 'New Playlist',
@@ -147,6 +153,32 @@ void main() {
     expect(find.text('Built in'), findsNothing);
   });
 
+  testWidgets('AlbumsPage context shuffle records the album like Electron', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(i18n.t('nowPlaying.randomPlay')));
+    await tester.pumpAndSettle();
+
+    expect(repository.recordedAlbums, ['Blue Hour']);
+    expect(repository.replacedNowPlaying, [1]);
+    expect(mediaController.state.track.id, 1);
+  });
+
   testWidgets('AlbumsPage context menu writes Electron album preference', (
     tester,
   ) async {
@@ -217,7 +249,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Close'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('Albums.ArtPreview.Dialog')),
+      findsOneWidget,
+    );
     expect(find.text('Blue Hour'), findsWidgets);
+
+    final backdropTopLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('Albums.ArtPreview.Backdrop')),
+    );
+    await tester.tapAt(backdropTopLeft + const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('Albums.ArtPreview.Dialog')),
+      findsNothing,
+    );
   });
 
   testWidgets('AlbumsPage exposes Electron appbar search entry', (
@@ -232,10 +279,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Red');
     await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('Albums.Progress')), findsOneWidget);
+
     await tester.pumpAndSettle();
 
     expect(find.text('Red Days'), findsOneWidget);
     expect(find.text('Blue Hour'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('Albums.AppBar.SearchField')),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -261,6 +316,92 @@ void main() {
       expect(find.byTooltip('Close'), findsOneWidget);
     },
   );
+
+  testWidgets('AlbumsPage loading state shows Electron progress strip', (
+    tester,
+  ) async {
+    final loading = Completer<LibraryContentData>();
+
+    await tester.pumpWidget(
+      _AlbumsLoadingTestApp(snapshotFuture: loading.future, i18n: i18n),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('Albums.Progress')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('AlbumsPage page search caps width like Electron', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(PageSearchField).first).width, 360);
+  });
+
+  testWidgets('AlbumsPage search history overlays without moving grid', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        darkMode: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile = find.byKey(const ValueKey('AlbumTile.Container')).first;
+    final tileTopBefore = tester.getTopLeft(firstTile).dy;
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+
+    final historyPanel = find.byType(PageSearchHistoryPanel);
+    expect(
+      find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Red')),
+      findsOneWidget,
+    );
+    expect(tester.getSize(historyPanel).width, 360);
+    expect(tester.getSize(historyPanel).height, lessThan(160));
+    expect(tester.getTopLeft(firstTile).dy, tileTopBefore);
+
+    final panelDecoration =
+        tester
+                .widgetList<DecoratedBox>(
+                  find.descendant(
+                    of: historyPanel,
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .first
+                .decoration
+            as BoxDecoration;
+    final panelBorder = panelDecoration.border as Border;
+    expect(panelBorder.top.color, const Color(0x1fd6e0ec));
+  });
 
   testWidgets('AlbumsPage multi-select play replaces Now Playing', (
     tester,
@@ -354,6 +495,117 @@ void main() {
 
     expect(find.byKey(const ValueKey('Albums.QuickJump.B')), findsOneWidget);
     expect(find.byKey(const ValueKey('Albums.QuickJump.R')), findsOneWidget);
+  });
+
+  testWidgets('AlbumsPage grid uses Electron two-row overscan', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<GridView>(find.byType(GridView)).scrollCacheExtent,
+      const ScrollCacheExtent.pixels(500),
+    );
+  });
+
+  testWidgets('AlbumsPage compact grid uses Electron compact overscan', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<GridView>(find.byType(GridView)).scrollCacheExtent,
+      const ScrollCacheExtent.pixels(468),
+    );
+  });
+
+  testWidgets('AlbumsPage uses Electron night colors in dark mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _AlbumsTestApp(snapshot: _snapshot, i18n: i18n, darkMode: true),
+    );
+    await tester.pumpAndSettle();
+
+    final albumTitleColors =
+        tester
+            .widgetList<Text>(find.text('Blue Hour'))
+            .map((widget) => widget.style?.color)
+            .toSet();
+    expect(albumTitleColors, contains(const Color(0xf0f6f9fc)));
+    expect(
+      _quickJumpForeground(tester, 'B', const {}),
+      const Color(0xff459de2),
+    );
+    final artworkDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(artworkDecoration.color, const Color(0x14ffffff));
+    expect(artworkDecoration.boxShadow!.single.color, const Color(0x4d000000));
+    expect(artworkDecoration.boxShadow!.single.blurRadius, 18);
+    expect(artworkDecoration.boxShadow!.single.offset, const Offset(0, 8));
+  });
+
+  testWidgets('AlbumsPage album item matches Electron tile styling', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    final tileFinder = find.byKey(const ValueKey('AlbumTile.Container')).first;
+    expect(tester.getSize(tileFinder).width, 180);
+    final tile = tester.widget<AnimatedContainer>(tileFinder);
+    expect(tile.constraints!.minHeight, 232);
+    expect(tile.padding, const EdgeInsets.all(10));
+    final baseDecoration = tile.decoration! as BoxDecoration;
+    expect(baseDecoration.borderRadius, BorderRadius.circular(12));
+    expect(baseDecoration.color, Colors.transparent);
+
+    final artworkDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(artworkDecoration.color, const Color(0xb8ffffff));
+    expect(artworkDecoration.borderRadius, BorderRadius.circular(8));
+    expect(artworkDecoration.boxShadow!.single.color, const Color(0x21202d3f));
+    expect(artworkDecoration.boxShadow!.single.blurRadius, 18);
+    expect(artworkDecoration.boxShadow!.single.offset, const Offset(0, 8));
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(pointer.removePointer);
+    await pointer.addPointer();
+    await pointer.moveTo(tester.getCenter(tileFinder));
+    await tester.pumpAndSettle();
+
+    final hoverDecoration =
+        tester.widget<AnimatedContainer>(tileFinder).decoration!
+            as BoxDecoration;
+    expect(hoverDecoration.color, const Color(0x140078d7));
+    expect(hoverDecoration.border!.top.color, const Color(0x290078d7));
+    expect(hoverDecoration.boxShadow!.single.color, const Color(0x1f1e2a3a));
+    expect(hoverDecoration.boxShadow!.single.blurRadius, 26);
+    expect(hoverDecoration.boxShadow!.single.offset, const Offset(0, 12));
   });
 
   testWidgets('AlbumsPage reverse sort persists like Electron local state', (
@@ -518,11 +770,59 @@ void main() {
 
     await tester.enterText(find.byType(TextField), ' Blue ');
     await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('Albums.Progress')), findsOneWidget);
+
     await tester.pumpAndSettle();
 
     expect(repository.recordedSearches, [
       (query: 'Blue', type: SearchHistoryType.albums),
     ]);
+  });
+
+  testWidgets('AlbumsPage shows compact loading during empty processing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Missing');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('Albums.Progress')), findsOneWidget);
+    expect(find.text(i18n.t('nowPlaying.loading')), findsOneWidget);
+    expect(find.text(i18n.t('albums.noMatch')), findsNothing);
+
+    await tester.pumpAndSettle();
+
+    expect(find.text(i18n.t('albums.noMatch')), findsOneWidget);
+  });
+
+  testWidgets('AlbumsPage clears only visible album search history', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshotWithManyRecentSearches,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(i18n.t('common.clear')).last);
+    await tester.pump();
+
+    expect(
+      repository.removedRecentSearchIds,
+      List.generate(10, (index) => index + 1),
+    );
   });
 
   test('searchAlbums follows Electron album-name scope', () {
@@ -601,6 +901,17 @@ Color? _quickJumpBackground(WidgetTester tester, String key) {
   return button.style?.backgroundColor?.resolve({});
 }
 
+Color? _quickJumpForeground(
+  WidgetTester tester,
+  String key,
+  Set<WidgetState> states,
+) {
+  final button = tester.widget<TextButton>(
+    find.byKey(ValueKey('Albums.QuickJump.$key')),
+  );
+  return button.style?.foregroundColor?.resolve(states);
+}
+
 Future<void> _tapAlbumsCommand(WidgetTester tester, String label) async {
   final direct = find.text(label).hitTestable();
   if (direct.evaluate().isNotEmpty) {
@@ -657,12 +968,14 @@ class _AlbumsTestApp extends StatelessWidget {
     required this.i18n,
     this.repository,
     this.mediaController,
+    this.darkMode = false,
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
+  final bool darkMode;
 
   @override
   Widget build(BuildContext context) {
@@ -680,7 +993,9 @@ class _AlbumsTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: _albumsPageTestTheme(),
+          theme: _albumsPageTestTheme(
+            brightness: darkMode ? Brightness.dark : Brightness.light,
+          ),
           home: const Scaffold(body: AlbumsPage()),
         ),
       ),
@@ -726,6 +1041,33 @@ class _AlbumsAppBarPortalTestApp extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumsLoadingTestApp extends StatelessWidget {
+  const _AlbumsLoadingTestApp({
+    required this.snapshotFuture,
+    required this.i18n,
+  });
+
+  final Future<LibraryContentData> snapshotFuture;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryContentDataProvider.overrideWith((ref) => snapshotFuture),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _albumsPageTestTheme(),
+          home: const Scaffold(body: AlbumsPage()),
         ),
       ),
     );
@@ -804,8 +1146,17 @@ class _AlbumsSnapshotInvalidatorState
   }
 }
 
-ThemeData _albumsPageTestTheme() {
-  return ThemeData(extensions: const [DefaultAlbumArtworkThemeColors.light]);
+ThemeData _albumsPageTestTheme({Brightness brightness = Brightness.light}) {
+  final dark = brightness == Brightness.dark;
+  return ThemeData(
+    brightness: brightness,
+    extensions: [
+      dark
+          ? DefaultAlbumArtworkThemeColors.dark
+          : DefaultAlbumArtworkThemeColors.light,
+      dark ? AppNotificationThemeColors.dark : AppNotificationThemeColors.light,
+    ],
+  );
 }
 
 class _FakeLibraryRepository extends LibraryRepository {
@@ -825,6 +1176,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? existingPreferenceLevel;
   String? removedPreferenceType;
   String? removedPreferenceItemId;
+  List<int> removedRecentSearchIds = [];
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
@@ -893,6 +1245,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> removePreferenceItem(String type, String itemId) async {
     removedPreferenceType = type;
     removedPreferenceItemId = itemId;
+  }
+
+  @override
+  Future<void> removeRecentSearches(List<int> ids) async {
+    removedRecentSearchIds = ids.toList();
   }
 }
 
@@ -984,6 +1341,40 @@ const _snapshot = LibraryContentData(
   showCount: true,
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
+);
+
+final _snapshotWithManyRecentSearches = LibraryContentData(
+  songs: _snapshot.songs,
+  recentSongs: _snapshot.recentSongs,
+  recentPlaylists: _snapshot.recentPlaylists,
+  recentAlbums: _snapshot.recentAlbums,
+  recentArtists: _snapshot.recentArtists,
+  recentSearches: [
+    for (var index = 1; index <= 12; index += 1)
+      SearchHistoryEntry(
+        id: index,
+        query: 'Album $index',
+        type: SearchHistoryType.albums,
+        searchedAt:
+            '2026-05-${(30 - index).toString().padLeft(2, '0')}T00:00:00',
+      ),
+    const SearchHistoryEntry(
+      id: 99,
+      query: 'Sidebar',
+      type: SearchHistoryType.sidebar,
+      searchedAt: '2026-05-31T00:00:00',
+    ),
+  ],
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation:
+      _snapshot.hideMultiSelectCommandBarAfterOperation,
+  databasePath: _snapshot.databasePath,
 );
 
 const _albumSortDefaultSnapshot = LibraryContentData(

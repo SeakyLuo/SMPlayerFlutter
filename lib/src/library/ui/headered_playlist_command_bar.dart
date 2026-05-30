@@ -47,36 +47,27 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             },
           ),
           if (widget.canSetPreferred && widget.onSetPreferred != null)
-            Builder(
-              builder:
-                  (buttonContext) => CommandBarButton(
-                    icon: FluentIcons.star_20_regular,
-                    label: captionForHeaderedPlaylist(
-                      i18n,
-                      'preferenceSettings',
-                    ),
-                    onOverflowPressedWithContext: (_) {
-                      unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
-                    },
-                    onPressed: () {
-                      unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
-                    },
-                  ),
+            CommandBarButton(
+              icon: FluentIcons.star_20_regular,
+              label: captionForHeaderedPlaylist(i18n, 'preferenceSettings'),
+              onOverflowPressedWithContext: (buttonContext) {
+                unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
+              },
+              onPressedWithContext: (buttonContext) {
+                unawaited(_showHeaderPreferenceMenu(buttonContext, i18n));
+              },
             ),
-          Builder(
-            builder:
-                (buttonContext) => CommandBarButton(
-                  icon: FluentIcons.arrow_sort_20_regular,
-                  label: captionForHeaderedPlaylist(i18n, 'sort'),
-                  disabled: visibleSongs.isEmpty,
-                  overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
-                  onPressed: () {
-                    showMenuFlyout(
-                      buttonContext,
-                      items: _sortMenuItems(i18n, activeSortCriterion),
-                    );
-                  },
-                ),
+          CommandBarButton(
+            icon: FluentIcons.arrow_sort_20_regular,
+            label: captionForHeaderedPlaylist(i18n, 'sort'),
+            disabled: visibleSongs.isEmpty,
+            overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
+            onPressedWithContext: (buttonContext) {
+              showMenuFlyout(
+                buttonContext,
+                items: _sortMenuItems(i18n, activeSortCriterion),
+              );
+            },
           ),
           if (widget.canRename)
             CommandBarButton(

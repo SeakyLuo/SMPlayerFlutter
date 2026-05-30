@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_interaction_colors.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'command_bar_colors.dart';
@@ -348,6 +349,13 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
     this.onClear,
     this.onRemove,
     this.getRemoveLabel,
+    this.backdropKey,
+    this.panelKey,
+    this.headerKey,
+    this.listKey,
+    this.itemKeyBuilder,
+    this.selectKeyBuilder,
+    this.removeKeyBuilder,
   });
 
   final List<SearchHistoryPanelItem<TValue>> items;
@@ -357,6 +365,13 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
   final VoidCallback? onClear;
   final ValueChanged<SearchHistoryPanelItem<TValue>>? onRemove;
   final String Function(SearchHistoryPanelItem<TValue> item)? getRemoveLabel;
+  final Key? backdropKey;
+  final Key? panelKey;
+  final Key? headerKey;
+  final Key? listKey;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? itemKeyBuilder;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? selectKeyBuilder;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? removeKeyBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -364,8 +379,10 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
+        key: backdropKey,
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: DecoratedBox(
+          key: panelKey,
           decoration: BoxDecoration(
             color: colors.dropdownSurface,
             borderRadius: BorderRadius.circular(14),
@@ -387,6 +404,7 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
                 children: [
                   if (title.isNotEmpty) ...[
                     SizedBox(
+                      key: headerKey,
                       height: 30,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -418,24 +436,37 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
                     const SizedBox(height: 6),
                   ],
                   Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemCount: items.length,
-                      separatorBuilder:
-                          (context, index) => const SizedBox(height: 2),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return _SearchHistoryPanelRow<TValue>(
-                          item: item,
-                          onSelect: onSelect,
-                          onRemove: onRemove,
-                          removeLabel:
-                              getRemoveLabel == null
-                                  ? null
-                                  : getRemoveLabel!(item),
-                        );
-                      },
+                    child: Column(
+                      key: listKey,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final item in items) ...[
+                          _SearchHistoryPanelRow<TValue>(
+                            item: item,
+                            itemKey:
+                                itemKeyBuilder == null
+                                    ? ValueKey(
+                                      'PageSearchHistoryPanel.Item.${item.label}',
+                                    )
+                                    : itemKeyBuilder!(item),
+                            selectKey:
+                                selectKeyBuilder == null
+                                    ? null
+                                    : selectKeyBuilder!(item),
+                            removeKey:
+                                removeKeyBuilder == null
+                                    ? null
+                                    : removeKeyBuilder!(item),
+                            onSelect: onSelect,
+                            onRemove: onRemove,
+                            removeLabel:
+                                getRemoveLabel == null
+                                    ? null
+                                    : getRemoveLabel!(item),
+                          ),
+                          if (item != items.last) const SizedBox(height: 2),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -451,12 +482,18 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
 class _SearchHistoryPanelRow<TValue> extends StatelessWidget {
   const _SearchHistoryPanelRow({
     required this.item,
+    required this.itemKey,
+    required this.selectKey,
+    required this.removeKey,
     required this.onSelect,
     required this.onRemove,
     required this.removeLabel,
   });
 
   final SearchHistoryPanelItem<TValue> item;
+  final Key itemKey;
+  final Key? selectKey;
+  final Key? removeKey;
   final ValueChanged<SearchHistoryPanelItem<TValue>> onSelect;
   final ValueChanged<SearchHistoryPanelItem<TValue>>? onRemove;
   final String? removeLabel;
@@ -464,49 +501,185 @@ class _SearchHistoryPanelRow<TValue> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: false);
-    return SizedBox(
-      height: 38,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextButton(
-              key: ValueKey('PageSearchHistoryPanel.Item.${item.label}'),
-              style: TextButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                minimumSize: const Size(0, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                foregroundColor: colors.textStrong,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+    final removeTooltip = removeLabel;
+    return _SearchHistoryHoverContainer(
+      borderRadius: BorderRadius.circular(10),
+      builder: (context, hovered) {
+        return AnimatedContainer(
+          key: itemKey,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: hovered ? colors.rowHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: SizedBox(
+            height: 38,
+            child: Row(
+              spacing: onRemove == null ? 0 : 4,
+              children: [
+                Expanded(
+                  child: _SearchHistorySelectButton(
+                    key: selectKey,
+                    label: item.label,
+                    onPressed: () {
+                      onSelect(item);
+                    },
+                  ),
                 ),
-                textStyle: const TextStyle(fontSize: 14),
-              ),
-              onPressed: () {
-                onSelect(item);
-              },
-              child: Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                if (onRemove != null && removeTooltip != null)
+                  _SearchHistoryRemoveButton(
+                    key: removeKey,
+                    tooltip: removeTooltip,
+                    onPressed: () {
+                      onRemove!(item);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SearchHistoryHoverContainer extends StatefulWidget {
+  const _SearchHistoryHoverContainer({
+    required this.borderRadius,
+    required this.builder,
+  });
+
+  final BorderRadius borderRadius;
+  final Widget Function(BuildContext context, bool hovered) builder;
+
+  @override
+  State<_SearchHistoryHoverContainer> createState() =>
+      _SearchHistoryHoverContainerState();
+}
+
+class _SearchHistoryHoverContainerState
+    extends State<_SearchHistoryHoverContainer> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: ClipRRect(
+        borderRadius: widget.borderRadius,
+        child: widget.builder(context, _hovered),
+      ),
+    );
+  }
+}
+
+class _SearchHistorySelectButton extends StatelessWidget {
+  const _SearchHistorySelectButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _PageSearchColors.resolve(context, appBar: false);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Semantics(
+        button: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: SizedBox(
+            height: 38,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textStrong,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    height: 1,
+                  ),
+                ),
               ),
             ),
           ),
-          if (onRemove != null && removeLabel != null)
-            SizedBox.square(
-              dimension: 30,
-              child: _PageSearchIconButton(
-                tooltip: removeLabel,
-                icon: FluentIcons.dismiss_16_regular,
-                iconSize: 14,
-                borderRadius: 8,
-                foreground: colors.textMuted,
-                hoverForeground: colors.accent,
-                onPressed: () {
-                  onRemove!(item);
-                },
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchHistoryRemoveButton extends StatefulWidget {
+  const _SearchHistoryRemoveButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  State<_SearchHistoryRemoveButton> createState() =>
+      _SearchHistoryRemoveButtonState();
+}
+
+class _SearchHistoryRemoveButtonState
+    extends State<_SearchHistoryRemoveButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _PageSearchColors.resolve(context, appBar: false);
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) {
+          setState(() {
+            _hovered = true;
+          });
+        },
+        onExit: (_) {
+          setState(() {
+            _hovered = false;
+          });
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: SizedBox.square(
+            dimension: 30,
+            child: Center(
+              child: Icon(
+                FluentIcons.dismiss_16_regular,
+                size: 14,
+                color: _hovered ? colors.accent : colors.header,
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -646,6 +819,7 @@ class _PageSearchColors {
     required this.accent,
     required this.textStrong,
     required this.textMuted,
+    required this.rowHover,
   });
 
   final Color searchSurface;
@@ -662,6 +836,7 @@ class _PageSearchColors {
   final Color accent;
   final Color textStrong;
   final Color textMuted;
+  final Color rowHover;
 
   static const light = _PageSearchColors(
     searchSurface: Color(0x090d1826),
@@ -678,23 +853,25 @@ class _PageSearchColors {
     accent: SearchCommitIconButton.lightHoverForeground,
     textStrong: Color(0xff1f252b),
     textMuted: SearchCommitIconButton.lightForeground,
+    rowHover: Color(0x1a0078d7),
   );
 
   static const dark = _PageSearchColors(
     searchSurface: Color(0x0effffff),
     focusedSurface: Color(0x240078d7),
-    border: Colors.transparent,
-    focusedBorder: Colors.transparent,
+    border: Color(0x1fd6e0ec),
+    focusedBorder: Color(0x800078d7),
     focusRing: Color(0x240078d7),
     insetHighlight: Color(0x0effffff),
     placeholder: Color(0xadcbd5e1),
     iconButtonHover: Color(0x240078d7),
-    dropdownSurface: Color(0xf5181e26),
-    dropdownShadow: Color(0x57000000),
-    header: Color(0xadCBD5E1),
-    accent: SearchCommitIconButton.darkHoverForeground,
-    textStrong: Color(0xfff6f9fc),
-    textMuted: SearchCommitIconButton.darkForeground,
+    dropdownSurface: Color(0xfa1d232b),
+    dropdownShadow: Color(0x5c000000),
+    header: Color(0x9ecbd5e1),
+    accent: Color(0xff7fc4ff),
+    textStrong: Color(0xebffffff),
+    textMuted: Color(0xc7ffffff),
+    rowHover: SmPlayerInteractionColors.hoverSurfaceDark,
   );
 
   static _PageSearchColors resolve(

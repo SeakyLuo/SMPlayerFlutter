@@ -921,6 +921,18 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   onPlay: (songId) {
                     _playTrack(songId, [songId]);
                   },
+                  onOpenSongMenu:
+                      (song, position) => _showSongMenu(
+                        position: position,
+                        song: song,
+                        queueSongIds: visibleSongIds,
+                        playlists: customPlaylists,
+                        snapshot: snapshot,
+                        i18n: i18n,
+                        showSelect: false,
+                        showMusicProperties: false,
+                        showDelete: false,
+                      ),
                   onApplyArtistSplits:
                       (splits) => _applyFolderUpdateArtistSplits(splits, i18n),
                   onDismissArtistSplitSuggestions:

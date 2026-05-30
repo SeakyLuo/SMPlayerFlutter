@@ -78,6 +78,13 @@ GoRouter createSmPlayerRouter({
             ),
       ),
       GoRoute(
+        path: '/artists/:artistName',
+        redirect: (context, state) {
+          final artistName = state.pathParameters['artistName']!;
+          return '/artists?artist=${Uri.encodeQueryComponent(artistName)}';
+        },
+      ),
+      GoRoute(
         path: '/albums',
         pageBuilder:
             (context, state) => _smPlayerShellPage(
@@ -486,6 +493,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
                 buttonLabel: i18n.t(
                   'local.chooseMusicLibraryFolderDialogButton',
                 ),
+                locale: i18n.locale,
               )
               : await FilePicker.getDirectoryPath();
       if (rootPath == null || rootPath.isEmpty) {

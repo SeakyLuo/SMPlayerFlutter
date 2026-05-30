@@ -133,13 +133,20 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
                 ],
                 const SizedBox(width: 14),
                 SizedBox(
-                  width: 74,
-                  child: Text(
-                    i18n.t('table.duration'),
-                    textAlign: TextAlign.end,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: textStyle,
+                  key: const ValueKey('HeaderedPlaylist.DurationHeaderSlot'),
+                  width: narrow ? 20 : 74,
+                  child: OverflowBox(
+                    alignment: Alignment.centerRight,
+                    minWidth: 0,
+                    maxWidth: double.infinity,
+                    child: Text(
+                      i18n.t('table.duration'),
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                      style: textStyle,
+                    ),
                   ),
                 ),
               ],

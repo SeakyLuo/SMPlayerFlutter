@@ -328,6 +328,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 selectedTrackId: null,
                 isPlaying: false,
                 onPlay: (_) {},
+                onOpenSongMenu: (_, _) {},
                 onApplyArtistSplits:
                     (splits) => _applyScanResultArtistSplits(splits, i18n),
                 onDismissArtistSplitSuggestions:
@@ -498,6 +499,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     defaultPath:
                         _snapshot.rootPath.isEmpty ? null : _snapshot.rootPath,
+                    locale: i18n.locale,
                   )
                   : await FilePicker.getDirectoryPath()
               : await widget.onPickLibraryRoot!();

@@ -21,7 +21,7 @@ import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show NightMode, SettingsSnapshot;
+    show AppSettingsUpdate, NightMode, PreferredLanguage, SettingsSnapshot;
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 
 void main() {
@@ -425,6 +425,47 @@ void main() {
     expect(materialLocalizations, isNotNull);
     expect(find.byType(SettingsPage), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SmPlayerApp switches interface language immediately', (
+    tester,
+  ) async {
+    final initialSettings = const SettingsSnapshot.defaults().copyWith(
+      preferredLanguage: PreferredLanguage.enUS,
+    );
+    setSmPlayerGlobalSettingsSnapshot(initialSettings);
+    addTearDown(resetSmPlayerGlobalSettingsSnapshot);
+    final settingsController = SettingsController(initialSettings);
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, _) {
+            return Text(context.smPlayerI18n.t('settings.interfaceLanguage'));
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: app.SmPlayerApp(
+          router: router,
+          settingsController: settingsController,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Interface language'), findsOneWidget);
+
+    await settingsController.updateSettings(
+      const AppSettingsUpdate(preferredLanguage: PreferredLanguage.zhCN),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('界面语言'), findsOneWidget);
+    expect(find.text('Interface language'), findsNothing);
   });
 
   testWidgets('SmPlayerApp keeps splash visible until i18n is ready', (

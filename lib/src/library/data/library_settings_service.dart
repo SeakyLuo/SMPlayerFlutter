@@ -90,6 +90,7 @@ class LibrarySettingsService {
           SearchFoldersCriterion = ?,
           AutoPlay = ?,
           ShuffleAfterOneRound = ?,
+          PreviousButtonRestartsTrack = ?,
           SaveMusicProgress = ?,
           HideMultiSelectCommandBarAfterOperation = ?,
           QuitOnClose = ?,
@@ -133,6 +134,7 @@ class LibrarySettingsService {
           _searchSortValue(next.searchFoldersCriterion),
           _boolValue(next.autoPlay),
           _boolValue(next.shuffleAfterOneRound),
+          _boolValue(next.previousButtonRestartsTrack),
           _boolValue(next.saveMusicProgress),
           _boolValue(next.hideMultiSelectCommandBarAfterOperation),
           _boolValue(next.quitOnClose),
@@ -384,6 +386,8 @@ class LibrarySettingsService {
       musicProgress: (row['MusicProgress'] as num).toDouble(),
       autoPlay: (row['AutoPlay'] as int) != 0,
       shuffleAfterOneRound: (row['ShuffleAfterOneRound'] as int) != 0,
+      previousButtonRestartsTrack:
+          (row['PreviousButtonRestartsTrack'] as int) != 0,
       saveMusicProgress: (row['SaveMusicProgress'] as int) != 0,
       hideMultiSelectCommandBarAfterOperation:
           (row['HideMultiSelectCommandBarAfterOperation'] as int) != 0,

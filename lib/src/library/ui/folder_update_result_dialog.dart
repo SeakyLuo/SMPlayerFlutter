@@ -20,6 +20,7 @@ class FolderUpdateResultDialog extends StatefulWidget {
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlay,
+    required this.onOpenSongMenu,
     required this.onApplyArtistSplits,
     required this.onDismissArtistSplitSuggestions,
     required this.onClose,
@@ -31,6 +32,7 @@ class FolderUpdateResultDialog extends StatefulWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final ValueChanged<int> onPlay;
+  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
   final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
   onApplyArtistSplits;
   final VoidCallback onDismissArtistSplitSuggestions;
@@ -113,6 +115,9 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
     ];
 
     return PopupDialog(
+      overlayClassName: 'folder-update-result-popup-overlay',
+      className: 'folder-update-result-dialog ContentDialog',
+      navClassName: 'folder-update-result-nav',
       navLabel: title,
       ariaLabel: title,
       width: 780,
@@ -144,24 +149,24 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(child: _buildActiveTabPane()),
+            Expanded(
+              child: LayoutBuilder(
+                builder:
+                    (context, constraints) =>
+                        _buildActiveTabPane(maxHeight: constraints.maxHeight),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActiveTabPane() {
-    if (_activeTab == FolderUpdateResultTab.artists) {
-      return _buildActiveTabContent();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [_buildActiveTabContent()],
-    );
+  Widget _buildActiveTabPane({required double maxHeight}) {
+    return _buildActiveTabContent(maxHeight: maxHeight);
   }
 
-  Widget _buildActiveTabContent() {
+  Widget _buildActiveTabContent({required double maxHeight}) {
     final songsByPathKey = {
       for (final song in widget.songs)
         normalizePath(song.path).toLowerCase(): song,
@@ -175,6 +180,8 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         selectedTrackId: widget.selectedTrackId,
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
+        onOpenSongMenu: widget.onOpenSongMenu,
+        maxHeight: maxHeight,
       ),
       FolderUpdateResultTab.removed => FolderUpdateResultFileSection(
         folderPath: widget.folder.path,
@@ -184,6 +191,8 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         selectedTrackId: widget.selectedTrackId,
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
+        onOpenSongMenu: widget.onOpenSongMenu,
+        maxHeight: maxHeight,
       ),
       FolderUpdateResultTab.moved => FolderUpdateResultFileSection(
         folderPath: widget.folder.path,
@@ -193,6 +202,8 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         selectedTrackId: widget.selectedTrackId,
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
+        onOpenSongMenu: widget.onOpenSongMenu,
+        maxHeight: maxHeight,
       ),
       FolderUpdateResultTab.artists => FolderUpdateResultArtistSection(
         result: widget.result,

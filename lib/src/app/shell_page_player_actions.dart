@@ -14,6 +14,16 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
                 const <RecentLibrarySong>[];
             final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
             final settings = _settingsController.snapshot;
+            final playbackSongIds =
+                snapshot == null ? const <int>[] : _playbackSongIds(snapshot);
+            final previousButtonRestartsTrack =
+                playbackSongIds.isNotEmpty &&
+                shouldRestartCurrentTrackForPrevious(
+                  progressSeconds: mediaControlState.progressSeconds,
+                  queueLength: playbackSongIds.length,
+                  restartAfterThresholdEnabled:
+                      settings.previousButtonRestartsTrack,
+                );
             final i18n =
                 ref.watch(smPlayerI18nProvider).valueOrNull ??
                 const SmPlayerI18n(
@@ -33,9 +43,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
               currentSong: currentSong,
               repository: ref.read(libraryRepositoryProvider),
               playerLyricsSource: settings.playerLyricsSource,
+              previousButtonRestartsTrack: previousButtonRestartsTrack,
               onExit: _exitMiniMode,
               onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
               onPrevious: _playPreviousFromCurrentQueue,
+              onForcePrevious: () {
+                _playPreviousFromCurrentQueue(forcePrevious: true);
+              },
               onNext: _playNextFromCurrentQueue,
               onSeek: _mediaControlController.onSeek,
               onBeginSeek: _mediaControlController.onBeginSeek,
@@ -102,7 +116,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
   }
 
   void _togglePlayerFavorite(WidgetRef ref, LibrarySong song) {
-    final nextFavorite = !song.favorite;
+    final nextFavorite = !_mediaControlController.state.track.favorite;
     setSongsFavorite(ref, [song.id], nextFavorite);
     if (_mediaControlController.state.track.id == song.id &&
         _mediaControlController.state.track.favorite != nextFavorite) {

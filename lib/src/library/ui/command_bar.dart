@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -141,8 +141,8 @@ class _CommandBarState extends State<CommandBar> {
                                 KeyedSubtree(
                                   key: _moreKey,
                                   child: CommandBarButton(
-                                    icon:
-                                        FluentIcons.more_horizontal_24_regular,
+                                    iconWidget:
+                                        const SmPlayerMoreHorizontalIcon(),
                                     label: widget.overflowLabel ?? 'More',
                                     showLabel: false,
                                     canOverflow: false,
@@ -297,6 +297,7 @@ class CommandBarButton extends StatefulWidget {
     super.key,
     required this.label,
     this.icon,
+    this.iconWidget,
     this.active = false,
     this.canOverflow = true,
     this.disabled = false,
@@ -312,6 +313,7 @@ class CommandBarButton extends StatefulWidget {
   });
 
   final IconData? icon;
+  final Widget? iconWidget;
   final String label;
   final bool active;
   final bool canOverflow;
@@ -339,6 +341,7 @@ class _CommandBarButtonState extends State<CommandBarButton> {
       padding: style.buttonMargin,
       child: SmPlayerTextIconButton(
         icon: widget.icon,
+        iconWidget: widget.iconWidget,
         label: widget.label,
         active: widget.active,
         disabled: widget.disabled,
@@ -377,7 +380,7 @@ class _CommandBarMoreButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return CommandBarButton(
       key: const ValueKey('CommandBar.MoreButton'),
-      icon: FluentIcons.more_horizontal_24_regular,
+      iconWidget: const SmPlayerMoreHorizontalIcon(),
       label: label,
       showLabel: false,
       canOverflow: false,
@@ -739,7 +742,7 @@ class _CommandBarStyleData {
       minWidth: 44,
       minHeight: compact ? 38 : 40,
       maxWidth: null,
-      horizontalPadding: compact ? 10 : 14,
+      horizontalPadding: compact ? 10 : 12,
       borderRadius: 10,
       borderWidth: 1,
       borderColor: CommandBarColors.buttonBorder,

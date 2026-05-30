@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 
 void main() {
-  testWidgets('default album artwork uses transparent logo in night mode', (
+  testWidgets('default album artwork uses Electron app icon in night mode', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -22,11 +22,11 @@ void main() {
     final images = tester.widgetList<Image>(find.byType(Image));
     expect(
       images.map((image) => (image.image as AssetImage).assetName),
-      everyElement('assets/branding/monotone_no_bg.png'),
+      everyElement('assets/branding/app-icon.png'),
     );
   });
 
-  testWidgets('default album artwork keeps transparent logo in day mode', (
+  testWidgets('default album artwork keeps Electron app icon in day mode', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -45,7 +45,7 @@ void main() {
     final images = tester.widgetList<Image>(find.byType(Image));
     expect(
       images.map((image) => (image.image as AssetImage).assetName),
-      everyElement('assets/branding/monotone_no_bg.png'),
+      everyElement('assets/branding/app-icon.png'),
     );
   });
 }

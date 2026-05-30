@@ -7,11 +7,13 @@ class _PlayerIconButton extends StatefulWidget {
     required this.icon,
     required this.onPressed,
     this.onLongPress,
+    this.longPressTooltip,
     this.disabled = false,
     this.primary = false,
     this.active = false,
     this.favorite = false,
     this.loading = false,
+    this.showLongPressProgress = true,
     this.buttonSize,
     this.padding,
     this.iconSize,
@@ -21,11 +23,13 @@ class _PlayerIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final VoidCallback? onLongPress;
+  final String? longPressTooltip;
   final bool disabled;
   final bool primary;
   final bool active;
   final bool favorite;
   final bool loading;
+  final bool showLongPressProgress;
   final double? buttonSize;
   final double? padding;
   final double? iconSize;
@@ -46,6 +50,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final accentStrong = MediaControlColors.accentStrongFor(context);
     final accentHover = MediaControlColors.accentHoverFor(context);
     final colors = MediaControlThemeColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hovered = !widget.disabled && _hovered;
     final primaryDisabled = widget.primary && widget.disabled;
     final color =
@@ -69,6 +74,12 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             ? hovered
                 ? colors.primaryButtonHover
                 : MediaControlColors.accent
+            : widget.favorite
+            ? hovered
+                ? isDark
+                    ? MediaControlColors.nightFavoriteActiveHover
+                    : MediaControlColors.favoriteActiveHover
+                : Colors.transparent
             : widget.active || hovered
             ? accentHover
             : Colors.transparent;
@@ -102,27 +113,28 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 ]
             : null;
 
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor:
-            widget.disabled
-                ? SystemMouseCursors.forbidden
-                : SystemMouseCursors.click,
-        onEnter: (_) {
-          setState(() {
-            _hovered = true;
-          });
-        },
-        onExit: (_) {
-          setState(() {
-            _hovered = false;
-          });
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.disabled ? null : widget.onPressed,
-          onLongPress: widget.disabled ? null : widget.onLongPress,
+    return HoldReleaseAction(
+      tooltip: widget.tooltip,
+      holdTooltip: widget.longPressTooltip,
+      disabled: widget.disabled,
+      onPressed: widget.onPressed,
+      onHoldRelease: widget.onLongPress,
+      builder: (context, holdProgress) {
+        return MouseRegion(
+          cursor:
+              widget.disabled
+                  ? SystemMouseCursors.forbidden
+                  : SystemMouseCursors.click,
+          onEnter: (_) {
+            setState(() {
+              _hovered = true;
+            });
+          },
+          onExit: (_) {
+            setState(() {
+              _hovered = false;
+            });
+          },
           child: AnimatedSlide(
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
@@ -138,32 +150,49 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 width: size,
                 height: size,
                 alignment: Alignment.center,
-                padding: EdgeInsets.all(padding),
                 decoration: BoxDecoration(
                   color: background,
                   shape: BoxShape.circle,
                   border: border,
                   boxShadow: shadow,
                 ),
-                child:
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (widget.onLongPress != null &&
+                        widget.showLongPressProgress)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          key: const ValueKey('MediaControl.LongPressProgress'),
+                          painter: HoldReleaseProgressPainter(
+                            progress: holdProgress,
+                            color: widget.primary ? Colors.white : accentStrong,
+                          ),
+                        ),
+                      ),
                     widget.loading
                         ? const CircularProgressIndicator(
                           strokeWidth: 2,
                           color: Colors.white,
                         )
-                        : _PlayerButtonIcon(
-                          icon: widget.icon,
-                          color: color,
-                          size: iconSize,
-                          hidden:
-                              primaryDisabled &&
-                              colors.disabledPrimaryIconHidden,
+                        : Padding(
+                          padding: EdgeInsets.all(padding),
+                          child: _PlayerButtonIcon(
+                            icon: widget.icon,
+                            color: color,
+                            size: iconSize,
+                            hidden:
+                                primaryDisabled &&
+                                colors.disabledPrimaryIconHidden,
+                          ),
                         ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -192,11 +221,11 @@ class _PlayerButtonIcon extends StatelessWidget {
         size: Size.square(size),
       );
     }
+    if (icon == _pauseIcon) {
+      return SmPlayerPauseIcon(size: size, color: color);
+    }
     if (icon == _moreIcon) {
-      return CustomPaint(
-        painter: _MoreHorizontalIconPainter(color),
-        size: Size.square(size),
-      );
+      return SmPlayerMoreHorizontalIcon(size: size, color: color);
     }
     if (icon == _previousIcon || icon == _nextIcon) {
       return CustomPaint(
@@ -216,6 +245,20 @@ class _PlayerButtonIcon extends StatelessWidget {
     if (icon == _voiceIcon) {
       return CustomPaint(
         painter: _VoiceAssistantIconPainter(color),
+        size: Size.square(size),
+      );
+    }
+    if (icon == _favoriteOutlineIcon) {
+      return CustomPaint(
+        key: const ValueKey('MediaControl.FavoriteOutlineIcon'),
+        painter: _FavoriteOutlineIconPainter(color),
+        size: Size.square(size),
+      );
+    }
+    if (icon == _favoriteFilledIcon) {
+      return CustomPaint(
+        key: const ValueKey('MediaControl.FavoriteFilledIcon'),
+        painter: _FavoriteFilledIconPainter(color),
         size: Size.square(size),
       );
     }
@@ -376,25 +419,126 @@ class _VoiceAssistantIconPainter extends CustomPainter {
   }
 }
 
-class _MoreHorizontalIconPainter extends CustomPainter {
-  const _MoreHorizontalIconPainter(this.color);
+class _FavoriteOutlineIconPainter extends CustomPainter {
+  const _FavoriteOutlineIconPainter(this.color);
 
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.width / 24;
-    final fillPaint =
+    final scale = size.shortestSide / 24;
+    final paint =
         Paint()
           ..color = color
-          ..style = PaintingStyle.fill;
-    for (final x in [7.0, 12.0, 17.0]) {
-      canvas.drawCircle(Offset(x * scale, 12 * scale), 1.45 * scale, fillPaint);
-    }
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.45 * scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+    final path =
+        Path()
+          ..moveTo(20.8 * scale, 7.6 * scale)
+          ..cubicTo(
+            18.8 * scale,
+            5.6 * scale,
+            15.6 * scale,
+            5.6 * scale,
+            13.6 * scale,
+            7.6 * scale,
+          )
+          ..lineTo(12 * scale, 9.2 * scale)
+          ..lineTo(10.4 * scale, 7.6 * scale)
+          ..cubicTo(
+            8.4 * scale,
+            5.6 * scale,
+            5.2 * scale,
+            5.6 * scale,
+            3.2 * scale,
+            7.6 * scale,
+          )
+          ..cubicTo(
+            1.2 * scale,
+            9.6 * scale,
+            1.2 * scale,
+            12.8 * scale,
+            3.2 * scale,
+            14.8 * scale,
+          )
+          ..lineTo(12 * scale, 22 * scale)
+          ..lineTo(20.8 * scale, 14.8 * scale)
+          ..cubicTo(
+            22.8 * scale,
+            12.8 * scale,
+            22.8 * scale,
+            9.6 * scale,
+            20.8 * scale,
+            7.6 * scale,
+          );
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _MoreHorizontalIconPainter oldDelegate) {
+  bool shouldRepaint(covariant _FavoriteOutlineIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _FavoriteFilledIconPainter extends CustomPainter {
+  const _FavoriteFilledIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+    final path =
+        Path()
+          ..moveTo(20.8 * scale, 7.6 * scale)
+          ..cubicTo(
+            18.8 * scale,
+            5.6 * scale,
+            15.6 * scale,
+            5.6 * scale,
+            13.6 * scale,
+            7.6 * scale,
+          )
+          ..lineTo(12 * scale, 9.2 * scale)
+          ..lineTo(10.4 * scale, 7.6 * scale)
+          ..cubicTo(
+            8.4 * scale,
+            5.6 * scale,
+            5.2 * scale,
+            5.6 * scale,
+            3.2 * scale,
+            7.6 * scale,
+          )
+          ..cubicTo(
+            1.2 * scale,
+            9.6 * scale,
+            1.2 * scale,
+            12.8 * scale,
+            3.2 * scale,
+            14.8 * scale,
+          )
+          ..lineTo(12 * scale, 22 * scale)
+          ..lineTo(20.8 * scale, 14.8 * scale)
+          ..cubicTo(
+            22.8 * scale,
+            12.8 * scale,
+            22.8 * scale,
+            9.6 * scale,
+            20.8 * scale,
+            7.6 * scale,
+          )
+          ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FavoriteFilledIconPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

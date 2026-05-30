@@ -37,8 +37,10 @@ const IconData _shuffleIcon = FluentIcons.arrow_shuffle_20_regular;
 const IconData _repeatIcon = FluentIcons.arrow_repeat_all_20_regular;
 const IconData _repeatOneIcon = FluentIcons.arrow_repeat_1_20_regular;
 const IconData _listPlaybackIcon = FluentIcons.music_note_2_24_regular;
-const IconData _moreIcon = FluentIcons.more_horizontal_20_regular;
+const IconData _moreIcon = IconData(0xf003, fontFamily: 'SMPlayer');
 const IconData _voiceIcon = FluentIcons.mic_20_regular;
+const IconData _favoriteOutlineIcon = IconData(0xf001, fontFamily: 'SMPlayer');
+const IconData _favoriteFilledIcon = IconData(0xf002, fontFamily: 'SMPlayer');
 
 class VolumeSlider extends StatefulWidget {
   const VolumeSlider({

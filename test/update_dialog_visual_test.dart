@@ -87,6 +87,7 @@ void main() {
         selectedTrackId: 1,
         isPlaying: true,
         onPlay: (_) {},
+        onOpenSongMenu: (_, _) {},
         onApplyArtistSplits: (_) {},
         onDismissArtistSplitSuggestions: _noop,
         onClose: _noop,

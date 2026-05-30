@@ -15,7 +15,9 @@ class MediaControlColors {
   static const nightAccentHover = SmPlayerInteractionColors.hoverSurfaceDark;
   static const accentBorder = Color(0x2e0078d7);
   static const accentShadow = Color(0x330078d7);
-  static const favorite = Color(0xffd83b7d);
+  static const favorite = Color(0xffff1d1d);
+  static const favoriteActiveHover = Color(0x38ffffff);
+  static const nightFavoriteActiveHover = Color(0x1fffffff);
   static const playerSurface = Color(0xe0ffffff);
   static const playerAccentWash = Color(0x1aabd9ff);
   static const emptyPlayerAccentWash = Color(0x100078d7);

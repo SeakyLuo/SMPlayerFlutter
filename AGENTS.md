@@ -62,6 +62,8 @@ Electron 是唯一标准。
 ### UI 像素级对齐规则
 
 - CSS、尺寸、颜色、间距、圆角、字体、hover/pressed/selected/disabled/open 状态必须从 Electron 源码和实际渲染中提取。
+- AlbumsPage 迁移中，AlbumTile hover action 是用户明确指定的例外：保持 Flutter 当前液态玻璃样式，不要按 Electron hover action 重写；其他 AlbumTile/AlbumsPage 行为和状态仍按 Electron 对齐。
+- ArtistsPage/AlbumsPage 搜索框相关（包括 PageSearchField、PageSearchSuggestionPanel、PageSearchHistoryPanel、AppBar 搜索框的尺寸、间距、圆角、颜色、按钮状态和行为）是用户明确指定的暂停区域；没有新的明确要求不要修改。
 - 涉及 UI 的任务必须保存或说明 Electron 与 Flutter 的对比截图；仅凭代码相似不能算完成。
 - 必须使用相同主题、窗口尺寸、数据状态和交互状态对比。
 - Flutter 控件默认样式不可信；必须显式核对它是否等同 Electron。

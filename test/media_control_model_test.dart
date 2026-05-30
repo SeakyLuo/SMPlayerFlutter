@@ -65,16 +65,33 @@ void main() {
       shouldRestartCurrentTrackForPrevious(
         progressSeconds: 5.01,
         queueLength: 3,
+        restartAfterThresholdEnabled: true,
       ),
       isTrue,
     );
     expect(
-      shouldRestartCurrentTrackForPrevious(progressSeconds: 5, queueLength: 3),
+      shouldRestartCurrentTrackForPrevious(
+        progressSeconds: 5,
+        queueLength: 3,
+        restartAfterThresholdEnabled: true,
+      ),
       isFalse,
     );
     expect(
-      shouldRestartCurrentTrackForPrevious(progressSeconds: 0, queueLength: 1),
+      shouldRestartCurrentTrackForPrevious(
+        progressSeconds: 0,
+        queueLength: 1,
+        restartAfterThresholdEnabled: true,
+      ),
       isTrue,
+    );
+    expect(
+      shouldRestartCurrentTrackForPrevious(
+        progressSeconds: 5.01,
+        queueLength: 3,
+        restartAfterThresholdEnabled: false,
+      ),
+      isFalse,
     );
   });
 
@@ -468,7 +485,7 @@ void main() {
       expect(controller.state.isPlaying, isFalse);
       expect(controller.state.track.isLoading, isFalse);
       expect(controller.state.playbackStatus, PlaybackStatus.paused);
-      expect(controller.state.playbackNoticeKey, 'player.playbackLoadFailed');
+      expect(controller.state.playbackNoticeKey, isNull);
 
       controller.setPlaybackNotice('notification.playbackStalled');
       expect(
@@ -514,7 +531,7 @@ void main() {
       expect(controller.state.track.isLoading, isFalse);
       expect(controller.state.playbackStatus, PlaybackStatus.paused);
       expect(controller.state.progressSeconds, 64);
-      expect(controller.state.playbackNoticeKey, 'player.playbackLoadFailed');
+      expect(controller.state.playbackNoticeKey, isNull);
       expect(persistedUpdates.last.musicProgress, 64);
 
       controller.setPlaybackRuntimeFailed(140);

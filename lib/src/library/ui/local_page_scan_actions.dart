@@ -61,6 +61,7 @@ extension _LocalPageScanActions on _LocalPageState {
                     buttonLabel: i18n.t(
                       'local.chooseMusicLibraryFolderDialogButton',
                     ),
+                    locale: i18n.locale,
                   )
                   : await FilePicker.getDirectoryPath()
               : await widget.onPickLibraryRoot!();

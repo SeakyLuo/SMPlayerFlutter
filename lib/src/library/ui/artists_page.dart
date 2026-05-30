@@ -1,30 +1,34 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show ColorFilter, ImageFilter, lerpDouble;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/input_dialog.dart';
 import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
+import '../../playback/media_control_model.dart'
+    show PlaybackMode, shufflePlaybackQueueForCurrentTrack;
 import '../../playback/media_control_track_factory.dart';
 import '../../playback/playlist_control_item.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
-import 'artwork_floating_action_button.dart';
 import 'artists_page_model.dart';
+import 'artwork_floating_action_button.dart';
 import 'command_bar.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
 import 'multi_select_command_bar.dart';
-import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'music_dialog.dart';
 import 'page_selection_store.dart';
@@ -36,6 +40,32 @@ import 'quick_jump_tooltip.dart';
 part 'artists_master_detail.dart';
 part 'artists_list_item.dart';
 part 'artists_detail.dart';
+part 'artists_page_state_helpers.dart';
+part 'artists_page_master.dart';
+part 'artists_page_chrome.dart';
+
+const _artistsBackdropSaturate120 = ColorFilter.matrix([
+  1.1574,
+  -0.143,
+  -0.0144,
+  0,
+  0,
+  -0.0426,
+  1.057,
+  -0.0144,
+  0,
+  0,
+  -0.0426,
+  -0.143,
+  1.1856,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
 
 class ArtistsPage extends ConsumerStatefulWidget {
   const ArtistsPage({super.key, this.searchQuery = '', this.targetArtistName});
@@ -55,6 +85,8 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   String? _appliedTargetArtistName;
   String? _notifiedMissingTargetArtistName;
   var _artistScrollTop = 0.0;
+  String? _artistQuickJumpPinnedKey;
+  var _artistQuickJumpJumping = false;
   final _selection = PageSelectionController<int>.stored('artists');
   final _artistListController = ScrollController();
   final _artistDetailController = ScrollController();
@@ -92,43 +124,26 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    _clearArtistsAppBarPortalOwner(this);
   }
 
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
     required Widget content,
+    required String compactTitle,
     required int searchSuggestionCount,
     required int searchHistoryCount,
   }) {
-    final signature =
-        '$showPortal:$routePath:$_appBarSearchOpen:$_artistSearch:$_artistSearchFocused:$searchSuggestionCount:$searchHistoryCount';
-    if (_appBarPortalSignature == signature) {
-      return;
-    }
-    _appBarPortalSignature = signature;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
-      if (!showPortal) {
-        if (notifier.state?.owner == _appBarPortalOwner) {
-          notifier.state = null;
-        }
-        return;
-      }
-      notifier.state = WorkspaceAppBarPortalEntry(
-        owner: _appBarPortalOwner,
-        routePath: routePath,
-        content: content,
-        replacesTitle: _appBarSearchOpen,
-      );
-    });
+    _syncArtistsAppBarPortal(
+      this,
+      showPortal: showPortal,
+      routePath: routePath,
+      content: content,
+      compactTitle: compactTitle,
+      searchSuggestionCount: searchSuggestionCount,
+      searchHistoryCount: searchHistoryCount,
+    );
   }
 
   @override
@@ -147,7 +162,72 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     }
 
     return snapshotValue.when(
-      loading: () => const _ArtistsPagePanel(child: SmPlayerLoadingState()),
+      loading: () {
+        final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        _syncAppBarPortal(
+          showPortal: true,
+          routePath: '/artists',
+          content: _ArtistsAppBarSearchActions(
+            searchOpen: _appBarSearchOpen,
+            artistSearch: _artistSearch,
+            i18n: i18n,
+            searchFocused: _artistSearchFocused,
+            searchSuggestions: const [],
+            searchHistoryEntries: const [],
+            onOpenSearch: () {
+              setState(() {
+                _appBarSearchOpen = true;
+                _artistSearchFocused = true;
+              });
+            },
+            onCloseSearch: () {
+              setState(() {
+                _appBarSearchOpen = false;
+                _artistSearchFocused = false;
+              });
+            },
+            onSearchChanged: (value) {
+              setState(() {
+                _artistSearch = value;
+              });
+            },
+            onSearchFocusChanged: _changeArtistSearchFocus,
+            onSearchSubmitted: _recordLoadingArtistSearch,
+            onClearSearch: () {
+              setState(() {
+                _artistSearch = '';
+              });
+            },
+            onSelectSearchSuggestion: _selectArtistSearchQuery,
+            onRemoveRecentSearch: _removeArtistRecentSearch,
+            onClearRecentSearches: _clearArtistRecentSearches,
+          ),
+          compactTitle: i18n.t('library.allArtists'),
+          searchSuggestionCount: 0,
+          searchHistoryCount: 0,
+        );
+        return _ArtistsPagePanel(
+          child: Row(
+            children: [
+              _ArtistsLoadingMaster(
+                showSearch: !useWorkspaceAppBar,
+                artistSearch: _artistSearch,
+                scrollController: _artistListController,
+                i18n: i18n,
+                searchFocused: _artistSearchFocused,
+                onChanged: (value) {
+                  setState(() {
+                    _artistSearch = value;
+                  });
+                },
+                onFocusChanged: _changeArtistSearchFocus,
+                onSubmitted: _recordLoadingArtistSearch,
+              ),
+              const Expanded(child: _ArtistsDetailLoadingState()),
+            ],
+          ),
+        );
+      },
       error:
           (_, _) => _ArtistsPagePanel(
             child: _ArtistsEmptyState(
@@ -158,7 +238,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       data: (snapshot) {
         final artistGroups = buildArtistGroups(snapshot.songs, i18n);
         if (widget.targetArtistName != null) {
-          final target = Uri.decodeComponent(widget.targetArtistName!);
+          final target = widget.targetArtistName!;
           final targetIndex = artistGroups.indexWhere(
             (artist) => artist.name == target,
           );
@@ -183,6 +263,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               if (_artistListController.hasClients) {
                 _artistListController.jumpTo(targetIndex * artistRowHeight);
               }
+              if (_artistDetailController.hasClients) {
+                _artistDetailController.jumpTo(0);
+              }
             });
           } else if (targetIndex < 0 &&
               _notifiedMissingTargetArtistName != target) {
@@ -194,16 +277,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               showAppNotification(
                 context: context,
                 message: i18n.t('collection.artistNotFound'),
+                duration: const Duration(milliseconds: 3200),
               );
             });
           }
         }
 
         final visibleArtists = artistGroups;
-        final targetArtistName =
-            widget.targetArtistName == null
-                ? null
-                : Uri.decodeComponent(widget.targetArtistName!);
+        final targetArtistName = widget.targetArtistName;
         final targetArtistAvailable =
             targetArtistName != null &&
             visibleArtists.any((artist) => artist.name == targetArtistName);
@@ -213,7 +294,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             )) {
           _selection.cancel();
           _selectedArtistName =
-              MediaQuery.sizeOf(context).width < 720 || visibleArtists.isEmpty
+              MediaQuery.sizeOf(context).width <= 720 || visibleArtists.isEmpty
                   ? ''
                   : visibleArtists.first.name;
         }
@@ -255,9 +336,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 .where((songId) => _selection.selectedItems.contains(songId))
                 .toList();
         final songsById = {for (final song in snapshot.songs) song.id: song};
-        final customPlaylists =
+        final customLibraryPlaylists =
             snapshot.playlists
                 .where((playlist) => !playlist.isBuiltIn)
+                .toList();
+        final customPlaylists =
+            customLibraryPlaylists
                 .map(
                   (playlist) => MultiSelectCommandBarPlaylist(
                     id: playlist.id,
@@ -267,8 +351,15 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 )
                 .toList();
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        final compactLayout = MediaQuery.sizeOf(context).width <= 720;
+        final compactAppBarTitle =
+            widget.targetArtistName != null
+                ? ''
+                : compactLayout && compactSelectedArtist != null
+                ? compactSelectedArtist.name
+                : _allArtistsTitle(snapshot, artistGroups, i18n);
         _syncAppBarPortal(
-          showPortal: useWorkspaceAppBar,
+          showPortal: true,
           routePath: '/artists',
           content: _ArtistsAppBarSearchActions(
             searchOpen: _appBarSearchOpen,
@@ -315,57 +406,16 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             onRemoveRecentSearch: _removeArtistRecentSearch,
             onClearRecentSearches: _clearArtistRecentSearches,
           ),
+          compactTitle: compactAppBarTitle,
           searchSuggestionCount: artistSearchSuggestions.length,
           searchHistoryCount: artistSearchHistoryEntries.length,
         );
-
-        if (visibleArtists.isEmpty) {
-          return _ArtistsPagePanel(
-            child: Column(
-              children: [
-                if (!useWorkspaceAppBar)
-                  _ArtistsSearchBox(
-                    artistSearch: _artistSearch,
-                    i18n: i18n,
-                    searchFocused: _artistSearchFocused,
-                    searchSuggestions: artistSearchSuggestions,
-                    searchHistoryEntries: artistSearchHistoryEntries,
-                    onChanged: (value) {
-                      setState(() {
-                        _artistSearch = value;
-                      });
-                    },
-                    onFocusChanged: _changeArtistSearchFocus,
-                    onSubmitted: _submitArtistSearch,
-                    onSelectSearchSuggestion: _selectArtistSearchQuery,
-                    onRemoveRecentSearch: _removeArtistRecentSearch,
-                    onClearRecentSearches: _clearArtistRecentSearches,
-                  ),
-                Expanded(
-                  child: _ArtistsEmptyState(
-                    title:
-                        _artistSearch.isEmpty
-                            ? i18n.t('collection.noArtists')
-                            : i18n.t('collection.noItemsMatch', {
-                              'query': _artistSearch,
-                            }),
-                    message:
-                        _artistSearch.isEmpty
-                            ? i18n.t('artists.emptyCopy')
-                            : i18n.t('library.tryAnotherSearch'),
-                    detail: true,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
 
         return Stack(
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 720;
+                final compact = constraints.maxWidth <= 720;
                 return _ArtistsPagePanel(
                   child: _ArtistsMasterDetail(
                     compact: compact,
@@ -481,11 +531,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             i18n: i18n,
                             songIds: selectedVisibleSongIds,
                           );
-                          setState(() {
-                            _hideAfterOperation(
-                              snapshot.hideMultiSelectCommandBarAfterOperation,
-                            );
-                          });
                         },
                 onToggleFavorite:
                     selectedVisibleSongIds.isEmpty
@@ -501,11 +546,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             ),
                             favorite: true,
                           );
-                          setState(() {
-                            _hideAfterOperation(
-                              snapshot.hideMultiSelectCommandBarAfterOperation,
-                            );
-                          });
                         },
                 onCreatePlaylist:
                     selectedVisibleSongIds.isEmpty
@@ -515,27 +555,17 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             context: context,
                             ref: ref,
                             i18n: i18n,
-                            playlists: snapshot.playlists,
-                            defaultName: getNextPlaylistName(
-                              selectedArtistForSelection?.name ??
-                                  i18n.t('common.artists'),
-                              snapshot.playlists,
-                            ),
+                            playlists: customLibraryPlaylists,
+                            defaultName:
+                                selectedArtistForSelection?.name ??
+                                i18n.t('common.artists'),
                             songIds: selectedVisibleSongIds,
                           );
-                          if (mounted) {
-                            setState(() {
-                              _hideAfterOperation(
-                                snapshot
-                                    .hideMultiSelectCommandBarAfterOperation,
-                              );
-                            });
-                          }
                         },
                 onPlay: () {
                   _playSongIds(selectedVisibleSongIds);
                   setState(() {
-                    _hideAfterOperation(
+                    _selection.hideAfterOperation(
                       snapshot.hideMultiSelectCommandBarAfterOperation,
                     );
                   });
@@ -548,11 +578,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     playlistId: playlistId,
                     songIds: selectedVisibleSongIds,
                   );
-                  setState(() {
-                    _hideAfterOperation(
-                      snapshot.hideMultiSelectCommandBarAfterOperation,
-                    );
-                  });
                 },
                 onSelectAll: () {
                   setState(() {
@@ -600,16 +625,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _openArtistDetail(String artistName) {
-    setState(() {
-      _selectedArtistName = artistName;
-      _selection.cancel();
-    });
-    if (MediaQuery.sizeOf(context).width < 720) {
-      context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
-    }
-    if (_artistDetailController.hasClients) {
-      _artistDetailController.jumpTo(0);
-    }
+    _openArtistDetailForArtistsPage(this, artistName);
   }
 
   void _submitArtistSearch() {
@@ -653,6 +669,10 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     }
   }
 
+  void _recordLoadingArtistSearch() {
+    _recordLoadingArtistSearchForArtistsPage(this);
+  }
+
   void _selectArtistSearchQuery(String query) {
     setState(() {
       _artistSearch = query;
@@ -682,97 +702,35 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _changeArtistSearchFocus(bool focused) {
-    setState(() {
-      _artistSearchFocused = focused;
-    });
+    _changeArtistSearchFocusForArtistsPage(this, focused);
   }
 
   void _removeArtistRecentSearch(int entryId) {
-    unawaited(
-      ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
-        _,
-      ) {
-        invalidateRecentSearchData(ref);
-      }),
-    );
+    _removeArtistRecentSearchForArtistsPage(this, entryId);
   }
 
   void _clearArtistRecentSearches() {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final entryIds =
-        snapshot.recentSearches
-            .where((entry) => entry.type == SearchHistoryType.artists)
-            .map((entry) => entry.id)
-            .toList();
-    unawaited(
-      ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
-        _,
-      ) {
-        invalidateRecentSearchData(ref);
-      }),
-    );
+    _clearArtistRecentSearchesForArtistsPage(this);
   }
 
   void _returnToArtistList() {
-    setState(() {
-      _selectedArtistName = '';
-      _selection.cancel();
-    });
-    context.go('/artists');
+    _returnToArtistListForArtistsPage(this);
   }
 
   void _jumpToArtistKey(Map<String, int> artistQuickJumpMap, String key) {
-    final targetIndex = artistQuickJumpMap[key];
-    if (targetIndex == null) {
-      return;
-    }
-
-    _artistListController.animateTo(
-      targetIndex * artistRowHeight,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-    );
+    _jumpToArtistKeyForArtistsPage(this, artistQuickJumpMap, key);
   }
 
   void _scrollToArtist(String artistName) {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final artistGroups = buildArtistGroups(snapshot.songs, i18n);
-    final artistIndex = artistGroups.indexWhere(
-      (artist) => artist.name == artistName,
-    );
-    if (artistIndex < 0 || !_artistListController.hasClients) {
-      return;
-    }
-
-    _artistListController.animateTo(
-      artistIndex * artistRowHeight,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-    );
+    _scrollToArtistForArtistsPage(this, artistName);
   }
 
   void _handleArtistListScroll() {
-    final nextScrollTop = _artistListController.offset;
-    if (nextScrollTop == _artistScrollTop) {
-      return;
-    }
-
-    setState(() {
-      _artistScrollTop = nextScrollTop;
-    });
+    _handleArtistListScrollForArtistsPage(this);
   }
 
   String _getActiveArtistQuickJumpKey(List<ArtistGroup> visibleArtists) {
-    if (visibleArtists.isEmpty) {
-      return '';
-    }
-
-    final activeIndex = min(
-      visibleArtists.length - 1,
-      max(0, (_artistScrollTop / artistRowHeight).floor()),
-    );
-    return getArtistQuickJumpBucket(visibleArtists[activeIndex].name);
+    return _getActiveArtistQuickJumpKeyForArtistsPage(this, visibleArtists);
   }
 
   void _toggleSongSelection(int songId) {
@@ -782,52 +740,19 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _playSongIds(List<int> songIds) {
-    if (songIds.isEmpty) {
-      return;
-    }
-
-    final songs = ref.read(libraryContentDataProvider).value?.songs ?? const [];
-    final songsById = {for (final song in songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
-          durationSeconds: firstSong.duration.toDouble(),
-          queueIndex: 0,
-        );
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    _playSongIdsForArtistsPage(this, songIds);
   }
 
   void _playTrackInQueue(int songId, List<int> queueSongIds) {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final song = songsById[songId]!;
-    final queueIndex = queueSongIds.indexOf(songId);
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
-    ref.invalidate(libraryContentDataProvider);
+    _playTrackInQueueForArtistsPage(this, songId, queueSongIds);
   }
 
   void _playNext(int songId) {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
-    final selectedQueueIndex =
-        ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
-    final insertIndex =
-        selectedQueueIndex != null && selectedQueueIndex < queueSongIds.length
-            ? selectedQueueIndex + 1
-            : queueSongIds.length;
-    queueSongIds.insert(insertIndex, songId);
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryContentDataProvider);
+    _playNextForArtistsPage(this, songId);
+  }
+
+  void _moveToMusicOrPlay(int songId) {
+    _moveToMusicOrPlayForArtistsPage(this, songId);
   }
 
   void _playShuffledSongIds(
@@ -835,18 +760,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     String? artistName,
     String? albumName,
   }) {
-    if (artistName != null) {
-      ref.read(libraryRepositoryProvider).recordArtistPlayed(artistName);
-    }
-    if (albumName != null) {
-      ref.read(libraryRepositoryProvider).recordAlbumPlayed(albumName);
-    }
-    final queueSongIds = songIds.toList()..shuffle(Random());
-    _playSongIds(queueSongIds);
-  }
-
-  void _hideAfterOperation(bool hideMultiSelectCommandBarAfterOperation) {
-    _selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
+    _playShuffledSongIdsForArtistsPage(
+      this,
+      songIds,
+      artistName: artistName,
+      albumName: albumName,
+    );
   }
 
   Future<void> _showGroupContextMenu({
@@ -855,136 +774,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     required String label,
     required List<LibrarySong> songs,
     bool showLocateArtist = false,
-  }) async {
-    final i18n = context.smPlayerI18n;
-    final preferenceType =
-        type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
-    final preferenceLevel = await ref
-        .read(libraryRepositoryProvider)
-        .getPreferenceLevel(preferenceType, label);
-    if (!mounted) {
-      return;
-    }
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songIds = songs.map((song) => song.id).toList();
-    final customPlaylists =
-        snapshot.playlists
-            .where((playlist) => !playlist.isBuiltIn)
-            .map(
-              (playlist) => MultiSelectCommandBarPlaylist(
-                id: playlist.id,
-                name: playlist.name,
-                songIds: playlist.songIds,
-              ),
-            )
-            .toList();
-    final notFavoriteIds =
-        songs.where((song) => !song.favorite).map((song) => song.id).toList();
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: songIds,
-      playlists: customPlaylists,
-      includeNowPlaying: true,
-      includeFavorites: notFavoriteIds.isNotEmpty,
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          songIds: songIds,
-        );
-      },
-      onToggleFavorite:
-          notFavoriteIds.isEmpty
-              ? null
-              : () {
-                setSongsFavoriteWithUndo(
-                  context: context,
-                  ref: ref,
-                  i18n: i18n,
-                  songIds: notFavoriteIds,
-                  favorite: true,
-                );
-              },
-      onCreatePlaylist: () async {
-        await createPlaylistWithSongs(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(label, snapshot.playlists),
-          songIds: songIds,
-        );
-      },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlistId: playlistId,
-          songIds: songIds,
-        );
-      },
-    );
-
-    showMenuFlyout(
-      context,
+  }) {
+    return _showGroupContextMenuForArtistsPage(
+      this,
       position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'shuffle',
-          text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
-          onPressed: () {
-            _playShuffledSongIds(
-              songIds,
-              artistName: type == _ArtistGroupMenuType.artist ? label : null,
-              albumName: type == _ArtistGroupMenuType.album ? label : null,
-            );
-          },
-        ),
-        if (addToItem != null) addToItem,
-        MenuFlyoutItem(
-          key: type == _ArtistGroupMenuType.artist ? 'multi-select' : 'select',
-          text:
-              type == _ArtistGroupMenuType.artist
-                  ? i18n.t('common.multiSelect')
-                  : i18n.t('context.select'),
-          icon:
-              type == _ArtistGroupMenuType.artist
-                  ? FluentIcons.multiselect_ltr_20_regular
-                  : FluentIcons.multiselect_ltr_20_regular,
-          onPressed: () {
-            setState(() {
-              if (type == _ArtistGroupMenuType.artist) {
-                _selection.enterMultiSelect();
-                _selection.clearSelection();
-              } else {
-                _selection.selectAll(songIds);
-              }
-            });
-          },
-        ),
-        _buildGroupPreferenceMenuItem(i18n, type, label, preferenceLevel),
-        if (type == _ArtistGroupMenuType.artist && showLocateArtist)
-          MenuFlyoutItem(
-            key: 'locate-artist',
-            text: i18n.t('artists.locateArtist'),
-            icon: FluentIcons.music_note_2_20_regular,
-            onPressed: () {
-              _scrollToArtist(label);
-            },
-          ),
-        if (type == _ArtistGroupMenuType.album)
-          MenuFlyoutItem(
-            key: 'see-album',
-            text: i18n.t('context.seeAlbum'),
-            useAlbumIcon: true,
-            onPressed: () {
-              context.go('/albums?album=${Uri.encodeQueryComponent(label)}');
-            },
-          ),
-      ],
+      type: type,
+      label: label,
+      songs: songs,
+      showLocateArtist: showLocateArtist,
     );
   }
 
@@ -994,27 +791,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     String label,
     String? preferenceLevel,
   ) {
-    final preferenceType =
-        type == _ArtistGroupMenuType.artist ? 'artist' : 'album';
-    return buildPreferenceMenuFlyoutItem(
-      i18n: i18n,
-      key: 'preference',
-      preferenceLevel: preferenceLevel,
-      onUndoPreference:
-          preferenceLevel == null
-              ? null
-              : () async {
-                await ref
-                    .read(libraryRepositoryProvider)
-                    .removePreferenceItem(preferenceType, label);
-                ref.invalidate(libraryContentDataProvider);
-              },
-      onSetPreference: (level) async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .addPreferenceItem(preferenceType, label, label, level);
-        ref.invalidate(libraryContentDataProvider);
-      },
+    return _buildGroupPreferenceMenuItemForArtistsPage(
+      this,
+      i18n,
+      type,
+      label,
+      preferenceLevel,
     );
   }
 
@@ -1023,129 +805,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     LibrarySong song,
     List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) async {
-    final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final mediaState = ref.read(mediaControlControllerProvider).state;
-    final currentTrackId = mediaState.track.id;
-    final preferenceLevel = await ref
-        .read(libraryRepositoryProvider)
-        .getPreferenceLevel('song', '${song.id}');
-    if (!mounted) {
-      return;
-    }
-    showMenuFlyout(
-      context,
-      position: position,
-      items: buildMusicMenuFlyoutItems(
-        i18n: i18n,
-        songId: song.id,
-        isFavorite: song.favorite,
-        isCurrentTrack: song.id == currentTrackId,
-        isPlaying: mediaState.isPlaying,
-        currentTrackId: currentTrackId,
-        songPath: song.path,
-        playlists: playlists,
-        preferenceLevel: preferenceLevel,
-        onUndoPreference:
-            preferenceLevel == null
-                ? null
-                : () async {
-                  await ref
-                      .read(libraryRepositoryProvider)
-                      .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryContentDataProvider);
-                },
-        onPlay: () {
-          _playSongIds(queueSongIds);
-        },
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
-        onPlayNext: () {
-          _playNext(song.id);
-        },
-        onAddToNowPlaying: () {
-          addSongsToNowPlayingWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            songIds: [song.id],
-          );
-        },
-        onCreatePlaylist: () async {
-          await createPlaylistWithSongs(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            playlists: snapshot.playlists,
-            defaultName: getNextPlaylistName(song.title, snapshot.playlists),
-            songIds: [song.id],
-          );
-        },
-        onAddToPlaylist: (playlistId) {
-          addSongsToPlaylistWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            playlistId: playlistId,
-            songIds: [song.id],
-          );
-        },
-        onRemove: () {},
-        onSelect: () {
-          setState(() {
-            _selection.enterMultiSelect();
-            if (!_selection.isSelected(song.id)) {
-              _selection.toggle(song.id);
-            }
-          });
-        },
-        onToggleFavorite: () {
-          setSongsFavoriteWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            songIds: [song.id],
-            favorite: true,
-          );
-        },
-        onSetPreference: (level) async {
-          await ref
-              .read(libraryRepositoryProvider)
-              .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryContentDataProvider);
-        },
-        onDelete: () {
-          requestDeleteSongFromDisk(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            song: song,
-          );
-        },
-        onSeeArtist: () {
-          final artists = getSongArtists(song);
-          final artist =
-              artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
-          context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
-        },
-        onSeeAlbum: () {
-          context.go(
-            '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
-          );
-        },
-        onSeeMusicInfo: () {
-          _openMusicDialog(song, SongDialogMode.properties);
-        },
-        onSeeLyrics: () {
-          _openMusicDialog(song, SongDialogMode.lyrics);
-        },
-        onSeeAlbumArt: () {
-          _openMusicDialog(song, SongDialogMode.albumArt);
-        },
-        onSeeLocal: () {
-          unawaited(revealItemInFolder(song.path));
-        },
-      ),
+  ) {
+    return _showSongContextMenuForArtistsPage(
+      this,
+      position,
+      song,
+      queueSongIds,
+      playlists,
     );
   }
 
@@ -1156,367 +822,21 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _showSongAddToMenu(BuildContext buttonContext, LibrarySong song) {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final i18n = context.smPlayerI18n;
-    final playlists =
-        snapshot.playlists
-            .where((playlist) => !playlist.isBuiltIn)
-            .map(
-              (playlist) => MultiSelectCommandBarPlaylist(
-                id: playlist.id,
-                name: playlist.name,
-                songIds: playlist.songIds,
-              ),
-            )
-            .toList();
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: [song.id],
-      playlists: playlists,
-      includeNowPlaying: true,
-      includeFavorites: !song.favorite,
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          songIds: [song.id],
-        );
-      },
-      onToggleFavorite:
-          song.favorite
-              ? null
-              : () {
-                setSongsFavoriteWithUndo(
-                  context: context,
-                  ref: ref,
-                  i18n: i18n,
-                  songIds: [song.id],
-                  favorite: true,
-                );
-              },
-      onCreatePlaylist: () async {
-        await createPlaylistWithSongs(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(song.title, snapshot.playlists),
-          songIds: [song.id],
-        );
-      },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
-          context: context,
-          ref: ref,
-          i18n: i18n,
-          playlistId: playlistId,
-          songIds: [song.id],
-        );
-      },
-    );
-    if (addToItem == null) {
-      return;
-    }
-    showMenuFlyout(buttonContext, items: addToItem.submenu);
+    _showSongAddToMenuForArtistsPage(this, buttonContext, song);
+  }
+
+  String _allArtistsTitle(
+    LibraryContentData snapshot,
+    List<ArtistGroup> artistGroups,
+    SmPlayerI18n i18n,
+  ) {
+    return snapshot.showCount
+        ? i18n.t('library.allArtistsWithCount', {'count': artistGroups.length})
+        : i18n.t('library.allArtists');
   }
 }
 
 enum _ArtistGroupMenuType { artist, album }
-
-class _CompactArtistsPage extends StatelessWidget {
-  const _CompactArtistsPage({
-    required this.artistSearch,
-    required this.selectedArtist,
-    required this.visibleArtists,
-    required this.artistQuickJumpMap,
-    required this.activeArtistQuickJumpKey,
-    required this.scrollController,
-    required this.multiSelect,
-    required this.selectedSongIds,
-    required this.i18n,
-    required this.showSearch,
-    required this.searchFocused,
-    required this.searchSuggestions,
-    required this.searchHistoryEntries,
-    required this.onSearchChanged,
-    required this.onSearchFocusChanged,
-    required this.onSearchSubmitted,
-    required this.onSelectSearchSuggestion,
-    required this.onRemoveRecentSearch,
-    required this.onClearRecentSearches,
-    required this.onOpenArtistDetail,
-    required this.onPlayArtist,
-    required this.onOpenArtistMenu,
-    required this.onOpenAlbumMenu,
-    required this.onJumpToArtistKey,
-    required this.onReturnToArtistList,
-    required this.onPlaySongs,
-    required this.selectedTrackId,
-    required this.isPlaying,
-    required this.onPlayTrack,
-    required this.onTogglePlayPause,
-    required this.onPlayNext,
-    required this.onToggleFavorite,
-    required this.onOpenSongAddToMenu,
-    required this.onToggleSongSelection,
-    required this.onOpenSongContextMenu,
-  });
-
-  final String artistSearch;
-  final ArtistGroup? selectedArtist;
-  final List<ArtistGroup> visibleArtists;
-  final Map<String, int> artistQuickJumpMap;
-  final String activeArtistQuickJumpKey;
-  final ScrollController scrollController;
-  final bool multiSelect;
-  final Set<int> selectedSongIds;
-  final SmPlayerI18n i18n;
-  final bool showSearch;
-  final bool searchFocused;
-  final List<String> searchSuggestions;
-  final List<SearchHistoryEntry> searchHistoryEntries;
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<bool> onSearchFocusChanged;
-  final VoidCallback onSearchSubmitted;
-  final ValueChanged<String> onSelectSearchSuggestion;
-  final ValueChanged<int> onRemoveRecentSearch;
-  final VoidCallback onClearRecentSearches;
-  final ValueChanged<String> onOpenArtistDetail;
-  final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
-  final void Function(Offset position, AlbumGroup album) onOpenAlbumMenu;
-  final void Function(Map<String, int> artistQuickJumpMap, String key)
-  onJumpToArtistKey;
-  final VoidCallback onReturnToArtistList;
-  final void Function(
-    List<int> songIds, {
-    String? artistName,
-    String? albumName,
-  })
-  onPlaySongs;
-  final int? selectedTrackId;
-  final bool isPlaying;
-  final void Function(int songId, List<int> queueSongIds) onPlayTrack;
-  final VoidCallback onTogglePlayPause;
-  final ValueChanged<int> onPlayNext;
-  final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext context, LibrarySong song)
-  onOpenSongAddToMenu;
-  final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
-
-  @override
-  Widget build(BuildContext context) {
-    if (selectedArtist != null) {
-      return _ArtistsDetail(
-        selectedArtist: selectedArtist,
-        scrollController: ScrollController(),
-        multiSelect: multiSelect,
-        selectedSongIds: selectedSongIds,
-        compact: true,
-        i18n: i18n,
-        onPlaySongs: onPlaySongs,
-        onOpenArtistMenu: (position, artist, {required showLocateArtist}) {
-          onOpenArtistMenu(position, artist);
-        },
-        onOpenAlbumMenu: (position, album) {
-          onOpenAlbumMenu(position, album);
-        },
-        selectedTrackId: selectedTrackId,
-        isPlaying: isPlaying,
-        onPlayTrack: onPlayTrack,
-        onTogglePlayPause: onTogglePlayPause,
-        onPlayNext: onPlayNext,
-        onToggleFavorite: onToggleFavorite,
-        onOpenSongAddToMenu: onOpenSongAddToMenu,
-        onToggleSongSelection: onToggleSongSelection,
-        onOpenSongContextMenu: onOpenSongContextMenu,
-        onReturnToArtistList: onReturnToArtistList,
-      );
-    }
-
-    return Column(
-      children: [
-        if (showSearch)
-          _ArtistsSearchBox(
-            artistSearch: artistSearch,
-            i18n: i18n,
-            searchFocused: searchFocused,
-            searchSuggestions: searchSuggestions,
-            searchHistoryEntries: searchHistoryEntries,
-            onChanged: onSearchChanged,
-            onFocusChanged: onSearchFocusChanged,
-            onSubmitted: onSearchSubmitted,
-            onSelectSearchSuggestion: onSelectSearchSuggestion,
-            onRemoveRecentSearch: onRemoveRecentSearch,
-            onClearRecentSearches: onClearRecentSearches,
-          ),
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemExtent: artistRowHeight,
-                  itemCount: visibleArtists.length,
-                  itemBuilder: (context, index) {
-                    final artist = visibleArtists[index];
-                    return _ArtistListItem(
-                      artist: artist,
-                      active: false,
-                      i18n: i18n,
-                      onPressed: () {
-                        onOpenArtistDetail(artist.name);
-                      },
-                      onPlay: () {
-                        onPlayArtist(artist);
-                      },
-                      onOpenContextMenu: (position) {
-                        onOpenArtistMenu(position, artist);
-                      },
-                    );
-                  },
-                ),
-              ),
-              _ArtistQuickJump(
-                activeKey: activeArtistQuickJumpKey,
-                enabledKeys: artistQuickJumpMap.keys.toSet(),
-                i18n: i18n,
-                onJump: (key) {
-                  onJumpToArtistKey(artistQuickJumpMap, key);
-                },
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ArtistsMaster extends StatelessWidget {
-  const _ArtistsMaster({
-    required this.artistSearch,
-    required this.visibleArtists,
-    required this.selectedArtistName,
-    required this.artistQuickJumpMap,
-    required this.activeArtistQuickJumpKey,
-    required this.scrollController,
-    required this.i18n,
-    required this.showSearch,
-    required this.searchFocused,
-    required this.searchSuggestions,
-    required this.searchHistoryEntries,
-    required this.onSearchChanged,
-    required this.onSearchFocusChanged,
-    required this.onSearchSubmitted,
-    required this.onSelectSearchSuggestion,
-    required this.onRemoveRecentSearch,
-    required this.onClearRecentSearches,
-    required this.onOpenArtistDetail,
-    required this.onPlayArtist,
-    required this.onOpenArtistMenu,
-    required this.onJumpToArtistKey,
-  });
-
-  final String artistSearch;
-  final List<ArtistGroup> visibleArtists;
-  final String selectedArtistName;
-  final Map<String, int> artistQuickJumpMap;
-  final String activeArtistQuickJumpKey;
-  final ScrollController scrollController;
-  final SmPlayerI18n i18n;
-  final bool showSearch;
-  final bool searchFocused;
-  final List<String> searchSuggestions;
-  final List<SearchHistoryEntry> searchHistoryEntries;
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<bool> onSearchFocusChanged;
-  final VoidCallback onSearchSubmitted;
-  final ValueChanged<String> onSelectSearchSuggestion;
-  final ValueChanged<int> onRemoveRecentSearch;
-  final VoidCallback onClearRecentSearches;
-  final ValueChanged<String> onOpenArtistDetail;
-  final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
-  final void Function(Map<String, int> artistQuickJumpMap, String key)
-  onJumpToArtistKey;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 300,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: _ArtistsColors.panelBorder)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    if (showSearch) ...[
-                      _ArtistsSearchBox(
-                        artistSearch: artistSearch,
-                        i18n: i18n,
-                        searchFocused: searchFocused,
-                        searchSuggestions: searchSuggestions,
-                        searchHistoryEntries: searchHistoryEntries,
-                        onChanged: onSearchChanged,
-                        onFocusChanged: onSearchFocusChanged,
-                        onSubmitted: onSearchSubmitted,
-                        onSelectSearchSuggestion: onSelectSearchSuggestion,
-                        onRemoveRecentSearch: onRemoveRecentSearch,
-                        onClearRecentSearches: onClearRecentSearches,
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemExtent: artistRowHeight,
-                        itemCount: visibleArtists.length,
-                        itemBuilder: (context, index) {
-                          final artist = visibleArtists[index];
-                          return _ArtistListItem(
-                            artist: artist,
-                            active: artist.name == selectedArtistName,
-                            i18n: i18n,
-                            onPressed: () {
-                              onOpenArtistDetail(artist.name);
-                            },
-                            onPlay: () {
-                              onPlayArtist(artist);
-                            },
-                            onOpenContextMenu: (position) {
-                              onOpenArtistMenu(position, artist);
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              _ArtistQuickJump(
-                activeKey: activeArtistQuickJumpKey,
-                enabledKeys: artistQuickJumpMap.keys.toSet(),
-                i18n: i18n,
-                onJump: (key) {
-                  onJumpToArtistKey(artistQuickJumpMap, key);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _ArtistsAppBarSearchActions extends StatelessWidget {
   const _ArtistsAppBarSearchActions({
@@ -1644,7 +964,7 @@ class _ArtistsAppBarSearchActions extends StatelessWidget {
   }
 }
 
-class _ArtistsSearchBox extends StatelessWidget {
+class _ArtistsSearchBox extends StatefulWidget {
   const _ArtistsSearchBox({
     required this.artistSearch,
     required this.i18n,
@@ -1672,246 +992,86 @@ class _ArtistsSearchBox extends StatelessWidget {
   final VoidCallback onClearRecentSearches;
 
   @override
-  Widget build(BuildContext context) {
-    final showSuggestions = searchFocused && searchSuggestions.isNotEmpty;
-    final showHistory =
-        searchFocused &&
-        artistSearch.trim().isEmpty &&
-        searchHistoryEntries.isNotEmpty;
-    return Column(
-      children: [
-        SizedBox(
-          height: 40,
-          child: PageSearchField(
-            value: artistSearch,
-            hintText: i18n.t('artists.searchArtistsPlaceholder'),
-            focused: searchFocused,
-            onChanged: onChanged,
-            onFocusChanged: onFocusChanged,
-            onSubmitted: onSubmitted,
-            onClear: () {
-              onChanged('');
-            },
-            searchTooltip: i18n.t('common.search'),
-            clearTooltip: i18n.t('common.clear'),
-          ),
-        ),
-        if (showSuggestions || showHistory)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child:
-                showSuggestions
-                    ? PageSearchSuggestionPanel(
-                      labels: searchSuggestions,
-                      onSelect: onSelectSearchSuggestion,
-                    )
-                    : PageSearchHistoryPanel(
-                      entries: searchHistoryEntries,
-                      i18n: i18n,
-                      onSelect: onSelectSearchSuggestion,
-                      onRemove: onRemoveRecentSearch,
-                      onClear: onClearRecentSearches,
-                    ),
-          ),
-      ],
-    );
-  }
+  State<_ArtistsSearchBox> createState() => _ArtistsSearchBoxState();
 }
 
-class _ArtistQuickJump extends StatelessWidget {
-  const _ArtistQuickJump({
-    required this.activeKey,
-    required this.enabledKeys,
-    required this.i18n,
-    required this.onJump,
-  });
+class _ArtistsSearchBoxState extends State<_ArtistsSearchBox> {
+  final _dropdownController = OverlayPortalController();
 
-  final String activeKey;
-  final Set<String> enabledKeys;
-  final SmPlayerI18n i18n;
-  final ValueChanged<String> onJump;
+  bool get _showSuggestions =>
+      widget.searchFocused && widget.searchSuggestions.isNotEmpty;
+
+  bool get _showHistory =>
+      widget.searchFocused &&
+      widget.artistSearch.trim().isEmpty &&
+      widget.searchHistoryEntries.isNotEmpty;
+
+  bool get _showDropdown => _showSuggestions || _showHistory;
+
+  @override
+  void didUpdateWidget(covariant _ArtistsSearchBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncDropdown();
+  }
+
+  void _syncDropdown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_showDropdown) {
+        _dropdownController.show();
+      } else {
+        _dropdownController.hide();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      child: Column(
-        children:
-            artistQuickJumpKeys.map((key) {
-              final enabled = enabledKeys.contains(key);
-              final active = activeKey == key;
-              return Expanded(
-                child: Tooltip(
-                  message: getQuickJumpTooltip(
-                    key: key,
-                    enabled: enabled,
-                    targetName: i18n.t('common.artists'),
-                    basisName: i18n.t('common.artist'),
-                    i18n: i18n,
+    _syncDropdown();
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _dropdownController,
+      overlayChildBuilder: (context, info) {
+        final origin = MatrixUtils.transformPoint(
+          info.childPaintTransform,
+          Offset.zero,
+        );
+        return Positioned(
+          left: origin.dx,
+          top: origin.dy + info.childSize.height + 8,
+          width: info.childSize.width,
+          child:
+              _showSuggestions
+                  ? PageSearchSuggestionPanel(
+                    labels: widget.searchSuggestions,
+                    onSelect: widget.onSelectSearchSuggestion,
+                  )
+                  : PageSearchHistoryPanel(
+                    entries: widget.searchHistoryEntries,
+                    i18n: widget.i18n,
+                    onSelect: widget.onSelectSearchSuggestion,
+                    onRemove: widget.onRemoveRecentSearch,
+                    onClear: widget.onClearRecentSearches,
                   ),
-                  child: TextButton(
-                    key: ValueKey('Artists.QuickJump.$key'),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      foregroundColor:
-                          enabled
-                              ? active
-                                  ? _ArtistsColors.accentStrong
-                                  : _ArtistsColors.textMuted
-                              : _ArtistsColors.disabled,
-                      backgroundColor:
-                          active
-                              ? _ArtistsColors.accentSoft
-                              : Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    onPressed:
-                        enabled
-                            ? () {
-                              onJump(key);
-                            }
-                            : null,
-                    child: Text(
-                      key,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-      ),
-    );
-  }
-}
-
-class _ArtistsPagePanel extends StatelessWidget {
-  const _ArtistsPagePanel({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: SizedBox.expand(child: child),
-    );
-  }
-}
-
-class _ArtistsEmptyState extends StatelessWidget {
-  const _ArtistsEmptyState({
-    required this.title,
-    required this.message,
-    this.detail = false,
-  });
-
-  final String title;
-  final String message;
-  final bool detail;
-
-  @override
-  Widget build(BuildContext context) {
-    if (detail) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _ArtistsColors.textStrong,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (message.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: _ArtistsColors.textMuted,
-                      fontSize: 14,
-                      height: 1.65,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _ArtistsColors.emptyStateSurface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _ArtistsColors.emptyStateBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: _ArtistsColors.textStrong,
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (message.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: _ArtistsColors.textMuted,
-                    fontSize: 14,
-                    height: 1.65,
-                  ),
-                ),
-              ),
-            ],
-          ],
+        );
+      },
+      child: SizedBox(
+        height: 40,
+        child: PageSearchField(
+          value: widget.artistSearch,
+          hintText: widget.i18n.t('artists.searchArtistsPlaceholder'),
+          focused: widget.searchFocused,
+          onChanged: widget.onChanged,
+          onFocusChanged: widget.onFocusChanged,
+          onSubmitted: widget.onSubmitted,
+          onClear: () {
+            widget.onChanged('');
+          },
+          searchTooltip: widget.i18n.t('common.search'),
+          clearTooltip: widget.i18n.t('common.clear'),
         ),
       ),
     );
   }
-}
-
-String _formatArtistSummary(SmPlayerI18n i18n, int albums, int songs) {
-  return i18n.t('artists.artistSummary', {'albums': albums, 'songs': songs});
-}
-
-class _ArtistsColors {
-  const _ArtistsColors._();
-
-  static const detailBackground = Color(0xfff8fbfe);
-  static const albumSection = Color(0xa3ffffff);
-  static const albumShadow = Color(0x14685870);
-  static const panelBorder = Color(0x2e7e8b9a);
-  static const accentStrong = Color(0xff0063b1);
-  static const accentSoft = Color(0x1a0078d7);
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff5b697a);
-  static const disabled = Color(0x3d5b697a);
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
-  static const emptyStateSurface = Color(0x94ffffff);
-  static const emptyStateBorder = Color(0x94ffffff);
 }

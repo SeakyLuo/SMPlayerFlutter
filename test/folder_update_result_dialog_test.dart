@@ -26,6 +26,7 @@ void main() {
           selectedTrackId: 1,
           isPlaying: false,
           onPlay: (_) {},
+          onOpenSongMenu: (_, _) {},
           onApplyArtistSplits: (_) {},
           onDismissArtistSplitSuggestions: () {},
           onClose: () {},
@@ -40,6 +41,120 @@ void main() {
     expect(find.text('New Song'), findsOneWidget);
     expect(find.byType(FolderUpdateResultDialog), findsOneWidget);
   });
+
+  testWidgets(
+    'FolderUpdateResultDialog current song uses shared playing wave',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(
+        _TestApp(
+          child: FolderUpdateResultDialog(
+            folder: createFolderNode('', '/Users/me/Music'),
+            result: _fileResult,
+            songs: _songs,
+            selectedTrackId: 1,
+            isPlaying: true,
+            onPlay: (_) {},
+            onOpenSongMenu: (_, _) {},
+            onApplyArtistSplits: (_) {},
+            onDismissArtistSplitSuggestions: () {},
+            onClose: () {},
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('FolderUpdateResult.Playing.1.Wave')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('FolderUpdateResult.Playing.1.Backdrop')),
+        findsOneWidget,
+      );
+
+      final firstHeight = _playingBarHeight(
+        tester,
+        'FolderUpdateResult.Playing.1',
+        0,
+      );
+      await tester.pump(const Duration(milliseconds: 390));
+
+      expect(
+        _playingBarHeight(tester, 'FolderUpdateResult.Playing.1', 0),
+        isNot(firstHeight),
+      );
+    },
+  );
+
+  testWidgets('FolderUpdateResultDialog constrains long file lists', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    final addedPaths = [
+      for (var index = 0; index < 24; index++)
+        '/Users/me/Music/Folder/Song $index.mp3',
+    ];
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: FolderUpdateResultDialog(
+          folder: createFolderNode('', '/Users/me/Music'),
+          result: LocalFolderRefreshResult(
+            filesAdded: addedPaths,
+            filesRemoved: const [],
+            filesMoved: const [],
+            artistSplitsApplied: const [],
+            artistSplitSuggestions: const [],
+            artistMergeSuggestions: const [],
+          ),
+          songs: [
+            for (var index = 0; index < addedPaths.length; index++)
+              LibrarySong(
+                id: index + 1,
+                path: addedPaths[index],
+                title: 'Song $index',
+                artist: 'Artist',
+                artists: const ['Artist'],
+                album: 'Album',
+                duration: 180,
+                playCount: 0,
+                lyricsOffsetMs: 0,
+                dateAdded: '2026-05-24',
+                favorite: false,
+                thumbnailPath: '',
+              ),
+          ],
+          selectedTrackId: 1,
+          isPlaying: false,
+          onPlay: (_) {},
+          onOpenSongMenu: (_, _) {},
+          onApplyArtistSplits: (_) {},
+          onDismissArtistSplitSuggestions: () {},
+          onClose: () {},
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.byType(ListView)).height, lessThan(700));
+    expect(find.text('Song 23'), findsNothing);
+  });
+}
+
+double _playingBarHeight(WidgetTester tester, String keyPrefix, int index) {
+  return tester.getSize(find.byKey(ValueKey('$keyPrefix.Bar.$index'))).height;
 }
 
 class _TestApp extends StatelessWidget {
