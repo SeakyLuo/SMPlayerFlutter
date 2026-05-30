@@ -62,20 +62,12 @@ Future<void> addSongsToNowPlayingWithUndo({
       target: i18n.t('common.nowPlaying'),
     ),
     onUndo: () async {
-      final currentSongIds =
-          ref
-              .read(libraryContentDataProvider)
-              .valueOrNull
-              ?.nowPlaying
-              .songIds ??
-          [...snapshot.nowPlaying.songIds, ...songIds];
+      final currentSnapshot =
+          await ref.read(libraryRepositoryProvider).getLibraryContentData();
+      final currentSongIds = currentSnapshot.nowPlaying.songIds;
       final nextSongIds =
-          currentSongIds.toList()..removeRange(
-            insertedIndex,
-            insertedIndex + songIds.length > currentSongIds.length
-                ? currentSongIds.length
-                : insertedIndex + songIds.length,
-          );
+          currentSongIds.toList()
+            ..removeRange(insertedIndex, insertedIndex + songIds.length);
       await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
       ref.invalidate(libraryContentDataProvider);
     },
@@ -453,7 +445,7 @@ Future<String?> requestPlaylistName({
     context: context,
     title: i18n.t('playlists.createNew'),
     initialValue: defaultName,
-    confirmLabel: i18n.t('playlists.create'),
+    confirmLabel: i18n.t('common.confirm'),
     placeholder: i18n.t('playlists.namePlaceholder'),
     validate: (name) => validatePlaylistName(name, playlists, '', i18n),
   );

@@ -1,8 +1,17 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show lerpDouble;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show
+        ScrollCacheExtent,
+        SliverConstraints,
+        SliverGridDelegate,
+        SliverGridLayout,
+        SliverGridRegularTileLayout,
+        axisDirectionIsReversed;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,7 +38,11 @@ import 'quick_jump_tooltip.dart';
 
 const _albumTileTrackWidth = 180.0;
 const _albumColumnGap = 30.0;
+const _albumQuickJumpWidth = 22.0;
+const _albumGridShellGap = 4.0;
 const _albumRowHeight = 250.0;
+const _albumCompactRowHeight = 234.0;
+const _albumOverscanRows = 2;
 
 class AlbumView extends AlbumTileData {
   const AlbumView({
@@ -61,11 +74,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   var _sortCriterion = AlbumSortCriterion.defaultSort;
   AlbumSortCriterion? _syncedAlbumsSort;
   var _reverseDisplayOrder = false;
+  var _processing = false;
   var _targetApplied = false;
   var _albumScrollTop = 0.0;
   String? _albumQuickJumpTargetKey;
-  int? _albumQuickJumpTargetRow;
+  var _albumQuickJumpJumping = false;
   AlbumView? _albumArtPreview;
+  Timer? _processingTimer;
   final _selection = PageSelectionController<String>.stored('albums');
   final _albumGridScrollController = ScrollController();
   final _appBarPortalOwner = Object();
@@ -90,6 +105,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   void dispose() {
     _clearAppBarPortalOwner();
+    _processingTimer?.cancel();
     _albumGridScrollController.removeListener(_handleAlbumGridScroll);
     _albumGridScrollController.dispose();
     super.dispose();
@@ -104,12 +120,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
+    required String title,
     required SmPlayerI18n i18n,
     required List<String> searchSuggestions,
     required List<SearchHistoryEntry> searchHistoryEntries,
   }) {
     final signature =
-        '$showPortal:$routePath:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_sortCriterion:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
+        '$showPortal:$routePath:$title:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_sortCriterion:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -129,6 +146,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        routeLocation: routePath,
+        title: title,
         content: _buildAlbumsAppBarActions(
           i18n,
           searchSuggestions: searchSuggestions,
@@ -171,7 +190,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         });
       },
       onSearchFocusChanged: _changeSearchFocus,
-      onSearchSubmitted: _submitSearch,
+      onSearchSubmitted: () {
+        _submitSearch(closeAppBar: true);
+      },
       onClearSearch: _clearSearch,
       onSelectSearchSuggestion: _selectSearchQuery,
       onRemoveRecentSearch: _removeRecentSearch,
@@ -195,7 +216,52 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     }
 
     return snapshotValue.when(
-      loading: () => const _AlbumsPagePanel(child: SmPlayerLoadingState()),
+      loading: () {
+        final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
+        _syncAppBarPortal(
+          showPortal: useWorkspaceAppBar,
+          routePath: '/albums',
+          title: i18n.t('library.allAlbums'),
+          i18n: i18n,
+          searchSuggestions: const [],
+          searchHistoryEntries: const [],
+        );
+        return _AlbumsPagePanel(
+          child: Column(
+            children: [
+              if (!useWorkspaceAppBar)
+                _AlbumsToolbar(
+                  searchDraft: _searchDraft,
+                  searchHasText:
+                      _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+                  sortCriterion: _sortCriterion,
+                  multiSelect: _selection.multiSelect,
+                  i18n: i18n,
+                  searchFocused: _searchFocused,
+                  searchSuggestions: const [],
+                  searchHistoryEntries: const [],
+                  onSearchChanged: (value) {
+                    setState(() {
+                      _searchDraft = value;
+                    });
+                  },
+                  onSearchFocusChanged: _changeSearchFocus,
+                  onSearchSubmitted: () {
+                    _submitSearch();
+                  },
+                  onClearSearch: _clearSearch,
+                  onSelectSearchSuggestion: _selectSearchQuery,
+                  onRemoveRecentSearch: _removeRecentSearch,
+                  onClearRecentSearches: _clearRecentSearches,
+                  onChangeAlbumSort: _changeAlbumSort,
+                  onToggleMultiSelect: _enterMultiSelect,
+                ),
+              const _AlbumsProgress(key: ValueKey('Albums.Progress')),
+              const Expanded(child: SmPlayerLoadingState(compact: true)),
+            ],
+          ),
+        );
+      },
       error:
           (_, _) => _AlbumsPagePanel(
             child: _AlbumsEmptyState(
@@ -260,8 +326,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 .toList();
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
         _syncAppBarPortal(
-          showPortal: useWorkspaceAppBar,
+          showPortal: widget.targetAlbumName == null,
           routePath: '/albums',
+          title: _allAlbumsTitle(snapshot, albums, i18n),
           i18n: i18n,
           searchSuggestions: albumSearchSuggestions,
           searchHistoryEntries: albumSearchHistoryEntries,
@@ -288,7 +355,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       });
                     },
                     onSearchFocusChanged: _changeSearchFocus,
-                    onSearchSubmitted: _submitSearch,
+                    onSearchSubmitted: () {
+                      _submitSearch();
+                    },
                     onClearSearch: _clearSearch,
                     onSelectSearchSuggestion: _selectSearchQuery,
                     onRemoveRecentSearch: _removeRecentSearch,
@@ -296,17 +365,22 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                     onChangeAlbumSort: _changeAlbumSort,
                     onToggleMultiSelect: _enterMultiSelect,
                   ),
+                if (_processing)
+                  const _AlbumsProgress(key: ValueKey('Albums.Progress')),
                 Expanded(
-                  child: _AlbumsEmptyState(
-                    title:
-                        _searchQuery.isEmpty
-                            ? i18n.t('collection.noAlbums')
-                            : i18n.t('albums.noMatch'),
-                    message:
-                        _searchQuery.isEmpty
-                            ? i18n.t('collection.scanFirst')
-                            : i18n.t('albums.noMatchCopy'),
-                  ),
+                  child:
+                      _processing
+                          ? const SmPlayerLoadingState(compact: true)
+                          : _AlbumsEmptyState(
+                            title:
+                                _searchQuery.isEmpty
+                                    ? i18n.t('collection.noAlbums')
+                                    : i18n.t('albums.noMatch'),
+                            message:
+                                _searchQuery.isEmpty
+                                    ? i18n.t('collection.scanFirst')
+                                    : i18n.t('albums.noMatchCopy'),
+                          ),
                 ),
               ],
             ),
@@ -323,16 +397,19 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 }
               });
             }
-            final columns =
-                compact
-                    ? 2
-                    : ((constraints.maxWidth - 58 + _albumColumnGap) /
-                            (_albumTileTrackWidth + _albumColumnGap))
-                        .floor()
-                        .clamp(1, 12);
+            final columns = ((constraints.maxWidth -
+                        _albumQuickJumpWidth -
+                        _albumGridShellGap +
+                        _albumColumnGap) /
+                    (_albumTileTrackWidth + _albumColumnGap))
+                .floor()
+                .clamp(1, 12);
+            final albumRowHeight =
+                compact ? _albumCompactRowHeight : _albumRowHeight;
             final activeAlbumQuickJumpKey = _getActiveAlbumQuickJumpKey(
               visibleAlbums,
               columns,
+              albumRowHeight,
             );
 
             return _AlbumsPagePanel(
@@ -358,7 +435,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                             });
                           },
                           onSearchFocusChanged: _changeSearchFocus,
-                          onSearchSubmitted: _submitSearch,
+                          onSearchSubmitted: () {
+                            _submitSearch();
+                          },
                           onClearSearch: _clearSearch,
                           onSelectSearchSuggestion: _selectSearchQuery,
                           onRemoveRecentSearch: _removeRecentSearch,
@@ -366,6 +445,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                           onChangeAlbumSort: _changeAlbumSort,
                           onToggleMultiSelect: _enterMultiSelect,
                         ),
+                      if (_processing)
+                        const _AlbumsProgress(key: ValueKey('Albums.Progress')),
                       Expanded(
                         child: Row(
                           children: [
@@ -378,30 +459,34 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                   albumQuickJumpMap,
                                   key,
                                   columns,
+                                  albumRowHeight,
                                 );
                               },
                             ),
+                            const SizedBox(width: _albumGridShellGap),
                             Expanded(
                               child: Scrollbar(
                                 controller: _albumGridScrollController,
                                 thumbVisibility: true,
                                 child: GridView.builder(
                                   controller: _albumGridScrollController,
+                                  scrollCacheExtent: ScrollCacheExtent.pixels(
+                                    albumRowHeight * _albumOverscanRows,
+                                  ),
                                   padding: EdgeInsets.fromLTRB(
-                                    18,
-                                    16,
-                                    18,
+                                    14,
+                                    8,
+                                    8,
                                     _selection.multiSelect
                                         ? multiSelectCommandBarScrollSpacer
                                         : 28,
                                   ),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: columns,
-                                        mainAxisExtent: _albumRowHeight,
-                                        crossAxisSpacing: _albumColumnGap,
-                                        mainAxisSpacing: 0,
-                                      ),
+                                  gridDelegate: _AlbumGridDelegate(
+                                    crossAxisCount: columns,
+                                    crossAxisExtent: _albumTileTrackWidth,
+                                    mainAxisExtent: albumRowHeight,
+                                    crossAxisSpacing: _albumColumnGap,
+                                  ),
                                   itemCount: visibleAlbums.length,
                                   itemBuilder: (context, index) {
                                     final album = visibleAlbums[index];
@@ -562,13 +647,16 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     );
   }
 
-  void _submitSearch() {
+  void _submitSearch({bool closeAppBar = false}) {
     final query = _searchDraft.trim();
+    _showProcessing();
     setState(() {
       _searchDraft = query;
       _searchQuery = _searchDraft;
       _searchFocused = false;
-      _appBarSearchOpen = false;
+      if (closeAppBar) {
+        _appBarSearchOpen = false;
+      }
     });
     if (query.isNotEmpty) {
       unawaited(
@@ -631,10 +719,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   void _clearRecentSearches() {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final entryIds =
-        snapshot.recentSearches
-            .where((entry) => entry.type == SearchHistoryType.albums)
-            .map((entry) => entry.id)
-            .toList();
+        latestSearchHistoryEntries(
+          snapshot.recentSearches,
+          SearchHistoryType.albums,
+        ).map((entry) => entry.id).toList();
     unawaited(
       ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
         _,
@@ -645,6 +733,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 
   void _changeAlbumSort(AlbumSortCriterion criterion) {
+    _showProcessing();
     setState(() {
       if (criterion == AlbumSortCriterion.reverse) {
         _reverseDisplayOrder = !_reverseDisplayOrder;
@@ -746,6 +835,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           text: i18n.t('nowPlaying.randomPlay'),
           icon: FluentIcons.arrow_shuffle_20_regular,
           onPressed: () {
+            ref.read(libraryRepositoryProvider).recordAlbumPlayed(album.name);
             _playSongIds(album.songIds, shuffle: true);
           },
         ),
@@ -767,8 +857,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           text: i18n.t('context.seeAlbumArt'),
           icon: FluentIcons.image_20_regular,
           onPressed: () {
-            setState(() {
-              _albumArtPreview = album;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _albumArtPreview = album;
+              });
             });
           },
         ),
@@ -998,6 +1093,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     Map<String, int> albumQuickJumpMap,
     String key,
     int columns,
+    double albumRowHeight,
   ) {
     final targetIndex = albumQuickJumpMap[key];
     if (targetIndex == null) {
@@ -1007,13 +1103,16 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
     setState(() {
       _albumQuickJumpTargetKey = key;
-      _albumQuickJumpTargetRow = targetRow;
+      _albumQuickJumpJumping = true;
     });
-    _albumGridScrollController.animateTo(
-      targetRow * _albumRowHeight,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-    );
+    _albumGridScrollController.jumpTo(targetRow * albumRowHeight);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _albumQuickJumpJumping = false;
+        });
+      }
+    });
   }
 
   void _scrollAlbumsToTop() {
@@ -1024,7 +1123,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     setState(() {
       _albumScrollTop = 0;
       _albumQuickJumpTargetKey = null;
-      _albumQuickJumpTargetRow = null;
+      _albumQuickJumpJumping = false;
     });
     _albumGridScrollController.jumpTo(0);
   }
@@ -1037,29 +1136,91 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
     setState(() {
       _albumScrollTop = nextScrollTop;
+      if (!_albumQuickJumpJumping) {
+        _albumQuickJumpTargetKey = null;
+      }
     });
   }
 
   String _getActiveAlbumQuickJumpKey(
     List<AlbumView> visibleAlbums,
     int columns,
+    double albumRowHeight,
   ) {
     if (visibleAlbums.isEmpty) {
       return '';
     }
 
-    final topRow = max(0, (_albumScrollTop / _albumRowHeight).floor());
-    if (_albumQuickJumpTargetRow == topRow &&
-        _albumQuickJumpTargetKey != null) {
+    final topRow = max(0, (_albumScrollTop / albumRowHeight).floor());
+    if (_albumQuickJumpTargetKey != null) {
       return _albumQuickJumpTargetKey!;
     }
 
     final activeIndex = min(visibleAlbums.length - 1, topRow * columns);
     return getArtistQuickJumpBucket(visibleAlbums[activeIndex].name);
   }
+
+  void _showProcessing() {
+    _processingTimer?.cancel();
+    setState(() {
+      _processing = true;
+    });
+    _processingTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _processing = false;
+      });
+    });
+  }
+
+  String _allAlbumsTitle(
+    LibraryContentData snapshot,
+    List<AlbumView> albums,
+    SmPlayerI18n i18n,
+  ) {
+    return snapshot.showCount
+        ? i18n.t('library.allAlbumsWithCount', {'count': albums.length})
+        : i18n.t('library.allAlbums');
+  }
 }
 
-class _AlbumsToolbar extends StatelessWidget {
+class _AlbumGridDelegate extends SliverGridDelegate {
+  const _AlbumGridDelegate({
+    required this.crossAxisCount,
+    required this.crossAxisExtent,
+    required this.mainAxisExtent,
+    required this.crossAxisSpacing,
+  });
+
+  final int crossAxisCount;
+  final double crossAxisExtent;
+  final double mainAxisExtent;
+  final double crossAxisSpacing;
+
+  @override
+  SliverGridLayout getLayout(SliverConstraints constraints) {
+    return SliverGridRegularTileLayout(
+      crossAxisCount: crossAxisCount,
+      mainAxisStride: mainAxisExtent,
+      crossAxisStride: crossAxisExtent + crossAxisSpacing,
+      childMainAxisExtent: mainAxisExtent,
+      childCrossAxisExtent: crossAxisExtent,
+      reverseCrossAxis: axisDirectionIsReversed(constraints.crossAxisDirection),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_AlbumGridDelegate oldDelegate) {
+    return oldDelegate.crossAxisCount != crossAxisCount ||
+        oldDelegate.crossAxisExtent != crossAxisExtent ||
+        oldDelegate.mainAxisExtent != mainAxisExtent ||
+        oldDelegate.crossAxisSpacing != crossAxisSpacing;
+  }
+}
+
+class _AlbumsToolbar extends StatefulWidget {
   const _AlbumsToolbar({
     required this.searchDraft,
     required this.searchHasText,
@@ -1099,85 +1260,116 @@ class _AlbumsToolbar extends StatelessWidget {
   final VoidCallback onToggleMultiSelect;
 
   @override
+  State<_AlbumsToolbar> createState() => _AlbumsToolbarState();
+}
+
+class _AlbumsToolbarState extends State<_AlbumsToolbar> {
+  final _dropdownController = OverlayPortalController();
+
+  bool get _showSuggestions =>
+      widget.searchFocused && widget.searchSuggestions.isNotEmpty;
+
+  bool get _showHistory =>
+      widget.searchFocused &&
+      widget.searchDraft.trim().isEmpty &&
+      widget.searchHistoryEntries.isNotEmpty;
+
+  bool get _showDropdown => _showSuggestions || _showHistory;
+
+  @override
+  void didUpdateWidget(covariant _AlbumsToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncDropdown();
+  }
+
+  void _syncDropdown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_showDropdown) {
+        _dropdownController.show();
+      } else {
+        _dropdownController.hide();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final showSuggestions = searchFocused && searchSuggestions.isNotEmpty;
-    final showHistory =
-        searchFocused &&
-        searchDraft.trim().isEmpty &&
-        searchHistoryEntries.isNotEmpty;
+    _syncDropdown();
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 10, 0, 12),
-      child: Column(
-        children: [
-          CommandBar(
-            overflowLabel: i18n.t('player.more'),
-            content: SizedBox(
-              height: 40,
-              child: PageSearchField(
-                value: searchDraft,
-                hintText: i18n.t('albums.searchAlbumPlaceholder'),
-                focused: searchFocused,
-                onChanged: onSearchChanged,
-                onFocusChanged: onSearchFocusChanged,
-                onSubmitted: onSearchSubmitted,
-                onClear: onClearSearch,
-                searchTooltip: i18n.t('common.search'),
-                clearTooltip: i18n.t('common.clear'),
-              ),
+      child: CommandBar(
+        overflowLabel: widget.i18n.t('player.more'),
+        content: OverlayPortal.overlayChildLayoutBuilder(
+          controller: _dropdownController,
+          overlayChildBuilder: (context, info) {
+            final origin = MatrixUtils.transformPoint(
+              info.childPaintTransform,
+              Offset.zero,
+            );
+            return Positioned(
+              left: origin.dx,
+              top: origin.dy + info.childSize.height + 8,
+              width: info.childSize.width,
+              child:
+                  _showSuggestions
+                      ? PageSearchSuggestionPanel(
+                        labels: widget.searchSuggestions,
+                        onSelect: widget.onSelectSearchSuggestion,
+                      )
+                      : PageSearchHistoryPanel(
+                        entries: widget.searchHistoryEntries,
+                        i18n: widget.i18n,
+                        onSelect: widget.onSelectSearchSuggestion,
+                        onRemove: widget.onRemoveRecentSearch,
+                        onClear: widget.onClearRecentSearches,
+                      ),
+            );
+          },
+          child: SizedBox(
+            width: 360,
+            height: 40,
+            child: PageSearchField(
+              value: widget.searchDraft,
+              hintText: widget.i18n.t('albums.searchAlbumPlaceholder'),
+              focused: widget.searchFocused,
+              onChanged: widget.onSearchChanged,
+              onFocusChanged: widget.onSearchFocusChanged,
+              onSubmitted: widget.onSearchSubmitted,
+              onClear: widget.onClearSearch,
+              searchTooltip: widget.i18n.t('common.search'),
+              clearTooltip: widget.i18n.t('common.clear'),
             ),
-            children: [
-              CommandBarButton(
-                icon: FluentIcons.multiselect_ltr_24_regular,
-                label: i18n.t('common.multiSelect'),
-                active: multiSelect,
-                onPressed: onToggleMultiSelect,
-              ),
-              Builder(
-                builder: (context) {
-                  final sortItems = _albumSortMenuItems(
-                    i18n,
-                    sortCriterion,
-                    onChangeAlbumSort,
-                  );
-                  return CommandBarButton(
-                    icon: FluentIcons.arrow_sort_24_regular,
-                    label: _albumSortLabel(i18n, sortCriterion),
-                    onPressed: () {
-                      showMenuFlyout(context, items: sortItems);
-                    },
-                    onOverflowPressedWithContext: (buttonContext) {
-                      unawaited(
-                        showMenuFlyout(buttonContext, items: sortItems),
-                      );
-                    },
-                  );
-                },
-              ),
-            ],
           ),
-          if (showSuggestions || showHistory)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: SizedBox(
-                  width: 420,
-                  child:
-                      showSuggestions
-                          ? PageSearchSuggestionPanel(
-                            labels: searchSuggestions,
-                            onSelect: onSelectSearchSuggestion,
-                          )
-                          : PageSearchHistoryPanel(
-                            entries: searchHistoryEntries,
-                            i18n: i18n,
-                            onSelect: onSelectSearchSuggestion,
-                            onRemove: onRemoveRecentSearch,
-                            onClear: onClearRecentSearches,
-                          ),
-                ),
-              ),
-            ),
+        ),
+        children: [
+          CommandBarButton(
+            icon: FluentIcons.multiselect_ltr_24_regular,
+            label: widget.i18n.t('common.multiSelect'),
+            active: widget.multiSelect,
+            onPressed: widget.onToggleMultiSelect,
+          ),
+          Builder(
+            builder: (context) {
+              final sortItems = _albumSortMenuItems(
+                widget.i18n,
+                widget.sortCriterion,
+                widget.onChangeAlbumSort,
+              );
+              return CommandBarButton(
+                icon: FluentIcons.arrow_sort_24_regular,
+                label: _albumSortLabel(widget.i18n, widget.sortCriterion),
+                onPressed: () {
+                  showMenuFlyout(context, items: sortItems);
+                },
+                onOverflowPressedWithContext: (buttonContext) {
+                  unawaited(showMenuFlyout(buttonContext, items: sortItems));
+                },
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1364,9 +1556,10 @@ class _AlbumsQuickJump extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
     return Container(
-      width: 58,
-      padding: const EdgeInsets.fromLTRB(10, 28, 16, 16),
+      width: _albumQuickJumpWidth,
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 18),
       child: Column(
         children:
             artistQuickJumpKeys.map((key) {
@@ -1385,18 +1578,25 @@ class _AlbumsQuickJump extends StatelessWidget {
                     key: ValueKey('Albums.QuickJump.$key'),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
+                      minimumSize: const Size(20, 0),
                       foregroundColor:
                           enabled
                               ? active
-                                  ? _AlbumsColors.accentStrong
-                                  : _AlbumsColors.textMuted
-                              : _AlbumsColors.disabled,
+                                  ? _AlbumsColors.quickJumpActiveForeground(
+                                    brightness,
+                                  )
+                                  : _AlbumsColors.quickJumpForeground(
+                                    brightness,
+                                  )
+                              : _AlbumsColors.quickJumpDisabled(brightness),
                       backgroundColor:
                           active
-                              ? _AlbumsColors.accentSoft
+                              ? _AlbumsColors.quickJumpActiveBackground(
+                                brightness,
+                              )
                               : Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                     ),
                     onPressed:
@@ -1421,6 +1621,66 @@ class _AlbumsQuickJump extends StatelessWidget {
   }
 }
 
+class _AlbumsProgress extends StatefulWidget {
+  const _AlbumsProgress({super.key});
+
+  @override
+  State<_AlbumsProgress> createState() => _AlbumsProgressState();
+}
+
+class _AlbumsProgressState extends State<_AlbumsProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Transform.translate(
+        offset: const Offset(0, -6),
+        child: Container(
+          height: 3,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: _AlbumsColors.accentProgressTrackFor(brightness),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final offset = lerpDouble(-1.2, 3.4, _controller.value)!;
+              return FractionalTranslation(
+                translation: Offset(offset, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(widthFactor: 0.34, child: child),
+                ),
+              );
+            },
+            child: ColoredBox(color: _AlbumsColors.accentFor(brightness)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AlbumsPagePanel extends StatelessWidget {
   const _AlbumsPagePanel({required this.child});
 
@@ -1429,7 +1689,7 @@ class _AlbumsPagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
       child: SizedBox.expand(child: child),
     );
   }
@@ -1443,11 +1703,14 @@ class _AlbumsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _AlbumsColors.emptyStateSurface,
+        color: _AlbumsColors.emptyStateSurfaceFor(brightness),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _AlbumsColors.emptyStateBorder),
+        border: Border.all(
+          color: _AlbumsColors.emptyStateBorderFor(brightness),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -1457,8 +1720,8 @@ class _AlbumsEmptyState extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: _AlbumsColors.textStrong,
+              style: TextStyle(
+                color: _AlbumsColors.textStrongFor(brightness),
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
@@ -1468,8 +1731,8 @@ class _AlbumsEmptyState extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 760),
               child: Text(
                 message,
-                style: const TextStyle(
-                  color: _AlbumsColors.textMuted,
+                style: TextStyle(
+                  color: _AlbumsColors.textMutedFor(brightness),
                   fontSize: 14,
                   height: 1.65,
                 ),
@@ -1495,51 +1758,103 @@ class _AlbumArtPreviewDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final viewport = MediaQuery.sizeOf(context);
+    final dialogWidth = min(420.0, viewport.width * 0.86);
+    final artworkSize = min(320.0, viewport.width * 0.70);
     return Positioned.fill(
       child: Material(
-        color: Colors.black.withValues(alpha: 0.32),
-        child: Center(
-          child: Container(
-            width: 320,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 16),
-                ),
-              ],
+        color: _AlbumsColors.previewBackdropFor(brightness),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                key: const ValueKey('Albums.ArtPreview.Backdrop'),
+                behavior: HitTestBehavior.opaque,
+                onTap: onClose,
+                child: const SizedBox.expand(),
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    tooltip: i18n.t('common.close'),
-                    icon: const Icon(FluentIcons.dismiss_20_regular),
-                    onPressed: onClose,
+            Center(
+              child: GestureDetector(
+                key: const ValueKey('Albums.ArtPreview.Dialog'),
+                onTap: () {},
+                child: Container(
+                  width: dialogWidth,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: _AlbumsColors.previewDialogSurfaceFor(brightness),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: _AlbumsColors.previewDialogBorderFor(brightness),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _AlbumsColors.previewDialogShadowFor(brightness),
+                        blurRadius: brightness == Brightness.dark ? 72 : 44,
+                        offset: const Offset(0, 18),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: -12,
+                        right: -12,
+                        child: IconButton(
+                          tooltip: i18n.t('common.close'),
+                          style: IconButton.styleFrom(
+                            fixedSize: const Size.square(32),
+                            minimumSize: const Size.square(32),
+                            padding: EdgeInsets.zero,
+                            backgroundColor:
+                                _AlbumsColors.previewCloseSurfaceFor(
+                                  brightness,
+                                ),
+                            foregroundColor: _AlbumsColors.textMutedFor(
+                              brightness,
+                            ),
+                            hoverColor: _AlbumsColors.surfaceControlHoverFor(
+                              brightness,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(FluentIcons.dismiss_20_regular),
+                          iconSize: 16,
+                          onPressed: onClose,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Center(
+                            child: AlbumArtControl(
+                              album: album,
+                              dimension: artworkSize,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            album.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: _AlbumsColors.textStrongFor(brightness),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                AlbumArtControl(album: album),
-                const SizedBox(height: 14),
-                Text(
-                  album.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xff111827),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -1723,10 +2038,94 @@ List<MenuFlyoutItem> _albumSortMenuItems(
 class _AlbumsColors {
   const _AlbumsColors._();
 
+  static Color accentFor(Brightness brightness) {
+    return brightness == Brightness.dark ? accent : accentStrong;
+  }
+
+  static Color accentProgressTrackFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x1f0078d7)
+        : accentProgressTrack;
+  }
+
+  static Color textStrongFor(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0xf0f6f9fc) : textStrong;
+  }
+
+  static Color textMutedFor(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0xadcbd5e1) : textMuted;
+  }
+
+  static Color emptyStateSurfaceFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x0bffffff)
+        : emptyStateSurface;
+  }
+
+  static Color emptyStateBorderFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x1fdee0ec)
+        : emptyStateBorder;
+  }
+
+  static Color quickJumpForeground(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0xadcbd5e1) : textMuted;
+  }
+
+  static Color quickJumpActiveBackground(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0x2e0078d7) : accentSoft;
+  }
+
+  static Color quickJumpActiveForeground(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0xff459de2)
+        : accentStrong;
+  }
+
+  static Color quickJumpDisabled(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0x40dee7f2) : disabled;
+  }
+
+  static Color previewBackdropFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x9e04080d)
+        : const Color(0x61101824);
+  }
+
+  static Color previewDialogSurfaceFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0xfa161c24)
+        : const Color(0xfafafcff);
+  }
+
+  static Color previewDialogBorderFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x1fdee0ec)
+        : const Color(0xadffffff);
+  }
+
+  static Color previewDialogShadowFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x7a000000)
+        : const Color(0x2435495f);
+  }
+
+  static Color previewCloseSurfaceFor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x0effffff)
+        : const Color(0x94ffffff);
+  }
+
+  static Color surfaceControlHoverFor(Brightness brightness) {
+    return brightness == Brightness.dark ? const Color(0x290078d7) : accentSoft;
+  }
+
+  static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff5b697a);
+  static const accentProgressTrack = Color(0x1f0063b1);
+  static const textStrong = Color(0xff1f252b);
+  static const textMuted = Color(0xff5f625f);
   static const disabled = Color(0x3d5b697a);
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);

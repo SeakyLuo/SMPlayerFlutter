@@ -1844,6 +1844,7 @@ void main() {
       expect(snapshot.lastMusicIndex, 7);
       expect(snapshot.volume, 35);
       expect(snapshot.mode, PlaybackMode.repeat);
+      expect(snapshot.previousButtonRestartsTrack, isTrue);
       expect(snapshot.lastPage, '/local');
       expect(snapshot.lastPlaylistId, 7);
 
@@ -1853,6 +1854,7 @@ void main() {
           showNotifications: false,
           showLyricsInNotification: false,
           desktopLyricsEnabled: true,
+          previousButtonRestartsTrack: false,
           saveMusicProgress: false,
         ),
       );
@@ -1878,6 +1880,7 @@ void main() {
         expect(row['NotificationSend'], 0);
         expect(row['ShowLyricsInNotification'], 0);
         expect(row['DesktopLyricsEnabled'], 1);
+        expect(row['PreviousButtonRestartsTrack'], 0);
         expect(row['SaveMusicProgress'], 0);
         expect(row['MusicProgress'], 0);
         expect(row['LastMusicIndex'], 3);

@@ -1,14 +1,18 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
+import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart';
+import 'artwork_floating_action_button.dart';
 import 'local_folder_card.dart';
 import 'local_folder_model.dart';
 import 'local_page_model.dart';
 import 'local_page_quick_jump.dart';
 import 'music_library_page.dart';
+import 'song_artwork.dart';
 
 class LocalGridContent extends StatelessWidget {
   const LocalGridContent({
@@ -760,7 +764,7 @@ class _DraggableLocalSong extends StatelessWidget {
   }
 }
 
-class _LocalSongGridItem extends StatelessWidget {
+class _LocalSongGridItem extends StatefulWidget {
   const _LocalSongGridItem({
     required this.song,
     required this.selected,
@@ -790,117 +794,166 @@ class _LocalSongGridItem extends StatelessWidget {
   final ValueChanged<Offset> onOpenMenu;
 
   @override
+  State<_LocalSongGridItem> createState() => _LocalSongGridItemState();
+}
+
+class _LocalSongGridItemState extends State<_LocalSongGridItem> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onSecondaryTapDown: (details) => onOpenMenu(details.globalPosition),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: multiSelect ? onToggleSelection : onPlay,
-        child: Container(
-          width: 180,
-          constraints: const BoxConstraints(minHeight: 232),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color:
-                selected || current
-                    ? LocalPageColors.surfaceCardHover
-                    : LocalPageColors.surfaceCard,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow:
-                selected || current
-                    ? const [
-                      BoxShadow(
-                        color: LocalPageColors.panelShadow,
-                        offset: Offset(0, 16),
-                        blurRadius: 34,
-                      ),
-                    ]
-                    : const [],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  LibraryRowArtwork(song: song, size: 160, onPlay: onPlay),
-                  if (multiSelect)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _LocalCheckMark(selected: selected),
-                    ),
-                  if (!multiSelect)
-                    Positioned.fill(
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _RoundSongAction(
-                              tooltip: i18n.t('local.gridMusicPlayInfo', {
-                                'name': song.title,
-                              }),
-                              icon:
-                                  playing
-                                      ? FluentIcons.pause_20_regular
-                                      : FluentIcons.play_20_regular,
-                              onPressed: current ? onTogglePlayPause : onPlay,
-                            ),
-                            const SizedBox(width: 10),
-                            _RoundSongAction(
-                              tooltip: i18n.t('context.addToPlaylist'),
-                              icon: FluentIcons.add_20_regular,
-                              onPressedAt: onAddSong,
-                            ),
-                          ],
+    final colors = _LocalGridSongCardColors.of(context);
+    final active = widget.selected || _hovered;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: GestureDetector(
+        onSecondaryTapDown:
+            (details) => widget.onOpenMenu(details.globalPosition),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          splashFactory: NoSplash.splashFactory,
+          onTap: widget.multiSelect ? widget.onToggleSelection : widget.onPlay,
+          child: Container(
+            width: 180,
+            constraints: const BoxConstraints(minHeight: 232),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: active ? colors.hoverSurface : LocalPageColors.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow:
+                  active
+                      ? [
+                        BoxShadow(
+                          color: colors.shadow,
+                          offset: const Offset(0, 12),
+                          blurRadius: 26,
+                        ),
+                        BoxShadow(color: colors.inset, spreadRadius: 1),
+                      ]
+                      : const [],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox.square(
+                        dimension: 160,
+                        child: SongArtwork(
+                          artworkPath: widget.song.thumbnailPath,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color:
-                            current
-                                ? LocalPageColors.accentStrong
-                                : LocalPageColors.textStrong,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
+                    if (widget.multiSelect)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: _LocalCheckMark(selected: widget.selected),
+                      ),
+                    if (widget.current && !_hovered)
+                      Positioned.fill(
+                        child: SmPlayerPlayingWaveGlass(
+                          playing: widget.playing,
+                          keyPrefix: 'LocalGridSong.Playing.${widget.song.id}',
+                        ),
+                      ),
+                    if (!widget.multiSelect && active)
+                      Positioned.fill(
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _RoundSongAction(
+                                tooltip:
+                                    widget.current && widget.playing
+                                        ? widget.i18n.t('context.pause')
+                                        : widget.i18n.t('context.play'),
+                                icon:
+                                    widget.current && widget.playing
+                                        ? const SmPlayerPauseIcon(
+                                          size: 20,
+                                          color: Colors.white,
+                                        )
+                                        : const SmPlayerPlayIcon(
+                                          size: 20,
+                                          color: Colors.white,
+                                        ),
+                                onPressed:
+                                    widget.current
+                                        ? widget.onTogglePlayPause
+                                        : widget.onPlay,
+                              ),
+                              const SizedBox(width: 10),
+                              _RoundSongAction(
+                                tooltip: widget.i18n.t('context.addToPlaylist'),
+                                icon: const Icon(FluentIcons.add_20_regular),
+                                onPressedAt: widget.onAddSong,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color:
+                              widget.current
+                                  ? LocalPageColors.accentStrong
+                                  : LocalPageColors.textStrong,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
                       ),
                     ),
-                  ),
-                  if (song.favorite)
-                    const Icon(
-                      FluentIcons.heart_16_filled,
-                      color: LocalPageColors.favorite,
-                      size: 16,
-                    ),
-                ],
-              ),
-              if (detailLabel != null) ...[
-                const SizedBox(height: 3),
-                Text(
-                  detailLabel!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color:
-                        current
-                            ? LocalPageColors.accentStrong
-                            : LocalPageColors.textMuted,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
+                    if (widget.song.favorite)
+                      const Icon(
+                        FluentIcons.heart_16_filled,
+                        color: LocalPageColors.favorite,
+                        size: 16,
+                      ),
+                  ],
                 ),
+                if (widget.detailLabel != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.detailLabel!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color:
+                          widget.current
+                              ? LocalPageColors.accentStrong
+                              : LocalPageColors.textMuted,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -961,7 +1014,14 @@ class _CompactLocalSongRow extends StatelessWidget {
                     width: 46,
                     child: _LocalCheckMark(selected: selected),
                   )
-                  : LibraryRowArtwork(song: song, size: 46, onPlay: onPlay),
+                  : LibraryRowArtwork(
+                    song: song,
+                    size: 46,
+                    current: current,
+                    playing: playing,
+                    onPlay: onPlay,
+                    onTogglePlayPause: onTogglePlayPause,
+                  ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -1015,7 +1075,7 @@ class _CompactLocalSongRow extends StatelessWidget {
               ),
               IconButton(
                 tooltip: i18n.t('context.playNext'),
-                icon: const Icon(FluentIcons.next_20_regular, size: 18),
+                icon: const SmPlayerPlayNextIcon(size: 18),
                 onPressed: onPlayNext,
               ),
               IconButton(
@@ -1053,27 +1113,47 @@ class _RoundSongAction extends StatelessWidget {
   });
 
   final String tooltip;
-  final IconData icon;
+  final Widget icon;
   final VoidCallback? onPressed;
   final ValueChanged<Offset>? onPressedAt;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        style: IconButton.styleFrom(
-          fixedSize: const Size(48, 48),
-          backgroundColor: const Color(0xb81e2228),
-          foregroundColor: Colors.white,
-        ),
-        onPressed:
-            onPressedAt == null
-                ? onPressed
-                : () => _invokeAtButtonBottom(context, onPressedAt!),
-        icon: Icon(icon, size: 20),
-      ),
+    return ArtworkFloatingActionButton(
+      tooltip: tooltip,
+      icon: icon,
+      onPressed:
+          onPressedAt == null
+              ? onPressed
+              : () => _invokeAtButtonBottom(context, onPressedAt!),
     );
+  }
+}
+
+class _LocalGridSongCardColors {
+  const _LocalGridSongCardColors({
+    required this.hoverSurface,
+    required this.shadow,
+    required this.inset,
+  });
+
+  final Color hoverSurface;
+  final Color shadow;
+  final Color inset;
+
+  static _LocalGridSongCardColors of(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return dark
+        ? const _LocalGridSongCardColors(
+          hoverSurface: Color(0x240078d7),
+          shadow: Color(0x3d000000),
+          inset: Color(0x380078d7),
+        )
+        : const _LocalGridSongCardColors(
+          hoverSurface: Color(0x140078d7),
+          shadow: Color(0x1f1e2a3a),
+          inset: Color(0x290078d7),
+        );
   }
 }
 

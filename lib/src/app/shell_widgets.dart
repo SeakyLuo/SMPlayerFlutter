@@ -65,39 +65,45 @@ class ShellNavigationGlassSurface extends StatelessWidget {
                   ),
                 ],
       ),
-      child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned(
-              left: -edgeBleed,
-              top: -edgeBleed,
-              right: -edgeBleed,
-              bottom: -edgeBleed,
-              child: GlassContainer(
-                useOwnLayer: true,
-                quality: GlassQuality.standard,
-                shape: const LiquidRoundedRectangle(borderRadius: 0),
-                settings: LiquidGlassSettings(
-                  blur: 30,
-                  thickness: 18,
-                  refractiveIndex: 1.06,
-                  saturation: 1.18,
-                  chromaticAberration: 0,
-                  lightIntensity: 0.18,
-                  ambientStrength: 0.12,
-                  glowIntensity: 0.12,
-                  glassColor: surface,
-                  standardOpacityMultiplier: 1,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  left: -edgeBleed,
+                  top: -edgeBleed,
+                  right: -edgeBleed,
+                  bottom: -edgeBleed,
+                  child: GlassContainer(
+                    useOwnLayer: true,
+                    quality: GlassQuality.standard,
+                    shape: const LiquidRoundedRectangle(borderRadius: 0),
+                    settings: LiquidGlassSettings(
+                      blur: 30,
+                      thickness: 18,
+                      refractiveIndex: 1.06,
+                      saturation: 1.18,
+                      chromaticAberration: 0,
+                      lightIntensity: 0.18,
+                      ambientStrength: 0.12,
+                      glowIntensity: 0.12,
+                      glassColor: surface,
+                      standardOpacityMultiplier: 1,
+                    ),
+                    clipBehavior: Clip.none,
+                    allowElevation: false,
+                    child: const SizedBox.expand(),
+                  ),
                 ),
-                clipBehavior: Clip.none,
-                allowElevation: false,
-                child: const SizedBox.expand(),
-              ),
+              ],
             ),
-            Positioned.fill(child: child),
-          ],
-        ),
+          ),
+          Positioned.fill(child: child),
+        ],
       ),
     );
   }

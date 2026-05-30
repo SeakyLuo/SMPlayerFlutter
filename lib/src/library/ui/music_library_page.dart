@@ -4,6 +4,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,7 @@ import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_track_factory.dart';
+import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artwork_floating_action_button.dart';
@@ -100,6 +102,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   var _sortCriterion = MusicLibrarySortCriterion.title;
   var _sortDirection = MusicLibrarySortDirection.ascending;
   var _quickJumpPanelOpen = false;
+  String? _quickJumpPinnedKey;
   var _scrollOffset = 0.0;
   final _columnWidths = {..._defaultColumnWidths};
   final _scrollController = ScrollController();
@@ -133,9 +136,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
+    required String title,
     required bool active,
   }) {
-    final signature = '$showPortal:$routePath:$active';
+    final signature = '$showPortal:$routePath:$title:$active';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -155,6 +159,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        title: title,
         content: CommandBar(
           style: CommandBarStyleVariant.appBar,
           dynamicOverflow: false,
@@ -226,6 +231,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         }
 
         final sortedSongs = _sortSongs(snapshot.songs, i18n);
+        final mediaState = ref.watch(mediaControlControllerProvider).state;
         final quickJumpMap = _buildQuickJumpMap(
           sortedSongs,
           _sortCriterion,
@@ -236,13 +242,20 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           i18n: i18n,
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final colors = _LibraryPalette.of(context);
               final compact = constraints.maxWidth < 720;
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
                 context,
               );
               _syncAppBarPortal(
-                showPortal: compact && useWorkspaceAppBar,
+                showPortal: true,
                 routePath: '/songs',
+                title:
+                    snapshot.showCount
+                        ? i18n.t('library.allSongsWithCount', {
+                          'count': sortedSongs.length,
+                        })
+                        : i18n.t('library.allSongs'),
                 active: _quickJumpPanelOpen,
               );
               if (!compact && _quickJumpPanelOpen) {
@@ -285,197 +298,240 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                       },
                       child: Focus(
                         autofocus: true,
-                        child: Stack(
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: _LibraryColors.panel,
-                                borderRadius: BorderRadius.circular(
-                                  compact ? 10 : 14,
+                        child: NotificationListener<UserScrollNotification>(
+                          onNotification: _handleUserScroll,
+                          child: Stack(
+                            children: [
+                              DecoratedBox(
+                                key: const ValueKey(
+                                  'MusicLibrary.ContentShell',
                                 ),
-                                border: Border.all(
-                                  color: _LibraryColors.panelBorder,
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: _LibraryColors.panelShadow,
-                                    offset: Offset(0, 22),
-                                    blurRadius: 52,
+                                decoration: BoxDecoration(
+                                  color: colors.panel,
+                                  gradient: colors.panelGradient,
+                                  borderRadius: BorderRadius.circular(
+                                    compact ? 10 : 14,
                                   ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(
-                                  compact ? 10 : 14,
+                                  border: Border.all(color: colors.panelBorder),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colors.panelShadow,
+                                      offset: Offset(0, 22),
+                                      blurRadius: 52,
+                                    ),
+                                  ],
                                 ),
-                                child: Padding(
-                                  padding: EdgeInsets.all(compact ? 4 : 10),
-                                  child: Row(
-                                    children: [
-                                      if (!compact)
-                                        _QuickJumpRail(
-                                          activeKey: activeQuickJumpKey,
-                                          keys: _quickJumpKeysForDirection(
-                                            _sortDirection,
-                                          ),
-                                          enabledKeys:
-                                              quickJumpMap.keys.toSet(),
-                                          targetName: i18n.t('common.songs'),
-                                          basisName: _libraryQuickJumpBasisName(
-                                            _sortCriterion,
-                                            i18n,
-                                          ),
-                                          i18n: i18n,
-                                          onJump: (key) {
-                                            _jumpToKey(
-                                              quickJumpMap,
-                                              key,
-                                              compact,
-                                            );
-                                          },
-                                        ),
-                                      Expanded(
-                                        child:
-                                            compact
-                                                ? _CompactSongList(
-                                                  songs: sortedSongs,
-                                                  scrollController:
-                                                      _scrollController,
-                                                  sortCriterion: _sortCriterion,
-                                                  sortDirection: _sortDirection,
-                                                  selectedSongIds:
-                                                      _selection.selectedItems,
-                                                  multiSelect:
-                                                      _selection.multiSelect,
-                                                  i18n: i18n,
-                                                  onSort: _toggleSort,
-                                                  onSelected: (songId) {
-                                                    _selectSongFromPointer(
-                                                      songId,
-                                                      sortedSongs.map(
-                                                        (song) => song.id,
-                                                      ),
-                                                    );
-                                                  },
-                                                  onAddNextAndPlay: (songId) {
-                                                    _addNextAndPlay(songId);
-                                                  },
-                                                  onToggleSelection:
-                                                      _toggleSongSelection,
-                                                  onToggleFavorite: (songId) {
-                                                    setSongsFavorite(ref, [
-                                                      songId,
-                                                    ], false);
-                                                  },
-                                                  onOpenContextMenu: (
-                                                    position,
-                                                    song,
-                                                  ) {
-                                                    _openSongContextMenu(
-                                                      position,
-                                                      song,
-                                                      sortedSongs,
-                                                      customPlaylists,
-                                                    );
-                                                  },
-                                                )
-                                                : _WideSongTable(
-                                                  songs: sortedSongs,
-                                                  sortCriterion: _sortCriterion,
-                                                  sortDirection: _sortDirection,
-                                                  scrollController:
-                                                      _scrollController,
-                                                  selectedSongIds:
-                                                      _selection.selectedItems,
-                                                  multiSelect:
-                                                      _selection.multiSelect,
-                                                  i18n: i18n,
-                                                  columnWidths: _columnWidths,
-                                                  onSort: _toggleSort,
-                                                  onResizeColumn: _resizeColumn,
-                                                  onSelected: (songId) {
-                                                    _selectSongFromPointer(
-                                                      songId,
-                                                      sortedSongs.map(
-                                                        (song) => song.id,
-                                                      ),
-                                                    );
-                                                  },
-                                                  onAddNextAndPlay: (songId) {
-                                                    _addNextAndPlay(songId);
-                                                  },
-                                                  onToggleSelection:
-                                                      _toggleSongSelection,
-                                                  onToggleFavorite: (songId) {
-                                                    setSongsFavorite(ref, [
-                                                      songId,
-                                                    ], false);
-                                                  },
-                                                  onOpenContextMenu: (
-                                                    position,
-                                                    song,
-                                                  ) {
-                                                    _openSongContextMenu(
-                                                      position,
-                                                      song,
-                                                      sortedSongs,
-                                                      customPlaylists,
-                                                    );
-                                                  },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                    compact ? 10 : 14,
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(compact ? 4 : 10),
+                                    child: Row(
+                                      children: [
+                                        if (!compact)
+                                          _QuickJumpRail(
+                                            activeKey: activeQuickJumpKey,
+                                            keys: _quickJumpKeysForDirection(
+                                              _sortDirection,
+                                            ),
+                                            enabledKeys:
+                                                quickJumpMap.keys.toSet(),
+                                            targetName: i18n.t('common.songs'),
+                                            basisName:
+                                                _libraryQuickJumpBasisName(
+                                                  _sortCriterion,
+                                                  i18n,
                                                 ),
-                                      ),
-                                    ],
+                                            i18n: i18n,
+                                            onJump: (key) {
+                                              _jumpToKey(
+                                                quickJumpMap,
+                                                key,
+                                                compact,
+                                              );
+                                            },
+                                          ),
+                                        Expanded(
+                                          child:
+                                              compact
+                                                  ? _CompactSongList(
+                                                    songs: sortedSongs,
+                                                    scrollController:
+                                                        _scrollController,
+                                                    sortCriterion:
+                                                        _sortCriterion,
+                                                    sortDirection:
+                                                        _sortDirection,
+                                                    selectedSongIds:
+                                                        _selection
+                                                            .selectedItems,
+                                                    selectedTrackId:
+                                                        mediaState.track.id,
+                                                    isPlaying:
+                                                        mediaState.isPlaying,
+                                                    multiSelect:
+                                                        _selection.multiSelect,
+                                                    i18n: i18n,
+                                                    onSort: _toggleSort,
+                                                    onSelected: (songId) {
+                                                      _selectSongFromPointer(
+                                                        songId,
+                                                        sortedSongs.map(
+                                                          (song) => song.id,
+                                                        ),
+                                                      );
+                                                    },
+                                                    onAddNextAndPlay: (songId) {
+                                                      _addNextAndPlay(songId);
+                                                    },
+                                                    onTogglePlayPause:
+                                                        ref
+                                                            .read(
+                                                              mediaControlControllerProvider,
+                                                            )
+                                                            .onTogglePlayPause,
+                                                    onToggleSelection:
+                                                        _toggleSongSelection,
+                                                    onToggleFavorite: (songId) {
+                                                      setSongsFavorite(ref, [
+                                                        songId,
+                                                      ], false);
+                                                    },
+                                                    onOpenContextMenu: (
+                                                      position,
+                                                      song,
+                                                    ) {
+                                                      _openSongContextMenu(
+                                                        position,
+                                                        song,
+                                                        sortedSongs,
+                                                        customPlaylists,
+                                                      );
+                                                    },
+                                                  )
+                                                  : _WideSongTable(
+                                                    songs: sortedSongs,
+                                                    sortCriterion:
+                                                        _sortCriterion,
+                                                    sortDirection:
+                                                        _sortDirection,
+                                                    scrollController:
+                                                        _scrollController,
+                                                    selectedSongIds:
+                                                        _selection
+                                                            .selectedItems,
+                                                    selectedTrackId:
+                                                        mediaState.track.id,
+                                                    isPlaying:
+                                                        mediaState.isPlaying,
+                                                    multiSelect:
+                                                        _selection.multiSelect,
+                                                    i18n: i18n,
+                                                    columnWidths: _columnWidths,
+                                                    onSort: _toggleSort,
+                                                    onResizeColumn:
+                                                        _resizeColumn,
+                                                    onSelected: (songId) {
+                                                      _selectSongFromPointer(
+                                                        songId,
+                                                        sortedSongs.map(
+                                                          (song) => song.id,
+                                                        ),
+                                                      );
+                                                    },
+                                                    onAddNextAndPlay: (songId) {
+                                                      _addNextAndPlay(songId);
+                                                    },
+                                                    onTogglePlayPause:
+                                                        ref
+                                                            .read(
+                                                              mediaControlControllerProvider,
+                                                            )
+                                                            .onTogglePlayPause,
+                                                    onToggleSelection:
+                                                        _toggleSongSelection,
+                                                    onToggleFavorite: (songId) {
+                                                      setSongsFavorite(ref, [
+                                                        songId,
+                                                      ], false);
+                                                    },
+                                                    onOpenContextMenu: (
+                                                      position,
+                                                      song,
+                                                    ) {
+                                                      _openSongContextMenu(
+                                                        position,
+                                                        song,
+                                                        sortedSongs,
+                                                        customPlaylists,
+                                                      );
+                                                    },
+                                                  ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            if (compact && !useWorkspaceAppBar)
-                              Positioned(
-                                top: 10,
-                                right: 10,
-                                child: _CompactQuickJumpButton(
-                                  active: _quickJumpPanelOpen,
-                                  onPressed: () {
+                              if (!compact)
+                                Positioned(
+                                  top: 54,
+                                  right: 2,
+                                  bottom: 10,
+                                  width: 10,
+                                  child: _MusicLibraryTableScrollbar(
+                                    controller: _scrollController,
+                                  ),
+                                ),
+                              if (compact && !useWorkspaceAppBar)
+                                Positioned(
+                                  top: 10,
+                                  right: 10,
+                                  child: _CompactQuickJumpButton(
+                                    active: _quickJumpPanelOpen,
+                                    onPressed: () {
+                                      setState(() {
+                                        _quickJumpPanelOpen =
+                                            !_quickJumpPanelOpen;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              if (_musicDialog case final dialog?)
+                                MusicDialog(
+                                  song: dialog.song,
+                                  initialMode: dialog.mode,
+                                  canPause:
+                                      dialog.song.id ==
+                                          ref
+                                              .read(
+                                                mediaControlControllerProvider,
+                                              )
+                                              .state
+                                              .track
+                                              .id &&
+                                      ref
+                                          .read(mediaControlControllerProvider)
+                                          .state
+                                          .isPlaying,
+                                  onPlay: () {
+                                    _playSongIds([dialog.song.id]);
+                                  },
+                                  onReveal: (path) {
+                                    unawaited(revealItemInFolder(path));
+                                  },
+                                  onSaved: () {
+                                    ref.invalidate(libraryContentDataProvider);
+                                  },
+                                  onClose: () {
                                     setState(() {
-                                      _quickJumpPanelOpen =
-                                          !_quickJumpPanelOpen;
+                                      _musicDialog = null;
                                     });
                                   },
                                 ),
-                              ),
-                            if (_musicDialog case final dialog?)
-                              MusicDialog(
-                                song: dialog.song,
-                                initialMode: dialog.mode,
-                                canPause:
-                                    dialog.song.id ==
-                                        ref
-                                            .read(
-                                              mediaControlControllerProvider,
-                                            )
-                                            .state
-                                            .track
-                                            .id &&
-                                    ref
-                                        .read(mediaControlControllerProvider)
-                                        .state
-                                        .isPlaying,
-                                onPlay: () {
-                                  _playSongIds([dialog.song.id]);
-                                },
-                                onReveal: (path) {
-                                  unawaited(revealItemInFolder(path));
-                                },
-                                onSaved: () {
-                                  ref.invalidate(libraryContentDataProvider);
-                                },
-                                onClose: () {
-                                  setState(() {
-                                    _musicDialog = null;
-                                  });
-                                },
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -568,11 +624,25 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     });
   }
 
+  bool _handleUserScroll(UserScrollNotification notification) {
+    if (notification.metrics.axis == Axis.vertical &&
+        notification.direction != ScrollDirection.idle &&
+        _quickJumpPinnedKey != null) {
+      setState(() {
+        _quickJumpPinnedKey = null;
+      });
+    }
+    return false;
+  }
+
   String _activeQuickJumpKey(
     List<LibrarySong> songs,
     bool compact,
     SmPlayerI18n i18n,
   ) {
+    if (_quickJumpPinnedKey case final key?) {
+      return key;
+    }
     final rowHeight =
         compact ? _compactVirtualRowHeight : _wideVirtualRowHeight;
     final index = min(
@@ -949,10 +1019,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       return;
     }
 
-    _scrollController.animateTo(
+    setState(() {
+      _quickJumpPinnedKey = key;
+    });
+    _scrollController.jumpTo(
       index * (compact ? _compactVirtualRowHeight : _wideVirtualRowHeight),
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
     );
   }
 }
@@ -965,7 +1036,7 @@ class _LibraryScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
       child: SizedBox.expand(child: child),
     );
   }
@@ -978,6 +1049,8 @@ class _WideSongTable extends StatelessWidget {
     required this.sortDirection,
     required this.scrollController,
     required this.selectedSongIds,
+    required this.selectedTrackId,
+    required this.isPlaying,
     required this.multiSelect,
     required this.i18n,
     required this.columnWidths,
@@ -985,6 +1058,7 @@ class _WideSongTable extends StatelessWidget {
     required this.onResizeColumn,
     required this.onSelected,
     required this.onAddNextAndPlay,
+    required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
     required this.onOpenContextMenu,
@@ -995,6 +1069,8 @@ class _WideSongTable extends StatelessWidget {
   final MusicLibrarySortDirection sortDirection;
   final ScrollController scrollController;
   final Set<int> selectedSongIds;
+  final int? selectedTrackId;
+  final bool isPlaying;
   final bool multiSelect;
   final SmPlayerI18n i18n;
   final Map<_LibraryColumn, double> columnWidths;
@@ -1002,65 +1078,227 @@ class _WideSongTable extends StatelessWidget {
   final void Function(_LibraryColumn column, double deltaX) onResizeColumn;
   final ValueChanged<int> onSelected;
   final ValueChanged<int> onAddNextAndPlay;
+  final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
   final void Function(Offset position, LibrarySong song) onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
-      controller: scrollController,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        controller: scrollController,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: _tableWidth(columnWidths),
-            child: Column(
-              children: [
-                _TableHeader(
-                  sortCriterion: sortCriterion,
-                  sortDirection: sortDirection,
-                  i18n: i18n,
-                  columnWidths: columnWidths,
-                  onSort: onSort,
-                  onResizeColumn: onResizeColumn,
-                ),
-                ...songs.map(
-                  (song) => _WideSongRow(
-                    song: song,
-                    selected: selectedSongIds.contains(song.id),
-                    selectionMode: multiSelect,
-                    i18n: i18n,
-                    columnWidths: columnWidths,
-                    onSelected: () {
-                      onSelected(song.id);
-                    },
-                    onAddNextAndPlay: () {
-                      onAddNextAndPlay(song.id);
-                    },
-                    onToggleSelection: () {
-                      onToggleSelection(song.id);
-                    },
-                    onToggleFavorite:
-                        song.favorite
-                            ? () {
-                              onToggleFavorite(song.id);
-                            }
-                            : null,
-                    onOpenContextMenu: (position) {
-                      onOpenContextMenu(position, song);
-                    },
-                  ),
-                ),
-              ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: _tableWidth(columnWidths),
+        child: Column(
+          children: [
+            _TableHeader(
+              sortCriterion: sortCriterion,
+              sortDirection: sortDirection,
+              i18n: i18n,
+              columnWidths: columnWidths,
+              onSort: onSort,
+              onResizeColumn: onResizeColumn,
             ),
-          ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  children:
+                      songs
+                          .map(
+                            (song) => _WideSongRow(
+                              song: song,
+                              selected: selectedSongIds.contains(song.id),
+                              current: song.id == selectedTrackId,
+                              playing: song.id == selectedTrackId && isPlaying,
+                              selectionMode: multiSelect,
+                              i18n: i18n,
+                              columnWidths: columnWidths,
+                              onSelected: () {
+                                onSelected(song.id);
+                              },
+                              onAddNextAndPlay: () {
+                                onAddNextAndPlay(song.id);
+                              },
+                              onTogglePlayPause: onTogglePlayPause,
+                              onToggleSelection: () {
+                                onToggleSelection(song.id);
+                              },
+                              onToggleFavorite:
+                                  song.favorite
+                                      ? () {
+                                        onToggleFavorite(song.id);
+                                      }
+                                      : null,
+                              onOpenContextMenu: (position) {
+                                onOpenContextMenu(position, song);
+                              },
+                            ),
+                          )
+                          .toList(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _MusicLibraryTableScrollbar extends StatefulWidget {
+  const _MusicLibraryTableScrollbar({required this.controller});
+
+  final ScrollController controller;
+
+  @override
+  State<_MusicLibraryTableScrollbar> createState() =>
+      _MusicLibraryTableScrollbarState();
+}
+
+class _MusicLibraryTableScrollbarState
+    extends State<_MusicLibraryTableScrollbar> {
+  var _hovered = false;
+  var _dragging = false;
+  var _dimensionRefreshPending = false;
+
+  void _refreshAfterDimensions() {
+    if (_dimensionRefreshPending) {
+      return;
+    }
+    _dimensionRefreshPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dimensionRefreshPending = false;
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final thumbColor =
+        _hovered || _dragging
+            ? _musicLibraryScrollbarThumbHover(brightness)
+            : _musicLibraryScrollbarThumb(brightness);
+    return LayoutBuilder(
+      key: const ValueKey('MusicLibrary.Scrollbar'),
+      builder: (context, constraints) {
+        return AnimatedBuilder(
+          animation: widget.controller,
+          builder: (context, _) {
+            if (!widget.controller.hasClients) {
+              return const SizedBox.shrink();
+            }
+            if (widget.controller.positions.length != 1) {
+              return const SizedBox.shrink();
+            }
+            final position = widget.controller.position;
+            if (!position.hasContentDimensions) {
+              _refreshAfterDimensions();
+              return const SizedBox.shrink();
+            }
+            final maxScrollExtent = position.maxScrollExtent;
+            if (maxScrollExtent <= 0) {
+              return const SizedBox.shrink();
+            }
+
+            final trackHeight = constraints.maxHeight;
+            final contentHeight = trackHeight + maxScrollExtent;
+            final thumbHeight = max(
+              38.0,
+              (trackHeight / contentHeight) * trackHeight,
+            );
+            final thumbTop =
+                (position.pixels / maxScrollExtent) *
+                max(0.0, trackHeight - thumbHeight);
+            final expanded = _hovered || _dragging;
+
+            return MouseRegion(
+              onEnter: (_) {
+                setState(() {
+                  _hovered = true;
+                });
+              },
+              onExit: (_) {
+                if (_dragging) {
+                  return;
+                }
+                setState(() {
+                  _hovered = false;
+                });
+              },
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
+                    right: expanded ? 1.5 : 2.5,
+                    width: expanded ? 7 : 5,
+                    height: thumbHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragStart: (_) {
+                        setState(() {
+                          _dragging = true;
+                        });
+                      },
+                      onVerticalDragUpdate: (details) {
+                        final trackDistance = max(
+                          1.0,
+                          trackHeight - thumbHeight,
+                        );
+                        final scrollDelta =
+                            details.delta.dy *
+                            (maxScrollExtent / trackDistance);
+                        widget.controller.jumpTo(
+                          (position.pixels + scrollDelta).clamp(
+                            0.0,
+                            maxScrollExtent,
+                          ),
+                        );
+                      },
+                      onVerticalDragEnd: (_) {
+                        setState(() {
+                          _dragging = false;
+                          _hovered = false;
+                        });
+                      },
+                      onVerticalDragCancel: () {
+                        setState(() {
+                          _dragging = false;
+                          _hovered = false;
+                        });
+                      },
+                      child: DecoratedBox(
+                        key: const ValueKey('MusicLibrary.ScrollbarThumb'),
+                        decoration: BoxDecoration(
+                          color: thumbColor,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+Color _musicLibraryScrollbarThumb(Brightness brightness) {
+  return brightness == Brightness.dark
+      ? const Color(0x5cd0dbe8)
+      : const Color(0x705b697a);
+}
+
+Color _musicLibraryScrollbarThumbHover(Brightness brightness) {
+  return brightness == Brightness.dark
+      ? const Color(0x94dee7f2)
+      : const Color(0xa6435060);
 }
 
 double _tableWidth(Map<_LibraryColumn, double> columnWidths) {
@@ -1089,9 +1327,11 @@ class _TableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return Container(
+      key: const ValueKey('MusicLibrary.TableHeader'),
       height: 44,
-      color: _LibraryColors.panel,
+      color: colors.panel,
       child: Row(
         children: [
           _StaticHeaderCell(
@@ -1195,6 +1435,7 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     final sorted = sortCriterion == criterion;
     return SizedBox(
       key: ValueKey('MusicLibrary.Header.${column.name}'),
@@ -1205,10 +1446,7 @@ class _HeaderCell extends StatelessWidget {
             child: TextButton(
               style: TextButton.styleFrom(
                 alignment: Alignment.centerLeft,
-                foregroundColor:
-                    sorted
-                        ? _LibraryColors.textStrong
-                        : _LibraryColors.headerText,
+                foregroundColor: sorted ? colors.textStrong : colors.headerText,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 shape: const RoundedRectangleBorder(),
               ),
@@ -1231,7 +1469,7 @@ class _HeaderCell extends StatelessWidget {
                           ? FluentIcons.chevron_up_16_regular
                           : FluentIcons.chevron_down_16_regular,
                       size: 14,
-                      color: _LibraryColors.accentStrong,
+                      color: colors.accentStrong,
                     ),
                 ],
               ),
@@ -1259,6 +1497,7 @@ class _StaticHeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return SizedBox(
       key: ValueKey('MusicLibrary.Header.${column.name}'),
       width: width,
@@ -1270,10 +1509,7 @@ class _StaticHeaderCell extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: _LibraryColors.headerText,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: colors.headerText, fontSize: 12),
               ),
             ),
           ),
@@ -1315,11 +1551,14 @@ class _WideSongRow extends StatelessWidget {
   const _WideSongRow({
     required this.song,
     required this.selected,
+    required this.current,
+    required this.playing,
     required this.selectionMode,
     required this.i18n,
     required this.columnWidths,
     required this.onSelected,
     required this.onAddNextAndPlay,
+    required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
     required this.onOpenContextMenu,
@@ -1327,31 +1566,34 @@ class _WideSongRow extends StatelessWidget {
 
   final LibrarySong song;
   final bool selected;
+  final bool current;
+  final bool playing;
   final bool selectionMode;
   final SmPlayerI18n i18n;
   final Map<_LibraryColumn, double> columnWidths;
   final VoidCallback onSelected;
   final VoidCallback onAddNextAndPlay;
+  final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onToggleFavorite;
   final ValueChanged<Offset> onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return InkWell(
       onTap: onSelected,
       onDoubleTap: selectionMode ? null : onAddNextAndPlay,
       onSecondaryTapDown: (details) {
         onOpenContextMenu(details.globalPosition);
       },
-      hoverColor: _LibraryColors.rowHover,
+      hoverColor: colors.rowHover,
       child: Container(
+        key: ValueKey('MusicLibrary.Row.${song.id}'),
         height: 58,
         decoration: BoxDecoration(
-          color: selected ? _LibraryColors.rowSelected : Colors.transparent,
-          border: const Border(
-            top: BorderSide(color: _LibraryColors.rowBorder),
-          ),
+          color: selected ? colors.rowSelected : Colors.transparent,
+          border: Border(top: BorderSide(color: colors.rowBorder)),
         ),
         child: Row(
           children: [
@@ -1364,7 +1606,10 @@ class _WideSongRow extends StatelessWidget {
                         : LibraryRowArtwork(
                           song: song,
                           size: 42,
+                          current: current,
+                          playing: playing,
                           onPlay: onAddNextAndPlay,
+                          onTogglePlayPause: onTogglePlayPause,
                         ),
               ),
             ),
@@ -1400,9 +1645,9 @@ class _WideSongRow extends StatelessWidget {
                           tooltip: i18n.t('common.favorite'),
                           icon: const Icon(
                             FluentIcons.heart_16_filled,
-                            color: _LibraryColors.favorite,
                             size: 18,
                           ),
+                          color: colors.favorite,
                           onPressed: onToggleFavorite,
                         )
                         : const SizedBox.shrink(),
@@ -1436,6 +1681,7 @@ class _SongTextCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return SizedBox(
       width: width,
       child: Padding(
@@ -1445,8 +1691,7 @@ class _SongTextCell extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color:
-                strong ? _LibraryColors.textStrong : _LibraryColors.textMuted,
+            color: strong ? colors.textStrong : colors.textMuted,
             fontSize: 14,
             fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
             height: 1.35,
@@ -1470,6 +1715,7 @@ class _ArtistLinksCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     final artists = getSongArtists(song);
     final displayArtists =
         artists.isEmpty ? [i18n.t('common.artistUnknown')] : artists;
@@ -1487,8 +1733,8 @@ class _ArtistLinksCell extends StatelessWidget {
               if (index > 0)
                 Text(
                   separator,
-                  style: const TextStyle(
-                    color: _LibraryColors.textMuted,
+                  style: TextStyle(
+                    color: colors.textMuted,
                     fontSize: 14,
                     height: 1.35,
                   ),
@@ -1550,6 +1796,7 @@ class _InlineRouteText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: Listener(
@@ -1561,13 +1808,7 @@ class _InlineRouteText extends StatelessWidget {
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: _LibraryColors.textMuted,
-            fontSize: 14,
-            height: 1.35,
-            decoration: TextDecoration.underline,
-            decorationColor: _LibraryColors.textMuted,
-          ),
+          style: TextStyle(color: colors.routeText, fontSize: 14, height: 1.35),
         ),
       ),
     );
@@ -1581,11 +1822,14 @@ class _CompactSongList extends StatelessWidget {
     required this.sortCriterion,
     required this.sortDirection,
     required this.selectedSongIds,
+    required this.selectedTrackId,
+    required this.isPlaying,
     required this.multiSelect,
     required this.i18n,
     required this.onSort,
     required this.onSelected,
     required this.onAddNextAndPlay,
+    required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
     required this.onOpenContextMenu,
@@ -1596,11 +1840,14 @@ class _CompactSongList extends StatelessWidget {
   final MusicLibrarySortCriterion sortCriterion;
   final MusicLibrarySortDirection sortDirection;
   final Set<int> selectedSongIds;
+  final int? selectedTrackId;
+  final bool isPlaying;
   final bool multiSelect;
   final SmPlayerI18n i18n;
   final ValueChanged<MusicLibrarySortCriterion> onSort;
   final ValueChanged<int> onSelected;
   final ValueChanged<int> onAddNextAndPlay;
+  final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
   final void Function(Offset position, LibrarySong song) onOpenContextMenu;
@@ -1625,6 +1872,8 @@ class _CompactSongList extends StatelessWidget {
               return _CompactSongRow(
                 song: song,
                 selected: selectedSongIds.contains(song.id),
+                current: song.id == selectedTrackId,
+                playing: song.id == selectedTrackId && isPlaying,
                 selectionMode: multiSelect,
                 i18n: i18n,
                 onSelected: () {
@@ -1633,6 +1882,7 @@ class _CompactSongList extends StatelessWidget {
                 onAddNextAndPlay: () {
                   onAddNextAndPlay(song.id);
                 },
+                onTogglePlayPause: onTogglePlayPause,
                 onToggleSelection: () {
                   onToggleSelection(song.id);
                 },
@@ -1669,12 +1919,13 @@ class _CompactSortBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-      decoration: const BoxDecoration(
-        color: _LibraryColors.panel,
-        border: Border(bottom: BorderSide(color: _LibraryColors.rowBorder)),
+      decoration: BoxDecoration(
+        color: colors.panel,
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       child: Wrap(
         spacing: 6,
@@ -1745,15 +1996,14 @@ class _CompactSortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     final active = criterion == activeCriterion;
     return TextButton.icon(
       style: TextButton.styleFrom(
         minimumSize: const Size(0, 28),
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        foregroundColor:
-            active ? _LibraryColors.accentStrong : _LibraryColors.textMuted,
-        backgroundColor:
-            active ? _LibraryColors.accentSoft : Colors.transparent,
+        foregroundColor: active ? colors.accentStrong : colors.textMuted,
+        backgroundColor: active ? colors.accentSoft : Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
       onPressed: () {
@@ -1777,10 +2027,13 @@ class _CompactSongRow extends StatelessWidget {
   const _CompactSongRow({
     required this.song,
     required this.selected,
+    required this.current,
+    required this.playing,
     required this.selectionMode,
     required this.i18n,
     required this.onSelected,
     required this.onAddNextAndPlay,
+    required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
     required this.onOpenContextMenu,
@@ -1788,29 +2041,33 @@ class _CompactSongRow extends StatelessWidget {
 
   final LibrarySong song;
   final bool selected;
+  final bool current;
+  final bool playing;
   final bool selectionMode;
   final SmPlayerI18n i18n;
   final VoidCallback onSelected;
   final VoidCallback onAddNextAndPlay;
+  final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onToggleFavorite;
   final ValueChanged<Offset> onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return InkWell(
       onTap: onSelected,
       onDoubleTap: selectionMode ? null : onAddNextAndPlay,
+      hoverColor: colors.rowHover,
       onSecondaryTapDown: (details) {
         onOpenContextMenu(details.globalPosition);
       },
       child: Container(
+        key: ValueKey('MusicLibrary.CompactRow.${song.id}'),
         padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
         decoration: BoxDecoration(
-          color: selected ? _LibraryColors.rowSelected : Colors.transparent,
-          border: const Border(
-            top: BorderSide(color: _LibraryColors.rowBorder),
-          ),
+          color: selected ? colors.rowSelected : Colors.transparent,
+          border: Border(top: BorderSide(color: colors.rowBorder)),
         ),
         child: Row(
           children: [
@@ -1819,7 +2076,10 @@ class _CompactSongRow extends StatelessWidget {
                 : LibraryRowArtwork(
                   song: song,
                   size: 46,
+                  current: current,
+                  playing: playing,
                   onPlay: onAddNextAndPlay,
+                  onTogglePlayPause: onTogglePlayPause,
                 ),
             const SizedBox(width: 10),
             Expanded(
@@ -1831,8 +2091,8 @@ class _CompactSongRow extends StatelessWidget {
                     song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _LibraryColors.textStrong,
+                    style: TextStyle(
+                      color: current ? colors.accentStrong : colors.textStrong,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1875,19 +2135,13 @@ class _CompactSongRow extends StatelessWidget {
                   if (song.favorite)
                     IconButton(
                       tooltip: i18n.t('common.favorite'),
-                      icon: const Icon(
-                        FluentIcons.heart_16_filled,
-                        color: _LibraryColors.favorite,
-                        size: 16,
-                      ),
+                      icon: const Icon(FluentIcons.heart_16_filled, size: 16),
+                      color: colors.favorite,
                       onPressed: onToggleFavorite,
                     ),
                   Text(
                     _formatDuration(song.duration),
-                    style: const TextStyle(
-                      color: _LibraryColors.textMuted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -1904,12 +2158,18 @@ class LibraryRowArtwork extends StatefulWidget {
     super.key,
     required this.song,
     required this.size,
+    required this.current,
+    required this.playing,
     required this.onPlay,
+    required this.onTogglePlayPause,
   });
 
   final LibrarySong song;
   final double size;
+  final bool current;
+  final bool playing;
   final VoidCallback onPlay;
+  final VoidCallback onTogglePlayPause;
 
   @override
   State<LibraryRowArtwork> createState() => _LibraryRowArtworkState();
@@ -1938,16 +2198,12 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              SongArtwork(
-                artworkPath: widget.song.thumbnailPath,
-                fallback: const DecoratedBox(
-                  decoration: BoxDecoration(color: _LibraryColors.artwork),
-                  child: Icon(
-                    FluentIcons.music_note_2_24_regular,
-                    color: _LibraryColors.artworkIcon,
-                  ),
+              SongArtwork(artworkPath: widget.song.thumbnailPath),
+              if (widget.current && !_hovered)
+                SmPlayerPlayingWaveGlass(
+                  playing: widget.playing,
+                  keyPrefix: 'MusicLibrary.Playing.${widget.song.id}',
                 ),
-              ),
               IgnorePointer(
                 ignoring: !_hovered,
                 child: AnimatedOpacity(
@@ -1958,14 +2214,26 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
                       key: ValueKey(
                         'MusicLibrary.ArtworkPlay.${widget.song.id}',
                       ),
-                      tooltip: context.smPlayerI18n.t('context.play'),
+                      tooltip:
+                          widget.current && widget.playing
+                              ? context.smPlayerI18n.t('context.pause')
+                              : context.smPlayerI18n.t('context.play'),
                       size: widget.size - 8,
                       iconSize: 16,
-                      icon: const SmPlayerPlayIcon(
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      onPressed: widget.onPlay,
+                      icon:
+                          widget.current && widget.playing
+                              ? const SmPlayerPauseIcon(
+                                color: Colors.white,
+                                size: 16,
+                              )
+                              : const SmPlayerPlayIcon(
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                      onPressed:
+                          widget.current
+                              ? widget.onTogglePlayPause
+                              : widget.onPlay,
                     ),
                   ),
                 ),
@@ -1985,21 +2253,16 @@ class _SelectionMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return Center(
       child: Container(
         width: 24,
         height: 24,
         decoration: BoxDecoration(
-          color:
-              selected
-                  ? _LibraryColors.accentStrong
-                  : _LibraryColors.selectionMark,
+          color: selected ? colors.accentStrong : colors.selectionMark,
           shape: BoxShape.circle,
           border: Border.all(
-            color:
-                selected
-                    ? _LibraryColors.accentStrong
-                    : _LibraryColors.selectionBorder,
+            color: selected ? colors.accentStrong : colors.selectionBorder,
           ),
         ),
         child:
@@ -2036,14 +2299,13 @@ class _QuickJumpRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return Container(
       width: 58,
       padding: const EdgeInsets.fromLTRB(10, 42, 16, 16),
-      decoration: const BoxDecoration(
-        color: _LibraryColors.panel,
-        border: Border(
-          right: BorderSide(color: _LibraryColors.quickJumpBorder),
-        ),
+      decoration: BoxDecoration(
+        color: colors.panel,
+        border: Border(right: BorderSide(color: colors.quickJumpBorder)),
       ),
       child: Column(
         children:
@@ -2070,13 +2332,11 @@ class _QuickJumpRail extends StatelessWidget {
                           foregroundColor:
                               enabled
                                   ? active
-                                      ? _LibraryColors.accentStrong
-                                      : _LibraryColors.textMuted
-                                  : _LibraryColors.disabled,
+                                      ? colors.accentStrong
+                                      : colors.textMuted
+                                  : colors.disabled,
                           backgroundColor:
-                              active
-                                  ? _LibraryColors.accentSoft
-                                  : Colors.transparent,
+                              active ? colors.accentSoft : Colors.transparent,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(6),
                           ),
@@ -2357,11 +2617,13 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
     return DecoratedBox(
+      key: const ValueKey('MusicLibrary.EmptyState'),
       decoration: BoxDecoration(
-        color: _LibraryColors.emptyStateSurface,
+        color: colors.emptyStateSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _LibraryColors.emptyStateBorder),
+        border: Border.all(color: colors.emptyStateBorder),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -2371,8 +2633,8 @@ class _EmptyState extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: _LibraryColors.textStrong,
+              style: TextStyle(
+                color: colors.textStrong,
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
               ),
@@ -2383,8 +2645,8 @@ class _EmptyState extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Text(
                   message,
-                  style: const TextStyle(
-                    color: _LibraryColors.textMuted,
+                  style: TextStyle(
+                    color: colors.textMuted,
                     fontSize: 14,
                     height: 1.65,
                   ),
@@ -2535,8 +2797,106 @@ class _LibraryColors {
   static const textMuted = Color(0xff5b697a);
   static const headerText = Color(0xff565656);
   static const disabled = Color(0x3d5b697a);
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
+}
+
+class _LibraryPalette {
+  const _LibraryPalette({
+    required this.panel,
+    required this.panelGradient,
+    required this.panelBorder,
+    required this.emptyStateSurface,
+    required this.emptyStateBorder,
+    required this.panelShadow,
+    required this.quickJumpBorder,
+    required this.rowBorder,
+    required this.rowHover,
+    required this.rowSelected,
+    required this.selectionMark,
+    required this.selectionBorder,
+    required this.accentStrong,
+    required this.accentSoft,
+    required this.favorite,
+    required this.textStrong,
+    required this.textMuted,
+    required this.headerText,
+    required this.disabled,
+    required this.routeText,
+  });
+
+  final Color panel;
+  final Gradient? panelGradient;
+  final Color panelBorder;
+  final Color emptyStateSurface;
+  final Color emptyStateBorder;
+  final Color panelShadow;
+  final Color quickJumpBorder;
+  final Color rowBorder;
+  final Color rowHover;
+  final Color rowSelected;
+  final Color selectionMark;
+  final Color selectionBorder;
+  final Color accentStrong;
+  final Color accentSoft;
+  final Color favorite;
+  final Color textStrong;
+  final Color textMuted;
+  final Color headerText;
+  final Color disabled;
+  final Color routeText;
+
+  static const light = _LibraryPalette(
+    panel: _LibraryColors.panel,
+    panelGradient: null,
+    panelBorder: _LibraryColors.panelBorder,
+    emptyStateSurface: _LibraryColors.emptyStateSurface,
+    emptyStateBorder: _LibraryColors.emptyStateBorder,
+    panelShadow: _LibraryColors.panelShadow,
+    quickJumpBorder: _LibraryColors.quickJumpBorder,
+    rowBorder: _LibraryColors.rowBorder,
+    rowHover: _LibraryColors.rowHover,
+    rowSelected: _LibraryColors.rowSelected,
+    selectionMark: _LibraryColors.selectionMark,
+    selectionBorder: _LibraryColors.selectionBorder,
+    accentStrong: _LibraryColors.accentStrong,
+    accentSoft: _LibraryColors.accentSoft,
+    favorite: _LibraryColors.favorite,
+    textStrong: _LibraryColors.textStrong,
+    textMuted: _LibraryColors.textMuted,
+    headerText: _LibraryColors.headerText,
+    disabled: _LibraryColors.disabled,
+    routeText: _LibraryColors.textMuted,
+  );
+
+  static const dark = _LibraryPalette(
+    panel: Color(0xff171c22),
+    panelGradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0x09ffffff), Color(0x05ffffff)],
+    ),
+    panelBorder: Color(0x1fd6e0ec),
+    emptyStateSurface: Color(0xdb171c22),
+    emptyStateBorder: Color(0x1fd6e0ec),
+    panelShadow: Color(0x57000000),
+    quickJumpBorder: Color(0x1fd6e0ec),
+    rowBorder: Color(0x1fd6e0ec),
+    rowHover: Color(0x1f0078d7),
+    rowSelected: Color(0x2e0078d7),
+    selectionMark: Color(0x0effffff),
+    selectionBorder: Color(0x1fd6e0ec),
+    accentStrong: Color(0xff459de2),
+    accentSoft: Color(0x290078d7),
+    favorite: _LibraryColors.favorite,
+    textStrong: Color(0xeff6f9fc),
+    textMuted: Color(0xadcbd5e1),
+    headerText: Color(0xadcbd5e1),
+    disabled: Color(0x3dcbd5e1),
+    routeText: Color(0xff459de2),
+  );
+
+  static _LibraryPalette of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
 }
 
 class _LibraryQuickJumpPanelColors {

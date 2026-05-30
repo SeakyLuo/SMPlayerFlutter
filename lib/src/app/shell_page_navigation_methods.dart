@@ -115,6 +115,9 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   }
 
   void _goBack() {
+    if (closeTopPopupDialog()) {
+      return;
+    }
     _closeNavigationOverlay();
     if (_navigationHistory.length > 1) {
       final targetLocation = _navigationHistory[_navigationHistory.length - 2];
@@ -135,6 +138,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     final currentNavigationMode = _navigationMode;
     if (currentNavigationMode == null) {
       _navigationMode = nextNavigationMode;
+      if (nextNavigationMode != SmPlayerNavigationMode.wide) {
+        _isMinimalNavigationOpen = false;
+        _isNavigationPaneOpen = false;
+        _saveNavigationCollapsed(true);
+      }
       return;
     }
 

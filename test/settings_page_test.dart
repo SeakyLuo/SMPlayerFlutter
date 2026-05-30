@@ -116,6 +116,7 @@ void main() {
       'settings.preferenceSettings': '偏好设置',
       'settings.preserveLyricsTimestamps': '保留网络歌词时间戳',
       'settings.preserveLyricsTimestampsHint': '获取网络歌词时保留 LRC 同步时间戳。',
+      'settings.previousButtonRestartsTrack': '上一首按钮在播放超过 5 秒时回到开头',
       'settings.quitOnClose': '关闭窗口时退出应用',
       'settings.releaseNotes': '更新日志',
       'settings.releaseNotesArtists': '音乐可以按歌手和专辑分组。',
@@ -242,6 +243,11 @@ void main() {
     await tester.pump();
 
     expect(lastUpdate?.autoPlay, isTrue);
+
+    await tester.tap(find.text('上一首按钮在播放超过 5 秒时回到开头'));
+    await tester.pump();
+
+    expect(lastUpdate?.previousButtonRestartsTrack, isFalse);
   });
 
   testWidgets('SettingsPage app version mirrors Electron footer alignment', (
@@ -661,6 +667,36 @@ void main() {
       expect(scanRequested, isTrue);
     },
   );
+
+  testWidgets('SettingsPage library root shows full path tooltip', (
+    tester,
+  ) async {
+    const rootPath = '/Users/me/Music/Albums/Very/Long/Folder';
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: Scaffold(
+            body: SettingsPage(
+              initialSnapshot: SettingsSnapshot.defaults().copyWith(
+                rootPath: rootPath,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip(rootPath), findsOneWidget);
+  });
 
   testWidgets('SettingsPage folder scan shows progress and can cancel', (
     tester,

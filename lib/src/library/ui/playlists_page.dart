@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,9 @@ import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
+const _playlistCardWidth = 180.0;
+const _playlistCardHeight = 232.0;
+
 class PlaylistsPage extends ConsumerStatefulWidget {
   const PlaylistsPage({super.key, this.selectedPlaylistId});
 
@@ -34,7 +38,11 @@ class PlaylistsPage extends ConsumerStatefulWidget {
 
 class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   List<int>? _previewPlaylistIds;
+  List<int>? _dragStartPlaylistIds;
   int? _draggingPlaylistId;
+  var _playlistDragAccepted = false;
+  Offset? _playlistDragAnchorOffset;
+  final _playlistCardContexts = <int, BuildContext>{};
   int? _lastPersistedPlaylistId;
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
@@ -61,9 +69,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
+    required String title,
     required Widget content,
   }) {
-    final signature = '$showPortal:$routePath';
+    final signature = '$showPortal:$routePath:$title';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -83,6 +92,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        title: title,
         content: content,
       );
     });
@@ -355,8 +365,17 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       ],
     );
     _syncAppBarPortal(
-      showPortal: useWorkspaceAppBar,
+      showPortal: true,
       routePath: '/playlists',
+      title:
+          snapshot.showCount
+              ? i18n.t('search.playlistsWithCount', {
+                'count':
+                    snapshot.playlists
+                        .where((playlist) => !playlist.isBuiltIn)
+                        .length,
+              })
+              : i18n.t('common.playlists'),
       content: createAppBarButton,
     );
 
@@ -385,7 +404,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: columns,
-                                mainAxisExtent: 234,
+                                mainAxisExtent: 250,
                                 crossAxisSpacing: 30,
                                 mainAxisSpacing: 26,
                               ),
@@ -397,93 +416,141 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                     .map((songId) => songsById[songId])
                                     .whereType<LibrarySong>()
                                     .toList();
-                            return DragTarget<int>(
-                              onWillAcceptWithDetails: (details) {
-                                _previewPlaylistMove(
-                                  customPlaylists
-                                      .map((item) => item.id)
-                                      .toList(),
-                                  details.data,
-                                  playlist.id,
-                                );
-                                return true;
-                              },
-                              onAcceptWithDetails: (_) {
-                                _commitPlaylistPreview();
-                              },
-                              builder: (context, _, __) {
-                                if (_draggingPlaylistId == playlist.id) {
-                                  return _PlaylistDropPlaceholder(i18n: i18n);
-                                }
-
-                                return LongPressDraggable<int>(
-                                  data: playlist.id,
-                                  feedback: Material(
-                                    color: Colors.transparent,
-                                    child: SizedBox(
-                                      width: 180,
-                                      height: 232,
-                                      child: _PlaylistCard(
-                                        playlist: playlist,
-                                        songs: playlistSongs,
+                            return Builder(
+                              builder: (targetContext) {
+                                _playlistCardContexts[playlist.id] =
+                                    targetContext;
+                                return DragTarget<int>(
+                                  onWillAcceptWithDetails: (details) {
+                                    return details.data != playlist.id;
+                                  },
+                                  onMove: (details) {
+                                    _previewPlaylistMoveToPoint(
+                                      customPlaylists
+                                          .map((item) => item.id)
+                                          .toList(),
+                                      _playlistDragCardCenter(details.offset),
+                                    );
+                                  },
+                                  onAcceptWithDetails: (_) {
+                                    _playlistDragAccepted = true;
+                                    _commitPlaylistPreview();
+                                  },
+                                  builder: (context, _, __) {
+                                    if (_draggingPlaylistId == playlist.id) {
+                                      return _PlaylistDropPlaceholder(
                                         i18n: i18n,
-                                        dragging: true,
-                                        onOpen: () {},
-                                        onPlay: () {},
-                                        onContextMenu: (_) {},
+                                      );
+                                    }
+
+                                    return Draggable<int>(
+                                      data: playlist.id,
+                                      feedback: Material(
+                                        color: Colors.transparent,
+                                        child: SizedBox(
+                                          width: _playlistCardWidth,
+                                          height: _playlistCardHeight,
+                                          child: _PlaylistCard(
+                                            playlist: playlist,
+                                            songs: playlistSongs,
+                                            i18n: i18n,
+                                            dragging: true,
+                                            sorting: true,
+                                            onOpen: () {},
+                                            onPlay: () {},
+                                            onContextMenu: (_) {},
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  onDragStarted: () {
-                                    setState(() {
-                                      _draggingPlaylistId = playlist.id;
-                                      _previewPlaylistIds =
+                                      onDragStarted: () {
+                                        setState(() {
+                                          _draggingPlaylistId = playlist.id;
+                                          _playlistDragAccepted = false;
+                                          final playlistIds =
+                                              customPlaylists
+                                                  .map((item) => item.id)
+                                                  .toList();
+                                          _dragStartPlaylistIds = playlistIds;
+                                          _previewPlaylistIds = playlistIds;
+                                        });
+                                      },
+                                      onDraggableCanceled: (_, __) {
+                                        if (_playlistDragAccepted) {
+                                          return;
+                                        }
+                                        _commitPlaylistPreview();
+                                      },
+                                      onDragUpdate: (details) {
+                                        _previewPlaylistMoveToPoint(
                                           customPlaylists
                                               .map((item) => item.id)
-                                              .toList();
-                                    });
-                                  },
-                                  onDraggableCanceled: (_, __) {
-                                    _clearPlaylistDrag();
-                                  },
-                                  onDragEnd: (_) {
-                                    _clearPlaylistDrag();
-                                  },
-                                  child: _PlaylistCard(
-                                    playlist: playlist,
-                                    songs: playlistSongs,
-                                    i18n: i18n,
-                                    dragging: false,
-                                    onOpen: () {
-                                      _persistLastPlaylist(playlist.id);
-                                      context.go('/playlists/${playlist.id}');
-                                    },
-                                    onPlay: () {
-                                      if (playlistSongs.isNotEmpty) {
-                                        ref
-                                            .read(libraryRepositoryProvider)
-                                            .recordPlaylistPlayed(playlist.id);
-                                        _playTrack(
-                                          ref,
-                                          snapshot,
-                                          i18n,
-                                          playlistSongs.first.id,
-                                          playlistSongs
-                                              .map((song) => song.id)
                                               .toList(),
+                                          _playlistDragCardCenter(
+                                            details.globalPosition,
+                                          ),
                                         );
-                                      }
-                                    },
-                                    onContextMenu: (position) {
-                                      _showPlaylistMenu(
-                                        context,
-                                        i18n,
-                                        snapshot,
-                                        playlist,
-                                        position,
-                                      );
-                                    },
-                                  ),
+                                      },
+                                      onDragEnd: (_) {
+                                        if (_playlistDragAccepted) {
+                                          return;
+                                        }
+                                        _commitPlaylistPreview();
+                                      },
+                                      child: Listener(
+                                        onPointerDown: (event) {
+                                          final renderObject =
+                                              targetContext.findRenderObject()
+                                                  as RenderBox;
+                                          _playlistDragAnchorOffset =
+                                              renderObject.globalToLocal(
+                                                event.position,
+                                              );
+                                        },
+                                        child: _PlaylistCard(
+                                          playlist: playlist,
+                                          songs: playlistSongs,
+                                          i18n: i18n,
+                                          dragging: false,
+                                          sorting: _draggingPlaylistId != null,
+                                          onOpen: () {
+                                            _persistLastPlaylist(playlist.id);
+                                            context.go(
+                                              '/playlists/${playlist.id}',
+                                            );
+                                          },
+                                          onPlay: () {
+                                            if (playlistSongs.isNotEmpty) {
+                                              ref
+                                                  .read(
+                                                    libraryRepositoryProvider,
+                                                  )
+                                                  .recordPlaylistPlayed(
+                                                    playlist.id,
+                                                  );
+                                              _playTrack(
+                                                ref,
+                                                snapshot,
+                                                i18n,
+                                                playlistSongs.first.id,
+                                                playlistSongs
+                                                    .map((song) => song.id)
+                                                    .toList(),
+                                              );
+                                            }
+                                          },
+                                          onContextMenu: (position) {
+                                            _showPlaylistMenu(
+                                              context,
+                                              i18n,
+                                              snapshot,
+                                              playlist,
+                                              position,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             );
@@ -638,19 +705,50 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     ref.invalidate(libraryContentDataProvider);
   }
 
-  void _previewPlaylistMove(
+  void _previewPlaylistMoveToPoint(
     List<int> currentPlaylistIds,
-    int draggedPlaylistId,
-    int targetPlaylistId,
+    Offset globalPosition,
   ) {
+    final draggedPlaylistId = _draggingPlaylistId;
+    if (draggedPlaylistId == null) {
+      return;
+    }
+
     final currentPreview = _previewPlaylistIds ?? currentPlaylistIds;
+    final targetSlots =
+        currentPreview.indexed
+            .map((entry) {
+              final visualIndex = entry.$1;
+              final playlistId = entry.$2;
+              final context = _playlistCardContexts[playlistId];
+              final renderObject = context?.findRenderObject();
+              if (renderObject is! RenderBox) {
+                return null;
+              }
+              final topLeft = renderObject.localToGlobal(Offset.zero);
+              return (
+                playlistId: playlistId,
+                visualIndex: visualIndex,
+                rect: topLeft & renderObject.size,
+              );
+            })
+            .whereType<({int playlistId, int visualIndex, Rect rect})>()
+            .toList();
+    if (targetSlots.isEmpty) {
+      return;
+    }
+    final nearestSlot = targetSlots.reduce((left, right) {
+      final leftDistance = (left.rect.center - globalPosition).distanceSquared;
+      final rightDistance =
+          (right.rect.center - globalPosition).distanceSquared;
+      return leftDistance <= rightDistance ? left : right;
+    });
     final nextIds =
         currentPreview
             .where((playlistId) => playlistId != draggedPlaylistId)
             .toList();
-    final targetIndex = nextIds.indexOf(targetPlaylistId);
     nextIds.insert(
-      targetIndex < 0 ? nextIds.length : targetIndex,
+      nearestSlot.visualIndex.clamp(0, nextIds.length),
       draggedPlaylistId,
     );
     if (_idsEqual(currentPreview, nextIds)) {
@@ -664,7 +762,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
   void _commitPlaylistPreview() {
     final nextPlaylistIds = _previewPlaylistIds;
-    if (nextPlaylistIds != null) {
+    final startPlaylistIds = _dragStartPlaylistIds;
+    if (nextPlaylistIds != null &&
+        startPlaylistIds != null &&
+        !_idsEqual(startPlaylistIds, nextPlaylistIds)) {
       ref.read(libraryRepositoryProvider).reorderPlaylists(nextPlaylistIds);
       ref.invalidate(libraryContentDataProvider);
     }
@@ -675,7 +776,19 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     setState(() {
       _draggingPlaylistId = null;
       _previewPlaylistIds = null;
+      _dragStartPlaylistIds = null;
+      _playlistDragAccepted = false;
+      _playlistDragAnchorOffset = null;
     });
+  }
+
+  Offset _playlistDragCardCenter(Offset pointerPosition) {
+    final anchor =
+        _playlistDragAnchorOffset ??
+        const Offset(_playlistCardWidth / 2, _playlistCardHeight / 2);
+    return pointerPosition -
+        anchor +
+        const Offset(_playlistCardWidth / 2, _playlistCardHeight / 2);
   }
 }
 
@@ -737,12 +850,13 @@ bool _idsEqual(List<int> left, List<int> right) {
       left.indexed.every((entry) => entry.$2 == right[entry.$1]);
 }
 
-class _PlaylistCard extends StatelessWidget {
+class _PlaylistCard extends StatefulWidget {
   const _PlaylistCard({
     required this.playlist,
     required this.songs,
     required this.i18n,
     required this.dragging,
+    required this.sorting,
     required this.onOpen,
     required this.onPlay,
     required this.onContextMenu,
@@ -752,101 +866,286 @@ class _PlaylistCard extends StatelessWidget {
   final List<LibrarySong> songs;
   final SmPlayerI18n i18n;
   final bool dragging;
+  final bool sorting;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
   final ValueChanged<Offset> onContextMenu;
 
   @override
+  State<_PlaylistCard> createState() => _PlaylistCardState();
+}
+
+class _PlaylistCardState extends State<_PlaylistCard> {
+  var _hovered = false;
+
+  @override
+  void didUpdateWidget(_PlaylistCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sorting && _hovered) {
+      _hovered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        width: 180,
-        height: 234,
-        child: AnimatedOpacity(
-          opacity: dragging ? 0.92 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: Material(
-            color: dragging ? _PlaylistsColors.cardHover : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
+    final colors = _PlaylistCardColors.forBrightness(
+      Theme.of(context).brightness,
+    );
+    final active = widget.dragging || (!widget.sorting && _hovered);
+    final showHoverControls = _hovered && !widget.sorting;
+    final showDragHandle = widget.dragging || (_hovered && !widget.sorting);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: GestureDetector(
+          onTap: widget.onOpen,
+          onSecondaryTapDown: (details) {
+            widget.onContextMenu(details.globalPosition);
+          },
+          child: AnimatedContainer(
+            key: const ValueKey('Playlists.PlaylistCard'),
+            duration: const Duration(milliseconds: 120),
+            width: _playlistCardWidth,
+            constraints: const BoxConstraints(minHeight: 232),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  widget.dragging
+                      ? colors.dragSurface
+                      : active
+                      ? colors.hoverSurface
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              hoverColor: _PlaylistsColors.cardHover,
-              focusColor: _PlaylistsColors.cardHover,
-              onTap: onOpen,
-              onSecondaryTapDown: (details) {
-                onContextMenu(details.globalPosition);
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Stack(
+              boxShadow:
+                  widget.dragging
+                      ? [
+                        BoxShadow(
+                          color: colors.dragShadow,
+                          blurRadius: 70,
+                          offset: const Offset(0, 26),
+                        ),
+                      ]
+                      : active
+                      ? [
+                        BoxShadow(
+                          color: colors.hoverShadow,
+                          blurRadius: 26,
+                          offset: const Offset(0, 12),
+                        ),
+                      ]
+                      : null,
+            ),
+            foregroundDecoration:
+                widget.dragging
+                    ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colors.dragBorder),
+                    )
+                    : active
+                    ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colors.hoverBorder),
+                    )
+                    : null,
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox.square(
-                          dimension: 160,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: _PlaylistArtwork(songs: songs),
-                          ),
+                    SizedBox.square(
+                      dimension: 160,
+                      child: DecoratedBox(
+                        key: const ValueKey('Playlists.ArtworkSurface'),
+                        decoration: BoxDecoration(
+                          color: colors.artworkSurface,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.artworkShadow,
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          playlist.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _PlaylistsColors.textStrong,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: _PlaylistArtwork(songs: widget.songs),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          i18n.t('playlists.songCount', {
-                            'count': playlist.songCount,
-                          }),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _PlaylistsColors.textMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: ArtworkFloatingActionButton(
-                        tooltip: i18n.t('playlists.dragToSort'),
-                        size: 40,
-                        iconSize: 18,
-                        icon: const Icon(
-                          FluentIcons.re_order_dots_vertical_20_regular,
-                        ),
-                        onPressed: () {},
                       ),
                     ),
-                    Positioned(
-                      right: 8,
-                      bottom: 60,
-                      child: ArtworkFloatingActionButton(
-                        tooltip: i18n.t('context.play'),
-                        size: 48,
-                        icon: const SmPlayerPlayIcon(color: Colors.white),
-                        onPressed: songs.isEmpty ? null : onPlay,
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textStrong,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.i18n.t('playlists.songCount', {
+                        'count': widget.playlist.songCount,
+                      }),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.35,
                       ),
                     ),
                   ],
                 ),
-              ),
+                if (showHoverControls)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 56,
+                    child: Center(
+                      child: ArtworkFloatingActionButton(
+                        tooltip: widget.i18n.t('context.play'),
+                        size: 48,
+                        icon: const SmPlayerPlayIcon(color: Colors.white),
+                        onPressed: widget.songs.isEmpty ? null : widget.onPlay,
+                      ),
+                    ),
+                  ),
+                _PlaylistDragHandle(
+                  visible: showDragHandle,
+                  tooltip: widget.i18n.t('playlists.dragToSort'),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _PlaylistDragHandle extends StatelessWidget {
+  const _PlaylistDragHandle({required this.visible, required this.tooltip});
+
+  final bool visible;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final night = Theme.of(context).brightness == Brightness.dark;
+    return Positioned(
+      top: 2,
+      right: 2,
+      child:
+          visible
+              ? Tooltip(
+                message: tooltip,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: AnimatedOpacity(
+                    opacity: 1,
+                    duration: const Duration(milliseconds: 120),
+                    child: AnimatedSlide(
+                      offset: Offset.zero,
+                      duration: const Duration(milliseconds: 120),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x291e2a3a),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color:
+                                    night
+                                        ? const Color(0xc7181e26)
+                                        : const Color(0xd1ffffff),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color:
+                                      night
+                                          ? const Color(0x1fffffff)
+                                          : const Color(0x9effffff),
+                                ),
+                              ),
+                              child: SizedBox.square(
+                                dimension: 32,
+                                child: CustomPaint(
+                                  painter: _PlaylistGripPainter(
+                                    color:
+                                        night
+                                            ? const Color(0xf0f6f9fc)
+                                            : const Color(0xc7313f54),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              : const SizedBox.shrink(),
+    );
+  }
+}
+
+class _PlaylistGripPainter extends CustomPainter {
+  const _PlaylistGripPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+    final iconLeft = (size.width - 18) / 2;
+    final iconTop = (size.height - 18) / 2;
+    const scale = 18 / 24;
+    const xPositions = [8.0, 12.0, 16.0];
+    const yPositions = [6.0, 12.0, 18.0];
+    for (final y in yPositions) {
+      for (final x in xPositions) {
+        canvas.drawCircle(
+          Offset(iconLeft + x * scale, iconTop + y * scale),
+          1 * scale,
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlaylistGripPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
@@ -950,39 +1249,66 @@ class _PlaylistDropPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final night = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor =
+        night
+            ? Color.lerp(
+              _PlaylistsColors.accentStrong,
+              const Color(0xfff5fbff),
+              0.28,
+            )!
+            : _PlaylistsColors.accentStrong;
+    final borderColor = _PlaylistsColors.accentStrong.withValues(
+      alpha: night ? 0.74 : 0.76,
+    );
     return Align(
       alignment: Alignment.topLeft,
       child: SizedBox(
-        width: 180,
-        height: 232,
+        key: const ValueKey('Playlists.DropPlaceholder'),
+        width: _playlistCardWidth,
+        height: _playlistCardHeight,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.transparent,
+            color: night ? const Color(0x0cffffff) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _PlaylistsColors.accentStrong, width: 2),
+            boxShadow:
+                night
+                    ? [
+                      BoxShadow(
+                        color: const Color(0x0effffff),
+                        spreadRadius: -1,
+                      ),
+                    ]
+                    : null,
           ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  FluentIcons.add_circle_24_regular,
-                  color: _PlaylistsColors.accentStrong,
-                  size: 30,
-                ),
-                const SizedBox(height: 13),
-                SizedBox(
-                  width: 92,
-                  child: Text(
-                    i18n.t('playlists.dropHere'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: _PlaylistsColors.accentStrong,
-                      fontWeight: FontWeight.w700,
+          child: CustomPaint(
+            painter: _PlaylistDropPlaceholderPainter(color: borderColor),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox.square(
+                    dimension: 30,
+                    child: CustomPaint(
+                      painter: _PlaylistDropPlusPainter(color: foregroundColor),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 13),
+                  SizedBox(
+                    width: 92,
+                    child: Text(
+                      i18n.t('playlists.dropHere'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: foregroundColor,
+                        fontSize: 16,
+                        fontVariations: const [FontVariation.weight(650)],
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -991,11 +1317,142 @@ class _PlaylistDropPlaceholder extends StatelessWidget {
   }
 }
 
+class _PlaylistDropPlusPainter extends CustomPainter {
+  const _PlaylistDropPlusPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final strokePaint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, (size.shortestSide - 2) / 2, strokePaint);
+
+    const plusHalfLength = 7.0;
+    canvas
+      ..drawLine(
+        center.translate(-plusHalfLength, 0),
+        center.translate(plusHalfLength, 0),
+        strokePaint,
+      )
+      ..drawLine(
+        center.translate(0, -plusHalfLength),
+        center.translate(0, plusHalfLength),
+        strokePaint,
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlaylistDropPlusPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _PlaylistDropPlaceholderPainter extends CustomPainter {
+  const _PlaylistDropPlaceholderPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
+    final path =
+        Path()..addRRect(
+          RRect.fromRectAndRadius(
+            Offset.zero & size,
+            const Radius.circular(12),
+          ),
+        );
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      const dash = 9.0;
+      const gap = 6.0;
+      while (distance < metric.length) {
+        final end = (distance + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlaylistDropPlaceholderPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
 class _PlaylistsColors {
   const _PlaylistsColors._();
 
-  static const cardHover = Color(0xf2ffffff);
   static const accentStrong = Color(0xff0063b1);
-  static const textStrong = Color(0xff111827);
   static const textMuted = Color(0xff607085);
+}
+
+class _PlaylistCardColors {
+  const _PlaylistCardColors._();
+
+  static _PlaylistCardColorSet forBrightness(Brightness brightness) {
+    return brightness == Brightness.dark ? dark : light;
+  }
+
+  static const light = _PlaylistCardColorSet(
+    hoverSurface: Color(0x140078d7),
+    hoverShadow: Color(0x1f1e2a3a),
+    hoverBorder: Color(0x290078d7),
+    dragSurface: Color(0xfafaFCff),
+    dragShadow: Color(0x2435495f),
+    dragBorder: Color(0xadffffff),
+    artworkSurface: Color(0xb8ffffff),
+    artworkShadow: Color(0x21202d3f),
+    textStrong: Color(0xff1f252b),
+    textMuted: Color(0xff5f625f),
+  );
+
+  static const dark = _PlaylistCardColorSet(
+    hoverSurface: Color(0x240078d7),
+    hoverShadow: Color(0x3d000000),
+    hoverBorder: Color(0x380078d7),
+    dragSurface: Color(0xfa161c24),
+    dragShadow: Color(0x57000000),
+    dragBorder: Color(0x1fD6e0ec),
+    artworkSurface: Color(0x14ffffff),
+    artworkShadow: Color(0x4d000000),
+    textStrong: Color(0xf0f6f9fc),
+    textMuted: Color(0xadcbd5e1),
+  );
+}
+
+class _PlaylistCardColorSet {
+  const _PlaylistCardColorSet({
+    required this.hoverSurface,
+    required this.hoverShadow,
+    required this.hoverBorder,
+    required this.dragSurface,
+    required this.dragShadow,
+    required this.dragBorder,
+    required this.artworkSurface,
+    required this.artworkShadow,
+    required this.textStrong,
+    required this.textMuted,
+  });
+
+  final Color hoverSurface;
+  final Color hoverShadow;
+  final Color hoverBorder;
+  final Color dragSurface;
+  final Color dragShadow;
+  final Color dragBorder;
+  final Color artworkSurface;
+  final Color artworkShadow;
+  final Color textStrong;
+  final Color textMuted;
 }

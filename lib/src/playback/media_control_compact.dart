@@ -11,8 +11,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.mode,
     required this.progressSeconds,
     required this.durationSeconds,
+    required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    this.onForcePrevious,
     required this.onNext,
     required this.onSeek,
     required this.onBeginSeek,
@@ -58,8 +60,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final PlaybackMode mode;
   final double progressSeconds;
   final double durationSeconds;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
   final VoidCallback onBeginSeek;
@@ -106,19 +110,25 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityIconSize = utilitySize - utilityPadding * 2;
     final utilityGap = narrow ? 2.0 : 6.0;
     const utilityControlOuterSlack = 4.0;
+    final previousTitle =
+        previousButtonRestartsTrack
+            ? i18n.t('player.restartCurrentTrackHoldPrevious')
+            : i18n.t('player.previous');
 
     final transportControls = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _PlayerIconButton(
           key: const ValueKey('MediaControl.PreviousButton'),
-          tooltip: i18n.t('player.previous'),
+          tooltip: previousTitle,
+          longPressTooltip: i18n.t('player.forcePrevious'),
           icon: _previousIcon,
           buttonSize: 36,
           padding: 6,
           iconSize: 24,
           disabled: disabled,
           onPressed: onPrevious,
+          onLongPress: previousButtonRestartsTrack ? onForcePrevious : null,
         ),
         const SizedBox(width: 16),
         _PlayerIconButton(
@@ -163,6 +173,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                 iconSize: utilityIconSize,
                 active: mode != PlaybackMode.once,
                 disabled: disabled,
+                showLongPressProgress: false,
                 onPressed: () {
                   switch (getNextPlaybackMode(mode)) {
                     case PlaybackMode.shuffle:

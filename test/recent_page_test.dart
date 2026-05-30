@@ -13,6 +13,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode, SettingsSnapshot;
@@ -490,6 +492,74 @@ void main() {
     expect(repository.restoredRecentPlayedIds, [1]);
   });
 
+  testWidgets('RecentPage grid music hover does not add a real border', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentPlayed, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    final tile =
+        find
+            .ancestor(
+              of: find.text('Blue Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(tile));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    final decoration = tester.widget<AnimatedContainer>(tile).decoration;
+    expect(decoration, isA<BoxDecoration>());
+    final boxDecoration = decoration! as BoxDecoration;
+    expect(boxDecoration.color, const Color(0x140078d7));
+    expect(boxDecoration.border, isNull);
+    expect(boxDecoration.boxShadow, isNotEmpty);
+    expect(tester.getSize(tile).height, 116);
+    expect(
+      tester.widget<AnimatedContainer>(tile).padding,
+      const EdgeInsets.fromLTRB(3, 3, 8, 3),
+    );
+  });
+
+  testWidgets('RecentPage grid music unknown artist uses i18n', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final zhI18n = SmPlayerI18n(
+      locale: 'zh-CN',
+      messages: {...i18n.messages, 'common.artistUnknown': '未知歌手'},
+    );
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithUnknownRecentPlayed, i18n: zhI18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未知歌手'), findsOneWidget);
+    expect(find.text('Unknown Artist'), findsNothing);
+  });
+
   testWidgets('RecentPage uses compact appbar tabs in narrow layout', (
     tester,
   ) async {
@@ -527,6 +597,70 @@ void main() {
 
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
   });
+
+  testWidgets('RecentPage current song tile shows Electron playing wave', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 120,
+    );
+
+    await tester.pumpWidget(
+      _RecentTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('RecentSong.Playing.1.Wave')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('RecentSong.Playing.1.Backdrop')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('RecentSong.Playing.1.Wave'))),
+      const Size(48, 48),
+    );
+
+    final firstHeight = _playingBarHeight(tester, 'RecentSong.Playing.1', 0);
+    await tester.pump(const Duration(milliseconds: 390));
+
+    expect(
+      _playingBarHeight(tester, 'RecentSong.Playing.1', 0),
+      isNot(firstHeight),
+    );
+
+    final songTile = find.ancestor(
+      of: find.text('Blue Song').first,
+      matching: find.byType(InkWell),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(songTile.first));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    expect(find.byType(SmPlayerPauseIcon), findsOneWidget);
+  });
 }
 
 class _RecentTestApp extends StatelessWidget {
@@ -534,11 +668,13 @@ class _RecentTestApp extends StatelessWidget {
     required this.snapshot,
     required this.i18n,
     this.repository,
+    this.mediaController,
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
+  final MediaControlController? mediaController;
 
   @override
   Widget build(BuildContext context) {
@@ -552,6 +688,10 @@ class _RecentTestApp extends StatelessWidget {
         libraryRepositoryProvider.overrideWithValue(
           repository ?? _FakeLibraryRepository(),
         ),
+        if (mediaController != null)
+          mediaControlControllerProvider.overrideWith(
+            (ref) => mediaController!,
+          ),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -562,6 +702,10 @@ class _RecentTestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+double _playingBarHeight(WidgetTester tester, String keyPrefix, int index) {
+  return tester.getSize(find.byKey(ValueKey('$keyPrefix.Bar.$index'))).height;
 }
 
 RecentPageData _recentPageData(LibraryContentData data) {
@@ -880,6 +1024,52 @@ const _snapshotWithRecentPlayed = LibraryContentData(
       artist: 'Artist A',
       artists: ['Artist A'],
       album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+      playedAt: '2026-05-20T00:00:00',
+    ),
+  ],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithUnknownRecentPlayed = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 2,
+      path: r'C:\Music\unknown.mp3',
+      title: 'Unknown Artist Song',
+      artist: '',
+      artists: [],
+      album: 'Unknown Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [
+    RecentLibrarySong(
+      id: 2,
+      path: r'C:\Music\unknown.mp3',
+      title: 'Unknown Artist Song',
+      artist: '',
+      artists: [],
+      album: 'Unknown Hour',
       duration: 120,
       playCount: 0,
       lyricsOffsetMs: 0,

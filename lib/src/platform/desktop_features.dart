@@ -51,6 +51,7 @@ Future<String?> pickDirectoryFromDesktopShell({
   String? title,
   String? buttonLabel,
   String? defaultPath,
+  String? locale,
 }) {
   final arguments = <String, String>{};
   if (title != null) {
@@ -61,6 +62,9 @@ Future<String?> pickDirectoryFromDesktopShell({
   }
   if (defaultPath != null) {
     arguments['defaultPath'] = defaultPath;
+  }
+  if (locale != null) {
+    arguments['locale'] = locale;
   }
   return _desktopFeatureChannel.invokeMethod<String>(
     'pickDirectory',

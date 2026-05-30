@@ -284,6 +284,9 @@ extension _LocalPageContextMenus on _LocalPageState {
     required List<MultiSelectCommandBarPlaylist> playlists,
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
+    bool showSelect = true,
+    bool showMusicProperties = true,
+    bool showDelete = true,
   }) async {
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final preferenceLevel = await ref
@@ -307,6 +310,9 @@ extension _LocalPageContextMenus on _LocalPageState {
         songPath: song.path,
         currentTrackId: mediaState.track.id,
         showMoveToFolder: snapshot.folders.isNotEmpty,
+        showSelect: showSelect,
+        showMusicProperties: showMusicProperties,
+        showDelete: showDelete,
         showHideFile: true,
         onPlay: () => _playTrack(song.id, queueSongIds),
         onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,

@@ -13,8 +13,10 @@ class MediaControlSurface extends StatefulWidget {
     required this.mode,
     required this.progressSeconds,
     required this.durationSeconds,
+    required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    this.onForcePrevious,
     required this.onNext,
     required this.onSeek,
     required this.onBeginSeek,
@@ -44,8 +46,10 @@ class MediaControlSurface extends StatefulWidget {
   final PlaybackMode mode;
   final double progressSeconds;
   final double durationSeconds;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
   final VoidCallback onBeginSeek;
@@ -102,8 +106,10 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
           progressValue: progressValue,
           progressMax: progressMax,
           durationSeconds: widget.durationSeconds,
+          previousButtonRestartsTrack: widget.previousButtonRestartsTrack,
           onTogglePlayPause: widget.onTogglePlayPause,
           onPrevious: widget.onPrevious,
+          onForcePrevious: widget.onForcePrevious,
           onNext: widget.onNext,
           onSeekChange: (value) {
             setState(() {
@@ -170,8 +176,10 @@ class MediaControlButtons extends StatelessWidget {
     required this.progressValue,
     required this.progressMax,
     required this.durationSeconds,
+    required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    this.onForcePrevious,
     required this.onNext,
     required this.onSeekChange,
     required this.onSeekBegin,
@@ -187,8 +195,10 @@ class MediaControlButtons extends StatelessWidget {
   final double progressValue;
   final double progressMax;
   final double durationSeconds;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeekChange;
   final VoidCallback onSeekBegin;
@@ -200,6 +210,10 @@ class MediaControlButtons extends StatelessWidget {
     final textMuted = MediaControlColors.textMutedFor(context);
     final playTitle =
         isPlaying ? i18n.t('player.pause') : i18n.t('player.play');
+    final previousTitle =
+        previousButtonRestartsTrack
+            ? i18n.t('player.restartCurrentTrackHoldPrevious')
+            : i18n.t('player.previous');
     final transportGap = navMinimal || condensed ? 16.0 : 26.0;
     final primarySize =
         navMinimal
@@ -229,13 +243,16 @@ class MediaControlButtons extends StatelessWidget {
             children: [
               _PlayerIconButton(
                 key: const ValueKey('MediaControl.PreviousButton'),
-                tooltip: i18n.t('player.previous'),
+                tooltip: previousTitle,
+                longPressTooltip: i18n.t('player.forcePrevious'),
                 icon: _previousIcon,
                 buttonSize: 36,
                 padding: 6,
                 iconSize: 24,
                 disabled: disabled,
                 onPressed: onPrevious,
+                onLongPress:
+                    previousButtonRestartsTrack ? onForcePrevious : null,
               ),
               SizedBox(width: transportGap),
               SizedBox(

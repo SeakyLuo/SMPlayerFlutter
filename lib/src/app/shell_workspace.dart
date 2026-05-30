@@ -10,10 +10,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
-import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
-    as artists_model;
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
-import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 
 class SmPlayerShellWorkspaceKeys {
   const SmPlayerShellWorkspaceKeys._();
@@ -51,12 +48,9 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-    final recentData = ref.watch(recentPageDataProvider).valueOrNull;
     final title = _workspaceTitle(
       path: currentPath,
-      location: currentLocation,
       snapshot: snapshot,
-      recentData: recentData,
       i18n: i18n,
     );
     final rawHeaderedPlaylistAppBar = ref.watch(
@@ -72,7 +66,10 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final currentUri = Uri.parse(currentLocation);
     final currentRoutePath = currentUri.path;
     final currentWorkspaceAppBarPortal =
-        workspaceAppBarPortal?.routePath == currentRoutePath
+        workspaceAppBarPortal != null &&
+                workspaceAppBarPortal.routePath == currentRoutePath &&
+                (workspaceAppBarPortal.routeLocation == null ||
+                    workspaceAppBarPortal.routeLocation == currentLocation)
             ? workspaceAppBarPortal
             : null;
     final localTitleContent =
@@ -175,6 +172,11 @@ class _WorkspacePageSurface extends StatelessWidget {
         showNavigationAppBar && headeredPlaylistAppBar != null;
     final headeredPlaylistCommandBar = headeredPlaylistAppBar?.commandBarBuilder
         ?.call(context);
+    final pageTitle =
+        headeredPlaylistAppBar?.title ??
+        (workspaceAppBarPortal?.replacesTitle == true
+            ? ''
+            : workspaceAppBarPortal?.title ?? title);
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar,
       child: _WorkspaceContentMediaQuery(child: child),
@@ -190,11 +192,11 @@ class _WorkspacePageSurface extends StatelessWidget {
                 _WorkspaceNavigationAppBar(
                   headeredPlaylistAppBar: headeredPlaylistAppBar,
                   title:
-                      headeredPlaylistAppBar?.title ??
-                      (localTitleContent != null ||
-                              workspaceAppBarPortal?.replacesTitle == true
+                      localTitleContent != null ||
+                              pageTitle.isEmpty &&
+                                  workspaceAppBarPortal?.replacesTitle == true
                           ? ''
-                          : title),
+                          : pageTitle,
                   navigationMenuLabel: navigationMenuLabel,
                   onNavigationMenuPressed: onNavigationMenuPressed,
                   titleContent:
@@ -209,8 +211,8 @@ class _WorkspacePageSurface extends StatelessWidget {
                           : workspaceAppBarPortal?.content),
                   bottomContent: workspaceAppBarPortal?.bottomContent,
                 )
-              else if (title.isNotEmpty)
-                _WorkspaceHeader(title: title, height: headerHeight),
+              else if (pageTitle.isNotEmpty)
+                _WorkspaceHeader(title: pageTitle, height: headerHeight),
               Expanded(child: content),
             ],
           ),
@@ -549,33 +551,15 @@ class _WorkspaceHeader extends StatelessWidget {
 
 String _workspaceTitle({
   required String path,
-  required String location,
   required LibraryContentData? snapshot,
-  required RecentPageData? recentData,
   required SmPlayerI18n i18n,
 }) {
-  final uri = Uri.parse(location);
-  final showCount = snapshot?.showCount ?? false;
   if (path.startsWith('/artists')) {
-    if (uri.queryParameters.containsKey('artist')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('library.allArtistsWithCount', {
-          'count': _artistCount(snapshot!),
-        })
-        : i18n.t('library.allArtists');
+    return '';
   }
 
   if (path.startsWith('/albums')) {
-    if (uri.queryParameters.containsKey('album')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('library.allAlbumsWithCount', {
-          'count': _albumCount(snapshot!),
-        })
-        : i18n.t('library.allAlbums');
+    return '';
   }
 
   if (path.startsWith('/now-playing/full')) {
@@ -583,11 +567,7 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/now-playing')) {
-    return showCount
-        ? i18n.t('nowPlaying.titleWithCount', {
-          'count': snapshot!.nowPlaying.songIds.length,
-        })
-        : i18n.t('common.nowPlaying');
+    return '';
   }
 
   if (path.startsWith('/hidden-folders')) {
@@ -595,28 +575,17 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/recent')) {
-    if (snapshot != null && _hasRecentContent(snapshot, recentData)) {
-      return '';
-    }
-    return i18n.t('common.recent');
+    return '';
   }
 
   if (path.startsWith('/local')) {
-    return i18n.t('common.local');
+    return snapshot != null && snapshot.rootPath.isEmpty
+        ? i18n.t('common.local')
+        : '';
   }
 
   if (path.startsWith('/playlists')) {
-    if (path.startsWith('/playlists/')) {
-      return '';
-    }
-    return showCount
-        ? i18n.t('search.playlistsWithCount', {
-          'count':
-              snapshot!.playlists
-                  .where((playlist) => !playlist.isBuiltIn)
-                  .length,
-        })
-        : i18n.t('common.playlists');
+    return '';
   }
 
   if (path.startsWith('/favorites')) {
@@ -624,52 +593,12 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/search')) {
-    final query = (uri.queryParameters['query'] ?? '').trim();
-    final folder = uri.queryParameters['folder'] ?? '';
-    if (query.isNotEmpty && folder.isNotEmpty) {
-      return i18n.t('search.directoryResultOf', {
-        'query': query,
-        'folder': folder.split('/').last,
-      });
-    }
-    return query.isNotEmpty
-        ? i18n.t('search.resultOf', {'query': query})
-        : i18n.t('search.resultTitle');
+    return '';
   }
 
   if (path.startsWith('/settings')) {
     return i18n.t('common.settings');
   }
 
-  return showCount
-      ? i18n.t('library.allSongsWithCount', {'count': snapshot!.songs.length})
-      : i18n.t('library.allSongs');
-}
-
-bool _hasRecentContent(
-  LibraryContentData snapshot,
-  RecentPageData? recentData,
-) {
-  return snapshot.songs.isNotEmpty ||
-      (recentData?.recentSongs.isNotEmpty ?? false) ||
-      (recentData?.recentPlaylists.isNotEmpty ?? false) ||
-      (recentData?.recentAlbums.isNotEmpty ?? false) ||
-      (recentData?.recentArtists.isNotEmpty ?? false) ||
-      snapshot.recentSearches.isNotEmpty;
-}
-
-int _artistCount(LibraryContentData snapshot) {
-  final names = <String>{};
-  for (final song in snapshot.songs) {
-    names.addAll(artists_model.getSongArtists(song));
-  }
-  return names.length;
-}
-
-int _albumCount(LibraryContentData snapshot) {
-  return snapshot.songs
-      .map(canonicalAlbumName)
-      .where((album) => album.isNotEmpty)
-      .toSet()
-      .length;
+  return '';
 }

@@ -7,11 +7,18 @@ List<String> songArtists(LibrarySong song) {
     return artists.toList();
   }
 
-  return song.artist
+  final seen = <String>{};
+  final normalizedArtists = <String>[];
+  for (final artist in song.artist
       .split(RegExp(r'\s*(?:;|；|、|\|)\s*'))
       .map((artist) => artist.trim())
-      .where((artist) => artist.isNotEmpty)
-      .toList();
+      .where((artist) => artist.isNotEmpty)) {
+    final key = artist.toLowerCase();
+    if (seen.add(key)) {
+      normalizedArtists.add(artist);
+    }
+  }
+  return normalizedArtists;
 }
 
 String displayArtists(LibrarySong song, SmPlayerI18n i18n) {

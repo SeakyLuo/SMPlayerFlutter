@@ -7,6 +7,7 @@ import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/app/shell_widgets.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -45,6 +46,15 @@ const testI18n = SmPlayerI18n(
     'nowPlaying.randomPlay': '随机播放',
   },
 );
+
+void _noop() {}
+
+void _ignoreString(String value) {}
+
+void _ignoreSearchCommit(
+  String value, [
+  SearchHistoryType type = SearchHistoryType.sidebar,
+]) {}
 
 void main() {
   setUp(() {
@@ -186,6 +196,57 @@ void main() {
     await tester.pump();
 
     expect(find.text('音乐库'), findsNothing);
+  });
+
+  testWidgets('navigation glass surface does not clip floating labels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SizedBox(
+          width: 96,
+          height: 900,
+          child: ShellNavigationGlassSurface(
+            surface: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shadowBlur: 0,
+            child: MainNavigationView(
+              isPaneOpen: false,
+              currentPath: '/songs',
+              searchText: '',
+              i18n: testI18n,
+              onPaneToggle: _noop,
+              onSearchTextChanged: _ignoreString,
+              onSearchCommitted: _ignoreSearchCommit,
+              onSearchCleared: _noop,
+              onItemInvoked: _ignoreString,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final surfaceStack = tester.widget<Stack>(
+      find
+          .descendant(
+            of: find.byType(ShellNavigationGlassSurface),
+            matching: find.byType(Stack),
+          )
+          .first,
+    );
+
+    expect(surfaceStack.clipBehavior, Clip.none);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    await tester.pump();
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('MusicLibraryItem'))),
+    );
+    await tester.pump();
+
+    expect(find.text('音乐库'), findsOneWidget);
+    expect(tester.getRect(find.text('音乐库')).right, greaterThan(96));
   });
 
   testWidgets('back button follows Electron sidebar title behavior', (

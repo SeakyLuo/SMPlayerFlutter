@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart' show displayAlbum;
@@ -524,7 +525,7 @@ class LocalTableContent extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: i18n.t('context.playNext'),
-                  icon: const Icon(FluentIcons.next_20_regular),
+                  icon: const SmPlayerPlayNextIcon(),
                   onPressed: () => onPlayNext(song.id),
                 ),
               ],
@@ -724,7 +725,7 @@ class LocalTableContent extends StatelessWidget {
                           ),
                           IconButton(
                             tooltip: i18n.t('context.playNext'),
-                            icon: const Icon(FluentIcons.next_20_regular),
+                            icon: const SmPlayerPlayNextIcon(),
                             onPressed: () => onPlayNext(song.id),
                           ),
                         ],

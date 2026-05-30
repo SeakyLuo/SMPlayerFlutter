@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -157,6 +158,39 @@ void main() {
         positionSeconds: 11,
         pendingSeekSeconds: null,
         toleranceSeconds: 0.25,
+      ),
+      isFalse,
+    );
+  });
+
+  test('audio file permission classifier detects macOS sandbox denials', () {
+    expect(
+      isAudioFilePermissionDenied(
+        const FileSystemException(
+          'Operation not permitted',
+          '/Users/me/Music/song.wav',
+          OSError('Operation not permitted', 1),
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isAudioFilePermissionDenied(
+        const FileSystemException(
+          'Permission denied',
+          '/Users/me/Music/song.wav',
+          OSError('Permission denied', 13),
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isAudioFilePermissionDenied(
+        const FileSystemException(
+          'No such file',
+          '/Users/me/Music/song.wav',
+          OSError('No such file', 2),
+        ),
       ),
       isFalse,
     );
@@ -527,6 +561,10 @@ void main() {
 
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pumpAndSettle();
 
     final sidebar = find.byKey(SmPlayerShellKeys.sidebar);
     final workspace = find.byKey(SmPlayerShellKeys.workspace);
@@ -534,6 +572,24 @@ void main() {
     expect(tester.getSize(sidebar).width, SmPlayerShellMetrics.sidebarWidth);
     expect(
       tester.getTopLeft(workspace).dx,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+  });
+
+  testWidgets('overlay navigation starts collapsed on app startup', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(800, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+    expect(
+      tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx,
       SmPlayerShellMetrics.collapsedSidebarWidth,
     );
   });
@@ -619,6 +675,10 @@ void main() {
 
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
     );
@@ -879,6 +939,70 @@ void main() {
 
     expect(navigations.last, '/now-playing/full?from=%2Fsongs');
   });
+
+  testWidgets(
+    'bottom player favorite toggles from player state before library refresh',
+    (tester) async {
+      _setViewSize(tester, const Size(1300, 700));
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(
+          lastMusicIndex: 0,
+          musicProgress: 0,
+          autoPlay: false,
+          saveMusicProgress: true,
+        ),
+      );
+      final repository = _SnapshotRepository(
+        const LibraryContentData(
+          songs: [
+            LibrarySong(
+              id: 10,
+              path: '/tmp/first.mp3',
+              title: 'First Song',
+              artist: 'First Artist',
+              artists: ['First Artist'],
+              album: 'First Album',
+              duration: 180,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+          ],
+          hasLibrary: true,
+          sortCriterion: MusicLibrarySortCriterion.title,
+          albumsSort: AlbumSortCriterion.defaultSort,
+          databasePath: '',
+          nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          repository: repository,
+          messages: const {
+            'player.like': 'Add to My Favorites',
+            'player.unlike': 'Remove from My Favorites',
+          },
+        ),
+      );
+      for (var pump = 0; pump < 8; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      await tester.tap(find.byTooltip('Add to My Favorites'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Remove from My Favorites'));
+      await tester.pump();
+
+      expect(repository.favoriteWrites, hasLength(2));
+      expect(repository.favoriteWrites[0].songIds, [10]);
+      expect(repository.favoriteWrites[0].favorite, isTrue);
+      expect(repository.favoriteWrites[1].songIds, [10]);
+      expect(repository.favoriteWrites[1].favorite, isFalse);
+    },
+  );
 
   testWidgets('shell restores playback from normalized Electron queue', (
     tester,
@@ -1348,6 +1472,7 @@ class _SnapshotRepository extends _StartupRepository {
   final LibraryContentData snapshot;
   var artworkSnapshotRequestCount = 0;
   final artworkSnapshotSongIds = <int>[];
+  final favoriteWrites = <({List<int> songIds, bool favorite})>[];
 
   @override
   Future<LibraryContentData> getLibraryContentData() async {
@@ -1378,6 +1503,11 @@ class _SnapshotRepository extends _StartupRepository {
       sourcePath: '',
       source: SongArtworkSource.none,
     );
+  }
+
+  @override
+  Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
+    favoriteWrites.add((songIds: songIds, favorite: favorite));
   }
 }
 

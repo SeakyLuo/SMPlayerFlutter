@@ -12,17 +12,27 @@ extension _SettingsPageSections on _SettingsPageState {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  enabled: false,
-                  controller: TextEditingController(text: _snapshot.rootPath),
-                  decoration: InputDecoration(
-                    hintText: i18n.t('settings.musicFolderPlaceholder'),
-                    isDense: true,
-                    filled: true,
-                    fillColor: colors.inputSurface,
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: const BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide(color: colors.inputBorder),
+                child: TooltipVisibility(
+                  visible: _snapshot.rootPath.isNotEmpty,
+                  child: Tooltip(
+                    message: _snapshot.rootPath,
+                    child: TextField(
+                      enabled: false,
+                      controller: TextEditingController(
+                        text: _snapshot.rootPath,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: i18n.t('settings.musicFolderPlaceholder'),
+                        isDense: true,
+                        filled: true,
+                        fillColor: colors.inputSurface,
+                        disabledBorder: OutlineInputBorder(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(8),
+                          ),
+                          borderSide: BorderSide(color: colors.inputBorder),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -394,6 +404,15 @@ extension _SettingsPageSections on _SettingsPageState {
             checked: _snapshot.shuffleAfterOneRound,
             onChange: (checked) {
               _updateSettings(AppSettingsUpdate(shuffleAfterOneRound: checked));
+            },
+          ),
+          ToggleSettingRow(
+            label: i18n.t('settings.previousButtonRestartsTrack'),
+            checked: _snapshot.previousButtonRestartsTrack,
+            onChange: (checked) {
+              _updateSettings(
+                AppSettingsUpdate(previousButtonRestartsTrack: checked),
+              );
             },
           ),
           ToggleSettingRow(

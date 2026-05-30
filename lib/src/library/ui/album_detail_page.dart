@@ -52,7 +52,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
               ),
             ),
         data: (snapshot) {
-          final routeAlbumName = Uri.decodeComponent(widget.albumName);
+          final routeAlbumName = widget.albumName;
           final albumSongs =
               snapshot.songs
                   .where(

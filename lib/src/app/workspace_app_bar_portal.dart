@@ -9,13 +9,17 @@ class WorkspaceAppBarPortalEntry {
     required this.owner,
     required this.routePath,
     required this.content,
+    this.routeLocation,
+    this.title,
     this.bottomContent,
     this.replacesTitle = false,
   });
 
   final Object owner;
   final String routePath;
+  final String? routeLocation;
   final Widget content;
+  final String? title;
   final Widget? bottomContent;
   final bool replacesTitle;
 }

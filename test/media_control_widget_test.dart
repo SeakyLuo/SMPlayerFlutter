@@ -36,13 +36,16 @@ void main() {
       'player.next': 'Next',
       'player.pause': 'Pause',
       'player.play': 'Play',
-      'player.playbackLoadFailed': 'Could not play this song.',
       'player.playbackMode': 'Playback Mode',
       'player.playbackModeList': 'List',
       'player.playbackModeRepeat': 'Repeat',
       'player.playbackModeRepeatOne': 'Repeat One',
       'player.playbackModeShuffle': 'Shuffle',
       'player.previous': 'Previous',
+      'player.forcePrevious': 'Force Previous',
+      'player.restartCurrentTrack': 'Restart current track',
+      'player.restartCurrentTrackHoldPrevious':
+          'Restart current track. Hold to force Previous.',
       'player.repeatDisabled': 'Repeat: Disabled',
       'player.repeatEnabled': 'Repeat: Enabled',
       'player.repeatOneDisabled': 'Repeat One: Disabled',
@@ -179,6 +182,238 @@ void main() {
     expect(find.byType(MediaControlSurface), findsOneWidget);
   });
 
+  testWidgets('MediaControl previous tooltip reflects restart action', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 220);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                ),
+                currentSong: _song,
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 6,
+                durationSeconds: 180,
+                previousButtonRestartsTrack: true,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byTooltip('Restart current track. Hold to force Previous.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('MediaControl previous button long press forces previous', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 220);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    var previousCount = 0;
+    var forcePreviousCount = 0;
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                ),
+                currentSong: _song,
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 6,
+                durationSeconds: 180,
+                previousButtonRestartsTrack: true,
+                onTogglePlayPause: () {},
+                onPrevious: () {
+                  previousCount += 1;
+                },
+                onForcePrevious: () {
+                  forcePreviousCount += 1;
+                },
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button =
+        find.byKey(const ValueKey('MediaControl.PreviousButton')).last;
+    expect(
+      find.descendant(
+        of: button,
+        matching: find.byKey(const ValueKey('MediaControl.LongPressProgress')),
+      ),
+      findsOneWidget,
+    );
+    final gesture = await tester.startGesture(tester.getCenter(button));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(forcePreviousCount, 0);
+    expect(previousCount, 0);
+    await gesture.up();
+    await tester.pump();
+    expect(forcePreviousCount, 1);
+    expect(previousCount, 0);
+  });
+
+  testWidgets(
+    'MediaControl previous long press cancels outside button circle',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 220);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      var previousCount = 0;
+      var forcePreviousCount = 0;
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: SizedBox(
+                width: 1200,
+                child: MediaControl(
+                  track: const MediaControlTrack(
+                    id: 1,
+                    title: 'Song',
+                    artist: 'Artist',
+                    artworkUrl: '',
+                    isLoading: false,
+                  ),
+                  currentSong: _song,
+                  disabled: false,
+                  isPlaying: false,
+                  volume: 50,
+                  isMuted: false,
+                  mode: PlaybackMode.once,
+                  progressSeconds: 6,
+                  durationSeconds: 180,
+                  previousButtonRestartsTrack: true,
+                  onTogglePlayPause: () {},
+                  onPrevious: () {
+                    previousCount += 1;
+                  },
+                  onForcePrevious: () {
+                    forcePreviousCount += 1;
+                  },
+                  onNext: () {},
+                  onSeek: (_) {},
+                  onBeginSeek: () {},
+                  onEndSeek: () {},
+                  onVolumeChange: (_) {},
+                  onToggleMute: () {},
+                  onToggleShuffle: () {},
+                  onToggleRepeat: () {},
+                  onToggleRepeatOne: () {},
+                  onToggleFavorite: () {},
+                  onQuickPlay: () {},
+                  onOpenNowPlaying: () {},
+                  onToggleWindowFullScreen: () {},
+                  isWindowFullScreen: false,
+                  onEnterMiniMode: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final button =
+          find.byKey(const ValueKey('MediaControl.PreviousButton')).last;
+      final rect = tester.getRect(button);
+      final gesture = await tester.startGesture(rect.center);
+      await tester.pump(const Duration(milliseconds: 250));
+      await gesture.moveTo(rect.centerRight + const Offset(20, 0));
+      await gesture.up();
+      await tester.pump();
+
+      expect(forcePreviousCount, 0);
+      expect(previousCount, 0);
+    },
+  );
+
   testWidgets('MediaControl uses Electron-style night player colors', (
     tester,
   ) async {
@@ -259,6 +494,12 @@ void main() {
     expect(MediaControlColors.nightPlayerHighlight, const Color(0x0effffff));
     expect(MediaControlColors.nightPlayerAccentWash, const Color(0x1f0078d7));
     expect(MediaControlColors.nightTransportHover, const Color(0x2e0078d7));
+    expect(MediaControlColors.favorite, const Color(0xffff1d1d));
+    expect(MediaControlColors.favoriteActiveHover, const Color(0x38ffffff));
+    expect(
+      MediaControlColors.nightFavoriteActiveHover,
+      const Color(0x1fffffff),
+    );
     expect(
       MediaControlColors.nightEmptyPlayerAccentWash,
       const Color(0x120078d7),
@@ -868,6 +1109,10 @@ void main() {
       expect(find.text('Artist'), findsOneWidget);
       expect(find.text('0:00'), findsOneWidget);
       expect(find.text('3:00'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('MediaControl.FavoriteOutlineIcon')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
 
       await tester.tap(
@@ -879,6 +1124,45 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('MediaControl.NextButton')));
       await tester.pump();
       expect(controller.state.progressSeconds, 0);
+
+      await tester.tap(find.byTooltip('Add to My Favorites'));
+      await tester.pump();
+      expect(controller.state.track.favorite, isTrue);
+      expect(
+        find.byKey(const ValueKey('MediaControl.FavoriteFilledIcon')),
+        findsOneWidget,
+      );
+      var favoriteButton = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MediaControl.FavoriteButton')),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect(
+        (favoriteButton.decoration! as BoxDecoration).color,
+        Colors.transparent,
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(
+        tester.getCenter(
+          find.byKey(const ValueKey('MediaControl.FavoriteButton')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      favoriteButton = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MediaControl.FavoriteButton')),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect(
+        (favoriteButton.decoration! as BoxDecoration).color,
+        MediaControlColors.favoriteActiveHover,
+      );
+      await mouse.removePointer();
     },
   );
 
@@ -1130,7 +1414,7 @@ void main() {
                 mode: PlaybackMode.once,
                 progressSeconds: 0,
                 durationSeconds: 180,
-                playbackNoticeKey: 'player.playbackLoadFailed',
+                playbackNoticeKey: 'notification.playbackStalled',
                 onTogglePlayPause: () {},
                 onPrevious: () {},
                 onNext: () {},
@@ -1154,7 +1438,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Could not play this song.'), findsNothing);
+      expect(find.text('Playback stalled.'), findsNothing);
       expect(find.textContaining('/'), findsNothing);
     },
   );
@@ -1997,6 +2281,10 @@ void main() {
       await pumpMediaControl();
 
       await tester.longPress(find.byTooltip('Playback Mode: List').last);
+      expect(
+        find.byKey(const ValueKey('MediaControl.LongPressProgress')),
+        findsNothing,
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('List'), findsOneWidget);
@@ -2339,8 +2627,22 @@ void main() {
       findsNothing,
     );
 
+    await tester.tap(
+      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
+    );
+    await tester.pump();
+
     expect(
       find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(MediaControlPlayerFrame),
+        matching: find.byKey(
+          const ValueKey('MediaControl.CompactVolumePopover'),
+        ),
+      ),
       findsNothing,
     );
   });

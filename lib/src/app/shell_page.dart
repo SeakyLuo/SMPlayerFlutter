@@ -30,13 +30,13 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/lyrics/desktop_lyrics_overlay.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/local_audio_file_source.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
@@ -683,6 +683,23 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                                 mediaControlState,
                                                 snapshot,
                                               );
+                                          final playbackSongIds =
+                                              snapshot == null
+                                                  ? const <int>[]
+                                                  : _playbackSongIds(snapshot);
+                                          final previousButtonRestartsTrack =
+                                              playbackSongIds.isNotEmpty &&
+                                              shouldRestartCurrentTrackForPrevious(
+                                                progressSeconds:
+                                                    mediaControlState
+                                                        .progressSeconds,
+                                                queueLength:
+                                                    playbackSongIds.length,
+                                                restartAfterThresholdEnabled:
+                                                    _settingsController
+                                                        .snapshot
+                                                        .previousButtonRestartsTrack,
+                                              );
                                           _ensurePlayerArtworkResolved(
                                             currentSong,
                                             ref,
@@ -741,6 +758,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                             durationSeconds:
                                                 mediaControlState
                                                     .durationSeconds,
+                                            previousButtonRestartsTrack:
+                                                previousButtonRestartsTrack,
                                             playbackNoticeKey:
                                                 mediaControlState
                                                     .playbackNoticeKey,
@@ -749,6 +768,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                                 _togglePlayPauseFromCurrentQueue,
                                             onPrevious:
                                                 _playPreviousFromCurrentQueue,
+                                            onForcePrevious: () {
+                                              _playPreviousFromCurrentQueue(
+                                                forcePrevious: true,
+                                              );
+                                            },
                                             onNext: _playNextFromCurrentQueue,
                                             onSeek:
                                                 _mediaControlController.onSeek,

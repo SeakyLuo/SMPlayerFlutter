@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-class ArtworkFloatingActionButton extends StatelessWidget {
+class ArtworkFloatingActionButton extends StatefulWidget {
   const ArtworkFloatingActionButton({
     super.key,
     required this.tooltip,
@@ -9,6 +9,8 @@ class ArtworkFloatingActionButton extends StatelessWidget {
     required this.onPressed,
     this.size = 48,
     this.iconSize,
+    this.hoverScale = 1.1,
+    this.scaleKey,
   });
 
   final String tooltip;
@@ -16,6 +18,8 @@ class ArtworkFloatingActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final double size;
   final double? iconSize;
+  final double hoverScale;
+  final Key? scaleKey;
 
   static const _settings = LiquidGlassSettings(
     glassColor: Color(0xb20b0d12),
@@ -31,23 +35,50 @@ class ArtworkFloatingActionButton extends StatelessWidget {
   );
 
   @override
+  State<ArtworkFloatingActionButton> createState() =>
+      _ArtworkFloatingActionButtonState();
+}
+
+class _ArtworkFloatingActionButtonState
+    extends State<ArtworkFloatingActionButton> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
-      child: GlassIconButton(
-        size: size,
-        iconSize: iconSize ?? size * 0.46,
-        useOwnLayer: true,
-        settings: _settings,
-        glowColor: Colors.white.withValues(alpha: 0.18),
-        glowRadius: size * 0.44,
-        onPressed: onPressed,
-        icon: IconTheme(
-          data: IconThemeData(
-            color: onPressed == null ? Colors.white54 : Colors.white,
-            size: iconSize ?? size * 0.46,
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) {
+          setState(() {
+            _hovered = true;
+          });
+        },
+        onExit: (_) {
+          setState(() {
+            _hovered = false;
+          });
+        },
+        child: AnimatedScale(
+          key: widget.scaleKey,
+          scale: widget.onPressed != null && _hovered ? widget.hoverScale : 1,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: GlassIconButton(
+            size: widget.size,
+            iconSize: widget.iconSize ?? widget.size * 0.46,
+            useOwnLayer: true,
+            settings: ArtworkFloatingActionButton._settings,
+            glowColor: Colors.white.withValues(alpha: 0.18),
+            glowRadius: widget.size * 0.44,
+            onPressed: widget.onPressed,
+            icon: IconTheme(
+              data: IconThemeData(
+                color: widget.onPressed == null ? Colors.white54 : Colors.white,
+                size: widget.iconSize ?? widget.size * 0.46,
+              ),
+              child: widget.icon,
+            ),
           ),
-          child: icon,
         ),
       ),
     );

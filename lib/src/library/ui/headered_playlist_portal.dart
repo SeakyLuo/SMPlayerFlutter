@@ -44,7 +44,10 @@ extension _HeaderedPlaylistControlPortal on _HeaderedPlaylistControlState {
       notifier.state = HeaderedPlaylistAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routeLocation: widget.routeLocation,
-        title: _headerCollapsed ? widget.title : '',
+        title:
+            _headerCollapsed && widget.type != HeaderedPlaylistType.album
+                ? widget.title
+                : '',
         coverColor: coverColor,
         collapseProgress: collapseProgress,
         commandBarBuilder:

@@ -31,6 +31,14 @@ class AlbumGroup {
 }
 
 const artistRowHeight = 64.0;
+const artistOverscanRows = 10;
+const artistAlbumCardHeaderHeight = 112.0;
+const artistAlbumSongRowHeight = 48.0;
+const artistAlbumCardGap = 22.0;
+const artistAlbumOverscanRows = 2;
+const compactArtistAlbumCardHeaderHeight = 88.0;
+const compactArtistAlbumSongRowHeight = 42.0;
+const compactArtistAlbumCardGap = 12.0;
 const artistQuickJumpKeys = [
   '#',
   'A',
@@ -61,6 +69,20 @@ const artistQuickJumpKeys = [
   'Z',
 ];
 
+class ArtistAlbumVirtualWindow {
+  const ArtistAlbumVirtualWindow({
+    required this.startIndex,
+    required this.endIndex,
+    required this.topSpacerHeight,
+    required this.bottomSpacerHeight,
+  });
+
+  final int startIndex;
+  final int endIndex;
+  final double topSpacerHeight;
+  final double bottomSpacerHeight;
+}
+
 List<ArtistGroup> buildArtistGroups(
   List<LibrarySong> songs,
   SmPlayerI18n i18n,
@@ -88,9 +110,19 @@ List<ArtistGroup> buildArtistGroups(
             });
         final albums =
             artistSongs.map((song) => displayAlbum(song, i18n)).toSet();
+        final songsByAlbumOrder =
+            entry.value.toList()..sort((left, right) {
+              final albumCompare = compareArtistText(
+                displayAlbum(left, i18n),
+                displayAlbum(right, i18n),
+              );
+              return albumCompare != 0
+                  ? albumCompare
+                  : compareArtistText(left.title, right.title);
+            });
         final artworkSong =
-            artistSongs.any((song) => song.thumbnailPath.isNotEmpty)
-                ? artistSongs.firstWhere(
+            songsByAlbumOrder.any((song) => song.thumbnailPath.isNotEmpty)
+                ? songsByAlbumOrder.firstWhere(
                   (song) => song.thumbnailPath.isNotEmpty,
                 )
                 : (entry.value.toList()..sort(
@@ -123,10 +155,7 @@ List<AlbumGroup> buildAlbumGroups(List<LibrarySong> songs, SmPlayerI18n i18n) {
 
   final albums =
       groups.entries.map((entry) {
-        final albumSongs =
-            entry.value.toList()..sort(
-              (left, right) => compareArtistText(left.title, right.title),
-            );
+        final albumSongs = entry.value.toList();
         return AlbumGroup(
           name: entry.key,
           songs: albumSongs,
@@ -136,6 +165,72 @@ List<AlbumGroup> buildAlbumGroups(List<LibrarySong> songs, SmPlayerI18n i18n) {
 
   albums.sort((left, right) => compareArtistText(left.name, right.name));
   return albums;
+}
+
+double getEstimatedArtistAlbumHeight(
+  AlbumGroup album, {
+  required bool compact,
+}) {
+  final headerHeight =
+      compact
+          ? compactArtistAlbumCardHeaderHeight
+          : artistAlbumCardHeaderHeight;
+  final songRowHeight =
+      compact ? compactArtistAlbumSongRowHeight : artistAlbumSongRowHeight;
+  final cardGap = compact ? compactArtistAlbumCardGap : artistAlbumCardGap;
+  return headerHeight + album.songs.length * songRowHeight + cardGap;
+}
+
+ArtistAlbumVirtualWindow getArtistAlbumVirtualWindow(
+  List<double> heights,
+  double scrollTop,
+  double viewportHeight,
+) {
+  final overscanHeight =
+      artistAlbumOverscanRows *
+      (artistAlbumCardHeaderHeight + artistAlbumSongRowHeight);
+  final windowTop =
+      (scrollTop - overscanHeight).clamp(0.0, double.infinity).toDouble();
+  final windowBottom = scrollTop + viewportHeight + overscanHeight;
+  var startIndex = 0;
+  var endIndex = heights.length;
+  var offset = 0.0;
+  var topSpacerHeight = 0.0;
+
+  for (var index = 0; index < heights.length; index += 1) {
+    final nextOffset = offset + heights[index];
+    if (nextOffset > windowTop) {
+      startIndex = index;
+      topSpacerHeight = offset;
+      break;
+    }
+    offset = nextOffset;
+  }
+
+  offset = topSpacerHeight;
+  for (var index = startIndex; index < heights.length; index += 1) {
+    offset += heights[index];
+    if (offset >= windowBottom) {
+      endIndex = index + 1;
+      break;
+    }
+  }
+
+  final totalHeight = heights.fold(0.0, (sum, height) => sum + height);
+  final renderedHeight = heights
+      .sublist(startIndex, endIndex)
+      .fold(0.0, (sum, height) => sum + height);
+  final bottomSpacerHeight =
+      (totalHeight - topSpacerHeight - renderedHeight)
+          .clamp(0.0, double.infinity)
+          .toDouble();
+
+  return ArtistAlbumVirtualWindow(
+    startIndex: startIndex,
+    endIndex: endIndex,
+    topSpacerHeight: topSpacerHeight,
+    bottomSpacerHeight: bottomSpacerHeight,
+  );
 }
 
 List<ArtistGroup> searchArtists(List<ArtistGroup> artists, String query) {
@@ -185,6 +280,12 @@ String getArtistQuickJumpBucket(String artistName) {
     return '#';
   }
 
+  final electronBucketOverride =
+      _electronCjkQuickJumpBucketOverrides[firstChar];
+  if (electronBucketOverride != null) {
+    return electronBucketOverride;
+  }
+
   final pinyin =
       PinyinHelper.getPinyinE(
         firstChar,
@@ -196,6 +297,12 @@ String getArtistQuickJumpBucket(String artistName) {
       ? pinyin[0]
       : '#';
 }
+
+const _electronCjkQuickJumpBucketOverrides = {
+  // Electron's zh-Hans-CN-u-co-pinyin collator places this polyphonic
+  // character at the Z boundary.
+  '长': 'Z',
+};
 
 String _foldLatinFirstChar(String value) {
   const folded = {
@@ -213,6 +320,7 @@ String _foldLatinFirstChar(String value) {
     'Ĉ': 'C',
     'Ċ': 'C',
     'Č': 'C',
+    'Ď': 'D',
     'È': 'E',
     'É': 'E',
     'Ê': 'E',
@@ -222,6 +330,11 @@ String _foldLatinFirstChar(String value) {
     'Ė': 'E',
     'Ę': 'E',
     'Ě': 'E',
+    'Ĝ': 'G',
+    'Ğ': 'G',
+    'Ġ': 'G',
+    'Ģ': 'G',
+    'Ĥ': 'H',
     'Ì': 'I',
     'Í': 'I',
     'Î': 'I',
@@ -230,6 +343,11 @@ String _foldLatinFirstChar(String value) {
     'Ī': 'I',
     'Ĭ': 'I',
     'Į': 'I',
+    'İ': 'I',
+    'Ĵ': 'J',
+    'Ĺ': 'L',
+    'Ļ': 'L',
+    'Ľ': 'L',
     'Ñ': 'N',
     'Ń': 'N',
     'Ņ': 'N',
@@ -242,6 +360,15 @@ String _foldLatinFirstChar(String value) {
     'Ō': 'O',
     'Ŏ': 'O',
     'Ő': 'O',
+    'Ŕ': 'R',
+    'Ŗ': 'R',
+    'Ř': 'R',
+    'Ś': 'S',
+    'Ŝ': 'S',
+    'Ş': 'S',
+    'Š': 'S',
+    'Ţ': 'T',
+    'Ť': 'T',
     'Ù': 'U',
     'Ú': 'U',
     'Û': 'U',
@@ -251,8 +378,14 @@ String _foldLatinFirstChar(String value) {
     'Ŭ': 'U',
     'Ů': 'U',
     'Ű': 'U',
+    'Ų': 'U',
+    'Ŵ': 'W',
     'Ý': 'Y',
+    'Ŷ': 'Y',
     'Ÿ': 'Y',
+    'Ź': 'Z',
+    'Ż': 'Z',
+    'Ž': 'Z',
   };
   return folded[value.toUpperCase()] ?? value;
 }

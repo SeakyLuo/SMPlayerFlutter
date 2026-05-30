@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/lyrics/lyric_text_resolver.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
+import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -22,9 +23,11 @@ class MiniModeSurface extends StatefulWidget {
     required this.currentSong,
     required this.repository,
     required this.playerLyricsSource,
+    required this.previousButtonRestartsTrack,
     required this.onExit,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    required this.onForcePrevious,
     required this.onNext,
     required this.onSeek,
     required this.onBeginSeek,
@@ -44,9 +47,11 @@ class MiniModeSurface extends StatefulWidget {
   final LibrarySong? currentSong;
   final LibraryRepository repository;
   final LyricsRequestMode playerLyricsSource;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onExit;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
   final VoidCallback onBeginSeek;
@@ -272,10 +277,20 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             _MiniModeButton(
-                              tooltip: i18n.t('player.previous'),
+                              tooltip:
+                                  widget.previousButtonRestartsTrack
+                                      ? i18n.t(
+                                        'player.restartCurrentTrackHoldPrevious',
+                                      )
+                                      : i18n.t('player.previous'),
+                              longPressTooltip: i18n.t('player.forcePrevious'),
                               icon: Icons.skip_previous_rounded,
                               disabled: state.disabled,
                               onPressed: onPrevious,
+                              onLongPress:
+                                  widget.previousButtonRestartsTrack
+                                      ? widget.onForcePrevious
+                                      : null,
                             ),
                             const SizedBox(width: 12),
                             _MiniModeButton(
@@ -670,6 +685,8 @@ class _MiniModeButton extends StatelessWidget {
     required this.icon,
     required this.disabled,
     required this.onPressed,
+    this.onLongPress,
+    this.longPressTooltip,
     this.primary = false,
     this.loading = false,
   });
@@ -678,33 +695,65 @@ class _MiniModeButton extends StatelessWidget {
   final IconData icon;
   final bool disabled;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
+  final String? longPressTooltip;
   final bool primary;
   final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    final size = primary ? 64.0 : 52.0;
+    final iconSize = primary ? 34.0 : 30.0;
+    final iconColor = primary ? const Color(0xff172130) : Colors.white;
+    final disabledColor = primary ? const Color(0xff5e6b7a) : Colors.white38;
+    final progressColor = primary ? const Color(0xff172130) : Colors.white;
+    return HoldReleaseAction(
       tooltip: tooltip,
-      onPressed: disabled ? null : onPressed,
-      color: primary ? const Color(0xff172130) : Colors.white,
-      disabledColor: primary ? const Color(0xff5e6b7a) : Colors.white38,
-      style: IconButton.styleFrom(
-        fixedSize: Size.square(primary ? 64 : 52),
-        backgroundColor: primary ? Colors.white : Colors.white24,
-        shape: const CircleBorder(),
-      ),
-      icon:
-          loading
-              ? const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              )
-              : icon == Icons.play_arrow_rounded
-              ? SmPlayerPlayIcon(
-                size: primary ? 34 : 30,
-                color: primary ? const Color(0xff172130) : Colors.white,
-              )
-              : Icon(icon, size: primary ? 34 : 30),
+      holdTooltip: longPressTooltip,
+      disabled: disabled,
+      onPressed: onPressed,
+      onHoldRelease: onLongPress,
+      builder: (context, holdProgress) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: primary ? Colors.white : Colors.white24,
+            shape: BoxShape.circle,
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (onLongPress != null)
+                Positioned.fill(
+                  child: CustomPaint(
+                    key: const ValueKey('MiniMode.LongPressProgress'),
+                    painter: HoldReleaseProgressPainter(
+                      progress: holdProgress,
+                      color: progressColor,
+                      strokeScale: 0.06,
+                    ),
+                  ),
+                ),
+              IconTheme(
+                data: IconThemeData(
+                  color: disabled ? disabledColor : iconColor,
+                  size: iconSize,
+                ),
+                child:
+                    loading
+                        ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                        : icon == Icons.play_arrow_rounded
+                        ? SmPlayerPlayIcon(size: iconSize, color: iconColor)
+                        : Icon(icon, size: iconSize),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

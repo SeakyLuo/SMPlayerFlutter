@@ -61,6 +61,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final _selection = PageSelectionController<String>.stored('search');
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
+  late final VoidCallback _clearAppBarPortalOwner;
   var _settings = const SettingsSnapshot.defaults();
   late var _activeFilter = searchFilterKeyFromType(widget.activeType);
   LibrarySong? _dialogSong;
@@ -71,6 +72,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
+    final appBarPortalNotifier = ref.read(
+      workspaceAppBarPortalProvider.notifier,
+    );
+    _clearAppBarPortalOwner = () {
+      if (appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
+        appBarPortalNotifier.state = null;
+      }
+    };
     _settingsController = SettingsController(
       null,
       ref.read(libraryRepositoryProvider),
@@ -105,20 +114,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
-  void _clearAppBarPortalOwner() {
-    final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
-    if (notifier.state?.owner == _appBarPortalOwner) {
-      notifier.state = null;
-    }
-  }
-
   void _syncAppBarPortal({
     required bool showPortal,
     required SmPlayerI18n i18n,
+    required String title,
     required SearchResults results,
   }) {
     final signature =
-        '$showPortal:$_activeFilter:${results.artists.length}:'
+        '$showPortal:$title:$_activeFilter:${results.artists.length}:'
         '${results.albums.length}:${results.songs.length}:'
         '${results.playlists.length}:${results.folders.length}';
     if (_appBarPortalSignature == signature) {
@@ -140,6 +143,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: '/search',
+        title: title,
         content: const SizedBox.shrink(),
         bottomContent: _SearchFilterTabs(
           i18n: i18n,
@@ -163,8 +167,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     return snapshotValue.when(
       loading: () {
         _syncAppBarPortal(
-          showPortal: false,
+          showPortal: true,
           i18n: i18n,
+          title: _searchTitle(i18n),
           results: const SearchResults.empty(),
         );
         return _SearchPageSurface(
@@ -181,8 +186,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       },
       error: (_, _) {
         _syncAppBarPortal(
-          showPortal: false,
+          showPortal: true,
           i18n: i18n,
+          title: _searchTitle(i18n),
           results: const SearchResults.empty(),
         );
         return _SearchPageSurface(
@@ -226,8 +232,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         final hasResults = _totalCount(results) > 0;
         final showNavigationAppBar = WorkspaceNavigationAppBarScope.of(context);
         _syncAppBarPortal(
-          showPortal: hasResults && showNavigationAppBar,
+          showPortal: true,
           i18n: i18n,
+          title: _searchTitle(i18n),
           results: results,
         );
         final criteria = SearchCriteria(
@@ -611,6 +618,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ).toString(),
     );
     _recordRecentSearch();
+  }
+
+  String _searchTitle(SmPlayerI18n i18n) {
+    final query = widget.query.trim();
+    final folder = widget.folderRelativePath ?? '';
+    if (query.isNotEmpty && folder.isNotEmpty) {
+      return i18n.t('search.directoryResultOf', {
+        'query': query,
+        'folder': folder.split('/').last,
+      });
+    }
+    return query.isNotEmpty
+        ? i18n.t('search.resultOf', {'query': query})
+        : i18n.t('search.resultTitle');
   }
 
   bool _isSectionExpanded(SearchResultType type) {

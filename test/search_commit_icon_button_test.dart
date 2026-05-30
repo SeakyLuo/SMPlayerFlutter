@@ -227,15 +227,19 @@ void main() {
 
     final fieldDecoration = _fieldDecoration(tester);
     expect(fieldDecoration.color, const Color(0x0effffff));
-    expect(fieldDecoration.border, Border.all(color: Colors.transparent));
+    expect(fieldDecoration.border, Border.all(color: const Color(0x1fd6e0ec)));
 
     final icon = tester.widget<Icon>(
       find.byIcon(FluentIcons.search_24_regular),
     );
     expect(icon.color, const Color(0xadcbd5e1));
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.style?.color, const Color(0xf0f6f9fc));
+    expect(field.decoration?.hintStyle?.color, const Color(0x85dee7f2));
   });
 
-  testWidgets('PageSearchField uses sidebar-style night hover accent', (
+  testWidgets('PageSearchField uses Electron night hover accent', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -281,7 +285,7 @@ void main() {
         )
         .map((widget) => widget.decoration)
         .whereType<BoxDecoration>()
-        .where((decoration) => decoration.color == Colors.transparent);
+        .where((decoration) => decoration.color == const Color(0x2e0078d7));
     expect(hoverDecorations, isNotEmpty);
   });
 }

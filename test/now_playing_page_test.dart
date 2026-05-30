@@ -92,7 +92,6 @@ void main() {
       'player.next': 'Next',
       'player.pause': 'Pause',
       'player.play': 'Play',
-      'player.playbackLoadFailed': 'Playback failed',
       'player.playbackMode': 'Playback Mode',
       'player.playbackModeList': 'List',
       'player.playbackModeRepeat': 'Repeat',
@@ -500,6 +499,24 @@ void main() {
     await tester.pump();
 
     final firstRow = find.byType(PlaylistControlItem).first;
+    final firstRowPlayNextAction = find.descendant(
+      of: firstRow,
+      matching: find.byKey(
+        const ValueKey('PlaylistControlItem.PlayNextAction'),
+      ),
+    );
+    final firstRowMoreAction = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+    );
+    final firstRowActions = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.Actions')),
+    );
+    final firstRowDuration = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+    );
     expect(tester.getSize(firstRow).height, 78);
     expect(
       tester.widget<PlaylistControlItem>(firstRow).variant,
@@ -514,20 +531,10 @@ void main() {
           tester.getTopLeft(firstRow).dx,
       78,
     );
-    expect(
-      tester.getSize(
-        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')).first,
-      ),
-      const Size.square(34),
-    );
-    expect(
-      tester
-          .getSize(
-            find.byKey(const ValueKey('PlaylistControlItem.Actions')).first,
-          )
-          .width,
-      34,
-    );
+    expect(tester.getSize(firstRowPlayNextAction), const Size.square(34));
+    expect(tester.getSize(firstRowActions).width, 34);
+    expect(tester.getSize(firstRowDuration).width, 20);
+    expect(tester.getSize(find.text('2:00').first).height, lessThan(24));
     AnimatedOpacity hoverOpacityFor(Finder action) {
       return tester.widget<AnimatedOpacity>(
         find
@@ -536,49 +543,18 @@ void main() {
       );
     }
 
-    expect(
-      hoverOpacityFor(
-        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
-      ).opacity,
-      0,
-    );
-    expect(
-      hoverOpacityFor(
-        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
-      ).opacity,
-      0,
-    );
+    expect(hoverOpacityFor(firstRowPlayNextAction).opacity, 0);
+    expect(hoverOpacityFor(firstRowMoreAction).opacity, 0);
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(firstRow));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      hoverOpacityFor(
-        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
-      ).opacity,
-      1,
-    );
-    expect(
-      tester
-          .getSize(
-            find.byKey(const ValueKey('PlaylistControlItem.Actions')).first,
-          )
-          .width,
-      68,
-    );
-    expect(
-      hoverOpacityFor(
-        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
-      ).opacity,
-      1,
-    );
-    expect(
-      tester.getSize(
-        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')).first,
-      ),
-      const Size.square(34),
-    );
+    expect(hoverOpacityFor(firstRowPlayNextAction).opacity, 1);
+    expect(tester.getSize(firstRowActions).width, 68);
+    expect(hoverOpacityFor(firstRowMoreAction).opacity, 1);
+    expect(tester.getSize(firstRowMoreAction), const Size.square(34));
     expect(
       find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
       findsNothing,

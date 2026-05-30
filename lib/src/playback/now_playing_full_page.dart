@@ -480,8 +480,24 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                         state: mediaControlState,
                         disabled: currentSong == null,
                         i18n: i18n,
+                        previousButtonRestartsTrack:
+                            queueSongs.isNotEmpty &&
+                            shouldRestartCurrentTrackForPrevious(
+                              progressSeconds:
+                                  mediaControlState.progressSeconds,
+                              queueLength: queueSongs.length,
+                              restartAfterThresholdEnabled:
+                                  smPlayerGlobalSettingsSnapshot
+                                      .previousButtonRestartsTrack,
+                            ),
                         onPrevious: () {
                           _playPreviousFromQueue(queueSongs);
+                        },
+                        onForcePrevious: () {
+                          _playPreviousFromQueue(
+                            queueSongs,
+                            forcePrevious: true,
+                          );
                         },
                         onNext: () {
                           _playNextFromQueue(queueSongs);
@@ -1294,15 +1310,21 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     return true;
   }
 
-  bool _playPreviousFromQueue(List<LibrarySong> queueSongs) {
+  bool _playPreviousFromQueue(
+    List<LibrarySong> queueSongs, {
+    bool forcePrevious = false,
+  }) {
     if (queueSongs.isEmpty) {
       return false;
     }
     final controller = ref.read(mediaControlControllerProvider);
-    if (shouldRestartCurrentTrackForPrevious(
-      progressSeconds: controller.state.progressSeconds,
-      queueLength: queueSongs.length,
-    )) {
+    if (!forcePrevious &&
+        shouldRestartCurrentTrackForPrevious(
+          progressSeconds: controller.state.progressSeconds,
+          queueLength: queueSongs.length,
+          restartAfterThresholdEnabled:
+              smPlayerGlobalSettingsSnapshot.previousButtonRestartsTrack,
+        )) {
       controller.onSeek(0);
       return true;
     }
@@ -2916,7 +2938,9 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
     required this.state,
     required this.disabled,
     required this.i18n,
+    required this.previousButtonRestartsTrack,
     required this.onPrevious,
+    required this.onForcePrevious,
     required this.onNext,
     required this.onTogglePlayPause,
     required this.onToggleShuffle,
@@ -2930,7 +2954,9 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   final MediaControlState state;
   final bool disabled;
   final SmPlayerI18n i18n;
+  final bool previousButtonRestartsTrack;
   final VoidCallback onPrevious;
+  final VoidCallback onForcePrevious;
   final VoidCallback onNext;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleShuffle;
@@ -2990,8 +3016,10 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
             state.durationSeconds,
             song,
           ),
+          previousButtonRestartsTrack: previousButtonRestartsTrack,
           onTogglePlayPause: onTogglePlayPause,
           onPrevious: onPrevious,
+          onForcePrevious: onForcePrevious,
           onNext: onNext,
           onSeek: controller.onSeek,
           onBeginSeek: controller.onBeginSeek,

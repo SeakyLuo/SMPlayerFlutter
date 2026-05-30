@@ -70,13 +70,14 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
+    required String title,
     required Widget content,
     required int queueLength,
     required int? currentSongId,
     required bool libraryCommandsEnabled,
   }) {
     final signature =
-        '$showPortal:$routePath:$queueLength:$currentSongId:$libraryCommandsEnabled:${_selection.multiSelect}';
+        '$showPortal:$routePath:$title:$queueLength:$currentSongId:$libraryCommandsEnabled:${_selection.multiSelect}';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -96,6 +97,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        title: title,
         content: content,
       );
     });
@@ -292,8 +294,14 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           ],
         );
         _syncAppBarPortal(
-          showPortal: useWorkspaceAppBar,
+          showPortal: true,
           routePath: '/now-playing',
+          title:
+              snapshot.showCount
+                  ? i18n.t('nowPlaying.titleWithCount', {
+                    'count': queueSongs.length,
+                  })
+                  : i18n.t('common.nowPlaying'),
           content: appBarCommandBar,
           queueLength: queueSongs.length,
           currentSongId: currentSong?.id,

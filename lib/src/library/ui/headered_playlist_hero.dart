@@ -43,7 +43,6 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
       coverColor: coverColor,
       collapseProgress: collapseProgress,
       windowDragCallbacks: windowDragCallbacks,
-      extendBackdrop: !overlapsContent,
       commandBar: commandBar,
     );
   }
@@ -70,7 +69,6 @@ class _HeaderHero extends StatelessWidget {
     required this.collapseProgress,
     required this.windowDragCallbacks,
     required this.commandBar,
-    this.extendBackdrop = true,
   });
 
   final HeaderedPlaylistType type;
@@ -81,7 +79,6 @@ class _HeaderHero extends StatelessWidget {
   final double collapseProgress;
   final SmPlayerWindowDragCallbacks? windowDragCallbacks;
   final Widget commandBar;
-  final bool extendBackdrop;
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +107,6 @@ class _HeaderHero extends StatelessWidget {
         lerpDouble(compact ? 12 : 42, compact ? 12 : 18, collapseProgress)!;
     final backdropOpacity =
         compact ? (1 - collapseProgress).clamp(0.0, 1.0) : 1.0;
-    final backdropExtra = compact ? 72.0 : 110.0;
     final fixedWidthBackdrop =
         !compact && MediaQuery.sizeOf(context).width <= 900;
     final collapsedDesktop = !compact && collapseProgress >= 1.0;
@@ -124,10 +120,11 @@ class _HeaderHero extends StatelessWidget {
             top: 0,
             left: fixedWidthBackdrop ? -40 : 0,
             right: fixedWidthBackdrop ? -40 : 0,
-            bottom: extendBackdrop ? -backdropExtra : 0,
+            bottom: 0,
             child: Opacity(
               opacity: backdropOpacity,
               child: _HeaderedPlaylistBackdrop(
+                key: const ValueKey('HeaderedPlaylist.Backdrop'),
                 coverColor: coverColor,
                 masked: !compact,
               ),
@@ -311,6 +308,7 @@ class _HeaderHero extends StatelessWidget {
 
 class _HeaderedPlaylistBackdrop extends StatelessWidget {
   const _HeaderedPlaylistBackdrop({
+    super.key,
     required this.coverColor,
     required this.masked,
   });
@@ -464,22 +462,25 @@ class _HeaderHeroSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = collapseProgress.clamp(0.0, 1.0);
     final blur = 18 * progress;
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _HeaderRadial(
-            center: const Alignment(-0.56, -0.76),
-            radius: 0.96,
-            color: coverColor.withValues(alpha: 0.22 * progress),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: surfaceColor.withValues(alpha: 0.9 * progress),
+    return ClipRect(
+      key: const ValueKey('HeaderedPlaylist.HeroBackdropClip'),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _HeaderRadial(
+              center: const Alignment(-0.56, -0.76),
+              radius: 0.96,
+              color: coverColor.withValues(alpha: 0.22 * progress),
             ),
-          ),
-        ],
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: surfaceColor.withValues(alpha: 0.9 * progress),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

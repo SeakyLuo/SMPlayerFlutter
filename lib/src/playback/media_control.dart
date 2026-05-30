@@ -8,12 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
+import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
 part 'media_control_frame.dart';
@@ -62,8 +64,10 @@ class MediaControl extends StatelessWidget {
     required this.mode,
     required this.progressSeconds,
     required this.durationSeconds,
+    this.previousButtonRestartsTrack = false,
     required this.onTogglePlayPause,
     required this.onPrevious,
+    this.onForcePrevious,
     required this.onNext,
     required this.onSeek,
     required this.onBeginSeek,
@@ -110,10 +114,12 @@ class MediaControl extends StatelessWidget {
   final PlaybackMode mode;
   final double progressSeconds;
   final double durationSeconds;
+  final bool previousButtonRestartsTrack;
   final String? playbackNoticeKey;
   final String? currentLyricsLine;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
+  final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeek;
   final VoidCallback onBeginSeek;
@@ -183,8 +189,10 @@ class MediaControl extends StatelessWidget {
                 mode: mode,
                 progressSeconds: progressSeconds,
                 durationSeconds: effectiveDurationSeconds,
+                previousButtonRestartsTrack: previousButtonRestartsTrack,
                 onTogglePlayPause: onTogglePlayPause,
                 onPrevious: onPrevious,
+                onForcePrevious: onForcePrevious,
                 onNext: onNext,
                 onSeek: onSeek,
                 onBeginSeek: onBeginSeek,
@@ -247,8 +255,10 @@ class MediaControl extends StatelessWidget {
           mode: mode,
           progressSeconds: progressSeconds,
           durationSeconds: effectiveDurationSeconds,
+          previousButtonRestartsTrack: previousButtonRestartsTrack,
           onTogglePlayPause: onTogglePlayPause,
           onPrevious: onPrevious,
+          onForcePrevious: onForcePrevious,
           onNext: onNext,
           onSeek: onSeek,
           onBeginSeek: onBeginSeek,

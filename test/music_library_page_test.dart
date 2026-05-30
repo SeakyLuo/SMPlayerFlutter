@@ -249,6 +249,30 @@ void main() {
     expect(_quickJumpRailBackground(tester, 'R'), isNot(Colors.transparent));
   });
 
+  testWidgets('MusicLibraryPage quick jump keeps clicked tail key active', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _tailQuickJumpSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('MusicLibrary.QuickJumpRail.Z')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_quickJumpRailBackground(tester, 'T'), Colors.transparent);
+    expect(_quickJumpRailBackground(tester, 'Z'), isNot(Colors.transparent));
+  });
+
   testWidgets('MusicLibraryPage quick jump folds latin accents like Electron', (
     tester,
   ) async {
@@ -396,6 +420,92 @@ void main() {
     },
   );
 
+  testWidgets('MusicLibraryPage main content uses Electron night colors', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        brightness: Brightness.dark,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final shellDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('MusicLibrary.ContentShell')),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(shellDecoration.color, const Color(0xff171c22));
+    expect(shellDecoration.gradient, isA<LinearGradient>());
+    expect(shellDecoration.border?.top.color, const Color(0x1fd6e0ec));
+    expect(shellDecoration.boxShadow?.single.color, const Color(0x57000000));
+
+    final header = tester.widget<Container>(
+      find.byKey(const ValueKey('MusicLibrary.TableHeader')),
+    );
+    expect(header.color, const Color(0xff171c22));
+
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    var rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.border?.top.color, const Color(0x1fd6e0ec));
+
+    final title = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Blue Song')),
+    );
+    expect(title.style?.color, const Color(0xeff6f9fc));
+
+    final artist = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Artist A')),
+    );
+    expect(artist.style?.color, const Color(0xff459de2));
+
+    await tester.tap(find.text('Blue Song'));
+    await tester.pumpAndSettle();
+
+    rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.color, const Color(0x2e0078d7));
+  });
+
+  testWidgets('MusicLibraryPage empty state uses Electron night colors', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _emptySearchSnapshot,
+        i18n: i18n,
+        searchQuery: 'Jazz',
+        brightness: Brightness.dark,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('MusicLibrary.EmptyState')),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(decoration.color, const Color(0xdb171c22));
+    expect(decoration.border?.top.color, const Color(0x1fd6e0ec));
+
+    final title = tester.widget<Text>(find.textContaining('Jazz'));
+    expect(title.style?.color, const Color(0xeff6f9fc));
+  });
+
   testWidgets(
     'MusicLibraryPage compact quick jump panel closes on outside tap',
     (tester) async {
@@ -505,6 +615,80 @@ void main() {
     expect(find.text('Table Date Added'), findsNothing);
   });
 
+  testWidgets(
+    'MusicLibraryPage wide table header stays fixed while rows scroll',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 520);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _MusicLibraryTestApp(snapshot: _quickJumpSnapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(const ValueKey('MusicLibrary.TableHeader'));
+      final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.100'));
+      final headerTop = tester.getTopLeft(header).dy;
+      final firstRowTop = tester.getTopLeft(firstRow).dy;
+
+      await tester.dragFrom(
+        tester.getTopLeft(firstRow) + const Offset(20, 20),
+        const Offset(0, -260),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(header).dy, headerTop);
+      expect(tester.getTopLeft(firstRow).dy, lessThan(firstRowTop));
+    },
+  );
+
+  testWidgets('MusicLibraryPage wide table scrollbar stays on card edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 520);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _quickJumpSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final header = find.byKey(const ValueKey('MusicLibrary.TableHeader'));
+    final thumb = find.byKey(const ValueKey('MusicLibrary.ScrollbarThumb'));
+    final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.100'));
+    final shellRight =
+        tester
+            .getTopRight(
+              find.byKey(const ValueKey('MusicLibrary.ContentShell')),
+            )
+            .dx;
+    final thumbRight = tester.getTopRight(thumb).dx;
+    final firstRowTop = tester.getTopLeft(firstRow).dy;
+
+    expect(shellRight - thumbRight, inInclusiveRange(0, 20));
+
+    await tester.dragFrom(
+      tester.getTopLeft(header) + const Offset(360, 20),
+      const Offset(-260, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopRight(thumb).dx, thumbRight);
+
+    await tester.drag(thumb, const Offset(0, 80));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(firstRow).dy, lessThan(firstRowTop));
+  });
+
   testWidgets('MusicLibraryPage resizes wide columns like Electron', (
     tester,
   ) async {
@@ -542,6 +726,55 @@ void main() {
 
     expect(find.text('1:01:01'), findsOneWidget);
     expect(find.text('61:01'), findsNothing);
+  });
+
+  testWidgets('MusicLibraryPage current row shows Electron playing wave', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Hour',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 180,
+    );
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.Playing.1.Wave')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.Playing.1.Backdrop')),
+      findsOneWidget,
+    );
+
+    final firstHeight = _playingBarHeight(tester, 'MusicLibrary.Playing.1', 0);
+    await tester.pump(const Duration(milliseconds: 390));
+
+    expect(
+      _playingBarHeight(tester, 'MusicLibrary.Playing.1', 0),
+      isNot(firstHeight),
+    );
   });
 
   testWidgets('MusicLibraryPage album sort uses Electron raw album order', (
@@ -1038,6 +1271,10 @@ bool _quickJumpRailEnabled(WidgetTester tester, String key) {
   return button.onPressed != null;
 }
 
+double _playingBarHeight(WidgetTester tester, String keyPrefix, int index) {
+  return tester.getSize(find.byKey(ValueKey('$keyPrefix.Bar.$index'))).height;
+}
+
 GoRouter _createMusicLibraryRouter() {
   return GoRouter(
     initialLocation: '/music-library',
@@ -1510,6 +1747,47 @@ final _quickJumpSongs = List.generate(40, (index) {
     artist: 'Artist $letter',
     artists: ['Artist $letter'],
     album: '$letter Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  );
+});
+
+final _tailQuickJumpSnapshot = LibraryContentData(
+  songs: _tailQuickJumpSongs,
+  recentSongs: _snapshot.recentSongs,
+  recentPlaylists: _snapshot.recentPlaylists,
+  recentAlbums: _snapshot.recentAlbums,
+  recentArtists: _snapshot.recentArtists,
+  recentSearches: _snapshot.recentSearches,
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation:
+      _snapshot.hideMultiSelectCommandBarAfterOperation,
+  databasePath: _snapshot.databasePath,
+);
+
+final _tailQuickJumpSongs = List.generate(10, (index) {
+  final letter = String.fromCharCode(
+    'T'.codeUnitAt(0) + (index > 6 ? 6 : index),
+  );
+  return LibrarySong(
+    id: 300 + index,
+    path:
+        r'C:\Music\tail-quick-jump-'
+        '$index.mp3',
+    title: '$letter Tail Song $index',
+    artist: 'Artist $letter',
+    artists: ['Artist $letter'],
+    album: '$letter Tail Album',
     duration: 120,
     playCount: 0,
     lyricsOffsetMs: 0,

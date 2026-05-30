@@ -19,6 +19,9 @@ class ReleaseNotesDialog extends StatelessWidget {
     final releaseNotes = getReleaseNotes(i18n);
 
     return PopupDialog(
+      overlayClassName: 'music-dialog-overlay ReleaseNotesDialogOverlay',
+      className: 'release-notes-dialog ContentDialog ReleaseNotesDialog',
+      navClassName: 'music-dialog-pivot ReleaseNotesDialogPivot',
       navLabel: i18n.t('settings.releaseNotes'),
       ariaLabel: i18n.t('settings.releaseNotes'),
       width: 640,

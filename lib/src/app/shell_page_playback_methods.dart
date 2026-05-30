@@ -137,9 +137,8 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     _mediaControlController.setTrackLoading(true);
     _syncingAudioPlayer = false;
     try {
-      final duration = await _audioPlayer.setAudioSource(
-        LocalAudioFileSource(song.path),
-      );
+      await verifyAudioFileReadable(song.path);
+      final duration = await _audioPlayer.setFilePath(song.path);
       if (!mounted || loadSerial != _audioLoadSerial) {
         return;
       }
@@ -159,8 +158,16 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       _mediaControlController.setTrackLoading(false);
       _syncingAudioPlayer = false;
       await _applyAudioPlaybackState(_mediaControlController.state);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      debugPrint(
+        'Simple Melody Player failed to load audio file: ${song.path}\n'
+        '$error\n'
+        '$stackTrace',
+      );
       if (loadSerial == _audioLoadSerial) {
+        if (isAudioFilePermissionDenied(error) && mounted) {
+          _showAudioFileAccessNotification();
+        }
         _loadedAudioTrackId = null;
         _loadedAudioPath = null;
         _syncingAudioPlayer = true;
@@ -239,6 +246,10 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   void _handleAudioPlaybackError(PlayerException error) {
+    debugPrint('Simple Melody Player audio playback error: $error');
+    if (isAudioFilePermissionDenied(error) && mounted) {
+      _showAudioFileAccessNotification();
+    }
     final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
     _pendingAudioSeekSeconds = null;
     _stopPlaybackStallTimer();
@@ -351,6 +362,46 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     }
   }
 
+  void _showAudioFileAccessNotification() {
+    final i18n = context.smPlayerI18n;
+    unawaited(
+      showAppNotification(
+        context: context,
+        message: i18n.t('notification.playbackNoFileAccess'),
+        duration: undoableNotificationDuration,
+        actionLabel: i18n.t('notification.authorizeFileAccess'),
+        onAction: () => _authorizeAudioFileAccess(i18n),
+      ),
+    );
+  }
+
+  Future<void> _authorizeAudioFileAccess(SmPlayerI18n i18n) async {
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+    final rootPath =
+        snapshot?.rootPath ?? _settingsController.snapshot.rootPath;
+    final selectedRootPath = await pickDirectoryFromDesktopShell(
+      title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
+      buttonLabel: i18n.t('notification.authorizeFileAccess'),
+      defaultPath: rootPath.isEmpty ? null : rootPath,
+      locale: i18n.locale,
+    );
+    if (selectedRootPath == null || selectedRootPath.isEmpty) {
+      return;
+    }
+    await ref
+        .read(libraryRepositoryProvider)
+        .scanAllMusicLibrary(selectedRootPath);
+    await _settingsController.updateSettings(
+      AppSettingsUpdate(rootPath: selectedRootPath),
+    );
+    ref
+      ..invalidate(libraryContentDataProvider)
+      ..invalidate(librarySongCountProvider)
+      ..invalidate(recentPageDataProvider)
+      ..invalidate(shellNavigationDataProvider)
+      ..invalidate(recentSearchesProvider);
+  }
+
   void _startPlaybackStallTimer() {
     if (_playbackStallTimer != null) {
       return;
@@ -433,4 +484,25 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       PlaybackSettingsUpdate(musicProgress: progressSeconds),
     );
   }
+}
+
+@visibleForTesting
+Future<void> verifyAudioFileReadable(String path) async {
+  final file = await File(path).open();
+  await file.close();
+}
+
+@visibleForTesting
+bool isAudioFilePermissionDenied(Object error) {
+  if (error is FileSystemException) {
+    final code = error.osError?.errorCode;
+    return code == 1 || code == 13;
+  }
+  if (error is PlayerException) {
+    final message = '${error.code} ${error.message}'.toLowerCase();
+    return message.contains('operation not permitted') ||
+        message.contains('permission denied') ||
+        message.contains('not permitted');
+  }
+  return false;
 }

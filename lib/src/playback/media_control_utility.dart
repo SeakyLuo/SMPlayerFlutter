@@ -85,14 +85,17 @@ class MediaControlUtilityRows extends StatelessWidget {
                               const SizedBox(width: 8),
                               if (trackId != null)
                                 _PlayerIconButton(
+                                  key: const ValueKey(
+                                    'MediaControl.FavoriteButton',
+                                  ),
                                   tooltip:
                                       favorite
                                           ? i18n.t('player.unlike')
                                           : i18n.t('player.like'),
                                   icon:
                                       favorite
-                                          ? Icons.favorite_rounded
-                                          : Icons.favorite_border_rounded,
+                                          ? _favoriteFilledIcon
+                                          : _favoriteOutlineIcon,
                                   active: favorite,
                                   disabled: disabled,
                                   favorite: favorite,
@@ -132,14 +135,17 @@ class MediaControlUtilityRows extends StatelessWidget {
                                 const SizedBox(width: 14),
                                 if (trackId != null)
                                   _PlayerIconButton(
+                                    key: const ValueKey(
+                                      'MediaControl.FavoriteButton',
+                                    ),
                                     tooltip:
                                         favorite
                                             ? i18n.t('player.unlike')
                                             : i18n.t('player.like'),
                                     icon:
                                         favorite
-                                            ? Icons.favorite_rounded
-                                            : Icons.favorite_border_rounded,
+                                            ? _favoriteFilledIcon
+                                            : _favoriteOutlineIcon,
                                     active: favorite,
                                     disabled: disabled,
                                     favorite: favorite,
@@ -175,6 +181,7 @@ class MediaControlUtilityRows extends StatelessWidget {
                             buttonSize: utilityButtonSize,
                             padding: utilityButtonPadding,
                             iconSize: utilityIconSize,
+                            showLongPressProgress: false,
                             onPressed: () {
                               switch (getNextPlaybackMode(mode)) {
                                 case PlaybackMode.shuffle:
@@ -303,71 +310,118 @@ class _PlayerCompactVolumeAction extends StatefulWidget {
 
 class _PlayerCompactVolumeActionState
     extends State<_PlayerCompactVolumeAction> {
+  final _layerLink = LayerLink();
+  final _tapRegionGroup = Object();
+  OverlayEntry? _popoverEntry;
   var _open = false;
+
+  @override
+  void didUpdateWidget(covariant _PlayerCompactVolumeAction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _popoverEntry?.markNeedsBuild();
+  }
+
+  @override
+  void dispose() {
+    _removePopover();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return TapRegion(
+      groupId: _tapRegionGroup,
       onTapOutside: (_) {
-        if (_open) {
-          setState(() {
-            _open = false;
-          });
-        }
+        _closePopover();
       },
-      child: SizedBox(
-        width: 36,
-        height: 36,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            _PlayerIconButton(
-              key: const ValueKey('MediaControl.CompactVolumeButton'),
-              tooltip: widget.tooltip,
-              icon: widget.icon,
-              active: widget.active || _open,
-              disabled: widget.disabled,
-              onPressed: () {
-                setState(() {
-                  _open = !_open;
-                });
-              },
-            ),
-            if (_open)
-              Positioned(
-                key: const ValueKey('MediaControl.CompactVolumePopover'),
-                right: -6,
-                bottom: 44,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xf5ffffff),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0x1a323e4e)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x2e2a384e),
-                        offset: Offset(0, 16),
-                        blurRadius: 36,
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 10,
-                    ),
-                    child: VolumeSlider(
-                      value: widget.volumeValue,
-                      disabled: widget.disabled,
-                      orientation: VolumeSliderOrientation.vertical,
-                      showTooltipOnMount: true,
-                      onChange: widget.onVolumeChange,
-                    ),
-                  ),
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: _PlayerIconButton(
+            key: const ValueKey('MediaControl.CompactVolumeButton'),
+            tooltip: widget.tooltip,
+            icon: widget.icon,
+            active: widget.active || _open,
+            disabled: widget.disabled,
+            onPressed: _togglePopover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _togglePopover() {
+    if (_open) {
+      _closePopover();
+    } else {
+      _openPopover();
+    }
+  }
+
+  void _openPopover() {
+    if (_open) {
+      return;
+    }
+    setState(() {
+      _open = true;
+    });
+    _popoverEntry = OverlayEntry(builder: _buildPopoverOverlay);
+    Overlay.of(context, rootOverlay: true).insert(_popoverEntry!);
+  }
+
+  void _closePopover() {
+    if (!_open) {
+      return;
+    }
+    setState(() {
+      _open = false;
+    });
+    _removePopover();
+  }
+
+  void _removePopover() {
+    _popoverEntry?.remove();
+    _popoverEntry = null;
+  }
+
+  Widget _buildPopoverOverlay(BuildContext context) {
+    return CompositedTransformFollower(
+      link: _layerLink,
+      showWhenUnlinked: false,
+      targetAnchor: Alignment.topRight,
+      followerAnchor: Alignment.bottomRight,
+      offset: const Offset(-6, -8),
+      child: TapRegion(
+        groupId: _tapRegionGroup,
+        child: Material(
+          color: Colors.transparent,
+          child: DecoratedBox(
+            key: const ValueKey('MediaControl.CompactVolumePopover'),
+            decoration: BoxDecoration(
+              color: const Color(0xf5ffffff),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x1a323e4e)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x2e2a384e),
+                  offset: Offset(0, 16),
+                  blurRadius: 36,
                 ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: VolumeSlider(
+                value: widget.volumeValue,
+                disabled: widget.disabled,
+                orientation: VolumeSliderOrientation.vertical,
+                showTooltipOnMount: true,
+                onChange: widget.onVolumeChange,
               ),
-          ],
+            ),
+          ),
         ),
       ),
     );

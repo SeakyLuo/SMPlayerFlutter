@@ -355,7 +355,7 @@ class MediaControlController extends ChangeNotifier {
         track: _state.track.copyWith(isLoading: false),
         isPlaying: false,
         playbackStatus: PlaybackStatus.paused,
-        playbackNoticeKey: 'player.playbackLoadFailed',
+        clearPlaybackNotice: true,
       ),
     );
     notifyListeners();
@@ -374,7 +374,7 @@ class MediaControlController extends ChangeNotifier {
         isPlaying: false,
         playbackStatus: PlaybackStatus.paused,
         progressSeconds: nextProgress,
-        playbackNoticeKey: 'player.playbackLoadFailed',
+        clearPlaybackNotice: true,
       ),
     );
     notifyListeners();
@@ -723,7 +723,11 @@ int? nextQueueIndexForPlayback({
 bool shouldRestartCurrentTrackForPrevious({
   required double progressSeconds,
   required int queueLength,
+  required bool restartAfterThresholdEnabled,
 }) {
+  if (!restartAfterThresholdEnabled) {
+    return false;
+  }
   return progressSeconds > previousTrackRestartThresholdSeconds ||
       queueLength == 1;
 }

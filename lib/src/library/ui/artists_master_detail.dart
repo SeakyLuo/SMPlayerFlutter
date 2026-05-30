@@ -111,6 +111,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
         artistQuickJumpMap: artistQuickJumpMap,
         activeArtistQuickJumpKey: activeArtistQuickJumpKey,
         scrollController: artistListController,
+        detailScrollController: artistDetailController,
         multiSelect: multiSelect,
         selectedSongIds: selectedSongIds,
         i18n: i18n,
@@ -128,6 +129,17 @@ class _ArtistsMasterDetail extends StatelessWidget {
         onPlayArtist: onPlayArtist,
         onOpenArtistMenu: (position, artist) {
           onOpenArtistMenu(position: position, artist: artist);
+        },
+        onOpenArtistDetailMenu: ({
+          required position,
+          required artist,
+          required showLocateArtist,
+        }) {
+          onOpenArtistDetailMenu(
+            position: position,
+            artist: artist,
+            showLocateArtist: showLocateArtist,
+          );
         },
         onOpenAlbumMenu: (position, album) {
           onOpenAlbumMenu(position: position, album: album);
@@ -174,7 +186,6 @@ class _ArtistsMasterDetail extends StatelessWidget {
           },
           onJumpToArtistKey: onJumpToArtistKey,
         ),
-        const SizedBox(width: 16),
         Expanded(
           child: _ArtistsDetail(
             selectedArtist: wideSelectedArtist,
@@ -195,6 +206,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
             },
             selectedTrackId: selectedTrackId,
             isPlaying: isPlaying,
+            hasVisibleArtists: visibleArtists.isNotEmpty,
             onPlayTrack: onPlayTrack,
             onTogglePlayPause: onTogglePlayPause,
             onPlayNext: onPlayNext,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
@@ -91,6 +92,246 @@ void main() {
       findsOneWidget,
     );
     expect(tester.getSize(appBarCreate), const Size.square(40));
+  });
+
+  testWidgets('PlaylistsPage playlist grid mirrors AlbumsPage card geometry', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_PlaylistTestApp(child: const PlaylistsPage()));
+    await tester.pumpAndSettle();
+
+    final firstCard =
+        find.byKey(const ValueKey('Playlists.PlaylistCard')).first;
+    final firstArtwork =
+        find.byKey(const ValueKey('Playlists.ArtworkSurface')).first;
+
+    expect(tester.getSize(firstCard).width, 180);
+    expect(tester.getSize(firstArtwork), const Size.square(160));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstCard));
+    await tester.pump();
+
+    final playAction = find.byTooltip('Play');
+    expect(playAction, findsOneWidget);
+    expect(tester.getSize(playAction), const Size.square(48));
+    expect(tester.getCenter(playAction), tester.getCenter(firstArtwork));
+  });
+
+  testWidgets('PlaylistsPage drag handle mirrors Electron floating handle', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_PlaylistTestApp(child: const PlaylistsPage()));
+    await tester.pumpAndSettle();
+
+    final firstCard =
+        find.byKey(const ValueKey('Playlists.PlaylistCard')).first;
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstCard));
+    await tester.pump();
+
+    final dragHandle = find.byTooltip('Drag to Sort').first;
+
+    expect(tester.getSize(dragHandle), const Size.square(32));
+
+    final cardTopRight = tester.getTopRight(firstCard);
+    final handleTopRight = tester.getTopRight(dragHandle);
+    expect(handleTopRight.dx, closeTo(cardTopRight.dx - 12, 0.01));
+    expect(
+      handleTopRight.dy,
+      closeTo(tester.getTopLeft(firstCard).dy + 12, 0.01),
+    );
+  });
+
+  testWidgets('PlaylistsPage drag reorder commits Electron custom order', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(repository: repository, child: const PlaylistsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondCenter = tester.getCenter(secondCard);
+
+    final gesture = await tester.startGesture(firstCenter);
+    await tester.pump();
+    await gesture.moveTo(secondCenter + const Offset(80, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(repository.reorderedPlaylistIds, [8, 7]);
+  });
+
+  testWidgets('PlaylistsPage drag preview follows card center', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(repository: repository, child: const PlaylistsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondRightCenter =
+        tester.getCenter(secondCard) + const Offset(80, 0);
+    await tester.dragFrom(
+      secondRightCenter,
+      firstCenter + const Offset(80, 0) - secondRightCenter,
+    );
+    await tester.pump();
+
+    expect(repository.reorderedPlaylistIds, [8, 7]);
+  });
+
+  testWidgets('PlaylistsPage drag preview moves placeholder to target slot', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_PlaylistTestApp(child: const PlaylistsPage()));
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondCenter = tester.getCenter(secondCard);
+    final gesture = await tester.startGesture(firstCenter);
+    await tester.pump();
+
+    await gesture.moveTo(secondCenter + const Offset(80, 0));
+    await tester.pump();
+
+    final placeholder = find.byKey(const ValueKey('Playlists.DropPlaceholder'));
+    expect(placeholder, findsOneWidget);
+    expect(tester.getCenter(placeholder).dx, closeTo(secondCenter.dx, 1));
+
+    await gesture.up();
+    await tester.pump();
+  });
+
+  testWidgets('PlaylistsPage hides hover actions while sorting playlists', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_PlaylistTestApp(child: const PlaylistsPage()));
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondCenter = tester.getCenter(secondCard);
+    final gesture = await tester.startGesture(firstCenter);
+    await tester.pump();
+
+    await gesture.moveTo(secondCenter);
+    await tester.pump();
+
+    expect(find.byTooltip('Play'), findsNothing);
+    final cardContainers = tester.widgetList<AnimatedContainer>(
+      find.byKey(const ValueKey('Playlists.PlaylistCard')),
+    );
+    var inactiveCardCount = 0;
+    var activeDragOverlayCount = 0;
+    for (final container in cardContainers) {
+      final decoration = container.decoration! as BoxDecoration;
+      if (decoration.color == Colors.transparent) {
+        inactiveCardCount++;
+        expect(decoration.boxShadow, isNull);
+      } else {
+        activeDragOverlayCount++;
+        expect(decoration.boxShadow, isNotNull);
+      }
+    }
+    expect(inactiveCardCount, 1);
+    expect(activeDragOverlayCount, 1);
+
+    await gesture.up();
+    await tester.pump();
+  });
+
+  testWidgets('PlaylistsPage keeps placeholder until card reaches next slot', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(repository: repository, child: const PlaylistsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondCenter = tester.getCenter(secondCard);
+    await tester.drag(
+      firstCard,
+      Offset(
+        (secondCenter.dx - firstCenter.dx) * 0.35,
+        secondCenter.dy - firstCenter.dy,
+      ),
+    );
+    await tester.pump();
+
+    expect(repository.reorderedPlaylistIds, isNull);
   });
 
   testWidgets('PlaylistsPage Add To excludes the current playlist', (
@@ -223,6 +464,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceName;
   String? preferenceLevel;
   int? lastPlaylistId;
+  List<int>? reorderedPlaylistIds;
 
   @override
   Future<void> addPreferenceItem(
@@ -245,6 +487,11 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
     this.lastPlaylistId = lastPlaylistId;
+  }
+
+  @override
+  Future<void> reorderPlaylists(List<int> playlistIds) async {
+    reorderedPlaylistIds = playlistIds;
   }
 }
 

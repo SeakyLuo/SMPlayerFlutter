@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart'
     as search_model;
+import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show AppSettingsUpdate, NightMode, SearchSortCriterion, SettingsSnapshot;
@@ -221,6 +222,47 @@ void main() {
 
     expect(find.text('Default'), findsWidgets);
     expect(find.text('Title'), findsOneWidget);
+  });
+
+  testWidgets('SearchPage song rows use Electron narrow queue columns', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 800);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        child: const SearchPage(query: 'song', activeType: 'songs'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstRow = find.byType(PlaylistControlItem).first;
+    expect(
+      tester.widget<PlaylistControlItem>(firstRow).variant,
+      PlaylistControlItemVariant.standard,
+    );
+    expect(
+      tester
+          .getSize(
+            find.descendant(
+              of: firstRow,
+              matching: find.byKey(
+                const ValueKey('PlaylistControlItem.Duration'),
+              ),
+            ),
+          )
+          .width,
+      20,
+    );
+    expect(tester.getSize(find.text('2:00').first).height, lessThan(24));
   });
 
   testWidgets('SearchPage multi-select Add To can append to Now Playing', (
