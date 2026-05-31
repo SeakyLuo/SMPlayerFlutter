@@ -118,6 +118,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   late var _isMiniMode = widget.initialMiniMode;
   var _isWindowVisible = true;
   var _isWindowFullScreen = false;
+  var _isWindowMaximized = false;
   var _syncingAudioPlayer = false;
   var _audioLoadSerial = 0;
   double? _pendingAudioSeekSeconds;
@@ -185,6 +186,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         );
     unawaited(_desktopFeatureService.initialize(_handleDesktopFeatureAction));
     unawaited(_restoreDesktopWindowFullScreenState());
+    unawaited(_restoreDesktopWindowMaximizedState());
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
@@ -636,6 +638,54 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                   onWindowDragEnd: _stopWindowDrag,
                                   headeredPlaylistAppBar:
                                       headeredPlaylistAppBar,
+                                ),
+                              ),
+                            if (Platform.isWindows &&
+                                !isNowPlayingFullRoute &&
+                                minimalTitlebarHeight == 0)
+                              Positioned(
+                                top: 0,
+                                left: sidebarSurfaceWidth,
+                                right: 0,
+                                height:
+                                    SmPlayerShellMetrics.minimalTitlebarHeight,
+                                child: WindowsAppTitleBar(
+                                  isMaximized: _isWindowMaximized,
+                                  light:
+                                      _lastWindowControlsLight ??
+                                      (Theme.of(context).brightness ==
+                                          Brightness.dark),
+                                  showDragRegion: true,
+                                  onWindowDragStart: _startWindowDrag,
+                                  onWindowDragEnd: _stopWindowDrag,
+                                  onMinimize: _minimizeDesktopWindow,
+                                  onToggleMaximize:
+                                      _toggleDesktopWindowMaximized,
+                                  onClose: _closeDesktopWindow,
+                                ),
+                              ),
+                            if (Platform.isWindows &&
+                                !isNowPlayingFullRoute &&
+                                minimalTitlebarHeight > 0)
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                width: WindowsAppTitleBar.controlsWidth,
+                                height:
+                                    SmPlayerShellMetrics.minimalTitlebarHeight,
+                                child: WindowsAppTitleBar(
+                                  isMaximized: _isWindowMaximized,
+                                  light:
+                                      _lastWindowControlsLight ??
+                                      (Theme.of(context).brightness ==
+                                          Brightness.dark),
+                                  showDragRegion: false,
+                                  onWindowDragStart: _startWindowDrag,
+                                  onWindowDragEnd: _stopWindowDrag,
+                                  onMinimize: _minimizeDesktopWindow,
+                                  onToggleMaximize:
+                                      _toggleDesktopWindowMaximized,
+                                  onClose: _closeDesktopWindow,
                                 ),
                               ),
                             if (!isNowPlayingFullRoute)

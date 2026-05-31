@@ -253,6 +253,7 @@ enum DesktopFeatureCommand {
   openExternalAudioFiles,
   windowVisibilityChanged,
   windowFullScreenChanged,
+  windowMaximizedChanged,
   desktopLyricsBoundsChanged,
   mediaSessionSeekTo,
   voiceCommand,
@@ -265,6 +266,7 @@ class DesktopFeatureAction {
     this.filePaths = const [],
     this.isWindowVisible,
     this.isWindowFullScreen,
+    this.isWindowMaximized,
     this.desktopLyricsBounds,
     this.seekSeconds,
     this.voiceCommandText,
@@ -275,6 +277,7 @@ class DesktopFeatureAction {
   final List<String> filePaths;
   final bool? isWindowVisible;
   final bool? isWindowFullScreen;
+  final bool? isWindowMaximized;
   final String? desktopLyricsBounds;
   final double? seekSeconds;
   final String? voiceCommandText;
@@ -872,11 +875,19 @@ abstract class DesktopFeatureService {
 
   Future<bool> getWindowFullScreen();
 
+  Future<bool> getWindowMaximized();
+
   Future<bool> getWindowVisible();
 
   Future<void> showWindow();
 
   Future<void> toggleWindowVisibility();
+
+  Future<void> minimizeWindow();
+
+  Future<void> toggleWindowMaximized();
+
+  Future<void> closeWindow();
 
   Future<void> quit();
 
@@ -946,6 +957,11 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
   }
 
   @override
+  Future<bool> getWindowMaximized() async {
+    return false;
+  }
+
+  @override
   Future<bool> getWindowVisible() async {
     return true;
   }
@@ -955,6 +971,15 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
 
   @override
   Future<void> toggleWindowVisibility() async {}
+
+  @override
+  Future<void> minimizeWindow() async {}
+
+  @override
+  Future<void> toggleWindowMaximized() async {}
+
+  @override
+  Future<void> closeWindow() async {}
 
   @override
   Future<void> quit() async {}
@@ -1212,6 +1237,11 @@ class TrayWindowDesktopFeatureService
   }
 
   @override
+  Future<bool> getWindowMaximized() async {
+    return await windowManager.isMaximized();
+  }
+
+  @override
   Future<bool> getWindowVisible() async {
     try {
       return await windowManager.isVisible();
@@ -1253,6 +1283,26 @@ class TrayWindowDesktopFeatureService
         ),
       );
     }
+  }
+
+  @override
+  Future<void> minimizeWindow() async {
+    await _ignorePlatformErrors(windowManager.minimize());
+  }
+
+  @override
+  Future<void> toggleWindowMaximized() async {
+    final isMaximized = await windowManager.isMaximized();
+    if (isMaximized) {
+      await _ignorePlatformErrors(windowManager.unmaximize());
+    } else {
+      await _ignorePlatformErrors(windowManager.maximize());
+    }
+  }
+
+  @override
+  Future<void> closeWindow() async {
+    await _ignorePlatformErrors(windowManager.close());
   }
 
   @override
@@ -1312,11 +1362,23 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onWindowMaximize() {
+    _emit(
+      const DesktopFeatureAction(
+        DesktopFeatureCommand.windowMaximizedChanged,
+        isWindowMaximized: true,
+      ),
+    );
     unawaited(_saveMainWindowState(immediate: true));
   }
 
   @override
   void onWindowUnmaximize() {
+    _emit(
+      const DesktopFeatureAction(
+        DesktopFeatureCommand.windowMaximizedChanged,
+        isWindowMaximized: false,
+      ),
+    );
     unawaited(_saveMainWindowState(immediate: true));
   }
 

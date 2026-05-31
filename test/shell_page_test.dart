@@ -1318,6 +1318,58 @@ void main() {
     expect(desktopService.stopWindowDragCount, 1);
   });
 
+  testWidgets('Windows titlebar drag calls desktop drag bridge', (
+    tester,
+  ) async {
+    if (!Platform.isWindows) {
+      return;
+    }
+    _setViewSize(tester, const Size(1300, 600));
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(_ShellPageTestApp(desktopService: desktopService));
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(
+        find.byKey(const ValueKey('WindowsAppTitleBar.DragRegion')),
+      ),
+    );
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(desktopService.startWindowDragCount, 1);
+    expect(desktopService.stopWindowDragCount, 1);
+  });
+
+  testWidgets('Windows titlebar controls call desktop window bridge', (
+    tester,
+  ) async {
+    if (!Platform.isWindows) {
+      return;
+    }
+    _setViewSize(tester, const Size(1300, 600));
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(_ShellPageTestApp(desktopService: desktopService));
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const ValueKey('WindowsAppTitleBar.MinimizeButton')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('WindowsAppTitleBar.MaximizeButton')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('WindowsAppTitleBar.CloseButton')),
+    );
+
+    expect(desktopService.minimizeWindowCount, 1);
+    expect(desktopService.toggleWindowMaximizedCount, 1);
+    expect(desktopService.closeWindowCount, 1);
+  });
+
   testWidgets('shell shows window for external show-window command', (
     tester,
   ) async {
@@ -1521,7 +1573,11 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   var toggleWindowVisibilityCount = 0;
   var startWindowDragCount = 0;
   var stopWindowDragCount = 0;
+  var minimizeWindowCount = 0;
+  var toggleWindowMaximizedCount = 0;
+  var closeWindowCount = 0;
   bool? windowControlsLight;
+  var windowMaximized = false;
 
   void emit(DesktopFeatureAction action) {
     if (action.isWindowVisible case final isVisible?) {
@@ -1529,6 +1585,9 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
     }
     if (action.isWindowFullScreen case final isFullScreen?) {
       windowFullScreen = isFullScreen;
+    }
+    if (action.isWindowMaximized case final isMaximized?) {
+      windowMaximized = isMaximized;
     }
     onAction!(action);
   }
@@ -1593,6 +1652,11 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   }
 
   @override
+  Future<bool> getWindowMaximized() async {
+    return windowMaximized;
+  }
+
+  @override
   Future<bool> getWindowVisible() async {
     return windowVisible;
   }
@@ -1607,6 +1671,28 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   Future<void> toggleWindowVisibility() async {
     toggleWindowVisibilityCount += 1;
     windowVisible = !windowVisible;
+  }
+
+  @override
+  Future<void> minimizeWindow() async {
+    minimizeWindowCount += 1;
+  }
+
+  @override
+  Future<void> toggleWindowMaximized() async {
+    toggleWindowMaximizedCount += 1;
+    windowMaximized = !windowMaximized;
+    emit(
+      DesktopFeatureAction(
+        DesktopFeatureCommand.windowMaximizedChanged,
+        isWindowMaximized: windowMaximized,
+      ),
+    );
+  }
+
+  @override
+  Future<void> closeWindow() async {
+    closeWindowCount += 1;
   }
 
   @override
