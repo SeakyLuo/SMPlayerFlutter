@@ -112,9 +112,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    clearWorkspaceAppBarPortalOwnerAfterDispose(
+      _appBarPortalNotifier,
+      _appBarPortalOwner,
+    );
   }
 
   void _syncAppBarPortal({
@@ -371,15 +372,25 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   child:
                       _processing
                           ? const SmPlayerLoadingState(compact: true)
-                          : _AlbumsEmptyState(
-                            title:
-                                _searchQuery.isEmpty
-                                    ? i18n.t('collection.noAlbums')
-                                    : i18n.t('albums.noMatch'),
-                            message:
-                                _searchQuery.isEmpty
-                                    ? i18n.t('collection.scanFirst')
-                                    : i18n.t('albums.noMatchCopy'),
+                          : LayoutBuilder(
+                            builder: (context, constraints) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: _AlbumsEmptyState(
+                                    title:
+                                        _searchQuery.isEmpty
+                                            ? i18n.t('collection.noAlbums')
+                                            : i18n.t('albums.noMatch'),
+                                    message:
+                                        _searchQuery.isEmpty
+                                            ? i18n.t('collection.scanFirst')
+                                            : i18n.t('albums.noMatchCopy'),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                 ),
               ],
@@ -672,6 +683,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 
   void _selectSearchQuery(String query) {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _searchDraft = query;
       _searchQuery = query;
@@ -833,10 +845,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         MenuFlyoutItem(
           key: 'shuffle',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
-          onPressed: () {
-            ref.read(libraryRepositoryProvider).recordAlbumPlayed(album.name);
-            _playSongIds(album.songIds, shuffle: true);
+          useShuffleIcon: true,
+          onPressed: () async {
+            await ref
+                .read(libraryRepositoryProvider)
+                .recordAlbumPlayed(album.name);
+            await _playSongIds(album.songIds, shuffle: true);
           },
         ),
         if (addToItem != null) addToItem,
@@ -947,7 +961,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
-  void _playSongIds(List<int> songIds, {bool shuffle = false}) {
+  Future<void> _playSongIds(List<int> songIds, {bool shuffle = false}) async {
     if (songIds.isEmpty) {
       return;
     }
@@ -959,11 +973,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    final i18n = context.smPlayerI18n;
+    await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
-          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
+          mediaControlTrackForSong(firstSong, i18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
@@ -1705,6 +1720,7 @@ class _AlbumsEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return DecoratedBox(
+      key: const ValueKey('Albums.EmptyState'),
       decoration: BoxDecoration(
         color: _AlbumsColors.emptyStateSurfaceFor(brightness),
         borderRadius: BorderRadius.circular(18),
@@ -1864,7 +1880,7 @@ class _AlbumArtPreviewDialog extends StatelessWidget {
 List<AlbumView> buildAlbumViews(List<LibrarySong> songs, SmPlayerI18n i18n) {
   final groups = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    final albumName = displayAlbum(song, i18n);
+    final albumName = _electronAlbumName(song, i18n);
     final group = groups[albumName] ?? <LibrarySong>[];
     group.add(song);
     groups[albumName] = group;
@@ -1891,6 +1907,10 @@ List<AlbumView> buildAlbumViews(List<LibrarySong> songs, SmPlayerI18n i18n) {
       duration: albumSongs.fold(0, (total, song) => total + song.duration),
     );
   }).toList();
+}
+
+String _electronAlbumName(LibrarySong song, SmPlayerI18n i18n) {
+  return song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album;
 }
 
 List<String> getAlbumArtists(List<LibrarySong> songs, SmPlayerI18n i18n) {

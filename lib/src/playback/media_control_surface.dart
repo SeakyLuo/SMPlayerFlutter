@@ -33,6 +33,12 @@ class MediaControlSurface extends StatefulWidget {
     this.utilityCondensed = false,
     this.utilityMinimal = false,
     this.utilityWidth,
+    this.includeUtility = true,
+    this.progressSideOverflow = 0,
+    this.sliderActiveColor,
+    this.sliderInactiveColor,
+    this.sliderThumbColor,
+    this.sliderOverlayColor,
     required this.onMoreClick,
   });
 
@@ -66,6 +72,12 @@ class MediaControlSurface extends StatefulWidget {
   final bool utilityCondensed;
   final bool utilityMinimal;
   final double? utilityWidth;
+  final bool includeUtility;
+  final double progressSideOverflow;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
@@ -89,8 +101,8 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth <= 452;
-        final medium = constraints.maxWidth <= 640;
+        final narrow = widget.includeUtility && constraints.maxWidth <= 452;
+        final medium = widget.includeUtility && constraints.maxWidth <= 640;
         final condensed = widget.condensed || narrow;
         final utilityCondensed =
             widget.navMinimal ? condensed : widget.utilityCondensed || medium;
@@ -106,6 +118,11 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
           progressValue: progressValue,
           progressMax: progressMax,
           durationSeconds: widget.durationSeconds,
+          progressSideOverflow: widget.progressSideOverflow,
+          sliderActiveColor: widget.sliderActiveColor,
+          sliderInactiveColor: widget.sliderInactiveColor,
+          sliderThumbColor: widget.sliderThumbColor,
+          sliderOverlayColor: widget.sliderOverlayColor,
           previousButtonRestartsTrack: widget.previousButtonRestartsTrack,
           onTogglePlayPause: widget.onTogglePlayPause,
           onPrevious: widget.onPrevious,
@@ -134,29 +151,39 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
             });
           },
         );
-        final utility = MediaControlUtilityRows(
-          trackId: widget.trackId,
-          favorite: widget.favorite,
-          disabled: widget.disabled,
-          volumeValue: clampVolumeValue(widget.volume),
-          isMuted: widget.isMuted,
-          mode: widget.mode,
-          onVolumeChange: widget.onVolumeChange,
-          onToggleMute: widget.onToggleMute,
-          onToggleShuffle: widget.onToggleShuffle,
-          onToggleRepeat: widget.onToggleRepeat,
-          onToggleRepeatOne: widget.onToggleRepeatOne,
-          onToggleFavorite: widget.onToggleFavorite,
-          onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
-          condensed: utilityCondensed,
-          minimal: utilityMinimal,
-          width: widget.utilityWidth,
-          onMoreClick: widget.onMoreClick,
-        );
+        if (!widget.includeUtility) {
+          return buttons;
+        }
         return Row(
           children: [
             Expanded(child: buttons),
-            Align(alignment: Alignment.centerRight, child: utility),
+            Align(
+              alignment: Alignment.centerRight,
+              child: MediaControlUtilityRows(
+                trackId: widget.trackId,
+                favorite: widget.favorite,
+                disabled: widget.disabled,
+                volumeValue:
+                    widget.disabled ? 0 : clampVolumeValue(widget.volume),
+                isMuted: widget.isMuted,
+                mode: widget.mode,
+                onVolumeChange: widget.onVolumeChange,
+                onToggleMute: widget.onToggleMute,
+                onToggleShuffle: widget.onToggleShuffle,
+                onToggleRepeat: widget.onToggleRepeat,
+                onToggleRepeatOne: widget.onToggleRepeatOne,
+                onToggleFavorite: widget.onToggleFavorite,
+                onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
+                condensed: utilityCondensed,
+                minimal: utilityMinimal,
+                width: widget.utilityWidth,
+                sliderActiveColor: widget.sliderActiveColor,
+                sliderInactiveColor: widget.sliderInactiveColor,
+                sliderThumbColor: widget.sliderThumbColor,
+                sliderOverlayColor: widget.sliderOverlayColor,
+                onMoreClick: widget.onMoreClick,
+              ),
+            ),
           ],
         );
       },
@@ -176,6 +203,11 @@ class MediaControlButtons extends StatelessWidget {
     required this.progressValue,
     required this.progressMax,
     required this.durationSeconds,
+    required this.progressSideOverflow,
+    this.sliderActiveColor,
+    this.sliderInactiveColor,
+    this.sliderThumbColor,
+    this.sliderOverlayColor,
     required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
     required this.onPrevious,
@@ -195,6 +227,11 @@ class MediaControlButtons extends StatelessWidget {
   final double progressValue;
   final double progressMax;
   final double durationSeconds;
+  final double progressSideOverflow;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
   final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onPrevious;
@@ -216,14 +253,18 @@ class MediaControlButtons extends StatelessWidget {
             : i18n.t('player.previous');
     final transportGap = navMinimal || condensed ? 16.0 : 26.0;
     final primarySize =
-        navMinimal
-            ? (condensed ? 48.0 : 52.0)
+        navMinimal && condensed
+            ? 48.0
+            : navMinimal
+            ? 52.0
             : condensed
             ? 48.0
             : 56.0;
     final primaryPadding =
-        navMinimal
-            ? (condensed ? 12.0 : 13.0)
+        navMinimal && condensed
+            ? 12.0
+            : navMinimal
+            ? 13.0
             : condensed
             ? 12.0
             : 14.0;
@@ -232,6 +273,7 @@ class MediaControlButtons extends StatelessWidget {
     final progressHeight = navMinimal || condensed ? 28.0 : 36.0;
     final progressTextWidth = navMinimal || condensed ? 42.0 : 44.0;
     final progressTextSize = navMinimal || condensed ? 12.0 : 13.0;
+    final progressGap = navMinimal || condensed ? 8.0 : 12.0;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -291,46 +333,78 @@ class MediaControlButtons extends StatelessWidget {
             ],
           ),
         ),
-        SizedBox(
-          height: progressHeight,
-          child: Row(
-            children: [
-              SizedBox(
-                width: progressTextWidth,
-                child: Text(
-                  formatDuration(progressSeconds),
-                  style: TextStyle(
-                    fontSize: progressTextSize,
-                  ).copyWith(color: textMuted),
-                ),
-              ),
-              Expanded(
-                child:
-                    isLoading
-                        ? const _MediaProgressLoading()
-                        : _MediaProgressSlider(
-                          value: progressValue,
-                          max: progressMax,
-                          disabled: disabled || durationSeconds <= 0,
-                          onChanged: onSeekChange,
-                          onChangeStart: (_) {
-                            onSeekBegin();
-                          },
-                          onChangeEnd: onSeekEnd,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final progressWidth =
+                constraints.maxWidth + progressSideOverflow * 2;
+            return SizedBox(
+              height: progressHeight,
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                minWidth: progressWidth,
+                maxWidth: progressWidth,
+                minHeight: progressHeight,
+                maxHeight: progressHeight,
+                child: Transform.translate(
+                  offset: Offset(-progressSideOverflow, 0),
+                  child: SizedBox(
+                    width: progressWidth,
+                    height: progressHeight,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          key: const ValueKey(
+                            'MediaControl.ProgressElapsedColumn',
+                          ),
+                          width: progressTextWidth,
+                          child: Text(
+                            formatDuration(progressSeconds),
+                            style: TextStyle(
+                              fontSize: progressTextSize,
+                            ).copyWith(color: textMuted),
+                          ),
                         ),
-              ),
-              SizedBox(
-                width: progressTextWidth,
-                child: Text(
-                  formatDuration(durationSeconds),
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    fontSize: progressTextSize,
-                  ).copyWith(color: textMuted),
+                        SizedBox(width: progressGap),
+                        Expanded(
+                          child:
+                              isLoading
+                                  ? const _MediaProgressLoading()
+                                  : _MediaProgressSlider(
+                                    value: progressValue,
+                                    max: progressMax,
+                                    disabled: disabled || durationSeconds <= 0,
+                                    onChanged: onSeekChange,
+                                    onChangeStart: (_) {
+                                      onSeekBegin();
+                                    },
+                                    onChangeEnd: onSeekEnd,
+                                    activeTrackColor: sliderActiveColor,
+                                    inactiveTrackColor: sliderInactiveColor,
+                                    thumbColor: sliderThumbColor,
+                                    overlayColor: sliderOverlayColor,
+                                  ),
+                        ),
+                        SizedBox(width: progressGap),
+                        SizedBox(
+                          key: const ValueKey(
+                            'MediaControl.ProgressDurationColumn',
+                          ),
+                          width: progressTextWidth,
+                          child: Text(
+                            formatDuration(durationSeconds),
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              fontSize: progressTextSize,
+                            ).copyWith(color: textMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );

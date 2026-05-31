@@ -93,9 +93,10 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    clearWorkspaceAppBarPortalOwnerAfterDispose(
+      _appBarPortalNotifier,
+      _appBarPortalOwner,
+    );
   }
 
   void _syncAppBarPortal({

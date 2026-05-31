@@ -1,6 +1,6 @@
 part of 'media_control.dart';
 
-List<MenuFlyoutItem> _buildPlaybackModeMenuItems({
+List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
   required SmPlayerI18n i18n,
   required PlaybackMode mode,
   required VoidCallback onToggleShuffle,
@@ -27,7 +27,7 @@ List<MenuFlyoutItem> _buildPlaybackModeMenuItems({
     MenuFlyoutItem(
       key: 'playback-mode-shuffle',
       text: i18n.t('player.playbackModeShuffle'),
-      icon: _shuffleIcon,
+      useShuffleIcon: true,
       checked: mode == PlaybackMode.shuffle,
       onPressed: () {
         _setPlaybackMode(
@@ -120,7 +120,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
             '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
         icon: _playbackModeIcon(mode),
         usePlaylistIcon: mode == PlaybackMode.once,
-        submenu: _buildPlaybackModeMenuItems(
+        submenu: buildPlaybackModeMenuFlyoutItems(
           i18n: i18n,
           mode: mode,
           onToggleShuffle: onToggleShuffle,
@@ -142,20 +142,21 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           onVolumeChange: onVolumeChange,
         ),
       ),
-      if (currentSong != null)
-        MenuFlyoutItem(
-          key: 'player-favorite',
-          text:
-              currentSong.favorite
-                  ? i18n.t('player.unlike')
-                  : i18n.t('player.like'),
-          icon:
-              currentSong.favorite
-                  ? FluentIcons.heart_20_filled
-                  : FluentIcons.heart_20_regular,
-          iconColor: currentSong.favorite ? const Color(0xffd13438) : null,
-          onPressed: onToggleFavorite,
-        ),
+      MenuFlyoutItem(
+        key: 'player-favorite',
+        text:
+            currentSong?.favorite == true
+                ? i18n.t('player.unlike')
+                : i18n.t('player.like'),
+        icon:
+            currentSong?.favorite == true
+                ? FluentIcons.heart_20_filled
+                : FluentIcons.heart_20_regular,
+        iconColor:
+            currentSong?.favorite == true ? const Color(0xffd13438) : null,
+        disabled: currentSong == null,
+        onPressed: onToggleFavorite,
+      ),
     ],
   ];
 
@@ -256,10 +257,8 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           isWindowFullScreen
               ? i18n.t('nowPlaying.exitFullScreenItem')
               : i18n.t('nowPlaying.fullScreen'),
-      icon:
-          isWindowFullScreen
-              ? FluentIcons.full_screen_minimize_20_regular
-              : FluentIcons.full_screen_maximize_20_regular,
+      useFullscreenIcon: !isWindowFullScreen,
+      useExitFullscreenIcon: isWindowFullScreen,
       onPressed: onToggleWindowFullScreen,
     ),
     MenuFlyoutItem(

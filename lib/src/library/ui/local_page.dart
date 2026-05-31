@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/input_dialog.dart';
 import '../../app/loading_state.dart';
+import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
@@ -65,6 +66,16 @@ typedef LocalScanLibraryCallback =
       void Function(LocalFolderRefreshProgress progress)? onProgress,
     });
 
+typedef LocalPathAction = FutureOr<void> Function(String path);
+
+final localPageOpenFolderInShellProvider = Provider<LocalPathAction>((ref) {
+  return openFolderInShell;
+});
+
+final localPageRevealItemInFolderProvider = Provider<LocalPathAction>((ref) {
+  return revealItemInFolder;
+});
+
 class LocalPage extends ConsumerStatefulWidget {
   const LocalPage({
     super.key,
@@ -97,6 +108,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   ({FolderNode folder, LocalFolderRefreshResult result})? _refreshResultDialog;
   String? _localOperationTitle;
   LocalFolderScanCancellation? _scanCancellation;
+  var _refreshFolderRunning = false;
   ({LibrarySong song, SongDialogMode mode})? _musicDialog;
   var _rootScanRunning = false;
   var _pickingLibraryRoot = false;
@@ -110,7 +122,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentRelativePath != widget.currentRelativePath) {
       _clearMultiSelectStatus();
-      _scrollController.jumpTo(0);
+      _scrollCurrentFolderToTop();
     }
   }
 
@@ -118,6 +130,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollCurrentFolderToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   @override
@@ -229,7 +247,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     final currentSortMode = localSortModeFromCriterion(currentNode.criterion);
-    if (_sortMode != currentSortMode && !_multiSelect) {
+    if (_sortMode != currentSortMode &&
+        _sortMode != LocalSortMode.reverse &&
+        !_multiSelect) {
       _sortMode = currentSortMode;
     }
 
@@ -304,6 +324,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final colors = LocalPageColors.of(context);
         final isCompactLayout = constraints.maxWidth < localCompactBreakpoint;
         final selectableFolderPaths =
             isCompactLayout
@@ -331,12 +352,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         final selectedLocalItemCount =
             effectiveSelectedFolderPaths.length +
             effectiveSelectedSongIds.length;
+        final showsInlineTitle = !WorkspaceNavigationAppBarScope.of(context);
         return LocalPageScaffold(
           child: Stack(
             children: [
               Column(
                 children: [
-                  if (!WorkspaceNavigationAppBarScope.of(context))
+                  if (showsInlineTitle) ...[
                     LocalTitleGrid(
                       songs: snapshot.songs,
                       folders: snapshot.folders,
@@ -345,7 +367,24 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                       currentRelativePath: widget.currentRelativePath,
                       onHiddenFoldersListButtonClick:
                           () => context.go('/hidden-folders'),
+                      onCurrentFolderClick: _scrollCurrentFolderToTop,
                       onOpenFolder: _openFolder,
+                      onWillAcceptDrop:
+                          (targetRelativePath, payload) =>
+                              isLocalMoveTargetFolder(
+                                payload: payload,
+                                targetFolder: nodes[targetRelativePath]!,
+                                nodes: nodes,
+                                songsById: songsById,
+                              ),
+                      onAcceptDrop: (targetRelativePath, payload) {
+                        _moveLocalItemsToFolder(
+                          songIds: payload.songIds,
+                          folderPaths: payload.folderPaths,
+                          targetFolderPath: nodes[targetRelativePath]!.path,
+                        );
+                        setState(_clearMultiSelectStatus);
+                      },
                       onOpenFolderMenu:
                           (targetRelativePath, position) =>
                               _showFolderChainMenu(
@@ -358,8 +397,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 i18n: i18n,
                               ),
                     ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
                   CommandBar(
+                    contentSizing: CommandBarContentSizing.intrinsic,
                     overflowReserve: isCompactLayout ? 44 : 0,
                     overflowLabel: i18n.t('player.more'),
                     overflowItems:
@@ -379,36 +420,33 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         'songs': currentSongs.length,
                       }),
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: LocalPageColors.textMuted,
+                      style: TextStyle(
+                        color: colors.textMuted,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     children: [
-                      Builder(
-                        builder: (buttonContext) {
-                          return CommandBarButton(
-                            icon: FluentIcons.arrow_shuffle_24_regular,
-                            label: i18n.t('nowPlaying.randomPlay'),
-                            overflowSubmenu:
-                                visibleSongIds.isNotEmpty && hasSubfolderSongs
-                                    ? _localShuffleMenuItems(
-                                      currentNode,
-                                      visibleSongIds,
-                                      i18n,
-                                    )
-                                    : const [],
-                            onPressed:
-                                () => _playShuffledFromToolbar(
-                                  buttonContext,
+                      CommandBarButton(
+                        iconWidget: const ShuffleIcon(),
+                        useShuffleIcon: true,
+                        label: i18n.t('nowPlaying.randomPlay'),
+                        overflowSubmenu:
+                            visibleSongIds.isNotEmpty && hasSubfolderSongs
+                                ? _localShuffleMenuItems(
                                   currentNode,
                                   visibleSongIds,
-                                  hasSubfolderSongs,
                                   i18n,
-                                ),
-                          );
-                        },
+                                )
+                                : const [],
+                        onPressedWithContext:
+                            (buttonContext) => _playShuffledFromToolbar(
+                              buttonContext,
+                              currentNode,
+                              visibleSongIds,
+                              hasSubfolderSongs,
+                              i18n,
+                            ),
                       ),
                       CommandBarButton(
                         icon: FluentIcons.arrow_sync_24_regular,
@@ -418,19 +456,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 : i18n.t('local.updateFolder'),
                         onPressed: () => _refreshFolder(currentNode, i18n),
                       ),
-                      Builder(
-                        builder: (context) {
-                          return CommandBarButton(
-                            icon: FluentIcons.arrow_sort_24_regular,
-                            label: i18n.t('common.sort'),
-                            overflowSubmenu: _localSortMenuItems(
-                              currentNode,
-                              i18n,
-                            ),
-                            onPressed:
-                                () => _showSortMenu(context, i18n, currentNode),
-                          );
-                        },
+                      CommandBarButton(
+                        icon: FluentIcons.arrow_sort_24_regular,
+                        label: i18n.t('common.sort'),
+                        overflowSubmenu: _localSortMenuItems(currentNode, i18n),
+                        onPressedWithContext:
+                            (context) =>
+                                _showSortMenu(context, i18n, currentNode),
                       ),
                       CommandBarButton(
                         icon: FluentIcons.add_24_regular,
@@ -461,11 +493,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: isCompactLayout ? 8 : 12),
                   Expanded(
                     child: LocalPageContentPanel(
                       scrollController: _scrollController,
                       scrollable: snapshot.localViewMode != LocalViewMode.list,
+                      compact: isCompactLayout,
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
                               ? buildLocalPageEmptyContent(
@@ -501,6 +534,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     ),
                                 songQuickJumpMap: songQuickJumpMap,
                                 queueSongIds: visibleSongIds,
+                                isCompactLayout: isCompactLayout,
                                 compactTreeRows:
                                     isCompactLayout
                                         ? localCompactFolderTreeRows
@@ -830,16 +864,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                           });
                         },
                 onRemove:
-                    selectedLocalItemCount == 0
-                        ? null
-                        : () => _requestDeleteLocalItems(
-                          songIds: effectiveSelectedSongIds,
-                          folderPaths:
-                              effectiveSelectedFolderPaths
-                                  .map((folderPath) => nodes[folderPath]!.path)
-                                  .toList(),
-                          i18n: i18n,
-                        ),
+                    () => _requestDeleteLocalItems(
+                      songIds: effectiveSelectedSongIds,
+                      folderPaths:
+                          effectiveSelectedFolderPaths
+                              .map((folderPath) => nodes[folderPath]!.path)
+                              .toList(),
+                      i18n: i18n,
+                    ),
                 removeLabel: i18n.t('context.deleteFromDisk'),
                 extraActions: [
                   MultiSelectCommandBarExtraAction(

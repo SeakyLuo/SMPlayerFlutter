@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +75,14 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             );
           }
 
-          final mediaControl = ref.watch(mediaControlControllerProvider).state;
+          final mediaControl = ref.watch(
+            mediaControlControllerProvider.select(
+              (controller) => (
+                trackId: controller.state.track.id,
+                isPlaying: controller.state.isPlaying,
+              ),
+            ),
+          );
           final artworkSong =
               albumSongs
                   .where((song) => song.thumbnailPath.isNotEmpty)
@@ -92,7 +101,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                     ).toString(),
                 title: routeAlbumName,
                 songs: albumSongs,
-                selectedTrackId: mediaControl.track.id,
+                selectedTrackId: mediaControl.trackId,
                 isPlaying: mediaControl.isPlaying,
                 playlists: snapshot.playlists,
                 favoritePlaylistId: snapshot.favoritePlaylistId,
@@ -274,7 +283,9 @@ void _playTrack(
 ) {
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final song = songsById[trackId]!;
-  ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+  unawaited(
+    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  );
   ref
       .read(mediaControlControllerProvider)
       .playTrack(
@@ -282,7 +293,6 @@ void _playTrack(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
-  ref.invalidate(libraryContentDataProvider);
 }
 
 void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {

@@ -29,6 +29,7 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
         getArtistAlbumVirtualWindow,
         getArtistQuickJumpBucket,
         searchArtists;
+import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
@@ -90,6 +91,8 @@ void main() {
       'context.select': 'Select',
       'context.view': 'View',
       'library.scanHelp': 'Scan music first.',
+      'library.allArtists': 'Artists',
+      'library.allArtistsWithCount': '{count} Artists',
       'library.tryAnotherSearch': 'Try another search.',
       'notification.playNext': '"{title}" will play next',
       'notification.deletedFromDisk': 'Deleted {title} from disk',
@@ -294,6 +297,33 @@ void main() {
     expect(find.byKey(const ValueKey('Artists.AppBar.Search')), findsOneWidget);
   });
 
+  testWidgets(
+    'ArtistsPage appbar search history dismisses outside like Electron',
+    (tester) async {
+      await tester.pumpWidget(
+        _ArtistsAppBarPortalTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('Artists.AppBar.Search')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
+        findsOneWidget,
+      );
+
+      await tester.tapAt(const Offset(16, 220));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, 'Search artists'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('ArtistsPage nav-minimal master matches Electron shell spacing', (
     tester,
   ) async {
@@ -435,18 +465,72 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('APPBAR_TITLE:'), findsOneWidget);
+    expect(find.text('APPBAR_TITLE:1 Artists'), findsOneWidget);
 
     await tester.tap(find.text('Artist A').first);
     await tester.pumpAndSettle();
 
     expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
+    final searchButton = tester.widget<CommandBarButton>(
+      find.byKey(const ValueKey('Artists.AppBar.Search')),
+    );
+    expect(searchButton.active, isFalse);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
-    expect(find.text('APPBAR_TITLE:'), findsOneWidget);
+    expect(find.text('APPBAR_TITLE:1 Artists'), findsOneWidget);
   });
+
+  testWidgets('ArtistsPage compact target route keeps Electron appbar title', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsAppBarPortalTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        initialLocation: '/artists?artist=Artist%20A',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
+    expect(find.text('APPBAR_BOTTOM:true'), findsOneWidget);
+  });
+
+  testWidgets(
+    'ArtistsPage appbar search query keeps Electron toolbar icon color',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _ArtistsAppBarPortalTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          initialLocation: '/artists?artist=Artist%20A',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchButton = tester.widget<CommandBarButton>(
+        find.byKey(const ValueKey('Artists.AppBar.Search')),
+      );
+      expect(searchButton.active, isFalse);
+      expect(searchButton.activeSurface, isFalse);
+    },
+  );
 
   testWidgets(
     'ArtistsPage compact nav-minimal master matches Electron spacing',
@@ -1966,6 +2050,29 @@ void main() {
     expect(find.text('No artists'), findsOneWidget);
     expect(find.text('No artists yet.'), findsOneWidget);
     expect(find.text('Try another search.'), findsNothing);
+  });
+
+  testWidgets('ArtistsPage compact empty library shows no-artists copy', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _emptyArtistsSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No artists'), findsOneWidget);
+    expect(find.text('No artists yet.'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('Artists.CompactMaster.List')),
+      findsNothing,
+    );
   });
 
   testWidgets('ArtistsPage night suggestions match Electron colors', (
@@ -4360,6 +4467,13 @@ void main() {
       find.byKey(const ValueKey('Artists.DetailHeader')),
     );
     expect(detailHeader.height, 40);
+    final header = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('Artists.DetailHeader')),
+    );
+    final headerDecoration = header.decoration as BoxDecoration;
+    expect(headerDecoration.color, const Color(0xfff8fbfe));
+    expect(headerDecoration.gradient, isNull);
+    expect(headerDecoration.boxShadow, isNull);
     expect(
       tester.getSize(find.byKey(const ValueKey('Artists.DetailHeader.Back'))),
       const Size(32, 32),
@@ -4382,6 +4496,13 @@ void main() {
       find.byKey(const ValueKey('Artists.DetailHeader.CompactCommandGap')),
     );
     expect(compactCommandGap.width, 6);
+    final backCenter = tester.getCenter(
+      find.byKey(const ValueKey('Artists.DetailHeader.Back')),
+    );
+    final summaryCenter = tester.getCenter(
+      find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+    );
+    expect((backCenter.dy - summaryCenter.dy).abs(), lessThanOrEqualTo(1));
     final albumListTopPadding = tester.widget<SizedBox>(
       find.byKey(const ValueKey('Artists.AlbumList.TopPadding')),
     );
@@ -4608,6 +4729,10 @@ void main() {
     expect(repository.recordedSearches, [
       (query: 'Artist A', type: SearchHistoryType.artists),
     ]);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Artist A',
+    );
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/artists');
     expect(uri.queryParameters['artist'], isNull);
@@ -5395,16 +5520,18 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
     required this.snapshot,
     required this.i18n,
     this.brightness = Brightness.light,
+    this.initialLocation = '/artists',
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final Brightness brightness;
+  final String initialLocation;
 
   @override
   Widget build(BuildContext context) {
     final appBarRouter = GoRouter(
-      initialLocation: '/artists',
+      initialLocation: initialLocation,
       routes: [
         GoRoute(
           path: '/artists',
@@ -5416,13 +5543,18 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
                       builder: (context, ref, _) {
                         final entry = ref.watch(workspaceAppBarPortalProvider);
                         return SizedBox(
-                          height: 80,
+                          height: 120,
                           child: Column(
                             children: [
                               Text('APPBAR_TITLE:${entry?.title ?? ''}'),
+                              Text(
+                                'APPBAR_BOTTOM:${entry?.bottomContent != null}',
+                              ),
                               Expanded(
                                 child: entry?.content ?? const SizedBox(),
                               ),
+                              if (entry?.bottomContent case final bottom?)
+                                SizedBox(height: 40, child: bottom),
                             ],
                           ),
                         );

@@ -384,6 +384,9 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       },
       initialExternalFilePaths: initialExternalFilePaths,
       initialExternalCommands: initialExternalCommands,
+      initialDisplayMode:
+          settingsController?.snapshot.lastDisplayMode ??
+          smPlayerGlobalSettingsSnapshot.lastDisplayMode,
       child: _LibraryRootGate(
         path: path,
         settingsController: settingsController,

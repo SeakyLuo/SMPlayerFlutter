@@ -69,6 +69,7 @@ class LibraryDatabaseService {
         DesktopLyricsBounds TEXT DEFAULT '',
         MainWindowBounds TEXT DEFAULT '',
         MainWindowMaximized INTEGER DEFAULT 0,
+        LastDisplayMode INTEGER DEFAULT 0,
         QuitOnClose INTEGER DEFAULT 1
       )
     ''');
@@ -350,6 +351,7 @@ class LibraryDatabaseService {
       'DesktopLyricsBounds': "TEXT DEFAULT ''",
       'MainWindowBounds': "TEXT DEFAULT ''",
       'MainWindowMaximized': 'INTEGER DEFAULT 0',
+      'LastDisplayMode': 'INTEGER DEFAULT 0',
       'QuitOnClose': 'INTEGER DEFAULT 1',
     });
     _addColumnsIfMissing(db, 'Music', {

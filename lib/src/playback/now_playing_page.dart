@@ -5,8 +5,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -62,9 +64,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    clearWorkspaceAppBarPortalOwnerAfterDispose(
+      _appBarPortalNotifier,
+      _appBarPortalOwner,
+    );
   }
 
   void _syncAppBarPortal({
@@ -123,8 +126,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           ),
       data: (snapshot) {
         final songsById = {for (final song in snapshot.songs) song.id: song};
+        final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
+        final sourceQueueSongIds = queueOverride ?? snapshot.nowPlaying.songIds;
         final queueSongs =
-            snapshot.nowPlaying.songIds
+            sourceQueueSongIds
                 .map((songId) => songsById[songId])
                 .whereType<LibrarySong>()
                 .toList();
@@ -246,7 +251,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   MenuFlyoutItem(
                     key: 'now-playing-appbar-play-mode',
                     text: i18n.t('nowPlaying.playMode'),
-                    icon: FluentIcons.full_screen_maximize_20_regular,
+                    useFullscreenIcon: true,
                     disabled: currentSong == null,
                     onPressed: () {
                       context.go(
@@ -278,7 +283,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               },
             ),
             CommandBarButton(
-              icon: FluentIcons.arrow_shuffle_20_regular,
+              iconWidget: const ShuffleIcon(),
+              useShuffleIcon: true,
               label: i18n.t('nowPlaying.randomPlay'),
               canOverflow: false,
               disabled: snapshot.songs.isEmpty,
@@ -326,7 +332,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           },
                         ),
                         CommandBarButton(
-                          icon: FluentIcons.arrow_shuffle_20_regular,
+                          iconWidget: const ShuffleIcon(),
+                          useShuffleIcon: true,
                           label: i18n.t('nowPlaying.randomPlay'),
                           disabled: snapshot.songs.isEmpty,
                           onPressedWithContext: (buttonContext) {
@@ -392,7 +399,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             },
                           ),
                           CommandBarButton(
-                            icon: FluentIcons.full_screen_maximize_20_regular,
+                            iconWidget: const SmPlayerFullscreenIcon(),
                             label: i18n.t('nowPlaying.playMode'),
                             disabled: currentSong == null,
                             onPressed: () {
@@ -679,6 +686,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   void _replaceQueue(List<int> songIds) {
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
     ref.invalidate(libraryContentDataProvider);
   }

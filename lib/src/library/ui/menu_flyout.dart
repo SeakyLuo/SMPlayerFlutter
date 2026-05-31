@@ -4,7 +4,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
@@ -18,6 +20,9 @@ class MenuFlyoutItem {
     this.useAlbumIcon = false,
     this.usePlaylistIcon = false,
     this.usePlayNextIcon = false,
+    this.useShuffleIcon = false,
+    this.useFullscreenIcon = false,
+    this.useExitFullscreenIcon = false,
     this.disabled = false,
     this.checked = false,
     this.submenu = const [],
@@ -36,6 +41,9 @@ class MenuFlyoutItem {
       useAlbumIcon = false,
       usePlaylistIcon = false,
       usePlayNextIcon = false,
+      useShuffleIcon = false,
+      useFullscreenIcon = false,
+      useExitFullscreenIcon = false,
       disabled = false,
       checked = false,
       submenu = const [],
@@ -54,6 +62,9 @@ class MenuFlyoutItem {
   final bool useAlbumIcon;
   final bool usePlaylistIcon;
   final bool usePlayNextIcon;
+  final bool useShuffleIcon;
+  final bool useFullscreenIcon;
+  final bool useExitFullscreenIcon;
   final bool disabled;
   final bool checked;
   final List<MenuFlyoutItem> submenu;
@@ -321,6 +332,20 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
 
   Offset _resolvedRequestedPosition() {
     if (widget.hasExplicitPosition) {
+      if (!widget.anchorContext.mounted) {
+        return widget.requestedPosition;
+      }
+      final renderObject = widget.anchorContext.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.attached) {
+        return widget.requestedPosition;
+      }
+      final anchorTop = renderObject.localToGlobal(Offset.zero).dy;
+      if (widget.requestedPosition.dy < anchorTop) {
+        return Offset(
+          widget.requestedPosition.dx,
+          anchorTop - _menuFlyoutItemsHeight(_panels.first.items) - 8,
+        );
+      }
       return widget.requestedPosition;
     }
     if (!widget.anchorContext.mounted) {
@@ -454,8 +479,7 @@ class _MenuFlyoutPanel extends StatelessWidget {
     final maxHeight = (boundaryBottom - state.position.dy - _menuFlyoutMargin)
         .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
     final itemsContentHeight = _menuFlyoutItemsContentHeight(state.items);
-    final maxContentHeight = maxHeight - _menuFlyoutPadding * 2;
-    final scrollable = depth > 0 && itemsContentHeight > maxContentHeight;
+    final scrollable = depth > 0 && itemsContentHeight > maxHeight;
     final itemWidgets = [
       for (final item in state.items)
         _MenuFlyoutItemWidget(
@@ -479,19 +503,8 @@ class _MenuFlyoutPanel extends StatelessWidget {
         child: Semantics(
           container: true,
           explicitChildNodes: true,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.shadow,
-                  offset: const Offset(0, 18),
-                  blurRadius: 44,
-                ),
-              ],
-            ),
+          child: _MenuFlyoutGlassPanel(
+            colors: colors,
             child: Padding(
               padding: const EdgeInsets.all(_menuFlyoutPadding),
               child:
@@ -507,6 +520,57 @@ class _MenuFlyoutPanel extends StatelessWidget {
                       ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuFlyoutGlassPanel extends StatelessWidget {
+  const _MenuFlyoutGlassPanel({required this.colors, required this.child});
+
+  static const _radius = 10.0;
+
+  final MenuFlyoutThemeColors colors;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_radius),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow,
+            offset: const Offset(0, 18),
+            blurRadius: 44,
+          ),
+        ],
+      ),
+      child: GlassContainer(
+        key: const ValueKey('MenuFlyout.GlassPanel'),
+        useOwnLayer: true,
+        quality: GlassQuality.standard,
+        clipBehavior: Clip.hardEdge,
+        shape: const LiquidRoundedRectangle(borderRadius: _radius),
+        settings: LiquidGlassSettings(
+          blur: 28,
+          thickness: 24,
+          refractiveIndex: 1.08,
+          saturation: 1.24,
+          chromaticAberration: 0.008,
+          lightIntensity: 0.34,
+          ambientStrength: 0.14,
+          glowIntensity: 0.22,
+          glassColor: colors.surface,
+          standardOpacityMultiplier: 0.92,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: colors.border),
+          ),
+          child: child,
         ),
       ),
     );
@@ -689,6 +753,44 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                             child: SizedBox.square(
                               dimension: 18,
                               child: SmPlayerPlayNextIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
+                          : item.useShuffleIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: ShuffleIcon(
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
+                          : item.useFullscreenIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: SmPlayerFullscreenIcon(
+                                size: 18,
+                                color:
+                                    item.disabled
+                                        ? foreground
+                                        : item.iconColor ?? foreground,
+                              ),
+                            ),
+                          )
+                          : item.useExitFullscreenIcon
+                          ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: ExitFullscreenIcon(
                                 size: 18,
                                 color:
                                     item.disabled

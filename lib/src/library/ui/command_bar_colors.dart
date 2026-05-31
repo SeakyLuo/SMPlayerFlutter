@@ -8,6 +8,7 @@ class CommandBarColors {
   static const buttonHoverSurface = Color(0xbdffffff);
   static const buttonPressedSurface = Color(0xdbffffff);
   static const buttonBorder = Color(0x24536379);
+  static const nightButtonHoverSurface = Color(0x17ffffff);
   static const buttonInsetHighlight = Color(0x6bffffff);
   static const multiSelectSurface = Color(0xadf6faff);
   static const multiSelectGradientTop = Color(0xc7f9fcff);
@@ -27,8 +28,10 @@ class CommandBarColors {
   static const multiSelectShadow = Color(0x2e2f425c);
   static const appBarForeground = Color(0xff111827);
   static const appBarForegroundDark = Color(0xfff6f9fc);
-  static const appBarHover = Color(0x12111827);
+  static const appBarHoverForeground = Color(0xff0f172a);
+  static const appBarHoverForegroundDark = Color(0xff459de2);
+  static const appBarHover = Color(0x0f0c1623);
   static const appBarPressed = Color(0x1a111827);
-  static const appBarHoverDark = Color(0x2e0078d7);
+  static const appBarHoverDark = Color(0x290078d7);
   static const appBarPressedDark = Color(0x3d0078d7);
 }

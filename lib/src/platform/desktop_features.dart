@@ -236,6 +236,8 @@ int clampedDesktopLyricsOffset(int offsetMs) {
 enum DesktopFeatureCommand {
   toggleWindowVisibility,
   showWindow,
+  play,
+  pause,
   playPause,
   previous,
   next,
@@ -1529,9 +1531,6 @@ class TrayWindowDesktopFeatureService
   }
 
   Future<void> _persistMainWindowState(SettingsSnapshot snapshot) {
-    if (Platform.isMacOS) {
-      return Future.value();
-    }
     _mainWindowStateWriteQueue = _mainWindowStateWriteQueue
         .catchError((_) {})
         .then(
@@ -1941,6 +1940,8 @@ String desktopRecentSongTitle(DesktopRecentSong song) {
 
 DesktopFeatureCommand desktopFeatureCommandFromPlatform(String command) {
   return switch (command) {
+    'play' => DesktopFeatureCommand.play,
+    'pause' => DesktopFeatureCommand.pause,
     'play-pause' => DesktopFeatureCommand.playPause,
     'previous' => DesktopFeatureCommand.previous,
     'next' => DesktopFeatureCommand.next,

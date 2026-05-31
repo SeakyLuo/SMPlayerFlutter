@@ -1,9 +1,10 @@
 part of 'artists_page.dart';
 
 void _clearArtistsAppBarPortalOwner(_ArtistsPageState state) {
-  if (state._appBarPortalNotifier.state?.owner == state._appBarPortalOwner) {
-    state._appBarPortalNotifier.state = null;
-  }
+  clearWorkspaceAppBarPortalOwnerAfterDispose(
+    state._appBarPortalNotifier,
+    state._appBarPortalOwner,
+  );
 }
 
 void _syncArtistsAppBarPortal(
@@ -14,9 +15,10 @@ void _syncArtistsAppBarPortal(
   required String compactTitle,
   required int searchSuggestionCount,
   required int searchHistoryCount,
+  Widget? bottomContent,
 }) {
   final signature =
-      '$showPortal:$routePath:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:$compactTitle:$searchSuggestionCount:$searchHistoryCount';
+      '$showPortal:$routePath:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }
@@ -38,6 +40,7 @@ void _syncArtistsAppBarPortal(
       routePath: routePath,
       content: content,
       title: compactTitle.isEmpty ? null : compactTitle,
+      bottomContent: bottomContent,
       replacesTitle: state._appBarSearchOpen,
     );
   });
@@ -119,6 +122,7 @@ void _openArtistDetailForArtistsPage(
     state._selection.cancel();
   });
   if (MediaQuery.sizeOf(state.context).width <= 720) {
+    state._pendingOpenedArtistRoute = artistName;
     state.context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
   }
   if (state._artistDetailController.hasClients) {
@@ -434,7 +438,7 @@ Future<void> _showGroupContextMenuForArtistsPage(
       MenuFlyoutItem(
         key: 'shuffle',
         text: i18n.t('nowPlaying.randomPlay'),
-        icon: FluentIcons.arrow_shuffle_20_regular,
+        useShuffleIcon: true,
         onPressed: () {
           state._playShuffledSongIds(
             songIds,

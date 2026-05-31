@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 const smPlayerPlayingWaveSaturate150 = ColorFilter.matrix([
   1.3935,
@@ -44,25 +43,42 @@ class SmPlayerPlayingWaveGlass extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ClipOval(
-        child: BackdropFilter(
-          key: ValueKey('$keyPrefix.Backdrop'),
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: ColorFiltered(
-            key: ValueKey('$keyPrefix.Saturate150'),
-            colorFilter: smPlayerPlayingWaveSaturate150,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: shadowColor,
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 28,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: GlassContainer(
+            key: ValueKey('$keyPrefix.Backdrop'),
+            width: dimension,
+            height: dimension,
+            useOwnLayer: true,
+            quality: GlassQuality.standard,
+            shape: const LiquidOval(),
+            settings: LiquidGlassSettings(
+              glassColor: backgroundColor,
+              thickness: 34,
+              blur: 12,
+              chromaticAberration: 0.012,
+              lightIntensity: 0.42,
+              ambientStrength: 0.08,
+              refractiveIndex: 1.16,
+              saturation: 1.12,
+              glowIntensity: 0.28,
+              standardOpacityMultiplier: 1.1,
+            ),
+            clipBehavior: Clip.hardEdge,
+            allowElevation: false,
+            child: ColorFiltered(
+              key: ValueKey('$keyPrefix.Saturate150'),
+              colorFilter: smPlayerPlayingWaveSaturate150,
               child: SizedBox.square(
                 dimension: dimension,
                 child: SmPlayerPlayingWaveBars(

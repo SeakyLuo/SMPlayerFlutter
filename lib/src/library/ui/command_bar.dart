@@ -9,10 +9,13 @@ enum CommandBarStyleVariant { standard, appBar, headeredPlaylist }
 
 enum CommandBarPrimaryAlignment { start, end, center }
 
+enum CommandBarContentSizing { flexible, intrinsic }
+
 class CommandBar extends StatefulWidget {
   const CommandBar({
     super.key,
     this.content,
+    this.contentSizing = CommandBarContentSizing.flexible,
     this.style = CommandBarStyleVariant.standard,
     this.dynamicOverflow = true,
     this.overflowReserve = 0,
@@ -23,6 +26,7 @@ class CommandBar extends StatefulWidget {
   });
 
   final Widget? content;
+  final CommandBarContentSizing contentSizing;
   final CommandBarStyleVariant style;
   final bool dynamicOverflow;
   final double overflowReserve;
@@ -70,6 +74,18 @@ class _CommandBarState extends State<CommandBar> {
         _CommandBarStyleData.headeredPlaylist(compact: compact),
     };
     _scheduleMeasure();
+    final contentWidget =
+        widget.content == null
+            ? null
+            : Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: style.contentHorizontalPadding,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: widget.content!,
+              ),
+            );
     final toolbar = ConstrainedBox(
       constraints: BoxConstraints(minHeight: style.toolbarMinHeight),
       child: Padding(
@@ -77,24 +93,16 @@ class _CommandBarState extends State<CommandBar> {
         child: _CommandBarStyleScope(
           data: style,
           child: _CommandBarTextIconTheme(
-            enabled: widget.style == CommandBarStyleVariant.appBar,
+            enabled: true,
             style: style,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                if (widget.content != null)
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: style.contentHorizontalPadding,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: widget.content!,
-                      ),
-                    ),
-                  ),
+                if (contentWidget != null)
+                  if (widget.contentSizing == CommandBarContentSizing.intrinsic)
+                    contentWidget
+                  else
+                    Flexible(fit: FlexFit.loose, child: contentWidget),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -121,7 +129,6 @@ class _CommandBarState extends State<CommandBar> {
                       final measurementLayer = Positioned(
                         left: -100000,
                         top: 0,
-                        width: 10000,
                         height: style.visibleRowHeight,
                         child: Offstage(
                           child: SizedBox(
@@ -298,7 +305,9 @@ class CommandBarButton extends StatefulWidget {
     required this.label,
     this.icon,
     this.iconWidget,
+    this.useShuffleIcon = false,
     this.active = false,
+    this.activeSurface = true,
     this.canOverflow = true,
     this.disabled = false,
     this.overflowSubmenu = const [],
@@ -314,8 +323,10 @@ class CommandBarButton extends StatefulWidget {
 
   final IconData? icon;
   final Widget? iconWidget;
+  final bool useShuffleIcon;
   final String label;
   final bool active;
+  final bool activeSurface;
   final bool canOverflow;
   final bool disabled;
   final List<MenuFlyoutItem> overflowSubmenu;
@@ -344,6 +355,7 @@ class _CommandBarButtonState extends State<CommandBarButton> {
         iconWidget: widget.iconWidget,
         label: widget.label,
         active: widget.active,
+        activeSurface: widget.activeSurface,
         disabled: widget.disabled,
         showLabel: widget.showLabel,
         tooltip: widget.label,
@@ -474,6 +486,7 @@ MenuFlyoutItem _toMenuFlyoutItem(CommandBarButton button, int overflowIndex) {
     key: 'commandbar-overflow-$overflowIndex',
     text: button.label,
     icon: button.icon,
+    useShuffleIcon: button.useShuffleIcon,
     disabled: button.disabled,
     submenu: hasSubmenu ? button.overflowSubmenu : const [],
     onPressedWithContext:
@@ -559,13 +572,35 @@ class _CommandBarTextIconTheme extends StatelessWidget {
     if (!enabled) {
       return child;
     }
+    final brightness = Theme.of(context).brightness;
+    final dark = brightness == Brightness.dark;
+    final baseColors = SmPlayerTextIconButtonColors.of(context);
+    final hoverForeground =
+        style.transparent
+            ? dark
+                ? CommandBarColors.appBarHoverForegroundDark
+                : CommandBarColors.appBarHoverForeground
+            : baseColors.commandTextHover;
     return SmPlayerTextIconButtonTheme(
-      colors: SmPlayerTextIconButtonColors.of(context).copyWith(
-        commandText: style.foreground,
-        control: style.surface,
-        controlHover: style.hoverSurface,
+      colors: baseColors.copyWith(
+        commandText:
+            !style.transparent && dark
+                ? baseColors.commandText
+                : style.foreground,
+        commandTextHover: hoverForeground,
+        control:
+            !style.transparent && dark ? baseColors.control : style.surface,
+        controlHover:
+            !style.transparent ? baseColors.controlHover : style.hoverSurface,
+        controlHoverBorder:
+            !style.transparent
+                ? baseColors.controlHoverBorder
+                : style.borderColor,
         controlActive: CommandBarColors.accentSoft,
-        controlBorder: style.borderColor,
+        controlBorder:
+            !style.transparent && dark
+                ? baseColors.controlBorder
+                : style.borderColor,
         accentStrong: CommandBarColors.accentStrong,
       ),
       child: child,

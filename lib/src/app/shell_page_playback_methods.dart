@@ -13,6 +13,10 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
 
   void _applyPlaybackShortcut(SmPlayerPlaybackShortcut shortcut) {
     switch (shortcut) {
+      case SmPlayerPlaybackShortcut.play:
+        _playFromCurrentQueue();
+      case SmPlayerPlaybackShortcut.pause:
+        _pauseCurrentPlayback();
       case SmPlayerPlaybackShortcut.togglePlayPause:
         _togglePlayPauseFromCurrentQueue();
       case SmPlayerPlaybackShortcut.next:
@@ -34,6 +38,20 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       case SmPlayerPlaybackShortcut.toggleRepeatOne:
         _mediaControlController.onToggleRepeatOne();
     }
+  }
+
+  void _playFromCurrentQueue() {
+    if (_mediaControlController.state.isPlaying) {
+      return;
+    }
+    _togglePlayPauseFromCurrentQueue();
+  }
+
+  void _pauseCurrentPlayback() {
+    if (!_mediaControlController.state.isPlaying) {
+      return;
+    }
+    _mediaControlController.onTogglePlayPause();
   }
 
   void _seekCurrentTrackBy(double deltaSeconds) {
@@ -66,36 +84,38 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   void _toggleShufflePlayback() {
     final enablingShuffle =
         _mediaControlController.state.mode != PlaybackMode.shuffle;
+    int? selectedQueueIndex;
     if (enablingShuffle) {
-      _shuffleCurrentPlaybackQueue();
+      selectedQueueIndex = _shuffleCurrentPlaybackQueue();
     }
-    _mediaControlController.onToggleShuffle();
+    _mediaControlController.onToggleShuffle(
+      selectedQueueIndex: selectedQueueIndex,
+    );
   }
 
-  void _shuffleCurrentPlaybackQueue() {
+  int? _shuffleCurrentPlaybackQueue() {
     final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     if (snapshot == null) {
-      return;
+      return null;
     }
     final playbackSongIds = _playbackSongIds(snapshot);
     if (playbackSongIds.isEmpty) {
-      return;
+      return null;
     }
     final nextSongIds = shufflePlaybackQueueForCurrentTrack(
       playbackSongIds,
       _mediaControlController.state.track.id,
     );
+    _playbackQueueOverride = nextSongIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(libraryContentDataProvider);
     final nextQueueIndex = currentPlaybackQueueIndex(
       nextSongIds,
       _mediaControlController.state.track.id,
     );
-    _mediaControlController.setSelectedQueueIndex(
-      nextQueueIndex > -1 ? nextQueueIndex : null,
-    );
+    return nextQueueIndex > -1 ? nextQueueIndex : null;
   }
 
   void _syncAudioPlayerFromController() {

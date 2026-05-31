@@ -516,13 +516,16 @@ class MediaControlController extends ChangeNotifier {
     _onPlaybackSettingsUpdate?.call(PlaybackSettingsUpdate(isMuted: nextMuted));
   }
 
-  void onToggleShuffle() {
+  void onToggleShuffle({int? selectedQueueIndex}) {
     _flushVolumePersistence();
     final nextMode =
         _state.mode == PlaybackMode.shuffle
             ? PlaybackMode.once
             : PlaybackMode.shuffle;
-    _state = _state.copyWith(mode: nextMode);
+    _state = _state.copyWith(
+      mode: nextMode,
+      selectedQueueIndex: selectedQueueIndex,
+    );
     notifyListeners();
     _onPlaybackSettingsUpdate?.call(PlaybackSettingsUpdate(mode: nextMode));
   }

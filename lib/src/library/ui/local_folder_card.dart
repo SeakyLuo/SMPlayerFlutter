@@ -67,7 +67,7 @@ class LocalFolderCard extends StatelessWidget {
     final card =
         variant == LocalFolderCardVariant.list
             ? _buildListCard(context)
-            : _buildGridCard();
+            : _buildGridCard(context);
     return DragTarget<LocalItemsDragPayload>(
       onWillAcceptWithDetails:
           onWillAcceptDrop == null
@@ -86,7 +86,8 @@ class LocalFolderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildGridCard() {
+  Widget _buildGridCard(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return GestureDetector(
       onSecondaryTapDown:
           (details) => onOpenFolderMenu(folder, details.globalPosition),
@@ -99,16 +100,13 @@ class LocalFolderCard extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 232),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color:
-                selected
-                    ? LocalPageColors.surfaceCardHover
-                    : LocalPageColors.surfaceCard,
+            color: selected ? colors.surfaceCardHover : colors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
             boxShadow:
                 selected
-                    ? const [
+                    ? [
                       BoxShadow(
-                        color: LocalPageColors.panelShadow,
+                        color: colors.panelShadow,
                         offset: Offset(0, 16),
                         blurRadius: 34,
                       ),
@@ -152,8 +150,8 @@ class LocalFolderCard extends StatelessWidget {
                 folder.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textStrong,
+                style: TextStyle(
+                  color: colors.textStrong,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
@@ -164,8 +162,8 @@ class LocalFolderCard extends StatelessWidget {
                 _folderInfo,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textMuted,
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 12,
                   height: 1.35,
                 ),
@@ -178,6 +176,7 @@ class LocalFolderCard extends StatelessWidget {
   }
 
   Widget _buildListCard(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return GestureDetector(
       onSecondaryTapDown:
           (details) => onOpenFolderMenu(folder, details.globalPosition),
@@ -189,20 +188,19 @@ class LocalFolderCard extends StatelessWidget {
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color:
-                selected ? LocalPageColors.rowSelected : LocalPageColors.panel,
+            color: selected ? colors.rowSelected : colors.panel,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: LocalPageColors.rowBorder),
+            border: Border.all(color: colors.rowBorder),
           ),
           child: Row(
             children: [
-              if (onToggleTreeExpanded != null)
+              if (onToggleTreeExpanded != null && treeExpandable)
                 IconButton(
                   tooltip: folder.name,
                   visualDensity: VisualDensity.compact,
-                  onPressed: treeExpandable ? onToggleTreeExpanded : null,
+                  onPressed: onToggleTreeExpanded,
                   icon: Icon(
-                    treeExpandable && treeExpanded == true
+                    treeExpanded == true
                         ? FluentIcons.chevron_down_20_regular
                         : FluentIcons.chevron_right_20_regular,
                     size: 18,
@@ -219,8 +217,8 @@ class LocalFolderCard extends StatelessWidget {
                   folder.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: LocalPageColors.textStrong,
+                  style: TextStyle(
+                    color: colors.textStrong,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -230,10 +228,7 @@ class LocalFolderCard extends StatelessWidget {
                 _folderInfo,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textMuted,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: colors.textMuted, fontSize: 12),
               ),
               if (!multiSelect) ...[
                 const SizedBox(width: 8),
@@ -312,13 +307,14 @@ class _FolderDropTargetFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOut,
       foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: active ? LocalPageColors.accentStrong : Colors.transparent,
+          color: active ? colors.accentStrong : Colors.transparent,
           width: 2,
         ),
       ),
@@ -366,17 +362,18 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: 160,
         child:
             _thumbnailPaths.isEmpty
-                ? const DecoratedBox(
-                  decoration: BoxDecoration(color: LocalPageColors.artwork),
+                ? DecoratedBox(
+                  decoration: BoxDecoration(color: colors.artwork),
                   child: Icon(
                     FluentIcons.folder_48_regular,
-                    color: LocalPageColors.artworkIcon,
+                    color: colors.artworkIcon,
                     size: 48,
                   ),
                 )
@@ -516,15 +513,18 @@ class _FolderTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xedffffff),
+        color: nightMode ? const Color(0xe61f2732) : const Color(0xedffffff),
         borderRadius: BorderRadius.circular(8),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x1f1f2a38),
+            color:
+                nightMode ? const Color(0x57000000) : const Color(0x1f1f2a38),
             offset: Offset(0, 6),
             blurRadius: 14,
           ),
@@ -532,7 +532,7 @@ class _FolderTypeBadge extends StatelessWidget {
       ),
       child: Icon(
         FluentIcons.folder_20_regular,
-        color: LocalPageColors.accentStrong,
+        color: colors.accentStrong,
         size: iconSize,
       ),
     );
@@ -546,20 +546,15 @@ class _LocalCheckMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return Container(
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-        color:
-            selected
-                ? LocalPageColors.accentStrong
-                : LocalPageColors.selectionMark,
+        color: selected ? colors.accentStrong : colors.selectionMark,
         borderRadius: BorderRadius.circular(5),
         border: Border.all(
-          color:
-              selected
-                  ? LocalPageColors.accentStrong
-                  : LocalPageColors.selectionBorder,
+          color: selected ? colors.accentStrong : colors.selectionBorder,
         ),
       ),
       child:

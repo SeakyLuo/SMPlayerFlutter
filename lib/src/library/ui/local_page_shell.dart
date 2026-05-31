@@ -5,6 +5,8 @@ import 'default_album_artwork.dart';
 import 'missing_library_root_content.dart';
 import 'local_page_quick_jump.dart';
 
+const _localPageCompactBreakpoint = 720.0;
+
 class LocalPageScaffold extends StatelessWidget {
   const LocalPageScaffold({super.key, required this.child});
 
@@ -12,8 +14,13 @@ class LocalPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact =
+        MediaQuery.sizeOf(context).width < _localPageCompactBreakpoint;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+      padding:
+          compact
+              ? const EdgeInsets.fromLTRB(12, 6, 12, 0)
+              : const EdgeInsets.fromLTRB(24, 18, 24, 0),
       child: SizedBox.expand(child: child),
     );
   }
@@ -24,23 +31,37 @@ class LocalPageContentPanel extends StatelessWidget {
     super.key,
     required this.scrollController,
     required this.scrollable,
+    required this.compact,
     required this.child,
   });
 
   final ScrollController scrollController;
   final bool scrollable;
+  final bool compact;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      if (!scrollable) {
+        return child;
+      }
+      return SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 18),
+        child: child,
+      );
+    }
+
+    final colors = LocalPageColors.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: LocalPageColors.panel,
+        color: colors.panel,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: LocalPageColors.panelBorder),
-        boxShadow: const [
+        border: Border.all(color: colors.panelBorder),
+        boxShadow: [
           BoxShadow(
-            color: LocalPageColors.panelShadow,
+            color: colors.panelShadow,
             offset: Offset(0, 22),
             blurRadius: 52,
           ),

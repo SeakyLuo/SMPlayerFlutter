@@ -276,17 +276,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
               final utilityWidth =
                   utilitySize * 2 + utilityGap + utilityControlOuterSlack;
               final transportWidth = narrow ? 176.0 : 208.0;
-              final availableTrackWidth =
-                  constraints.maxWidth - utilityWidth - transportWidth;
-              final trackWidth = availableTrackWidth.clamp(
-                112.0,
-                double.infinity,
-              );
 
               return Row(
                 children: [
-                  SizedBox(
-                    width: trackWidth,
+                  Expanded(
                     child: _PlayerTrack(
                       track: track,
                       artworkPath: resolvePlayerArtworkPath(track, currentSong),
@@ -295,6 +288,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                       disabled: track.id == null,
                       compact: true,
                       onOpenNowPlaying: onOpenNowPlaying,
+                      onToggleWindowFullScreen: onToggleWindowFullScreen,
                     ),
                   ),
                   SizedBox(width: transportWidth, child: transportControls),
@@ -427,7 +421,7 @@ void _showPlaybackModeMenu(
     context,
     position: _menuFlyoutPositionAboveAnchor(context),
     avoidPlayerBar: false,
-    items: _buildPlaybackModeMenuItems(
+    items: buildPlaybackModeMenuFlyoutItems(
       i18n: i18n,
       mode: mode,
       onToggleShuffle: onToggleShuffle,

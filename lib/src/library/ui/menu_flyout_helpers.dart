@@ -568,7 +568,7 @@ List<int> _shuffleSongIds(List<LibrarySong> songs) {
 List<int> _randomArtist(List<LibrarySong> songs, int randomLimit) {
   final songsByArtist = <String, List<LibrarySong>>{};
   for (final song in songs) {
-    final artists = songArtists(song);
+    final artists = _randomSongArtists(song);
     for (final artist in artists) {
       songsByArtist[artist] = [...(songsByArtist[artist] ?? []), song];
     }
@@ -579,7 +579,7 @@ List<int> _randomArtist(List<LibrarySong> songs, int randomLimit) {
 
 List<int> _randomAlbum(List<LibrarySong> songs, int randomLimit) {
   return _randomItems(
-    _randomSongGroup(songs, canonicalAlbumName),
+    _randomSongGroup(songs, (song) => song.album),
     randomLimit,
   ).map((song) => song.id).toList();
 }
@@ -708,6 +708,11 @@ List<T> _randomItems<T>(List<T> items, int count) {
 
 T _randomItem<T>(List<T> items) {
   return items[Random().nextInt(items.length)];
+}
+
+List<String> _randomSongArtists(LibrarySong song) {
+  final artists = songArtists(song);
+  return artists.isEmpty ? const ['Unknown artist'] : artists;
 }
 
 bool _isSongDirectlyInFolder(LibrarySong song, String folderPath) {

@@ -34,6 +34,7 @@ void main() {
                 onPlayTrack: () {},
                 onTogglePlayPause: () {},
                 onToggleSelection: () {},
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: () {},
                 onRemoveFromListClick: () {
                   removed = true;
@@ -88,6 +89,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -124,6 +126,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -142,6 +145,56 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'PlaylistControlItem keeps Electron required More action and optional Play Next',
+    (tester) async {
+      var menuOpened = false;
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: Scaffold(
+              body: SizedBox(
+                width: 360,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  moreLabel: 'More',
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                  onOpenContextMenu: (_) {
+                    menuOpened = true;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
+        findsNothing,
+      );
+      final moreAction = find.byKey(
+        const ValueKey('PlaylistControlItem.MoreAction'),
+      );
+      expect(moreAction, findsOneWidget);
+
+      await tester.tap(moreAction);
+      await tester.pump();
+
+      expect(menuOpened, isTrue);
+    },
+  );
 
   testWidgets('PlaylistControlItem activates with keyboard like Electron', (
     tester,
@@ -168,6 +221,7 @@ void main() {
                 },
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -207,6 +261,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -253,6 +308,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -301,6 +357,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -352,6 +409,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -394,6 +452,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -437,6 +496,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -479,6 +539,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -528,6 +589,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -567,6 +629,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -615,6 +678,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -662,6 +726,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -755,6 +820,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),
@@ -877,6 +943,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -998,6 +1065,7 @@ void main() {
                 onPlayTrack: _noop,
                 onTogglePlayPause: _noop,
                 onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
                 onPlayNextClick: _noop,
               ),
             ),
@@ -1033,6 +1101,7 @@ void main() {
                   onPlayTrack: _noop,
                   onTogglePlayPause: _noop,
                   onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
                   onPlayNextClick: _noop,
                 ),
               ),

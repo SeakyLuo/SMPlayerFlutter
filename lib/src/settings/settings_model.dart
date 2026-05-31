@@ -9,6 +9,8 @@ enum NotificationSendMode { musicChanged, never }
 
 enum NotificationDisplayMode { reminder, normal, quick }
 
+enum SmPlayerDisplayMode { normal, mini, fullScreen, immersive }
+
 enum LyricsRequestMode { internet, local, embedded, auto }
 
 enum LocalViewMode { grid, list }
@@ -99,6 +101,7 @@ class SettingsSnapshot {
     required this.desktopLyricsBounds,
     required this.mainWindowBounds,
     required this.mainWindowMaximized,
+    required this.lastDisplayMode,
     required this.preferredLanguage,
     required this.musicLibrarySort,
     required this.albumsSort,
@@ -152,6 +155,7 @@ class SettingsSnapshot {
       desktopLyricsBounds = '',
       mainWindowBounds = '',
       mainWindowMaximized = false,
+      lastDisplayMode = SmPlayerDisplayMode.normal,
       preferredLanguage = PreferredLanguage.system,
       musicLibrarySort = MusicLibrarySortCriterion.title,
       albumsSort = AlbumSortCriterion.defaultCriterion,
@@ -203,6 +207,7 @@ class SettingsSnapshot {
   final String desktopLyricsBounds;
   final String mainWindowBounds;
   final bool mainWindowMaximized;
+  final SmPlayerDisplayMode lastDisplayMode;
   final PreferredLanguage preferredLanguage;
   final MusicLibrarySortCriterion musicLibrarySort;
   final AlbumSortCriterion albumsSort;
@@ -263,6 +268,7 @@ class SettingsSnapshot {
     String? desktopLyricsBounds,
     String? mainWindowBounds,
     bool? mainWindowMaximized,
+    SmPlayerDisplayMode? lastDisplayMode,
     PreferredLanguage? preferredLanguage,
     MusicLibrarySortCriterion? musicLibrarySort,
     AlbumSortCriterion? albumsSort,
@@ -325,6 +331,7 @@ class SettingsSnapshot {
       desktopLyricsBounds: desktopLyricsBounds ?? this.desktopLyricsBounds,
       mainWindowBounds: mainWindowBounds ?? this.mainWindowBounds,
       mainWindowMaximized: mainWindowMaximized ?? this.mainWindowMaximized,
+      lastDisplayMode: lastDisplayMode ?? this.lastDisplayMode,
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       musicLibrarySort: musicLibrarySort ?? this.musicLibrarySort,
       albumsSort: albumsSort ?? this.albumsSort,

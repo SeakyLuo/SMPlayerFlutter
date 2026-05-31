@@ -5,12 +5,27 @@ part of 'shell_page.dart';
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
     final restoredTarget = _routeMemory[target] ?? target;
+    final currentPath = widget.currentPath ?? _currentPath;
+    final targetPath = _pathFromLocation(restoredTarget);
+    if (targetPath == '/now-playing/full') {
+      unawaited(
+        _settingsController.saveDisplayModeState(
+          lastDisplayMode: SmPlayerDisplayMode.immersive,
+        ),
+      );
+    } else if (currentPath == '/now-playing/full') {
+      unawaited(
+        _settingsController.saveDisplayModeState(
+          lastDisplayMode: SmPlayerDisplayMode.normal,
+        ),
+      );
+    }
     setState(() {
       _currentPath = restoredTarget;
     });
     _closeNavigationOverlay();
     widget.onNavigate?.call(restoredTarget);
-    if (_pathFromLocation(restoredTarget) != '/now-playing/full') {
+    if (targetPath != '/now-playing/full') {
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
   }
@@ -64,19 +79,10 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     return restorableRoutes.contains(path) ? path : null;
   }
 
-  void _toggleNativeNowPlayingFullScreen() {
-    final currentPath = widget.currentPath ?? _currentPath;
-    final currentLocation = widget.currentLocation ?? currentPath;
-    final nextFullScreen =
-        !_isWindowFullScreen && currentPath != '/now-playing/full';
+  void _toggleDesktopWindowFullScreen() {
+    final nextFullScreen = !_isWindowFullScreen;
+    _setDesktopWindowFullScreen(nextFullScreen);
     unawaited(_desktopFeatureService.setWindowFullScreen(nextFullScreen));
-    final exitTarget =
-        currentPath == '/now-playing/full'
-            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
-            : nowPlayingRoutePath;
-    _navigateTo(
-      nextFullScreen ? nowPlayingFullRouteFrom(currentLocation) : exitTarget,
-    );
   }
 
   void _enterMiniMode() {
@@ -96,6 +102,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       widget.onNavigate?.call(exitTarget);
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
+    unawaited(
+      _settingsController.saveDisplayModeState(
+        lastDisplayMode: SmPlayerDisplayMode.mini,
+      ),
+    );
     unawaited(_desktopFeatureService.enterMiniMode());
   }
 
@@ -103,6 +114,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     setState(() {
       _isMiniMode = false;
     });
+    unawaited(
+      _settingsController.saveDisplayModeState(
+        lastDisplayMode: SmPlayerDisplayMode.normal,
+      ),
+    );
     unawaited(_desktopFeatureService.exitMiniMode());
   }
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
@@ -18,7 +17,7 @@ import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode, NightMode, SettingsSnapshot;
+    show LyricsRequestMode, NightMode, SettingsSnapshot, SmPlayerDisplayMode;
 
 void main() {
   setUp(() {
@@ -352,6 +351,46 @@ void main() {
     );
     expect(
       playbackShortcutForKey(
+        key: LogicalKeyboardKey.mediaPlayPause,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.togglePlayPause,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.f8,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.togglePlayPause,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.mediaPlay,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.play,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.mediaPause,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.pause,
+    );
+    expect(
+      playbackShortcutForKey(
         key: LogicalKeyboardKey.arrowRight,
         control: true,
         alt: false,
@@ -362,8 +401,48 @@ void main() {
     );
     expect(
       playbackShortcutForKey(
+        key: LogicalKeyboardKey.mediaTrackNext,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.next,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.f9,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.next,
+    );
+    expect(
+      playbackShortcutForKey(
         key: LogicalKeyboardKey.arrowLeft,
         control: true,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.previous,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.mediaTrackPrevious,
+        control: false,
+        alt: false,
+        meta: false,
+        shift: false,
+      ),
+      SmPlayerPlaybackShortcut.previous,
+    );
+    expect(
+      playbackShortcutForKey(
+        key: LogicalKeyboardKey.f7,
+        control: false,
         alt: false,
         meta: false,
         shift: false,
@@ -524,7 +603,9 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
     );
-    await tester.pumpAndSettle();
+    for (var pump = 0; pump < 20; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
 
     final sidebar = find.byKey(SmPlayerShellKeys.sidebar);
     final workspace = find.byKey(SmPlayerShellKeys.workspace);
@@ -545,7 +626,7 @@ void main() {
     _setViewSize(tester, const Size(1300, 600));
 
     await tester.pumpWidget(const _ShellPageTestApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
     );
@@ -605,6 +686,61 @@ void main() {
     expect(find.byKey(SmPlayerShellKeys.sidebar), findsNothing);
     expect(find.byKey(SmPlayerShellKeys.minimalMenuButton), findsOneWidget);
     expect(tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx, 0);
+  });
+
+  testWidgets('minimal workspace reserves Electron player height', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(600, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pump();
+
+    final workspace = find.byKey(SmPlayerShellKeys.workspace);
+    final reservedPlayer = find.byKey(SmPlayerShellKeys.reservedPlayer);
+
+    expect(
+      tester.getTopLeft(workspace).dy,
+      SmPlayerShellMetrics.minimalTitlebarHeight,
+    );
+    expect(
+      tester.getSize(workspace).height,
+      600 -
+          SmPlayerShellMetrics.playerHeight +
+          SmPlayerShellMetrics.playerTopRadius -
+          SmPlayerShellMetrics.minimalTitlebarHeight,
+    );
+    expect(
+      tester.getSize(reservedPlayer).height,
+      SmPlayerShellMetrics.playerHeight,
+    );
+  });
+
+  testWidgets('shell workspace hover reaches page content', (tester) async {
+    _setViewSize(tester, const Size(600, 600));
+    var hovered = false;
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        child: MouseRegion(
+          key: const ValueKey('ShellHoverProbe'),
+          onEnter: (_) {
+            hovered = true;
+          },
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(SmPlayerShellKeys.workspace)),
+    );
+    await tester.pump();
+
+    expect(hovered, isTrue);
   });
 
   testWidgets('minimal navigation expands as a floating pane over content', (
@@ -890,7 +1026,179 @@ void main() {
     expect(restoredSession.progressSeconds, 42);
   });
 
-  testWidgets('bottom player opens immersive now playing page', (tester) async {
+  testWidgets('shell playback shortcuts drive the active player', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 700));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        musicProgress: 10,
+        autoPlay: false,
+        saveMusicProgress: true,
+      ),
+    );
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+          LibrarySong(
+            id: 20,
+            path: '/tmp/second.mp3',
+            title: 'Second Song',
+            artist: 'Second Artist',
+            artists: ['Second Artist'],
+            album: 'Second Album',
+            duration: 240,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10, 20]),
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(repository: repository, desktopService: desktopService),
+    );
+    for (var pump = 0; pump < 6; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(_lastActiveMediaSession(desktopService).title, 'First Song');
+    expect(_lastActiveMediaSession(desktopService).playing, isFalse);
+    expect(_lastActiveMediaSession(desktopService).progressSeconds, 10);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(_lastActiveMediaSession(desktopService).progressSeconds, 15);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(_lastActiveMediaSession(desktopService).progressSeconds, 0);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(_lastActiveMediaSession(desktopService).title, 'Second Song');
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(_lastActiveMediaSession(desktopService).title, 'First Song');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(
+      desktopService.mediaSessions.any(
+        (state) => state.active && state.title == 'First Song' && state.playing,
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets(
+    'bottom player shuffle mode rewrites queue without refetching library',
+    (tester) async {
+      _setViewSize(tester, const Size(1300, 700));
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(
+          lastMusicIndex: 0,
+          autoPlay: false,
+        ),
+      );
+      final repository = _SnapshotRepository(
+        const LibraryContentData(
+          songs: [
+            LibrarySong(
+              id: 10,
+              path: '/tmp/first.mp3',
+              title: 'First Song',
+              artist: 'First Artist',
+              artists: ['First Artist'],
+              album: 'First Album',
+              duration: 180,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+            LibrarySong(
+              id: 20,
+              path: '/tmp/second.mp3',
+              title: 'Second Song',
+              artist: 'Second Artist',
+              artists: ['Second Artist'],
+              album: 'Second Album',
+              duration: 240,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+          ],
+          hasLibrary: true,
+          sortCriterion: MusicLibrarySortCriterion.title,
+          albumsSort: AlbumSortCriterion.defaultSort,
+          databasePath: '',
+          nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10, 20]),
+        ),
+      );
+
+      await tester.pumpWidget(_ShellPageTestApp(repository: repository));
+      for (var pump = 0; pump < 6; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final requestsBeforeShuffle = repository.getLibraryContentDataCount;
+
+      await tester.tap(
+        find.byKey(const ValueKey('MediaControl.ShuffleButton')),
+      );
+      await tester.pump();
+
+      expect(repository.replaceNowPlayingCalls, hasLength(1));
+      final nextQueue = repository.replaceNowPlayingCalls.single;
+      expect(nextQueue, hasLength(2));
+      expect(nextQueue.first, 10);
+      expect(nextQueue.toSet(), {10, 20});
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SmPlayerShellPage)),
+      );
+      expect(container.read(nowPlayingQueueOverrideProvider), nextQueue);
+      expect(repository.getLibraryContentDataCount, requestsBeforeShuffle);
+    },
+  );
+
+  testWidgets('bottom player song info enters immersive now playing', (
+    tester,
+  ) async {
     _setViewSize(tester, const Size(1300, 700));
     setSmPlayerGlobalSettingsSnapshot(
       const SettingsSnapshot.defaults().copyWith(
@@ -901,6 +1209,7 @@ void main() {
       ),
     );
     final navigations = <String>[];
+    final desktopService = _ShellDesktopFeatureService();
     final repository = _SnapshotRepository(
       const LibraryContentData(
         songs: [
@@ -928,7 +1237,11 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _ShellPageTestApp(repository: repository, onNavigate: navigations.add),
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: desktopService,
+        onNavigate: navigations.add,
+      ),
     );
     for (var pump = 0; pump < 8; pump += 1) {
       await tester.pump(const Duration(milliseconds: 16));
@@ -937,8 +1250,172 @@ void main() {
     await tester.tap(find.text('First Song'));
     await tester.pump();
 
-    expect(navigations.last, '/now-playing/full?from=%2Fsongs');
+    expect(navigations.single, startsWith('/now-playing/full'));
+    expect(desktopService.windowFullScreen, isFalse);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.immersive,
+    );
   });
+
+  testWidgets('bottom player More fullscreen toggles native fullscreen only', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 700));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        autoPlay: false,
+      ),
+    );
+    final navigations = <String>[];
+    final desktopService = _ShellDesktopFeatureService();
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        messages: const {
+          'player.more': 'More',
+          'nowPlaying.fullScreen': 'Full Screen',
+          'nowPlaying.quickPlay': 'Quick Play',
+          'context.view': 'View',
+          'player.miniMode': 'Mini Mode',
+        },
+        repository: repository,
+        desktopService: desktopService,
+        onNavigate: navigations.add,
+      ),
+    );
+    for (var pump = 0; pump < 20; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text('First Song'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('More').last);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Full Screen'));
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(navigations, isEmpty);
+    expect(desktopService.windowFullScreen, isTrue);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.fullScreen,
+    );
+  });
+
+  testWidgets('shell restores fullscreen display mode into native fullscreen', (
+    tester,
+  ) async {
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        desktopService: desktopService,
+        initialDisplayMode: SmPlayerDisplayMode.fullScreen,
+        currentPath: '/songs',
+      ),
+    );
+    await tester.pump();
+
+    expect(desktopService.windowFullScreen, isTrue);
+  });
+
+  testWidgets(
+    'shell restores immersive display mode without native fullscreen',
+    (tester) async {
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(
+          lastMusicIndex: 1,
+          musicProgress: 42,
+          autoPlay: false,
+          saveMusicProgress: true,
+        ),
+      );
+      final repository = _SnapshotRepository(
+        const LibraryContentData(
+          songs: [
+            LibrarySong(
+              id: 10,
+              path: '/tmp/first.mp3',
+              title: 'First Song',
+              artist: 'First Artist',
+              artists: ['First Artist'],
+              album: 'First Album',
+              duration: 180,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+            LibrarySong(
+              id: 20,
+              path: '/tmp/second.mp3',
+              title: 'Second Song',
+              artist: 'Second Artist',
+              artists: ['Second Artist'],
+              album: 'Second Album',
+              duration: 240,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+          ],
+          hasLibrary: true,
+          sortCriterion: MusicLibrarySortCriterion.title,
+          albumsSort: AlbumSortCriterion.defaultSort,
+          databasePath: '',
+          nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10, 20]),
+        ),
+      );
+      final desktopService = _ShellDesktopFeatureService();
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          repository: repository,
+          desktopService: desktopService,
+          initialDisplayMode: SmPlayerDisplayMode.immersive,
+          currentPath: '/now-playing/full',
+        ),
+      );
+      for (var pump = 0; pump < 8; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(desktopService.windowFullScreen, isFalse);
+      final restoredSession = _lastActiveMediaSession(desktopService);
+      expect(restoredSession.title, 'Second Song');
+      expect(restoredSession.durationSeconds, 240);
+      expect(restoredSession.progressSeconds, 42);
+    },
+  );
 
   testWidgets(
     'bottom player favorite toggles from player state before library refresh',
@@ -1151,7 +1628,7 @@ void main() {
       _ShellPageTestApp(
         repository: repository,
         desktopService: desktopService,
-        initialMiniMode: true,
+        initialDisplayMode: SmPlayerDisplayMode.mini,
       ),
     );
     for (var pump = 0; pump < 6; pump += 1) {
@@ -1162,9 +1639,11 @@ void main() {
       const ValueKey('MiniMode.ProgressSlider'),
     );
     final progressSlider = tester.widget<Slider>(progressFinder);
-    expect(progressSlider.onChangeStart, isNull);
-    expect(progressSlider.onChanged, isNull);
-    expect(progressSlider.onChangeEnd, isNull);
+    expect(progressSlider.value, 10);
+    expect(progressSlider.onChangeStart, isNotNull);
+    expect(progressSlider.onChanged, isNotNull);
+    expect(progressSlider.onChangeEnd, isNotNull);
+    expect(desktopService.enterMiniModeCount, 1);
   });
 
   testWidgets('mini mode volume icon follows Electron thresholds', (
@@ -1209,15 +1688,91 @@ void main() {
       _ShellPageTestApp(
         repository: repository,
         desktopService: _ShellDesktopFeatureService(),
-        initialMiniMode: true,
+        initialDisplayMode: SmPlayerDisplayMode.mini,
       ),
     );
     for (var pump = 0; pump < 6; pump += 1) {
       await tester.pump(const Duration(milliseconds: 16));
     }
 
-    expect(find.byIcon(FluentIcons.speaker_1_20_regular), findsOneWidget);
-    expect(find.byIcon(FluentIcons.speaker_2_20_regular), findsNothing);
+    expect(
+      find.byKey(const ValueKey('MiniMode.Icon.volumeLow')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('MiniMode.Icon.volumeMedium')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('initial mini mode restores current song and enables controls', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 720));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        volume: 50,
+        isMuted: false,
+        autoPlay: false,
+      ),
+    );
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: _ShellDesktopFeatureService(),
+        initialDisplayMode: SmPlayerDisplayMode.mini,
+      ),
+    );
+    for (var pump = 0; pump < 8; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(10, 10));
+    await tester.pump();
+    await gesture.moveTo(const Offset(650, 360));
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.text('First Song'), findsOneWidget);
+    final progressSlider = tester.widget<Slider>(
+      find.byKey(const ValueKey('MiniMode.ProgressSlider')),
+    );
+    expect(progressSlider.onChanged, isNotNull);
+
+    await tester.tap(find.byKey(const ValueKey('MiniMode.VolumeButton')));
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.byKey(const ValueKey('MiniMode.VolumeSlider')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('MiniMode.PlaybackModeButton')));
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.byKey(const ValueKey('MiniMode.Icon.shuffle')), findsOneWidget);
   });
 
   testWidgets('mini mode track copy follows Electron control visibility', (
@@ -1260,7 +1815,7 @@ void main() {
       _ShellPageTestApp(
         repository: repository,
         desktopService: _ShellDesktopFeatureService(),
-        initialMiniMode: true,
+        initialDisplayMode: SmPlayerDisplayMode.mini,
       ),
     );
     for (var pump = 0; pump < 6; pump += 1) {
@@ -1432,7 +1987,39 @@ void main() {
     await tester.pump();
 
     expect(navigations.last, '/now-playing');
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.normal,
+    );
   });
+
+  testWidgets(
+    'shell records native fullscreen separately from immersive mode',
+    (tester) async {
+      final desktopService = _ShellDesktopFeatureService();
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          desktopService: desktopService,
+          currentPath: '/songs',
+        ),
+      );
+      await tester.pump();
+
+      desktopService.emit(
+        const DesktopFeatureAction(
+          DesktopFeatureCommand.windowFullScreenChanged,
+          isWindowFullScreen: true,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+        SmPlayerDisplayMode.fullScreen,
+      );
+    },
+  );
 
   testWidgets('release notes open after app version upgrade', (tester) async {
     setSmPlayerGlobalSettingsSnapshot(
@@ -1466,7 +2053,7 @@ class _ShellPageTestApp extends StatelessWidget {
     this.messages = const {},
     this.repository,
     this.desktopService,
-    this.initialMiniMode = false,
+    this.initialDisplayMode = SmPlayerDisplayMode.normal,
     this.currentPath,
     this.currentLocation,
     this.onNavigate,
@@ -1477,7 +2064,7 @@ class _ShellPageTestApp extends StatelessWidget {
   final Map<String, String> messages;
   final LibraryRepository? repository;
   final DesktopFeatureService? desktopService;
-  final bool initialMiniMode;
+  final SmPlayerDisplayMode initialDisplayMode;
   final String? currentPath;
   final String? currentLocation;
   final ValueChanged<String>? onNavigate;
@@ -1497,7 +2084,7 @@ class _ShellPageTestApp extends StatelessWidget {
           home: SmPlayerShellPage(
             appVersion: appVersion,
             desktopFeatureService: desktopService,
-            initialMiniMode: initialMiniMode,
+            initialDisplayMode: initialDisplayMode,
             currentPath: currentPath,
             currentLocation: currentLocation,
             onNavigate: onNavigate,
@@ -1507,6 +2094,12 @@ class _ShellPageTestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+MediaSessionDisplayState _lastActiveMediaSession(
+  _ShellDesktopFeatureService desktopService,
+) {
+  return desktopService.mediaSessions.lastWhere((state) => state.active);
 }
 
 class _StartupRepository extends LibraryRepository {
@@ -1522,12 +2115,15 @@ class _SnapshotRepository extends _StartupRepository {
   _SnapshotRepository(this.snapshot);
 
   final LibraryContentData snapshot;
+  var getLibraryContentDataCount = 0;
   var artworkSnapshotRequestCount = 0;
   final artworkSnapshotSongIds = <int>[];
   final favoriteWrites = <({List<int> songIds, bool favorite})>[];
+  final replaceNowPlayingCalls = <List<int>>[];
 
   @override
   Future<LibraryContentData> getLibraryContentData() async {
+    getLibraryContentDataCount += 1;
     return snapshot;
   }
 
@@ -1561,6 +2157,11 @@ class _SnapshotRepository extends _StartupRepository {
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     favoriteWrites.add((songIds: songIds, favorite: favorite));
   }
+
+  @override
+  Future<void> replaceNowPlaying(List<int> songIds) async {
+    replaceNowPlayingCalls.add(songIds);
+  }
 }
 
 class _ShellDesktopFeatureService implements DesktopFeatureService {
@@ -1576,6 +2177,8 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   var minimizeWindowCount = 0;
   var toggleWindowMaximizedCount = 0;
   var closeWindowCount = 0;
+  var enterMiniModeCount = 0;
+  var exitMiniModeCount = 0;
   bool? windowControlsLight;
   var windowMaximized = false;
 
@@ -1621,10 +2224,14 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   ) async {}
 
   @override
-  Future<void> enterMiniMode() async {}
+  Future<void> enterMiniMode() async {
+    enterMiniModeCount += 1;
+  }
 
   @override
-  Future<void> exitMiniMode() async {}
+  Future<void> exitMiniMode() async {
+    exitMiniModeCount += 1;
+  }
 
   @override
   Future<void> startWindowDrag() async {

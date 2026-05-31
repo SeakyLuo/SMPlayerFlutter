@@ -11,5 +11,7 @@ const restorableRoutes = {
 
 String resolveRestoredPage(String lastPage) {
   final normalizedPath = lastPage.trim();
-  return restorableRoutes.contains(normalizedPath) ? normalizedPath : '/songs';
+  final uri = Uri.tryParse(normalizedPath);
+  final routePath = uri?.path ?? normalizedPath;
+  return restorableRoutes.contains(routePath) ? routePath : '/songs';
 }

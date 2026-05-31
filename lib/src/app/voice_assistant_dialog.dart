@@ -9,10 +9,7 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 bool supportsVoiceAssistant() {
-  return Platform.isWindows ||
-      Platform.isMacOS ||
-      Platform.isIOS ||
-      Platform.isAndroid;
+  return Platform.isWindows || Platform.isMacOS;
 }
 
 class VoiceAssistantDialog extends StatefulWidget {

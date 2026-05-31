@@ -17,10 +17,12 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
     final headerArtworkUrls = _currentHeaderArtworkUrls();
     final windowDragCallbacks = ref.watch(smPlayerWindowDragProvider);
     final hideMultiSelectCommandBarAfterOperation =
-        ref
-            .watch(libraryContentDataProvider)
-            .valueOrNull
-            ?.hideMultiSelectCommandBarAfterOperation ??
+        ref.watch(
+          libraryContentDataProvider.select(
+            (value) =>
+                value.valueOrNull?.hideMultiSelectCommandBarAfterOperation,
+          ),
+        ) ??
         true;
     final customPlaylists =
         widget.playlists

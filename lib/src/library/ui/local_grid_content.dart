@@ -3,15 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
+import '../../playback/playlist_control_item.dart';
 import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
-import 'artists_page_model.dart';
 import 'artwork_floating_action_button.dart';
 import 'local_folder_card.dart';
 import 'local_folder_model.dart';
 import 'local_page_model.dart';
 import 'local_page_quick_jump.dart';
-import 'music_library_page.dart';
 import 'song_artwork.dart';
 
 class LocalGridContent extends StatelessWidget {
@@ -709,16 +708,17 @@ class _LocalSongGrid extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 420,
+          height: isCompactLayout ? 380 : 420,
           child: LocalSongQuickJump(
             basisName: songQuickJumpBasisName,
             enabledKeys: songQuickJumpMap,
             i18n: i18n,
             visible: showSongQuickJump,
             onJump: onJumpToSongKey,
+            compact: isCompactLayout,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isCompactLayout ? 10 : 12),
         Expanded(child: songGrid),
       ],
     );
@@ -803,6 +803,7 @@ class _LocalSongGridItemState extends State<_LocalSongGridItem> {
   @override
   Widget build(BuildContext context) {
     final colors = _LocalGridSongCardColors.of(context);
+    final localColors = LocalPageColors.of(context);
     final active = widget.selected || _hovered;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -830,7 +831,7 @@ class _LocalSongGridItemState extends State<_LocalSongGridItem> {
             constraints: const BoxConstraints(minHeight: 232),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: active ? colors.hoverSurface : LocalPageColors.surfaceCard,
+              color: active ? colors.hoverSurface : localColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
               boxShadow:
                   active
@@ -920,8 +921,8 @@ class _LocalSongGridItemState extends State<_LocalSongGridItem> {
                         style: TextStyle(
                           color:
                               widget.current
-                                  ? LocalPageColors.accentStrong
-                                  : LocalPageColors.textStrong,
+                                  ? localColors.accentStrong
+                                  : localColors.textStrong,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           height: 1.35,
@@ -929,9 +930,9 @@ class _LocalSongGridItemState extends State<_LocalSongGridItem> {
                       ),
                     ),
                     if (widget.song.favorite)
-                      const Icon(
+                      Icon(
                         FluentIcons.heart_16_filled,
-                        color: LocalPageColors.favorite,
+                        color: localColors.favorite,
                         size: 16,
                       ),
                   ],
@@ -945,8 +946,8 @@ class _LocalSongGridItemState extends State<_LocalSongGridItem> {
                     style: TextStyle(
                       color:
                           widget.current
-                              ? LocalPageColors.accentStrong
-                              : LocalPageColors.textMuted,
+                              ? localColors.accentStrong
+                              : localColors.textMuted,
                       fontSize: 12,
                       height: 1.35,
                     ),
@@ -994,112 +995,31 @@ class _CompactLocalSongRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onSecondaryTapDown: (details) => onOpenMenu(details.globalPosition),
-      child: InkWell(
-        onTap: selectionMode ? onToggleSelection : onPlay,
-        child: Container(
-          height: 76,
-          padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
-          decoration: BoxDecoration(
-            color: selected ? LocalPageColors.rowSelected : Colors.transparent,
-            border: const Border(
-              top: BorderSide(color: LocalPageColors.rowBorder),
-            ),
-          ),
-          child: Row(
-            children: [
-              selectionMode
-                  ? SizedBox(
-                    width: 46,
-                    child: _LocalCheckMark(selected: selected),
-                  )
-                  : LibraryRowArtwork(
-                    song: song,
-                    size: 46,
-                    current: current,
-                    playing: playing,
-                    onPlay: onPlay,
-                    onTogglePlayPause: onTogglePlayPause,
-                  ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color:
-                            current
-                                ? LocalPageColors.accentStrong
-                                : LocalPageColors.textStrong,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      getLocalDisplayArtists(song, i18n),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: LocalPageColors.textMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      displayAlbum(song, i18n),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: LocalPageColors.textMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip:
-                    playing ? i18n.t('player.pause') : i18n.t('context.play'),
-                icon: Icon(
-                  playing
-                      ? FluentIcons.pause_20_regular
-                      : FluentIcons.play_20_regular,
-                  size: 18,
-                ),
-                onPressed: current ? onTogglePlayPause : onPlay,
-              ),
-              IconButton(
-                tooltip: i18n.t('context.playNext'),
-                icon: const SmPlayerPlayNextIcon(size: 18),
-                onPressed: onPlayNext,
-              ),
-              IconButton(
-                tooltip:
-                    song.favorite
-                        ? i18n.t('context.removeFavorite')
-                        : i18n.t('context.addFavorite'),
-                icon: Icon(
-                  song.favorite
-                      ? FluentIcons.heart_20_filled
-                      : FluentIcons.heart_20_regular,
-                  size: 18,
-                ),
-                onPressed: onToggleFavorite,
-              ),
-              IconButton(
-                tooltip: i18n.t('context.addToPlaylist'),
-                icon: const Icon(FluentIcons.add_20_regular, size: 18),
-                onPressed: () => _invokeAtButtonBottom(context, onAddSong),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return PlaylistControlItem(
+      song: song,
+      current: current,
+      playing: playing,
+      selected: selected,
+      selectionMode: selectionMode,
+      showAlbum: true,
+      variant: PlaylistControlItemVariant.compact,
+      collapseCompactPrimaryActions: true,
+      playNextLabel: i18n.t('context.playNext'),
+      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+      favoriteLabel:
+          song.favorite
+              ? i18n.t('context.removeFavorite')
+              : i18n.t('context.addFavorite'),
+      moreLabel: i18n.t('player.more'),
+      onPlayTrack: onPlay,
+      onTogglePlayPause: onTogglePlayPause,
+      onToggleSelection: onToggleSelection,
+      onPlayNextClick: onPlayNext,
+      onToggleFavoriteClick: onToggleFavorite,
+      onAddToPlaylistClick: (buttonContext) {
+        _invokeAtButtonBottom(buttonContext, onAddSong);
+      },
+      onOpenContextMenu: onOpenMenu,
     );
   }
 }
@@ -1169,21 +1089,16 @@ class _LocalCheckMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return Center(
       child: Container(
         width: 20,
         height: 20,
         decoration: BoxDecoration(
-          color:
-              selected
-                  ? LocalPageColors.accentStrong
-                  : LocalPageColors.selectionMark,
+          color: selected ? colors.accentStrong : colors.selectionMark,
           borderRadius: BorderRadius.circular(5),
           border: Border.all(
-            color:
-                selected
-                    ? LocalPageColors.accentStrong
-                    : LocalPageColors.selectionBorder,
+            color: selected ? colors.accentStrong : colors.selectionBorder,
           ),
         ),
         child:
@@ -1224,7 +1139,8 @@ bool isMoveTargetFolder({
   for (final folderPath in payload.folderPaths) {
     final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
     if (targetFolder.relativePath == sourceFolder.relativePath ||
-        targetFolder.relativePath == getParentPath(sourceFolder.relativePath)) {
+        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
+        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
       return false;
     }
   }

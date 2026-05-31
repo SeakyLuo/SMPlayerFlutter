@@ -210,18 +210,19 @@ class _WorkspacePageSurface extends StatelessWidget {
                           ? null
                           : workspaceAppBarPortal?.content),
                   bottomContent: workspaceAppBarPortal?.bottomContent,
+                  topInset: 0,
                 )
-              else if (pageTitle.isNotEmpty)
+              else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
                 _WorkspaceHeader(title: pageTitle, height: headerHeight),
               Expanded(child: content),
             ],
           ),
           if (overlayNavigationAppBar)
             Positioned(
-              top: navigationAppBarTopInset,
+              top: 0,
               left: 0,
               right: 0,
-              height: 40,
+              height: navigationAppBarTopInset + 40,
               child: _WorkspaceNavigationAppBar(
                 headeredPlaylistAppBar: headeredPlaylistAppBar,
                 title: headeredPlaylistAppBar!.title,
@@ -230,6 +231,7 @@ class _WorkspacePageSurface extends StatelessWidget {
                 titleContent: null,
                 actions: headeredPlaylistCommandBar,
                 bottomContent: null,
+                topInset: navigationAppBarTopInset,
               ),
             ),
           if (!showNavigationAppBar && headeredPlaylistAppBar != null)
@@ -308,6 +310,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
     required this.titleContent,
     required this.actions,
     required this.bottomContent,
+    required this.topInset,
   });
 
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
@@ -317,6 +320,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
   final Widget? titleContent;
   final Widget? actions;
   final Widget? bottomContent;
+  final double topInset;
 
   @override
   Widget build(BuildContext context) {
@@ -403,42 +407,71 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
         ),
       ),
     );
-    final content =
+    final appBarContent =
         bottomContent == null
-            ? topRow
-            : SizedBox(
-              height: 80,
+            ? SizedBox(
+              height: topInset + 40,
               child: Column(
                 children: [
+                  if (topInset > 0) SizedBox(height: topInset),
                   topRow,
-                  SizedBox(
-                    key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
-                    height: 40,
-                    child: Material(
-                      color: shellColors.workspaceSolidSurface,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: bottomContent!,
-                      ),
+                ],
+              ),
+            )
+            : DecoratedBox(
+              decoration: BoxDecoration(
+                color: shellColors.workspaceSolidSurface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha:
+                          Theme.of(context).brightness == Brightness.dark
+                              ? 0.18
+                              : 0.06,
                     ),
+                    offset: const Offset(0, 8),
+                    blurRadius: 18,
                   ),
                 ],
               ),
+              child: SizedBox(
+                height: 80,
+                child: Column(
+                  children: [
+                    topRow,
+                    SizedBox(
+                      key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
+                      height: 40,
+                      child: Material(
+                        color: shellColors.workspaceSolidSurface,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: bottomContent!,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
     if (!isHeaderedPlaylist) {
-      return Material(color: shellColors.workspaceSolidSurface, child: content);
+      return Material(
+        color: shellColors.workspaceSolidSurface,
+        child: appBarContent,
+      );
     }
 
     final entry = headeredPlaylistAppBar!;
     final progress = entry.collapseProgress.clamp(0.0, 1.0);
     return ClipRect(
       child: BackdropFilter(
+        key: const ValueKey('WorkspaceNavigationAppBar.ImmersiveSurface'),
         filter: ImageFilter.blur(sigmaX: 18 * progress, sigmaY: 18 * progress),
         child: Material(
           color: Colors.transparent,
           child: DecoratedBox(
             decoration: _immersiveAppBarDecoration(context, entry),
-            child: content,
+            child: appBarContent,
           ),
         ),
       ),
@@ -461,17 +494,14 @@ BoxDecoration _immersiveAppBarDecoration(
   return BoxDecoration(
     color: surface.withValues(alpha: 0.20 * progress),
     gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
       colors: [
         Color.alphaBlend(
           highlight,
-          entry.coverColor.withValues(alpha: 0.24 * progress),
-        ),
-        Color.alphaBlend(
-          Colors.white.withValues(alpha: 0),
-          entry.coverColor.withValues(alpha: 0.14 * progress),
-        ),
+          entry.coverColor,
+        ).withValues(alpha: 0.24 * progress),
+        entry.coverColor.withValues(alpha: 0.14 * progress),
       ],
     ),
     boxShadow: [BoxShadow(color: shadowColor, offset: const Offset(0, 1))],

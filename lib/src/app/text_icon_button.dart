@@ -14,6 +14,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.iconWidget,
     this.loading = false,
     this.active = false,
+    this.activeSurface = true,
     this.disabled = false,
     this.showLabel = true,
     this.tooltip,
@@ -37,6 +38,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final Widget? iconWidget;
   final bool loading;
   final bool active;
+  final bool activeSurface;
   final bool disabled;
   final bool showLabel;
   final String? tooltip;
@@ -69,19 +71,26 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
     final enabled =
         widget.onPressed != null && !widget.disabled && !widget.loading;
     final hovered = enabled && (_hovered || _focused);
-    final foreground = widget.active ? colors.accentStrong : colors.commandText;
+    final foreground =
+        widget.active
+            ? colors.accentStrong
+            : hovered
+            ? colors.commandTextHover
+            : colors.commandText;
+    final borderColor =
+        hovered ? colors.controlHoverBorder : colors.controlBorder;
     final iconOnlyWidth =
         widget.minWidth > widget.height ? widget.minWidth : widget.height;
     final control = DecoratedBox(
       decoration: BoxDecoration(
         color:
-            widget.active
+            widget.active && widget.activeSurface
                 ? colors.controlActive
                 : hovered
                 ? colors.controlHover
                 : colors.control,
         borderRadius: BorderRadius.circular(widget.borderRadius),
-        border: Border.all(color: colors.controlBorder),
+        border: Border.all(color: borderColor),
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -181,14 +190,30 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
             });
           }
         },
-        child: Semantics(
-          button: true,
-          enabled: enabled,
-          label: widget.showLabel ? null : widget.label,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapUp: enabled ? (_) => widget.onPressed?.call() : null,
-            child: control,
+        child: MouseRegion(
+          onEnter: (_) {
+            if (!_hovered) {
+              setState(() {
+                _hovered = true;
+              });
+            }
+          },
+          onExit: (_) {
+            if (_hovered) {
+              setState(() {
+                _hovered = false;
+              });
+            }
+          },
+          child: Semantics(
+            button: true,
+            enabled: enabled,
+            label: widget.showLabel ? null : widget.label,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: enabled ? (_) => widget.onPressed?.call() : null,
+              child: control,
+            ),
           ),
         ),
       ),
@@ -202,24 +227,30 @@ class SmPlayerTextIconButtonColors
     extends ThemeExtension<SmPlayerTextIconButtonColors> {
   const SmPlayerTextIconButtonColors({
     required this.commandText,
+    required this.commandTextHover,
     required this.control,
     required this.controlHover,
+    required this.controlHoverBorder,
     required this.controlActive,
     required this.controlBorder,
     required this.accentStrong,
   });
 
   final Color commandText;
+  final Color commandTextHover;
   final Color control;
   final Color controlHover;
+  final Color controlHoverBorder;
   final Color controlActive;
   final Color controlBorder;
   final Color accentStrong;
 
   static const day = SmPlayerTextIconButtonColors(
     commandText: Color(0xff1f252b),
+    commandTextHover: Color(0xff0063b1),
     control: Color(0x94ffffff),
-    controlHover: Color(0xbdffffff),
+    controlHover: Color(0x1a0078d7),
+    controlHoverBorder: Color(0x2e768499),
     controlActive: Color(0x1a0078d7),
     controlBorder: Color(0x2e768499),
     accentStrong: Color(0xff0063b1),
@@ -227,8 +258,10 @@ class SmPlayerTextIconButtonColors
 
   static const night = SmPlayerTextIconButtonColors(
     commandText: Color(0xf0f6f9fc),
+    commandTextHover: Color(0xff459de2),
     control: Color(0x0effffff),
-    controlHover: Color(0x17ffffff),
+    controlHover: Color(0x290078d7),
+    controlHoverBorder: Color(0x570078d7),
     controlActive: Color(0x290078d7),
     controlBorder: Color(0x1fd6e0ec),
     accentStrong: Color(0xff0063b1),
@@ -241,16 +274,20 @@ class SmPlayerTextIconButtonColors
   @override
   SmPlayerTextIconButtonColors copyWith({
     Color? commandText,
+    Color? commandTextHover,
     Color? control,
     Color? controlHover,
+    Color? controlHoverBorder,
     Color? controlActive,
     Color? controlBorder,
     Color? accentStrong,
   }) {
     return SmPlayerTextIconButtonColors(
       commandText: commandText ?? this.commandText,
+      commandTextHover: commandTextHover ?? this.commandTextHover,
       control: control ?? this.control,
       controlHover: controlHover ?? this.controlHover,
+      controlHoverBorder: controlHoverBorder ?? this.controlHoverBorder,
       controlActive: controlActive ?? this.controlActive,
       controlBorder: controlBorder ?? this.controlBorder,
       accentStrong: accentStrong ?? this.accentStrong,
@@ -267,8 +304,12 @@ class SmPlayerTextIconButtonColors
     }
     return SmPlayerTextIconButtonColors(
       commandText: Color.lerp(commandText, other.commandText, t)!,
+      commandTextHover:
+          Color.lerp(commandTextHover, other.commandTextHover, t)!,
       control: Color.lerp(control, other.control, t)!,
       controlHover: Color.lerp(controlHover, other.controlHover, t)!,
+      controlHoverBorder:
+          Color.lerp(controlHoverBorder, other.controlHoverBorder, t)!,
       controlActive: Color.lerp(controlActive, other.controlActive, t)!,
       controlBorder: Color.lerp(controlBorder, other.controlBorder, t)!,
       accentStrong: Color.lerp(accentStrong, other.accentStrong, t)!,

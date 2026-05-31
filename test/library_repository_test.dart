@@ -261,17 +261,19 @@ void main() {
     }
   });
 
-  test('initializeLibraryDatabase normalizes legacy ISO timestamps to ticks', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'smplayer_timestamp_migration_test_',
-    );
-    addTearDown(() async {
-      await directory.delete(recursive: true);
-    });
-    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('''
+  test(
+    'initializeLibraryDatabase normalizes legacy ISO timestamps to ticks',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer_timestamp_migration_test_',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      final db = sqlite3.open(databaseFile.path);
+      try {
+        db.execute('''
         CREATE TABLE Music (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           Path TEXT,
@@ -279,7 +281,7 @@ void main() {
           State INTEGER DEFAULT 1
         )
       ''');
-      db.execute('''
+        db.execute('''
         CREATE TABLE RecentRecord (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           Type INTEGER,
@@ -288,7 +290,7 @@ void main() {
           State INTEGER DEFAULT 1
         )
       ''');
-      db.execute('''
+        db.execute('''
         CREATE TABLE SearchHistory (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           Query TEXT NOT NULL,
@@ -296,61 +298,64 @@ void main() {
           SearchedAt TEXT DEFAULT ''
         )
       ''');
-      db.execute('''
+        db.execute('''
         CREATE TABLE Settings (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           RootPath TEXT DEFAULT ''
         )
       ''');
-      db.execute(
-        'INSERT INTO Music (Path, DateAdded, State) VALUES (?, ?, 1)',
-        ['song.mp3', '2026-05-20T00:00:00.000Z'],
-      );
-      db.execute(
-        'INSERT INTO RecentRecord (Type, ItemId, Time, State) VALUES (0, ?, ?, 1)',
-        ['1', '2026-05-21T00:00:00.000Z'],
-      );
-      db.execute(
-        'INSERT INTO SearchHistory (Query, Type, SearchedAt) VALUES (?, ?, ?)',
-        ['Jazz', 'sidebar', '2026-05-22T00:00:00.000Z'],
-      );
-    } finally {
-      db.dispose();
-    }
+        db.execute(
+          'INSERT INTO Music (Path, DateAdded, State) VALUES (?, ?, 1)',
+          ['song.mp3', '2026-05-20T00:00:00.000Z'],
+        );
+        db.execute(
+          'INSERT INTO RecentRecord (Type, ItemId, Time, State) VALUES (0, ?, ?, 1)',
+          ['1', '2026-05-21T00:00:00.000Z'],
+        );
+        db.execute(
+          'INSERT INTO SearchHistory (Query, Type, SearchedAt) VALUES (?, ?, ?)',
+          ['Jazz', 'sidebar', '2026-05-22T00:00:00.000Z'],
+        );
+      } finally {
+        db.dispose();
+      }
 
-    final repository = LibraryRepository(
-      databaseFileResolver: () async => databaseFile,
-    );
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
 
-    await repository.initializeLibraryDatabase();
+      await repository.initializeLibraryDatabase();
 
-    final checkDb = sqlite3.open(databaseFile.path);
-    try {
-      expect(
-        int.tryParse(
-          checkDb.select('SELECT DateAdded FROM Music').single['DateAdded']
-              as String,
-        ),
-        isNotNull,
-      );
-      expect(
-        int.tryParse(
-          checkDb.select('SELECT Time FROM RecentRecord').single['Time']
-              as String,
-        ),
-        isNotNull,
-      );
-      expect(
-        int.tryParse(
-          checkDb.select('SELECT SearchedAt FROM SearchHistory').single['SearchedAt']
-              as String,
-        ),
-        isNotNull,
-      );
-    } finally {
-      checkDb.dispose();
-    }
-  });
+      final checkDb = sqlite3.open(databaseFile.path);
+      try {
+        expect(
+          int.tryParse(
+            checkDb.select('SELECT DateAdded FROM Music').single['DateAdded']
+                as String,
+          ),
+          isNotNull,
+        );
+        expect(
+          int.tryParse(
+            checkDb.select('SELECT Time FROM RecentRecord').single['Time']
+                as String,
+          ),
+          isNotNull,
+        );
+        expect(
+          int.tryParse(
+            checkDb
+                    .select('SELECT SearchedAt FROM SearchHistory')
+                    .single['SearchedAt']
+                as String,
+          ),
+          isNotNull,
+        );
+      } finally {
+        checkDb.dispose();
+      }
+    },
+  );
 
   test(
     'initializeLibraryDatabase creates the settings singleton row',
@@ -823,61 +828,59 @@ void main() {
     },
   );
 
-  test(
-    'markSongPlayed increments play count and refreshes recent record',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'smplayer-mark-played-',
-      );
-      addTearDown(() async {
-        await directory.delete(recursive: true);
-      });
-      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
-      _createPlayedSongDatabase(databaseFile);
-      final repository = LibraryRepository(
-        databaseFileResolver: () async => databaseFile,
-      );
+  test('markSongPlayed increments play count and refreshes recent record', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-mark-played-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createPlayedSongDatabase(databaseFile);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
 
-      await repository.markSongPlayed(1);
+    await repository.markSongPlayed(1);
 
-      final db = sqlite3.open(databaseFile.path);
-      try {
-        expect(
-          db
-              .select('SELECT PlayCount FROM Music WHERE Id = 1')
-              .single['PlayCount'],
-          3,
-        );
-        expect(
-          db
-              .select(
-                'SELECT State FROM RecentRecord WHERE Type = 0 AND ItemId = ? ORDER BY Id',
-                ['1'],
-              )
-              .map((row) => row['State']),
-          [0, 1],
-        );
-        expect(
-          db.select(
-            'SELECT Time FROM RecentRecord WHERE Type = 0 AND ItemId = ? AND State = 1',
-            ['1'],
-          ).single['Time'],
-          isNotEmpty,
-        );
-        expect(
-          int.tryParse(
-            db.select(
-              'SELECT Time FROM RecentRecord WHERE Type = 0 AND ItemId = ? AND State = 1',
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      expect(
+        db
+            .select('SELECT PlayCount FROM Music WHERE Id = 1')
+            .single['PlayCount'],
+        3,
+      );
+      expect(
+        db
+            .select(
+              'SELECT State FROM RecentRecord WHERE Type = 0 AND ItemId = ? ORDER BY Id',
               ['1'],
-            ).single['Time'] as String,
-          ),
-          isNotNull,
-        );
-      } finally {
-        db.dispose();
-      }
-    },
-  );
+            )
+            .map((row) => row['State']),
+        [0, 1],
+      );
+      expect(
+        db.select(
+          'SELECT Time FROM RecentRecord WHERE Type = 0 AND ItemId = ? AND State = 1',
+          ['1'],
+        ).single['Time'],
+        isNotEmpty,
+      );
+      expect(
+        int.tryParse(
+          db.select(
+                'SELECT Time FROM RecentRecord WHERE Type = 0 AND ItemId = ? AND State = 1',
+                ['1'],
+              ).single['Time']
+              as String,
+        ),
+        isNotNull,
+      );
+    } finally {
+      db.dispose();
+    }
+  });
 
   test('getRecentPageData cleans invalid recent played records', () async {
     final directory = await Directory.systemTemp.createTemp(
@@ -1974,6 +1977,9 @@ void main() {
         bounds: '{"x":12,"y":24,"width":1280,"height":860}',
         maximized: true,
       );
+      await repository.saveDisplayModeState(
+        lastDisplayMode: SmPlayerDisplayMode.immersive,
+      );
 
       final db = sqlite3.open(databaseFile.path);
       try {
@@ -1991,6 +1997,7 @@ void main() {
           '{"x":12,"y":24,"width":1280,"height":860}',
         );
         expect(row['MainWindowMaximized'], 1);
+        expect(row['LastDisplayMode'], 3);
         expect(row['IsMuted'], 1);
         expect(row['Mode'], 3);
         expect(row['LastPage'], '/settings');
@@ -2842,6 +2849,7 @@ void _createSettingsDatabase(File databaseFile) {
         DesktopLyricsBounds TEXT DEFAULT '',
         MainWindowBounds TEXT DEFAULT '',
         MainWindowMaximized INTEGER DEFAULT 0,
+        LastDisplayMode INTEGER DEFAULT 0,
         QuitOnClose INTEGER DEFAULT 1
       )
     ''');

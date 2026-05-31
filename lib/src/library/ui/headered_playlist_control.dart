@@ -7,9 +7,11 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -44,7 +46,8 @@ part 'headered_playlist_theme.dart';
 
 enum HeaderedPlaylistType { album, playlist, favorites }
 
-const _compactHeaderTopInset = 0.0;
+const _compactHeaderTopInset =
+    SmPlayerShellMetrics.minimalTitlebarHeight + 40.0;
 
 typedef HeaderedPlaylistTrackHandler =
     void Function(int trackId, List<int> queueSongIds);
@@ -171,9 +174,10 @@ class _HeaderedPlaylistControlState
       headeredPlaylistAppBarPortalProvider.notifier,
     );
     _clearAppBarPortalOwner = () {
-      if (appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-        appBarPortalNotifier.state = null;
-      }
+      clearHeaderedPlaylistAppBarPortalOwnerAfterDispose(
+        appBarPortalNotifier,
+        _appBarPortalOwner,
+      );
     };
     _scrollController.addListener(_handleScroll);
     _refreshPlaylistArtwork();

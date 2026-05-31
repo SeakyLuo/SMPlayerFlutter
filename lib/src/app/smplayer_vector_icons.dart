@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'svg_icon.dart';
+
 class SmPlayerPlayIcon extends StatelessWidget {
   const SmPlayerPlayIcon({super.key, this.size = 21, this.color});
 
@@ -91,6 +93,44 @@ class SmPlayerPlayNextIcon extends StatelessWidget {
     return SizedBox.square(
       dimension: size,
       child: CustomPaint(painter: _SmPlayerPlayNextIconPainter(resolvedColor)),
+    );
+  }
+}
+
+class ShuffleIcon extends StatelessWidget {
+  const ShuffleIcon({
+    super.key,
+    this.size = 16,
+    this.color,
+    this.strokeWidth = 0.3,
+  });
+
+  final double size;
+  final Color? color;
+  final double strokeWidth;
+
+  static const _path =
+      'M874.00259 971.2c-14 0.1-25.5-11.3-25.5-25.3 0-6.7 2.6-13.2 7.4-18l80.7-80.8H821.30259c-103 0-200-61.6-266.2-168.9L366.70259 373.3C309.80259 281.5 228.60259 228.9 144.00259 228.9H25.50259c-14.3-0.2-25.7-12-25.5-26.2 0.1-6.6 2.7-13 7.4-17.7 4.8-4.8 11.3-7.6 18.1-7.5h118.7c103 0 200.1 61.5 266.2 168.7L598.80259 651c56.8 91.9 138 144.6 222.7 144.6h115.1L856.00259 714.8c-10.1-9.9-10.3-26.1-0.5-36.2 9.9-10.1 26.1-10.3 36.2-0.5l0.4 0.4 124.3 124.3c10 10 10 26.1 0.1 36.1l-0.1 0.1-124.2 124.7c-4.8 4.8-11.4 7.5-18.2 7.5zM140.20259 847.1H25.50259c-14.3-0.2-25.7-12-25.5-26.2 0.1-6.6 2.7-13 7.4-17.7 4.8-4.8 11.3-7.6 18.1-7.5H140.00259c84.7 0 165.9-52.7 222.7-144.6l31.3-50.6c4.7-7.6 13-12.3 21.9-12.3 4.7 0 9.4 1.3 13.4 3.9 12.1 7.4 15.8 23.1 8.5 35.2 0 0.1-0.1 0.1-0.1 0.2L406.40259 678c-66.2 107-163.2 168.7-266.2 169.1z m413.9-430.8c-4.7 0-9.3-1.3-13.4-3.8-12.1-7.4-15.8-23.2-8.5-35.2 0-0.1 0.1-0.1 0.1-0.2l19.2-31.2c66.2-107.2 163.3-168.7 266.2-168.7h118.9l-80.7-80.8c-10-10-10-26.1-0.1-36.1l0.1-0.1c9.9-10 26-10.1 36-0.2l0.2 0.2 124.1 124.6c10 10 10.1 26.1 0.2 36.2L892.20259 345.6c-9.8 10.2-26.1 10.5-36.3 0.6-10.2-9.8-10.5-26.1-0.6-36.3l0.6-0.6 80.7-80.8H817.80259c-84.8 0-166 52.6-222.7 144.4l-19.2 31.2c-4.8 7.6-12.9 12.2-21.8 12.2z';
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedColor =
+        color ??
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
+    final strokeAttr = SvgIcon.strokeAttr(
+      strokeWidth: strokeWidth,
+      viewBoxSize: 1024,
+      renderSize: size,
+    );
+    final svg =
+        '<svg t="1780240213270" class="icon" viewBox="0 0 1024 1024" '
+        'version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="41079" '
+        'width="200" height="200"><path $strokeAttr d="$_path" '
+        'p-id="41080"></path></svg>';
+    return SizedBox.square(
+      dimension: size,
+      child: SvgIcon(svg: svg, size: size, color: resolvedColor),
     );
   }
 }

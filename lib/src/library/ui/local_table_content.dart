@@ -6,6 +6,7 @@ import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart' show displayAlbum;
+import 'local_compact_table_content.dart';
 import 'local_folder_model.dart';
 import 'local_page_model.dart';
 import 'local_page_quick_jump.dart';
@@ -30,6 +31,7 @@ class LocalTableContent extends StatelessWidget {
     required this.songQuickJumpBasisName,
     required this.songQuickJumpMap,
     required this.queueSongIds,
+    required this.isCompactLayout,
     required this.compactTreeRows,
     required this.compactQueueSongIds,
     required this.i18n,
@@ -71,6 +73,7 @@ class LocalTableContent extends StatelessWidget {
   final String songQuickJumpBasisName;
   final Map<String, int> songQuickJumpMap;
   final List<int> queueSongIds;
+  final bool isCompactLayout;
   final List<LocalCompactTreeRow> compactTreeRows;
   final List<int> compactQueueSongIds;
   final SmPlayerI18n i18n;
@@ -101,6 +104,49 @@ class LocalTableContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isCompactLayout) {
+      return LocalCompactTableContent(
+        scrollController: scrollController,
+        childFolders: childFolders,
+        currentSongs: currentSongs,
+        nodes: nodes,
+        songsById: songsById,
+        selectedFolderPaths: selectedFolderPaths,
+        selectedSongIds: selectedSongIds,
+        selectedTrackId: selectedTrackId,
+        isPlaying: isPlaying,
+        multiSelect: multiSelect,
+        showLocalSectionHeaders: showLocalSectionHeaders,
+        foldersExpanded: foldersExpanded,
+        songsExpanded: songsExpanded,
+        showSongQuickJump: showSongQuickJump,
+        songQuickJumpBasisName: songQuickJumpBasisName,
+        songQuickJumpMap: songQuickJumpMap,
+        queueSongIds: queueSongIds,
+        compactTreeRows: compactTreeRows,
+        compactQueueSongIds: compactQueueSongIds,
+        i18n: i18n,
+        onToggleFoldersExpanded: onToggleFoldersExpanded,
+        onToggleSongsExpanded: onToggleSongsExpanded,
+        onToggleTreeFolderExpanded: onToggleTreeFolderExpanded,
+        onPlayFolder: onPlayFolder,
+        onAddFolder: onAddFolder,
+        onRefreshFolder: onRefreshFolder,
+        onSearchFolder: onSearchFolder,
+        onRevealFolder: onRevealFolder,
+        onOpenFolder: onOpenFolder,
+        onOpenFolderMenu: onOpenFolderMenu,
+        onToggleFolderSelection: onToggleFolderSelection,
+        onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
+        onPlayTrack: onPlayTrack,
+        onTogglePlayPause: onTogglePlayPause,
+        onToggleSongSelection: onToggleSongSelection,
+        onPlayNext: onPlayNext,
+        onAddSong: onAddSong,
+        onOpenSongMenu: onOpenSongMenu,
+        onJumpToSongKey: onJumpToSongKey,
+      );
+    }
     return ListView.builder(
       key: const ValueKey('LocalTableContent.VirtualList'),
       controller: scrollController,
@@ -138,7 +184,7 @@ class LocalTableContent extends StatelessWidget {
 
   TableRow _rowAt(BuildContext context, int index) {
     if (index == 0) {
-      return _headerRow();
+      return _headerRow(context);
     }
 
     var rowIndex = index - 1;
@@ -165,6 +211,7 @@ class LocalTableContent extends StatelessWidget {
     if (showLocalSectionHeaders && childFolders.isNotEmpty) {
       if (rowIndex == 0) {
         return _sectionRow(
+          context,
           title: i18n.t('common.folders'),
           count: childFolders.length,
           expanded: foldersExpanded,
@@ -184,6 +231,7 @@ class LocalTableContent extends StatelessWidget {
     if (showLocalSectionHeaders && currentSongs.isNotEmpty) {
       if (rowIndex == 0) {
         return _sectionRow(
+          context,
           title: i18n.t('local.allSongs'),
           count: currentSongs.length,
           expanded: songsExpanded,
@@ -203,10 +251,11 @@ class LocalTableContent extends StatelessWidget {
     return _songRow(context, currentSongs[rowIndex]);
   }
 
-  TableRow _headerRow() {
+  TableRow _headerRow(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return TableRow(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: LocalPageColors.rowBorder)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       children: [
         _HeaderCell(i18n.t('common.name')),
@@ -216,14 +265,16 @@ class LocalTableContent extends StatelessWidget {
     );
   }
 
-  TableRow _sectionRow({
+  TableRow _sectionRow(
+    BuildContext context, {
     required String title,
     required int count,
     required bool expanded,
     required VoidCallback onToggle,
   }) {
+    final colors = LocalPageColors.of(context);
     return TableRow(
-      decoration: const BoxDecoration(color: LocalPageColors.accentSoft),
+      decoration: BoxDecoration(color: colors.accentSoft),
       children: [
         TableCell(
           child: InkWell(
@@ -237,13 +288,13 @@ class LocalTableContent extends StatelessWidget {
                         ? FluentIcons.chevron_down_20_regular
                         : FluentIcons.chevron_right_20_regular,
                     size: 18,
-                    color: LocalPageColors.accentStrong,
+                    color: colors.accentStrong,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '$title ($count)',
-                    style: const TextStyle(
-                      color: LocalPageColors.accentStrong,
+                    style: TextStyle(
+                      color: colors.accentStrong,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -269,6 +320,7 @@ class LocalTableContent extends StatelessWidget {
               enabledKeys: songQuickJumpMap,
               visible: showSongQuickJump,
               i18n: i18n,
+              axis: Axis.horizontal,
               onJump: onJumpToSongKey,
             ),
           ),
@@ -282,12 +334,11 @@ class LocalTableContent extends StatelessWidget {
   TableRow _treeFolderRow(BuildContext context, LocalCompactTreeRow row) {
     final folder = row.folder!;
     final selected = selectedFolderPaths.contains(folder.relativePath);
+    final colors = LocalPageColors.of(context);
     return TableRow(
       decoration: BoxDecoration(
-        color: selected ? LocalPageColors.rowSelected : Colors.transparent,
-        border: const Border(
-          bottom: BorderSide(color: LocalPageColors.rowBorder),
-        ),
+        color: selected ? colors.rowSelected : Colors.transparent,
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       children: [
         TableCell(
@@ -312,10 +363,8 @@ class LocalTableContent extends StatelessWidget {
                         candidateData.isEmpty
                             ? null
                             : BoxDecoration(
-                              color: LocalPageColors.accentSoft,
-                              border: Border.all(
-                                color: LocalPageColors.accentStrong,
-                              ),
+                              color: colors.accentSoft,
+                              border: Border.all(color: colors.accentStrong),
                               borderRadius: BorderRadius.circular(8),
                             ),
                     padding: EdgeInsets.fromLTRB(
@@ -326,34 +375,28 @@ class LocalTableContent extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        IconButton(
-                          tooltip: folder.name,
-                          icon: Icon(
-                            row.expandable
-                                ? row.expanded
-                                    ? FluentIcons.chevron_down_20_regular
-                                    : FluentIcons.chevron_right_20_regular
-                                : FluentIcons.chevron_right_20_regular,
+                        if (row.expandable)
+                          IconButton(
+                            tooltip: folder.name,
+                            icon: Icon(
+                              row.expanded
+                                  ? FluentIcons.chevron_down_20_regular
+                                  : FluentIcons.chevron_right_20_regular,
+                            ),
+                            color: colors.textMuted,
+                            iconSize: 18,
+                            onPressed:
+                                () => onToggleTreeFolderExpanded(
+                                  folder.relativePath,
+                                ),
                           ),
-                          color:
-                              row.expandable
-                                  ? LocalPageColors.textMuted
-                                  : Colors.transparent,
-                          iconSize: 18,
-                          onPressed:
-                              row.expandable
-                                  ? () => onToggleTreeFolderExpanded(
-                                    folder.relativePath,
-                                  )
-                                  : null,
-                        ),
                         if (multiSelect) ...[
                           _LocalTableCheckMark(selected: selected),
                           const SizedBox(width: 10),
                         ],
-                        const Icon(
+                        Icon(
                           FluentIcons.folder_20_regular,
-                          color: LocalPageColors.artworkIcon,
+                          color: colors.artworkIcon,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -361,8 +404,8 @@ class LocalTableContent extends StatelessWidget {
                             folder.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: LocalPageColors.textStrong,
+                            style: TextStyle(
+                              color: colors.textStrong,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -371,9 +414,7 @@ class LocalTableContent extends StatelessWidget {
                           i18n.t('playlists.songCount', {
                             'count': folder.subtreeSongIds.length,
                           }),
-                          style: const TextStyle(
-                            color: LocalPageColors.textMuted,
-                          ),
+                          style: TextStyle(color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -402,15 +443,11 @@ class LocalTableContent extends StatelessWidget {
     final song = row.song!;
     final selected = selectedSongIds.contains(song.id);
     final current = song.id == selectedTrackId;
+    final colors = LocalPageColors.of(context);
     return TableRow(
       decoration: BoxDecoration(
-        color:
-            selected || current
-                ? LocalPageColors.rowSelected
-                : Colors.transparent,
-        border: const Border(
-          bottom: BorderSide(color: LocalPageColors.rowBorder),
-        ),
+        color: selected || current ? colors.rowSelected : Colors.transparent,
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       children: [
         TableCell(
@@ -466,6 +503,7 @@ class LocalTableContent extends StatelessWidget {
     bool current,
   ) {
     final playing = current && isPlaying;
+    final colors = LocalPageColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(42 + row.depth * 22.0, 8, 8, 8),
       child: Row(
@@ -478,10 +516,7 @@ class LocalTableContent extends StatelessWidget {
             current
                 ? FluentIcons.play_20_regular
                 : FluentIcons.music_note_2_20_regular,
-            color:
-                current
-                    ? LocalPageColors.accentStrong
-                    : LocalPageColors.artworkIcon,
+            color: current ? colors.accentStrong : colors.artworkIcon,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -490,10 +525,7 @@ class LocalTableContent extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color:
-                    current
-                        ? LocalPageColors.accentStrong
-                        : LocalPageColors.textStrong,
+                color: current ? colors.accentStrong : colors.textStrong,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -537,12 +569,11 @@ class LocalTableContent extends StatelessWidget {
 
   TableRow _folderRow(BuildContext context, FolderNode folder) {
     final selected = selectedFolderPaths.contains(folder.relativePath);
+    final colors = LocalPageColors.of(context);
     return TableRow(
       decoration: BoxDecoration(
-        color: selected ? LocalPageColors.rowSelected : Colors.transparent,
-        border: const Border(
-          bottom: BorderSide(color: LocalPageColors.rowBorder),
-        ),
+        color: selected ? colors.rowSelected : Colors.transparent,
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       children: [
         TableCell(
@@ -563,9 +594,9 @@ class LocalTableContent extends StatelessWidget {
                       _LocalTableCheckMark(selected: selected),
                       const SizedBox(width: 10),
                     ],
-                    const Icon(
+                    Icon(
                       FluentIcons.folder_20_regular,
-                      color: LocalPageColors.artworkIcon,
+                      color: colors.artworkIcon,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -573,8 +604,8 @@ class LocalTableContent extends StatelessWidget {
                         folder.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: LocalPageColors.textStrong,
+                        style: TextStyle(
+                          color: colors.textStrong,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -583,30 +614,32 @@ class LocalTableContent extends StatelessWidget {
                       i18n.t('playlists.songCount', {
                         'count': folder.subtreeSongIds.length,
                       }),
-                      style: const TextStyle(color: LocalPageColors.textMuted),
+                      style: TextStyle(color: colors.textMuted),
                     ),
-                    const Icon(
+                    Icon(
                       FluentIcons.chevron_right_20_regular,
                       size: 18,
-                      color: LocalPageColors.textMuted,
+                      color: colors.textMuted,
                     ),
                     if (!multiSelect)
                       _LocalTableActions(
                         children: [
                           IconButton(
                             tooltip: i18n.t('local.playAllButtonTooltip'),
-                            icon: const Icon(
-                              FluentIcons.arrow_shuffle_20_regular,
-                            ),
+                            icon: const ShuffleIcon(),
                             onPressed: () => onPlayFolder(folder),
                           ),
-                          IconButton(
-                            tooltip: i18n.t('context.addToPlaylist'),
-                            icon: const Icon(FluentIcons.add_20_regular),
-                            onPressed:
-                                () => _invokeAtButtonBottom(
-                                  context,
-                                  (position) => onAddFolder(folder, position),
+                          Builder(
+                            builder:
+                                (buttonContext) => IconButton(
+                                  tooltip: i18n.t('context.addToPlaylist'),
+                                  icon: const Icon(FluentIcons.add_20_regular),
+                                  onPressed:
+                                      () => _invokeAtButtonBottom(
+                                        buttonContext,
+                                        (position) =>
+                                            onAddFolder(folder, position),
+                                      ),
                                 ),
                           ),
                           IconButton(
@@ -644,15 +677,11 @@ class LocalTableContent extends StatelessWidget {
     final selected = selectedSongIds.contains(song.id);
     final current = song.id == selectedTrackId;
     final playing = current && isPlaying;
+    final colors = LocalPageColors.of(context);
     return TableRow(
       decoration: BoxDecoration(
-        color:
-            selected || current
-                ? LocalPageColors.rowSelected
-                : Colors.transparent,
-        border: const Border(
-          bottom: BorderSide(color: LocalPageColors.rowBorder),
-        ),
+        color: selected || current ? colors.rowSelected : Colors.transparent,
+        border: Border(bottom: BorderSide(color: colors.rowBorder)),
       ),
       children: [
         TableCell(
@@ -676,10 +705,7 @@ class LocalTableContent extends StatelessWidget {
                       current
                           ? FluentIcons.play_20_regular
                           : FluentIcons.music_note_2_20_regular,
-                      color:
-                          current
-                              ? LocalPageColors.accentStrong
-                              : LocalPageColors.artworkIcon,
+                      color: current ? colors.accentStrong : colors.artworkIcon,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -689,9 +715,7 @@ class LocalTableContent extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color:
-                              current
-                                  ? LocalPageColors.accentStrong
-                                  : LocalPageColors.textStrong,
+                              current ? colors.accentStrong : colors.textStrong,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -714,13 +738,16 @@ class LocalTableContent extends StatelessWidget {
                                     ? onTogglePlayPause
                                     : () => onPlayTrack(song.id, queueSongIds),
                           ),
-                          IconButton(
-                            tooltip: i18n.t('context.addToPlaylist'),
-                            icon: const Icon(FluentIcons.add_20_regular),
-                            onPressed:
-                                () => _invokeAtButtonBottom(
-                                  context,
-                                  (position) => onAddSong(song, position),
+                          Builder(
+                            builder:
+                                (buttonContext) => IconButton(
+                                  tooltip: i18n.t('context.addToPlaylist'),
+                                  icon: const Icon(FluentIcons.add_20_regular),
+                                  onPressed:
+                                      () => _invokeAtButtonBottom(
+                                        buttonContext,
+                                        (position) => onAddSong(song, position),
+                                      ),
                                 ),
                           ),
                           IconButton(
@@ -798,12 +825,13 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       child: Text(
         text,
-        style: const TextStyle(
-          color: LocalPageColors.textMuted,
+        style: TextStyle(
+          color: colors.textMuted,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -839,6 +867,7 @@ class _TextLinkCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -847,8 +876,8 @@ class _TextLinkCell extends StatelessWidget {
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: LocalPageColors.accentStrong,
+          style: TextStyle(
+            color: colors.accentStrong,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -873,7 +902,7 @@ class _LocalTableActions extends StatelessWidget {
                 .map(
                   (child) => IconTheme(
                     data: const IconThemeData(size: 18),
-                    child: SizedBox(width: 34, height: 34, child: child),
+                    child: SizedBox.square(dimension: 34, child: child),
                   ),
                 )
                 .toList(),
@@ -889,20 +918,15 @@ class _LocalTableCheckMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
     return Container(
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-        color:
-            selected
-                ? LocalPageColors.accentStrong
-                : LocalPageColors.selectionMark,
+        color: selected ? colors.accentStrong : colors.selectionMark,
         borderRadius: BorderRadius.circular(5),
         border: Border.all(
-          color:
-              selected
-                  ? LocalPageColors.accentStrong
-                  : LocalPageColors.selectionBorder,
+          color: selected ? colors.accentStrong : colors.selectionBorder,
         ),
       ),
       child:

@@ -674,6 +674,14 @@ class _ArtistsColors {
     );
   }
 
+  static BoxDecoration compactDetailHeaderDecoration(Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return const BoxDecoration(color: Color(0xff0f1319));
+    }
+
+    return const BoxDecoration(color: Color(0xfff8fbfe));
+  }
+
   static Color textStrongFor(Brightness brightness) {
     return brightness == Brightness.dark ? const Color(0xf0f6f9fc) : textStrong;
   }

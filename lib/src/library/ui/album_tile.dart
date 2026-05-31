@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 
 import '../data/library_models.dart';
 import 'song_artwork.dart';
@@ -87,10 +88,12 @@ class _AlbumTileState extends State<AlbumTile> {
                     ? colors.hoverSurface
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border:
-                widget.selected || _hovered
-                    ? Border.all(color: colors.hoverOutline)
-                    : null,
+            border: Border.all(
+              color:
+                  widget.selected || _hovered
+                      ? colors.hoverOutline
+                      : Colors.transparent,
+            ),
             boxShadow:
                 widget.selected || _hovered
                     ? [
@@ -241,96 +244,21 @@ class _AlbumHoverAction extends StatelessWidget {
     return Builder(
       builder: (buttonContext) {
         final isPlay = icon == FluentIcons.play_20_regular;
-        return Tooltip(
-          message:
+        return ArtworkFloatingActionButton(
+          tooltip:
               isPlay
                   ? context.smPlayerI18n.t('detail.playAlbum')
                   : context.smPlayerI18n.t('context.addToPlaylist'),
-          child: _ElectronAlbumHoverButton(
-            icon:
-                isPlay
-                    ? const SmPlayerPlayIcon(size: 20, color: Colors.white)
-                    : const _AlbumAddIcon(),
-            onPressed: () {
-              final box = buttonContext.findRenderObject() as RenderBox;
-              onPressed(box.localToGlobal(Offset(0, box.size.height + 6)));
-            },
-          ),
+          icon:
+              isPlay
+                  ? const SmPlayerPlayIcon(size: 20, color: Colors.white)
+                  : const _AlbumAddIcon(),
+          onPressed: () {
+            final box = buttonContext.findRenderObject() as RenderBox;
+            onPressed(box.localToGlobal(Offset(0, box.size.height + 6)));
+          },
         );
       },
-    );
-  }
-}
-
-class _ElectronAlbumHoverButton extends StatefulWidget {
-  const _ElectronAlbumHoverButton({
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final Widget icon;
-  final VoidCallback onPressed;
-
-  @override
-  State<_ElectronAlbumHoverButton> createState() =>
-      _ElectronAlbumHoverButtonState();
-}
-
-class _ElectronAlbumHoverButtonState extends State<_ElectronAlbumHoverButton> {
-  var _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
-      },
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-        });
-      },
-      child: AnimatedScale(
-        scale: _hovered ? 1.1 : 1,
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color:
-                _hovered
-                    ? _AlbumTileColors.hoverActionBackgroundHover
-                    : _AlbumTileColors.hoverActionBackground,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: _AlbumTileColors.hoverActionShadow,
-                blurRadius: _hovered ? 32 : 28,
-                offset: Offset(0, _hovered ? 14 : 12),
-              ),
-            ],
-          ),
-          child: SizedBox.square(
-            dimension: 48,
-            child: IconButton(
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(48),
-                minimumSize: const Size.square(48),
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                hoverColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                shape: const CircleBorder(),
-              ),
-              icon: widget.icon,
-              onPressed: widget.onPressed,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -402,10 +330,6 @@ class _AlbumTileColors {
     textStrong: Color(0xf0f6f9fc),
     textMuted: Color(0xadcbd5e1),
   );
-
-  static const hoverActionBackground = Color(0xb81e2228);
-  static const hoverActionBackgroundHover = Color(0xd114181e);
-  static const hoverActionShadow = Color(0x47122220);
 }
 
 class _AlbumTileColorSet {

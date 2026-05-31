@@ -83,6 +83,15 @@ class SettingsController extends ChangeNotifier {
     );
   }
 
+  Future<void> saveDisplayModeState({
+    required SmPlayerDisplayMode lastDisplayMode,
+  }) async {
+    _snapshot = _snapshot.copyWith(lastDisplayMode: lastDisplayMode);
+    setSmPlayerGlobalSettingsSnapshot(_snapshot);
+    notifyListeners();
+    await repository?.saveDisplayModeState(lastDisplayMode: lastDisplayMode);
+  }
+
   Future<void> _persistPlaybackSettings(
     PlaybackSettingsUpdate update,
     SettingsSnapshot snapshot,

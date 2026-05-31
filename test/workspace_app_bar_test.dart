@@ -12,6 +12,8 @@ import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
@@ -162,6 +164,25 @@ void main() {
     expect(find.text('本地'), findsNothing);
   });
 
+  testWidgets(
+    'local app bar shows compact breadcrumb after music folder is set',
+    (tester) async {
+      await tester.pumpWidget(
+        const _WorkspaceAppBarTestApp(
+          currentPath: '/local',
+          currentLocation: '/local?path=Sub',
+          snapshot: _localNestedFolderSnapshot,
+          textScaler: TextScaler.noScaling,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('本地'), findsNothing);
+      expect(find.text('Music'), findsOneWidget);
+      expect(find.text('Sub'), findsOneWidget);
+    },
+  );
+
   testWidgets('local title shows before music folder is set', (tester) async {
     await tester.pumpWidget(
       const _WorkspaceAppBarTestApp(
@@ -173,6 +194,48 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('本地'), findsOneWidget);
+  });
+
+  testWidgets('headered playlist topbar blurs titlebar and appbar together', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 480);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _WorkspaceAppBarTestApp(
+        currentPath: '/albums',
+        currentLocation: '/albums?album=Blue%20Hour',
+        textScaler: TextScaler.noScaling,
+        navigationAppBarTopInset: 32,
+        headeredPlaylistAppBar: HeaderedPlaylistAppBarPortalEntry(
+          owner: Object(),
+          routeLocation: '/albums?album=Blue%20Hour',
+          title: 'Blue Hour',
+          coverColor: const Color(0xff5b87b6),
+          collapseProgress: 1,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final surface = find.byKey(
+      const ValueKey('WorkspaceNavigationAppBar.ImmersiveSurface'),
+    );
+    expect(surface, findsOneWidget);
+    expect(tester.getTopLeft(surface).dy, 0);
+    expect(tester.getSize(surface).height, 72);
+    expect(find.text('Blue Hour'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Blue Hour')).dy,
+      greaterThanOrEqualTo(32),
+    );
+    final appBarTitle = tester.widget<Text>(find.text('Blue Hour'));
+    expect(appBarTitle.style?.fontSize, 16);
   });
 }
 
@@ -202,6 +265,9 @@ const _i18n = SmPlayerI18n(
     'quickJump.disabled': '没有 {basis} 以 {group} 开头的{target}',
     'quickJump.letterGroup': '{key}',
     'quickJump.symbolGroup': '数字或符号',
+    'local.currentPath': '当前路径',
+    'local.hiddenFolders': '隐藏的文件夹',
+    'local.path': '路径',
     'sidebar.back': '返回',
   },
 );
@@ -297,6 +363,23 @@ const _localNoFolderSnapshot = LibraryContentData(
   databasePath: '/tmp/library.db',
 );
 
+const _localNestedFolderSnapshot = LibraryContentData(
+  songs: [],
+  folders: [
+    LibraryFolder(
+      id: 10,
+      path: '/Users/test/Music/Sub',
+      parentId: 0,
+      criterion: 0,
+    ),
+  ],
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  databasePath: '/tmp/library.db',
+  rootPath: '/Users/test/Music',
+);
+
 class _WorkspaceAppBarTestApp extends ConsumerWidget {
   const _WorkspaceAppBarTestApp({
     this.currentPath = '/now-playing',
@@ -307,6 +390,8 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
     this.portalTitle,
     this.portalRoutePath = '/now-playing',
     this.portalRouteLocation,
+    this.headeredPlaylistAppBar,
+    this.navigationAppBarTopInset = 0,
   });
 
   final String currentPath;
@@ -317,6 +402,8 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
   final String? portalTitle;
   final String portalRoutePath;
   final String? portalRouteLocation;
+  final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
+  final double navigationAppBarTopInset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -362,6 +449,10 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
             title: portalTitle,
           ),
         ),
+        if (headeredPlaylistAppBar != null)
+          headeredPlaylistAppBarPortalProvider.overrideWith(
+            (ref) => headeredPlaylistAppBar,
+          ),
       ],
       child: SmPlayerI18nScope(
         i18n: _i18n,
@@ -370,6 +461,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
             extensions: const [
               ShellThemeColors.dark,
               DefaultAlbumArtworkThemeColors.dark,
+              LocalPageColors.night,
             ],
           ),
           home: Scaffold(
@@ -384,7 +476,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
                 showNavigationAppBar: true,
                 navigationMenuLabel: '菜单',
                 onNavigationMenuPressed: _noop,
-                navigationAppBarTopInset: 0,
+                navigationAppBarTopInset: navigationAppBarTopInset,
                 child: child,
               ),
             ),

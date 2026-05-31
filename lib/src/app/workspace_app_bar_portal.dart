@@ -1,8 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final workspaceAppBarPortalProvider =
     StateProvider<WorkspaceAppBarPortalEntry?>((ref) => null);
+
+void clearWorkspaceAppBarPortalOwnerAfterDispose(
+  StateController<WorkspaceAppBarPortalEntry?> notifier,
+  Object owner,
+) {
+  scheduleMicrotask(() {
+    if (!notifier.mounted) {
+      return;
+    }
+    if (notifier.state?.owner == owner) {
+      notifier.state = null;
+    }
+  });
+}
 
 class WorkspaceAppBarPortalEntry {
   const WorkspaceAppBarPortalEntry({

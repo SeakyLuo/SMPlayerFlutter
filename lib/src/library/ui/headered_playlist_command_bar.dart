@@ -28,7 +28,8 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
                 : CommandBarPrimaryAlignment.start,
         children: [
           CommandBarButton(
-            icon: FluentIcons.arrow_shuffle_20_regular,
+            iconWidget: const ShuffleIcon(),
+            useShuffleIcon: true,
             label: captionForHeaderedPlaylist(i18n, 'shuffle'),
             disabled: visibleSongs.isEmpty,
             onPressed: () {
@@ -183,7 +184,8 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
       overflowLabel: i18n.t('player.more'),
       children: [
         CommandBarButton(
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          iconWidget: const ShuffleIcon(),
+          useShuffleIcon: true,
           label: captionForHeaderedPlaylist(i18n, 'shuffle'),
           disabled: visibleSongs.isEmpty,
           onPressed: () {

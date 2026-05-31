@@ -179,6 +179,125 @@ void main() {
     expect(mediaController.state.track.id, 1);
   });
 
+  testWidgets('AlbumsPage context shuffle keeps Electron raw album grouping', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+    const snapshot = LibraryContentData(
+      songs: [
+        LibrarySong(
+          id: 1,
+          path: r'C:\Music\blue.mp3',
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artists: ['Artist A'],
+          album: 'Blue Hour',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+        LibrarySong(
+          id: 2,
+          path: r'C:\Music\spaced-blue.mp3',
+          title: 'Spaced Blue Song',
+          artist: 'Artist A',
+          artists: ['Artist A'],
+          album: ' Blue Hour ',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+      ],
+      playlists: [
+        LibraryPlaylist(
+          id: 3,
+          name: 'Built in',
+          priority: 0,
+          songCount: 0,
+          songIds: [],
+          sortCriterion: PlaylistSortCriterion.title,
+          isBuiltIn: true,
+        ),
+        LibraryPlaylist(
+          id: 10,
+          name: 'Mix',
+          priority: 1,
+          songCount: 0,
+          songIds: [],
+          sortCriterion: PlaylistSortCriterion.title,
+          isBuiltIn: false,
+        ),
+      ],
+      favoritePlaylistId: 1,
+      nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+      hasLibrary: true,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      showCount: true,
+      hideMultiSelectCommandBarAfterOperation: true,
+      databasePath: '',
+    );
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(i18n.t('nowPlaying.randomPlay')));
+    await tester.pumpAndSettle();
+
+    expect(repository.recordedAlbums, ['Blue Hour']);
+    expect(repository.replacedNowPlaying, [1]);
+    expect(mediaController.state.track.id, 1);
+  });
+
+  testWidgets(
+    'AlbumsPage context shuffle waits for queue before MediaControl',
+    (tester) async {
+      final repository = _DelayedReplaceLibraryRepository();
+      final mediaController = MediaControlController();
+
+      await tester.pumpWidget(
+        _AlbumsTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Blue Hour'), buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(i18n.t('nowPlaying.randomPlay')));
+      await tester.pump();
+
+      expect(repository.pendingReplaceSongIds, [1]);
+      expect(mediaController.state.track.id, isNull);
+
+      repository.completeReplace();
+      await tester.pumpAndSettle();
+
+      expect(repository.replacedNowPlaying, [1]);
+      expect(mediaController.state.track.id, 1);
+      expect(mediaController.state.selectedQueueIndex, 0);
+    },
+  );
+
   testWidgets('AlbumsPage context menu writes Electron album preference', (
     tester,
   ) async {
@@ -578,6 +697,7 @@ void main() {
     final baseDecoration = tile.decoration! as BoxDecoration;
     expect(baseDecoration.borderRadius, BorderRadius.circular(12));
     expect(baseDecoration.color, Colors.transparent);
+    expect(baseDecoration.border!.top.color, Colors.transparent);
 
     final artworkDecoration =
         tester
@@ -595,6 +715,9 @@ void main() {
     final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(pointer.removePointer);
     await pointer.addPointer();
+    final baseArtworkSize = tester.getSize(
+      find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
+    );
     await pointer.moveTo(tester.getCenter(tileFinder));
     await tester.pumpAndSettle();
 
@@ -606,6 +729,12 @@ void main() {
     expect(hoverDecoration.boxShadow!.single.color, const Color(0x1f1e2a3a));
     expect(hoverDecoration.boxShadow!.single.blurRadius, 26);
     expect(hoverDecoration.boxShadow!.single.offset, const Offset(0, 12));
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
+      ),
+      baseArtworkSize,
+    );
   });
 
   testWidgets('AlbumsPage reverse sort persists like Electron local state', (
@@ -798,6 +927,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(i18n.t('albums.noMatch')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('Albums.EmptyState'))).height,
+      lessThan(100),
+    );
   });
 
   testWidgets('AlbumsPage clears only visible album search history', (
@@ -864,6 +997,10 @@ void main() {
     expect(repository.recordedSearches, [
       (query: 'Blue Hour', type: SearchHistoryType.albums),
     ]);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Blue Hour',
+    );
     expect(find.text('Red Days'), findsNothing);
   });
 
@@ -890,6 +1027,10 @@ void main() {
     expect(repository.recordedSearches, [
       (query: 'Red', type: SearchHistoryType.albums),
     ]);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Red',
+    );
     expect(find.text('Blue Hour'), findsNothing);
   });
 }
@@ -1250,6 +1391,23 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<void> removeRecentSearches(List<int> ids) async {
     removedRecentSearchIds = ids.toList();
+  }
+}
+
+class _DelayedReplaceLibraryRepository extends _FakeLibraryRepository {
+  Completer<void>? _replaceCompleter;
+  List<int> pendingReplaceSongIds = [];
+
+  @override
+  Future<void> replaceNowPlaying(List<int> songIds) async {
+    pendingReplaceSongIds = songIds.toList();
+    _replaceCompleter = Completer<void>();
+    await _replaceCompleter!.future;
+    await super.replaceNowPlaying(songIds);
+  }
+
+  void completeReplace() {
+    _replaceCompleter!.complete();
   }
 }
 

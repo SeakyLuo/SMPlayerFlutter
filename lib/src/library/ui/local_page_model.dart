@@ -21,13 +21,26 @@ String getRefreshResultMessage(
 ) {
   final messages = [
     if (result.filesAdded.isNotEmpty)
-      i18n.t('local.refreshAddedMultiple', {'count': result.filesAdded.length}),
+      _getRefreshChangeMessage(
+        result.filesAdded,
+        'local.refreshAddedOne',
+        'local.refreshAddedMultiple',
+        i18n,
+      ),
     if (result.filesRemoved.isNotEmpty)
-      i18n.t('local.refreshRemovedMultiple', {
-        'count': result.filesRemoved.length,
-      }),
+      _getRefreshChangeMessage(
+        result.filesRemoved,
+        'local.refreshRemovedOne',
+        'local.refreshRemovedMultiple',
+        i18n,
+      ),
     if (result.filesMoved.isNotEmpty)
-      i18n.t('local.refreshMovedMultiple', {'count': result.filesMoved.length}),
+      _getRefreshChangeMessage(
+        result.filesMoved,
+        'local.refreshMovedOne',
+        'local.refreshMovedMultiple',
+        i18n,
+      ),
     if (result.artistSplitsApplied.isNotEmpty)
       i18n.t('local.refreshArtistSplitsAppliedGroup', {
         'count': result.artistSplitsApplied.length,
@@ -44,6 +57,40 @@ String getRefreshResultMessage(
   return messages.isEmpty
       ? i18n.t('local.refreshNoChange')
       : messages.join(i18n.t('common.comma'));
+}
+
+String getRefreshFolderErrorMessage(String error, SmPlayerI18n i18n) {
+  const notFoundPrefix = 'Folder not found: ';
+  const accessDeniedPrefix = 'Cannot access folder: ';
+  if (error.startsWith(notFoundPrefix)) {
+    return i18n.t('local.updateFolderNotFound', {
+      'path': error.substring(notFoundPrefix.length),
+    });
+  }
+  if (error.startsWith(accessDeniedPrefix)) {
+    return i18n.t('local.updateFolderAccessDenied', {
+      'path': error.substring(accessDeniedPrefix.length),
+    });
+  }
+
+  return error;
+}
+
+String _getRefreshChangeMessage(
+  List<String> paths,
+  String singleKey,
+  String multipleKey,
+  SmPlayerI18n i18n,
+) {
+  return paths.length == 1
+      ? i18n.t(singleKey, {'name': _getFileTitle(paths.single)})
+      : i18n.t(multipleKey, {'count': paths.length});
+}
+
+String _getFileTitle(String filePath) {
+  final fileName = normalizePath(filePath).split('/').last;
+  final extensionIndex = fileName.lastIndexOf('.');
+  return extensionIndex > 0 ? fileName.substring(0, extensionIndex) : fileName;
 }
 
 bool hasRefreshResultChanges(LocalFolderRefreshResult result) {
@@ -202,7 +249,8 @@ bool isLocalMoveTargetFolder({
   for (final folderPath in payload.folderPaths) {
     final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
     if (targetFolder.relativePath == sourceFolder.relativePath ||
-        targetFolder.relativePath == getParentPath(sourceFolder.relativePath)) {
+        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
+        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
       return false;
     }
   }

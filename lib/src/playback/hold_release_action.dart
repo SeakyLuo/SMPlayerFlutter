@@ -16,12 +16,14 @@ class HoldReleaseAction extends StatefulWidget {
     this.holdTooltip,
     this.disabled = false,
     this.holdDuration = const Duration(milliseconds: 200),
+    this.triggerHoldOnReady = false,
   });
 
   final String tooltip;
   final String? holdTooltip;
   final bool disabled;
   final Duration holdDuration;
+  final bool triggerHoldOnReady;
   final VoidCallback onPressed;
   final VoidCallback? onHoldRelease;
   final HoldReleaseActionBuilder builder;
@@ -75,6 +77,13 @@ class _HoldReleaseActionState extends State<HoldReleaseAction>
     _holdTimer?.cancel();
     _holdTimer = Timer(widget.holdDuration, () {
       if (_holdTriggered) {
+        return;
+      }
+      if (widget.triggerHoldOnReady) {
+        _holdTriggered = true;
+        _suppressTap = true;
+        widget.onHoldRelease?.call();
+        _resetHold();
         return;
       }
       _holdReady = true;

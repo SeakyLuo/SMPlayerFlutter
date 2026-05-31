@@ -1,8 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final headeredPlaylistAppBarPortalProvider =
     StateProvider<HeaderedPlaylistAppBarPortalEntry?>((ref) => null);
+
+void clearHeaderedPlaylistAppBarPortalOwnerAfterDispose(
+  StateController<HeaderedPlaylistAppBarPortalEntry?> notifier,
+  Object owner,
+) {
+  scheduleMicrotask(() {
+    if (!notifier.mounted) {
+      return;
+    }
+    if (notifier.state?.owner == owner) {
+      notifier.state = null;
+    }
+  });
+}
 
 class HeaderedPlaylistAppBarPortalEntry {
   const HeaderedPlaylistAppBarPortalEntry({

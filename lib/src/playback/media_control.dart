@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -244,6 +245,7 @@ class MediaControl extends StatelessWidget {
             onArtworkError: onArtworkError,
             disabled: track.id == null,
             onOpenNowPlaying: onOpenNowPlaying,
+            onToggleWindowFullScreen: onToggleWindowFullScreen,
           ),
           trackId: track.id,
           isLoading: track.isLoading,
