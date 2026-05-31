@@ -200,6 +200,213 @@ class MinimalTitlebar extends StatelessWidget {
   }
 }
 
+class WindowsAppTitleBar extends StatelessWidget {
+  const WindowsAppTitleBar({
+    super.key,
+    required this.isMaximized,
+    required this.light,
+    required this.showDragRegion,
+    required this.onWindowDragStart,
+    required this.onWindowDragEnd,
+    required this.onMinimize,
+    required this.onToggleMaximize,
+    required this.onClose,
+  });
+
+  static const controlsWidth = 138.0;
+
+  final bool isMaximized;
+  final bool light;
+  final bool showDragRegion;
+  final VoidCallback? onWindowDragStart;
+  final VoidCallback? onWindowDragEnd;
+  final VoidCallback onMinimize;
+  final VoidCallback onToggleMaximize;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = light ? Colors.white : const Color(0xff111111);
+    final controls = Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        _WindowsCaptionButton(
+          key: const ValueKey('WindowsAppTitleBar.MinimizeButton'),
+          icon: _WindowsCaptionIcon.minimize,
+          foreground: foreground,
+          onPressed: onMinimize,
+        ),
+        _WindowsCaptionButton(
+          key: const ValueKey('WindowsAppTitleBar.MaximizeButton'),
+          icon:
+              isMaximized
+                  ? _WindowsCaptionIcon.restore
+                  : _WindowsCaptionIcon.maximize,
+          foreground: foreground,
+          onPressed: onToggleMaximize,
+        ),
+        _WindowsCaptionButton(
+          key: const ValueKey('WindowsAppTitleBar.CloseButton'),
+          icon: _WindowsCaptionIcon.close,
+          foreground: foreground,
+          closeButton: true,
+          onPressed: onClose,
+        ),
+      ],
+    );
+
+    if (!showDragRegion) {
+      return Material(color: Colors.transparent, child: controls);
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Row(
+        children: [
+          Expanded(
+            child: ShellWindowDragRegion(
+              key: const ValueKey('WindowsAppTitleBar.DragRegion'),
+              onWindowDragStart: onWindowDragStart,
+              onWindowDragEnd: onWindowDragEnd,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          SizedBox(width: controlsWidth, child: controls),
+        ],
+      ),
+    );
+  }
+}
+
+enum _WindowsCaptionIcon { minimize, maximize, restore, close }
+
+class _WindowsCaptionButton extends StatefulWidget {
+  const _WindowsCaptionButton({
+    super.key,
+    required this.icon,
+    required this.foreground,
+    required this.onPressed,
+    this.closeButton = false,
+  });
+
+  final _WindowsCaptionIcon icon;
+  final Color foreground;
+  final VoidCallback onPressed;
+  final bool closeButton;
+
+  @override
+  State<_WindowsCaptionButton> createState() => _WindowsCaptionButtonState();
+}
+
+class _WindowsCaptionButtonState extends State<_WindowsCaptionButton> {
+  var _hovered = false;
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final background =
+        widget.closeButton && (_hovered || _pressed)
+            ? const Color(0xffe81123)
+            : _pressed
+            ? widget.foreground.withValues(alpha: 0.18)
+            : _hovered
+            ? widget.foreground.withValues(alpha: 0.10)
+            : Colors.transparent;
+    final foreground =
+        widget.closeButton && (_hovered || _pressed)
+            ? Colors.white
+            : widget.foreground;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:
+          (_) => setState(() {
+            _hovered = false;
+            _pressed = false;
+          }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: widget.onPressed,
+        child: ColoredBox(
+          color: background,
+          child: SizedBox(
+            width: 46,
+            height: SmPlayerShellMetrics.minimalTitlebarHeight,
+            child: CustomPaint(
+              painter: _WindowsCaptionIconPainter(
+                icon: widget.icon,
+                color: foreground,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WindowsCaptionIconPainter extends CustomPainter {
+  const _WindowsCaptionIconPainter({required this.icon, required this.color});
+
+  final _WindowsCaptionIcon icon;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 1
+          ..style = PaintingStyle.stroke;
+
+    switch (icon) {
+      case _WindowsCaptionIcon.minimize:
+        canvas.drawLine(
+          Offset(center.dx - 5, center.dy + 4),
+          Offset(center.dx + 5, center.dy + 4),
+          paint,
+        );
+      case _WindowsCaptionIcon.maximize:
+        canvas.drawRect(
+          Rect.fromCenter(center: center, width: 10, height: 10),
+          paint,
+        );
+      case _WindowsCaptionIcon.restore:
+        canvas.drawRect(
+          Rect.fromLTWH(center.dx - 3, center.dy - 6, 8, 8),
+          paint,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(center.dx - 6, center.dy - 3, 8, 8),
+          Paint()
+            ..color = color
+            ..strokeWidth = 1
+            ..style = PaintingStyle.stroke,
+        );
+      case _WindowsCaptionIcon.close:
+        canvas.drawLine(
+          Offset(center.dx - 5, center.dy - 5),
+          Offset(center.dx + 5, center.dy + 5),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(center.dx + 5, center.dy - 5),
+          Offset(center.dx - 5, center.dy + 5),
+          paint,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WindowsCaptionIconPainter oldDelegate) {
+    return oldDelegate.icon != icon || oldDelegate.color != color;
+  }
+}
+
 Color _immersiveMinimalTitlebarForeground(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark
       ? const Color(0xfff6f9fc)

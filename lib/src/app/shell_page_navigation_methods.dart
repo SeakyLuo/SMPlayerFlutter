@@ -114,6 +114,18 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     unawaited(_desktopFeatureService.stopWindowDrag());
   }
 
+  void _minimizeDesktopWindow() {
+    unawaited(_desktopFeatureService.minimizeWindow());
+  }
+
+  void _toggleDesktopWindowMaximized() {
+    unawaited(_desktopFeatureService.toggleWindowMaximized());
+  }
+
+  void _closeDesktopWindow() {
+    unawaited(_desktopFeatureService.closeWindow());
+  }
+
   void _goBack() {
     if (closeTopPopupDialog()) {
       return;
@@ -309,6 +321,14 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       return;
     }
     _setDesktopWindowFullScreen(fullScreen);
+  }
+
+  Future<void> _restoreDesktopWindowMaximizedState() async {
+    final maximized = await _desktopFeatureService.getWindowMaximized();
+    if (!mounted) {
+      return;
+    }
+    _setDesktopWindowMaximized(maximized);
   }
 
   Future<void> _checkReleaseNotesVersion() async {
