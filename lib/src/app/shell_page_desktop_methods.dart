@@ -266,6 +266,10 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         _setDesktopWindowFullScreen(action.isWindowFullScreen ?? false);
       case DesktopFeatureCommand.windowMaximizedChanged:
         _setDesktopWindowMaximized(action.isWindowMaximized ?? false);
+      case DesktopFeatureCommand.play:
+        _playFromCurrentQueue();
+      case DesktopFeatureCommand.pause:
+        _pauseCurrentPlayback();
       case DesktopFeatureCommand.playPause:
         _togglePlayPauseFromCurrentQueue();
       case DesktopFeatureCommand.previous:
@@ -347,6 +351,14 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     if (nextPath != currentPath) {
       widget.onNavigate?.call(nextPath);
     }
+    unawaited(
+      _settingsController.saveDisplayModeState(
+        lastDisplayMode:
+            fullScreen
+                ? SmPlayerDisplayMode.fullScreen
+                : SmPlayerDisplayMode.normal,
+      ),
+    );
   }
 
   void _setDesktopWindowMaximized(bool maximized) {

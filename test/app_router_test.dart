@@ -125,6 +125,7 @@ void main() {
   test('restored page follows Electron restorable route list', () {
     expect(resolveRestoredPage('/recent'), '/recent');
     expect(resolveRestoredPage(' /local '), '/local');
+    expect(resolveRestoredPage('/local?path=Sub/Deep'), '/local');
     expect(resolveRestoredPage('/playlists/7'), '/songs');
     expect(resolveRestoredPage('/settings'), '/songs');
   });

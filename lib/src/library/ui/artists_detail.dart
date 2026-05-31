@@ -21,6 +21,7 @@ class _ArtistsDetail extends StatelessWidget {
     required this.onOpenSongContextMenu,
     required this.hasVisibleArtists,
     this.compact = false,
+    this.compactHeaderInAppBar = false,
     this.onReturnToArtistList,
   });
 
@@ -54,6 +55,7 @@ class _ArtistsDetail extends StatelessWidget {
   final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
   final bool hasVisibleArtists;
   final bool compact;
+  final bool compactHeaderInAppBar;
   final VoidCallback? onReturnToArtistList;
 
   @override
@@ -85,7 +87,9 @@ class _ArtistsDetail extends StatelessWidget {
               (album) => getEstimatedArtistAlbumHeight(album, compact: compact),
             )
             .toList();
-    final albumListOffsetTop = (compact ? 40.0 : 108.0) + albumListTopPadding;
+    final headerHeight = compact ? 40.0 : 108.0;
+    final albumListOffsetTop =
+        (compactHeaderInAppBar ? 0.0 : headerHeight) + albumListTopPadding;
     return ColoredBox(
       key: const ValueKey('Artists.DetailSurface'),
       color: _ArtistsColors.detailBackground(brightness),
@@ -114,32 +118,33 @@ class _ArtistsDetail extends StatelessWidget {
                   return CustomScrollView(
                     controller: scrollController,
                     slivers: [
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _ArtistDetailHeaderDelegate(
-                          height: compact ? 40 : 108,
-                          child: _ArtistDetailHeader(
-                            artist: artist,
-                            compact: compact,
-                            responsive: responsive,
-                            i18n: i18n,
-                            onReturnToArtistList: onReturnToArtistList,
-                            onPlaySongs: () {
-                              onPlaySongs(
-                                artist.songs.map((song) => song.id).toList(),
-                                artistName: artist.name,
-                              );
-                            },
-                            onOpenArtistMenu: (position) {
-                              onOpenArtistMenu(
-                                position,
-                                artist,
-                                showLocateArtist: true,
-                              );
-                            },
+                      if (!compactHeaderInAppBar)
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _ArtistDetailHeaderDelegate(
+                            height: headerHeight,
+                            child: _ArtistDetailHeader(
+                              artist: artist,
+                              compact: compact,
+                              responsive: responsive,
+                              i18n: i18n,
+                              onReturnToArtistList: onReturnToArtistList,
+                              onPlaySongs: () {
+                                onPlaySongs(
+                                  artist.songs.map((song) => song.id).toList(),
+                                  artistName: artist.name,
+                                );
+                              },
+                              onOpenArtistMenu: (position) {
+                                onOpenArtistMenu(
+                                  position,
+                                  artist,
+                                  showLocateArtist: true,
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
                       SliverToBoxAdapter(
                         child: SizedBox(
                           key: const ValueKey('Artists.AlbumList.TopPadding'),
@@ -272,109 +277,13 @@ class _ArtistDetailHeader extends StatelessWidget {
     if (compact) {
       return DecoratedBox(
         key: const ValueKey('Artists.DetailHeader'),
-        decoration: _ArtistsColors.detailHeaderDecoration(brightness),
-        child: ClipRect(
-          child: BackdropFilter(
-            key: const ValueKey('Artists.DetailHeader.Blur'),
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: ColorFiltered(
-              key: const ValueKey('Artists.DetailHeader.Saturate120'),
-              colorFilter: _artistsBackdropSaturate120,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      key: const ValueKey('Artists.DetailHeader.Back'),
-                      tooltip: i18n.t('sidebar.back'),
-                      icon: const Icon(
-                        FluentIcons.arrow_left_20_regular,
-                        size: 17,
-                      ),
-                      constraints: const BoxConstraints.tightFor(
-                        width: 32,
-                        height: 32,
-                      ),
-                      style: _artistHeaderActionButtonStyle(32, brightness),
-                      onPressed: onReturnToArtistList,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Transform.translate(
-                        offset: const Offset(0, -3),
-                        child: Text(
-                          key: const ValueKey('Artists.DetailHeader.Summary'),
-                          _formatArtistSummary(
-                            i18n,
-                            artist.albumCount,
-                            artist.songs.length,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: _ArtistsColors.textMutedFor(brightness),
-                            fontSize: 14,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(
-                      key: ValueKey('Artists.DetailHeader.CompactCommandGap'),
-                      width: 6,
-                    ),
-                    IconButton(
-                      key: const ValueKey('Artists.DetailHeader.Shuffle'),
-                      tooltip: i18n.t('nowPlaying.randomPlay'),
-                      icon: const Icon(
-                        FluentIcons.arrow_shuffle_20_regular,
-                        size: 17,
-                      ),
-                      constraints: const BoxConstraints.tightFor(
-                        width: 32,
-                        height: 32,
-                      ),
-                      style: _artistHeaderActionButtonStyle(32, brightness),
-                      onPressed: onPlaySongs,
-                    ),
-                    const SizedBox(width: 4),
-                    Builder(
-                      builder: (buttonContext) {
-                        return GestureDetector(
-                          onSecondaryTapDown: (details) {
-                            onOpenArtistMenu(details.globalPosition);
-                          },
-                          child: IconButton(
-                            key: const ValueKey('Artists.DetailHeader.More'),
-                            tooltip: i18n.t('player.more'),
-                            icon: const SmPlayerMoreHorizontalIcon(size: 17),
-                            constraints: const BoxConstraints.tightFor(
-                              width: 32,
-                              height: 32,
-                            ),
-                            style: _artistHeaderActionButtonStyle(
-                              32,
-                              brightness,
-                            ),
-                            onPressed: () {
-                              final button =
-                                  buttonContext.findRenderObject()!
-                                      as RenderBox;
-                              onOpenArtistMenu(
-                                button.localToGlobal(
-                                  Offset(0, button.size.height + 4),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        decoration: _ArtistsColors.compactDetailHeaderDecoration(brightness),
+        child: _ArtistDetailCompactCommandRow(
+          artist: artist,
+          i18n: i18n,
+          onReturnToArtistList: onReturnToArtistList,
+          onPlaySongs: onPlaySongs,
+          onOpenArtistMenu: onOpenArtistMenu,
         ),
       );
     }
@@ -443,10 +352,7 @@ class _ArtistDetailHeader extends StatelessWidget {
                       IconButton(
                         key: const ValueKey('Artists.DetailHeader.Shuffle'),
                         tooltip: i18n.t('nowPlaying.randomPlay'),
-                        icon: const Icon(
-                          FluentIcons.arrow_shuffle_20_regular,
-                          size: 20,
-                        ),
+                        icon: const ShuffleIcon(size: 20),
                         constraints: const BoxConstraints.tightFor(
                           width: 38,
                           height: 38,
@@ -494,6 +400,105 @@ class _ArtistDetailHeader extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ArtistDetailCompactCommandRow extends StatelessWidget {
+  const _ArtistDetailCompactCommandRow({
+    required this.artist,
+    required this.i18n,
+    required this.onReturnToArtistList,
+    required this.onPlaySongs,
+    required this.onOpenArtistMenu,
+  });
+
+  final ArtistGroup artist;
+  final SmPlayerI18n i18n;
+  final VoidCallback? onReturnToArtistList;
+  final VoidCallback onPlaySongs;
+  final ValueChanged<Offset> onOpenArtistMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
+      child: Row(
+        children: [
+          IconButton(
+            key: const ValueKey('Artists.DetailHeader.Back'),
+            tooltip: i18n.t('sidebar.back'),
+            icon: const Icon(FluentIcons.arrow_left_20_regular, size: 17),
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            style: _artistHeaderActionButtonStyle(32, brightness),
+            onPressed: onReturnToArtistList,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  key: const ValueKey('Artists.DetailHeader.Summary'),
+                  _formatArtistSummary(
+                    i18n,
+                    artist.albumCount,
+                    artist.songs.length,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _ArtistsColors.textMutedFor(brightness),
+                    fontSize: 14,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(
+            key: ValueKey('Artists.DetailHeader.CompactCommandGap'),
+            width: 6,
+          ),
+          IconButton(
+            key: const ValueKey('Artists.DetailHeader.Shuffle'),
+            tooltip: i18n.t('nowPlaying.randomPlay'),
+            icon: const ShuffleIcon(size: 17),
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            style: _artistHeaderActionButtonStyle(32, brightness),
+            onPressed: onPlaySongs,
+          ),
+          const SizedBox(width: 4),
+          Builder(
+            builder: (buttonContext) {
+              return GestureDetector(
+                onSecondaryTapDown: (details) {
+                  onOpenArtistMenu(details.globalPosition);
+                },
+                child: IconButton(
+                  key: const ValueKey('Artists.DetailHeader.More'),
+                  tooltip: i18n.t('player.more'),
+                  icon: const SmPlayerMoreHorizontalIcon(size: 17),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                  style: _artistHeaderActionButtonStyle(32, brightness),
+                  onPressed: () {
+                    final button =
+                        buttonContext.findRenderObject()! as RenderBox;
+                    onOpenArtistMenu(
+                      button.localToGlobal(Offset(0, button.size.height + 4)),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -869,10 +874,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
                     IconButton(
                       key: ValueKey('Artists.AlbumShuffle.${album.name}'),
                       tooltip: i18n.t('nowPlaying.randomPlay'),
-                      icon: Icon(
-                        FluentIcons.arrow_shuffle_20_regular,
-                        size: actionIconSize,
-                      ),
+                      icon: ShuffleIcon(size: actionIconSize),
                       constraints: BoxConstraints.tightFor(
                         width: actionButtonSize,
                         height: actionButtonSize,

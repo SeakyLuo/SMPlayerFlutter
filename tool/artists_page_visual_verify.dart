@@ -21,6 +21,7 @@ Future<void> main() async {
   final height = double.parse(Platform.environment['ARTISTS_VERIFY_HEIGHT']!);
   final brightnessName = Platform.environment['ARTISTS_VERIFY_BRIGHTNESS']!;
   final navMinimal = Platform.environment['ARTISTS_VERIFY_NAV_MINIMAL'] == '1';
+  final targetArtistName = Platform.environment['ARTISTS_VERIFY_TARGET_ARTIST'];
   final brightness =
       brightnessName == 'dark' ? Brightness.dark : Brightness.light;
   await windowManager.setTitle('SMPlayer Artists Verify');
@@ -32,6 +33,7 @@ Future<void> main() async {
       width: width,
       brightness: brightness,
       navMinimal: navMinimal,
+      targetArtistName: targetArtistName,
     ),
   );
 }
@@ -41,11 +43,13 @@ class _ArtistsVerifyApp extends StatefulWidget {
     required this.width,
     required this.brightness,
     required this.navMinimal,
+    required this.targetArtistName,
   });
 
   final double width;
   final Brightness brightness;
   final bool navMinimal;
+  final String? targetArtistName;
 
   @override
   State<_ArtistsVerifyApp> createState() => _ArtistsVerifyAppState();
@@ -86,7 +90,7 @@ class _ArtistsVerifyAppState extends State<_ArtistsVerifyApp> {
   Widget build(BuildContext context) {
     final artistsPage = WorkspaceNavigationAppBarScope(
       active: widget.navMinimal,
-      child: const ArtistsPage(),
+      child: ArtistsPage(targetArtistName: widget.targetArtistName),
     );
     return ProviderScope(
       overrides: [
@@ -113,7 +117,7 @@ class _ArtistsVerifyAppState extends State<_ArtistsVerifyApp> {
                     widget.navMinimal
                         ? Column(
                           children: [
-                            const SizedBox(height: 80),
+                            const _ArtistsVerifyAppBar(),
                             Expanded(child: artistsPage),
                           ],
                         )
@@ -121,6 +125,81 @@ class _ArtistsVerifyAppState extends State<_ArtistsVerifyApp> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtistsVerifyAppBar extends ConsumerWidget {
+  const _ArtistsVerifyAppBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entry = ref.watch(workspaceAppBarPortalProvider);
+    final brightness = Theme.of(context).brightness;
+    final foreground =
+        brightness == Brightness.dark
+            ? const Color(0xfff6f9fc)
+            : const Color(0xff111827);
+    final background =
+        brightness == Brightness.dark
+            ? const Color(0xff0f1318)
+            : const Color(0xfff8fbfe);
+    final height = entry?.bottomContent == null ? 40.0 : 80.0;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        boxShadow:
+            entry?.bottomContent == null
+                ? null
+                : [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: brightness == Brightness.dark ? 0.18 : 0.06,
+                    ),
+                    offset: const Offset(0, 8),
+                    blurRadius: 18,
+                  ),
+                ],
+      ),
+      child: SizedBox(
+        height: height,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 40,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, right: 14),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Icon(Icons.menu, size: 24, color: foreground),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        entry?.title ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(width: 40, height: 40, child: entry?.content),
+                  ],
+                ),
+              ),
+            ),
+            if (entry?.bottomContent case final bottom?)
+              SizedBox(height: 40, child: bottom),
+          ],
         ),
       ),
     );

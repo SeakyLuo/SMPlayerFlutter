@@ -33,6 +33,10 @@ final libraryContentDataProvider = FutureProvider<LibraryContentData>((
   return ref.watch(libraryRepositoryProvider).getLibraryContentData();
 });
 
+final nowPlayingQueueOverrideProvider = StateProvider<List<int>?>((ref) {
+  return null;
+});
+
 void invalidateRecentSearchData(WidgetRef ref) {
   ref.invalidate(libraryContentDataProvider);
   ref.invalidate(recentPageDataProvider);

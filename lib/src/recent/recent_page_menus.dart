@@ -297,7 +297,7 @@ extension _RecentPageMenus on _RecentPageState {
         MenuFlyoutItem(
           key: 'shuffle',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           onPressed: () {
             _recordRecentCollectionPlayed(
               (repository) => repository.recordArtistPlayed(artist.name),

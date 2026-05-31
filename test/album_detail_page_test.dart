@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +15,8 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 void main() {
@@ -264,6 +268,7 @@ void main() {
       tester.getSize(find.byType(HeaderedPlaylistCover)),
       const Size(180, 180),
     );
+    expect(tester.getTopLeft(find.byType(HeaderedPlaylistCover)).dy, 72);
     final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
     expect(tester.getSize(firstRow), const Size(696, 86));
     expect(
@@ -598,42 +603,40 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Album detail compact appbar portal keeps Electron page title empty',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(700, 800);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('Album detail compact appbar portal publishes collapsed title', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      await tester.pumpWidget(
-        _HeaderedPlaylistTestApp(
-          i18n: i18n,
-          type: HeaderedPlaylistType.album,
-          title: 'Blue Hour',
-          showPortalProbe: true,
-          songCount: 12,
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: i18n,
+        type: HeaderedPlaylistType.album,
+        title: 'Blue Hour',
+        showPortalProbe: true,
+        songCount: 12,
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.drag(
-        find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
-        const Offset(0, -180),
-      );
-      await tester.pump();
-      await tester.pump();
+    await tester.drag(
+      find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+      const Offset(0, -180),
+    );
+    await tester.pump();
+    await tester.pump();
 
-      expect(
-        find.byKey(const ValueKey('HeaderedPlaylist.PortalProbe')),
-        findsOneWidget,
-      );
-      expect(find.text('portal:'), findsOneWidget);
-      expect(find.text('portal:Blue Hour'), findsNothing);
-    },
-  );
+    expect(
+      find.byKey(const ValueKey('HeaderedPlaylist.PortalProbe')),
+      findsOneWidget,
+    );
+    expect(find.text('portal:Blue Hour'), findsOneWidget);
+  });
 
   testWidgets(
     'HeaderedPlaylistControl header starts desktop drag outside buttons',
@@ -935,16 +938,45 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Blue Song'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
     expect(repository.replacedNowPlaying, [1]);
     expect(repository.recordedAlbums, isEmpty);
 
     await tester.tap(find.text('Shuffle'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
     expect(repository.recordedAlbums, ['Blue Hour']);
   });
+
+  testWidgets(
+    'AlbumDetailPage shuffle starts playback before queue write settles',
+    (tester) async {
+      final repository = _DelayedReplaceLibraryRepository();
+      final mediaController = MediaControlController();
+
+      await tester.pumpWidget(
+        _AlbumDetailTestApp(
+          repository: repository,
+          mediaController: mediaController,
+          i18n: i18n,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Shuffle'));
+      await tester.pump();
+
+      expect(repository.pendingReplaceSongIds, isNotEmpty);
+      expect(mediaController.state.track.id, isNotNull);
+      expect(mediaController.state.isPlaying, isTrue);
+
+      repository.completeReplace();
+      await tester.pump();
+    },
+  );
 
   testWidgets('AlbumDetailPage renders Electron not found state', (
     tester,
@@ -993,12 +1025,14 @@ class _AlbumDetailTestApp extends StatelessWidget {
   const _AlbumDetailTestApp({
     required this.i18n,
     this.repository,
+    this.mediaController,
     this.albumName = 'Blue Hour',
     this.snapshot = _snapshot,
   });
 
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
+  final MediaControlController? mediaController;
   final String albumName;
   final LibraryContentData snapshot;
 
@@ -1010,6 +1044,10 @@ class _AlbumDetailTestApp extends StatelessWidget {
         libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
+        if (mediaController != null)
+          mediaControlControllerProvider.overrideWith(
+            (ref) => mediaController!,
+          ),
       ],
       child: MaterialApp(
         theme: ThemeData(
@@ -1244,6 +1282,23 @@ class _FakeLibraryRepository extends LibraryRepository {
           source: SongArtworkSource.none,
         ),
     ];
+  }
+}
+
+class _DelayedReplaceLibraryRepository extends _FakeLibraryRepository {
+  Completer<void>? _replaceCompleter;
+  List<int> pendingReplaceSongIds = [];
+
+  @override
+  Future<void> replaceNowPlaying(List<int> songIds) async {
+    pendingReplaceSongIds = songIds.toList();
+    _replaceCompleter = Completer<void>();
+    await _replaceCompleter!.future;
+    await super.replaceNowPlaying(songIds);
+  }
+
+  void completeReplace() {
+    _replaceCompleter!.complete();
   }
 }
 

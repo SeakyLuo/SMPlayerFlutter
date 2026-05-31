@@ -61,9 +61,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    clearWorkspaceAppBarPortalOwnerAfterDispose(
+      _appBarPortalNotifier,
+      _appBarPortalOwner,
+    );
   }
 
   void _syncAppBarPortal({
@@ -149,7 +150,14 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .map((songId) => songsById[songId])
             .whereType<LibrarySong>()
             .toList();
-    final mediaControl = ref.watch(mediaControlControllerProvider).state;
+    final mediaControl = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
     final artworkUrl =
         songs
             .where((song) => song.thumbnailPath.isNotEmpty)
@@ -169,7 +177,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         title: selectedPlaylist.name,
         headerSongs: songs,
         songs: songs,
-        selectedTrackId: mediaControl.track.id,
+        selectedTrackId: mediaControl.trackId,
         isPlaying: mediaControl.isPlaying,
         playlists: snapshot.playlists,
         favoritePlaylistId: snapshot.favoritePlaylistId,
@@ -823,7 +831,9 @@ void _playTrack(
 ) {
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final song = songsById[trackId]!;
-  ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+  unawaited(
+    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  );
   ref
       .read(mediaControlControllerProvider)
       .playTrack(
@@ -831,7 +841,6 @@ void _playTrack(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueSongIds.indexOf(trackId),
       );
-  ref.invalidate(libraryContentDataProvider);
 }
 
 void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {

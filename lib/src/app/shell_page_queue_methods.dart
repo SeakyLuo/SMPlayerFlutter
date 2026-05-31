@@ -4,6 +4,8 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   void _playSongQueue(List<LibrarySong> songs) {
     final songIds = songs.map((song) => song.id).toList();
     final firstSong = songs.first;
+    _playbackQueueOverride = songIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
     ref.invalidate(libraryContentDataProvider);
     _mediaControlController.playTrack(
@@ -91,6 +93,8 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       playbackSongIds,
       _mediaControlController.state.track.id,
     );
+    _playbackQueueOverride = nextSongIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
@@ -99,6 +103,13 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   }
 
   List<int> _playbackSongIds(LibraryContentData snapshot) {
+    final override = _playbackQueueOverride;
+    if (override != null) {
+      return normalizePlaybackQueueSongIds(
+        override,
+        snapshot.songs.map((song) => song.id),
+      );
+    }
     return normalizePlaybackQueueSongIds(
       snapshot.nowPlaying.songIds,
       snapshot.songs.map((song) => song.id),
@@ -173,6 +184,8 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     final repository = ref.read(libraryRepositoryProvider);
     await repository.recordPlaylistPlayed(playlistId);
     await repository.replaceNowPlaying(songIds);
+    _playbackQueueOverride = songIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     _mediaControlController.playTrack(
       mediaControlTrackForSong(firstSong, i18n),
       durationSeconds: firstSong.duration.toDouble(),

@@ -315,6 +315,35 @@ class LibrarySettingsService {
     }
   }
 
+  Future<void> saveDisplayModeState(
+    File databaseFile, {
+    required settings.SmPlayerDisplayMode lastDisplayMode,
+  }) async {
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute(
+        '''
+        UPDATE Settings
+        SET
+          LastDisplayMode = ?
+        WHERE Id = (
+          SELECT Id
+          FROM Settings
+          ORDER BY Id DESC
+          LIMIT 1
+        )
+      ''',
+        [_displayModeValue(lastDisplayMode)],
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
   settings.SettingsSnapshot settingsSnapshotFromRow(Row row) {
     final notificationSend = _notificationSendFromValue(
       row['NotificationSend'] as int,
@@ -357,6 +386,7 @@ class LibrarySettingsService {
       desktopLyricsBounds: row['DesktopLyricsBounds'] as String,
       mainWindowBounds: row['MainWindowBounds'] as String,
       mainWindowMaximized: (row['MainWindowMaximized'] as int) != 0,
+      lastDisplayMode: _displayModeFromValue(row['LastDisplayMode'] as int),
       preferredLanguage: _preferredLanguageFromValue(
         row['VoiceAssistantPreferredLanguage'] as int,
       ),
@@ -454,6 +484,24 @@ int _notificationDisplayValue(settings.NotificationDisplayMode mode) {
     settings.NotificationDisplayMode.reminder => 0,
     settings.NotificationDisplayMode.normal => 1,
     settings.NotificationDisplayMode.quick => 2,
+  };
+}
+
+settings.SmPlayerDisplayMode _displayModeFromValue(int value) {
+  return switch (value) {
+    1 => settings.SmPlayerDisplayMode.mini,
+    2 => settings.SmPlayerDisplayMode.fullScreen,
+    3 => settings.SmPlayerDisplayMode.immersive,
+    _ => settings.SmPlayerDisplayMode.normal,
+  };
+}
+
+int _displayModeValue(settings.SmPlayerDisplayMode mode) {
+  return switch (mode) {
+    settings.SmPlayerDisplayMode.normal => 0,
+    settings.SmPlayerDisplayMode.mini => 1,
+    settings.SmPlayerDisplayMode.fullScreen => 2,
+    settings.SmPlayerDisplayMode.immersive => 3,
   };
 }
 

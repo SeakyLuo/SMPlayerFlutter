@@ -71,6 +71,18 @@ void main() {
 
   test('desktop lyrics commands mirror Electron window command types', () {
     expect(
+      desktopFeatureCommandFromPlatform('play'),
+      DesktopFeatureCommand.play,
+    );
+    expect(
+      desktopFeatureCommandFromPlatform('pause'),
+      DesktopFeatureCommand.pause,
+    );
+    expect(
+      desktopFeatureCommandFromPlatform('play-pause'),
+      DesktopFeatureCommand.playPause,
+    );
+    expect(
       desktopFeatureCommandFromPlatform('show-window'),
       DesktopFeatureCommand.showWindow,
     );

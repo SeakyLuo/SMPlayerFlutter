@@ -3,11 +3,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
@@ -81,6 +83,79 @@ void main() {
     expect(find.byKey(const ValueKey('second-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('CommandBar.MoreButton')), findsNothing);
   });
+
+  testWidgets(
+    'CommandBar intrinsic content leaves remaining width to actions',
+    (tester) async {
+      tester.view.physicalSize = const Size(2000, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 1800,
+                child: CommandBar(
+                  contentSizing: CommandBarContentSizing.intrinsic,
+                  overflowLabel: 'More',
+                  content: const Text('2 folders, 8 songs'),
+                  children: [
+                    CommandBarButton(
+                      key: const ValueKey('random-play-button'),
+                      icon: FluentIcons.arrow_shuffle_24_regular,
+                      label: 'Random Play',
+                      onPressed: () {},
+                    ),
+                    CommandBarButton(
+                      key: const ValueKey('update-folder-button'),
+                      icon: FluentIcons.arrow_sync_24_regular,
+                      label: 'Update Folder',
+                      onPressed: () {},
+                    ),
+                    CommandBarButton(
+                      key: const ValueKey('sort-button'),
+                      icon: FluentIcons.arrow_sort_24_regular,
+                      label: 'Sort',
+                      onPressed: () {},
+                    ),
+                    CommandBarButton(
+                      key: const ValueKey('new-folder-button'),
+                      icon: FluentIcons.add_24_regular,
+                      label: 'New Folder',
+                      onPressed: () {},
+                    ),
+                    CommandBarButton(
+                      key: const ValueKey('multi-select-button'),
+                      icon: FluentIcons.multiselect_ltr_24_regular,
+                      label: 'Multi Select',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('random-play-button')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('update-folder-button')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('sort-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('new-folder-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('multi-select-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('CommandBar.MoreButton')), findsNothing);
+    },
+  );
 
   testWidgets(
     'CommandBar standard text buttons use the shared text icon button',
@@ -194,6 +269,92 @@ void main() {
     expect(textButton.fontVariations, const [FontVariation.weight(650)]);
   });
 
+  testWidgets('CommandBar appbar hover mirrors Electron narrow appbar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommandBar(
+            style: CommandBarStyleVariant.appBar,
+            children: [
+              CommandBarButton(
+                key: const ValueKey('appbar-action'),
+                icon: FluentIcons.search_20_regular,
+                label: 'Search',
+                showLabel: false,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('appbar-action'));
+    expect(_textIconButtonDecoration(tester, button).color, Colors.transparent);
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(button),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, button);
+    expect(hoverDecoration.color, CommandBarColors.appBarHover);
+    expect(
+      _textIconButtonIconColor(tester, button),
+      CommandBarColors.appBarHoverForeground,
+    );
+  });
+
+  testWidgets('CommandBar appbar night hover mirrors Electron narrow appbar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          extensions: const [SmPlayerTextIconButtonColors.night],
+        ),
+        home: Scaffold(
+          body: CommandBar(
+            style: CommandBarStyleVariant.appBar,
+            children: [
+              CommandBarButton(
+                key: const ValueKey('appbar-action'),
+                icon: FluentIcons.search_20_regular,
+                label: 'Search',
+                showLabel: false,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('appbar-action'));
+    expect(_textIconButtonDecoration(tester, button).color, Colors.transparent);
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(button),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, button);
+    expect(hoverDecoration.color, CommandBarColors.appBarHoverDark);
+    expect(
+      _textIconButtonIconColor(tester, button),
+      CommandBarColors.appBarHoverForegroundDark,
+    );
+  });
+
   testWidgets('SmPlayerTextIconButton does not render a box shadow', (
     tester,
   ) async {
@@ -217,6 +378,144 @@ void main() {
     );
     final decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.boxShadow, isNull);
+  });
+
+  testWidgets(
+    'SmPlayerTextIconButton default hover mirrors Electron accent hover',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmPlayerTextIconButton(
+              key: const ValueKey('text-icon-button'),
+              icon: FluentIcons.folder_24_regular,
+              label: 'Play',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      final button = find.byKey(const ValueKey('text-icon-button'));
+      expect(
+        _textIconButtonDecoration(tester, button).color,
+        SmPlayerTextIconButtonColors.day.control,
+      );
+
+      tester.binding.handlePointerEvent(
+        PointerHoverEvent(
+          kind: PointerDeviceKind.mouse,
+          position: tester.getCenter(button),
+        ),
+      );
+      await tester.pump();
+
+      final hoverDecoration = _textIconButtonDecoration(tester, button);
+      expect(
+        hoverDecoration.color,
+        SmPlayerTextIconButtonColors.day.controlHover,
+      );
+      expect(
+        hoverDecoration.border,
+        Border.all(color: SmPlayerTextIconButtonColors.day.controlHoverBorder),
+      );
+      expect(
+        _textIconButtonIconColor(tester, button),
+        SmPlayerTextIconButtonColors.day.commandTextHover,
+      );
+    },
+  );
+
+  testWidgets('CommandBar text button hover matches settings buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommandBar(
+            children: [
+              CommandBarButton(
+                key: const ValueKey('commandbar-play'),
+                icon: FluentIcons.folder_24_regular,
+                label: 'Play',
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('commandbar-play'));
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(button),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, button);
+    expect(
+      hoverDecoration.color,
+      SmPlayerTextIconButtonColors.day.controlHover,
+    );
+    expect(
+      hoverDecoration.border,
+      Border.all(color: SmPlayerTextIconButtonColors.day.controlHoverBorder),
+    );
+    expect(
+      _textIconButtonIconColor(tester, button),
+      SmPlayerTextIconButtonColors.day.commandTextHover,
+    );
+  });
+
+  testWidgets('CommandBar text button night hover matches settings buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          extensions: const [SmPlayerTextIconButtonColors.night],
+        ),
+        home: Scaffold(
+          body: CommandBar(
+            children: [
+              CommandBarButton(
+                key: const ValueKey('commandbar-play'),
+                icon: FluentIcons.folder_24_regular,
+                label: 'Play',
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('commandbar-play'));
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(button),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, button);
+    expect(
+      hoverDecoration.color,
+      SmPlayerTextIconButtonColors.night.controlHover,
+    );
+    expect(
+      hoverDecoration.border,
+      Border.all(color: SmPlayerTextIconButtonColors.night.controlHoverBorder),
+    );
+    expect(
+      _textIconButtonIconColor(tester, button),
+      SmPlayerTextIconButtonColors.night.commandTextHover,
+    );
   });
 
   testWidgets('CommandBar moves rightmost overflowable buttons into More', (
@@ -431,6 +730,41 @@ void main() {
     expect(selected, 'mix');
   });
 
+  testWidgets('MenuFlyout uses liquid glass background', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'library',
+                        text: 'Library',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('MenuFlyout.GlassPanel')), findsOneWidget);
+    expect(find.byType(GlassContainer), findsOneWidget);
+    expect(find.text('Library'), findsOneWidget);
+  });
+
   testWidgets('MenuFlyout uses the AlbumsPage uniform multi-select icon', (
     tester,
   ) async {
@@ -643,6 +977,13 @@ void main() {
   testWidgets('MenuFlyout submenu does not scroll when all items fit', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(320, 160);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -659,7 +1000,7 @@ void main() {
                         key: 'parent',
                         text: 'Parent',
                         submenu: [
-                          for (var index = 0; index < 3; index += 1)
+                          for (var index = 0; index < 4; index += 1)
                             MenuFlyoutItem(
                               key: 'submenu-item-$index',
                               text: 'Submenu Item $index',
@@ -925,4 +1266,30 @@ void main() {
       );
     },
   );
+}
+
+BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
+  return tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: scope, matching: find.byType(DecoratedBox)),
+          )
+          .firstWhere((box) => box.decoration is BoxDecoration)
+          .decoration
+      as BoxDecoration;
+}
+
+Color? _textIconButtonIconColor(WidgetTester tester, Finder scope) {
+  final icons = tester.widgetList<Icon>(
+    find.descendant(of: scope, matching: find.byType(Icon)),
+  );
+  if (icons.isNotEmpty) {
+    return icons.first.color;
+  }
+  return tester
+      .widgetList<IconTheme>(
+        find.descendant(of: scope, matching: find.byType(IconTheme)),
+      )
+      .last
+      .data
+      .color;
 }

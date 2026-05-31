@@ -129,9 +129,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   }
 
   void _clearAppBarPortalOwner() {
-    if (_appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-      _appBarPortalNotifier.state = null;
-    }
+    clearWorkspaceAppBarPortalOwnerAfterDispose(
+      _appBarPortalNotifier,
+      _appBarPortalOwner,
+    );
   }
 
   void _syncAppBarPortal({
@@ -935,7 +936,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         MenuFlyoutItem(
           key: 'shuffle',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           onPressed: () {
             _playSongIds(selectedSongIds, shuffle: true);
           },

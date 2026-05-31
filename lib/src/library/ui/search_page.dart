@@ -76,9 +76,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       workspaceAppBarPortalProvider.notifier,
     );
     _clearAppBarPortalOwner = () {
-      if (appBarPortalNotifier.state?.owner == _appBarPortalOwner) {
-        appBarPortalNotifier.state = null;
-      }
+      clearWorkspaceAppBarPortalOwnerAfterDispose(
+        appBarPortalNotifier,
+        _appBarPortalOwner,
+      );
     };
     _settingsController = SettingsController(
       null,
@@ -1793,7 +1794,7 @@ class _SearchResultSection extends StatelessWidget {
         MenuFlyoutItem(
           key: 'shuffle',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           onPressed: () {
             onPlayCard(card);
           },

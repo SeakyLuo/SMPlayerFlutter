@@ -1,4 +1,5 @@
 import Cocoa
+import Carbon.HIToolbox
 import FlutterMacOS
 import MediaPlayer
 import UserNotifications
@@ -7,10 +8,16 @@ import WebKit
 class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
   private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
   private static let mainWindowMinimumSize = NSSize(width: 506, height: 840)
+  private static let functionPlaybackHotKeySignature: OSType = 0x534D504C
+  private static let systemDefinedCGEventTypeRawValue: UInt32 = 14
 
   private var desktopFeatureChannel: FlutterMethodChannel?
   private var globalMediaEventMonitor: Any?
   private var localMediaEventMonitor: Any?
+  private var mediaKeyEventTap: CFMachPort?
+  private var mediaKeyEventTapRunLoopSource: CFRunLoopSource?
+  private var functionPlaybackHotKeyHandler: EventHandlerRef?
+  private var functionPlaybackHotKeyRefs: [EventHotKeyRef] = []
   private var externalOpenObserver: NSObjectProtocol?
   private var desktopLyricsPanel: NSPanel?
   private var desktopLyricsView: DesktopLyricsNativeView?
@@ -21,6 +28,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
 
   override func awakeFromNib() {
     configureIntegratedTitlebar()
+    acceptsMouseMovedEvents = true
     minSize = Self.mainWindowMinimumSize
     setFrameAutosaveName(Self.mainWindowFrameAutosaveName)
     let flutterViewController = FlutterViewController()
@@ -38,6 +46,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     SmPlayerExternalFileAccessStore.shared.restoreAccess()
     restoreSecurityScopedDirectoryAccess()
     installMediaKeyMonitor()
+    installFunctionPlaybackHotKeys()
     installExternalOpenObserver()
 
     super.awakeFromNib()
@@ -56,6 +65,18 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     }
     if let localMediaEventMonitor = localMediaEventMonitor {
       NSEvent.removeMonitor(localMediaEventMonitor)
+    }
+    if let mediaKeyEventTapRunLoopSource = mediaKeyEventTapRunLoopSource {
+      CFRunLoopRemoveSource(CFRunLoopGetMain(), mediaKeyEventTapRunLoopSource, .commonModes)
+    }
+    if let mediaKeyEventTap = mediaKeyEventTap {
+      CFMachPortInvalidate(mediaKeyEventTap)
+    }
+    for hotKeyRef in functionPlaybackHotKeyRefs {
+      UnregisterEventHotKey(hotKeyRef)
+    }
+    if let functionPlaybackHotKeyHandler = functionPlaybackHotKeyHandler {
+      RemoveEventHandler(functionPlaybackHotKeyHandler)
     }
     if let externalOpenObserver = externalOpenObserver {
       NotificationCenter.default.removeObserver(externalOpenObserver)
@@ -89,39 +110,183 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   }
 
   private func installMediaKeyMonitor() {
+    installMediaKeyEventTap()
     globalMediaEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .systemDefined) {
       [weak self] event in
-      self?.handleSystemDefinedEvent(event)
+      _ = self?.handleSystemDefinedEvent(event)
     }
-    localMediaEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) {
+    localMediaEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .systemDefined]) {
       [weak self] event in
-      self?.handleSystemDefinedEvent(event)
-      return event
+      return self?.handlePlaybackKeyEvent(event) == true ? nil : event
     }
   }
 
-  private func handleSystemDefinedEvent(_ event: NSEvent) {
-    if event.subtype.rawValue != 8 {
+  private func installMediaKeyEventTap() {
+    let eventMask = CGEventMask(1) << Self.systemDefinedCGEventTypeRawValue
+    guard let eventTap = CGEvent.tapCreate(
+      tap: .cgSessionEventTap,
+      place: .headInsertEventTap,
+      options: .defaultTap,
+      eventsOfInterest: eventMask,
+      callback: { _, type, event, userInfo in
+        guard let userInfo else {
+          return Unmanaged.passUnretained(event)
+        }
+        let window = Unmanaged<MainFlutterWindow>
+          .fromOpaque(userInfo)
+          .takeUnretainedValue()
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+          if let mediaKeyEventTap = window.mediaKeyEventTap {
+            CGEvent.tapEnable(tap: mediaKeyEventTap, enable: true)
+          }
+          return Unmanaged.passUnretained(event)
+        }
+        if type.rawValue != MainFlutterWindow.systemDefinedCGEventTypeRawValue {
+          return Unmanaged.passUnretained(event)
+        }
+        if window.handleSystemDefinedCGEvent(event) {
+          return nil
+        }
+        return Unmanaged.passUnretained(event)
+      },
+      userInfo: Unmanaged.passUnretained(self).toOpaque())
+    else {
       return
+    }
+    mediaKeyEventTap = eventTap
+    mediaKeyEventTapRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
+    if let mediaKeyEventTapRunLoopSource = mediaKeyEventTapRunLoopSource {
+      CFRunLoopAddSource(CFRunLoopGetMain(), mediaKeyEventTapRunLoopSource, .commonModes)
+    }
+    CGEvent.tapEnable(tap: eventTap, enable: true)
+  }
+
+  override func sendEvent(_ event: NSEvent) {
+    if handlePlaybackKeyEvent(event) {
+      return
+    }
+    super.sendEvent(event)
+  }
+
+  private func handlePlaybackKeyEvent(_ event: NSEvent) -> Bool {
+    if handleFunctionPlaybackKey(event) {
+      return true
+    }
+    return handleSystemDefinedEvent(event)
+  }
+
+  private func handleFunctionPlaybackKey(_ event: NSEvent) -> Bool {
+    guard event.type == .keyDown else { return false }
+    switch event.keyCode {
+    case 98:
+      sendDesktopCommand("previous")
+      return true
+    case 100:
+      sendDesktopCommand("play-pause")
+      return true
+    case 101:
+      sendDesktopCommand("next")
+      return true
+    default:
+      return false
+    }
+  }
+
+  private func installFunctionPlaybackHotKeys() {
+    var eventSpec = EventTypeSpec(
+      eventClass: OSType(kEventClassKeyboard),
+      eventKind: UInt32(kEventHotKeyPressed))
+    InstallEventHandler(
+      GetApplicationEventTarget(),
+      { _, event, userData in
+        guard let event, let userData else {
+          return noErr
+        }
+        var hotKeyID = EventHotKeyID()
+        let status = GetEventParameter(
+          event,
+          EventParamName(kEventParamDirectObject),
+          EventParamType(typeEventHotKeyID),
+          nil,
+          MemoryLayout<EventHotKeyID>.size,
+          nil,
+          &hotKeyID)
+        if status != noErr {
+          return status
+        }
+        let window = Unmanaged<MainFlutterWindow>
+          .fromOpaque(userData)
+          .takeUnretainedValue()
+        switch hotKeyID.id {
+        case 1:
+          window.sendDesktopCommand("previous")
+        case 2:
+          window.sendDesktopCommand("play-pause")
+        case 3:
+          window.sendDesktopCommand("next")
+        default:
+          break
+        }
+        return noErr
+      },
+      1,
+      &eventSpec,
+      Unmanaged.passUnretained(self).toOpaque(),
+      &functionPlaybackHotKeyHandler)
+
+    registerFunctionPlaybackHotKey(keyCode: UInt32(kVK_F7), id: 1)
+    registerFunctionPlaybackHotKey(keyCode: UInt32(kVK_F8), id: 2)
+    registerFunctionPlaybackHotKey(keyCode: UInt32(kVK_F9), id: 3)
+  }
+
+  private func registerFunctionPlaybackHotKey(keyCode: UInt32, id: UInt32) {
+    var hotKeyRef: EventHotKeyRef?
+    let hotKeyID = EventHotKeyID(signature: Self.functionPlaybackHotKeySignature, id: id)
+    let status = RegisterEventHotKey(
+      keyCode,
+      0,
+      hotKeyID,
+      GetApplicationEventTarget(),
+      0,
+      &hotKeyRef)
+    if status == noErr, let hotKeyRef {
+      functionPlaybackHotKeyRefs.append(hotKeyRef)
+    }
+  }
+
+  private func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {
+    if event.subtype.rawValue != 8 {
+      return false
     }
     let keyCode = (event.data1 & 0xffff0000) >> 16
     let keyState = (event.data1 & 0x0000ff00) >> 8
     if keyState != 0x0a {
-      return
+      return false
     }
 
     switch keyCode {
     case 16:
       sendDesktopCommand("play-pause")
+      return true
     case 17:
       sendDesktopCommand("next")
+      return true
     case 18:
       sendDesktopCommand("previous")
+      return true
     case 20:
       sendDesktopCommand("stop")
+      return true
     default:
-      break
+      return false
     }
+  }
+
+  private func handleSystemDefinedCGEvent(_ event: CGEvent) -> Bool {
+    guard let nsEvent = NSEvent(cgEvent: event) else {
+      return false
+    }
+    return handleSystemDefinedEvent(nsEvent)
   }
 
   private func sendDesktopCommand(_ command: String) {
@@ -422,14 +587,18 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     installMediaSessionCommandCenter()
     guard (state["active"] as? Bool) == true else {
       MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      MPNowPlayingInfoCenter.default().playbackState = .stopped
       return
     }
 
+    let playing = (state["playing"] as? Bool) ?? false
     var info: [String: Any] = [
       MPMediaItemPropertyTitle: (state["title"] as? String) ?? "",
       MPMediaItemPropertyArtist: (state["artist"] as? String) ?? "",
       MPMediaItemPropertyAlbumTitle: (state["album"] as? String) ?? "",
-      MPNowPlayingInfoPropertyPlaybackRate: ((state["playing"] as? Bool) ?? false) ? 1.0 : 0.0,
+      MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+      MPNowPlayingInfoPropertyPlaybackRate: playing ? 1.0 : 0.0,
+      MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
       MPNowPlayingInfoPropertyElapsedPlaybackTime: (state["progressSeconds"] as? Double) ?? 0,
     ]
     let duration = (state["durationSeconds"] as? Double) ?? 0
@@ -444,6 +613,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       ) { _ in image }
     }
     MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    MPNowPlayingInfoCenter.default().playbackState = playing ? .playing : .paused
   }
 
   private func installMediaSessionCommandCenter() {
@@ -452,22 +622,37 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     }
     mediaSessionCommandsInstalled = true
     let commandCenter = MPRemoteCommandCenter.shared()
+    commandCenter.playCommand.isEnabled = true
     commandCenter.playCommand.addTarget { [weak self] _ in
-      self?.sendDesktopCommand("play-pause")
+      self?.sendDesktopCommand("play")
       return .success
     }
+    commandCenter.pauseCommand.isEnabled = true
     commandCenter.pauseCommand.addTarget { [weak self] _ in
+      self?.sendDesktopCommand("pause")
+      return .success
+    }
+    commandCenter.togglePlayPauseCommand.isEnabled = true
+    commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
       self?.sendDesktopCommand("play-pause")
       return .success
     }
+    commandCenter.stopCommand.isEnabled = true
+    commandCenter.stopCommand.addTarget { [weak self] _ in
+      self?.sendDesktopCommand("stop")
+      return .success
+    }
+    commandCenter.nextTrackCommand.isEnabled = true
     commandCenter.nextTrackCommand.addTarget { [weak self] _ in
       self?.sendDesktopCommand("next")
       return .success
     }
+    commandCenter.previousTrackCommand.isEnabled = true
     commandCenter.previousTrackCommand.addTarget { [weak self] _ in
       self?.sendDesktopCommand("previous")
       return .success
     }
+    commandCenter.changePlaybackPositionCommand.isEnabled = true
     commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
       guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
         return .commandFailed

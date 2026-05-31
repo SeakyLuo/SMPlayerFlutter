@@ -119,6 +119,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
       disabled: widget.disabled,
       onPressed: widget.onPressed,
       onHoldRelease: widget.onLongPress,
+      triggerHoldOnReady: !widget.showLongPressProgress,
       builder: (context, holdProgress) {
         return MouseRegion(
           cursor:
@@ -238,9 +239,12 @@ class _PlayerButtonIcon extends StatelessWidget {
     }
     if (icon == _listPlaybackIcon) {
       return CustomPaint(
-        painter: _PlaylistPlaybackModeIconPainter(color),
+        painter: _AppsListDetailIconPainter(color),
         size: Size.square(size),
       );
+    }
+    if (icon == _shuffleIcon) {
+      return ShuffleIcon(size: size * 0.75, color: color);
     }
     if (icon == _voiceIcon) {
       return CustomPaint(
@@ -263,6 +267,29 @@ class _PlayerButtonIcon extends StatelessWidget {
       );
     }
     return Icon(icon, color: color, size: size);
+  }
+}
+
+class MediaControlIconGlyph extends StatelessWidget {
+  const MediaControlIconGlyph({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.size,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PlayerButtonIcon(
+      icon: icon,
+      color: color,
+      size: size,
+      hidden: false,
+    );
   }
 }
 
@@ -543,8 +570,8 @@ class _FavoriteFilledIconPainter extends CustomPainter {
   }
 }
 
-class _PlaylistPlaybackModeIconPainter extends CustomPainter {
-  const _PlaylistPlaybackModeIconPainter(this.color);
+class _AppsListDetailIconPainter extends CustomPainter {
+  const _AppsListDetailIconPainter(this.color);
 
   final Color color;
 
@@ -555,48 +582,38 @@ class _PlaylistPlaybackModeIconPainter extends CustomPainter {
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.65 * scale
+          ..strokeWidth = 1.45 * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
 
+    for (final top in const [5.25, 10.15, 15.05]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(4.5 * scale, top * scale, 3.3 * scale, 3.3 * scale),
+          Radius.circular(0.7 * scale),
+        ),
+        paint,
+      );
+    }
     canvas.drawLine(
-      Offset(4 * scale, 6 * scale),
-      Offset(14 * scale, 6 * scale),
+      Offset(10.5 * scale, 6.9 * scale),
+      Offset(19.5 * scale, 6.9 * scale),
       paint,
     );
     canvas.drawLine(
-      Offset(4 * scale, 12 * scale),
-      Offset(13 * scale, 12 * scale),
+      Offset(10.5 * scale, 11.8 * scale),
+      Offset(18 * scale, 11.8 * scale),
       paint,
     );
     canvas.drawLine(
-      Offset(4 * scale, 18 * scale),
-      Offset(10 * scale, 18 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(17 * scale, 8 * scale),
-      Offset(17 * scale, 17 * scale),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(17 * scale, 8 * scale)
-        ..quadraticBezierTo(20.5 * scale, 9 * scale, 21 * scale, 6.5 * scale),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(15.4 * scale, 18.1 * scale),
-        width: 5.1 * scale,
-        height: 4.1 * scale,
-      ),
+      Offset(10.5 * scale, 16.7 * scale),
+      Offset(19.5 * scale, 16.7 * scale),
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(covariant _PlaylistPlaybackModeIconPainter oldDelegate) {
+  bool shouldRepaint(covariant _AppsListDetailIconPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

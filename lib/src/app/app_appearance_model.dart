@@ -8,6 +8,7 @@ import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -124,6 +125,9 @@ ThemeData buildSmPlayerTheme(
       resolvedBrightness == Brightness.dark
           ? HeaderedPlaylistThemeColors.night
           : HeaderedPlaylistThemeColors.day,
+      resolvedBrightness == Brightness.dark
+          ? LocalPageColors.night
+          : LocalPageColors.day,
     ],
     sliderTheme: SliderThemeData(
       activeTrackColor: accent,

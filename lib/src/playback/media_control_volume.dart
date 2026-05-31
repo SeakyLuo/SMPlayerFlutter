@@ -2,12 +2,14 @@ part of 'media_control.dart';
 
 enum VolumeSliderOrientation { horizontal, vertical }
 
+enum VolumeSliderVerticalTooltipSide { left, right }
+
 int clampVolumeValue(num value) => value.round().clamp(0, 100);
 
 const double _volumeSliderHorizontalHeight = 44;
 const double _volumeSliderVerticalHeight = 156;
 const double _volumeSliderVerticalTrackLength = 132;
-const double _mediaSliderTrackHeight = 1;
+const double _mediaSliderTrackHeight = 2;
 const double _mediaSliderThumbRadius = 8;
 const double _mediaSliderOverlayRadius = 10;
 const double _volumeSliderTooltipHorizontalTop = -18;
@@ -36,11 +38,26 @@ const IconData _nextIcon = FluentIcons.next_20_regular;
 const IconData _shuffleIcon = FluentIcons.arrow_shuffle_20_regular;
 const IconData _repeatIcon = FluentIcons.arrow_repeat_all_20_regular;
 const IconData _repeatOneIcon = FluentIcons.arrow_repeat_1_20_regular;
-const IconData _listPlaybackIcon = FluentIcons.music_note_2_24_regular;
+const IconData _listPlaybackIcon = FluentIcons.apps_list_detail_24_regular;
 const IconData _moreIcon = IconData(0xf003, fontFamily: 'SMPlayer');
 const IconData _voiceIcon = FluentIcons.mic_20_regular;
 const IconData _favoriteOutlineIcon = IconData(0xf001, fontFamily: 'SMPlayer');
 const IconData _favoriteFilledIcon = IconData(0xf002, fontFamily: 'SMPlayer');
+
+IconData get mediaControlPreviousIcon => _previousIcon;
+IconData get mediaControlNextIcon => _nextIcon;
+IconData get mediaControlPlayIcon => _playIcon;
+IconData get mediaControlPauseIcon => _pauseIcon;
+IconData get mediaControlQuickPlayIcon => _shuffleIcon;
+IconData get mediaControlVoiceIcon => _voiceIcon;
+
+IconData mediaControlPlaybackModeIcon(PlaybackMode mode) {
+  return _playbackModeIcon(mode);
+}
+
+IconData mediaControlFavoriteIcon(bool favorite) {
+  return favorite ? _favoriteFilledIcon : _favoriteOutlineIcon;
+}
 
 class VolumeSlider extends StatefulWidget {
   const VolumeSlider({
@@ -50,6 +67,12 @@ class VolumeSlider extends StatefulWidget {
     required this.onChange,
     this.orientation = VolumeSliderOrientation.horizontal,
     this.showTooltipOnMount = false,
+    this.verticalHeight = _volumeSliderVerticalHeight,
+    this.verticalTrackLength = _volumeSliderVerticalTrackLength,
+    this.trackHeight = _mediaSliderTrackHeight,
+    this.thumbRadius = _mediaSliderThumbRadius,
+    this.overlayRadius = _mediaSliderOverlayRadius,
+    this.verticalTooltipSide = VolumeSliderVerticalTooltipSide.right,
     this.activeTrackColor = MediaControlColors.accent,
     this.inactiveTrackColor = MediaControlColors.sliderInactive,
     this.thumbColor = MediaControlColors.accent,
@@ -63,6 +86,12 @@ class VolumeSlider extends StatefulWidget {
   final ValueChanged<int> onChange;
   final VolumeSliderOrientation orientation;
   final bool showTooltipOnMount;
+  final double verticalHeight;
+  final double verticalTrackLength;
+  final double trackHeight;
+  final double thumbRadius;
+  final double overlayRadius;
+  final VolumeSliderVerticalTooltipSide verticalTooltipSide;
   final Color activeTrackColor;
   final Color inactiveTrackColor;
   final Color thumbColor;
@@ -125,13 +154,13 @@ class _VolumeSliderState extends State<VolumeSlider> {
             : widget.inactiveTrackColor;
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: _mediaSliderTrackHeight,
+        trackHeight: widget.trackHeight,
         trackShape: const _MediaProgressTrackShape(),
-        thumbShape: const RoundSliderThumbShape(
-          enabledThumbRadius: _mediaSliderThumbRadius,
+        thumbShape: RoundSliderThumbShape(
+          enabledThumbRadius: widget.thumbRadius,
         ),
-        overlayShape: const RoundSliderOverlayShape(
-          overlayRadius: _mediaSliderOverlayRadius,
+        overlayShape: RoundSliderOverlayShape(
+          overlayRadius: widget.overlayRadius,
         ),
         activeTrackColor: widget.activeTrackColor,
         inactiveTrackColor: inactiveTrackColor,
@@ -180,7 +209,7 @@ class _VolumeSliderState extends State<VolumeSlider> {
     return SizedBox(
       height:
           widget.orientation == VolumeSliderOrientation.vertical
-              ? _volumeSliderVerticalHeight
+              ? widget.verticalHeight
               : _volumeSliderHorizontalHeight,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -192,7 +221,7 @@ class _VolumeSliderState extends State<VolumeSlider> {
                 RotatedBox(
                   quarterTurns: -1,
                   child: SizedBox(
-                    width: _volumeSliderVerticalTrackLength,
+                    width: widget.verticalTrackLength,
                     child: slider,
                   ),
                 )
@@ -203,6 +232,9 @@ class _VolumeSliderState extends State<VolumeSlider> {
                   value: value.round(),
                   orientation: widget.orientation,
                   sliderSize: constraints.biggest,
+                  verticalTrackLength: widget.verticalTrackLength,
+                  overlayRadius: widget.overlayRadius,
+                  verticalTooltipSide: widget.verticalTooltipSide,
                   backgroundColor: widget.tooltipBackgroundColor,
                   foregroundColor: widget.tooltipForegroundColor,
                 ),
@@ -261,6 +293,9 @@ class _VolumeSliderTooltip extends StatelessWidget {
     required this.value,
     required this.orientation,
     required this.sliderSize,
+    required this.verticalTrackLength,
+    required this.overlayRadius,
+    required this.verticalTooltipSide,
     required this.backgroundColor,
     required this.foregroundColor,
   });
@@ -268,6 +303,9 @@ class _VolumeSliderTooltip extends StatelessWidget {
   final int value;
   final VolumeSliderOrientation orientation;
   final Size sliderSize;
+  final double verticalTrackLength;
+  final double overlayRadius;
+  final VolumeSliderVerticalTooltipSide verticalTooltipSide;
   final Color backgroundColor;
   final Color foregroundColor;
 
@@ -295,13 +333,28 @@ class _VolumeSliderTooltip extends StatelessWidget {
     );
 
     if (orientation == VolumeSliderOrientation.vertical) {
-      final centerY = _volumeSliderVerticalThumbCenterY(value);
+      final centerY = _volumeSliderVerticalThumbCenterY(
+        value,
+        sliderSize.height,
+        verticalTrackLength,
+        overlayRadius,
+      );
+      final horizontalOffset =
+          verticalTooltipSide == VolumeSliderVerticalTooltipSide.left
+              ? sliderSize.width + _volumeSliderTooltipGap
+              : (sliderSize.width / 2) +
+                  overlayRadius +
+                  _volumeSliderTooltipGap;
       return Positioned(
         key: const ValueKey('VolumeSlider.TooltipPosition'),
         left:
-            (sliderSize.width / 2) +
-            _mediaSliderThumbRadius +
-            _volumeSliderTooltipGap,
+            verticalTooltipSide == VolumeSliderVerticalTooltipSide.right
+                ? horizontalOffset
+                : null,
+        right:
+            verticalTooltipSide == VolumeSliderVerticalTooltipSide.left
+                ? horizontalOffset
+                : null,
         top: centerY,
         child: FractionalTranslation(
           translation: const Offset(0, -0.5),
@@ -312,6 +365,7 @@ class _VolumeSliderTooltip extends StatelessWidget {
     final centerX = _volumeSliderHorizontalThumbCenterX(
       value,
       sliderSize.width,
+      overlayRadius,
     );
     return Positioned(
       key: const ValueKey('VolumeSlider.TooltipPosition'),
@@ -325,18 +379,24 @@ class _VolumeSliderTooltip extends StatelessWidget {
   }
 }
 
-double _volumeSliderHorizontalThumbCenterX(int value, double width) {
-  final trackWidth = max(0.0, width - (_mediaSliderOverlayRadius * 2));
-  return _mediaSliderOverlayRadius +
-      trackWidth * (clampVolumeValue(value) / 100);
+double _volumeSliderHorizontalThumbCenterX(
+  int value,
+  double width,
+  double overlayRadius,
+) {
+  final trackWidth = max(0.0, width - (overlayRadius * 2));
+  return overlayRadius + trackWidth * (clampVolumeValue(value) / 100);
 }
 
-double _volumeSliderVerticalThumbCenterY(int value) {
-  final trackHeight =
-      _volumeSliderVerticalTrackLength - (_mediaSliderOverlayRadius * 2);
-  final rotatedTrackTop =
-      (_volumeSliderVerticalHeight - _volumeSliderVerticalTrackLength) / 2;
+double _volumeSliderVerticalThumbCenterY(
+  int value,
+  double height,
+  double trackLength,
+  double overlayRadius,
+) {
+  final trackHeight = trackLength - (overlayRadius * 2);
+  final rotatedTrackTop = (height - trackLength) / 2;
   return rotatedTrackTop +
-      _mediaSliderOverlayRadius +
+      overlayRadius +
       trackHeight * (1 - clampVolumeValue(value) / 100);
 }

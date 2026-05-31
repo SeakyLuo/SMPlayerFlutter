@@ -25,6 +25,7 @@ void main() {
           selectedTrackId: 1,
           isPlaying: false,
           onPlay: (_) {},
+          onOpenSongMenu: (_, _) {},
           onApplyArtistSplits: (_) {},
           onDismissArtistSplitSuggestions: () {},
           onClose: () {},

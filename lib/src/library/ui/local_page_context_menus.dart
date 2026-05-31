@@ -117,7 +117,7 @@ extension _LocalPageContextMenus on _LocalPageState {
         MenuFlyoutItem(
           key: 'shuffle-folder',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           onPressed: () => _playShuffled(folder),
         ),
         if (addToItem != null) addToItem,
@@ -249,7 +249,7 @@ extension _LocalPageContextMenus on _LocalPageState {
         MenuFlyoutItem(
           key: 'chain-shuffle-folder',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           onPressed: () => _playShuffled(folder),
         ),
         if (addToItem != null) addToItem,

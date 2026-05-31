@@ -32,6 +32,7 @@ void main() {
     expect(snapshot.desktopLyricsBounds, '');
     expect(snapshot.mainWindowBounds, '');
     expect(snapshot.mainWindowMaximized, isFalse);
+    expect(snapshot.lastDisplayMode, SmPlayerDisplayMode.normal);
     expect(snapshot.preferredLanguage, PreferredLanguage.system);
     expect(snapshot.musicLibrarySort, MusicLibrarySortCriterion.title);
     expect(snapshot.albumsSort, AlbumSortCriterion.defaultCriterion);

@@ -80,7 +80,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
     this.appVersion,
     this.initialExternalFilePaths = const [],
     this.initialExternalCommands = const [],
-    @visibleForTesting this.initialMiniMode = false,
+    this.initialDisplayMode = SmPlayerDisplayMode.normal,
   });
 
   final Widget? child;
@@ -95,7 +95,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
   final String? appVersion;
   final List<String> initialExternalFilePaths;
   final List<ExternalAppCommand> initialExternalCommands;
-  final bool initialMiniMode;
+  final SmPlayerDisplayMode initialDisplayMode;
 
   @override
   ConsumerState<SmPlayerShellPage> createState() => _SmPlayerShellPageState();
@@ -115,9 +115,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   late final List<StreamSubscription<Object?>> _audioSubscriptions;
   var _isNavigationPaneOpen = true;
   var _isMinimalNavigationOpen = false;
-  late var _isMiniMode = widget.initialMiniMode;
+  late var _isMiniMode = widget.initialDisplayMode == SmPlayerDisplayMode.mini;
   var _isWindowVisible = true;
-  var _isWindowFullScreen = false;
+  late var _isWindowFullScreen =
+      widget.initialDisplayMode == SmPlayerDisplayMode.fullScreen;
   var _isWindowMaximized = false;
   var _syncingAudioPlayer = false;
   var _audioLoadSerial = 0;
@@ -125,6 +126,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _playbackRuntimeSettingsRestored = false;
   var _playbackTrackRestoreScheduled = false;
   var _playbackTrackRestored = false;
+  List<int>? _playbackQueueOverride;
   SmPlayerNavigationMode? _navigationMode;
   var _currentPath = '/songs';
   final _routeMemory = <String, String>{};
@@ -185,7 +187,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           settingsRepository: widget.settingsRepository,
         );
     unawaited(_desktopFeatureService.initialize(_handleDesktopFeatureAction));
-    unawaited(_restoreDesktopWindowFullScreenState());
+    if (_isMiniMode) {
+      unawaited(_desktopFeatureService.enterMiniMode());
+    } else if (widget.initialDisplayMode == SmPlayerDisplayMode.fullScreen) {
+      unawaited(_desktopFeatureService.setWindowFullScreen(true));
+    } else {
+      unawaited(_restoreDesktopWindowFullScreenState());
+    }
     unawaited(_restoreDesktopWindowMaximizedState());
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
     _restorePlaybackRuntimeSettings();
@@ -425,6 +433,63 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                 child: widget.child,
                               ),
                             ),
+                            if (isNowPlayingFullRoute)
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: AnimatedBuilder(
+                                    animation: _mediaControlController,
+                                    builder: (context, _) {
+                                      return Consumer(
+                                        builder: (context, ref, _) {
+                                          final snapshot =
+                                              ref
+                                                  .watch(
+                                                    libraryContentDataProvider,
+                                                  )
+                                                  .valueOrNull;
+                                          _scheduleRestorePlaybackTrack(
+                                            snapshot,
+                                          );
+                                          final mediaControlState =
+                                              _mediaControlController.state;
+                                          final currentSong =
+                                              _resolvePlayerSong(
+                                                mediaControlState,
+                                                snapshot,
+                                              );
+                                          _ensurePlayerArtworkResolved(
+                                            currentSong,
+                                            ref,
+                                          );
+                                          final recentSongs =
+                                              ref
+                                                  .watch(recentPageDataProvider)
+                                                  .valueOrNull
+                                                  ?.recentSongs ??
+                                              const <RecentLibrarySong>[];
+                                          final i18n =
+                                              ref
+                                                  .watch(smPlayerI18nProvider)
+                                                  .valueOrNull ??
+                                              const SmPlayerI18n(
+                                                locale: smPlayerFallbackLocale,
+                                                messages: {},
+                                              );
+                                          _syncDesktopFeatures(
+                                            i18n: i18n,
+                                            snapshot: snapshot,
+                                            recentSongs: recentSongs,
+                                            mediaControlState:
+                                                mediaControlState,
+                                            currentSong: currentSong,
+                                          );
+                                          return const SizedBox.shrink();
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
                             if (isNavigationOverlaySurface)
                               Positioned.fill(
                                 child: GestureDetector(
@@ -877,7 +942,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                                                       );
                                                     },
                                             onToggleWindowFullScreen: () {
-                                              _toggleNativeNowPlayingFullScreen();
+                                              _toggleDesktopWindowFullScreen();
                                             },
                                             isWindowFullScreen:
                                                 _isWindowFullScreen,

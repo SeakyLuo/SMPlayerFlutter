@@ -103,6 +103,7 @@ class _CompactArtistsPage extends StatelessWidget {
         multiSelect: multiSelect,
         selectedSongIds: selectedSongIds,
         compact: true,
+        compactHeaderInAppBar: navMinimal,
         i18n: i18n,
         onPlaySongs: onPlaySongs,
         onOpenArtistMenu: (position, artist, {required showLocateArtist}) {
@@ -184,51 +185,63 @@ class _CompactArtistsPage extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Positioned.fill(
-                            right: 0,
-                            child: ListView.builder(
-                              key: const ValueKey('Artists.CompactMaster.List'),
+                          if (visibleArtists.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: _ArtistsEmptyState(
+                                title: i18n.t('collection.noArtists'),
+                                message: i18n.t('artists.emptyCopy'),
+                              ),
+                            )
+                          else ...[
+                            Positioned.fill(
+                              right: 0,
+                              child: ListView.builder(
+                                key: const ValueKey(
+                                  'Artists.CompactMaster.List',
+                                ),
+                                controller: scrollController,
+                                itemExtent: artistRowHeight,
+                                clipBehavior: Clip.none,
+                                scrollCacheExtent: ScrollCacheExtent.pixels(
+                                  artistRowHeight * artistOverscanRows,
+                                ),
+                                padding: const EdgeInsets.only(
+                                  bottom: _artistsMasterPlayerSafeBottom,
+                                ),
+                                itemCount: visibleArtists.length,
+                                itemBuilder: (context, index) {
+                                  final artist = visibleArtists[index];
+                                  return _ArtistListItem(
+                                    artist: artist,
+                                    active: false,
+                                    i18n: i18n,
+                                    compactNavMinimal: navMinimal,
+                                    onPressed: () {
+                                      onOpenArtistDetail(artist.name);
+                                    },
+                                    onPlay: () {
+                                      onPlayArtist(artist);
+                                    },
+                                    onOpenContextMenu: (position) {
+                                      onOpenArtistMenu(position, artist);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                            _ArtistsCustomScrollbar(
+                              key: const ValueKey('Artists.MasterScrollbar'),
+                              positionKey: const ValueKey(
+                                'Artists.MasterScrollbar.Position',
+                              ),
+                              thumbKey: const ValueKey(
+                                'Artists.MasterScrollbar.Thumb',
+                              ),
                               controller: scrollController,
-                              itemExtent: artistRowHeight,
-                              clipBehavior: Clip.none,
-                              scrollCacheExtent: ScrollCacheExtent.pixels(
-                                artistRowHeight * artistOverscanRows,
-                              ),
-                              padding: const EdgeInsets.only(
-                                bottom: _artistsMasterPlayerSafeBottom,
-                              ),
-                              itemCount: visibleArtists.length,
-                              itemBuilder: (context, index) {
-                                final artist = visibleArtists[index];
-                                return _ArtistListItem(
-                                  artist: artist,
-                                  active: false,
-                                  i18n: i18n,
-                                  compactNavMinimal: navMinimal,
-                                  onPressed: () {
-                                    onOpenArtistDetail(artist.name);
-                                  },
-                                  onPlay: () {
-                                    onPlayArtist(artist);
-                                  },
-                                  onOpenContextMenu: (position) {
-                                    onOpenArtistMenu(position, artist);
-                                  },
-                                );
-                              },
+                              right: 0,
                             ),
-                          ),
-                          _ArtistsCustomScrollbar(
-                            key: const ValueKey('Artists.MasterScrollbar'),
-                            positionKey: const ValueKey(
-                              'Artists.MasterScrollbar.Position',
-                            ),
-                            thumbKey: const ValueKey(
-                              'Artists.MasterScrollbar.Thumb',
-                            ),
-                            controller: scrollController,
-                            right: 0,
-                          ),
+                          ],
                         ],
                       ),
                     ),

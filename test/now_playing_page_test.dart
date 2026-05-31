@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -99,6 +106,7 @@ void main() {
       'player.playbackModeShuffle': 'Shuffle',
       'player.previous': 'Previous',
       'player.unlike': 'Unlike',
+      'player.voiceAssistant': 'Voice Assistant',
       'player.volume': 'Volume',
       'sidebar.back': 'Back',
     },
@@ -352,19 +360,26 @@ void main() {
       await closeHover.addPointer();
       await closeHover.moveTo(tester.getCenter(find.byTooltip('Close')));
       await tester.pump();
+      final queueCloseGlass = tester.widget<GlassContainer>(
+        find.byKey(const ValueKey('NowPlayingFull.QueueCloseButton')),
+      );
+      expect(queueCloseGlass.width, 42);
+      expect(queueCloseGlass.height, 42);
+      expect(queueCloseGlass.useOwnLayer, isTrue);
+      expect(queueCloseGlass.shape, isA<LiquidRoundedRectangle>());
       final queueCloseButton = tester.widget<TextButton>(
         find.descendant(
-          of: find.byTooltip('Close'),
+          of: find.byKey(const ValueKey('NowPlayingFull.QueueCloseButton')),
           matching: find.byType(TextButton),
         ),
       );
       expect(
         queueCloseButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-        const Color(0x1a0078d7),
+        Colors.transparent,
       );
       expect(
         queueCloseButton.style?.foregroundColor?.resolve(<WidgetState>{}),
-        const Color(0xff0063b1),
+        const Color(0xff101828),
       );
       final queueTitle = tester
           .widgetList<Text>(find.text('Now Playing'))
@@ -412,6 +427,37 @@ void main() {
     expect(find.text('Unknown Album'), findsOneWidget);
   });
 
+  testWidgets(
+    'NowPlayingFullPage no active track disables full footer volume like Electron',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: _FakeNowPlayingRepository(_snapshot),
+          mediaController: MediaControlController(),
+        ),
+      );
+      await tester.pump();
+
+      final volumeSlider = tester.widget<Slider>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MediaControl.WideVolumeSlider')),
+          matching: find.byType(Slider),
+        ),
+      );
+      expect(volumeSlider.value, 0);
+      expect(volumeSlider.onChanged, isNull);
+    },
+  );
+
   testWidgets('NowPlayingFullPage scopes controls to immersive night mode', (
     tester,
   ) async {
@@ -454,6 +500,17 @@ void main() {
     await tester.pump();
     expect(find.byType(PlaylistControlItem), findsWidgets);
 
+    final queuePanelBackground = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('NowPlayingFull.QueuePanelBackground')),
+    );
+    final queuePanelDecoration =
+        queuePanelBackground.decoration as BoxDecoration;
+    expect(queuePanelDecoration.color, const Color(0xdb12100e));
+    expect(queuePanelDecoration.gradient, isA<LinearGradient>());
+    expect(
+      find.byKey(const ValueKey('NowPlayingFull.QueuePanelGlass')),
+      findsOneWidget,
+    );
     expect(
       tester.widget<Text>(find.text('1 songs')).style?.color,
       const Color(0xb8ffffff),
@@ -531,10 +588,21 @@ void main() {
           tester.getTopLeft(firstRow).dx,
       78,
     );
-    expect(tester.getSize(firstRowPlayNextAction), const Size.square(34));
+    expect(firstRowPlayNextAction, findsNothing);
     expect(tester.getSize(firstRowActions).width, 34);
     expect(tester.getSize(firstRowDuration).width, 20);
-    expect(tester.getSize(find.text('2:00').first).height, lessThan(24));
+    expect(
+      tester.getRect(firstRow).right - tester.getRect(firstRowDuration).right,
+      12,
+    );
+    expect(
+      tester
+          .getSize(
+            find.descendant(of: firstRowDuration, matching: find.text('2:00')),
+          )
+          .height,
+      lessThan(24),
+    );
     AnimatedOpacity hoverOpacityFor(Finder action) {
       return tester.widget<AnimatedOpacity>(
         find
@@ -543,7 +611,6 @@ void main() {
       );
     }
 
-    expect(hoverOpacityFor(firstRowPlayNextAction).opacity, 0);
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 0);
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -551,8 +618,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(hoverOpacityFor(firstRowPlayNextAction).opacity, 1);
-    expect(tester.getSize(firstRowActions).width, 68);
+    expect(firstRowPlayNextAction, findsNothing);
+    expect(tester.getSize(firstRowActions).width, 34);
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 1);
     expect(tester.getSize(firstRowMoreAction), const Size.square(34));
     expect(
@@ -703,6 +770,7 @@ void main() {
       ),
       const Size(34, 34),
     );
+    expect(find.byTooltip('Voice Assistant'), findsNothing);
     expect(
       tester
           .getCenter(find.byKey(const ValueKey('MediaControl.PlayPauseButton')))
@@ -713,7 +781,7 @@ void main() {
       tester
           .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
           .right,
-      490,
+      491,
     );
     expect(
       tester
@@ -746,7 +814,9 @@ void main() {
     expect(exitDecoration().border?.top.color, Colors.transparent);
     expect(
       tester
-          .widget<Icon>(find.byKey(const ValueKey('NowPlayingFull.ExitIcon')))
+          .widget<ExitFullscreenIcon>(
+            find.byKey(const ValueKey('NowPlayingFull.ExitIcon')),
+          )
           .color,
       const Color(0xe6080c12),
     );
@@ -804,7 +874,291 @@ void main() {
     expect(inactiveLyricStyle.color, const Color(0x425b697a));
     expect(inactiveLyricStyle.fontWeight, const FontWeight(620));
     expect(inactiveLyricStyle.height, 1.44);
+
+    final queueButtonFinder = find.ancestor(
+      of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
+      matching: find.byType(TextButton),
+    );
+    await tester.tap(queueButtonFinder);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    final compactQueueList = tester.widget<ListView>(
+      find.byKey(const ValueKey('NowPlayingFull.QueueList')),
+    );
+    expect(compactQueueList.padding, const EdgeInsets.fromLTRB(10, 0, 0, 2));
+    expect(
+      tester
+              .getRect(find.byKey(const ValueKey('NowPlayingFull.QueueList')))
+              .right -
+          tester.getRect(find.byType(PlaylistControlItem).first).right,
+      10,
+    );
   });
+
+  testWidgets('writes NowPlayingFullPage top liquid glass buttons screenshot', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(956, 1520);
+    tester.view.devicePixelRatio = 2;
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
+    );
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      resetSmPlayerGlobalSettingsSnapshot();
+    });
+
+    final repaintKey = GlobalKey();
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: repaintKey,
+        child: _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+          themeSettings: const SettingsSnapshot.defaults(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const ValueKey('NowPlayingFull.BackIcon')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
+      findsOneWidget,
+    );
+    await _writeNowPlayingBoundaryPng(
+      tester,
+      repaintKey,
+      'build/now_playing_full_top_glass_buttons_verify.png',
+      pixelRatio: 2,
+    );
+  });
+
+  testWidgets('writes NowPlayingFullPage MediaControl footer screenshot', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 760);
+    tester.view.devicePixelRatio = 1;
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+    );
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      resetSmPlayerGlobalSettingsSnapshot();
+    });
+
+    final repaintKey = GlobalKey();
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+      progressSeconds: 72,
+    );
+
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: repaintKey,
+        child: _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+          themeSettings: const SettingsSnapshot.defaults(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(MediaControlSurface), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('MediaControl.ProgressSlider')),
+      findsOneWidget,
+    );
+    await _writeNowPlayingBoundaryPng(
+      tester,
+      repaintKey,
+      'build/now_playing_full_media_control_footer_verify.png',
+      pixelRatio: 2,
+    );
+  });
+
+  testWidgets(
+    'NowPlayingFullPage compact footer matches Electron column geometry',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 760);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+        progressSeconds: 72,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      final exitRect = tester.getRect(
+        find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+      );
+      final playRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+      );
+      final moreRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.MoreButton')),
+      );
+      final elapsedRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.ProgressElapsedColumn')),
+      );
+      final progressSliderRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.ProgressSlider')),
+      );
+      final durationRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.ProgressDurationColumn')),
+      );
+
+      expect(exitRect.left, 12);
+      expect(exitRect.top, 651);
+      expect(exitRect.size, const Size(68, 68));
+      expect(playRect.top, 661);
+      expect(playRect.center.dx, 250);
+      expect(moreRect.top, 668);
+      expect(moreRect.right, 491);
+      expect(elapsedRect.left, 21);
+      expect(elapsedRect.width, 42);
+      expect(progressSliderRect.left, 71);
+      expect(progressSliderRect.right, 429);
+      expect(durationRect.right, 479);
+      expect(durationRect.width, 42);
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage compact footer keeps voice and More inside utility',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 760);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+        progressSeconds: 72,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+          shellActions: SmPlayerShellActions(
+            onOpenVoiceAssistant: () {},
+            onExitWindowFullScreen: () async {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+        findsNothing,
+      );
+      expect(find.byTooltip('Voice Assistant'), findsOneWidget);
+      expect(find.byTooltip('More'), findsOneWidget);
+      expect(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+            )
+            .dx,
+        250,
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+            .right,
+        491,
+      );
+      expect(
+        tester
+                .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+                .left -
+            tester.getRect(find.byTooltip('Voice Assistant')).right,
+        6,
+      );
+    },
+  );
 
   testWidgets(
     'NowPlayingFullPage mid-width footer uses compact utility like Electron',
@@ -869,10 +1223,79 @@ void main() {
         const Size(36, 36),
       );
       expect(
+        tester
+                .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+                .left -
+            tester
+                .getRect(
+                  find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+                )
+                .right,
+        8,
+      );
+      expect(
         tester.getSize(
           find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
         ),
         const Size(72, 72),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('MediaControl.ModeRow')))
+            .width,
+        closeTo(252.29, 0.1),
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+            .right,
+        closeTo(976, 0.1),
+      );
+      expect(
+        tester
+            .getRect(
+              find.byKey(const ValueKey('MediaControl.ProgressElapsedColumn')),
+            )
+            .left,
+        closeTo(284.29, 0.1),
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.ProgressSlider')))
+            .left,
+        closeTo(340.29, 0.1),
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.ProgressSlider')))
+            .right,
+        closeTo(659.71, 0.1),
+      );
+      final progressSliderTheme = tester.widget<SliderTheme>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('MediaControl.ProgressSlider')),
+              matching: find.byType(SliderTheme),
+            )
+            .first,
+      );
+      expect(
+        progressSliderTheme.data.activeTrackColor,
+        const Color(0xc25b697a),
+      );
+      expect(
+        progressSliderTheme.data.inactiveTrackColor,
+        const Color(0x2e5b697a),
+      );
+      expect(progressSliderTheme.data.thumbColor, Colors.white);
+      expect(progressSliderTheme.data.trackHeight, 2);
+      expect(
+        tester
+            .getRect(
+              find.byKey(const ValueKey('MediaControl.ProgressDurationColumn')),
+            )
+            .right,
+        closeTo(715.71, 0.1),
       );
       expect(
         tester
@@ -881,6 +1304,68 @@ void main() {
             )
             .dx,
         500,
+      );
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage wide footer uses Electron 0.9fr side columns',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+        progressSeconds: 72,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('MediaControl.ModeRow')))
+            .width,
+        closeTo(376.71, 0.1),
+      );
+      expect(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+            )
+            .dx,
+        700,
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
+            .right,
+        1368,
       );
     },
   );
@@ -939,6 +1424,28 @@ void main() {
             )
             .size,
         18,
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+        ),
+        const Size(36, 36),
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')))
+            .top,
+        651,
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('MediaControl.PlayPauseButton')))
+            .top,
+        659,
+      );
+      expect(
+        tester.getRect(find.byKey(const ValueKey('MediaControl.MoreButton'))).top,
+        667,
       );
       final queueButtonFinder = find.ancestor(
         of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
@@ -1073,6 +1580,196 @@ void main() {
     repository.completePreference(null);
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'NowPlayingFullPage wide More matches Electron queue and current song items',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quick Play'), findsOneWidget);
+      expect(find.text('Shuffle'), findsWidgets);
+      expect(find.text('Save Playlist'), findsOneWidget);
+      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Add To'), findsOneWidget);
+      expect(find.text('Play Artist'), findsOneWidget);
+      expect(find.text('Play Album'), findsOneWidget);
+      expect(find.text('View'), findsOneWidget);
+      expect(find.text('Playback Mode: List'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('MediaControl.VolumeMenuItem')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage compact More includes Electron utility substitutes',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Playback Mode: List'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('MediaControl.VolumeMenuItem')),
+        findsOneWidget,
+      );
+      expect(find.text('Like'), findsOneWidget);
+      expect(find.text('Add To'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsOneWidget);
+      expect(find.text('Clear Now Playing'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage compact More disables Favorite without current song',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: MediaControlController(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quick Play'), findsOneWidget);
+      expect(find.text('Playback Mode: List'), findsOneWidget);
+      expect(find.text('Like'), findsOneWidget);
+      expect(find.text('Add To'), findsNothing);
+
+      await tester.tap(find.text('Like'));
+      await tester.pumpAndSettle();
+
+      expect(repository.favoriteSongIds, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage Clear Now Playing exits fullscreen and clears queue',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      var exitCalls = 0;
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+          useRouter: true,
+          shellActions: SmPlayerShellActions(
+            onOpenVoiceAssistant: () {},
+            onExitWindowFullScreen: () async {
+              exitCalls += 1;
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear Now Playing'));
+      await tester.pump();
+
+      expect(exitCalls, 1);
+      expect(repository.snapshot.nowPlaying.songIds, isEmpty);
+    },
+  );
 
   testWidgets(
     'NowPlayingFullPage queue context menu opens before preference refresh',
@@ -1645,6 +2342,49 @@ void main() {
       expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
     },
   );
+
+  testWidgets('NowPlayingFullPage More pins player bar while menu is open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+      autoplay: false,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingFullTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+    expect(_hasPlayerBarOpacity(tester, 1), isTrue);
+
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 6));
+
+    expect(find.text('Quick Play'), findsOneWidget);
+    expect(_hasPlayerBarOpacity(tester, 1), isTrue);
+  });
 
   testWidgets(
     'NowPlayingFullPage keeps player bar raised while pointer stays',
@@ -2292,6 +3032,8 @@ class _NowPlayingFullTestApp extends StatelessWidget {
     required this.repository,
     required this.mediaController,
     this.themeSettings = const SettingsSnapshot.defaults(),
+    this.shellActions,
+    this.useRouter = false,
   });
 
   final LibraryContentData snapshot;
@@ -2299,24 +3041,65 @@ class _NowPlayingFullTestApp extends StatelessWidget {
   final _FakeNowPlayingRepository repository;
   final MediaControlController mediaController;
   final SettingsSnapshot themeSettings;
+  final SmPlayerShellActions? shellActions;
+  final bool useRouter;
 
   @override
   Widget build(BuildContext context) {
+    final app =
+        useRouter
+            ? MaterialApp.router(
+              theme: buildSmPlayerTheme(themeSettings),
+              routerConfig: GoRouter(
+                initialLocation: '/now-playing/full?from=/now-playing',
+                routes: [
+                  GoRoute(
+                    path: '/now-playing/full',
+                    builder:
+                        (context, state) =>
+                            const Scaffold(body: NowPlayingFullPage()),
+                  ),
+                  GoRoute(
+                    path: '/now-playing',
+                    builder:
+                        (context, state) =>
+                            const Scaffold(body: SizedBox.shrink()),
+                  ),
+                ],
+              ),
+            )
+            : MaterialApp(
+              theme: buildSmPlayerTheme(themeSettings),
+              home: const Scaffold(body: NowPlayingFullPage()),
+            );
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
+        smPlayerShellActionsProvider.overrideWithValue(shellActions),
       ],
-      child: SmPlayerI18nScope(
-        i18n: i18n,
-        child: MaterialApp(
-          theme: buildSmPlayerTheme(themeSettings),
-          home: const Scaffold(body: NowPlayingFullPage()),
-        ),
-      ),
+      child: SmPlayerI18nScope(i18n: i18n, child: app),
     );
   }
+}
+
+Future<void> _writeNowPlayingBoundaryPng(
+  WidgetTester tester,
+  GlobalKey key,
+  String path, {
+  double pixelRatio = 1,
+}) async {
+  await tester.runAsync(() async {
+    final boundary =
+        key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    final file = File(path);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(bytes!.buffer.asUint8List());
+  });
 }
 
 class _FakeNowPlayingRepository extends LibraryRepository {

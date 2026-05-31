@@ -58,6 +58,8 @@ bool shouldIgnoreAudioPositionForPendingSeek({
 enum SmPlayerNavigationMode { minimal, overlay, wide }
 
 enum SmPlayerPlaybackShortcut {
+  play,
+  pause,
   togglePlayPause,
   next,
   previous,
@@ -77,7 +79,17 @@ SmPlayerPlaybackShortcut? playbackShortcutForKey({
   required bool meta,
   required bool shift,
 }) {
-  if (key == LogicalKeyboardKey.space) {
+  if (key == LogicalKeyboardKey.mediaPlay) {
+    return SmPlayerPlaybackShortcut.play;
+  }
+
+  if (key == LogicalKeyboardKey.mediaPause) {
+    return SmPlayerPlaybackShortcut.pause;
+  }
+
+  if (key == LogicalKeyboardKey.space ||
+      key == LogicalKeyboardKey.mediaPlayPause ||
+      key == LogicalKeyboardKey.f8) {
     return SmPlayerPlaybackShortcut.togglePlayPause;
   }
 
@@ -97,10 +109,14 @@ SmPlayerPlaybackShortcut? playbackShortcutForKey({
     return null;
   }
 
-  if (control && key == LogicalKeyboardKey.arrowRight) {
+  if (key == LogicalKeyboardKey.mediaTrackNext ||
+      key == LogicalKeyboardKey.f9 ||
+      (control && key == LogicalKeyboardKey.arrowRight)) {
     return SmPlayerPlaybackShortcut.next;
   }
-  if (control && key == LogicalKeyboardKey.arrowLeft) {
+  if (key == LogicalKeyboardKey.mediaTrackPrevious ||
+      key == LogicalKeyboardKey.f7 ||
+      (control && key == LogicalKeyboardKey.arrowLeft)) {
     return SmPlayerPlaybackShortcut.previous;
   }
 

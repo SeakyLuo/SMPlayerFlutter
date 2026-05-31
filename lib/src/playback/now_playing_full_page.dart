@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -287,8 +289,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           ),
       data: (snapshot) {
         final songsById = {for (final song in snapshot.songs) song.id: song};
+        final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
+        final sourceQueueSongIds = queueOverride ?? snapshot.nowPlaying.songIds;
         final queueSongs =
-            snapshot.nowPlaying.songIds
+            sourceQueueSongIds
                 .map((songId) => songsById[songId])
                 .whereType<LibrarySong>()
                 .toList();
@@ -441,25 +445,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     }
                   },
                 ),
-                if (MediaQuery.sizeOf(context).width <=
-                    _nowPlayingFullLayoutCompactBreakpoint)
-                  Positioned.fill(
-                    child: KeyedSubtree(
-                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
-                      child: buildQueuePopover(true),
-                    ),
-                  )
-                else
-                  Positioned(
-                    top: 56,
-                    right: 24,
-                    bottom: 132,
-                    width: min(MediaQuery.sizeOf(context).width * 0.4, 520),
-                    child: KeyedSubtree(
-                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
-                      child: buildQueuePopover(false),
-                    ),
-                  ),
                 Positioned(
                   right: 0,
                   bottom: 0,
@@ -480,6 +465,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                         state: mediaControlState,
                         disabled: currentSong == null,
                         i18n: i18n,
+                        night: immersiveNightActive,
                         previousButtonRestartsTrack:
                             queueSongs.isNotEmpty &&
                             shouldRestartCurrentTrackForPrevious(
@@ -541,6 +527,25 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     ),
                   ),
                 ),
+                if (MediaQuery.sizeOf(context).width <=
+                    _nowPlayingFullLayoutCompactBreakpoint)
+                  Positioned.fill(
+                    child: KeyedSubtree(
+                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+                      child: buildQueuePopover(true),
+                    ),
+                  )
+                else
+                  Positioned(
+                    top: 56,
+                    right: 24,
+                    bottom: 132,
+                    width: min(MediaQuery.sizeOf(context).width * 0.4, 520),
+                    child: KeyedSubtree(
+                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+                      child: buildQueuePopover(false),
+                    ),
+                  ),
                 if (noticeText != null)
                   Positioned(
                     right: 76,
@@ -936,7 +941,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         MenuFlyoutItem(
           key: 'random-play',
           text: i18n.t('nowPlaying.randomPlay'),
-          icon: FluentIcons.arrow_shuffle_20_regular,
+          useShuffleIcon: true,
           disabled: queueSongIds.isEmpty && snapshot.songs.isEmpty,
           submenu: buildShuffleMenuFlyoutItems(
             i18n: i18n,
@@ -955,45 +960,21 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             key: 'playback-mode',
             text:
                 '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mediaController.state.mode)}',
-            icon: _playbackModeMenuIcon(mediaController.state.mode),
-            submenu: [
-              MenuFlyoutItem(
-                key: 'playback-mode-list',
-                text: i18n.t('player.playbackModeList'),
-                icon: FluentIcons.music_note_2_20_regular,
-                checked: mediaController.state.mode == PlaybackMode.once,
-                onPressed: () {
-                  _setPlaybackMode(PlaybackMode.once);
-                },
-              ),
-              MenuFlyoutItem(
-                key: 'playback-mode-shuffle',
-                text: i18n.t('player.playbackModeShuffle'),
-                icon: FluentIcons.arrow_shuffle_20_regular,
-                checked: mediaController.state.mode == PlaybackMode.shuffle,
-                onPressed: () {
-                  _setPlaybackMode(PlaybackMode.shuffle);
-                },
-              ),
-              MenuFlyoutItem(
-                key: 'playback-mode-repeat',
-                text: i18n.t('player.playbackModeRepeat'),
-                icon: FluentIcons.arrow_repeat_all_20_regular,
-                checked: mediaController.state.mode == PlaybackMode.repeat,
-                onPressed: () {
-                  _setPlaybackMode(PlaybackMode.repeat);
-                },
-              ),
-              MenuFlyoutItem(
-                key: 'playback-mode-repeat-one',
-                text: i18n.t('player.playbackModeRepeatOne'),
-                icon: FluentIcons.arrow_repeat_1_20_regular,
-                checked: mediaController.state.mode == PlaybackMode.repeatOne,
-                onPressed: () {
-                  _setPlaybackMode(PlaybackMode.repeatOne);
-                },
-              ),
-            ],
+            icon:
+                mediaController.state.mode == PlaybackMode.shuffle
+                    ? null
+                    : _nonShufflePlaybackModeMenuIcon(
+                      mediaController.state.mode,
+                    ),
+            usePlaylistIcon: mediaController.state.mode == PlaybackMode.once,
+            useShuffleIcon: mediaController.state.mode == PlaybackMode.shuffle,
+            submenu: buildPlaybackModeMenuFlyoutItems(
+              i18n: i18n,
+              mode: mediaController.state.mode,
+              onToggleShuffle: _toggleShufflePlayback,
+              onToggleRepeat: mediaController.onToggleRepeat,
+              onToggleRepeatOne: mediaController.onToggleRepeatOne,
+            ),
           ),
           MenuFlyoutItem(
             key: 'player-volume',
@@ -1168,37 +1149,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     }
   }
 
-  void _setPlaybackMode(PlaybackMode targetMode) {
-    final mediaController = ref.read(mediaControlControllerProvider);
-    final mode = mediaController.state.mode;
-    if (mode == targetMode) {
-      return;
-    }
-
-    switch (targetMode) {
-      case PlaybackMode.shuffle:
-        _toggleShufflePlayback();
-      case PlaybackMode.repeat:
-        mediaController.onToggleRepeat();
-      case PlaybackMode.repeatOne:
-        mediaController.onToggleRepeatOne();
-      case PlaybackMode.once:
-        switch (mode) {
-          case PlaybackMode.shuffle:
-            mediaController.onToggleShuffle();
-          case PlaybackMode.repeat:
-            mediaController.onToggleRepeat();
-          case PlaybackMode.repeatOne:
-            mediaController.onToggleRepeatOne();
-          case PlaybackMode.once:
-            break;
-        }
-    }
-  }
-
   void _toggleShufflePlayback() {
     final mediaController = ref.read(mediaControlControllerProvider);
     final enablingShuffle = mediaController.state.mode != PlaybackMode.shuffle;
+    int? selectedQueueIndex;
     if (enablingShuffle) {
       final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
       final songIds = snapshot?.nowPlaying.songIds ?? const <int>[];
@@ -1212,12 +1166,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           nextSongIds,
           mediaController.state.track.id,
         );
-        mediaController.setSelectedQueueIndex(
-          nextQueueIndex > -1 ? nextQueueIndex : null,
-        );
+        selectedQueueIndex = nextQueueIndex > -1 ? nextQueueIndex : null;
       }
     }
-    mediaController.onToggleShuffle();
+    mediaController.onToggleShuffle(selectedQueueIndex: selectedQueueIndex);
   }
 
   String _playbackModeName(SmPlayerI18n i18n, PlaybackMode mode) {
@@ -1229,12 +1181,13 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     };
   }
 
-  IconData _playbackModeMenuIcon(PlaybackMode mode) {
+  IconData _nonShufflePlaybackModeMenuIcon(PlaybackMode mode) {
     return switch (mode) {
-      PlaybackMode.shuffle => FluentIcons.arrow_shuffle_20_regular,
       PlaybackMode.repeat => FluentIcons.arrow_repeat_all_20_regular,
       PlaybackMode.repeatOne => FluentIcons.arrow_repeat_1_20_regular,
       PlaybackMode.once => FluentIcons.music_note_2_20_regular,
+      PlaybackMode.shuffle =>
+        throw StateError('shuffle uses SmPlayerShuffleIcon'),
     };
   }
 
@@ -1406,6 +1359,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   void _replaceQueue(List<int> songIds) {
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
     ref.invalidate(libraryContentDataProvider);
   }
@@ -2003,48 +1957,31 @@ class _NowPlayingFullCompactTopButton extends StatelessWidget {
     final night = colors.artworkShadowOpacity > 0.3;
     final foreground =
         active ? colors.topButtonActiveForeground : colors.topButtonForeground;
-    final decoration =
+    final glassColor =
         night
-            ? BoxDecoration(
-              color: active ? const Color(0x24ffffff) : const Color(0x14ffffff),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x29ffffff)),
-            )
-            : BoxDecoration(
-              color: active ? const Color(0x52ffffff) : const Color(0x3dffffff),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors:
-                    active
-                        ? const [Color(0xccffffff), Color(0x7affffff)]
-                        : const [Color(0xb3ffffff), Color(0x5cffffff)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xa3ffffff)),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      active
-                          ? const Color(0x33445870)
-                          : const Color(0x2e445870),
-                  blurRadius: active ? 40 : 36,
-                  offset: Offset(0, active ? 18 : 16),
-                ),
-                BoxShadow(
-                  color:
-                      active
-                          ? const Color(0x1a685870)
-                          : const Color(0x14685870),
-                  blurRadius: active ? 12 : 10,
-                  offset: Offset(0, active ? 5 : 4),
-                ),
-              ],
-            );
+            ? (active ? const Color(0x30ffffff) : const Color(0x1cffffff))
+            : (active ? const Color(0xccffffff) : const Color(0x86ffffff));
     return Tooltip(
       message: tooltip,
-      child: DecoratedBox(
-        decoration: decoration,
+      child: GlassContainer(
+        key: ValueKey('NowPlayingFull.TopButtonGlass.$tooltip'),
+        useOwnLayer: true,
+        quality: GlassQuality.standard,
+        shape: const LiquidRoundedRectangle(borderRadius: 12),
+        settings: LiquidGlassSettings(
+          blur: night ? 28 : 34,
+          thickness: active ? 28 : 24,
+          refractiveIndex: 1.1,
+          saturation: night ? 1.2 : 1.34,
+          chromaticAberration: 0.016,
+          lightIntensity: night ? 0.24 : 0.34,
+          ambientStrength: night ? 0.14 : 0.18,
+          glowIntensity: active ? 0.3 : 0.22,
+          glassColor: glassColor,
+          standardOpacityMultiplier: night ? 0.86 : 0.78,
+        ),
+        clipBehavior: Clip.hardEdge,
+        allowElevation: false,
         child: SizedBox(
           width: width,
           height: 38,
@@ -2938,6 +2875,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
     required this.state,
     required this.disabled,
     required this.i18n,
+    required this.night,
     required this.previousButtonRestartsTrack,
     required this.onPrevious,
     required this.onForcePrevious,
@@ -2954,6 +2892,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   final MediaControlState state;
   final bool disabled;
   final SmPlayerI18n i18n;
+  final bool night;
   final bool previousButtonRestartsTrack;
   final VoidCallback onPrevious;
   final VoidCallback onForcePrevious;
@@ -2974,24 +2913,22 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
         final compact = constraints.maxWidth <= 520;
         final compactUtility = constraints.maxWidth <= 1200;
         final minimalUtility = constraints.maxWidth <= 800;
-        final sideWidth =
-            minimalUtility
-                ? compact
-                    ? 68.0
-                    : 80.0
-                : clampDouble(constraints.maxWidth * 0.24, 200, 280);
+        final playerPadding = _nowPlayingFullPlayerPadding(
+          constraints.maxWidth,
+        );
+        final horizontalPadding = playerPadding.horizontal;
+        final sideWidth = _nowPlayingFullPlayerSideWidth(
+          constraints.maxWidth,
+          contentWidth: constraints.maxWidth - horizontalPadding,
+        );
         final transportDisabled = disabled || song?.id == null;
         return MediaControlSurfaceBar(
           artworkPath: artworkPath,
           borderRadius: const BorderRadius.vertical(
             top: Radius.circular(_nowPlayingFullPlayerTopRadius),
           ),
-          padding: EdgeInsets.fromLTRB(
-            compact ? 10 : 18,
-            compact ? 10 : 14,
-            compact ? 10 : 18,
-            compact ? 12 : 16,
-          ),
+          padding: playerPadding,
+          columnGap: _nowPlayingFullPlayerColumnGap(constraints.maxWidth),
           leadingWidth: sideWidth,
           utilityWidth: sideWidth,
           surfaceFlex: 1,
@@ -3035,11 +2972,56 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
           navMinimal: minimalUtility,
           utilityCondensed: compactUtility,
           utilityMinimal: minimalUtility,
+          sliderActiveColor:
+              night ? const Color(0xdbffffff) : const Color(0xc25b697a),
+          sliderInactiveColor:
+              night ? const Color(0x33ffffff) : const Color(0x2e5b697a),
+          sliderThumbColor: Colors.white,
+          sliderOverlayColor: Colors.transparent,
           onMoreClick: onMoreClick,
         );
       },
     );
   }
+}
+
+EdgeInsets _nowPlayingFullPlayerPadding(double viewportWidth) {
+  if (viewportWidth <= 520) {
+    return const EdgeInsets.fromLTRB(12, 9, 12, 11);
+  }
+  if (viewportWidth <= _nowPlayingFullImmersiveCompactBreakpoint) {
+    return const EdgeInsets.fromLTRB(16, 8, 16, 10);
+  }
+  return const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
+}
+
+double _nowPlayingFullPlayerColumnGap(double viewportWidth) {
+  if (viewportWidth <= 520) {
+    return 8;
+  }
+  if (viewportWidth <= _nowPlayingFullImmersiveCompactBreakpoint) {
+    return 10;
+  }
+  return 0;
+}
+
+double _nowPlayingFullPlayerSideWidth(
+  double viewportWidth, {
+  required double contentWidth,
+}) {
+  if (viewportWidth <= 520) {
+    return 68;
+  }
+  if (viewportWidth <= _nowPlayingFullImmersiveCompactBreakpoint) {
+    return 80;
+  }
+
+  final minSide =
+      viewportWidth <= 1200 ? clampDouble(viewportWidth * 0.24, 200, 280) : 280;
+  final minCenter =
+      viewportWidth <= 1200 ? clampDouble(viewportWidth * 0.40, 280, 420) : 420;
+  final extra = max(0.0, contentWidth - minCenter - minSide * 2);
+  return minSide + extra * 0.9 / 2.8;
 }
 
 class _NowPlayingFullExitButton extends StatefulWidget {
@@ -3152,21 +3134,10 @@ class _NowPlayingFullExitButtonState extends State<_NowPlayingFullExitButton> {
                       ? const Color(0x6b080c12)
                       : Colors.transparent,
             ),
-            child: Icon(
-              FluentIcons.full_screen_minimize_24_regular,
+            child: ExitFullscreenIcon(
               key: const ValueKey('NowPlayingFull.ExitIcon'),
               size: 36,
               color: iconColor,
-              shadows:
-                  dark
-                      ? const [
-                        Shadow(
-                          color: Color(0x57000000),
-                          offset: Offset(0, 2),
-                          blurRadius: 6,
-                        ),
-                      ]
-                      : null,
             ),
           ),
         ),
@@ -3627,12 +3598,66 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
         ),
       ],
     );
+    final backgroundDecoration = BoxDecoration(
+      color: panelColor,
+      gradient:
+          night
+              ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0x70775b20),
+                  Color(0x2e14120e),
+                  Colors.transparent,
+                ],
+                stops: [0, 0.38, 0.64],
+              )
+              : RadialGradient(
+                center: const Alignment(-0.6, -0.56),
+                radius: 0.84,
+                colors: [
+                  coverColor.withValues(alpha: 0.24),
+                  Colors.transparent,
+                ],
+                stops: const [0, 1],
+              ),
+    );
     if (songs.isEmpty) {
       return DecoratedBox(
         decoration: decoration,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
-          child: _QueueEmptyState(loading: loading),
+          child: GlassContainer(
+            key: const ValueKey('NowPlayingFull.QueuePanelGlass'),
+            useOwnLayer: true,
+            quality: GlassQuality.standard,
+            shape: LiquidRoundedRectangle(borderRadius: fullScreen ? 0 : 18),
+            settings: LiquidGlassSettings(
+              blur: 42,
+              thickness: 30,
+              refractiveIndex: 1.08,
+              saturation: 1.34,
+              chromaticAberration: 0.018,
+              lightIntensity: night ? 0.24 : 0.34,
+              ambientStrength: 0.16,
+              glowIntensity: night ? 0.18 : 0.28,
+              glassColor: panelColor,
+              standardOpacityMultiplier: 0.82,
+            ),
+            clipBehavior: Clip.hardEdge,
+            allowElevation: false,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    key: const ValueKey('NowPlayingFull.QueuePanelBackground'),
+                    decoration: backgroundDecoration,
+                  ),
+                ),
+                _QueueEmptyState(loading: loading),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -3640,160 +3665,186 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
       decoration: decoration,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Padding(
-                  padding:
-                      fullScreen
-                          ? const EdgeInsets.fromLTRB(20, 26, 20, 14)
-                          : const EdgeInsets.fromLTRB(30, 26, 20, 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              i18n.t('common.nowPlaying'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: colors.text,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              i18n.t('playlists.songCount', {
-                                'count': songs.length,
-                              }),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color:
-                                    night
-                                        ? const Color(0xb8ffffff)
-                                        : colors.muted,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      _NowPlayingFullQueueCloseButton(
-                        tooltip: i18n.t('common.close'),
-                        onPressed: onClose,
-                      ),
-                    ],
-                  ),
+        child: GlassContainer(
+          key: const ValueKey('NowPlayingFull.QueuePanelGlass'),
+          useOwnLayer: true,
+          quality: GlassQuality.standard,
+          shape: LiquidRoundedRectangle(borderRadius: fullScreen ? 0 : 18),
+          settings: LiquidGlassSettings(
+            blur: 42,
+            thickness: 30,
+            refractiveIndex: 1.08,
+            saturation: 1.34,
+            chromaticAberration: 0.018,
+            lightIntensity: night ? 0.24 : 0.34,
+            ambientStrength: 0.16,
+            glowIntensity: night ? 0.18 : 0.28,
+            glassColor: panelColor,
+            standardOpacityMultiplier: 0.82,
+          ),
+          clipBehavior: Clip.hardEdge,
+          allowElevation: false,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  key: const ValueKey('NowPlayingFull.QueuePanelBackground'),
+                  decoration: backgroundDecoration,
                 ),
-                Expanded(
-                  child:
-                      songs.isEmpty
-                          ? _QueueEmptyState(loading: loading)
-                          : _buildQueueList(context),
-                ),
-              ],
-            ),
-            MultiSelectCommandBar(
-              visible: selection.multiSelect,
-              selectedCount: selection.selectedItems.length,
-              playlists: playlists,
-              addToSongIds: _selectedSongIds(),
-              defaultPlaylistName: defaultNewPlaylistName,
-              currentPlaylistName: i18n.t('common.nowPlaying'),
-              includeFavoritesInAddTo: _selectedSongsHaveUnfavorited(),
-              removeLabel: i18n.t('nowPlaying.remove'),
-              hideAfterOperation: hideMultiSelectCommandBarAfterOperation,
-              onToggleFavorite: () {
-                final songIds = _selectedUnfavoritedSongIds();
-                onToggleFavorite(songIds, true);
-                final songsById = {for (final song in songs) song.id: song};
-                showUndoableSnackBar(
-                  context: context,
-                  i18n: i18n,
-                  message: songsAddedUndoMessage(
-                    i18n: i18n,
-                    songIds: songIds,
-                    songsById: songsById,
-                    target: i18n.t('common.myFavorites'),
-                  ),
-                  onUndo: () => onToggleFavorite(songIds, false),
-                );
-              },
-              onAddToPlaylist: (playlistId) {
-                onAddToPlaylist(playlistId, _selectedSongIds());
-                selection.hideAfterOperation(
-                  hideMultiSelectCommandBarAfterOperation,
-                );
-                onSelectionChanged();
-              },
-              onPlay: () {
-                onPlaySongs(_selectedSongIds());
-                selection.hideAfterOperation(
-                  hideMultiSelectCommandBarAfterOperation,
-                );
-                onSelectionChanged();
-              },
-              onRemove: () {
-                final selectedIndexes =
-                    selection.selectedItems.toList()..sort();
-                final selectedSongIds = _selectedSongIds();
-                final insertIndex = selectedIndexes.first;
-                final songsById = {for (final song in songs) song.id: song};
-                final nextSongIds = [
-                  for (var index = 0; index < songIds.length; index += 1)
-                    if (!selectedIndexes.contains(index)) songIds[index],
-                ];
-                onReplaceQueue(nextSongIds);
-                showUndoableSnackBar(
-                  context: context,
-                  i18n: i18n,
-                  message: songsRemovedUndoMessage(
-                    i18n: i18n,
-                    songIds: selectedSongIds,
-                    songsById: songsById,
-                    target: i18n.t('common.nowPlaying'),
-                  ),
-                  onUndo:
-                      () => onReplaceQueue(
-                        _insertQueueSongs(
-                          currentQueueSongIds(),
-                          insertIndex,
-                          selectedSongIds,
+              ),
+              Column(
+                children: [
+                  Padding(
+                    padding:
+                        fullScreen
+                            ? const EdgeInsets.fromLTRB(20, 26, 20, 14)
+                            : const EdgeInsets.fromLTRB(30, 26, 20, 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                i18n.t('common.nowPlaying'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.text,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                i18n.t('playlists.songCount', {
+                                  'count': songs.length,
+                                }),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      night
+                                          ? const Color(0xb8ffffff)
+                                          : colors.muted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                );
-                selection.clearSelection();
-                onSelectionChanged();
-              },
-              onSelectAll: () {
-                selection.selectAll(
-                  List.generate(songIds.length, (index) => index),
-                );
-                onSelectionChanged();
-              },
-              onReverseSelection: () {
-                selection.reverseSelection(
-                  List.generate(songIds.length, (index) => index),
-                );
-                onSelectionChanged();
-              },
-              onClearSelection: () {
-                selection.clearSelection();
-                onSelectionChanged();
-              },
-              onCancel: () {
-                selection.cancel();
-                onSelectionChanged();
-              },
-            ),
-          ],
+                        _NowPlayingFullQueueCloseButton(
+                          tooltip: i18n.t('common.close'),
+                          onPressed: onClose,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child:
+                        songs.isEmpty
+                            ? _QueueEmptyState(loading: loading)
+                            : _buildQueueList(context),
+                  ),
+                ],
+              ),
+              MultiSelectCommandBar(
+                visible: selection.multiSelect,
+                selectedCount: selection.selectedItems.length,
+                playlists: playlists,
+                addToSongIds: _selectedSongIds(),
+                defaultPlaylistName: defaultNewPlaylistName,
+                currentPlaylistName: i18n.t('common.nowPlaying'),
+                includeFavoritesInAddTo: _selectedSongsHaveUnfavorited(),
+                removeLabel: i18n.t('nowPlaying.remove'),
+                hideAfterOperation: hideMultiSelectCommandBarAfterOperation,
+                onToggleFavorite: () {
+                  final songIds = _selectedUnfavoritedSongIds();
+                  onToggleFavorite(songIds, true);
+                  final songsById = {for (final song in songs) song.id: song};
+                  showUndoableSnackBar(
+                    context: context,
+                    i18n: i18n,
+                    message: songsAddedUndoMessage(
+                      i18n: i18n,
+                      songIds: songIds,
+                      songsById: songsById,
+                      target: i18n.t('common.myFavorites'),
+                    ),
+                    onUndo: () => onToggleFavorite(songIds, false),
+                  );
+                },
+                onAddToPlaylist: (playlistId) {
+                  onAddToPlaylist(playlistId, _selectedSongIds());
+                  selection.hideAfterOperation(
+                    hideMultiSelectCommandBarAfterOperation,
+                  );
+                  onSelectionChanged();
+                },
+                onPlay: () {
+                  onPlaySongs(_selectedSongIds());
+                  selection.hideAfterOperation(
+                    hideMultiSelectCommandBarAfterOperation,
+                  );
+                  onSelectionChanged();
+                },
+                onRemove: () {
+                  final selectedIndexes =
+                      selection.selectedItems.toList()..sort();
+                  final selectedSongIds = _selectedSongIds();
+                  final insertIndex = selectedIndexes.first;
+                  final songsById = {for (final song in songs) song.id: song};
+                  final nextSongIds = [
+                    for (var index = 0; index < songIds.length; index += 1)
+                      if (!selectedIndexes.contains(index)) songIds[index],
+                  ];
+                  onReplaceQueue(nextSongIds);
+                  showUndoableSnackBar(
+                    context: context,
+                    i18n: i18n,
+                    message: songsRemovedUndoMessage(
+                      i18n: i18n,
+                      songIds: selectedSongIds,
+                      songsById: songsById,
+                      target: i18n.t('common.nowPlaying'),
+                    ),
+                    onUndo:
+                        () => onReplaceQueue(
+                          _insertQueueSongs(
+                            currentQueueSongIds(),
+                            insertIndex,
+                            selectedSongIds,
+                          ),
+                        ),
+                  );
+                  selection.clearSelection();
+                  onSelectionChanged();
+                },
+                onSelectAll: () {
+                  selection.selectAll(
+                    List.generate(songIds.length, (index) => index),
+                  );
+                  onSelectionChanged();
+                },
+                onReverseSelection: () {
+                  selection.reverseSelection(
+                    List.generate(songIds.length, (index) => index),
+                  );
+                  onSelectionChanged();
+                },
+                onClearSelection: () {
+                  selection.clearSelection();
+                  onSelectionChanged();
+                },
+                onCancel: () {
+                  selection.cancel();
+                  onSelectionChanged();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3833,9 +3884,6 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
           onToggleSelection: () {
             selection.toggle(index);
             onSelectionChanged();
-          },
-          onPlayNextClick: () {
-            onPlayNext(songIds, index);
           },
           onRemoveFromListClick: () {
             onRemove(songIds, index);
@@ -3879,6 +3927,13 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
                   child: item,
                 )
                 : item;
+        final rowItem =
+            fullScreen
+                ? Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: anchoredItem,
+                )
+                : anchoredItem;
         return DragTarget<int>(
           key: ValueKey('now-playing-full-target-${song.id}-$index'),
           onMove: (details) {
@@ -3914,13 +3969,10 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
                     width: constraints.maxWidth,
                     child: Material(
                       color: Colors.transparent,
-                      child: Opacity(opacity: 0.92, child: anchoredItem),
+                      child: Opacity(opacity: 0.92, child: rowItem),
                     ),
                   ),
-                  childWhenDragging: Opacity(
-                    opacity: 0.42,
-                    child: anchoredItem,
-                  ),
+                  childWhenDragging: Opacity(opacity: 0.42, child: rowItem),
                   onDragStarted: () {
                     setState(() {
                       _draggedQueueIndex = index;
@@ -3933,7 +3985,7 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
                   onDragEnd: (_) {
                     _clearQueueDrop();
                   },
-                  child: anchoredItem,
+                  child: rowItem,
                 );
               },
             );
@@ -4191,7 +4243,7 @@ class _NowPlayingFullPlaylistState extends State<_NowPlayingFullPlaylist> {
   }
 }
 
-class _NowPlayingFullQueueCloseButton extends StatefulWidget {
+class _NowPlayingFullQueueCloseButton extends StatelessWidget {
   const _NowPlayingFullQueueCloseButton({
     required this.tooltip,
     required this.onPressed,
@@ -4201,71 +4253,52 @@ class _NowPlayingFullQueueCloseButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   @override
-  State<_NowPlayingFullQueueCloseButton> createState() =>
-      _NowPlayingFullQueueCloseButtonState();
-}
-
-class _NowPlayingFullQueueCloseButtonState
-    extends State<_NowPlayingFullQueueCloseButton> {
-  var _hovered = false;
-  var _focused = false;
-
-  @override
   Widget build(BuildContext context) {
     final colors = NowPlayingFullThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
-    final active = _hovered || _focused;
-    final backgroundColor =
-        night
-            ? active
-                ? const Color(0x29ffffff)
-                : const Color(0x1affffff)
-            : active
-            ? const Color(0x1a0078d7)
-            : const Color(0x9effffff);
+    final glassColor =
+        night ? const Color(0x1cffffff) : const Color(0x86ffffff);
     final foregroundColor =
-        night
-            ? active
-                ? Colors.white
-                : const Color(0xd6ffffff)
-            : active
-            ? _NowPlayingFullColors.accentStrong
-            : _NowPlayingFullColors.dayText;
+        night ? const Color(0xd6ffffff) : _NowPlayingFullColors.dayText;
     return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) {
-          setState(() {
-            _hovered = true;
-          });
-        },
-        onExit: (_) {
-          setState(() {
-            _hovered = false;
-          });
-        },
-        child: Focus(
-          onFocusChange: (focused) {
-            setState(() {
-              _focused = focused;
-            });
-          },
-          child: TextButton(
-            style: TextButton.styleFrom(
-              fixedSize: const Size.square(42),
-              minimumSize: const Size.square(42),
-              maximumSize: const Size.square(42),
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              foregroundColor: foregroundColor,
-              backgroundColor: backgroundColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+      message: tooltip,
+      child: GlassContainer(
+        key: const ValueKey('NowPlayingFull.QueueCloseButton'),
+        width: 42,
+        height: 42,
+        useOwnLayer: true,
+        quality: GlassQuality.standard,
+        shape: const LiquidRoundedRectangle(borderRadius: 10),
+        settings: LiquidGlassSettings(
+          blur: night ? 28 : 34,
+          thickness: 24,
+          refractiveIndex: 1.1,
+          saturation: night ? 1.2 : 1.34,
+          chromaticAberration: 0.016,
+          lightIntensity: night ? 0.24 : 0.34,
+          ambientStrength: night ? 0.14 : 0.18,
+          glowIntensity: 0.22,
+          glassColor: glassColor,
+          standardOpacityMultiplier: night ? 0.86 : 0.78,
+        ),
+        clipBehavior: Clip.hardEdge,
+        allowElevation: false,
+        child: TextButton(
+          style: TextButton.styleFrom(
+            fixedSize: const Size.square(42),
+            minimumSize: const Size.square(42),
+            maximumSize: const Size.square(42),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            foregroundColor: foregroundColor,
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-            onPressed: widget.onPressed,
-            child: const Icon(FluentIcons.dismiss_20_regular, size: 18),
           ),
+          onPressed: onPressed,
+          child: const Icon(FluentIcons.dismiss_20_regular, size: 18),
         ),
       ),
     );

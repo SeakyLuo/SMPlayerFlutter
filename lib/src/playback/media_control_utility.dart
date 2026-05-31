@@ -19,6 +19,10 @@ class MediaControlUtilityRows extends StatelessWidget {
     this.condensed = false,
     this.minimal = false,
     this.width,
+    this.sliderActiveColor,
+    this.sliderInactiveColor,
+    this.sliderThumbColor,
+    this.sliderOverlayColor,
     required this.onMoreClick,
   });
 
@@ -38,24 +42,157 @@ class MediaControlUtilityRows extends StatelessWidget {
   final bool condensed;
   final bool minimal;
   final double? width;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
   Widget build(BuildContext context) {
     final i18n = _mediaControlI18n(context);
-    final compactMinimal = condensed && minimal;
+    final compactMinimal =
+        minimal && (width == null ? condensed : width! <= 68);
     final utilityButtonSize = compactMinimal ? 34.0 : 36.0;
     final utilityButtonPadding = compactMinimal ? 5.0 : 6.0;
     final utilityIconSize = utilityButtonSize - utilityButtonPadding * 2;
+    final modeRowGap =
+        minimal
+            ? 6.0
+            : condensed
+            ? 8.0
+            : 14.0;
+    final showCompactModeButton =
+        (condensed || minimal) && !(minimal && onOpenVoiceAssistant != null);
+    final modeRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showCompactModeButton) ...[
+          Builder(
+            builder: (modeButtonContext) {
+              return _PlayerIconButton(
+                key: const ValueKey('MediaControl.CompactModeButton'),
+                tooltip:
+                    '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+                icon: _playbackModeIcon(mode),
+                active: mode != PlaybackMode.once,
+                disabled: disabled,
+                buttonSize: utilityButtonSize,
+                padding: utilityButtonPadding,
+                iconSize: utilityIconSize,
+                showLongPressProgress: false,
+                onPressed: () {
+                  switch (getNextPlaybackMode(mode)) {
+                    case PlaybackMode.shuffle:
+                      onToggleShuffle();
+                    case PlaybackMode.repeat:
+                      onToggleRepeat();
+                    case PlaybackMode.repeatOne:
+                      onToggleRepeatOne();
+                    case PlaybackMode.once:
+                      if (mode == PlaybackMode.shuffle) {
+                        onToggleShuffle();
+                      } else if (mode == PlaybackMode.repeat) {
+                        onToggleRepeat();
+                      } else {
+                        onToggleRepeatOne();
+                      }
+                  }
+                },
+                onLongPress: () {
+                  _showPlaybackModeMenu(
+                    modeButtonContext,
+                    i18n: i18n,
+                    mode: mode,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                  );
+                },
+              );
+            },
+          ),
+          SizedBox(width: modeRowGap),
+        ] else if (!condensed && !minimal) ...[
+          _PlayerIconButton(
+            key: const ValueKey('MediaControl.ShuffleButton'),
+            tooltip:
+                mode == PlaybackMode.shuffle
+                    ? i18n.t('player.shuffleEnabled')
+                    : i18n.t('player.shuffleDisabled'),
+            icon: _shuffleIcon,
+            active: mode == PlaybackMode.shuffle,
+            disabled: disabled,
+            onPressed: onToggleShuffle,
+          ),
+          SizedBox(width: modeRowGap),
+          _PlayerIconButton(
+            tooltip:
+                mode == PlaybackMode.repeat
+                    ? i18n.t('player.repeatEnabled')
+                    : i18n.t('player.repeatDisabled'),
+            icon: _repeatIcon,
+            active: mode == PlaybackMode.repeat,
+            disabled: disabled,
+            onPressed: onToggleRepeat,
+          ),
+          SizedBox(width: modeRowGap),
+          _PlayerIconButton(
+            tooltip:
+                mode == PlaybackMode.repeatOne
+                    ? i18n.t('player.repeatOneEnabled')
+                    : i18n.t('player.repeatOneDisabled'),
+            icon: _repeatOneIcon,
+            active: mode == PlaybackMode.repeatOne,
+            disabled: disabled,
+            onPressed: onToggleRepeatOne,
+          ),
+          SizedBox(width: modeRowGap),
+        ],
+        if (onOpenVoiceAssistant != null) ...[
+          _PlayerIconButton(
+            tooltip: i18n.t('player.voiceAssistant'),
+            icon: _voiceIcon,
+            disabled: false,
+            buttonSize: utilityButtonSize,
+            padding: utilityButtonPadding,
+            iconSize: utilityIconSize,
+            onPressed: onOpenVoiceAssistant!,
+          ),
+          SizedBox(width: modeRowGap),
+        ],
+        Builder(
+          builder: (moreButtonContext) {
+            return _PlayerIconButton(
+              key: const ValueKey('MediaControl.MoreButton'),
+              tooltip: i18n.t('player.more'),
+              icon: _moreIcon,
+              buttonSize: utilityButtonSize,
+              padding: utilityButtonPadding,
+              iconSize: utilityIconSize,
+              onPressed: () {
+                onMoreClick(moreButtonContext);
+              },
+            );
+          },
+        ),
+      ],
+    );
 
     return SizedBox(
       width:
           width ??
-          (minimal ? (compactMinimal ? 68 : 80) : (condensed ? 132 : 280)),
+          _mediaControlUtilityWidth(
+            minimal: minimal,
+            condensed: condensed,
+            hasVoiceAssistant: onOpenVoiceAssistant != null,
+          ),
       child: Padding(
         padding:
-            condensed || minimal
+            minimal
                 ? EdgeInsets.zero
+                : condensed
+                ? const EdgeInsets.symmetric(horizontal: 8)
                 : const EdgeInsets.only(left: 12, right: 16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -78,8 +215,12 @@ class MediaControlUtilityRows extends StatelessWidget {
                                         : i18n.t('player.mute'),
                                 icon: playerVolumeIcon(volumeValue, isMuted),
                                 active: isMuted,
-                                disabled: false,
+                                disabled: disabled,
                                 volumeValue: volumeValue,
+                                sliderActiveColor: sliderActiveColor,
+                                sliderInactiveColor: sliderInactiveColor,
+                                sliderThumbColor: sliderThumbColor,
+                                sliderOverlayColor: sliderOverlayColor,
                                 onVolumeChange: onVolumeChange,
                               ),
                               const SizedBox(width: 8),
@@ -116,7 +257,7 @@ class MediaControlUtilityRows extends StatelessWidget {
                                           : i18n.t('player.mute'),
                                   icon: playerVolumeIcon(volumeValue, isMuted),
                                   active: isMuted,
-                                  disabled: false,
+                                  disabled: disabled,
                                   onPressed: onToggleMute,
                                 ),
                                 const SizedBox(width: 14),
@@ -128,7 +269,19 @@ class MediaControlUtilityRows extends StatelessWidget {
                                       'MediaControl.WideVolumeSlider',
                                     ),
                                     value: volumeValue,
-                                    disabled: false,
+                                    disabled: disabled,
+                                    activeTrackColor:
+                                        sliderActiveColor ??
+                                        MediaControlColors.accent,
+                                    inactiveTrackColor:
+                                        sliderInactiveColor ??
+                                        MediaControlColors.sliderInactive,
+                                    thumbColor:
+                                        sliderThumbColor ??
+                                        MediaControlColors.accent,
+                                    overlayColor:
+                                        sliderOverlayColor ??
+                                        MediaControlColors.accentHover,
                                     onChange: onVolumeChange,
                                   ),
                                 ),
@@ -162,121 +315,19 @@ class MediaControlUtilityRows extends StatelessWidget {
               key: const ValueKey('MediaControl.ModeRow'),
               height: minimal ? 36 : 44,
               child: Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (condensed || minimal)
-                      Builder(
-                        builder: (modeButtonContext) {
-                          return _PlayerIconButton(
-                            key: const ValueKey(
-                              'MediaControl.CompactModeButton',
-                            ),
-                            tooltip:
-                                '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-                            icon: _playbackModeIcon(mode),
-                            active: mode != PlaybackMode.once,
-                            disabled: disabled,
-                            buttonSize: utilityButtonSize,
-                            padding: utilityButtonPadding,
-                            iconSize: utilityIconSize,
-                            showLongPressProgress: false,
-                            onPressed: () {
-                              switch (getNextPlaybackMode(mode)) {
-                                case PlaybackMode.shuffle:
-                                  onToggleShuffle();
-                                case PlaybackMode.repeat:
-                                  onToggleRepeat();
-                                case PlaybackMode.repeatOne:
-                                  onToggleRepeatOne();
-                                case PlaybackMode.once:
-                                  if (mode == PlaybackMode.shuffle) {
-                                    onToggleShuffle();
-                                  } else if (mode == PlaybackMode.repeat) {
-                                    onToggleRepeat();
-                                  } else {
-                                    onToggleRepeatOne();
-                                  }
-                              }
-                            },
-                            onLongPress: () {
-                              _showPlaybackModeMenu(
-                                modeButtonContext,
-                                i18n: i18n,
-                                mode: mode,
-                                onToggleShuffle: onToggleShuffle,
-                                onToggleRepeat: onToggleRepeat,
-                                onToggleRepeatOne: onToggleRepeatOne,
-                              );
-                            },
-                          );
-                        },
-                      )
-                    else ...[
-                      _PlayerIconButton(
-                        tooltip:
-                            mode == PlaybackMode.shuffle
-                                ? i18n.t('player.shuffleEnabled')
-                                : i18n.t('player.shuffleDisabled'),
-                        icon: _shuffleIcon,
-                        active: mode == PlaybackMode.shuffle,
-                        disabled: disabled,
-                        onPressed: onToggleShuffle,
-                      ),
-                      const SizedBox(width: 14),
-                      _PlayerIconButton(
-                        tooltip:
-                            mode == PlaybackMode.repeat
-                                ? i18n.t('player.repeatEnabled')
-                                : i18n.t('player.repeatDisabled'),
-                        icon: _repeatIcon,
-                        active: mode == PlaybackMode.repeat,
-                        disabled: disabled,
-                        onPressed: onToggleRepeat,
-                      ),
-                      const SizedBox(width: 14),
-                      _PlayerIconButton(
-                        tooltip:
-                            mode == PlaybackMode.repeatOne
-                                ? i18n.t('player.repeatOneEnabled')
-                                : i18n.t('player.repeatOneDisabled'),
-                        icon: _repeatOneIcon,
-                        active: mode == PlaybackMode.repeatOne,
-                        disabled: disabled,
-                        onPressed: onToggleRepeatOne,
-                      ),
-                      const SizedBox(width: 14),
-                    ],
-                    if (onOpenVoiceAssistant != null) ...[
-                      _PlayerIconButton(
-                        tooltip: i18n.t('player.voiceAssistant'),
-                        icon: _voiceIcon,
-                        disabled: false,
-                        buttonSize: utilityButtonSize,
-                        padding: utilityButtonPadding,
-                        iconSize: utilityIconSize,
-                        onPressed: onOpenVoiceAssistant!,
-                      ),
-                      const SizedBox(width: 14),
-                    ],
-                    Builder(
-                      builder: (moreButtonContext) {
-                        return _PlayerIconButton(
-                          key: const ValueKey('MediaControl.MoreButton'),
-                          tooltip: i18n.t('player.more'),
-                          icon: _moreIcon,
-                          buttonSize: utilityButtonSize,
-                          padding: utilityButtonPadding,
-                          iconSize: utilityIconSize,
-                          onPressed: () {
-                            onMoreClick(moreButtonContext);
-                          },
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                alignment: minimal ? Alignment.center : Alignment.centerRight,
+                child:
+                    compactMinimal
+                        ? OverflowBox(
+                          alignment:
+                              minimal
+                                  ? Alignment.center
+                                  : Alignment.centerRight,
+                          minWidth: 0,
+                          maxWidth: double.infinity,
+                          child: modeRow,
+                        )
+                        : modeRow,
               ),
             ),
           ],
@@ -286,6 +337,20 @@ class MediaControlUtilityRows extends StatelessWidget {
   }
 }
 
+double _mediaControlUtilityWidth({
+  required bool minimal,
+  required bool condensed,
+  required bool hasVoiceAssistant,
+}) {
+  if (minimal) {
+    return condensed ? 68 : 80;
+  }
+  if (condensed) {
+    return hasVoiceAssistant ? 140 : 132;
+  }
+  return 280;
+}
+
 class _PlayerCompactVolumeAction extends StatefulWidget {
   const _PlayerCompactVolumeAction({
     required this.tooltip,
@@ -293,6 +358,10 @@ class _PlayerCompactVolumeAction extends StatefulWidget {
     required this.active,
     required this.disabled,
     required this.volumeValue,
+    this.sliderActiveColor,
+    this.sliderInactiveColor,
+    this.sliderThumbColor,
+    this.sliderOverlayColor,
     required this.onVolumeChange,
   });
 
@@ -301,6 +370,10 @@ class _PlayerCompactVolumeAction extends StatefulWidget {
   final bool active;
   final bool disabled;
   final int volumeValue;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
   final ValueChanged<int> onVolumeChange;
 
   @override
@@ -310,15 +383,24 @@ class _PlayerCompactVolumeAction extends StatefulWidget {
 
 class _PlayerCompactVolumeActionState
     extends State<_PlayerCompactVolumeAction> {
-  final _layerLink = LayerLink();
+  static const _popoverSize = Size(48, 116);
+  static const _popoverBackground = Color(0xf5222222);
+  static const _popoverBorder = Color(0x2effffff);
+  static const _popoverShadow = Color(0x6b000000);
+  static const _sliderActive = Color(0xf5ffffff);
+  static const _sliderInactive = Color(0x52ffffff);
+
   final _tapRegionGroup = Object();
   OverlayEntry? _popoverEntry;
   var _open = false;
+  var _popoverRebuildScheduled = false;
 
   @override
   void didUpdateWidget(covariant _PlayerCompactVolumeAction oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _popoverEntry?.markNeedsBuild();
+    if (_open) {
+      _schedulePopoverRebuild();
+    }
   }
 
   @override
@@ -334,19 +416,16 @@ class _PlayerCompactVolumeActionState
       onTapOutside: (_) {
         _closePopover();
       },
-      child: CompositedTransformTarget(
-        link: _layerLink,
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: _PlayerIconButton(
-            key: const ValueKey('MediaControl.CompactVolumeButton'),
-            tooltip: widget.tooltip,
-            icon: widget.icon,
-            active: widget.active || _open,
-            disabled: widget.disabled,
-            onPressed: _togglePopover,
-          ),
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: _PlayerIconButton(
+          key: const ValueKey('MediaControl.CompactVolumeButton'),
+          tooltip: widget.tooltip,
+          icon: widget.icon,
+          active: widget.active || _open,
+          disabled: widget.disabled,
+          onPressed: _togglePopover,
         ),
       ),
     );
@@ -386,40 +465,66 @@ class _PlayerCompactVolumeActionState
     _popoverEntry = null;
   }
 
+  void _schedulePopoverRebuild() {
+    if (_popoverRebuildScheduled) {
+      return;
+    }
+    _popoverRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _popoverRebuildScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _popoverEntry?.markNeedsBuild();
+    });
+  }
+
   Widget _buildPopoverOverlay(BuildContext context) {
-    return CompositedTransformFollower(
-      link: _layerLink,
-      showWhenUnlinked: false,
-      targetAnchor: Alignment.topRight,
-      followerAnchor: Alignment.bottomRight,
-      offset: const Offset(-6, -8),
+    final buttonBox = this.context.findRenderObject()! as RenderBox;
+    final overlayBox =
+        Overlay.of(this.context, rootOverlay: true).context.findRenderObject()!
+            as RenderBox;
+    final buttonTopRight = overlayBox.globalToLocal(
+      buttonBox.localToGlobal(Offset(buttonBox.size.width, 0)),
+    );
+    final decoration = BoxDecoration(
+      color: _popoverBackground,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: _popoverBorder),
+      boxShadow: const [
+        BoxShadow(color: _popoverShadow, offset: Offset(0, 16), blurRadius: 36),
+      ],
+    );
+    return Positioned(
+      left: buttonTopRight.dx - _popoverSize.width - 6,
+      top: buttonTopRight.dy - _popoverSize.height - 8,
+      width: _popoverSize.width,
+      height: _popoverSize.height,
       child: TapRegion(
         groupId: _tapRegionGroup,
         child: Material(
           color: Colors.transparent,
           child: DecoratedBox(
             key: const ValueKey('MediaControl.CompactVolumePopover'),
-            decoration: BoxDecoration(
-              color: const Color(0xf5ffffff),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x1a323e4e)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x2e2a384e),
-                  offset: Offset(0, 16),
-                  blurRadius: 36,
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              child: VolumeSlider(
-                value: widget.volumeValue,
-                disabled: widget.disabled,
-                orientation: VolumeSliderOrientation.vertical,
-                showTooltipOnMount: true,
-                onChange: widget.onVolumeChange,
-              ),
+            decoration: decoration,
+            child: VolumeSlider(
+              value: widget.volumeValue,
+              disabled: widget.disabled,
+              activeTrackColor: _sliderActive,
+              inactiveTrackColor: _sliderInactive,
+              thumbColor: Colors.white,
+              overlayColor: Colors.transparent,
+              orientation: VolumeSliderOrientation.vertical,
+              verticalHeight: _popoverSize.height,
+              verticalTrackLength: 96,
+              trackHeight: 2,
+              thumbRadius: 6,
+              overlayRadius: 6,
+              verticalTooltipSide: VolumeSliderVerticalTooltipSide.left,
+              tooltipBackgroundColor: _popoverBackground,
+              tooltipForegroundColor: Colors.white,
+              showTooltipOnMount: true,
+              onChange: widget.onVolumeChange,
             ),
           ),
         ),

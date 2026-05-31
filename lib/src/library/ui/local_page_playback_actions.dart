@@ -34,7 +34,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
       MenuFlyoutItem(
         key: 'toolbar-shuffle-current',
         text: i18n.t('local.scopeCurrent'),
-        icon: FluentIcons.arrow_shuffle_20_regular,
+        useShuffleIcon: true,
         onPressed: () => _playShuffledSongIds(queueSongIds),
       ),
       MenuFlyoutItem(

@@ -30,5 +30,5 @@ Widget buildLocalPageEmptyContent({
     );
   }
 
-  return const SizedBox.expand();
+  return const SizedBox.shrink();
 }

@@ -1,3 +1,4 @@
+import 'dart:math' show max;
 import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
@@ -63,7 +64,7 @@ class PlaylistControlItem extends StatefulWidget {
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
-    required this.onPlayNextClick,
+    this.onPlayNextClick,
     this.onRemoveFromListClick,
     this.showAlbum = true,
     this.playNextLabel,
@@ -75,7 +76,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.onAddToPlaylistClick,
     this.onSeeAlbum,
     this.onSeeArtist,
-    this.onOpenContextMenu,
+    required this.onOpenContextMenu,
     this.dropPosition,
     this.variant = PlaylistControlItemVariant.standard,
     this.colors,
@@ -94,7 +95,7 @@ class PlaylistControlItem extends StatefulWidget {
   final VoidCallback onPlayTrack;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
-  final VoidCallback onPlayNextClick;
+  final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
   final bool showAlbum;
   final String? playNextLabel;
@@ -106,7 +107,7 @@ class PlaylistControlItem extends StatefulWidget {
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
   final VoidCallback? onSeeAlbum;
   final ValueChanged<String>? onSeeArtist;
-  final ValueChanged<Offset>? onOpenContextMenu;
+  final ValueChanged<Offset> onOpenContextMenu;
   final PlaylistControlDropPosition? dropPosition;
   final PlaylistControlItemVariant variant;
   final PlaylistControlItemColors? colors;
@@ -243,7 +244,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final content = InkWell(
       onTap: _activateRow,
       onSecondaryTapDown: (details) {
-        widget.onOpenContextMenu?.call(details.globalPosition);
+        widget.onOpenContextMenu(details.globalPosition);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
@@ -403,19 +404,27 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 SizedBox(
                   key: const ValueKey('PlaylistControlItem.Duration'),
                   width: durationWidth,
-                  child: Text(
-                    formatDuration(widget.song.duration.toDouble()),
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.visible,
-                    textAlign: TextAlign.end,
-                    style: TextStyle(
-                      color:
-                          widget.current
-                              ? colors.currentForeground
-                              : colors.textStrong,
-                      fontSize: compactVariant ? 14 : 13,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                  child: OverflowBox(
+                    alignment: Alignment.centerRight,
+                    minWidth: 0,
+                    maxWidth: max(durationWidth, 50),
+                    child: SizedBox(
+                      width: max(durationWidth, 50),
+                      child: Text(
+                        formatDuration(widget.song.duration.toDouble()),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color:
+                              widget.current
+                                  ? colors.currentForeground
+                                  : colors.textStrong,
+                          fontSize: compactVariant ? 14 : 13,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -823,9 +832,9 @@ class _QueueActions extends StatelessWidget {
     this.onToggleFavoriteClick,
     required this.showFavoriteAction,
     this.onAddToPlaylistClick,
-    required this.onPlayNextClick,
+    this.onPlayNextClick,
     this.onRemoveFromListClick,
-    this.onOpenContextMenu,
+    required this.onOpenContextMenu,
     required this.colors,
     required this.customColors,
     required this.compactCollapsed,
@@ -844,9 +853,9 @@ class _QueueActions extends StatelessWidget {
   final VoidCallback? onToggleFavoriteClick;
   final bool showFavoriteAction;
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
-  final VoidCallback onPlayNextClick;
+  final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
-  final ValueChanged<Offset>? onOpenContextMenu;
+  final ValueChanged<Offset> onOpenContextMenu;
   final PlaylistControlItemColors colors;
   final bool customColors;
   final bool compactCollapsed;
@@ -925,19 +934,20 @@ class _QueueActions extends StatelessWidget {
                 ),
               ),
         ),
-      hoverAction(
-        _QueueActionButton(
-          key: const ValueKey('PlaylistControlItem.PlayNextAction'),
-          tooltip: playNextLabel,
-          icon: const SmPlayerPlayNextIcon(size: 18),
-          foregroundColor: colors.actionForeground,
-          hoverForegroundColor: colors.currentForeground,
-          hoverBackgroundColor: colors.actionHover,
-          size: actionSize,
-          radius: actionRadius,
-          onPressed: onPlayNextClick,
+      if (onPlayNextClick != null)
+        hoverAction(
+          _QueueActionButton(
+            key: const ValueKey('PlaylistControlItem.PlayNextAction'),
+            tooltip: playNextLabel,
+            icon: const SmPlayerPlayNextIcon(size: 18),
+            foregroundColor: colors.actionForeground,
+            hoverForegroundColor: colors.currentForeground,
+            hoverBackgroundColor: colors.actionHover,
+            size: actionSize,
+            radius: actionRadius,
+            onPressed: onPlayNextClick,
+          ),
         ),
-      ),
       if (!compactVariant && onRemoveFromListClick != null)
         _QueueActionButton(
           key: const ValueKey('PlaylistControlItem.RemoveAction'),
@@ -950,29 +960,28 @@ class _QueueActions extends StatelessWidget {
           radius: actionRadius,
           onPressed: onRemoveFromListClick,
         ),
-      if (onOpenContextMenu != null)
-        Builder(
-          builder:
-              (buttonContext) => hoverAction(
-                _QueueActionButton(
-                  key: const ValueKey('PlaylistControlItem.MoreAction'),
-                  tooltip: moreLabel,
-                  icon: const SmPlayerMoreHorizontalIcon(size: 18),
-                  foregroundColor: colors.actionForeground,
-                  hoverForegroundColor: colors.currentForeground,
-                  hoverBackgroundColor: colors.actionHover,
-                  size: actionSize,
-                  radius: actionRadius,
-                  onPressed: () {
-                    final box = buttonContext.findRenderObject() as RenderBox;
-                    final offset = box.localToGlobal(
-                      Offset(0, box.size.height + 8),
-                    );
-                    onOpenContextMenu!(offset);
-                  },
-                ),
+      Builder(
+        builder:
+            (buttonContext) => hoverAction(
+              _QueueActionButton(
+                key: const ValueKey('PlaylistControlItem.MoreAction'),
+                tooltip: moreLabel,
+                icon: const SmPlayerMoreHorizontalIcon(size: 18),
+                foregroundColor: colors.actionForeground,
+                hoverForegroundColor: colors.currentForeground,
+                hoverBackgroundColor: colors.actionHover,
+                size: actionSize,
+                radius: actionRadius,
+                onPressed: () {
+                  final box = buttonContext.findRenderObject() as RenderBox;
+                  final offset = box.localToGlobal(
+                    Offset(0, box.size.height + 8),
+                  );
+                  onOpenContextMenu(offset);
+                },
               ),
-        ),
+            ),
+      ),
     ];
     final actions = Row(
       mainAxisSize: MainAxisSize.min,
@@ -997,7 +1006,9 @@ class _QueueActions extends StatelessWidget {
         showCompactPrimaryActions
             ? 136.0
             : compactCollapsed
-            ? 68.0
+            ? onPlayNextClick == null
+                ? 34.0
+                : 68.0
             : 76.0;
     final collapsedWidth = compactCollapsed ? 34.0 : expandedWidth;
     if (compactCollapsed && showCompactPrimaryActions) {

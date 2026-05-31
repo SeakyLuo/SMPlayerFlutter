@@ -8,6 +8,10 @@ class _MediaProgressSlider extends StatelessWidget {
     required this.onChanged,
     required this.onChangeStart,
     required this.onChangeEnd,
+    this.activeTrackColor,
+    this.inactiveTrackColor,
+    this.thumbColor,
+    this.overlayColor,
   });
 
   final double value;
@@ -16,11 +20,19 @@ class _MediaProgressSlider extends StatelessWidget {
   final ValueChanged<double> onChanged;
   final ValueChanged<double> onChangeStart;
   final ValueChanged<double> onChangeEnd;
+  final Color? activeTrackColor;
+  final Color? inactiveTrackColor;
+  final Color? thumbColor;
+  final Color? overlayColor;
 
   @override
   Widget build(BuildContext context) {
-    final inactiveTrackColor = MediaControlColors.sliderInactiveFor(context);
-    final disabledThumbColor = MediaControlColors.accent.withValues(alpha: 0.8);
+    final activeTrackColor = this.activeTrackColor ?? MediaControlColors.accent;
+    final inactiveTrackColor =
+        this.inactiveTrackColor ?? MediaControlColors.sliderInactiveFor(context);
+    final thumbColor = this.thumbColor ?? MediaControlColors.accent;
+    final overlayColor = this.overlayColor ?? MediaControlColors.accentHover;
+    final disabledThumbColor = thumbColor.withValues(alpha: 0.8);
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: _mediaSliderTrackHeight,
@@ -31,17 +43,16 @@ class _MediaProgressSlider extends StatelessWidget {
         overlayShape: const RoundSliderOverlayShape(
           overlayRadius: _mediaSliderOverlayRadius,
         ),
-        activeTrackColor: MediaControlColors.accent,
+        activeTrackColor: activeTrackColor,
         inactiveTrackColor: inactiveTrackColor,
-        thumbColor: MediaControlColors.accent,
-        disabledActiveTrackColor: MediaControlColors.accent.withValues(
-          alpha: 0.92,
-        ),
+        thumbColor: thumbColor,
+        disabledActiveTrackColor: activeTrackColor.withValues(alpha: 0.92),
         disabledInactiveTrackColor: inactiveTrackColor,
         disabledThumbColor: disabledThumbColor,
-        overlayColor: MediaControlColors.accentHover,
+        overlayColor: overlayColor,
       ),
       child: Slider(
+        key: const ValueKey('MediaControl.ProgressSlider'),
         value: max > 0 ? value.clamp(0, max).toDouble() : 0,
         min: 0,
         max: max > 0 ? max : 1,

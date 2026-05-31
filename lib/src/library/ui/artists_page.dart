@@ -83,6 +83,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   var _appBarSearchOpen = false;
   var _selectedArtistName = '';
   String? _appliedTargetArtistName;
+  String? _pendingOpenedArtistRoute;
   String? _notifiedMissingTargetArtistName;
   var _artistScrollTop = 0.0;
   String? _artistQuickJumpPinnedKey;
@@ -106,7 +107,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   void didUpdateWidget(ArtistsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.targetArtistName != widget.targetArtistName) {
-      _appliedTargetArtistName = null;
+      if (widget.targetArtistName == _pendingOpenedArtistRoute) {
+        _appliedTargetArtistName = widget.targetArtistName;
+        _selectedArtistName = widget.targetArtistName ?? '';
+        _pendingOpenedArtistRoute = null;
+      } else {
+        _appliedTargetArtistName = null;
+        _pendingOpenedArtistRoute = null;
+      }
       _notifiedMissingTargetArtistName = null;
       if (widget.targetArtistName == null) {
         _selectedArtistName = '';
@@ -134,6 +142,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     required String compactTitle,
     required int searchSuggestionCount,
     required int searchHistoryCount,
+    Widget? bottomContent,
   }) {
     _syncArtistsAppBarPortal(
       this,
@@ -143,6 +152,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       compactTitle: compactTitle,
       searchSuggestionCount: searchSuggestionCount,
       searchHistoryCount: searchHistoryCount,
+      bottomContent: bottomContent,
     );
   }
 
@@ -321,6 +331,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             matchingSelectedArtists.isNotEmpty
                 ? matchingSelectedArtists.first
                 : null;
+        final compactAppBarArtist =
+            compactSelectedArtist ??
+            (targetArtistAvailable
+                ? visibleArtists.firstWhere(
+                  (artist) => artist.name == targetArtistName,
+                )
+                : null);
         final artistQuickJumpMap = buildArtistQuickJumpMap(visibleArtists);
         final activeArtistQuickJumpKey = _getActiveArtistQuickJumpKey(
           visibleArtists,
@@ -353,11 +370,33 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
         final compactLayout = MediaQuery.sizeOf(context).width <= 720;
         final compactAppBarTitle =
-            widget.targetArtistName != null
-                ? ''
-                : compactLayout && compactSelectedArtist != null
-                ? compactSelectedArtist.name
+            compactLayout
+                ? compactAppBarArtist?.name ??
+                    _allArtistsTitle(snapshot, artistGroups, i18n)
                 : _allArtistsTitle(snapshot, artistGroups, i18n);
+        final compactAppBarDetailControls =
+            useWorkspaceAppBar && compactLayout && compactAppBarArtist != null
+                ? _ArtistDetailCompactCommandRow(
+                  artist: compactAppBarArtist,
+                  i18n: i18n,
+                  onReturnToArtistList: _returnToArtistList,
+                  onPlaySongs: () {
+                    _playShuffledSongIds(
+                      compactAppBarArtist.songs.map((song) => song.id).toList(),
+                      artistName: compactAppBarArtist.name,
+                    );
+                  },
+                  onOpenArtistMenu: (position) {
+                    _showGroupContextMenu(
+                      position: position,
+                      type: _ArtistGroupMenuType.artist,
+                      label: compactAppBarArtist.name,
+                      songs: compactAppBarArtist.songs,
+                      showLocateArtist: true,
+                    );
+                  },
+                )
+                : null;
         _syncAppBarPortal(
           showPortal: true,
           routePath: '/artists',
@@ -409,6 +448,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           compactTitle: compactAppBarTitle,
           searchSuggestionCount: artistSearchSuggestions.length,
           searchHistoryCount: artistSearchHistoryEntries.length,
+          bottomContent: compactAppBarDetailControls,
         );
 
         return Stack(
@@ -674,6 +714,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   }
 
   void _selectArtistSearchQuery(String query) {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _artistSearch = query;
       _artistSearchFocused = false;
@@ -838,7 +879,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
 enum _ArtistGroupMenuType { artist, album }
 
-class _ArtistsAppBarSearchActions extends StatelessWidget {
+class _ArtistsAppBarSearchActions extends StatefulWidget {
   const _ArtistsAppBarSearchActions({
     required this.searchOpen,
     required this.artistSearch,
@@ -874,91 +915,129 @@ class _ArtistsAppBarSearchActions extends StatelessWidget {
   final VoidCallback onClearRecentSearches;
 
   @override
+  State<_ArtistsAppBarSearchActions> createState() =>
+      _ArtistsAppBarSearchActionsState();
+}
+
+class _ArtistsAppBarSearchActionsState
+    extends State<_ArtistsAppBarSearchActions> {
+  final _dropdownController = OverlayPortalController();
+
+  bool get _showSuggestions =>
+      widget.searchFocused && widget.searchSuggestions.isNotEmpty;
+
+  bool get _showHistory =>
+      widget.searchFocused &&
+      widget.artistSearch.trim().isEmpty &&
+      widget.searchHistoryEntries.isNotEmpty;
+
+  bool get _showDropdown => _showSuggestions || _showHistory;
+
+  @override
+  void didUpdateWidget(covariant _ArtistsAppBarSearchActions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncDropdown();
+  }
+
+  void _syncDropdown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_showDropdown && !_dropdownController.isShowing) {
+        _dropdownController.show();
+      } else if (!_showDropdown && _dropdownController.isShowing) {
+        _dropdownController.hide();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!searchOpen) {
+    if (!widget.searchOpen) {
       return CommandBar(
         style: CommandBarStyleVariant.appBar,
-        overflowLabel: i18n.t('player.more'),
+        overflowLabel: widget.i18n.t('player.more'),
         children: [
           CommandBarButton(
             key: const ValueKey('Artists.AppBar.Search'),
             icon: FluentIcons.search_20_regular,
-            label: i18n.t('common.search'),
-            active: artistSearch.isNotEmpty,
+            label: widget.i18n.t('common.search'),
+            active: false,
+            activeSurface: false,
             showLabel: false,
             canOverflow: false,
-            onPressed: onOpenSearch,
+            onPressed: widget.onOpenSearch,
           ),
         ],
       );
     }
-    final showSuggestions = searchFocused && searchSuggestions.isNotEmpty;
-    final showHistory =
-        searchFocused &&
-        artistSearch.trim().isEmpty &&
-        searchHistoryEntries.isNotEmpty;
-    return SizedBox(
-      height: 36,
-      width: double.infinity,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Focus(
-                  onKeyEvent: (node, event) {
-                    if (event is KeyDownEvent &&
-                        event.logicalKey == LogicalKeyboardKey.escape) {
-                      onCloseSearch();
-                      return KeyEventResult.handled;
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: PageSearchField(
-                    key: const ValueKey('Artists.AppBar.SearchField'),
-                    value: artistSearch,
-                    hintText: i18n.t('artists.searchArtistsPlaceholder'),
-                    focused: searchFocused,
-                    autofocus: true,
-                    height: 36,
-                    appBar: true,
-                    onChanged: onSearchChanged,
-                    onFocusChanged: onSearchFocusChanged,
-                    onSubmitted: onSearchSubmitted,
-                    onClear: onClearSearch,
-                    searchTooltip: i18n.t('common.search'),
-                    clearTooltip: i18n.t('common.clear'),
+    _syncDropdown();
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _dropdownController,
+      overlayChildBuilder: (context, info) {
+        final origin = MatrixUtils.transformPoint(
+          info.childPaintTransform,
+          Offset.zero,
+        );
+        return Positioned(
+          left: origin.dx,
+          top: origin.dy + 42,
+          width: max(0, info.childSize.width - 40),
+          child:
+              _showSuggestions
+                  ? PageSearchSuggestionPanel(
+                    labels: widget.searchSuggestions,
+                    onSelect: widget.onSelectSearchSuggestion,
+                  )
+                  : PageSearchHistoryPanel(
+                    entries: widget.searchHistoryEntries,
+                    i18n: widget.i18n,
+                    onSelect: widget.onSelectSearchSuggestion,
+                    onRemove: widget.onRemoveRecentSearch,
+                    onClear: widget.onClearRecentSearches,
                   ),
+        );
+      },
+      child: SizedBox(
+        height: 36,
+        width: double.infinity,
+        child: Row(
+          children: [
+            Expanded(
+              child: Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.escape) {
+                    widget.onCloseSearch();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: PageSearchField(
+                  key: const ValueKey('Artists.AppBar.SearchField'),
+                  value: widget.artistSearch,
+                  hintText: widget.i18n.t('artists.searchArtistsPlaceholder'),
+                  focused: widget.searchFocused,
+                  autofocus: true,
+                  height: 36,
+                  appBar: true,
+                  onChanged: widget.onSearchChanged,
+                  onFocusChanged: widget.onSearchFocusChanged,
+                  onSubmitted: widget.onSearchSubmitted,
+                  onClear: widget.onClearSearch,
+                  searchTooltip: widget.i18n.t('common.search'),
+                  clearTooltip: widget.i18n.t('common.clear'),
                 ),
               ),
-              const SizedBox(width: 4),
-              AppBarPageSearchCloseButton(
-                tooltip: i18n.t('common.close'),
-                onPressed: onCloseSearch,
-              ),
-            ],
-          ),
-          if (showSuggestions || showHistory)
-            Positioned(
-              top: 42,
-              left: 0,
-              right: 40,
-              child:
-                  showSuggestions
-                      ? PageSearchSuggestionPanel(
-                        labels: searchSuggestions,
-                        onSelect: onSelectSearchSuggestion,
-                      )
-                      : PageSearchHistoryPanel(
-                        entries: searchHistoryEntries,
-                        i18n: i18n,
-                        onSelect: onSelectSearchSuggestion,
-                        onRemove: onRemoveRecentSearch,
-                        onClear: onClearRecentSearches,
-                      ),
             ),
-        ],
+            const SizedBox(width: 4),
+            AppBarPageSearchCloseButton(
+              tooltip: widget.i18n.t('common.close'),
+              onPressed: widget.onCloseSearch,
+            ),
+          ],
+        ),
       ),
     );
   }

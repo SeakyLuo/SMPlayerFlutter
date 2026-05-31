@@ -21,6 +21,8 @@ class ScanProgressOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final colors = LocalPageColors.of(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
     final value = (progress.current / progress.total).clamp(0, 1).toDouble();
     final percent = (value * 100).round();
     final stageText = switch (progress.stage) {
@@ -36,7 +38,7 @@ class ScanProgressOverlay extends StatelessWidget {
     };
 
     return ColoredBox(
-      color: const Color(0x38121b26),
+      color: nightMode ? const Color(0x5204080d) : const Color(0x38121b26),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -44,12 +46,21 @@ class ScanProgressOverlay extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
             decoration: BoxDecoration(
-              color: const Color(0xf0ffffff),
+              color:
+                  nightMode ? const Color(0xf0161c24) : const Color(0xf0ffffff),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xb3ccd5e0)),
-              boxShadow: const [
+              border: Border.all(
+                color:
+                    nightMode
+                        ? const Color(0x24d6e0ec)
+                        : const Color(0xb3ccd5e0),
+              ),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x3d1a2738),
+                  color:
+                      nightMode
+                          ? const Color(0x7a000000)
+                          : const Color(0x3d1a2738),
                   blurRadius: 80,
                   offset: Offset(0, 26),
                 ),
@@ -64,13 +75,13 @@ class ScanProgressOverlay extends StatelessWidget {
                     Container(
                       width: 56,
                       height: 56,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Color(0x210078d7),
+                        color: colors.accentSoft,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         FluentIcons.arrow_sync_24_regular,
-                        color: LocalPageColors.accentStrong,
+                        color: colors.accentStrong,
                         size: 30,
                       ),
                     ),
@@ -78,8 +89,8 @@ class ScanProgressOverlay extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
-                          color: LocalPageColors.textStrong,
+                        style: TextStyle(
+                          color: colors.textStrong,
                           fontSize: 28,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -92,9 +103,17 @@ class ScanProgressOverlay extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
                   decoration: BoxDecoration(
-                    color: const Color(0x94ffffff),
+                    color:
+                        nightMode
+                            ? const Color(0xb8121820)
+                            : const Color(0x94ffffff),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xb8ccd5e0)),
+                    border: Border.all(
+                      color:
+                          nightMode
+                              ? const Color(0x24d6e0ec)
+                              : const Color(0xb8ccd5e0),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -110,8 +129,8 @@ class ScanProgressOverlay extends StatelessWidget {
                                   stageText,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: LocalPageColors.textStrong,
+                                  style: TextStyle(
+                                    color: colors.textStrong,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -121,8 +140,8 @@ class ScanProgressOverlay extends StatelessWidget {
                                   _progressDescription(i18n),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: LocalPageColors.textMuted,
+                                  style: TextStyle(
+                                    color: colors.textMuted,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -210,6 +229,8 @@ class _LocalRefreshPercent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = LocalPageColors.of(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: 76,
       height: 76,
@@ -223,22 +244,24 @@ class _LocalRefreshPercent extends StatelessWidget {
               value: value,
               strokeWidth: 16,
               strokeCap: StrokeCap.butt,
-              backgroundColor: const Color(0x297e8b9a),
-              color: LocalPageColors.accentStrong,
+              backgroundColor:
+                  nightMode ? const Color(0x24d6e0ec) : const Color(0x297e8b9a),
+              color: colors.accentStrong,
             ),
           ),
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xffeef4fc),
+              color:
+                  nightMode ? const Color(0xff19212c) : const Color(0xffeef4fc),
             ),
           ),
           Text(
             '$percent%',
-            style: const TextStyle(
-              color: LocalPageColors.textStrong,
+            style: TextStyle(
+              color: colors.textStrong,
               fontSize: 22,
               fontWeight: FontWeight.w800,
               height: 1,
@@ -258,11 +281,15 @@ class _LocalRefreshStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final colors = LocalPageColors.of(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0x94ffffff),
+        color: nightMode ? const Color(0x12ffffff) : const Color(0x94ffffff),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xb3ccd5e0)),
+        border: Border.all(
+          color: nightMode ? const Color(0x24d6e0ec) : const Color(0xb3ccd5e0),
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Row(
@@ -276,7 +303,7 @@ class _LocalRefreshStats extends StatelessWidget {
           _LocalRefreshStat(
             label: i18n.t('local.updateFolderProgressUpdated'),
             value: progress.updatedCount,
-            valueColor: LocalPageColors.accentStrong,
+            valueColor: colors.accentStrong,
           ),
           const _LocalRefreshDivider(),
           _LocalRefreshStat(
@@ -295,7 +322,12 @@ class _LocalRefreshDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 42, color: const Color(0xb3ccd5e0));
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 1,
+      height: 42,
+      color: nightMode ? const Color(0x24d6e0ec) : const Color(0xb3ccd5e0),
+    );
   }
 }
 
@@ -313,6 +345,7 @@ class _LocalRefreshStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unit = context.smPlayerI18n.t('local.updateFolderProgressSongUnit');
+    final colors = LocalPageColors.of(context);
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -326,8 +359,8 @@ class _LocalRefreshStat extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textMuted,
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -348,8 +381,8 @@ class _LocalRefreshStat extends StatelessWidget {
                 unit,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: LocalPageColors.textMuted,
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),

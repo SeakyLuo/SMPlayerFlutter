@@ -74,10 +74,15 @@ class MediaControlSurfaceBar extends StatelessWidget {
     this.leadingFlex,
     this.leadingWidth,
     this.utilityWidth,
+    this.columnGap = 0,
     this.onOpenVoiceAssistant,
     this.condensed = false,
     this.navMinimal = false,
     this.utilityMinimal = false,
+    this.sliderActiveColor,
+    this.sliderInactiveColor,
+    this.sliderThumbColor,
+    this.sliderOverlayColor,
   });
 
   final String? artworkPath;
@@ -86,6 +91,7 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final int? leadingFlex;
   final double? leadingWidth;
   final double? utilityWidth;
+  final double columnGap;
   final int surfaceFlex;
   final int? trackId;
   final bool isLoading;
@@ -116,22 +122,42 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final bool navMinimal;
   final bool utilityCondensed;
   final bool utilityMinimal;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
   final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
+    final navTopRowHeight =
+        navMinimal
+            ? (utilityWidth != null && utilityWidth! <= 68 ? 72.0 : 74.0)
+            : null;
+    Widget navMinimalSideSlot(Widget child) {
+      if (navTopRowHeight == null) {
+        return child;
+      }
+      return Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(height: navTopRowHeight, child: child),
+      );
+    }
+
     return MediaControlPlayerFrame(
       artworkPath: artworkPath,
       borderRadius: borderRadius,
       child: Padding(
         padding: padding,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (leadingWidth == null)
               Expanded(flex: leadingFlex!, child: leading)
             else
-              SizedBox(width: leadingWidth, child: leading),
+              SizedBox(width: leadingWidth, child: navMinimalSideSlot(leading)),
+            if (columnGap > 0) SizedBox(width: columnGap),
             Expanded(
               flex: surfaceFlex,
               child: MediaControlSurface(
@@ -165,11 +191,165 @@ class MediaControlSurfaceBar extends StatelessWidget {
                 utilityCondensed: utilityCondensed,
                 utilityMinimal: utilityMinimal,
                 utilityWidth: utilityWidth,
+                includeUtility: false,
+                progressSideOverflow:
+                    navMinimal && leadingWidth != null
+                        ? leadingWidth! + columnGap - 9
+                        : 0,
+                sliderActiveColor: sliderActiveColor,
+                sliderInactiveColor: sliderInactiveColor,
+                sliderThumbColor: sliderThumbColor,
+                sliderOverlayColor: sliderOverlayColor,
                 onMoreClick: onMoreClick,
               ),
             ),
+            if (columnGap > 0) SizedBox(width: columnGap),
+            if (utilityWidth == null)
+              SizedBox(
+                width: _mediaControlUtilityWidth(
+                  minimal: utilityMinimal,
+                  condensed: utilityCondensed,
+                  hasVoiceAssistant: onOpenVoiceAssistant != null,
+                ),
+                child: navMinimalSideSlot(
+                  _MediaControlSurfaceBarUtility(
+                    width: _mediaControlUtilityWidth(
+                      minimal: utilityMinimal,
+                      condensed: utilityCondensed,
+                      hasVoiceAssistant: onOpenVoiceAssistant != null,
+                    ),
+                    trackId: trackId,
+                    favorite: favorite,
+                    disabled: disabled,
+                    volume: volume,
+                    isMuted: isMuted,
+                    mode: mode,
+                    onVolumeChange: onVolumeChange,
+                    onToggleMute: onToggleMute,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                    onToggleFavorite: onToggleFavorite,
+                    onOpenVoiceAssistant: onOpenVoiceAssistant,
+                    utilityCondensed: utilityCondensed,
+                    utilityMinimal: utilityMinimal,
+                    sliderActiveColor: sliderActiveColor,
+                    sliderInactiveColor: sliderInactiveColor,
+                    sliderThumbColor: sliderThumbColor,
+                    sliderOverlayColor: sliderOverlayColor,
+                    onMoreClick: onMoreClick,
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                width: utilityWidth,
+                child: navMinimalSideSlot(
+                  _MediaControlSurfaceBarUtility(
+                    width: utilityWidth!,
+                    trackId: trackId,
+                    favorite: favorite,
+                    disabled: disabled,
+                    volume: volume,
+                    isMuted: isMuted,
+                    mode: mode,
+                    onVolumeChange: onVolumeChange,
+                    onToggleMute: onToggleMute,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                    onToggleFavorite: onToggleFavorite,
+                    onOpenVoiceAssistant: onOpenVoiceAssistant,
+                    utilityCondensed: utilityCondensed,
+                    utilityMinimal: utilityMinimal,
+                    sliderActiveColor: sliderActiveColor,
+                    sliderInactiveColor: sliderInactiveColor,
+                    sliderThumbColor: sliderThumbColor,
+                    sliderOverlayColor: sliderOverlayColor,
+                    onMoreClick: onMoreClick,
+                  ),
+                ),
+              ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MediaControlSurfaceBarUtility extends StatelessWidget {
+  const _MediaControlSurfaceBarUtility({
+    required this.width,
+    required this.trackId,
+    required this.favorite,
+    required this.disabled,
+    required this.volume,
+    required this.isMuted,
+    required this.mode,
+    required this.onVolumeChange,
+    required this.onToggleMute,
+    required this.onToggleShuffle,
+    required this.onToggleRepeat,
+    required this.onToggleRepeatOne,
+    required this.onToggleFavorite,
+    required this.onOpenVoiceAssistant,
+    required this.utilityCondensed,
+    required this.utilityMinimal,
+    required this.sliderActiveColor,
+    required this.sliderInactiveColor,
+    required this.sliderThumbColor,
+    required this.sliderOverlayColor,
+    required this.onMoreClick,
+  });
+
+  final double width;
+  final int? trackId;
+  final bool favorite;
+  final bool disabled;
+  final int volume;
+  final bool isMuted;
+  final PlaybackMode mode;
+  final ValueChanged<int> onVolumeChange;
+  final VoidCallback onToggleMute;
+  final VoidCallback onToggleShuffle;
+  final VoidCallback onToggleRepeat;
+  final VoidCallback onToggleRepeatOne;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback? onOpenVoiceAssistant;
+  final bool utilityCondensed;
+  final bool utilityMinimal;
+  final Color? sliderActiveColor;
+  final Color? sliderInactiveColor;
+  final Color? sliderThumbColor;
+  final Color? sliderOverlayColor;
+  final ValueChanged<BuildContext> onMoreClick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: utilityMinimal ? Alignment.center : Alignment.centerRight,
+      child: MediaControlUtilityRows(
+        trackId: trackId,
+        favorite: favorite,
+        disabled: disabled,
+        volumeValue: disabled ? 0 : clampVolumeValue(volume),
+        isMuted: isMuted,
+        mode: mode,
+        onVolumeChange: onVolumeChange,
+        onToggleMute: onToggleMute,
+        onToggleShuffle: onToggleShuffle,
+        onToggleRepeat: onToggleRepeat,
+        onToggleRepeatOne: onToggleRepeatOne,
+        onToggleFavorite: onToggleFavorite,
+        onOpenVoiceAssistant: onOpenVoiceAssistant,
+        condensed: utilityCondensed,
+        minimal: utilityMinimal,
+        width: width,
+        sliderActiveColor: sliderActiveColor,
+        sliderInactiveColor: sliderInactiveColor,
+        sliderThumbColor: sliderThumbColor,
+        sliderOverlayColor: sliderOverlayColor,
+        onMoreClick: onMoreClick,
       ),
     );
   }

@@ -1,8 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/voice_assistant_dialog.dart';
 
 void main() {
+  test('voice assistant availability mirrors Electron platform gate', () {
+    expect(supportsVoiceAssistant(), Platform.isWindows);
+  });
+
   test('macOS voice assistant privacy metadata is present', () {
     final infoPlist = File('macos/Runner/Info.plist');
     expect(infoPlist.existsSync(), isTrue);

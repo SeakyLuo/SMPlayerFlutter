@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:screen_retriever/screen_retriever.dart' as screen;
@@ -50,9 +51,14 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
     const repository = LibraryRepository();
     final settingsSnapshot = await repository.initializeSettingsSnapshot();
     final settingsController = SettingsController(settingsSnapshot, repository);
-    final initialLocation = resolveRestoredPage(
+    final restoredLocation = resolveRestoredPage(
       settingsController.snapshot.lastPage,
     );
+    final initialLocation =
+        settingsController.snapshot.lastDisplayMode ==
+                SmPlayerDisplayMode.immersive
+            ? nowPlayingFullRouteFrom(restoredLocation)
+            : restoredLocation;
     final settings = settingsController.snapshot;
     if (!mounted) {
       settingsController.dispose();
@@ -298,9 +304,6 @@ Future<void> _initializeDesktopWindow(SettingsSnapshot settings) async {
 
 Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {
   await windowManager.setMinimumSize(mainWindowMinimumSize);
-  if (Platform.isMacOS) {
-    return;
-  }
   final savedBounds = parseMainWindowBounds(settings.mainWindowBounds);
   final bounds = resolveInitialMainWindowBounds(
     savedBounds,

@@ -2,8 +2,12 @@ part of 'local_page.dart';
 
 extension _LocalPageScanActions on _LocalPageState {
   Future<void> _refreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
+    if (_refreshProgress != null || _refreshFolderRunning) {
+      return;
+    }
     final cancellation = LocalFolderScanCancellation();
     _updateLocalPageState(() {
+      _refreshFolderRunning = true;
       _scanCancellation = cancellation;
       _localOperationTitle = i18n.t('local.updateFolderProgressTitle');
       _refreshProgress = const LocalFolderRefreshProgress(
@@ -31,15 +35,25 @@ extension _LocalPageScanActions on _LocalPageState {
         _refreshProgress = null;
         _localOperationTitle = null;
         _scanCancellation = null;
-        _refreshResultDialog = (folder: folder, result: result);
+        _refreshResultDialog =
+            hasRefreshResultChanges(result)
+                ? (folder: folder, result: result)
+                : null;
       });
       _showMessage(getRefreshResultMessage(result, i18n));
     } on LocalFolderScanCanceledException {
       _clearScanOverlay();
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         _clearScanOverlay();
-        _showMessage(i18n.t('local.updateFolder'));
+        final message = error is StateError ? error.message : error.toString();
+        _showMessage(getRefreshFolderErrorMessage(message, i18n));
+      }
+    } finally {
+      if (mounted) {
+        _updateLocalPageState(() {
+          _refreshFolderRunning = false;
+        });
       }
     }
   }

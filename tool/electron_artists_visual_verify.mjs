@@ -12,6 +12,7 @@ const requireFromElectron = createRequire(join(electronRoot, 'package.json'))
 const electronBinary = requireFromElectron('electron')
 const viteBinary = join(electronRoot, 'node_modules', 'vite', 'bin', 'vite.js')
 const port = Number(process.env.ELECTRON_ARTISTS_VERIFY_PORT ?? 5187)
+const targetArtistName = process.env.ELECTRON_ARTISTS_VERIFY_TARGET_ARTIST ?? ''
 const cases = [
   { width: 1200, height: 800, brightness: 'light' },
   { width: 1200, height: 800, brightness: 'dark' },
@@ -100,6 +101,7 @@ window.smplayer = {
 const params = new URLSearchParams(window.location.search)
 const brightness = params.get('brightness') === 'dark' ? 'dark' : 'light'
 const navMinimal = params.get('navMinimal') === '1'
+const targetArtistName = params.get('targetArtist') || ''
 document.body.classList.toggle('night-mode', brightness === 'dark')
 document.documentElement.classList.toggle('night-mode', brightness === 'dark')
 
@@ -279,6 +281,7 @@ function VerifyPage() {
       favoritePlaylistId={3}
       loading={false}
       scanning={false}
+      targetArtistName={targetArtistName || undefined}
       onPlayTrack={() => {}}
       onMoveToMusicOrPlay={() => {}}
       onAddSongsToNowPlaying={() => {}}
@@ -398,7 +401,8 @@ win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, valida
 win.webContents.on('render-process-gone', (_event, details) => {
   console.error('[renderer:gone] ' + details.reason)
 })
-const targetUrl = 'http://127.0.0.1:' + port + '/?brightness=' + brightness + (navMinimal ? '&navMinimal=1' : '')
+const targetArtist = ${JSON.stringify(targetArtistName)}
+const targetUrl = 'http://127.0.0.1:' + port + '/?brightness=' + brightness + (navMinimal ? '&navMinimal=1' : '') + (targetArtist ? '&targetArtist=' + encodeURIComponent(targetArtist) : '')
 console.log('Loading ' + targetUrl)
 await Promise.race([
   win.loadURL(targetUrl),
@@ -407,7 +411,8 @@ await Promise.race([
 console.log('Loaded ' + targetUrl)
 await new Promise((resolve) => setTimeout(resolve, 1200))
 const image = (await win.webContents.capturePage()).resize({ width, height, quality: 'best' })
-const file = join(tmpdir(), 'electron_artists_verify_' + brightness + '_' + width + (navMinimal ? '_nav_minimal' : '') + '.png')
+const targetSuffix = targetArtist ? '_' + targetArtist.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() : ''
+const file = join(tmpdir(), 'electron_artists_verify_' + brightness + '_' + width + (navMinimal ? '_nav_minimal' : '') + targetSuffix + '.png')
 await writeFile(file, image.toPNG())
 console.log('Electron artists verify screenshot: ' + file)
 await app.quit()

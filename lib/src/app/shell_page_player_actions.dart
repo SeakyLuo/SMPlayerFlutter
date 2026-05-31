@@ -12,7 +12,9 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
             final recentSongs =
                 ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
                 const <RecentLibrarySong>[];
+            _scheduleRestorePlaybackTrack(snapshot);
             final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
+            _ensurePlayerArtworkResolved(currentSong, ref);
             final settings = _settingsController.snapshot;
             final playbackSongIds =
                 snapshot == null ? const <int>[] : _playbackSongIds(snapshot);
@@ -63,7 +65,10 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
               onQuickPlay: () {
                 _quickPlayLibrary(ref);
               },
-              onCycleRepeatMode: _mediaControlController.cycleRepeatMode,
+              onCyclePlaybackMode: _mediaControlController.cyclePlaybackMode,
+              onToggleShuffle: _toggleShufflePlayback,
+              onToggleRepeat: _mediaControlController.onToggleRepeat,
+              onToggleRepeatOne: _mediaControlController.onToggleRepeatOne,
               onToggleMute: _mediaControlController.onToggleMute,
               onVolumeChange: _mediaControlController.onVolumeChange,
               onOpenVoiceAssistant:

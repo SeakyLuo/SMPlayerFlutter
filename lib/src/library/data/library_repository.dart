@@ -503,6 +503,16 @@ class LibraryRepository {
     );
   }
 
+  Future<void> saveDisplayModeState({
+    required settings.SmPlayerDisplayMode lastDisplayMode,
+  }) async {
+    final databaseFile = await _resolveDatabaseFile();
+    await _settingsService.saveDisplayModeState(
+      databaseFile,
+      lastDisplayMode: lastDisplayMode,
+    );
+  }
+
   Future<void> replaceNowPlaying(List<int> songIds) async {
     final databaseFile = await _resolveDatabaseFile();
     await _playbackHistoryService.replaceNowPlaying(

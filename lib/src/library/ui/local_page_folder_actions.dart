@@ -151,11 +151,11 @@ extension _LocalPageFolderActions on _LocalPageState {
   }
 
   Future<void> _revealFolder(FolderNode folder) async {
-    await openFolderInShell(folder.path);
+    await ref.read(localPageOpenFolderInShellProvider)(folder.path);
   }
 
   Future<void> _revealSong(LibrarySong song) async {
-    await revealItemInFolder(song.path);
+    await ref.read(localPageRevealItemInFolderProvider)(song.path);
   }
 
   String _nextFolderName(
