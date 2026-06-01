@@ -105,9 +105,14 @@ class _MainNavigationViewItemButtonState
                 color: background,
                 borderRadius: BorderRadius.circular(16),
                 border:
-                    widget.active && !widget.collapsed
-                        ? Border.all(color: colors.accentBorder)
-                        : null,
+                    widget.collapsed
+                        ? null
+                        : Border.all(
+                          color:
+                              widget.active
+                                  ? colors.accentBorder
+                                  : Colors.transparent,
+                        ),
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {

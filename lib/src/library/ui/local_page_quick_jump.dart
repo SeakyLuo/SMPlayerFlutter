@@ -40,6 +40,7 @@ class LocalContentSection extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.child,
+    this.compact = false,
   });
 
   final String title;
@@ -47,50 +48,100 @@ class LocalContentSection extends StatelessWidget {
   final bool expanded;
   final VoidCallback onToggle;
   final Widget child;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final colors = LocalPageColors.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final headerHeight = dark ? 38.0 : 30.0;
+    final headerRadius = dark ? 999.0 : 8.0;
+    final headerPadding =
+        dark
+            ? const EdgeInsets.symmetric(horizontal: 16)
+            : const EdgeInsets.symmetric(horizontal: 8);
+    final headerForeground =
+        dark && expanded ? colors.accentStrong : colors.textStrong;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: EdgeInsets.only(bottom: compact ? 14 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              minimumSize: const Size(0, 30),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              foregroundColor: colors.textStrong,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: onToggle,
-            icon: Icon(
-              expanded ? Icons.keyboard_arrow_down : Icons.chevron_right,
-              size: 18,
-            ),
-            label: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  color: colors.textStrong,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-                children: [
-                  TextSpan(text: title),
-                  TextSpan(
-                    text: '  $count',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontWeight: FontWeight.w500,
-                    ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 0),
+            child: SizedBox(
+              height: headerHeight,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: Size(0, headerHeight),
+                  padding: headerPadding,
+                  backgroundColor:
+                      dark
+                          ? expanded
+                              ? const Color(0x3d0078d7)
+                              : const Color(0x09ffffff)
+                          : Colors.transparent,
+                  side:
+                      dark
+                          ? BorderSide(
+                            color:
+                                expanded
+                                    ? const Color(0x7a0078d7)
+                                    : const Color(0x38d6e0ec),
+                          )
+                          : BorderSide.none,
+                  foregroundColor: headerForeground,
+                  shadowColor:
+                      dark && expanded ? const Color(0x140078d7) : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(headerRadius),
                   ),
-                ],
+                ),
+                onPressed: onToggle,
+                icon:
+                    dark
+                        ? const SizedBox.shrink()
+                        : Icon(
+                          expanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.chevron_right,
+                          size: compact ? 15 : 18,
+                        ),
+                label: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      color: headerForeground,
+                      fontSize: compact ? 15 : 16,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation.weight(760)],
+                      height: 1,
+                    ),
+                    children: [
+                      TextSpan(text: title),
+                      TextSpan(
+                        text: '  $count',
+                        style: TextStyle(
+                          color:
+                              dark && expanded
+                                  ? headerForeground.withValues(alpha: 0.72)
+                                  : colors.textMuted,
+                          fontWeight:
+                              dark && expanded
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                          fontVariations: [
+                            FontVariation.weight(dark && expanded ? 650 : 560),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-          if (expanded) ...[const SizedBox(height: 14), child],
+          if (expanded) ...[SizedBox(height: compact ? 8 : 14), child],
         ],
       ),
     );
@@ -146,21 +197,36 @@ class LocalSongQuickJump extends StatelessWidget {
 
     final width = compact ? 22.0 : 30.0;
     final buttonWidth = compact ? 20.0 : 26.0;
-    return SizedBox(
-      width: width,
-      child: Column(
-        children: [
-          Tooltip(message: basisName, child: SizedBox(height: 6, width: width)),
-          for (final key in localQuickJumpKeys)
-            Expanded(
-              child: Center(
-                child: SizedBox(
-                  width: buttonWidth,
-                  child: _quickJumpButton(context, key, colors),
+    return Tooltip(
+      message: basisName,
+      child: SizedBox(
+        width: width,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Column(
+            children: [
+              for (var index = 0; index < localQuickJumpKeys.length; index += 1)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == localQuickJumpKeys.length - 1 ? 0 : 1,
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: buttonWidth,
+                        height: double.infinity,
+                        child: _quickJumpButton(
+                          context,
+                          localQuickJumpKeys[index],
+                          colors,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -102,7 +102,7 @@ class ShuffleIcon extends StatelessWidget {
     super.key,
     this.size = 16,
     this.color,
-    this.strokeWidth = 0.3,
+    this.strokeWidth = 0.4,
   });
 
   final double size;
@@ -128,6 +128,64 @@ class ShuffleIcon extends StatelessWidget {
         'version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="41079" '
         'width="200" height="200"><path $strokeAttr d="$_path" '
         'p-id="41080"></path></svg>';
+    return SizedBox.square(
+      dimension: size,
+      child: SvgIcon(svg: svg, size: size, color: resolvedColor),
+    );
+  }
+}
+
+enum SmPlayerVolumeIconKind { muted, off, low, medium, high }
+
+class SmPlayerVolumeIcon extends StatelessWidget {
+  const SmPlayerVolumeIcon({
+    super.key,
+    required this.kind,
+    this.size = 21,
+    this.color,
+  });
+
+  final SmPlayerVolumeIconKind kind;
+  final double size;
+  final Color? color;
+
+  static const _speakerPath =
+      'M4.7 9.4q-.8 0-.8.8v3.6q0 .8.8.8h3.2l4.2 3.7q.9.8.9-.45V6.15q0-1.25-.9-.45L7.9 9.4z';
+  static const _wave1Path = 'M15.3 9.55a4.1 4.1 0 0 1 0 4.9';
+  static const _wave2Path = 'M17.6 7.55a7 7 0 0 1 0 8.9';
+  static const _wave3Path = 'M19.9 5.6a10 10 0 0 1 0 12.8';
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedColor =
+        color ??
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
+    final strokeAttr = SvgIcon.strokeAttr(
+      strokeWidth: 1.3,
+      viewBoxSize: 24,
+      renderSize: size,
+    );
+    final paths = switch (kind) {
+      SmPlayerVolumeIconKind.muted => [
+        _speakerPath,
+        'm20 10-4 4',
+        'm16 10 4 4',
+      ],
+      SmPlayerVolumeIconKind.off => [_speakerPath],
+      SmPlayerVolumeIconKind.low => [_speakerPath, _wave1Path],
+      SmPlayerVolumeIconKind.medium => [_speakerPath, _wave1Path, _wave2Path],
+      SmPlayerVolumeIconKind.high => [
+        _speakerPath,
+        _wave1Path,
+        _wave2Path,
+        _wave3Path,
+      ],
+    };
+    final svg =
+        '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        '${paths.map((path) => '<path $strokeAttr d="$path" />').join()}'
+        '</svg>';
     return SizedBox.square(
       dimension: size,
       child: SvgIcon(svg: svg, size: size, color: resolvedColor),

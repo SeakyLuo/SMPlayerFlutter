@@ -14,6 +14,7 @@ class AlbumTileData {
     required this.songs,
     required this.duration,
     this.artworkSong,
+    this.subtitle,
   });
 
   final String name;
@@ -21,6 +22,7 @@ class AlbumTileData {
   final List<LibrarySong> songs;
   final int duration;
   final LibrarySong? artworkSong;
+  final String? subtitle;
 
   List<int> get songIds => songs.map((song) => song.id).toList();
 }
@@ -125,7 +127,7 @@ class _AlbumTileState extends State<AlbumTile> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    widget.album.artist,
+                    widget.album.subtitle ?? widget.album.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -268,34 +270,12 @@ class _AlbumAddIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.square(
-      dimension: 20,
-      child: CustomPaint(painter: _AlbumAddIconPainter()),
+    return const Icon(
+      FluentIcons.add_20_regular,
+      color: Colors.white,
+      size: 20,
     );
   }
-}
-
-class _AlbumAddIconPainter extends CustomPainter {
-  const _AlbumAddIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.white
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round;
-    final center = size.center(Offset.zero);
-    canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
-    canvas.drawLine(
-      Offset(center.dx, 0),
-      Offset(center.dx, size.height),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_AlbumAddIconPainter oldDelegate) => false;
 }
 
 class _AlbumTileColors {

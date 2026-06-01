@@ -394,10 +394,7 @@ class LocalTableContent extends StatelessWidget {
                           _LocalTableCheckMark(selected: selected),
                           const SizedBox(width: 10),
                         ],
-                        Icon(
-                          FluentIcons.folder_20_regular,
-                          color: colors.artworkIcon,
-                        ),
+                        const _LocalTableTypeIcon.folder(),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -512,12 +509,9 @@ class LocalTableContent extends StatelessWidget {
             _LocalTableCheckMark(selected: selected),
             const SizedBox(width: 10),
           ],
-          Icon(
-            current
-                ? FluentIcons.play_20_regular
-                : FluentIcons.music_note_2_20_regular,
-            color: current ? colors.accentStrong : colors.artworkIcon,
-          ),
+          current
+              ? Icon(FluentIcons.play_20_regular, color: colors.accentStrong)
+              : const _LocalTableTypeIcon.song(),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -594,10 +588,7 @@ class LocalTableContent extends StatelessWidget {
                       _LocalTableCheckMark(selected: selected),
                       const SizedBox(width: 10),
                     ],
-                    Icon(
-                      FluentIcons.folder_20_regular,
-                      color: colors.artworkIcon,
-                    ),
+                    const _LocalTableTypeIcon.folder(),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -701,12 +692,12 @@ class LocalTableContent extends StatelessWidget {
                       _LocalTableCheckMark(selected: selected),
                       const SizedBox(width: 10),
                     ],
-                    Icon(
-                      current
-                          ? FluentIcons.play_20_regular
-                          : FluentIcons.music_note_2_20_regular,
-                      color: current ? colors.accentStrong : colors.artworkIcon,
-                    ),
+                    current
+                        ? Icon(
+                          FluentIcons.play_20_regular,
+                          color: colors.accentStrong,
+                        )
+                        : const _LocalTableTypeIcon.song(),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -840,22 +831,62 @@ class _HeaderCell extends StatelessWidget {
   }
 }
 
-class _TableRowHost extends StatelessWidget {
+class _TableRowHost extends StatefulWidget {
   const _TableRowHost({required this.row});
 
   final TableRow row;
 
   @override
+  State<_TableRowHost> createState() => _TableRowHostState();
+}
+
+class _TableRowHostState extends State<_TableRowHost> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Table(
-      columnWidths: const {
-        0: FlexColumnWidth(2.5),
-        1: FlexColumnWidth(1.25),
-        2: FlexColumnWidth(1.25),
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
       },
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [row],
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: _LocalTableRowHover(
+        visible: _hovered,
+        child: Table(
+          columnWidths: const {
+            0: FlexColumnWidth(2.5),
+            1: FlexColumnWidth(1.25),
+            2: FlexColumnWidth(1.25),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [widget.row],
+        ),
+      ),
     );
+  }
+}
+
+class _LocalTableRowHover extends InheritedWidget {
+  const _LocalTableRowHover({required this.visible, required super.child});
+
+  final bool visible;
+
+  static bool of(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<_LocalTableRowHover>()
+            ?.visible ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(_LocalTableRowHover oldWidget) {
+    return oldWidget.visible != visible;
   }
 }
 
@@ -893,21 +924,44 @@ class _LocalTableActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children:
-            children
-                .map(
-                  (child) => IconTheme(
-                    data: const IconThemeData(size: 18),
-                    child: SizedBox.square(dimension: 34, child: child),
-                  ),
-                )
-                .toList(),
+    final visible = _LocalTableRowHover.of(context);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: SizedBox(
+          height: 36,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children:
+                children
+                    .map(
+                      (child) => IconTheme(
+                        data: const IconThemeData(size: 18),
+                        child: SizedBox.square(dimension: 34, child: child),
+                      ),
+                    )
+                    .toList(),
+          ),
+        ),
       ),
     );
+  }
+}
+
+class _LocalTableTypeIcon extends StatelessWidget {
+  const _LocalTableTypeIcon.folder() : assetPath = 'assets/branding/folder.png';
+
+  const _LocalTableTypeIcon.song()
+    : assetPath = 'assets/branding/colorful_no_bg.png';
+
+  final String assetPath;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(assetPath, width: 24, height: 24, fit: BoxFit.contain);
   }
 }
 

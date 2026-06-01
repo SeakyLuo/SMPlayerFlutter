@@ -125,6 +125,46 @@ void main() {
     );
   });
 
+  testWidgets('expanded sidebar item content does not move when selected', (
+    tester,
+  ) async {
+    Widget buildNavigation(String currentPath) {
+      return MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: currentPath,
+            searchText: '',
+            i18n: testI18n,
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildNavigation('/songs'));
+    await tester.pumpAndSettle();
+    final inactiveIconCenter = tester.getCenter(
+      find.byIcon(FluentIcons.hard_drive_24_regular),
+    );
+    final inactiveLabelLeft = tester.getTopLeft(find.text('本地')).dx;
+
+    await tester.pumpWidget(buildNavigation('/local'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getCenter(find.byIcon(FluentIcons.hard_drive_24_regular)),
+      inactiveIconCenter,
+    );
+    expect(tester.getTopLeft(find.text('本地')).dx, inactiveLabelLeft);
+  });
+
   testWidgets('collapsed search button asks shell to open the pane', (
     tester,
   ) async {

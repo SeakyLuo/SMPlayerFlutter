@@ -3,15 +3,19 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/local_folder_card.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/local_grid_content.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
@@ -22,6 +26,8 @@ void main() {
     locale: 'en-US',
     messages: {
       'common.folders': 'Folders',
+      'common.artistSeparator': ', ',
+      'common.artistUnknown': 'Unknown Artist',
       'context.addToPlaylist': 'Add To',
       'context.pause': 'Pause',
       'context.play': 'Play',
@@ -59,7 +65,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     final songCard =
         find
@@ -92,6 +99,62 @@ void main() {
     expect(decoration.boxShadow, hasLength(2));
   });
 
+  testWidgets('Local grid song cover keeps Electron artwork shadow', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          home: Scaffold(body: _localGridContent(i18n)),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final cover = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('LocalGridSong.Cover.1')),
+    );
+    final decoration = cover.decoration! as BoxDecoration;
+    expect(decoration.boxShadow, hasLength(1));
+    expect(
+      decoration.boxShadow!.single.color,
+      LocalPageColors.day.artworkShadow,
+    );
+    expect(decoration.boxShadow!.single.offset, const Offset(0, 12));
+    expect(decoration.boxShadow!.single.blurRadius, 24);
+  });
+
+  testWidgets('Local grid title sort shows Electron artist subtitle', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          home: Scaffold(body: _localGridContent(i18n)),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Root Song'), findsOneWidget);
+    expect(find.text('Artist A'), findsOneWidget);
+    expect(find.text('Artist A · Root Album'), findsNothing);
+  });
+
   testWidgets('Local grid current song shows Electron playing wave', (
     tester,
   ) async {
@@ -120,6 +183,12 @@ void main() {
       find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
       findsOneWidget,
     );
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('LocalGridSong.Playing.1.Wave')),
+      ),
+      const Size(48, 48),
+    );
     final waveGlass = tester.widget<GlassContainer>(
       find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
     );
@@ -132,6 +201,372 @@ void main() {
     expect(
       _playingBarHeight(tester, 'LocalGridSong.Playing.1', 0),
       isNot(firstHeight),
+    );
+  });
+
+  testWidgets('Local grid current selected song keeps idle playing surface', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          home: Scaffold(
+            body: _localGridContent(
+              i18n,
+              selectedTrackId: 1,
+              isPlaying: true,
+              selectedSongIds: const {1},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byTooltip('Pause'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
+      findsOneWidget,
+    );
+
+    final songCard =
+        find
+            .ancestor(
+              of: find.text('Root Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.minHeight == 232 &&
+                    widget.decoration is BoxDecoration,
+              ),
+            )
+            .first;
+    final decoration =
+        tester.widget<Container>(songCard).decoration! as BoxDecoration;
+    expect(decoration.color, LocalPageColors.day.surfaceCard);
+    expect(decoration.boxShadow, isEmpty);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(songCard));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('Local grid song focus mirrors Electron hover actions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          home: Scaffold(
+            body: _localGridContent(i18n, selectedTrackId: 1, isPlaying: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byTooltip('Pause'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
+      findsOneWidget,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump(const Duration(milliseconds: 140));
+
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('LocalGridSong.Playing.1.Backdrop')),
+      findsNothing,
+    );
+
+    final songCard =
+        find
+            .ancestor(
+              of: find.text('Root Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.minHeight == 232 &&
+                    widget.decoration is BoxDecoration,
+              ),
+            )
+            .first;
+    final focusedCard = tester.widget<Container>(songCard);
+    final decoration = focusedCard.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0x140078d7));
+    expect(decoration.boxShadow, hasLength(2));
+  });
+
+  testWidgets('Local song quick jump uses Electron vertical metrics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: const [LocalPageColors.day]),
+          home: Scaffold(
+            body: SizedBox(
+              width: 30,
+              height: 420,
+              child: LocalSongQuickJump(
+                basisName: 'title',
+                enabledKeys: const {'#': 0, 'A': 1},
+                i18n: i18n,
+                visible: true,
+                onJump: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final hashButton = find.widgetWithText(TextButton, '#');
+    final aButton = find.widgetWithText(TextButton, 'A');
+    expect(tester.getSize(hashButton).width, 26);
+    expect(tester.getTopLeft(hashButton).dy, 3);
+    expect(
+      tester.getTopLeft(aButton).dy - tester.getBottomLeft(hashButton).dy,
+      1,
+    );
+  });
+
+  testWidgets('Local song quick jump starts sticky only after reaching top', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 320);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final scrollController = ScrollController();
+    addTearDown(scrollController.dispose);
+    final songs = [
+      for (var index = 0; index < 36; index++)
+        LibrarySong(
+          id: index + 1,
+          path: 'C:\\Music\\song_$index.mp3',
+          title: index < 18 ? 'Alpha Song $index' : 'Bravo Song $index',
+          artist: 'Artist',
+          artists: const ['Artist'],
+          album: 'Album',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+    ];
+    final folderIndex = buildFolderIndex(songs, [
+      const LibraryFolder(
+        id: 8801,
+        path: r'C:\Music\Folder',
+        parentId: 0,
+        criterion: 0,
+      ),
+    ], r'C:\Music');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          libraryRepositoryProvider.overrideWithValue(
+            const _NoArtworkLibraryRepository(),
+          ),
+        ],
+        child: SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [
+                DefaultAlbumArtworkThemeColors.light,
+                LocalPageColors.day,
+              ],
+            ),
+            home: Scaffold(
+              body: SizedBox(
+                width: 900,
+                height: 320,
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: LocalGridContent(
+                    childFolders: [folderIndex.nodes['Folder']!],
+                    currentSongs: songs,
+                    nodes: folderIndex.nodes,
+                    songsById: folderIndex.songsById,
+                    selectedFolderPaths: const {},
+                    selectedSongIds: const {},
+                    selectedTrackId: null,
+                    isPlaying: false,
+                    multiSelect: false,
+                    isCompactLayout: false,
+                    showLocalSectionHeaders: true,
+                    foldersExpanded: true,
+                    songsExpanded: true,
+                    showSongQuickJump: true,
+                    songQuickJumpBasisName: 'title',
+                    songQuickJumpMap: const {'A': 0, 'B': 18},
+                    sortMode: LocalSortMode.title,
+                    currentSortMode: LocalSortMode.title,
+                    queueSongIds: [for (final song in songs) song.id],
+                    folderQueueSongIds: [for (final song in songs) song.id],
+                    compactTreeRows: const [],
+                    compactQueueSongIds: const [],
+                    i18n: i18n,
+                    onToggleFoldersExpanded: () {},
+                    onToggleSongsExpanded: () {},
+                    onToggleTreeFolderExpanded: (_) {},
+                    onPlayFolder: (_) {},
+                    onAddFolder: (_, _) {},
+                    onRefreshFolder: (_) {},
+                    onSearchFolder: (_) {},
+                    onRevealFolder: (_) {},
+                    onOpenFolder: (_) {},
+                    onOpenFolderMenu: (_, _) {},
+                    onToggleFolderSelection: (_) {},
+                    onMoveLocalItemsToFolder:
+                        ({
+                          required folderPaths,
+                          required songIds,
+                          required targetFolderPath,
+                        }) {},
+                    onPlayTrack: (_, _) {},
+                    onTogglePlayPause: () {},
+                    onToggleSongSelection: (_) {},
+                    onPlayNext: (_) {},
+                    onToggleFavorite: (_, _) {},
+                    onAddSong: (_, _) {},
+                    onOpenSongMenu: (_, _) {},
+                    onJumpToSongKey: (_) {},
+                    scrollController: scrollController,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstQuickJumpButton = find.widgetWithText(TextButton, '#').first;
+    final initialTop = tester.getTopLeft(firstQuickJumpButton).dy;
+    expect(initialTop, greaterThan(80));
+
+    scrollController.jumpTo(40);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(firstQuickJumpButton).dy,
+      closeTo(initialTop - 40, 1),
+    );
+
+    scrollController.jumpTo(initialTop + 80);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(firstQuickJumpButton).dy, closeTo(9, 1));
+  });
+
+  testWidgets(
+    'Local grid reserves quick jump rail when sort hides jump buttons',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [
+                DefaultAlbumArtworkThemeColors.light,
+                LocalPageColors.day,
+              ],
+            ),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 1040,
+                  child: _localGridContent(
+                    i18n,
+                    songCount: 5,
+                    reserveSongQuickJumpSpace: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('LocalSongQuickJump.ReservedRail')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(find.text('Song 5')).dy,
+        greaterThan(tester.getTopLeft(find.text('Root Song')).dy),
+      );
+    },
+  );
+
+  testWidgets('Local grid song title row does not expose favorite icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          home: Scaffold(body: _localGridContent(i18n, favorite: true)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Root Song'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Icon && widget.icon == FluentIcons.heart_16_filled,
+      ),
+      findsNothing,
     );
   });
 
@@ -184,9 +619,37 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Sub'), findsOneWidget);
-    expect(find.text('1 folders · 1 songs'), findsOneWidget);
+    expect(find.text('1 folder · 1 song'), findsOneWidget);
     expect(find.textContaining('8842'), findsNothing);
     expect(find.textContaining(r'C:\Music\Sub'), findsNothing);
+    expect(_assetImage('assets/branding/colorful_no_bg.png'), findsOneWidget);
+    expect(_assetImage('assets/branding/folder.png'), findsOneWidget);
+    final folderCover = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('LocalFolderCard.GridArtworkDropSurface')),
+    );
+    final folderCoverDecoration = folderCover.decoration! as BoxDecoration;
+    expect(folderCoverDecoration.boxShadow, hasLength(1));
+    expect(
+      folderCoverDecoration.boxShadow!.single.color,
+      LocalPageColors.day.artworkShadow,
+    );
+
+    final folderCard =
+        find
+            .ancestor(
+              of: find.text('Sub'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.minHeight == 232 &&
+                    widget.decoration is BoxDecoration,
+              ),
+            )
+            .first;
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(folderCard));
+    addTearDown(gesture.removePointer);
+    await tester.pump(const Duration(milliseconds: 140));
 
     await tester.tap(find.byTooltip('Play Sub'));
     await tester.pump();
@@ -196,6 +659,242 @@ void main() {
     await tester.pump();
     expect(addFolder?.relativePath, 'Sub');
     expect(addPosition, isNotNull);
+  });
+
+  testWidgets(
+    'Local list folder actions use Electron transparent icon buttons',
+    (tester) async {
+      tester.view.physicalSize = const Size(640, 240);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      FolderNode? playedFolder;
+      FolderNode? addFolder;
+      Offset? addPosition;
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [LocalPageColors.day]),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 560,
+                  child: _folderListCard(
+                    i18n,
+                    onPlayFolder: (folder) {
+                      playedFolder = folder;
+                    },
+                    onAddFolder: (folder, position) {
+                      addFolder = folder;
+                      addPosition = position;
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(ArtworkFloatingActionButton), findsNothing);
+      final playButton = tester.widget<IconButton>(
+        find
+            .ancestor(
+              of: find.byTooltip('Play Sub'),
+              matching: find.byType(IconButton),
+            )
+            .first,
+      );
+      expect(
+        playButton.style?.fixedSize?.resolve(<WidgetState>{}),
+        const Size.square(28),
+      );
+
+      final row = find.ancestor(
+        of: find.text('Sub'),
+        matching: find.byType(InkWell),
+      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: tester.getCenter(row));
+      addTearDown(gesture.removePointer);
+      await tester.pump(const Duration(milliseconds: 140));
+
+      await tester.tap(find.byTooltip('Play Sub'));
+      await tester.pump();
+      expect(playedFolder?.relativePath, 'Sub');
+
+      await tester.tap(find.byTooltip('Add To'));
+      await tester.pump();
+      expect(addFolder?.relativePath, 'Sub');
+      expect(addPosition, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'Local folder drop target is scoped to Electron grid artwork or list row',
+    (tester) async {
+      tester.view.physicalSize = const Size(980, 360);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const payload = LocalItemsDragPayload(songIds: [1], folderPaths: []);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(
+              const _NoArtworkLibraryRepository(),
+            ),
+          ],
+          child: SmPlayerI18nScope(
+            i18n: i18n,
+            child: MaterialApp(
+              theme: ThemeData(extensions: const [LocalPageColors.day]),
+              home: Scaffold(
+                body: Row(
+                  children: [
+                    Draggable<LocalItemsDragPayload>(
+                      data: payload,
+                      feedback: const SizedBox.square(dimension: 24),
+                      child: const SizedBox.square(
+                        dimension: 48,
+                        child: ColoredBox(color: Colors.black),
+                      ),
+                    ),
+                    _folderCard(i18n, variant: LocalFolderCardVariant.grid),
+                    SizedBox(
+                      width: 560,
+                      child: _folderCard(
+                        i18n,
+                        folderName: 'List',
+                        variant: LocalFolderCardVariant.list,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final gridSurface = find.byKey(
+        const ValueKey('LocalFolderCard.GridArtworkDropSurface'),
+      );
+      final listSurface = find.byKey(
+        const ValueKey('LocalFolderCard.ListDropSurface'),
+      );
+      expect(gridSurface, findsOneWidget);
+      expect(listSurface, findsOneWidget);
+
+      var gridDecoration =
+          tester.widget<AnimatedContainer>(gridSurface).foregroundDecoration
+              as ShapeDecoration;
+      var gridShape = gridDecoration.shape as RoundedRectangleBorder;
+      expect(gridShape.side.color, Colors.transparent);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(Draggable<LocalItemsDragPayload>)),
+      );
+      await gesture.moveTo(tester.getCenter(gridSurface));
+      await tester.pump();
+
+      gridDecoration =
+          tester.widget<AnimatedContainer>(gridSurface).foregroundDecoration
+              as ShapeDecoration;
+      gridShape = gridDecoration.shape as RoundedRectangleBorder;
+      expect(gridShape.side.color, LocalPageColors.day.accentStrong);
+      expect(gridShape.side.strokeAlign, BorderSide.strokeAlignOutside);
+      final gridBoxDecoration =
+          tester.widget<AnimatedContainer>(gridSurface).decoration
+              as BoxDecoration;
+      expect(gridBoxDecoration.boxShadow, hasLength(2));
+
+      await gesture.moveTo(tester.getCenter(listSurface));
+      await tester.pump();
+
+      final listDecoration =
+          tester.widget<AnimatedContainer>(listSurface).foregroundDecoration
+              as ShapeDecoration;
+      final listShape = listDecoration.shape as RoundedRectangleBorder;
+      expect(listShape.side.color, LocalPageColors.day.accentStrong);
+      expect(listShape.side.strokeAlign, BorderSide.strokeAlignOutside);
+
+      await gesture.up();
+    },
+  );
+
+  testWidgets('Local list folder play stays enabled for empty folder', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 240);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    FolderNode? playedFolder;
+    Offset? addPosition;
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: const [LocalPageColors.day]),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 560,
+                child: _folderListCard(
+                  i18n,
+                  folderName: 'Empty',
+                  includeSong: false,
+                  onPlayFolder: (folder) {
+                    playedFolder = folder;
+                  },
+                  onAddFolder: (_, position) {
+                    addPosition = position;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final row = find.ancestor(
+      of: find.text('Empty'),
+      matching: find.byType(InkWell),
+    );
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(row));
+    addTearDown(gesture.removePointer);
+    await tester.pump(const Duration(milliseconds: 140));
+
+    await tester.tap(find.byTooltip('Play Empty'));
+    await tester.pump();
+    expect(playedFolder?.relativePath, 'Empty');
+
+    final addButton = tester.widget<IconButton>(
+      find
+          .ancestor(
+            of: find.byTooltip('Add To'),
+            matching: find.byType(IconButton),
+          )
+          .first,
+    );
+    expect(addButton.onPressed, isNull);
+    expect(addPosition, isNull);
   });
 
   test('Local folder thumbnail resolver keeps resolved artwork path', () async {
@@ -279,6 +978,15 @@ void main() {
   });
 }
 
+Finder _assetImage(String assetPath) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is Image &&
+        widget.image is AssetImage &&
+        (widget.image as AssetImage).assetName == assetPath,
+  );
+}
+
 final _pngFixtureBytes = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAa0lEQVR42u3QQQ0AMAgEsJM9ayiZHJBBSPqogSbv96aurIoAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBBwP2AAQgwqWRbkoyAAAAAASUVORK5CYII=',
 );
@@ -287,29 +995,37 @@ Widget _localGridContent(
   SmPlayerI18n i18n, {
   int? selectedTrackId,
   bool isPlaying = false,
+  bool favorite = false,
+  int songCount = 1,
+  bool showSongQuickJump = false,
+  bool reserveSongQuickJumpSpace = false,
+  Set<int> selectedSongIds = const {},
 }) {
-  const song = LibrarySong(
-    id: 1,
-    path: r'C:\Music\root.mp3',
-    title: 'Root Song',
-    artist: 'Artist A',
-    artists: ['Artist A'],
-    album: 'Root Album',
-    duration: 120,
-    playCount: 0,
-    lyricsOffsetMs: 0,
-    dateAdded: '2026-05-20T00:00:00',
-    favorite: false,
-    thumbnailPath: '',
-  );
+  final songs = [
+    for (var index = 0; index < songCount; index += 1)
+      LibrarySong(
+        id: index + 1,
+        path: 'C:\\Music\\song-${index + 1}.mp3',
+        title: index == 0 ? 'Root Song' : 'Song ${index + 1}',
+        artist: 'Artist A',
+        artists: ['Artist A'],
+        album: 'Root Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: index == 0 && favorite,
+        thumbnailPath: '',
+      ),
+  ];
 
   return LocalGridContent(
     childFolders: const [],
-    currentSongs: const [song],
+    currentSongs: songs,
     nodes: const {},
-    songsById: const {1: song},
+    songsById: {for (final song in songs) song.id: song},
     selectedFolderPaths: const {},
-    selectedSongIds: const {},
+    selectedSongIds: selectedSongIds,
     selectedTrackId: selectedTrackId,
     isPlaying: isPlaying,
     multiSelect: false,
@@ -317,13 +1033,14 @@ Widget _localGridContent(
     showLocalSectionHeaders: false,
     foldersExpanded: true,
     songsExpanded: true,
-    showSongQuickJump: false,
+    showSongQuickJump: showSongQuickJump,
+    reserveSongQuickJumpSpace: reserveSongQuickJumpSpace,
     songQuickJumpBasisName: '',
     songQuickJumpMap: const {},
     sortMode: LocalSortMode.title,
     currentSortMode: LocalSortMode.title,
-    queueSongIds: const [1],
-    folderQueueSongIds: const [1],
+    queueSongIds: [for (final song in songs) song.id],
+    folderQueueSongIds: [for (final song in songs) song.id],
     compactTreeRows: const [],
     compactQueueSongIds: const [],
     i18n: i18n,
@@ -463,6 +1180,108 @@ Widget _folderGridContent(
     onAddSong: (_, _) {},
     onOpenSongMenu: (_, _) {},
     onJumpToSongKey: (_) {},
+  );
+}
+
+Widget _folderCard(
+  SmPlayerI18n i18n, {
+  required LocalFolderCardVariant variant,
+  String folderName = 'Sub',
+}) {
+  final song = LibrarySong(
+    id: 1,
+    path: 'C:\\Music\\$folderName\\root.mp3',
+    title: 'Folder Song',
+    artist: 'Artist A',
+    artists: ['Artist A'],
+    album: 'Root Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  );
+  final folderIndex = buildFolderIndex(
+    [song],
+    [
+      LibraryFolder(
+        id: 8842,
+        path: 'C:\\Music\\$folderName',
+        parentId: 0,
+        criterion: 0,
+      ),
+    ],
+    r'C:\Music',
+  );
+  final folder = folderIndex.nodes[folderName]!;
+  return LocalFolderCard(
+    folder: folder,
+    selected: false,
+    multiSelect: false,
+    nodes: folderIndex.nodes,
+    songsById: folderIndex.songsById,
+    i18n: i18n,
+    variant: variant,
+    onPlayFolder: (_) {},
+    onAddFolder: (_, _) {},
+    onRefreshFolder: (_) {},
+    onSearchFolder: (_) {},
+    onRevealFolder: (_) {},
+    onOpenFolder: (_) {},
+    onOpenFolderMenu: (_, _) {},
+    onToggleSelection: (_) {},
+    onWillAcceptDrop: (_, _) => true,
+    onAcceptDrop: (_, _) {},
+  );
+}
+
+Widget _folderListCard(
+  SmPlayerI18n i18n, {
+  required ValueChanged<FolderNode> onPlayFolder,
+  required void Function(FolderNode folder, Offset position) onAddFolder,
+  String folderName = 'Sub',
+  bool includeSong = true,
+}) {
+  final song = LibrarySong(
+    id: 1,
+    path: 'C:\\Music\\$folderName\\root.mp3',
+    title: 'Folder Song',
+    artist: 'Artist A',
+    artists: ['Artist A'],
+    album: 'Root Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  );
+  final folderIndex = buildFolderIndex(includeSong ? [song] : const [], [
+    LibraryFolder(
+      id: 8842,
+      path: 'C:\\Music\\$folderName',
+      parentId: 0,
+      criterion: 0,
+    ),
+  ], r'C:\Music');
+  final folder = folderIndex.nodes[folderName]!;
+  return LocalFolderCard(
+    folder: folder,
+    selected: false,
+    multiSelect: false,
+    nodes: folderIndex.nodes,
+    songsById: folderIndex.songsById,
+    i18n: i18n,
+    variant: LocalFolderCardVariant.list,
+    onPlayFolder: onPlayFolder,
+    onAddFolder: onAddFolder,
+    onRefreshFolder: (_) {},
+    onSearchFolder: (_) {},
+    onRevealFolder: (_) {},
+    onOpenFolder: (_) {},
+    onOpenFolderMenu: (_, _) {},
+    onToggleSelection: (_) {},
   );
 }
 

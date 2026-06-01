@@ -38,6 +38,17 @@ String resolvePlayerArtistRouteName(LibrarySong song, SmPlayerI18n i18n) {
   return artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
 }
 
+LibrarySong? resolveShellPlayerSong(
+  LibraryContentData? snapshot,
+  int? trackId,
+) {
+  if (trackId == null || snapshot == null) {
+    return null;
+  }
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  return songsById[trackId];
+}
+
 double resolveQueuePlaybackStartSeconds({
   required int? currentTrackId,
   required int nextTrackId,
@@ -53,6 +64,14 @@ bool shouldIgnoreAudioPositionForPendingSeek({
 }) {
   return pendingSeekSeconds != null &&
       (positionSeconds - pendingSeekSeconds).abs() > toleranceSeconds;
+}
+
+bool shouldApplyAudioBackendPlayingState({
+  required bool backendLoading,
+  required bool backendPlaying,
+  required bool pendingAutoplay,
+}) {
+  return backendPlaying || (!backendLoading && !pendingAutoplay);
 }
 
 enum SmPlayerNavigationMode { minimal, overlay, wide }

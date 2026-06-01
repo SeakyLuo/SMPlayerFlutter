@@ -3,12 +3,15 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -53,6 +56,7 @@ void main() {
       'player.repeatOneEnabled': 'Repeat One: Enabled',
       'player.shuffleDisabled': 'Shuffle: Disabled',
       'player.shuffleEnabled': 'Shuffle: Enabled',
+      'player.trackProgress': 'Track progress',
       'player.unlike': 'Remove from My Favorites',
       'player.unmute': 'Unmute',
       'player.voiceAssistant': 'Voice Assistant',
@@ -77,11 +81,12 @@ void main() {
   });
 
   test('playerVolumeIcon mirrors Electron volume icon thresholds', () {
-    expect(playerVolumeIcon(0, false), FluentIcons.speaker_off_20_regular);
-    expect(playerVolumeIcon(20, false), FluentIcons.speaker_1_20_regular);
-    expect(playerVolumeIcon(50, false), FluentIcons.speaker_1_20_regular);
-    expect(playerVolumeIcon(80, false), FluentIcons.speaker_2_20_regular);
-    expect(playerVolumeIcon(80, true), FluentIcons.speaker_mute_20_regular);
+    expect(playerVolumeIcon(0, false), mediaControlVolumeOffIcon);
+    expect(playerVolumeIcon(20, false), mediaControlVolumeLowIcon);
+    expect(playerVolumeIcon(50, false), mediaControlVolumeMediumIcon);
+    expect(playerVolumeIcon(80, false), mediaControlVolumeHighIcon);
+    expect(playerVolumeIcon(80, true), mediaControlVolumeMutedIcon);
+    expect(playerVolumeIcon(50, false), isNot(playerVolumeIcon(80, false)));
   });
 
   test(
@@ -181,6 +186,17 @@ void main() {
     expect(find.byType(MediaControlPlayerFrame), findsOneWidget);
     expect(find.byType(MediaControlSurfaceBar), findsOneWidget);
     expect(find.byType(MediaControlSurface), findsOneWidget);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('MediaControl.ProgressRow')))
+          .width,
+      closeTo((1200 - 32) * 10 / 28, 0.5),
+    );
+    final trackRect = tester.getRect(find.text('Song'));
+    final progressRect = tester.getRect(
+      find.byKey(const ValueKey('MediaControl.ProgressRow')),
+    );
+    expect(trackRect.right, lessThan(progressRect.left));
   });
 
   testWidgets('MediaControl compact player fits narrow shell width', (
@@ -242,6 +258,14 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('MediaControl.PlayerCompactBaseGradient')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('MediaControl.PlayerCompactCoverGradient')),
+      findsNothing,
+    );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('MediaControl.MoreButton')))
@@ -737,6 +761,18 @@ void main() {
             )
             .first,
       );
+      final playSlide = tester.widget<AnimatedSlide>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
+              matching: find.byType(AnimatedSlide),
+            )
+            .first,
+      );
+      expect(playButton.duration, const Duration(milliseconds: 140));
+      expect(playButton.curve, Curves.ease);
+      expect(playSlide.duration, const Duration(milliseconds: 140));
+      expect(playSlide.curve, Curves.ease);
       final playDecoration = playButton.decoration! as BoxDecoration;
       return playDecoration.color;
     }
@@ -822,6 +858,50 @@ void main() {
 
     expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsNothing);
   });
+
+  testWidgets(
+    'VolumeSlider keeps tooltip 650ms after drag release like Electron',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 180,
+                child: VolumeSlider(
+                  value: 37,
+                  disabled: false,
+                  onChange: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final slider = tester.widget<Slider>(find.byType(Slider));
+      slider.onChangeStart!(37);
+      slider.onChanged!(64);
+      slider.onChangeEnd!(64);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+        findsOneWidget,
+      );
+      expect(find.text('64'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 649));
+      expect(
+        find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+        findsOneWidget,
+      );
+
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsNothing);
+    },
+  );
 
   testWidgets('VolumeSlider tooltip follows the horizontal thumb', (
     tester,
@@ -912,16 +992,19 @@ void main() {
     final changes = <int>[];
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: _mediaControlTestTheme(),
-        home: Scaffold(
-          body: Center(
-            child: SizedBox(
-              width: 180,
-              child: VolumeSlider(
-                value: 20,
-                disabled: false,
-                onChange: changes.add,
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 180,
+                child: VolumeSlider(
+                  value: 20,
+                  disabled: false,
+                  onChange: changes.add,
+                ),
               ),
             ),
           ),
@@ -932,6 +1015,14 @@ void main() {
     var slider = tester.widget<Slider>(find.byType(Slider));
     slider.onChanged!(72.3);
     await tester.pump();
+    Semantics volumeSemantics() {
+      return tester
+          .widgetList<Semantics>(find.byType(Semantics))
+          .singleWhere((semantics) => semantics.properties.label == 'Volume');
+    }
+
+    expect(volumeSemantics().properties.value, '72');
+
     slider = tester.widget<Slider>(find.byType(Slider));
     slider.onChanged!(72.4);
     await tester.pump();
@@ -940,6 +1031,7 @@ void main() {
     await tester.pump();
 
     expect(changes, [72, 73]);
+    expect(volumeSemantics().properties.value, '73');
   });
 
   testWidgets('MediaControl clamps volume display like Electron surface', (
@@ -1004,8 +1096,98 @@ void main() {
       ),
     );
     expect(volumeSlider.value, 100);
-    expect(find.byIcon(FluentIcons.speaker_2_20_regular), findsWidgets);
+    expect(
+      find.byKey(
+        ValueKey(
+          'MediaControl.VolumeIcon.${mediaControlVolumeHighIcon.codePoint}',
+        ),
+      ),
+      findsWidgets,
+    );
   });
+
+  testWidgets(
+    'MediaControl volume icon follows live slider value like Electron',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 420);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final emittedVolumes = <int>[];
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: MediaControl(
+                track: const MediaControlTrack(
+                  id: 1,
+                  title: 'Song',
+                  artist: 'Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                  favorite: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 20,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: emittedVolumes.add,
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      SmPlayerVolumeIconKind? volumeButtonIcon() {
+        return tester
+            .widget<SmPlayerVolumeIcon>(
+              find.descendant(
+                of: find.byKey(const ValueKey('MediaControl.VolumeButton')),
+                matching: find.byType(SmPlayerVolumeIcon),
+              ),
+            )
+            .kind;
+      }
+
+      expect(volumeButtonIcon(), SmPlayerVolumeIconKind.low);
+
+      final volumeSlider = tester.widget<Slider>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MediaControl.WideVolumeSlider')),
+          matching: find.byType(Slider),
+        ),
+      );
+      volumeSlider.onChanged!(50);
+      await tester.pump();
+
+      expect(emittedVolumes, [50]);
+      expect(volumeButtonIcon(), SmPlayerVolumeIconKind.medium);
+    },
+  );
 
   testWidgets('MediaControl disables main volume slider when player is empty', (
     tester,
@@ -1131,26 +1313,17 @@ void main() {
             .first,
       );
       final playDecoration = playButton.decoration! as BoxDecoration;
-      expect(
-        playDecoration.color,
-        MediaControlColors.disabledPrimaryButtonSurface,
-      );
+      expect(playDecoration.color, MediaControlColors.disabledButtonSurface);
       expect(playDecoration.boxShadow, const [
         BoxShadow(
-          color: MediaControlColors.disabledPrimaryButtonShadow,
-          offset: Offset(0, 8),
-          blurRadius: 18,
+          color: MediaControlColors.accentShadow,
+          offset: Offset(0, 12),
+          blurRadius: 24,
         ),
       ]);
       expect(
         playDecoration.border,
-        Border.all(
-          color: MediaControlColors.disabledPrimaryButtonBorderFor(
-            tester.element(
-              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
-            ),
-          ),
-        ),
+        Border.all(color: MediaControlColors.accentBorder),
       );
 
       final volumeSlider = tester.widget<Slider>(
@@ -1646,6 +1819,8 @@ void main() {
   testWidgets(
     'MediaControl artwork overlay mirrors Electron hover affordance',
     (tester) async {
+      var nowPlayingOpened = 0;
+      var fullScreenToggled = 0;
       await tester.pumpWidget(
         SmPlayerI18nScope(
           i18n: i18n,
@@ -1680,8 +1855,12 @@ void main() {
                 onToggleRepeatOne: () {},
                 onToggleFavorite: () {},
                 onQuickPlay: () {},
-                onOpenNowPlaying: () {},
-                onToggleWindowFullScreen: () {},
+                onOpenNowPlaying: () {
+                  nowPlayingOpened += 1;
+                },
+                onToggleWindowFullScreen: () {
+                  fullScreenToggled += 1;
+                },
                 isWindowFullScreen: false,
                 onEnterMiniMode: () {},
               ),
@@ -1701,6 +1880,19 @@ void main() {
 
       expect(tester.widget<AnimatedOpacity>(overlayFinder).opacity, 1);
       expect(find.byType(SmPlayerFullscreenIcon), findsOneWidget);
+      expect(
+        tester.widget<SmPlayerFullscreenIcon>(
+          find.byType(SmPlayerFullscreenIcon),
+        ),
+        isA<SmPlayerFullscreenIcon>()
+            .having((icon) => icon.size, 'size', 36)
+            .having((icon) => icon.strokeWidth, 'strokeWidth', 2),
+      );
+
+      await tester.tap(overlayFinder);
+      await tester.pump();
+      expect(nowPlayingOpened, 1);
+      expect(fullScreenToggled, 0);
     },
   );
 
@@ -1860,6 +2052,55 @@ void main() {
       find.byKey(const ValueKey('MediaControl.ProgressLoading')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('MediaControl.ProgressSlider')),
+      findsNothing,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('MediaControl.ProgressLoadingTrack')),
+          )
+          .height,
+      2,
+    );
+    final loadingAnimation =
+        tester
+            .widget<AnimatedBuilder>(
+              find.byKey(
+                const ValueKey('MediaControl.ProgressLoadingAnimation'),
+              ),
+            )
+            .animation;
+    expect(loadingAnimation, isA<CurvedAnimation>());
+    final curvedLoadingAnimation = loadingAnimation as CurvedAnimation;
+    expect(curvedLoadingAnimation.curve, Curves.easeInOut);
+    expect(
+      (curvedLoadingAnimation.parent as AnimationController).duration,
+      const Duration(milliseconds: 1200),
+    );
+    expect(mediaProgressLoadingSegmentWidthFactor, 0.35);
+    expect(mediaProgressLoadingTravelWidthFactor, 0.35 * 3.85);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('MediaControl.LoadingSpinner'))),
+      const Size(22, 22),
+    );
+    final spinnerAnimation =
+        tester
+            .widget<AnimatedBuilder>(
+              find.byKey(
+                const ValueKey('MediaControl.LoadingSpinnerAnimation'),
+              ),
+            )
+            .animation;
+    expect(
+      (spinnerAnimation as AnimationController).duration,
+      mediaControlLoadingSpinnerDuration,
+    );
+    expect(mediaControlLoadingSpinnerSize, 22);
+    expect(mediaControlLoadingSpinnerStrokeWidth, 2);
+    expect(mediaControlLoadingSpinnerTrackColor, const Color(0x61ffffff));
+    expect(mediaControlLoadingSpinnerTopColor, Colors.white);
   });
 
   testWidgets('MediaControl More menu mirrors Electron empty player flyout', (
@@ -2529,7 +2770,31 @@ void main() {
 
       await pumpMediaControl();
 
-      await tester.longPress(find.byTooltip('Playback Mode: List').last);
+      final modeButton = find.byTooltip('Playback Mode: List').last;
+      final modeHoldAction = tester.widget<HoldReleaseAction>(
+        find
+            .ancestor(of: modeButton, matching: find.byType(HoldReleaseAction))
+            .first,
+      );
+      expect(modeHoldAction.holdDuration, const Duration(milliseconds: 520));
+      expect(modeHoldAction.triggerHoldOnReady, isTrue);
+
+      await tester.tap(modeButton, buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(controller.state.mode, PlaybackMode.once);
+      expect(find.text('List'), findsOneWidget);
+      expect(find.text('Shuffle'), findsOneWidget);
+      await tester.tap(find.text('List'));
+      await tester.pumpAndSettle();
+
+      final modeHold = await tester.startGesture(
+        tester.getCenter(modeButton),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Shuffle'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 120));
+      await modeHold.up();
       expect(
         find.byKey(const ValueKey('MediaControl.LongPressProgress')),
         findsNothing,
@@ -2548,7 +2813,13 @@ void main() {
 
       await pumpMediaControl();
       await tester.pumpAndSettle();
-      await tester.longPress(find.byTooltip('Playback Mode: Repeat').last);
+      final repeatModeButton = find.byTooltip('Playback Mode: Repeat').last;
+      final repeatModeHold = await tester.startGesture(
+        tester.getCenter(repeatModeButton),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 520));
+      await repeatModeHold.up();
       await tester.pumpAndSettle();
       await tester.tap(find.text('Repeat'));
       await tester.pumpAndSettle();
@@ -2761,6 +3032,172 @@ void main() {
     },
   );
 
+  testWidgets('condensed MediaControl utility reserves Electron voice width', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: Center(
+              child: MediaControlUtilityRows(
+                trackId: 1,
+                favorite: false,
+                disabled: false,
+                volumeValue: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onOpenVoiceAssistant: () {},
+                condensed: true,
+                width: 132,
+                onMoreClick: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.byType(MediaControlUtilityRows)).width, 140);
+    expect(
+      find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Voice Assistant'), findsOneWidget);
+    expect(find.byTooltip('More'), findsOneWidget);
+  });
+
+  testWidgets(
+    'MediaControlSurfaceBar reserves Electron utility slot with voice',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 500,
+                  height: 120,
+                  child: MediaControlSurfaceBar(
+                    artworkPath: null,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    leadingWidth: 100,
+                    leading: const SizedBox.shrink(),
+                    utilityWidth: 132,
+                    surfaceFlex: 1,
+                    trackId: 1,
+                    isLoading: false,
+                    favorite: false,
+                    disabled: false,
+                    isPlaying: false,
+                    volume: 50,
+                    isMuted: false,
+                    mode: PlaybackMode.once,
+                    progressSeconds: 0,
+                    durationSeconds: 120,
+                    previousButtonRestartsTrack: false,
+                    onTogglePlayPause: () {},
+                    onPrevious: () {},
+                    onNext: () {},
+                    onSeek: (_) {},
+                    onBeginSeek: () {},
+                    onEndSeek: () {},
+                    onVolumeChange: (_) {},
+                    onToggleMute: () {},
+                    onToggleShuffle: () {},
+                    onToggleRepeat: () {},
+                    onToggleRepeatOne: () {},
+                    onToggleFavorite: () {},
+                    onOpenVoiceAssistant: () {},
+                    utilityCondensed: true,
+                    onMoreClick: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(MediaControlUtilityRows)).width, 140);
+      expect(
+        find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Voice Assistant'), findsOneWidget);
+      expect(find.byTooltip('More'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'minimal MediaControl utility allows Electron 68px centered overhang',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: Center(
+                child: MediaControlUtilityRows(
+                  trackId: 1,
+                  favorite: false,
+                  disabled: false,
+                  volumeValue: 50,
+                  isMuted: false,
+                  mode: PlaybackMode.once,
+                  onVolumeChange: (_) {},
+                  onToggleMute: () {},
+                  onToggleShuffle: () {},
+                  onToggleRepeat: () {},
+                  onToggleRepeatOne: () {},
+                  onToggleFavorite: () {},
+                  condensed: true,
+                  minimal: true,
+                  width: 68,
+                  onMoreClick: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final utilityRect = tester.getRect(find.byType(MediaControlUtilityRows));
+      final modeRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+      );
+      final moreRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.MoreButton')),
+      );
+
+      expect(modeRect.size, const Size(34, 34));
+      expect(moreRect.size, const Size(34, 34));
+      expect(moreRect.left - modeRect.right, 6);
+      expect(modeRect.left, utilityRect.left - 3);
+      expect(moreRect.right, utilityRect.right + 3);
+    },
+  );
+
   testWidgets('MediaControl keeps play button centered across player widths', (
     tester,
   ) async {
@@ -2931,12 +3368,21 @@ void main() {
       find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
     expect(
       tester.getSize(
         find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
       ),
       const Size(48, 116),
     );
+    final compactVolumeButtonRect = tester.getRect(
+      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
+    );
+    final compactVolumePopoverRect = tester.getRect(
+      find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+    );
+    expect(compactVolumePopoverRect.right, compactVolumeButtonRect.right + 6);
+    expect(compactVolumePopoverRect.bottom, compactVolumeButtonRect.top - 8);
     final compactVolumePopover = tester.widget<DecoratedBox>(
       find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
     );
@@ -2947,6 +3393,14 @@ void main() {
       compactVolumeDecoration.border,
       Border.all(color: const Color(0x2effffff)),
     );
+    expect(compactVolumeDecoration.borderRadius, BorderRadius.circular(8));
+    expect(compactVolumeDecoration.boxShadow, const [
+      BoxShadow(
+        color: Color(0x6b000000),
+        offset: Offset(0, 16),
+        blurRadius: 36,
+      ),
+    ]);
     expect(
       find.descendant(
         of: find.byType(MediaControlPlayerFrame),
@@ -2955,6 +3409,162 @@ void main() {
         ),
       ),
       findsNothing,
+    );
+
+    tester.widget<Slider>(find.byType(Slider).last).onChangeStart!(50);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
+    final compactVolumeTooltipArrow = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('VolumeSlider.TooltipArrow')),
+    );
+    final compactVolumeTooltipArrowBorder =
+        (compactVolumeTooltipArrow.decoration as BoxDecoration).border!
+            as Border;
+    expect(compactVolumeTooltipArrowBorder.top.color, const Color(0x2effffff));
+    expect(
+      compactVolumeTooltipArrowBorder.right.color,
+      const Color(0x2effffff),
+    );
+    expect(compactVolumeTooltipArrowBorder.bottom, BorderSide.none);
+    expect(compactVolumeTooltipArrowBorder.left, BorderSide.none);
+  });
+
+  testWidgets('compact mode menu closes compact volume like Electron', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack(
+                id: 1,
+                title: 'Song',
+                artist: 'Artist',
+                artworkUrl: '',
+                isLoading: false,
+                favorite: false,
+              ),
+              disabled: false,
+              isPlaying: false,
+              volume: 50,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 180,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (_) {},
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
+              onEnterMiniMode: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+      findsNothing,
+    );
+    expect(find.text('List'), findsOneWidget);
+    expect(find.text('Shuffle'), findsOneWidget);
+    expect(find.text('Repeat'), findsOneWidget);
+    expect(find.text('Repeat One'), findsOneWidget);
+  });
+
+  testWidgets('compact volume button is active only while popover is open', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: Center(
+              child: MediaControlUtilityRows(
+                trackId: 1,
+                favorite: false,
+                disabled: false,
+                volumeValue: 0,
+                isMuted: true,
+                mode: PlaybackMode.once,
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                condensed: true,
+                onMoreClick: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    BoxDecoration compactVolumeDecoration() {
+      final buttonContainer = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byKey(
+                const ValueKey('MediaControl.CompactVolumeButton'),
+              ),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      return buttonContainer.decoration! as BoxDecoration;
+    }
+
+    expect(compactVolumeDecoration().color, Colors.transparent);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
+    );
+    await tester.pump();
+
+    expect(
+      compactVolumeDecoration().color,
+      MediaControlThemeColors.light.buttonActiveBackground,
     );
   });
 
@@ -3095,24 +3705,18 @@ void main() {
           disabledPlayButton.decoration! as BoxDecoration;
       expect(
         disabledPlayButtonDecoration.color,
-        MediaControlColors.disabledPrimaryButtonSurface,
+        MediaControlColors.disabledButtonSurface,
       );
       expect(disabledPlayButtonDecoration.boxShadow, const [
         BoxShadow(
-          color: MediaControlColors.disabledPrimaryButtonShadow,
-          offset: Offset(0, 8),
-          blurRadius: 18,
+          color: MediaControlColors.accentShadow,
+          offset: Offset(0, 12),
+          blurRadius: 24,
         ),
       ]);
       expect(
         disabledPlayButtonDecoration.border,
-        Border.all(
-          color: MediaControlColors.disabledPrimaryButtonBorderFor(
-            tester.element(
-              find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
-            ),
-          ),
-        ),
+        Border.all(color: MediaControlColors.accentBorder),
       );
       expect(
         tester.getSize(
@@ -3141,7 +3745,24 @@ void main() {
       );
       expect(
         disabledProgressTheme.data.disabledThumbColor,
-        MediaControlColors.accent.withValues(alpha: 0.8),
+        MediaControlColors.accent.withValues(
+          alpha:
+              mediaSliderDisabledInputOpacity * mediaSliderDisabledThumbOpacity,
+        ),
+      );
+      expect(
+        disabledProgressTheme.data.disabledActiveTrackColor,
+        MediaControlColors.accent.withValues(
+          alpha: mediaSliderDisabledInputOpacity,
+        ),
+      );
+      expect(
+        disabledProgressTheme.data.disabledInactiveTrackColor,
+        MediaControlColors.sliderInactive.withValues(
+          alpha:
+              MediaControlColors.sliderInactive.a *
+              mediaSliderDisabledInputOpacity,
+        ),
       );
       expect(disabledProgressTheme.data.trackHeight, 2);
       final disabledProgressThumb =
@@ -3415,7 +4036,7 @@ const _song = LibrarySong(
   thumbnailPath: '',
 );
 
-const double _testVolumeSliderThumbRadius = 8;
+const double _testVolumeSliderThumbRadius = 9;
 
 ThemeData _mediaControlTestTheme({Brightness brightness = Brightness.light}) {
   final isDark = brightness == Brightness.dark;

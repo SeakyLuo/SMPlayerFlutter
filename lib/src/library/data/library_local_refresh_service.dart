@@ -13,7 +13,6 @@ import 'library_local_scan_service.dart';
 import 'library_models.dart';
 import 'library_read_service.dart';
 import 'library_song_properties_service.dart';
-import 'library_time_codec.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -808,7 +807,6 @@ class LibraryLocalRefreshService {
             .toList();
     final artist = artists.join(', ');
     final album = properties.album.trim();
-    final dateAdded = LibraryTimeCodec.nowUnixMillisecondsString();
     final rows = db.select(
       '''
       INSERT INTO Music (Path, Name, Artist, Album, ThumbnailPath, Duration, PlayCount, DateAdded, State)
@@ -816,7 +814,7 @@ class LibraryLocalRefreshService {
         ?, ?, ?, ?, ?,
         ?,
         COALESCE((SELECT PlayCount FROM Music WHERE Path = ?), 0),
-        COALESCE((SELECT DateAdded FROM Music WHERE Path = ?), ?),
+        ?,
         ?
       )
       ON CONFLICT(Path) DO UPDATE SET
@@ -825,6 +823,7 @@ class LibraryLocalRefreshService {
         Album = excluded.Album,
         ThumbnailPath = excluded.ThumbnailPath,
         Duration = excluded.Duration,
+        DateAdded = excluded.DateAdded,
         State = excluded.State
       RETURNING Id AS id
     ''',
@@ -836,8 +835,7 @@ class LibraryLocalRefreshService {
         metadata.thumbnailPath,
         metadata.duration,
         filePath,
-        filePath,
-        dateAdded,
+        metadata.dateAdded,
         _activeState,
       ],
     );

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -101,12 +102,23 @@ Future<void> showMenuFlyout(
   final completer = Completer<void>();
   late final OverlayEntry entry;
   void close() {
-    if (entry.mounted) {
-      entry.remove();
+    void removeEntry() {
+      if (entry.mounted) {
+        entry.remove();
+      }
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
     }
-    if (!completer.isCompleted) {
-      completer.complete();
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        removeEntry();
+      });
+      return;
     }
+    removeEntry();
   }
 
   entry = OverlayEntry(

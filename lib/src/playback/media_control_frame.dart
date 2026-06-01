@@ -6,11 +6,13 @@ class MediaControlPlayerFrame extends StatelessWidget {
     required this.artworkPath,
     required this.child,
     this.borderRadius = const BorderRadius.vertical(top: Radius.circular(18)),
+    this.preserveWideBackground = false,
   });
 
   final String? artworkPath;
   final Widget child;
   final BorderRadius borderRadius;
+  final bool preserveWideBackground;
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +26,10 @@ class MediaControlPlayerFrame extends StatelessWidget {
             child: ClipRRect(
               borderRadius: borderRadius,
               child: _PlayerLiquidGlassFrame(
+                compact: compact,
                 child: _PlayerTintedFrame(
                   artworkPath: artworkPath,
+                  preserveWideBackground: preserveWideBackground,
                   child: child,
                 ),
               ),
@@ -74,6 +78,7 @@ class MediaControlSurfaceBar extends StatelessWidget {
     this.leadingFlex,
     this.leadingWidth,
     this.utilityWidth,
+    this.utilityFlex,
     this.columnGap = 0,
     this.onOpenVoiceAssistant,
     this.condensed = false,
@@ -82,7 +87,14 @@ class MediaControlSurfaceBar extends StatelessWidget {
     this.sliderActiveColor,
     this.sliderInactiveColor,
     this.sliderThumbColor,
+    this.sliderThumbShadow,
     this.sliderOverlayColor,
+    this.volumeSliderActiveColor,
+    this.volumeSliderInactiveColor,
+    this.volumeSliderThumbColor,
+    this.volumeSliderThumbShadow,
+    this.volumeSliderOverlayColor,
+    this.preserveWideBackground = false,
   });
 
   final String? artworkPath;
@@ -91,6 +103,7 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final int? leadingFlex;
   final double? leadingWidth;
   final double? utilityWidth;
+  final int? utilityFlex;
   final double columnGap;
   final int surfaceFlex;
   final int? trackId;
@@ -125,7 +138,14 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
+  final BoxShadow? sliderThumbShadow;
   final Color? sliderOverlayColor;
+  final Color? volumeSliderActiveColor;
+  final Color? volumeSliderInactiveColor;
+  final Color? volumeSliderThumbColor;
+  final BoxShadow? volumeSliderThumbShadow;
+  final Color? volumeSliderOverlayColor;
+  final bool preserveWideBackground;
   final ValueChanged<BuildContext> onMoreClick;
   final BorderRadius borderRadius;
 
@@ -145,16 +165,31 @@ class MediaControlSurfaceBar extends StatelessWidget {
       );
     }
 
+    final resolvedUtilityWidth = _resolvedMediaControlUtilityWidth(
+      width: utilityWidth,
+      minimal: utilityMinimal,
+      condensed: utilityCondensed,
+      hasVoiceAssistant: onOpenVoiceAssistant != null,
+    );
+    final leadingContentAligned = leadingWidth == null && utilityFlex != null;
+
     return MediaControlPlayerFrame(
       artworkPath: artworkPath,
       borderRadius: borderRadius,
+      preserveWideBackground: preserveWideBackground,
       child: Padding(
         padding: padding,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (leadingWidth == null)
-              Expanded(flex: leadingFlex!, child: leading)
+              Expanded(
+                flex: leadingFlex!,
+                child:
+                    leadingContentAligned
+                        ? Align(alignment: Alignment.centerLeft, child: leading)
+                        : leading,
+              )
             else
               SizedBox(width: leadingWidth, child: navMinimalSideSlot(leading)),
             if (columnGap > 0) SizedBox(width: columnGap),
@@ -199,25 +234,59 @@ class MediaControlSurfaceBar extends StatelessWidget {
                 sliderActiveColor: sliderActiveColor,
                 sliderInactiveColor: sliderInactiveColor,
                 sliderThumbColor: sliderThumbColor,
+                sliderThumbShadow: sliderThumbShadow,
                 sliderOverlayColor: sliderOverlayColor,
                 onMoreClick: onMoreClick,
               ),
             ),
             if (columnGap > 0) SizedBox(width: columnGap),
-            if (utilityWidth == null)
-              SizedBox(
-                width: _mediaControlUtilityWidth(
-                  minimal: utilityMinimal,
-                  condensed: utilityCondensed,
-                  hasVoiceAssistant: onOpenVoiceAssistant != null,
+            if (utilityWidth == null && utilityFlex != null)
+              Expanded(
+                flex: utilityFlex!,
+                child: navMinimalSideSlot(
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: resolvedUtilityWidth,
+                      child: _MediaControlSurfaceBarUtility(
+                        width: resolvedUtilityWidth,
+                        trackId: trackId,
+                        favorite: favorite,
+                        disabled: disabled,
+                        volume: volume,
+                        isMuted: isMuted,
+                        mode: mode,
+                        onVolumeChange: onVolumeChange,
+                        onToggleMute: onToggleMute,
+                        onToggleShuffle: onToggleShuffle,
+                        onToggleRepeat: onToggleRepeat,
+                        onToggleRepeatOne: onToggleRepeatOne,
+                        onToggleFavorite: onToggleFavorite,
+                        onOpenVoiceAssistant: onOpenVoiceAssistant,
+                        utilityCondensed: utilityCondensed,
+                        utilityMinimal: utilityMinimal,
+                        sliderActiveColor: sliderActiveColor,
+                        sliderInactiveColor: sliderInactiveColor,
+                        sliderThumbColor: sliderThumbColor,
+                        sliderThumbShadow: sliderThumbShadow,
+                        sliderOverlayColor: sliderOverlayColor,
+                        volumeSliderActiveColor: volumeSliderActiveColor,
+                        volumeSliderInactiveColor: volumeSliderInactiveColor,
+                        volumeSliderThumbColor: volumeSliderThumbColor,
+                        volumeSliderThumbShadow: volumeSliderThumbShadow,
+                        volumeSliderOverlayColor: volumeSliderOverlayColor,
+                        onMoreClick: onMoreClick,
+                      ),
+                    ),
+                  ),
                 ),
+              )
+            else if (utilityWidth == null)
+              SizedBox(
+                width: resolvedUtilityWidth,
                 child: navMinimalSideSlot(
                   _MediaControlSurfaceBarUtility(
-                    width: _mediaControlUtilityWidth(
-                      minimal: utilityMinimal,
-                      condensed: utilityCondensed,
-                      hasVoiceAssistant: onOpenVoiceAssistant != null,
-                    ),
+                    width: resolvedUtilityWidth,
                     trackId: trackId,
                     favorite: favorite,
                     disabled: disabled,
@@ -236,17 +305,23 @@ class MediaControlSurfaceBar extends StatelessWidget {
                     sliderActiveColor: sliderActiveColor,
                     sliderInactiveColor: sliderInactiveColor,
                     sliderThumbColor: sliderThumbColor,
+                    sliderThumbShadow: sliderThumbShadow,
                     sliderOverlayColor: sliderOverlayColor,
+                    volumeSliderActiveColor: volumeSliderActiveColor,
+                    volumeSliderInactiveColor: volumeSliderInactiveColor,
+                    volumeSliderThumbColor: volumeSliderThumbColor,
+                    volumeSliderThumbShadow: volumeSliderThumbShadow,
+                    volumeSliderOverlayColor: volumeSliderOverlayColor,
                     onMoreClick: onMoreClick,
                   ),
                 ),
               )
             else
               SizedBox(
-                width: utilityWidth,
+                width: resolvedUtilityWidth,
                 child: navMinimalSideSlot(
                   _MediaControlSurfaceBarUtility(
-                    width: utilityWidth!,
+                    width: resolvedUtilityWidth,
                     trackId: trackId,
                     favorite: favorite,
                     disabled: disabled,
@@ -265,7 +340,13 @@ class MediaControlSurfaceBar extends StatelessWidget {
                     sliderActiveColor: sliderActiveColor,
                     sliderInactiveColor: sliderInactiveColor,
                     sliderThumbColor: sliderThumbColor,
+                    sliderThumbShadow: sliderThumbShadow,
                     sliderOverlayColor: sliderOverlayColor,
+                    volumeSliderActiveColor: volumeSliderActiveColor,
+                    volumeSliderInactiveColor: volumeSliderInactiveColor,
+                    volumeSliderThumbColor: volumeSliderThumbColor,
+                    volumeSliderThumbShadow: volumeSliderThumbShadow,
+                    volumeSliderOverlayColor: volumeSliderOverlayColor,
                     onMoreClick: onMoreClick,
                   ),
                 ),
@@ -298,7 +379,13 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
     required this.sliderActiveColor,
     required this.sliderInactiveColor,
     required this.sliderThumbColor,
+    required this.sliderThumbShadow,
     required this.sliderOverlayColor,
+    required this.volumeSliderActiveColor,
+    required this.volumeSliderInactiveColor,
+    required this.volumeSliderThumbColor,
+    required this.volumeSliderThumbShadow,
+    required this.volumeSliderOverlayColor,
     required this.onMoreClick,
   });
 
@@ -321,7 +408,13 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
+  final BoxShadow? sliderThumbShadow;
   final Color? sliderOverlayColor;
+  final Color? volumeSliderActiveColor;
+  final Color? volumeSliderInactiveColor;
+  final Color? volumeSliderThumbColor;
+  final BoxShadow? volumeSliderThumbShadow;
+  final Color? volumeSliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
@@ -348,7 +441,13 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
         sliderActiveColor: sliderActiveColor,
         sliderInactiveColor: sliderInactiveColor,
         sliderThumbColor: sliderThumbColor,
+        sliderThumbShadow: sliderThumbShadow,
         sliderOverlayColor: sliderOverlayColor,
+        volumeSliderActiveColor: volumeSliderActiveColor,
+        volumeSliderInactiveColor: volumeSliderInactiveColor,
+        volumeSliderThumbColor: volumeSliderThumbColor,
+        volumeSliderThumbShadow: volumeSliderThumbShadow,
+        volumeSliderOverlayColor: volumeSliderOverlayColor,
         onMoreClick: onMoreClick,
       ),
     );
@@ -365,21 +464,22 @@ class _PlayerBarShadowFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = MediaControlThemeColors.of(context);
     return DecoratedBox(
+      key: const ValueKey('MediaControl.PlayerFrameShadow'),
       decoration: BoxDecoration(
         boxShadow:
             compact
                 ? [
                   BoxShadow(
                     color: colors.compactPlayerShadow,
-                    offset: const Offset(0, -12),
-                    blurRadius: 36,
+                    offset: Offset(0, colors.compactShadowOffsetY),
+                    blurRadius: colors.compactShadowBlur,
                   ),
                 ]
                 : [
                   BoxShadow(
                     color: colors.playerShadow,
                     offset: Offset(0, colors.wideShadowOffsetY),
-                    blurRadius: 48,
+                    blurRadius: colors.wideShadowBlur,
                   ),
                 ],
       ),
@@ -389,8 +489,9 @@ class _PlayerBarShadowFrame extends StatelessWidget {
 }
 
 class _PlayerLiquidGlassFrame extends StatelessWidget {
-  const _PlayerLiquidGlassFrame({required this.child});
+  const _PlayerLiquidGlassFrame({required this.compact, required this.child});
 
+  final bool compact;
   final Widget child;
 
   @override
@@ -401,11 +502,12 @@ class _PlayerLiquidGlassFrame extends StatelessWidget {
       quality: GlassQuality.standard,
       shape: const LiquidRoundedRectangle(borderRadius: 0),
       settings: LiquidGlassSettings(
-        blur: 18,
+        blur: compact ? colors.compactGlassBlur : colors.glassBlur,
         thickness: colors.glassThickness,
         lightIntensity: colors.glassLightIntensity,
         chromaticAberration: 0.08,
-        saturation: colors.glassSaturation,
+        saturation:
+            compact ? colors.compactGlassSaturation : colors.glassSaturation,
         glassColor: colors.glassColor,
         standardOpacityMultiplier: 0.72,
       ),
@@ -417,9 +519,14 @@ class _PlayerLiquidGlassFrame extends StatelessWidget {
 }
 
 class _PlayerTintedFrame extends StatefulWidget {
-  const _PlayerTintedFrame({required this.artworkPath, required this.child});
+  const _PlayerTintedFrame({
+    required this.artworkPath,
+    required this.preserveWideBackground,
+    required this.child,
+  });
 
   final String? artworkPath;
+  final bool preserveWideBackground;
   final Widget child;
 
   @override
@@ -451,24 +558,25 @@ class _PlayerTintedFrameState extends State<_PlayerTintedFrame> {
         final compact = constraints.maxWidth <= _playerCompactBreakpoint;
         final colors = MediaControlThemeColors.of(context);
         final coverWash = _accentColor.withValues(alpha: colors.coverWashAlpha);
+        final compactCoverWash = _accentColor.withValues(
+          alpha: colors.compactCoverWashAlpha,
+        );
+        final useCompactBackground = compact && !widget.preserveWideBackground;
         final borderColor =
             compact ? colors.compactPlayerBorder : colors.playerBorder;
         final border =
             compact
                 ? Border(top: BorderSide(color: borderColor))
-                : Border(
-                  top: BorderSide(color: borderColor),
-                  left: BorderSide(color: borderColor),
-                  right: BorderSide(color: borderColor),
-                );
+                : Border.all(color: borderColor);
 
         return DecoratedBox(
+          key: const ValueKey('MediaControl.PlayerFrameBorder'),
           decoration: BoxDecoration(border: border),
           child:
-              compact
+              useCompactBackground
                   ? _PlayerCompactTintedBackground(
                     colors: colors,
-                    coverWash: coverWash,
+                    coverWash: compactCoverWash,
                     child: widget.child,
                   )
                   : _PlayerWideTintedBackground(
@@ -523,26 +631,65 @@ class _PlayerWideTintedBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(color: colors.wideSurface),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [coverWash, Colors.transparent],
-            stops: [0, colors.wideWashStop],
+    Widget withInsetHighlight(Widget child) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            child: ColoredBox(
+              key: const ValueKey('MediaControl.PlayerFrameInsetHighlight'),
+              color: colors.wideInsetHighlight,
+            ),
           ),
-        ),
-        child: DecoratedBox(
+        ],
+      );
+    }
+
+    if (colors.coverWashMode == MediaControlCoverWashMode.radial) {
+      return withInsetHighlight(
+        DecoratedBox(
+          key: const ValueKey('MediaControl.PlayerFrameBackground'),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: colors.wideHighlightGradient,
+            color: colors.wideSurface,
+            gradient: RadialGradient(
+              center: colors.coverWashAlignment,
+              radius: colors.coverWashRadius,
+              colors: [coverWash, Colors.transparent],
             ),
           ),
           child: child,
+        ),
+      );
+    }
+    return withInsetHighlight(
+      DecoratedBox(
+        key: const ValueKey('MediaControl.PlayerFrameBackground'),
+        decoration: BoxDecoration(color: colors.wideSurface),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [coverWash, Colors.transparent],
+              stops: [0, colors.wideWashStop],
+            ),
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colors.wideHighlightGradient,
+                stops: colors.wideHighlightStops,
+              ),
+            ),
+            child: child,
+          ),
         ),
       ),
     );
@@ -562,26 +709,59 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (colors.coverWashMode == MediaControlCoverWashMode.radial) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            key: const ValueKey('MediaControl.PlayerFrameBackground'),
+            decoration: BoxDecoration(
+              color: colors.compactSurface,
+              gradient: RadialGradient(
+                center: colors.coverWashAlignment,
+                radius: colors.coverWashRadius,
+                colors: [coverWash, Colors.transparent],
+              ),
+            ),
+            child: child,
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            child: ColoredBox(
+              key: const ValueKey('MediaControl.PlayerFrameInsetHighlight'),
+              color: colors.compactInsetHighlight,
+            ),
+          ),
+        ],
+      );
+    }
     return Stack(
       fit: StackFit.expand,
       children: [
         DecoratedBox(
-          decoration: BoxDecoration(color: colors.wideSurface),
+          key: const ValueKey('MediaControl.PlayerFrameBackground'),
+          decoration: BoxDecoration(color: colors.compactSurface),
           child: DecoratedBox(
+            key: const ValueKey('MediaControl.PlayerCompactBaseGradient'),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [coverWash, Colors.transparent],
-                stops: [0, colors.wideWashStop],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: colors.compactBaseGradient,
+                stops: colors.compactBaseGradientStops,
               ),
             ),
             child: DecoratedBox(
+              key: const ValueKey('MediaControl.PlayerCompactCoverGradient'),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: colors.wideHighlightGradient,
+                  colors: [coverWash, colors.compactWashEnd],
+                  stops: [0, colors.compactWashStop],
                 ),
               ),
               child: child,
@@ -593,7 +773,10 @@ class _PlayerCompactTintedBackground extends StatelessWidget {
           left: 0,
           right: 0,
           height: 1,
-          child: ColoredBox(color: colors.compactInsetHighlight),
+          child: ColoredBox(
+            key: const ValueKey('MediaControl.PlayerFrameInsetHighlight'),
+            color: colors.compactInsetHighlight,
+          ),
         ),
       ],
     );

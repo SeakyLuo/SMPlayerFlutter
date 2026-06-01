@@ -122,6 +122,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _isWindowMaximized = false;
   var _syncingAudioPlayer = false;
   var _audioLoadSerial = 0;
+  int? _loadingAudioTrackId;
+  String? _loadingAudioPath;
+  var _pendingAudioAutoplay = false;
   double? _pendingAudioSeekSeconds;
   var _playbackRuntimeSettingsRestored = false;
   var _playbackTrackRestoreScheduled = false;
@@ -1271,22 +1274,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     MediaControlState mediaControlState,
     LibraryContentData? snapshot,
   ) {
-    final songs = snapshot?.songs ?? const <LibrarySong>[];
-    final songsById = {for (final song in songs) song.id: song};
-    final queueSongs =
-        snapshot?.nowPlaying.songIds
-            .map((songId) => songsById[songId])
-            .whereType<LibrarySong>()
-            .toList() ??
-        const <LibrarySong>[];
-    final queueIndex = mediaControlState.selectedQueueIndex;
-    if (queueIndex != null &&
-        queueIndex >= 0 &&
-        queueIndex < queueSongs.length) {
-      return queueSongs[queueIndex];
-    }
-    final trackId = mediaControlState.track.id;
-    return trackId == null ? null : songsById[trackId];
+    return resolveShellPlayerSong(snapshot, mediaControlState.track.id);
   }
 
   KeyEventResult _handlePlaybackShortcutKey(FocusNode node, KeyEvent event) {

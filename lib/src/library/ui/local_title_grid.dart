@@ -77,11 +77,16 @@ class LocalTitleGrid extends StatelessWidget {
           ),
           if (!compact) ...[
             const SizedBox(width: 12),
-            IconButton(
-              tooltip: i18n.t('local.hiddenFolders'),
-              icon: const Icon(FluentIcons.eye_off_24_regular),
-              color: colors.textMuted,
-              onPressed: onHiddenFoldersListButtonClick,
+            SizedBox.square(
+              key: const ValueKey('LocalTitleGrid.HiddenFoldersButton'),
+              dimension: 42,
+              child: IconButton(
+                tooltip: i18n.t('local.hiddenFolders'),
+                padding: EdgeInsets.zero,
+                icon: const Icon(FluentIcons.folder_prohibited_24_regular),
+                color: colors.textMuted,
+                onPressed: onHiddenFoldersListButtonClick,
+              ),
             ),
           ],
         ],
@@ -209,18 +214,14 @@ class _FolderChainListViewState extends State<FolderChainListView> {
             controller: _scrollController,
             scrollDirection: Axis.horizontal,
             itemCount: folderChain.length,
-            separatorBuilder:
-                (_, _) => Icon(
-                  FluentIcons.chevron_right_16_regular,
-                  size: 14,
-                  color: colors.textMuted,
-                ),
+            separatorBuilder: (_, _) => const SizedBox(width: 2),
             itemBuilder: (context, index) {
               final item = folderChain[index];
               return _FolderChainItem(
                 item: item,
                 i18n: widget.i18n,
                 isOpen: _openedPath == item.path,
+                compact: widget.compact,
                 onOpenFolder: (path) {
                   _closeChildFlyout();
                   widget.onOpenFolder(path);
@@ -393,6 +394,7 @@ class _FolderChainItem extends StatelessWidget {
     required this.item,
     required this.i18n,
     required this.isOpen,
+    required this.compact,
     required this.onOpenFolder,
     required this.onCurrentFolderClick,
     required this.shouldIgnoreTap,
@@ -405,6 +407,7 @@ class _FolderChainItem extends StatelessWidget {
   final FolderChainItem item;
   final SmPlayerI18n i18n;
   final bool isOpen;
+  final bool compact;
   final ValueChanged<String> onOpenFolder;
   final VoidCallback onCurrentFolderClick;
   final bool Function() shouldIgnoreTap;
@@ -444,9 +447,12 @@ class _FolderChainItem extends StatelessWidget {
                     }
                   },
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 32),
+            constraints: BoxConstraints(minHeight: compact ? 36 : 32),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding:
+                  compact
+                      ? const EdgeInsets.symmetric(horizontal: 6)
+                      : const EdgeInsets.fromLTRB(10, 0, 8, 0),
               child: Align(
                 alignment: Alignment.center,
                 child: Text(
@@ -480,8 +486,9 @@ class _FolderChainItem extends StatelessWidget {
               builder: (context, candidateData, rejectedData) => pathButton,
             ),
         if (item.children.isNotEmpty)
-          SizedBox.square(
-            dimension: 30,
+          SizedBox(
+            width: 22,
+            height: compact ? 36 : 32,
             child: Builder(
               builder:
                   (buttonContext) => IconButton(

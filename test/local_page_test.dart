@@ -447,7 +447,7 @@ void main() {
     await _dismissTransientNotifications(tester);
   });
 
-  testWidgets('LocalPage list view mirrors Electron table columns', (
+  testWidgets('LocalPage ignores stored list view and uses Electron grid', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -464,24 +464,26 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Name'), findsOneWidget);
-    expect(find.text('Artist'), findsOneWidget);
-    expect(find.text('Album'), findsOneWidget);
+    expect(find.text('Name'), findsNothing);
+    expect(find.text('Artist'), findsNothing);
+    expect(find.text('Album'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+      findsNothing,
+    );
     expect(find.text('Sub'), findsOneWidget);
     expect(find.text('Root Song'), findsOneWidget);
-    expect(find.text('Artist A'), findsOneWidget);
-    expect(find.text('Root Album'), findsOneWidget);
-    expect(find.text('Folders (1)'), findsOneWidget);
-    expect(find.text('All Songs (1)'), findsOneWidget);
+    expect(_richTextContaining('Folders'), findsOneWidget);
+    expect(_richTextContaining('All Songs'), findsOneWidget);
 
     await tester.tap(find.text('Root Song'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(repository.replacedNowPlaying, [1]);
     expect(mediaController.state.track.id, 1);
   });
 
-  testWidgets('LocalPage table artist and album cells navigate like Electron', (
+  testWidgets('LocalPage stored list mode does not enter table routing', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -496,26 +498,16 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('Artist A'));
-    await tester.pumpAndSettle();
-    expect(find.text('artist:Artist A'), findsOneWidget);
-
-    await tester.pumpWidget(
-      _LocalPageRouterTestApp(
-        snapshot: _snapshotWithLocalViewMode(LocalViewMode.list),
-        i18n: i18n,
-        repository: _FakeLibraryRepository(),
-        mediaController: MediaControlController(),
-      ),
+    expect(
+      find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+      findsNothing,
     );
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await tester.tap(find.text('Root Album'));
-    await tester.pumpAndSettle();
-    expect(find.text('album:Root Album'), findsOneWidget);
+    expect(find.text('Root Song'), findsOneWidget);
+    expect(find.text('Artist A'), findsOneWidget);
+    expect(find.text('Root Album'), findsNothing);
   });
 
-  testWidgets('LocalPage table quick jump jumps by Electron title bucket', (
+  testWidgets('LocalPage grid quick jump jumps by Electron title bucket', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -531,15 +523,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alpha Song 00'), findsOneWidget);
-    expect(find.text('Delta Song 00'), findsNothing);
+    final quickJumpB = find.widgetWithText(TextButton, 'B').first;
+    final quickJumpBTop = tester.getTopLeft(quickJumpB).dy;
+    final initialTop =
+        tester
+            .getTopLeft(
+              find
+                  .ancestor(
+                    of: find.text('Alpha Song 00'),
+                    matching: find.byWidgetPredicate(
+                      (widget) =>
+                          widget is Container &&
+                          widget.constraints?.minHeight == 232 &&
+                          widget.decoration is BoxDecoration,
+                    ),
+                  )
+                  .first,
+            )
+            .dy;
 
-    await tester.tap(find.widgetWithText(TextButton, 'D').first);
+    await tester.tap(quickJumpB);
     await tester.pumpAndSettle();
 
-    expect(find.text('Delta Song 00'), findsOneWidget);
+    expect(find.text('Bravo Song 00'), findsOneWidget);
+    expect(tester.getTopLeft(quickJumpB).dy, closeTo(quickJumpBTop, 1));
+    final bravoCard =
+        find
+            .ancestor(
+              of: find.text('Bravo Song 00'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.minHeight == 232 &&
+                    widget.decoration is BoxDecoration,
+              ),
+            )
+            .first;
+    expect(tester.getTopLeft(bravoCard).dy, closeTo(initialTop, 1));
   });
 
-  testWidgets('LocalPage table quick jump follows Electron artist basis', (
+  testWidgets('LocalPage grid quick jump follows Electron artist basis', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -555,7 +578,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Track 00'), findsOneWidget);
-    expect(find.text('Track 60'), findsNothing);
 
     await tester.tap(find.widgetWithText(TextButton, 'D').first);
     await tester.pumpAndSettle();
@@ -563,7 +585,7 @@ void main() {
     expect(find.text('Track 60'), findsOneWidget);
   });
 
-  testWidgets('LocalPage table quick jump reverse keeps Electron album basis', (
+  testWidgets('LocalPage stored list mode still renders grid quick jump', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -579,22 +601,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Track 00'), findsOneWidget);
-
-    await _pressCommandBarButton(tester, 'Sort');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Reverse').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Track 79'), findsOneWidget);
-    expect(find.text('Track 00'), findsNothing);
-
-    await tester.tap(find.widgetWithText(TextButton, 'A').first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Track 19'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'A'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+      findsNothing,
+    );
   });
 
-  testWidgets('LocalPage compact list view uses Electron folder tree rows', (
+  testWidgets('LocalPage compact grid uses Electron folder tree rows', (
     tester,
   ) async {
     _setCompactSurface(tester);
@@ -621,13 +635,13 @@ void main() {
     expect(find.text('Child Song'), findsOneWidget);
 
     await tester.tap(find.text('Child Song'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(repository.replacedNowPlaying, [2, 1]);
+    expect(repository.replacedNowPlaying, [2]);
     expect(mediaController.state.track.id, 2);
   });
 
-  testWidgets('LocalPage compact list view drags songs onto folders', (
+  testWidgets('LocalPage compact grid drags songs onto folders', (
     tester,
   ) async {
     _setCompactSurface(tester);
@@ -805,7 +819,7 @@ void main() {
     expect(find.text('4 selected'), findsOneWidget);
   });
 
-  testWidgets('LocalPage list view virtualizes offscreen rows like Electron', (
+  testWidgets('LocalPage stored list mode keeps Electron grid content', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -820,18 +834,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Song 139'), findsNothing);
-
-    await tester.scrollUntilVisible(
-      find.text('Song 139'),
-      900,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('LocalTableContent.VirtualList')),
-        matching: find.byType(Scrollable),
-      ),
+    expect(
+      find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+      findsNothing,
     );
-    await tester.pumpAndSettle();
-
+    expect(find.text('Song 0'), findsOneWidget);
     expect(find.text('Song 139'), findsOneWidget);
   });
 
@@ -1282,6 +1289,58 @@ void main() {
     expect(find.text('Root Song'), findsNothing);
   });
 
+  testWidgets('LocalPage song click plays Electron current-folder queue', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithMultipleRootSongs,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Second Root'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(repository.replacedNowPlaying, [1, 3]);
+    expect(mediaController.state.track.id, 3);
+    expect(mediaController.state.selectedQueueIndex, 1);
+    expect(find.text('1 selected'), findsNothing);
+  });
+
+  testWidgets('LocalPage song click toggles selection in multi-select', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithMultipleRootSongs,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _pressCommandBarButton(tester, 'Multi Select');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Second Root'));
+    await tester.pumpAndSettle();
+
+    expect(repository.replacedNowPlaying, isEmpty);
+    expect(find.text('1 selected'), findsOneWidget);
+  });
+
   testWidgets('LocalPage route query opens nested local folder', (
     tester,
   ) async {
@@ -1494,7 +1553,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('2 folders · 1 songs'), findsOneWidget);
+    expect(find.text('2 folders · 1 song'), findsOneWidget);
     expect(find.text('2 folders · 2 songs'), findsNothing);
   });
 
@@ -3636,6 +3695,43 @@ const _snapshot = LibraryContentData(
   hideMultiSelectCommandBarAfterOperation: true,
   rootPath: r'C:\Music',
   databasePath: '',
+);
+
+final _snapshotWithMultipleRootSongs = LibraryContentData(
+  songs: [
+    ..._snapshot.songs,
+    LibrarySong(
+      id: 3,
+      path: r'C:\Music\second-root.mp3',
+      title: 'Second Root',
+      artist: 'Artist C',
+      artists: ['Artist C'],
+      album: 'Root Album',
+      duration: 150,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: _snapshot.recentSongs,
+  recentPlaylists: _snapshot.recentPlaylists,
+  recentAlbums: _snapshot.recentAlbums,
+  recentArtists: _snapshot.recentArtists,
+  recentSearches: _snapshot.recentSearches,
+  playlists: _snapshot.playlists,
+  folders: _snapshot.folders,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation:
+      _snapshot.hideMultiSelectCommandBarAfterOperation,
+  rootPath: _snapshot.rootPath,
+  databasePath: _snapshot.databasePath,
 );
 
 final _snapshotWithoutFolders = LibraryContentData(

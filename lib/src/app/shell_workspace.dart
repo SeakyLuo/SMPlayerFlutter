@@ -73,8 +73,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
             ? workspaceAppBarPortal
             : null;
     final localTitleContent =
-        showNavigationAppBar &&
-                currentRoutePath == '/local' &&
+        currentRoutePath == '/local' &&
                 snapshot != null &&
                 snapshot.rootPath.isNotEmpty
             ? LocalTitleGrid(
@@ -83,7 +82,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
               i18n: i18n,
               rootPath: snapshot.rootPath,
               currentRelativePath: currentUri.queryParameters['path'] ?? '',
-              compact: true,
+              compact: showNavigationAppBar,
               onHiddenFoldersListButtonClick: () {
                 context.go('/hidden-folders');
               },
@@ -178,7 +177,7 @@ class _WorkspacePageSurface extends StatelessWidget {
             ? ''
             : workspaceAppBarPortal?.title ?? title);
     final content = WorkspaceNavigationAppBarScope(
-      active: showNavigationAppBar,
+      active: showNavigationAppBar || localTitleContent != null,
       child: _WorkspaceContentMediaQuery(child: child),
     );
     return ColoredBox(
@@ -212,6 +211,8 @@ class _WorkspacePageSurface extends StatelessWidget {
                   bottomContent: workspaceAppBarPortal?.bottomContent,
                   topInset: 0,
                 )
+              else if (!overlayNavigationAppBar && localTitleContent != null)
+                _WorkspaceLocalHeader(child: localTitleContent!)
               else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
                 _WorkspaceHeader(title: pageTitle, height: headerHeight),
               Expanded(child: content),
@@ -257,6 +258,23 @@ class _WorkspaceContentMediaQuery extends StatelessWidget {
           child: SizedBox.expand(child: child),
         );
       },
+    );
+  }
+}
+
+class _WorkspaceLocalHeader extends StatelessWidget {
+  const _WorkspaceLocalHeader({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 108,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 48, 24, 18),
+        child: child,
+      ),
     );
   }
 }
@@ -333,7 +351,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
     final topRow = SizedBox(
       height: 40,
       child: Padding(
-        padding: const EdgeInsets.only(left: 8, right: 14),
+        padding: const EdgeInsets.only(left: 12, right: 14),
         child: Row(
           children: [
             Tooltip(

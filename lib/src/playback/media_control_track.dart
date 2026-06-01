@@ -6,7 +6,6 @@ class _PlayerTrack extends StatefulWidget {
     required this.artworkPath,
     required this.disabled,
     required this.onOpenNowPlaying,
-    required this.onToggleWindowFullScreen,
     this.compact = false,
     this.currentLyricsLine,
     this.onArtworkError,
@@ -19,7 +18,6 @@ class _PlayerTrack extends StatefulWidget {
   final String? currentLyricsLine;
   final VoidCallback? onArtworkError;
   final VoidCallback onOpenNowPlaying;
-  final VoidCallback onToggleWindowFullScreen;
 
   @override
   State<_PlayerTrack> createState() => _PlayerTrackState();
@@ -90,61 +88,55 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                       : preferredArtworkGap;
               return Row(
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap:
-                        widget.disabled
-                            ? null
-                            : widget.onToggleWindowFullScreen,
-                    child: Container(
-                      width: artworkSize,
-                      height: artworkSize,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: MediaControlColors.artworkShadow,
-                            offset: Offset(0, 10),
-                            blurRadius: 24,
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          _PlayerArtwork(
-                            artworkPath: widget.artworkPath,
-                            onError: widget.onArtworkError,
-                          ),
-                          AnimatedOpacity(
-                            key: const ValueKey('MediaControl.ArtworkOverlay'),
-                            duration: const Duration(milliseconds: 140),
-                            opacity: overlayVisible ? 1 : 0,
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xff0c1118,
-                                  ).withValues(alpha: 0.44),
-                                ),
-                                child: const SmPlayerFullscreenIcon(
-                                  color: Colors.white,
-                                  size: 34,
-                                  shadows: [
-                                    Shadow(
-                                      color: Color(0x57000000),
-                                      offset: Offset(0, 2),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
+                  Container(
+                    width: artworkSize,
+                    height: artworkSize,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: MediaControlColors.artworkShadow,
+                          offset: Offset(0, 10),
+                          blurRadius: 24,
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _PlayerArtwork(
+                          artworkPath: widget.artworkPath,
+                          onError: widget.onArtworkError,
+                        ),
+                        AnimatedOpacity(
+                          key: const ValueKey('MediaControl.ArtworkOverlay'),
+                          duration: const Duration(milliseconds: 140),
+                          opacity: overlayVisible ? 1 : 0,
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xff0c1118,
+                                ).withValues(alpha: 0.44),
+                              ),
+                              child: const SmPlayerFullscreenIcon(
+                                color: Colors.white,
+                                size: 36,
+                                strokeWidth: 2,
+                                shadows: [
+                                  Shadow(
+                                    color: Color(0x57000000),
+                                    offset: Offset(0, 2),
+                                    blurRadius: 6,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   SizedBox(width: artworkGap),

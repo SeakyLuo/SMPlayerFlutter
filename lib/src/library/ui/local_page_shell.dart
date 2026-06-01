@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../app/workspace_app_bar_portal.dart';
 import '../../app/text_icon_button.dart';
 import 'default_album_artwork.dart';
 import 'missing_library_root_content.dart';
-import 'local_page_quick_jump.dart';
 
 const _localPageCompactBreakpoint = 720.0;
 
@@ -16,10 +16,13 @@ class LocalPageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact =
         MediaQuery.sizeOf(context).width < _localPageCompactBreakpoint;
+    final underWorkspaceHeader = WorkspaceNavigationAppBarScope.of(context);
     return Padding(
       padding:
           compact
               ? const EdgeInsets.fromLTRB(12, 6, 12, 0)
+              : underWorkspaceHeader
+              ? const EdgeInsets.fromLTRB(24, 0, 24, 0)
               : const EdgeInsets.fromLTRB(24, 18, 24, 0),
       child: SizedBox.expand(child: child),
     );
@@ -46,38 +49,53 @@ class LocalPageContentPanel extends StatelessWidget {
       if (!scrollable) {
         return child;
       }
-      return SingleChildScrollView(
+      return _LocalScrollableContent(
         controller: scrollController,
         padding: const EdgeInsets.fromLTRB(0, 4, 0, 18),
         child: child,
       );
     }
 
-    final colors = LocalPageColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.panel,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.panelBorder),
-        boxShadow: [
-          BoxShadow(
-            color: colors.panelShadow,
-            offset: Offset(0, 22),
-            blurRadius: 52,
+    if (!scrollable) {
+      return child;
+    }
+    return _LocalScrollableContent(
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 18),
+      child: child,
+    );
+  }
+}
+
+class _LocalScrollableContent extends StatelessWidget {
+  const _LocalScrollableContent({
+    required this.controller,
+    required this.padding,
+    required this.child,
+  });
+
+  final ScrollController controller;
+  final EdgeInsets padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minWidth = constraints.maxWidth - padding.horizontal;
+        return SingleChildScrollView(
+          controller: controller,
+          child: Padding(
+            padding: padding,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: minWidth > 0 ? minWidth : 0,
+              ),
+              child: child,
+            ),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child:
-            scrollable
-                ? SingleChildScrollView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 18),
-                  child: child,
-                )
-                : child,
-      ),
+        );
+      },
     );
   }
 }

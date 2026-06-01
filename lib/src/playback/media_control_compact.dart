@@ -174,6 +174,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                 active: mode != PlaybackMode.once,
                 disabled: disabled,
                 showLongPressProgress: false,
+                holdDuration: const Duration(milliseconds: 520),
                 onPressed: () {
                   switch (getNextPlaybackMode(mode)) {
                     case PlaybackMode.shuffle:
@@ -193,6 +194,16 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   }
                 },
                 onLongPress: () {
+                  _showCompactPlaybackModeMenu(
+                    modeButtonContext,
+                    i18n: i18n,
+                    mode: mode,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                  );
+                },
+                onSecondaryTap: () {
                   _showCompactPlaybackModeMenu(
                     modeButtonContext,
                     i18n: i18n,
@@ -288,7 +299,6 @@ class _CompactMediaControlLayout extends StatelessWidget {
                       disabled: track.id == null,
                       compact: true,
                       onOpenNowPlaying: onOpenNowPlaying,
-                      onToggleWindowFullScreen: onToggleWindowFullScreen,
                     ),
                   ),
                   SizedBox(width: transportWidth, child: transportControls),

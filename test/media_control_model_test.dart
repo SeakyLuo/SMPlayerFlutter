@@ -183,6 +183,17 @@ void main() {
     expect(controller.state.isPlaying, isTrue);
     expect(controller.state.playbackStatus, PlaybackStatus.loading);
 
+    controller.setTrackLoading(false);
+    expect(controller.state.playbackStatus, PlaybackStatus.playing);
+    controller.onTogglePlayPause();
+    expect(controller.state.isPlaying, isFalse);
+    expect(controller.state.playbackStatus, PlaybackStatus.paused);
+    expect(controller.state.track.isLoading, isFalse);
+    controller.onTogglePlayPause();
+    expect(controller.state.isPlaying, isTrue);
+    expect(controller.state.playbackStatus, PlaybackStatus.playing);
+    expect(controller.state.track.isLoading, isFalse);
+
     controller.playTrack(
       const MediaControlTrack(
         id: 2,

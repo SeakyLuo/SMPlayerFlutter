@@ -7,6 +7,7 @@ class _PlayerIconButton extends StatefulWidget {
     required this.icon,
     required this.onPressed,
     this.onLongPress,
+    this.onSecondaryTap,
     this.longPressTooltip,
     this.disabled = false,
     this.primary = false,
@@ -17,12 +18,14 @@ class _PlayerIconButton extends StatefulWidget {
     this.buttonSize,
     this.padding,
     this.iconSize,
+    this.holdDuration,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
   final VoidCallback? onLongPress;
+  final VoidCallback? onSecondaryTap;
   final String? longPressTooltip;
   final bool disabled;
   final bool primary;
@@ -33,6 +36,7 @@ class _PlayerIconButton extends StatefulWidget {
   final double? buttonSize;
   final double? padding;
   final double? iconSize;
+  final Duration? holdDuration;
 
   @override
   State<_PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -46,29 +50,24 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final size = widget.buttonSize ?? (widget.primary ? 56.0 : 36.0);
     final padding = widget.padding ?? (widget.primary ? 14.0 : 6.0);
     final iconSize = widget.iconSize ?? size - padding * 2;
-    final textStrong = MediaControlColors.textStrongFor(context);
-    final accentStrong = MediaControlColors.accentStrongFor(context);
-    final accentHover = MediaControlColors.accentHoverFor(context);
     final colors = MediaControlThemeColors.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hovered = !widget.disabled && _hovered;
-    final primaryDisabled = widget.primary && widget.disabled;
     final color =
         widget.disabled
             ? widget.primary
-                ? colors.disabledPrimaryIconColor
-                : textStrong
+                ? Colors.white
+                : colors.buttonForeground
             : widget.favorite
             ? MediaControlColors.favorite
             : widget.primary
             ? Colors.white
             : widget.active || hovered
-            ? accentStrong
-            : textStrong;
+            ? colors.buttonHoverForeground
+            : colors.buttonForeground;
     final background =
         widget.disabled
             ? widget.primary
-                ? MediaControlColors.disabledPrimaryButtonSurfaceFor(context)
+                ? colors.disabledPrimaryButtonSurface
                 : MediaControlColors.disabledButtonSurface
             : widget.primary
             ? hovered
@@ -76,41 +75,27 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 : MediaControlColors.accent
             : widget.favorite
             ? hovered
-                ? isDark
-                    ? MediaControlColors.nightFavoriteActiveHover
-                    : MediaControlColors.favoriteActiveHover
+                ? colors.favoriteActiveHoverBackground
                 : Colors.transparent
-            : widget.active || hovered
-            ? accentHover
+            : widget.active
+            ? colors.buttonActiveBackground
+            : hovered
+            ? colors.buttonHoverBackground
             : Colors.transparent;
     final border =
         widget.primary
             ? Border.all(
               color:
                   widget.disabled
-                      ? MediaControlColors.disabledPrimaryButtonBorderFor(
-                        context,
-                      )
-                      : MediaControlColors.accentBorder,
+                      ? colors.primaryButtonBorder
+                      : colors.primaryButtonBorder,
             )
             : null;
     final shadow =
         widget.primary
             ? widget.disabled
-                ? [
-                  BoxShadow(
-                    color: colors.disabledPrimaryButtonShadow,
-                    offset: colors.disabledPrimaryButtonShadowOffset,
-                    blurRadius: colors.disabledPrimaryButtonShadowBlur,
-                  ),
-                ]
-                : const [
-                  BoxShadow(
-                    color: MediaControlColors.accentShadow,
-                    offset: Offset(0, 12),
-                    blurRadius: 24,
-                  ),
-                ]
+                ? [colors.primaryButtonShadow]
+                : [colors.primaryButtonShadow]
             : null;
 
     return HoldReleaseAction(
@@ -119,6 +104,8 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
       disabled: widget.disabled,
       onPressed: widget.onPressed,
       onHoldRelease: widget.onLongPress,
+      onSecondaryTap: widget.onSecondaryTap,
+      holdDuration: widget.holdDuration ?? const Duration(milliseconds: 200),
       triggerHoldOnReady: !widget.showLongPressProgress,
       builder: (context, holdProgress) {
         return MouseRegion(
@@ -138,16 +125,13 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
           },
           child: AnimatedSlide(
             duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
+            curve: Curves.ease,
             offset: hovered ? Offset(0, -1 / size) : Offset.zero,
             child: Opacity(
-              opacity:
-                  widget.disabled &&
-                          (!widget.primary || !colors.disabledPrimaryIconHidden)
-                      ? 0.65
-                      : 1,
+              opacity: widget.disabled ? 0.65 : 1,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
+                curve: Curves.ease,
                 width: size,
                 height: size,
                 alignment: Alignment.center,
@@ -167,24 +151,22 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                           key: const ValueKey('MediaControl.LongPressProgress'),
                           painter: HoldReleaseProgressPainter(
                             progress: holdProgress,
-                            color: widget.primary ? Colors.white : accentStrong,
+                            color:
+                                widget.primary
+                                    ? Colors.white
+                                    : colors.buttonHoverForeground,
                           ),
                         ),
                       ),
                     widget.loading
-                        ? const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        )
+                        ? const _PlayerLoadingSpinner()
                         : Padding(
                           padding: EdgeInsets.all(padding),
                           child: _PlayerButtonIcon(
                             icon: widget.icon,
                             color: color,
                             size: iconSize,
-                            hidden:
-                                primaryDisabled &&
-                                colors.disabledPrimaryIconHidden,
+                            hidden: false,
                           ),
                         ),
                   ],
@@ -207,7 +189,7 @@ class _PlayerButtonIcon extends StatelessWidget {
   });
 
   final IconData icon;
-  final Color color;
+  final Color? color;
   final double size;
   final bool hidden;
 
@@ -216,22 +198,26 @@ class _PlayerButtonIcon extends StatelessWidget {
     if (hidden) {
       return const SizedBox.expand();
     }
+    final resolvedColor =
+        color ??
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
     if (icon == _playIcon) {
       return CustomPaint(
-        painter: _CenteredPlayIconPainter(color),
+        painter: _CenteredPlayIconPainter(resolvedColor),
         size: Size.square(size),
       );
     }
     if (icon == _pauseIcon) {
-      return SmPlayerPauseIcon(size: size, color: color);
+      return SmPlayerPauseIcon(size: size, color: resolvedColor);
     }
     if (icon == _moreIcon) {
-      return SmPlayerMoreHorizontalIcon(size: size, color: color);
+      return SmPlayerMoreHorizontalIcon(size: size, color: resolvedColor);
     }
     if (icon == _previousIcon || icon == _nextIcon) {
       return CustomPaint(
         painter: _SkipTransportIconPainter(
-          color,
+          resolvedColor,
           reverse: icon == _previousIcon,
         ),
         size: Size.square(size),
@@ -239,34 +225,144 @@ class _PlayerButtonIcon extends StatelessWidget {
     }
     if (icon == _listPlaybackIcon) {
       return CustomPaint(
-        painter: _AppsListDetailIconPainter(color),
+        painter: _AppsListDetailIconPainter(resolvedColor),
         size: Size.square(size),
       );
     }
     if (icon == _shuffleIcon) {
-      return ShuffleIcon(size: size * 0.75, color: color);
+      return ShuffleIcon(size: size * 0.75, color: resolvedColor);
     }
     if (icon == _voiceIcon) {
       return CustomPaint(
-        painter: _VoiceAssistantIconPainter(color),
+        painter: _VoiceAssistantIconPainter(resolvedColor),
         size: Size.square(size),
+      );
+    }
+    if (icon == _volumeMutedIcon ||
+        icon == _volumeOffIcon ||
+        icon == _volumeLowIcon ||
+        icon == _volumeMediumIcon ||
+        icon == _volumeHighIcon) {
+      return SmPlayerVolumeIcon(
+        key: ValueKey('MediaControl.VolumeIcon.${icon.codePoint}'),
+        kind:
+            icon == _volumeMutedIcon
+                ? SmPlayerVolumeIconKind.muted
+                : icon == _volumeOffIcon
+                ? SmPlayerVolumeIconKind.off
+                : icon == _volumeLowIcon
+                ? SmPlayerVolumeIconKind.low
+                : icon == _volumeMediumIcon
+                ? SmPlayerVolumeIconKind.medium
+                : SmPlayerVolumeIconKind.high,
+        size: size,
+        color: resolvedColor,
       );
     }
     if (icon == _favoriteOutlineIcon) {
       return CustomPaint(
         key: const ValueKey('MediaControl.FavoriteOutlineIcon'),
-        painter: _FavoriteOutlineIconPainter(color),
+        painter: _FavoriteOutlineIconPainter(resolvedColor),
         size: Size.square(size),
       );
     }
     if (icon == _favoriteFilledIcon) {
       return CustomPaint(
         key: const ValueKey('MediaControl.FavoriteFilledIcon'),
-        painter: _FavoriteFilledIconPainter(color),
+        painter: _FavoriteFilledIconPainter(resolvedColor),
         size: Size.square(size),
       );
     }
-    return Icon(icon, color: color, size: size);
+    return Icon(icon, color: resolvedColor, size: size);
+  }
+}
+
+@visibleForTesting
+const mediaControlLoadingSpinnerSize = 22.0;
+
+@visibleForTesting
+const mediaControlLoadingSpinnerStrokeWidth = 2.0;
+
+@visibleForTesting
+const mediaControlLoadingSpinnerTrackColor = Color(0x61ffffff);
+
+@visibleForTesting
+const mediaControlLoadingSpinnerTopColor = Colors.white;
+
+@visibleForTesting
+const mediaControlLoadingSpinnerDuration = Duration(milliseconds: 800);
+
+class _PlayerLoadingSpinner extends StatefulWidget {
+  const _PlayerLoadingSpinner();
+
+  @override
+  State<_PlayerLoadingSpinner> createState() => _PlayerLoadingSpinnerState();
+}
+
+class _PlayerLoadingSpinnerState extends State<_PlayerLoadingSpinner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: mediaControlLoadingSpinnerDuration,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      key: const ValueKey('MediaControl.LoadingSpinner'),
+      dimension: mediaControlLoadingSpinnerSize,
+      child: AnimatedBuilder(
+        key: const ValueKey('MediaControl.LoadingSpinnerAnimation'),
+        animation: _controller,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _PlayerLoadingSpinnerPainter(_controller.value),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlayerLoadingSpinnerPainter extends CustomPainter {
+  const _PlayerLoadingSpinnerPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(
+      mediaControlLoadingSpinnerStrokeWidth / 2,
+    );
+    final trackPaint =
+        Paint()
+          ..color = mediaControlLoadingSpinnerTrackColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = mediaControlLoadingSpinnerStrokeWidth;
+    final topPaint =
+        Paint()
+          ..color = mediaControlLoadingSpinnerTopColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = mediaControlLoadingSpinnerStrokeWidth;
+    canvas.drawOval(rect, trackPaint);
+    canvas.drawArc(rect, -pi / 2 + progress * pi * 2, pi / 2, false, topPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlayerLoadingSpinnerPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
 
@@ -274,12 +370,12 @@ class MediaControlIconGlyph extends StatelessWidget {
   const MediaControlIconGlyph({
     super.key,
     required this.icon,
-    required this.color,
     required this.size,
+    this.color,
   });
 
   final IconData icon;
-  final Color color;
+  final Color? color;
   final double size;
 
   @override
