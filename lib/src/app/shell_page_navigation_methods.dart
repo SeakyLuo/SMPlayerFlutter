@@ -22,12 +22,13 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
     setState(() {
       _currentPath = restoredTarget;
+      if (targetPath == '/now-playing/full') {
+        _isWindowFullScreen = false;
+      }
     });
     _closeNavigationOverlay();
     widget.onNavigate?.call(restoredTarget);
-    if (targetPath != '/now-playing/full') {
-      unawaited(_desktopFeatureService.setWindowFullScreen(false));
-    }
+    unawaited(_desktopFeatureService.setWindowFullScreen(false));
   }
 
   void _rememberRoute(String path) {

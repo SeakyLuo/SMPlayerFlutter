@@ -85,7 +85,7 @@ const _defaultColumnWidths = {
   _LibraryColumn.artist: 200.0,
   _LibraryColumn.album: 240.0,
   _LibraryColumn.duration: 110.0,
-  _LibraryColumn.favorite: 96.0,
+  _LibraryColumn.favorite: 136.0,
   _LibraryColumn.playCount: 120.0,
   _LibraryColumn.dateAdded: 170.0,
 };
@@ -396,9 +396,26 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                     onToggleSelection:
                                                         _toggleSongSelection,
                                                     onToggleFavorite: (songId) {
+                                                      final song = sortedSongs
+                                                          .firstWhere(
+                                                            (song) =>
+                                                                song.id ==
+                                                                songId,
+                                                          );
                                                       setSongsFavorite(ref, [
                                                         songId,
-                                                      ], false);
+                                                      ], !song.favorite);
+                                                    },
+                                                    onPlayNext: _playNext,
+                                                    onOpenAddToPlaylistMenu: (
+                                                      buttonContext,
+                                                      song,
+                                                    ) {
+                                                      _showSongAddToMenu(
+                                                        buttonContext,
+                                                        song,
+                                                        customPlaylists,
+                                                      );
                                                     },
                                                     onOpenContextMenu: (
                                                       position,
@@ -454,9 +471,26 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                     onToggleSelection:
                                                         _toggleSongSelection,
                                                     onToggleFavorite: (songId) {
+                                                      final song = sortedSongs
+                                                          .firstWhere(
+                                                            (song) =>
+                                                                song.id ==
+                                                                songId,
+                                                          );
                                                       setSongsFavorite(ref, [
                                                         songId,
-                                                      ], false);
+                                                      ], !song.favorite);
+                                                    },
+                                                    onPlayNext: _playNext,
+                                                    onOpenAddToPlaylistMenu: (
+                                                      buttonContext,
+                                                      song,
+                                                    ) {
+                                                      _showSongAddToMenu(
+                                                        buttonContext,
+                                                        song,
+                                                        customPlaylists,
+                                                      );
                                                     },
                                                     onOpenContextMenu: (
                                                       position,
@@ -946,6 +980,77 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     );
   }
 
+  Future<void> _showSongAddToMenu(
+    BuildContext buttonContext,
+    LibrarySong song,
+    List<MultiSelectCommandBarPlaylist> playlists,
+  ) async {
+    final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
+    final item = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: [song.id],
+      playlists: playlists,
+      includeNowPlaying: true,
+      includeFavorites: !song.favorite,
+      defaultPlaylistName: getNextPlaylistName(song.title, snapshot.playlists),
+      onAddToNowPlaying: () {
+        unawaited(
+          addSongsToNowPlayingWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
+          ),
+        );
+      },
+      onToggleFavorite:
+          !song.favorite
+              ? () {
+                unawaited(
+                  setSongsFavoriteWithUndo(
+                    context: context,
+                    ref: ref,
+                    i18n: i18n,
+                    songIds: [song.id],
+                    favorite: true,
+                  ),
+                );
+              }
+              : null,
+      onCreatePlaylist: () async {
+        await createPlaylistWithSongs(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlists: snapshot.playlists,
+          defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+          songIds: [song.id],
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        unawaited(
+          addSongsToPlaylistWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlistId: playlistId,
+            songIds: [song.id],
+            useSingleSongCall: true,
+          ),
+        );
+      },
+    );
+    if (item == null) {
+      return;
+    }
+    await showMenuFlyout(
+      buttonContext,
+      avoidPlayerBar: false,
+      items: item.submenu,
+    );
+  }
+
   void _showMessage(String message) {
     showAppNotification(context: context, message: message);
   }
@@ -1063,6 +1168,8 @@ class _WideSongTable extends StatelessWidget {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
+    required this.onPlayNext,
+    required this.onOpenAddToPlaylistMenu,
     required this.onOpenContextMenu,
   });
 
@@ -1083,6 +1190,9 @@ class _WideSongTable extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
+  final ValueChanged<int> onPlayNext;
+  final void Function(BuildContext buttonContext, LibrarySong song)
+  onOpenAddToPlaylistMenu;
   final void Function(Offset position, LibrarySong song) onOpenContextMenu;
 
   @override
@@ -1126,12 +1236,15 @@ class _WideSongTable extends StatelessWidget {
                               onToggleSelection: () {
                                 onToggleSelection(song.id);
                               },
-                              onToggleFavorite:
-                                  song.favorite
-                                      ? () {
-                                        onToggleFavorite(song.id);
-                                      }
-                                      : null,
+                              onToggleFavorite: () {
+                                onToggleFavorite(song.id);
+                              },
+                              onPlayNext: () {
+                                onPlayNext(song.id);
+                              },
+                              onOpenAddToPlaylistMenu: (buttonContext) {
+                                onOpenAddToPlaylistMenu(buttonContext, song);
+                              },
                               onOpenContextMenu: (position) {
                                 onOpenContextMenu(position, song);
                               },
@@ -1549,7 +1662,7 @@ class _ColumnResizer extends StatelessWidget {
   }
 }
 
-class _WideSongRow extends StatelessWidget {
+class _WideSongRow extends StatefulWidget {
   const _WideSongRow({
     required this.song,
     required this.selected,
@@ -1563,6 +1676,8 @@ class _WideSongRow extends StatelessWidget {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
+    required this.onPlayNext,
+    required this.onOpenAddToPlaylistMenu,
     required this.onOpenContextMenu,
   });
 
@@ -1577,91 +1692,149 @@ class _WideSongRow extends StatelessWidget {
   final VoidCallback onAddNextAndPlay;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
-  final VoidCallback? onToggleFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onPlayNext;
+  final ValueChanged<BuildContext> onOpenAddToPlaylistMenu;
   final ValueChanged<Offset> onOpenContextMenu;
+
+  @override
+  State<_WideSongRow> createState() => _WideSongRowState();
+}
+
+class _WideSongRowState extends State<_WideSongRow> {
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
-    return InkWell(
-      onTap: onSelected,
-      onDoubleTap: selectionMode ? null : onAddNextAndPlay,
-      onSecondaryTapDown: (details) {
-        onOpenContextMenu(details.globalPosition);
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
       },
-      hoverColor: colors.rowHover,
-      child: Container(
-        key: ValueKey('MusicLibrary.Row.${song.id}'),
-        height: 58,
-        decoration: BoxDecoration(
-          color: selected ? colors.rowSelected : Colors.transparent,
-          border: Border(top: BorderSide(color: colors.rowBorder)),
-        ),
-        child: Row(
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: InkWell(
+        onTap: widget.onSelected,
+        onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
+        onSecondaryTapDown: (details) {
+          widget.onOpenContextMenu(details.globalPosition);
+        },
+        hoverColor: Colors.transparent,
+        child: Stack(
           children: [
-            SizedBox(
-              width: columnWidths[_LibraryColumn.artwork]!,
-              child: Center(
-                child:
-                    selectionMode
-                        ? _SelectionMark(selected: selected)
-                        : LibraryRowArtwork(
-                          song: song,
-                          size: 42,
-                          current: current,
-                          playing: playing,
-                          onPlay: onAddNextAndPlay,
-                          onTogglePlayPause: onTogglePlayPause,
-                        ),
+            Container(
+              key: ValueKey('MusicLibrary.Row.${widget.song.id}'),
+              height: 58,
+              decoration: BoxDecoration(
+                color:
+                    widget.selected
+                        ? colors.rowSelected
+                        : widget.current
+                        ? colors.rowCurrent
+                        : _hovered
+                        ? colors.rowHover
+                        : Colors.transparent,
+                border: Border(top: BorderSide(color: colors.rowBorder)),
               ),
-            ),
-            _SongTextCell(
-              width: columnWidths[_LibraryColumn.title]!,
-              text: song.title,
-              strong: true,
-            ),
-            _ArtistLinksCell(
-              width: columnWidths[_LibraryColumn.artist]!,
-              song: song,
-              i18n: i18n,
-            ),
-            _RouteTextCell(
-              width: columnWidths[_LibraryColumn.album]!,
-              text: _displayAlbum(song, i18n),
-              onTap: () {
-                context.go(
-                  '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(song, i18n))}',
-                );
-              },
-            ),
-            _SongTextCell(
-              width: columnWidths[_LibraryColumn.duration]!,
-              text: _formatDuration(song.duration),
-            ),
-            SizedBox(
-              width: columnWidths[_LibraryColumn.favorite]!,
-              child: Center(
-                child:
-                    song.favorite
-                        ? IconButton(
-                          tooltip: i18n.t('common.favorite'),
-                          icon: const Icon(
-                            FluentIcons.heart_16_filled,
-                            size: 18,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: widget.columnWidths[_LibraryColumn.artwork]!,
+                    child: Center(
+                      child:
+                          widget.selectionMode
+                              ? _SelectionMark(selected: widget.selected)
+                              : LibraryRowArtwork(
+                                song: widget.song,
+                                size: 42,
+                                current: widget.current,
+                                playing: widget.playing,
+                                rowHovered: _hovered,
+                                onPlay: widget.onAddNextAndPlay,
+                                onTogglePlayPause: widget.onTogglePlayPause,
+                              ),
+                    ),
+                  ),
+                  _SongTextCell(
+                    width: widget.columnWidths[_LibraryColumn.title]!,
+                    text: widget.song.title,
+                    strong: true,
+                    current: widget.current,
+                  ),
+                  _ArtistLinksCell(
+                    width: widget.columnWidths[_LibraryColumn.artist]!,
+                    song: widget.song,
+                    i18n: widget.i18n,
+                    current: widget.current,
+                  ),
+                  _RouteTextCell(
+                    width: widget.columnWidths[_LibraryColumn.album]!,
+                    text: _displayAlbum(widget.song, widget.i18n),
+                    current: widget.current,
+                    onTap: () {
+                      context.go(
+                        '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
+                      );
+                    },
+                  ),
+                  _SongTextCell(
+                    width: widget.columnWidths[_LibraryColumn.duration]!,
+                    text: _formatDuration(widget.song.duration),
+                    current: widget.current,
+                  ),
+                  SizedBox(
+                    width: widget.columnWidths[_LibraryColumn.favorite]!,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        IgnorePointer(
+                          ignoring: _hovered,
+                          child: AnimatedOpacity(
+                            opacity: widget.song.favorite && !_hovered ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: IconButton(
+                              tooltip: widget.i18n.t('common.favorite'),
+                              icon: const Icon(
+                                FluentIcons.heart_16_filled,
+                                size: 18,
+                              ),
+                              color: colors.favorite,
+                              onPressed: widget.onToggleFavorite,
+                            ),
                           ),
-                          color: colors.favorite,
-                          onPressed: onToggleFavorite,
-                        )
-                        : const SizedBox.shrink(),
+                        ),
+                        _MusicLibraryRowActions(
+                          song: widget.song,
+                          visible: _hovered,
+                          i18n: widget.i18n,
+                          onToggleFavorite: widget.onToggleFavorite,
+                          onAddToPlaylist: widget.onOpenAddToPlaylistMenu,
+                          onPlayNext: widget.onPlayNext,
+                          onOpenContextMenu: widget.onOpenContextMenu,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _SongTextCell(
+                    width: widget.columnWidths[_LibraryColumn.playCount]!,
+                    text:
+                        widget.song.playCount == 0
+                            ? ''
+                            : widget.song.playCount.toString(),
+                    current: widget.current,
+                  ),
+                  _SongTextCell(
+                    width: widget.columnWidths[_LibraryColumn.dateAdded]!,
+                    text: _formatDateTime(widget.song.dateAdded),
+                    current: widget.current,
+                  ),
+                ],
               ),
-            ),
-            _SongTextCell(
-              width: columnWidths[_LibraryColumn.playCount]!,
-              text: song.playCount == 0 ? '' : song.playCount.toString(),
-            ),
-            _SongTextCell(
-              width: columnWidths[_LibraryColumn.dateAdded]!,
-              text: _formatDateTime(song.dateAdded),
             ),
           ],
         ),
@@ -1675,11 +1848,13 @@ class _SongTextCell extends StatelessWidget {
     required this.width,
     required this.text,
     this.strong = false,
+    this.current = false,
   });
 
   final double width;
   final String text;
   final bool strong;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -1693,7 +1868,14 @@ class _SongTextCell extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: strong ? colors.textStrong : colors.textMuted,
+            color:
+                current
+                    ? strong
+                        ? colors.currentForeground
+                        : colors.currentMuted
+                    : strong
+                    ? colors.textStrong
+                    : colors.textMuted,
             fontSize: 14,
             fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
             height: 1.35,
@@ -1709,11 +1891,13 @@ class _ArtistLinksCell extends StatelessWidget {
     required this.width,
     required this.song,
     required this.i18n,
+    this.current = false,
   });
 
   final double width;
   final LibrarySong song;
   final SmPlayerI18n i18n;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -1736,7 +1920,7 @@ class _ArtistLinksCell extends StatelessWidget {
                 Text(
                   separator,
                   style: TextStyle(
-                    color: colors.textMuted,
+                    color: current ? colors.currentMuted : colors.textMuted,
                     fontSize: 14,
                     height: 1.35,
                   ),
@@ -1746,6 +1930,7 @@ class _ArtistLinksCell extends StatelessWidget {
                   'MusicLibrary.ArtistLink.${displayArtists[index]}',
                 ),
                 text: displayArtists[index],
+                current: current,
                 onTap: () {
                   context.go(
                     '/artists?artist=${Uri.encodeQueryComponent(displayArtists[index])}',
@@ -1765,11 +1950,13 @@ class _RouteTextCell extends StatelessWidget {
     required this.width,
     required this.text,
     required this.onTap,
+    this.current = false,
   });
 
   final double width;
   final String text;
   final VoidCallback onTap;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -1782,6 +1969,7 @@ class _RouteTextCell extends StatelessWidget {
           child: _InlineRouteText(
             key: ValueKey('MusicLibrary.AlbumLink.$text'),
             text: text,
+            current: current,
             onTap: onTap,
           ),
         ),
@@ -1791,10 +1979,16 @@ class _RouteTextCell extends StatelessWidget {
 }
 
 class _InlineRouteText extends StatelessWidget {
-  const _InlineRouteText({super.key, required this.text, required this.onTap});
+  const _InlineRouteText({
+    super.key,
+    required this.text,
+    required this.onTap,
+    this.current = false,
+  });
 
   final String text;
   final VoidCallback onTap;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -1810,7 +2004,11 @@ class _InlineRouteText extends StatelessWidget {
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: colors.routeText, fontSize: 14, height: 1.35),
+          style: TextStyle(
+            color: current ? colors.currentMuted : colors.routeText,
+            fontSize: 14,
+            height: 1.35,
+          ),
         ),
       ),
     );
@@ -1834,6 +2032,8 @@ class _CompactSongList extends StatelessWidget {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
+    required this.onPlayNext,
+    required this.onOpenAddToPlaylistMenu,
     required this.onOpenContextMenu,
   });
 
@@ -1852,6 +2052,9 @@ class _CompactSongList extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
+  final ValueChanged<int> onPlayNext;
+  final void Function(BuildContext buttonContext, LibrarySong song)
+  onOpenAddToPlaylistMenu;
   final void Function(Offset position, LibrarySong song) onOpenContextMenu;
 
   @override
@@ -1888,12 +2091,15 @@ class _CompactSongList extends StatelessWidget {
                 onToggleSelection: () {
                   onToggleSelection(song.id);
                 },
-                onToggleFavorite:
-                    song.favorite
-                        ? () {
-                          onToggleFavorite(song.id);
-                        }
-                        : null,
+                onToggleFavorite: () {
+                  onToggleFavorite(song.id);
+                },
+                onPlayNext: () {
+                  onPlayNext(song.id);
+                },
+                onOpenAddToPlaylistMenu: (buttonContext) {
+                  onOpenAddToPlaylistMenu(buttonContext, song);
+                },
                 onOpenContextMenu: (position) {
                   onOpenContextMenu(position, song);
                 },
@@ -2025,7 +2231,7 @@ class _CompactSortButton extends StatelessWidget {
   }
 }
 
-class _CompactSongRow extends StatelessWidget {
+class _CompactSongRow extends StatefulWidget {
   const _CompactSongRow({
     required this.song,
     required this.selected,
@@ -2038,6 +2244,8 @@ class _CompactSongRow extends StatelessWidget {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onToggleFavorite,
+    required this.onPlayNext,
+    required this.onOpenAddToPlaylistMenu,
     required this.onOpenContextMenu,
   });
 
@@ -2051,104 +2259,330 @@ class _CompactSongRow extends StatelessWidget {
   final VoidCallback onAddNextAndPlay;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
-  final VoidCallback? onToggleFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onPlayNext;
+  final ValueChanged<BuildContext> onOpenAddToPlaylistMenu;
   final ValueChanged<Offset> onOpenContextMenu;
+
+  @override
+  State<_CompactSongRow> createState() => _CompactSongRowState();
+}
+
+class _CompactSongRowState extends State<_CompactSongRow> {
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
-    return InkWell(
-      onTap: onSelected,
-      onDoubleTap: selectionMode ? null : onAddNextAndPlay,
-      hoverColor: colors.rowHover,
-      onSecondaryTapDown: (details) {
-        onOpenContextMenu(details.globalPosition);
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
       },
-      child: Container(
-        key: ValueKey('MusicLibrary.CompactRow.${song.id}'),
-        padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
-        decoration: BoxDecoration(
-          color: selected ? colors.rowSelected : Colors.transparent,
-          border: Border(top: BorderSide(color: colors.rowBorder)),
-        ),
-        child: Row(
-          children: [
-            selectionMode
-                ? SizedBox(width: 46, child: _SelectionMark(selected: selected))
-                : LibraryRowArtwork(
-                  song: song,
-                  size: 46,
-                  current: current,
-                  playing: playing,
-                  onPlay: onAddNextAndPlay,
-                  onTogglePlayPause: onTogglePlayPause,
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: InkWell(
+        onTap: widget.onSelected,
+        onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
+        hoverColor: Colors.transparent,
+        onSecondaryTapDown: (details) {
+          widget.onOpenContextMenu(details.globalPosition);
+        },
+        child: Container(
+          key: ValueKey('MusicLibrary.CompactRow.${widget.song.id}'),
+          padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
+          decoration: BoxDecoration(
+            color:
+                widget.selected
+                    ? colors.rowSelected
+                    : widget.current
+                    ? colors.rowCurrent
+                    : _hovered
+                    ? colors.rowHover
+                    : Colors.transparent,
+            border: Border(top: BorderSide(color: colors.rowBorder)),
+          ),
+          child: Row(
+            children: [
+              widget.selectionMode
+                  ? SizedBox(
+                    width: 46,
+                    child: _SelectionMark(selected: widget.selected),
+                  )
+                  : LibraryRowArtwork(
+                    song: widget.song,
+                    size: 46,
+                    current: widget.current,
+                    playing: widget.playing,
+                    rowHovered: _hovered,
+                    onPlay: widget.onAddNextAndPlay,
+                    onTogglePlayPause: widget.onTogglePlayPause,
+                  ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            widget.current
+                                ? colors.accentStrong
+                                : colors.textStrong,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _InlineRouteText(
+                        text: _displayArtists(widget.song, widget.i18n),
+                        current: widget.current,
+                        onTap: () {
+                          final artists = getSongArtists(widget.song);
+                          final artist =
+                              artists.isEmpty
+                                  ? widget.i18n.t('common.artistUnknown')
+                                  : artists.first;
+                          context.go(
+                            '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                          );
+                        },
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _InlineRouteText(
+                        text: _displayAlbum(widget.song, widget.i18n),
+                        current: widget.current,
+                        onTap: () {
+                          context.go(
+                            '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: current ? colors.accentStrong : colors.textStrong,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+              ),
+              _MusicLibraryRowActions(
+                song: widget.song,
+                visible: _hovered,
+                i18n: widget.i18n,
+                onToggleFavorite: widget.onToggleFavorite,
+                onAddToPlaylist: widget.onOpenAddToPlaylistMenu,
+                onPlayNext: widget.onPlayNext,
+                onOpenContextMenu: widget.onOpenContextMenu,
+                compact: true,
+              ),
+              SizedBox(
+                width: 42,
+                child: Text(
+                  _formatDuration(widget.song.duration),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color:
+                        widget.current ? colors.currentMuted : colors.textMuted,
+                    fontSize: 12,
                   ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _InlineRouteText(
-                      text: _displayArtists(song, i18n),
-                      onTap: () {
-                        final artists = getSongArtists(song);
-                        final artist =
-                            artists.isEmpty
-                                ? i18n.t('common.artistUnknown')
-                                : artists.first;
-                        context.go(
-                          '/artists?artist=${Uri.encodeQueryComponent(artist)}',
-                        );
-                      },
-                    ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MusicLibraryRowActions extends StatelessWidget {
+  const _MusicLibraryRowActions({
+    required this.song,
+    required this.visible,
+    required this.i18n,
+    required this.onToggleFavorite,
+    required this.onAddToPlaylist,
+    required this.onPlayNext,
+    required this.onOpenContextMenu,
+    this.compact = false,
+  });
+
+  final LibrarySong song;
+  final bool visible;
+  final SmPlayerI18n i18n;
+  final VoidCallback onToggleFavorite;
+  final ValueChanged<BuildContext> onAddToPlaylist;
+  final VoidCallback onPlayNext;
+  final ValueChanged<Offset> onOpenContextMenu;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = compact ? (visible ? 136.0 : 0.0) : 136.0;
+    return IgnorePointer(
+      ignoring: !visible,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: width),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: OverflowBox(
+          alignment: Alignment.centerRight,
+          minWidth: 136,
+          maxWidth: 136,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 120),
+            child: Row(
+              key: ValueKey('MusicLibrary.RowActions.${song.id}'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MusicLibraryRowActionButton(
+                  key: ValueKey('MusicLibrary.FavoriteAction.${song.id}'),
+                  tooltip:
+                      song.favorite
+                          ? i18n.t('context.removeFavorite')
+                          : i18n.t('context.addFavorite'),
+                  icon: Icon(
+                    song.favorite
+                        ? FluentIcons.heart_20_filled
+                        : FluentIcons.heart_20_regular,
+                    size: 18,
                   ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _InlineRouteText(
-                      text: _displayAlbum(song, i18n),
-                      onTap: () {
-                        context.go(
-                          '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(song, i18n))}',
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                  active: song.favorite,
+                  onPressed: onToggleFavorite,
+                ),
+                Builder(
+                  builder:
+                      (buttonContext) => _MusicLibraryRowActionButton(
+                        key: ValueKey('MusicLibrary.AddToAction.${song.id}'),
+                        tooltip: i18n.t('context.addToPlaylist'),
+                        icon: const Icon(FluentIcons.add_20_regular, size: 18),
+                        onPressed: () {
+                          onAddToPlaylist(buttonContext);
+                        },
+                      ),
+                ),
+                _MusicLibraryRowActionButton(
+                  key: ValueKey('MusicLibrary.PlayNextAction.${song.id}'),
+                  tooltip: i18n.t('context.playNext'),
+                  icon: const SmPlayerPlayNextIcon(size: 18),
+                  onPressed: onPlayNext,
+                ),
+                Builder(
+                  builder:
+                      (buttonContext) => _MusicLibraryRowActionButton(
+                        key: ValueKey('MusicLibrary.MoreAction.${song.id}'),
+                        tooltip: i18n.t('player.more'),
+                        icon: const SmPlayerMoreHorizontalIcon(size: 18),
+                        onPressed: () {
+                          final box =
+                              buttonContext.findRenderObject() as RenderBox;
+                          onOpenContextMenu(
+                            box.localToGlobal(Offset(0, box.size.height + 8)),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        builder:
+            (context, animatedWidth, child) =>
+                SizedBox(width: animatedWidth, child: ClipRect(child: child)),
+      ),
+    );
+  }
+}
+
+class _MusicLibraryRowActionButton extends StatefulWidget {
+  const _MusicLibraryRowActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.active = false,
+  });
+
+  final String tooltip;
+  final Widget icon;
+  final VoidCallback onPressed;
+  final bool active;
+
+  @override
+  State<_MusicLibraryRowActionButton> createState() =>
+      _MusicLibraryRowActionButtonState();
+}
+
+class _MusicLibraryRowActionButtonState
+    extends State<_MusicLibraryRowActionButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _LibraryPalette.of(context);
+    final foregroundColor =
+        widget.active
+            ? colors.favorite
+            : _hovered
+            ? colors.accentStrong
+            : colors.textMuted;
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: AnimatedSlide(
+        offset: Offset(0, _hovered ? -1 / 34 : 0),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: _hovered ? colors.accentSoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            tooltip: widget.tooltip,
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(34),
+              fixedSize: const Size.square(34),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              backgroundColor: Colors.transparent,
+              foregroundColor: foregroundColor,
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-            SizedBox(
-              width: 42,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (song.favorite)
-                    IconButton(
-                      tooltip: i18n.t('common.favorite'),
-                      icon: const Icon(FluentIcons.heart_16_filled, size: 16),
-                      color: colors.favorite,
-                      onPressed: onToggleFavorite,
-                    ),
-                  Text(
-                    _formatDuration(song.duration),
-                    style: TextStyle(color: colors.textMuted, fontSize: 12),
-                  ),
-                ],
-              ),
+            onPressed: widget.onPressed,
+            icon: IconTheme(
+              data: IconThemeData(color: foregroundColor, size: 18),
+              child: widget.icon,
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -2162,6 +2596,7 @@ class LibraryRowArtwork extends StatefulWidget {
     required this.size,
     required this.current,
     required this.playing,
+    required this.rowHovered,
     required this.onPlay,
     required this.onTogglePlayPause,
   });
@@ -2170,6 +2605,7 @@ class LibraryRowArtwork extends StatefulWidget {
   final double size;
   final bool current;
   final bool playing;
+  final bool rowHovered;
   final VoidCallback onPlay;
   final VoidCallback onTogglePlayPause;
 
@@ -2182,6 +2618,7 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
 
   @override
   Widget build(BuildContext context) {
+    final hovered = _hovered || widget.rowHovered;
     return MouseRegion(
       onEnter: (_) {
         setState(() {
@@ -2201,16 +2638,16 @@ class _LibraryRowArtworkState extends State<LibraryRowArtwork> {
             fit: StackFit.expand,
             children: [
               SongArtwork(artworkPath: widget.song.thumbnailPath),
-              if (widget.current && !_hovered)
+              if (widget.current && !hovered)
                 SmPlayerPlayingWaveGlass(
                   playing: widget.playing,
                   keyPrefix: 'MusicLibrary.Playing.${widget.song.id}',
                 ),
               IgnorePointer(
-                ignoring: !_hovered,
+                ignoring: !hovered,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 120),
-                  opacity: _hovered ? 1 : 0,
+                  opacity: hovered ? 1 : 0,
                   child: Center(
                     child: ArtworkFloatingActionButton(
                       key: ValueKey(
@@ -2812,11 +3249,14 @@ class _LibraryPalette {
     required this.quickJumpBorder,
     required this.rowBorder,
     required this.rowHover,
+    required this.rowCurrent,
     required this.rowSelected,
     required this.selectionMark,
     required this.selectionBorder,
     required this.accentStrong,
     required this.accentSoft,
+    required this.currentForeground,
+    required this.currentMuted,
     required this.favorite,
     required this.textStrong,
     required this.textMuted,
@@ -2834,11 +3274,14 @@ class _LibraryPalette {
   final Color quickJumpBorder;
   final Color rowBorder;
   final Color rowHover;
+  final Color rowCurrent;
   final Color rowSelected;
   final Color selectionMark;
   final Color selectionBorder;
   final Color accentStrong;
   final Color accentSoft;
+  final Color currentForeground;
+  final Color currentMuted;
   final Color favorite;
   final Color textStrong;
   final Color textMuted;
@@ -2856,11 +3299,14 @@ class _LibraryPalette {
     quickJumpBorder: _LibraryColors.quickJumpBorder,
     rowBorder: _LibraryColors.rowBorder,
     rowHover: _LibraryColors.rowHover,
+    rowCurrent: Color(0x1f0078d7),
     rowSelected: _LibraryColors.rowSelected,
     selectionMark: _LibraryColors.selectionMark,
     selectionBorder: _LibraryColors.selectionBorder,
     accentStrong: _LibraryColors.accentStrong,
     accentSoft: _LibraryColors.accentSoft,
+    currentForeground: _LibraryColors.accentStrong,
+    currentMuted: _LibraryColors.accentStrong,
     favorite: _LibraryColors.favorite,
     textStrong: _LibraryColors.textStrong,
     textMuted: _LibraryColors.textMuted,
@@ -2883,11 +3329,14 @@ class _LibraryPalette {
     quickJumpBorder: Color(0x1fd6e0ec),
     rowBorder: Color(0x1fd6e0ec),
     rowHover: Color(0x1f0078d7),
+    rowCurrent: Color(0x2e0078d7),
     rowSelected: Color(0x2e0078d7),
     selectionMark: Color(0x0effffff),
     selectionBorder: Color(0x1fd6e0ec),
     accentStrong: Color(0xff459de2),
     accentSoft: Color(0x290078d7),
+    currentForeground: Color(0xff459de2),
+    currentMuted: Color(0xc276b5dc),
     favorite: _LibraryColors.favorite,
     textStrong: Color(0xeff6f9fc),
     textMuted: Color(0xadcbd5e1),

@@ -575,11 +575,18 @@ void main() {
 
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
     expect(find.text('Clear History'), findsNothing);
+    expect(tester.getSize(find.widgetWithText(TextButton, 'Added')).height, 34);
 
     await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
 
     expect(find.text('Songs'), findsOneWidget);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('Recent.FilterButton.songs')))
+          .height,
+      36,
+    );
   });
 
   testWidgets('RecentPage keeps Electron appbar tabs through minimal width', (
@@ -596,6 +603,258 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
+  });
+
+  testWidgets('RecentPage nav-minimal song grid keeps Electron row extent', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithThreeRecentAdded, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final thirdTile =
+        find
+            .ancestor(
+              of: find.text('Third Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+
+    expect(tester.getSize(firstTile).height, 92);
+    expect(
+      tester.getTopLeft(thirdTile).dy - tester.getTopLeft(firstTile).dy,
+      136,
+    );
+  });
+
+  testWidgets('RecentPage nav-minimal song copy stretches like Electron tile', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithThreeRecentAdded, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final copyPadding =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Padding &&
+                    widget.padding == const EdgeInsets.fromLTRB(0, 4, 0, 4),
+              ),
+            )
+            .first;
+
+    expect(tester.getSize(copyPadding).height, 88);
+    expect(
+      tester.getTopLeft(copyPadding).dy - tester.getTopLeft(firstTile).dy,
+      2,
+    );
+  });
+
+  testWidgets('RecentPage narrow window uses Electron media compact tile', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithThreeRecentAdded, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 2, 2),
+              ),
+            )
+            .first;
+    final secondTile =
+        find
+            .ancestor(
+              of: find.text('Second Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 2, 2),
+              ),
+            )
+            .first;
+    final firstTileWidget = tester.widget<AnimatedContainer>(firstTile);
+
+    expect(tester.getSize(firstTile).height, 78);
+    expect(firstTileWidget.padding, const EdgeInsets.fromLTRB(2, 2, 2, 2));
+    expect(
+      tester.getTopLeft(secondTile).dy - tester.getTopLeft(firstTile).dy,
+      88,
+    );
+  });
+
+  testWidgets('RecentPage narrow content keeps nav-minimal tile padding', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      Center(
+        child: SizedBox(
+          width: 500,
+          child: _RecentTestApp(
+            snapshot: _snapshotWithThreeRecentAdded,
+            i18n: i18n,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 6, 2),
+              ),
+            )
+            .first;
+    final secondTile =
+        find
+            .ancestor(
+              of: find.text('Second Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 6, 2),
+              ),
+            )
+            .first;
+    final firstTileWidget = tester.widget<AnimatedContainer>(firstTile);
+
+    expect(tester.getSize(firstTile).height, 92);
+    expect(firstTileWidget.padding, const EdgeInsets.fromLTRB(2, 2, 6, 2));
+    expect(
+      tester.getTopLeft(secondTile).dy - tester.getTopLeft(firstTile).dy,
+      104,
+    );
+  });
+
+  testWidgets('RecentPage song group header keeps Electron height', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentAddedMonths, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final headerShell =
+        find
+            .ancestor(
+              of: find.text('2025.01'),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is SizedBox && widget.height == 36,
+              ),
+            )
+            .first;
+    expect(tester.getSize(headerShell).height, 36);
+  });
+
+  testWidgets('RecentPage resolves song artwork through repository batch', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _RecentTestApp(
+        snapshot: _snapshotWithRecentAddedMonths,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.artworkSnapshotRequests, [
+      [41, 42],
+    ]);
+  });
+
+  testWidgets('RecentPage recent added groups by Electron month buckets', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentAddedMonths, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2025.01'), findsOneWidget);
+    expect(find.text('2024.08'), findsOneWidget);
+    expect(find.text('Last 7 days'), findsNothing);
   });
 
   testWidgets('RecentPage current song tile shows Electron playing wave', (
@@ -769,6 +1028,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   List<int> removedRecentPlayedIds = [];
   List<int> restoredRecentPlayedIds = [];
   List<String> recordedAlbums = [];
+  List<List<int>> artworkSnapshotRequests = [];
   Completer<void>? albumRecordCompleter;
   int? hiddenSongId;
 
@@ -877,6 +1137,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<List<SongArtworkSnapshot>> getSongArtworkSnapshots(
     List<int> songIds,
   ) async {
+    artworkSnapshotRequests.add(songIds.toList());
     return [
       for (final songId in songIds)
         SongArtworkSnapshot(
@@ -1033,6 +1294,114 @@ const _snapshotWithRecentPlayed = LibraryContentData(
       playedAt: '2026-05-20T00:00:00',
     ),
   ],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithRecentAddedMonths = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 41,
+      path: r'C:\Music\jazz2.mp3',
+      title: '80s Piano Jazz 2',
+      artist: 'Unknown Artist',
+      artists: ['Unknown Artist'],
+      album: 'Unknown Album',
+      duration: 170,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2025-01-09T08:10:10.000Z',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 42,
+      path: r'C:\Music\acid2.mp3',
+      title: '60s Acid Jazz 2',
+      artist: 'Unknown Artist',
+      artists: ['Unknown Artist'],
+      album: 'Unknown Album',
+      duration: 227,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2024-08-18T06:51:51.766Z',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithThreeRecentAdded = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 51,
+      path: r'C:\Music\first.mp3',
+      title: 'First Song',
+      artist: 'Unknown Artist',
+      artists: ['Unknown Artist'],
+      album: 'Unknown Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2025-01-09T08:10:10.000Z',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 52,
+      path: r'C:\Music\second.mp3',
+      title: 'Second Song',
+      artist: 'Unknown Artist',
+      artists: ['Unknown Artist'],
+      album: 'Unknown Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2025-01-09T08:10:09.000Z',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 53,
+      path: r'C:\Music\third.mp3',
+      title: 'Third Song',
+      artist: 'Unknown Artist',
+      artists: ['Unknown Artist'],
+      album: 'Unknown Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2025-01-09T08:10:08.000Z',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
   recentSearches: [],
   playlists: [],
   favoritePlaylistId: 0,

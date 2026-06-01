@@ -66,7 +66,8 @@ class _CommandBarState extends State<CommandBar> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final style = switch (widget.style) {
-      CommandBarStyleVariant.standard => _CommandBarStyleData.standard(),
+      CommandBarStyleVariant.standard =>
+        _CommandBarStyleData.standard(compact: compact),
       CommandBarStyleVariant.appBar => _CommandBarStyleData.appBar(
         Theme.of(context).brightness,
       ),
@@ -547,7 +548,7 @@ class _CommandBarStyleScope extends InheritedWidget {
   static _CommandBarStyleData of(BuildContext context) {
     final scope =
         context.dependOnInheritedWidgetOfExactType<_CommandBarStyleScope>();
-    return scope?.data ?? _CommandBarStyleData.standard();
+    return scope?.data ?? _CommandBarStyleData.standard(compact: false);
   }
 
   @override
@@ -691,19 +692,19 @@ class _CommandBarStyleData {
     return const Size(double.infinity, double.infinity);
   }
 
-  static _CommandBarStyleData standard() {
-    return const _CommandBarStyleData(
-      toolbarMinHeight: 48,
-      visibleRowHeight: 48,
+  static _CommandBarStyleData standard({required bool compact}) {
+    return _CommandBarStyleData(
+      toolbarMinHeight: compact ? 44 : 48,
+      visibleRowHeight: compact ? 46 : 48,
       toolbarPadding: EdgeInsets.zero,
-      contentHorizontalPadding: 12,
+      contentHorizontalPadding: compact ? 8 : 12,
       primaryAlignment: MainAxisAlignment.end,
       visibleAlignment: Alignment.centerRight,
-      buttonMargin: EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+      buttonMargin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
       minWidth: 44,
-      minHeight: 40,
+      minHeight: compact ? 38 : 40,
       maxWidth: null,
-      horizontalPadding: 14,
+      horizontalPadding: compact ? 10 : 14,
       borderRadius: 10,
       borderWidth: 1,
       borderColor: CommandBarColors.buttonBorder,

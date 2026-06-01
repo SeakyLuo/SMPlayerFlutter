@@ -479,6 +479,207 @@ void main() {
     expect(rowDecoration.color, const Color(0x2e0078d7));
   });
 
+  testWidgets('MusicLibraryPage wide song row hover reveals artwork action', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    final playOpacityFinder =
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('MusicLibrary.ArtworkPlay.1')),
+              matching: find.byType(AnimatedOpacity),
+            )
+            .first;
+    final actionsOpacityFinder =
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('MusicLibrary.RowActions.1')),
+              matching: find.byType(AnimatedOpacity),
+            )
+            .first;
+
+    expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 0);
+    expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 0);
+    var rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.color, Colors.transparent);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(rowFinder));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 1);
+    expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 1);
+    rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.color, const Color(0x0e0078d7));
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.PlayNextAction.1')),
+      findsOneWidget,
+    );
+
+    await gesture.removePointer();
+  });
+
+  testWidgets(
+    'MusicLibraryPage compact song row hover reveals artwork action',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      final rowFinder = find.byKey(const ValueKey('MusicLibrary.CompactRow.1'));
+      final playOpacityFinder =
+          find
+              .ancestor(
+                of: find.byKey(const ValueKey('MusicLibrary.ArtworkPlay.1')),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first;
+      final actionsOpacityFinder =
+          find
+              .ancestor(
+                of: find.byKey(const ValueKey('MusicLibrary.RowActions.1')),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first;
+
+      expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 0);
+      expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 0);
+      var rowDecoration =
+          tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+      expect(rowDecoration.color, Colors.transparent);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(rowFinder));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 1);
+      expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 1);
+      rowDecoration =
+          tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+      expect(rowDecoration.color, const Color(0x0e0078d7));
+      expect(
+        find.byKey(const ValueKey('MusicLibrary.MoreAction.1')),
+        findsOneWidget,
+      );
+
+      await gesture.removePointer();
+    },
+  );
+
+  testWidgets('MusicLibraryPage hover actions run song commands', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(rowFinder));
+    await tester.pumpAndSettle();
+
+    tester
+        .widget<IconButton>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('MusicLibrary.PlayNextAction.1')),
+                matching: find.byType(IconButton),
+              )
+              .first,
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    expect(repository.replacedNowPlaying, [1]);
+
+    tester
+        .widget<IconButton>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('MusicLibrary.MoreAction.1')),
+                matching: find.byType(IconButton),
+              )
+              .first,
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.text('Play'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    await gesture.moveTo(tester.getCenter(rowFinder));
+    await tester.pumpAndSettle();
+
+    tester
+        .widget<IconButton>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('MusicLibrary.FavoriteAction.1')),
+                matching: find.byType(IconButton),
+              )
+              .first,
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.favoriteValue, isTrue);
+
+    tester
+        .widget<IconButton>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('MusicLibrary.AddToAction.1')),
+                matching: find.byType(IconButton),
+              )
+              .first,
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mix'));
+    await tester.pumpAndSettle();
+    expect(repository.addedPlaylistId, 10);
+    expect(repository.addedSongIds, [1]);
+
+    await gesture.removePointer();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('MusicLibraryPage empty state uses Electron night colors', (
     tester,
   ) async {
@@ -767,6 +968,20 @@ void main() {
       find.byKey(const ValueKey('MusicLibrary.Playing.1.Backdrop')),
       findsOneWidget,
     );
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    final rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.color, const Color(0x1f0078d7));
+
+    final title = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Blue Song')),
+    );
+    expect(title.style?.color, const Color(0xff0063b1));
+
+    final artist = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Artist A')),
+    );
+    expect(artist.style?.color, const Color(0xff0063b1));
 
     final firstHeight = _playingBarHeight(tester, 'MusicLibrary.Playing.1', 0);
     await tester.pump(const Duration(milliseconds: 390));
@@ -775,6 +990,58 @@ void main() {
       _playingBarHeight(tester, 'MusicLibrary.Playing.1', 0),
       isNot(firstHeight),
     );
+  });
+
+  testWidgets('MusicLibraryPage compact current row highlights full row', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Hour',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 180,
+    );
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.CompactRow.1'));
+    final rowDecoration =
+        tester.widget<Container>(rowFinder).decoration as BoxDecoration;
+    expect(rowDecoration.color, const Color(0x1f0078d7));
+
+    final title = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Blue Song')),
+    );
+    expect(title.style?.color, const Color(0xff0063b1));
+
+    final artist = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('Artist A')),
+    );
+    expect(artist.style?.color, const Color(0xff0063b1));
+
+    final duration = tester.widget<Text>(
+      find.descendant(of: rowFinder, matching: find.text('2:00')),
+    );
+    expect(duration.style?.color, const Color(0xff0063b1));
   });
 
   testWidgets('MusicLibraryPage album sort uses Electron raw album order', (
@@ -1048,7 +1315,7 @@ void main() {
     await tester.tap(find.text('Blue Song'));
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.text('Blue Song'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(repository.replacedNowPlaying, [1]);
     expect(mediaController.state.track.id, 1);

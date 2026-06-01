@@ -15,11 +15,13 @@ class AudioFileMetadata {
     required this.properties,
     required this.duration,
     required this.thumbnailPath,
+    required this.dateAdded,
   });
 
   final Id3SongTagProperties properties;
   final int duration;
   final String thumbnailPath;
+  final String dateAdded;
 }
 
 typedef CacheSongArtwork = Future<String> Function(String filePath);
@@ -68,6 +70,7 @@ class LibraryAudioMetadataService {
     String filePath, {
     required CacheSongArtwork cacheSongArtwork,
   }) async {
+    final dateAdded = await _readFileCreationDateIso(filePath);
     final properties = await _id3TagService.readSongTagProperties(filePath);
     final duration = await _readAudioDurationSeconds(filePath);
     final thumbnailPath = await cacheSongArtwork(filePath);
@@ -75,8 +78,66 @@ class LibraryAudioMetadataService {
       properties: properties,
       duration: duration,
       thumbnailPath: thumbnailPath,
+      dateAdded: dateAdded,
     );
   }
+}
+
+Future<String> _readFileCreationDateIso(String filePath) async {
+  if (Platform.isMacOS) {
+    final result = await Process.run('stat', ['-f', '%B', filePath]);
+    if (result.exitCode != 0) {
+      throw FileSystemException(
+        'Failed to read file creation time',
+        filePath,
+        OSError('${result.stderr}', result.exitCode),
+      );
+    }
+    final seconds = int.parse('${result.stdout}'.trim());
+    return DateTime.fromMillisecondsSinceEpoch(
+      seconds * 1000,
+      isUtc: true,
+    ).toIso8601String();
+  }
+
+  if (Platform.isWindows) {
+    final result = await Process.run('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      r"[System.IO.File]::GetCreationTimeUtc($args[0]).ToString('o')",
+      filePath,
+    ]);
+    if (result.exitCode != 0) {
+      throw FileSystemException(
+        'Failed to read file creation time',
+        filePath,
+        OSError('${result.stderr}', result.exitCode),
+      );
+    }
+    return DateTime.parse('${result.stdout}'.trim()).toUtc().toIso8601String();
+  }
+
+  if (Platform.isLinux) {
+    final result = await Process.run('stat', ['-c', '%W', filePath]);
+    if (result.exitCode != 0) {
+      throw FileSystemException(
+        'Failed to read file creation time',
+        filePath,
+        OSError('${result.stderr}', result.exitCode),
+      );
+    }
+    final seconds = int.parse('${result.stdout}'.trim());
+    if (seconds <= 0) {
+      throw FileSystemException('File creation time is unavailable', filePath);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(
+      seconds * 1000,
+      isUtc: true,
+    ).toIso8601String();
+  }
+
+  final stats = await File(filePath).stat();
+  return stats.changed.toUtc().toIso8601String();
 }
 
 Future<int> _readAudioDurationSeconds(String filePath) async {

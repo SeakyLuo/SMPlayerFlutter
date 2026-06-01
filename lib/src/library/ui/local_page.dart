@@ -17,7 +17,6 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_track_factory.dart';
 import '../../platform/desktop_features.dart';
-import '../../settings/settings_model.dart' show LocalViewMode;
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
@@ -38,6 +37,7 @@ import 'library_page_actions.dart'
         setSongsFavoriteWithUndo;
 import 'local_folder_model.dart';
 import 'local_grid_content.dart';
+import 'local_i18n_counts.dart';
 import 'local_page_empty_content.dart';
 import 'local_move_to_folder_menu.dart';
 import 'local_page_model.dart';
@@ -45,7 +45,6 @@ import 'scan_progress_overlay.dart';
 import 'folder_update_result_dialog.dart';
 import 'local_page_quick_jump.dart';
 import 'local_page_shell.dart';
-import 'local_table_content.dart';
 import 'local_title_grid.dart';
 import 'music_dialog.dart';
 
@@ -409,21 +408,23 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                               MenuFlyoutItem(
                                 key: 'hidden-folders',
                                 text: i18n.t('local.viewHiddenFolders'),
-                                icon: FluentIcons.eye_off_20_regular,
+                                icon: FluentIcons.folder_prohibited_20_regular,
                                 onPressed: () => context.go('/hidden-folders'),
                               ),
                             ]
                             : const [],
                     content: Text(
-                      i18n.t('local.folderCardStats', {
-                        'folders': childFolders.length,
-                        'songs': currentSongs.length,
-                      }),
+                      formatFolderCardStats(
+                        i18n,
+                        childFolders.length,
+                        currentSongs.length,
+                      ),
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: colors.textMuted,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        fontVariations: const [FontVariation.weight(650)],
                       ),
                     ),
                     children: [
@@ -493,11 +494,11 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         ),
                     ],
                   ),
-                  SizedBox(height: isCompactLayout ? 8 : 12),
+                  SizedBox(height: isCompactLayout ? 8 : 16),
                   Expanded(
                     child: LocalPageContentPanel(
                       scrollController: _scrollController,
-                      scrollable: snapshot.localViewMode != LocalViewMode.list,
+                      scrollable: true,
                       compact: isCompactLayout,
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
@@ -506,141 +507,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 snapshot: snapshot,
                                 searchQuery: widget.searchQuery,
                                 onOpenSettings: () => context.go('/settings'),
-                              )
-                              : snapshot.localViewMode == LocalViewMode.list
-                              ? LocalTableContent(
-                                scrollController: _scrollController,
-                                childFolders: childFolders,
-                                currentSongs: currentSongs,
-                                nodes: nodes,
-                                songsById: songsById,
-                                selectedFolderPaths: _selectedFolderPaths,
-                                selectedSongIds: _selectedSongIds,
-                                selectedTrackId: mediaState.track.id,
-                                isPlaying: mediaState.isPlaying,
-                                multiSelect: _multiSelect,
-                                showLocalSectionHeaders:
-                                    showLocalSectionHeaders,
-                                foldersExpanded: _foldersExpanded,
-                                songsExpanded: _songsExpanded,
-                                showSongQuickJump:
-                                    currentSongs.length >= 50 &&
-                                    songQuickJumpMap.length >= 4,
-                                songQuickJumpBasisName:
-                                    getLocalSongQuickJumpBasisName(
-                                      _sortMode,
-                                      currentSortMode,
-                                      i18n,
-                                    ),
-                                songQuickJumpMap: songQuickJumpMap,
-                                queueSongIds: visibleSongIds,
-                                isCompactLayout: isCompactLayout,
-                                compactTreeRows:
-                                    isCompactLayout
-                                        ? localCompactFolderTreeRows
-                                        : const [],
-                                compactQueueSongIds:
-                                    isCompactLayout
-                                        ? [
-                                          ...localCompactFolderTreeSongIds,
-                                          ...visibleSongIds,
-                                        ]
-                                        : const [],
-                                i18n: i18n,
-                                onToggleFoldersExpanded:
-                                    () => setState(() {
-                                      _foldersExpanded = !_foldersExpanded;
-                                    }),
-                                onToggleSongsExpanded:
-                                    () => setState(() {
-                                      _songsExpanded = !_songsExpanded;
-                                    }),
-                                onToggleTreeFolderExpanded:
-                                    (folderPath) => setState(() {
-                                      if (_treeExpandedFolderPaths.contains(
-                                        folderPath,
-                                      )) {
-                                        _treeExpandedFolderPaths.remove(
-                                          folderPath,
-                                        );
-                                      } else {
-                                        _treeExpandedFolderPaths.add(
-                                          folderPath,
-                                        );
-                                      }
-                                    }),
-                                onPlayFolder: (folder) => _playShuffled(folder),
-                                onAddFolder:
-                                    (folder, position) => _showAddToMenu(
-                                      position: position,
-                                      songIds: folder.subtreeSongIds,
-                                      defaultPlaylistName: folder.name,
-                                      playlists: customPlaylists,
-                                      snapshot: snapshot,
-                                      i18n: i18n,
-                                    ),
-                                onRefreshFolder:
-                                    (folder) => _refreshFolder(folder, i18n),
-                                onSearchFolder:
-                                    (folder) => _searchDirectory(folder, i18n),
-                                onRevealFolder: _revealFolder,
-                                onOpenFolder: _openFolder,
-                                onOpenFolderMenu:
-                                    (folder, position) => _showFolderMenu(
-                                      position: position,
-                                      folder: folder,
-                                      nodes: nodes,
-                                      songsById: songsById,
-                                      playlists: customPlaylists,
-                                      snapshot: snapshot,
-                                      i18n: i18n,
-                                    ),
-                                onToggleFolderSelection: _toggleFolderSelection,
-                                onMoveLocalItemsToFolder: ({
-                                  required songIds,
-                                  required folderPaths,
-                                  required targetFolderPath,
-                                }) {
-                                  _moveLocalItemsToFolder(
-                                    songIds: songIds,
-                                    folderPaths: folderPaths,
-                                    targetFolderPath: targetFolderPath,
-                                  );
-                                },
-                                onPlayTrack: _playTrack,
-                                onTogglePlayPause:
-                                    () =>
-                                        ref
-                                            .read(
-                                              mediaControlControllerProvider,
-                                            )
-                                            .onTogglePlayPause(),
-                                onToggleSongSelection: _toggleSongSelection,
-                                onPlayNext: (songId) => _playNext(songId),
-                                onAddSong:
-                                    (song, position) => _showAddToMenu(
-                                      position: position,
-                                      songIds: [song.id],
-                                      defaultPlaylistName: song.title,
-                                      playlists: customPlaylists,
-                                      snapshot: snapshot,
-                                      i18n: i18n,
-                                    ),
-                                onOpenSongMenu:
-                                    (song, position) => _showSongMenu(
-                                      position: position,
-                                      song: song,
-                                      queueSongIds: visibleSongIds,
-                                      playlists: customPlaylists,
-                                      snapshot: snapshot,
-                                      i18n: i18n,
-                                    ),
-                                onJumpToSongKey:
-                                    (key) => _jumpToSongKey(
-                                      key,
-                                      songQuickJumpMap,
-                                      rowExtent: 48,
-                                    ),
                               )
                               : LocalGridContent(
                                 childFolders: childFolders,
@@ -660,6 +526,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 showSongQuickJump:
                                     currentSongs.length >= 50 &&
                                     songQuickJumpMap.length >= 4,
+                                reserveSongQuickJumpSpace:
+                                    currentSongs.length >= 50,
                                 songQuickJumpBasisName:
                                     getLocalSongQuickJumpBasisName(
                                       _sortMode,
@@ -771,8 +639,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                     (key) => _jumpToSongKey(
                                       key,
                                       songQuickJumpMap,
-                                      rowExtent: 232,
+                                      currentSongs,
                                     ),
+                                scrollController: _scrollController,
                               ),
                     ),
                   ),

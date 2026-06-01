@@ -72,6 +72,9 @@ void main() {
         ),
       );
 
+      expect(_assetImage('assets/branding/folder.png'), findsOneWidget);
+      expect(_assetImage('assets/branding/colorful_no_bg.png'), findsOneWidget);
+
       await tester.tap(find.text('Sub'));
       expect(openedFolders, ['Sub']);
 
@@ -79,6 +82,11 @@ void main() {
       await tester.tapAt(folderCenter, buttons: kSecondaryMouseButton);
       expect(menuFolder?.relativePath, 'Sub');
       expect(menuFolderPosition, folderCenter);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: folderCenter);
+      addTearDown(gesture.removePointer);
+      await tester.pump(const Duration(milliseconds: 140));
 
       await tester.tap(find.byTooltip('Shuffle'));
       expect(playedFolder?.relativePath, 'Sub');
@@ -99,6 +107,9 @@ void main() {
       await tester.tap(find.text('Root Song'));
       expect(playedTrackId, 1);
       expect(playedQueue, [1]);
+
+      await gesture.moveTo(tester.getCenter(find.text('Root Song')));
+      await tester.pump(const Duration(milliseconds: 140));
 
       await tester.tap(find.byTooltip('Add To').last);
       expect(addSong?.id, 1);
@@ -133,19 +144,29 @@ void main() {
   testWidgets(
     'LocalTableContent compact mode hides desktop header and stacks song text',
     (tester) async {
+      FolderNode? playedFolder;
+      LibrarySong? addSong;
+      int? nextSongId;
+
       await tester.pumpWidget(
         _TableHarness(
           isCompactLayout: true,
           onOpenFolder: (_) {},
-          onPlayFolder: (_) {},
+          onPlayFolder: (folder) {
+            playedFolder = folder;
+          },
           onAddFolder: (_, _) {},
           onRefreshFolder: (_) {},
           onSearchFolder: (_) {},
           onRevealFolder: (_) {},
           onOpenFolderMenu: (_, _) {},
           onPlayTrack: (_, _) {},
-          onAddSong: (_, _) {},
-          onPlayNext: (_) {},
+          onAddSong: (song, _) {
+            addSong = song;
+          },
+          onPlayNext: (songId) {
+            nextSongId = songId;
+          },
           onOpenSongMenu: (_, _) {},
         ),
       );
@@ -163,6 +184,28 @@ void main() {
       expect(find.text('Root Song'), findsOneWidget);
       expect(find.text('Artist A'), findsOneWidget);
       expect(find.text('Root Album'), findsOneWidget);
+      expect(_assetImage('assets/branding/folder.png'), findsOneWidget);
+      expect(_assetImage('assets/branding/colorful_no_bg.png'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Shuffle'), warnIfMissed: false);
+      expect(playedFolder, isNull);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: tester.getCenter(find.text('Sub')));
+      addTearDown(gesture.removePointer);
+      await tester.pump(const Duration(milliseconds: 140));
+
+      await tester.tap(find.byTooltip('Shuffle'));
+      expect(playedFolder?.relativePath, 'Sub');
+
+      await gesture.moveTo(tester.getCenter(find.text('Root Song')));
+      await tester.pump(const Duration(milliseconds: 140));
+
+      await tester.tap(find.byTooltip('Add To').last);
+      expect(addSong?.id, 1);
+
+      await tester.tap(find.byTooltip('Play Next'));
+      expect(nextSongId, 1);
 
       final titleTop = tester.getTopLeft(find.text('Root Song')).dy;
       final artistTop = tester.getTopLeft(find.text('Artist A')).dy;
@@ -170,6 +213,15 @@ void main() {
       expect(titleTop, lessThan(artistTop));
       expect(artistTop, lessThan(albumTop));
     },
+  );
+}
+
+Finder _assetImage(String assetPath) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is Image &&
+        widget.image is AssetImage &&
+        (widget.image as AssetImage).assetName == assetPath,
   );
 }
 

@@ -803,6 +803,12 @@ class _MiniModeVolumePopover extends StatelessWidget {
             overlayColor: Colors.white.withValues(alpha: 0.18),
             tooltipBackgroundColor: const Color(0xf5222222),
             tooltipForegroundColor: Colors.white,
+            tooltipBorderColor: const Color(0x2effffff),
+            tooltipShadow: const BoxShadow(
+              color: Color(0x57000000),
+              offset: Offset(0, 8),
+              blurRadius: 18,
+            ),
           ),
         ),
       ),

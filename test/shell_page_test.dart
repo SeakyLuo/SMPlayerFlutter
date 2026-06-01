@@ -135,6 +135,49 @@ void main() {
     },
   );
 
+  test('resolveShellPlayerSong mirrors Electron currentTrack lookup', () {
+    const snapshot = LibraryContentData(
+      songs: [
+        LibrarySong(
+          id: 1,
+          path: '/tmp/old.mp3',
+          title: 'Old queue song',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album',
+          duration: 180,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+        LibrarySong(
+          id: 3,
+          path: '/tmp/current.mp3',
+          title: 'Current artist song',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album',
+          duration: 200,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+      ],
+      hasLibrary: true,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      databasePath: '',
+      nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [1]),
+    );
+
+    expect(resolveShellPlayerSong(snapshot, 3)?.title, 'Current artist song');
+    expect(resolveShellPlayerSong(snapshot, null), isNull);
+  });
+
   test('pending seek filter mirrors Electron position-event guard', () {
     expect(
       shouldIgnoreAudioPositionForPendingSeek(
@@ -159,6 +202,41 @@ void main() {
         toleranceSeconds: 0.25,
       ),
       isFalse,
+    );
+  });
+
+  test('audio loading state keeps pending autoplay active', () {
+    expect(
+      shouldApplyAudioBackendPlayingState(
+        backendLoading: true,
+        backendPlaying: false,
+        pendingAutoplay: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldApplyAudioBackendPlayingState(
+        backendLoading: true,
+        backendPlaying: true,
+        pendingAutoplay: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldApplyAudioBackendPlayingState(
+        backendLoading: false,
+        backendPlaying: false,
+        pendingAutoplay: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldApplyAudioBackendPlayingState(
+        backendLoading: false,
+        backendPlaying: false,
+        pendingAutoplay: false,
+      ),
+      isTrue,
     );
   });
 
@@ -750,6 +828,9 @@ void main() {
 
     await tester.pumpWidget(const _ShellPageTestApp());
     await tester.pump();
+    final closedMenuRect = tester.getRect(
+      find.byKey(SmPlayerShellKeys.minimalMenuButton),
+    );
     await tester.tap(find.byKey(SmPlayerShellKeys.minimalMenuButton));
     await tester.pumpAndSettle();
 
@@ -761,6 +842,12 @@ void main() {
     expect(
       find.byKey(SmPlayerShellKeys.navigationDismissLayer),
       findsOneWidget,
+    );
+    expect(
+      tester.getRect(
+        find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+      ),
+      closedMenuRect,
     );
   });
 
@@ -1257,6 +1344,85 @@ void main() {
       SmPlayerDisplayMode.immersive,
     );
   });
+
+  testWidgets(
+    'bottom player song info exits native fullscreen before immersive now playing',
+    (tester) async {
+      _setViewSize(tester, const Size(1300, 700));
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(
+          lastMusicIndex: 0,
+          musicProgress: 0,
+          autoPlay: false,
+          saveMusicProgress: true,
+        ),
+      );
+      final navigations = <String>[];
+      final desktopService = _ShellDesktopFeatureService();
+      final repository = _SnapshotRepository(
+        const LibraryContentData(
+          songs: [
+            LibrarySong(
+              id: 10,
+              path: '/tmp/first.mp3',
+              title: 'First Song',
+              artist: 'First Artist',
+              artists: ['First Artist'],
+              album: 'First Album',
+              duration: 180,
+              playCount: 0,
+              lyricsOffsetMs: 0,
+              dateAdded: '',
+              favorite: false,
+              thumbnailPath: '',
+            ),
+          ],
+          hasLibrary: true,
+          sortCriterion: MusicLibrarySortCriterion.title,
+          albumsSort: AlbumSortCriterion.defaultSort,
+          databasePath: '',
+          nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          repository: repository,
+          desktopService: desktopService,
+          initialDisplayMode: SmPlayerDisplayMode.fullScreen,
+          onNavigate: navigations.add,
+        ),
+      );
+      for (var pump = 0; pump < 8; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(desktopService.windowFullScreen, isTrue);
+
+      await tester.tap(find.text('First Song'));
+      await tester.pump();
+
+      expect(navigations.single, startsWith('/now-playing/full'));
+      expect(desktopService.windowFullScreen, isFalse);
+      expect(
+        smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+        SmPlayerDisplayMode.immersive,
+      );
+
+      desktopService.emit(
+        const DesktopFeatureAction(
+          DesktopFeatureCommand.windowFullScreenChanged,
+          isWindowFullScreen: false,
+        ),
+      );
+      await tester.pump();
+
+      expect(navigations.single, startsWith('/now-playing/full'));
+      expect(
+        smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+        SmPlayerDisplayMode.immersive,
+      );
+    },
+  );
 
   testWidgets('bottom player More fullscreen toggles native fullscreen only', (
     tester,
@@ -1957,7 +2123,9 @@ void main() {
     expect(desktopService.windowControlsLight, isTrue);
   });
 
-  testWidgets('shell mirrors desktop fullscreen change events', (tester) async {
+  testWidgets('shell fullscreen change events do not exit immersive route', (
+    tester,
+  ) async {
     final desktopService = _ShellDesktopFeatureService();
     final navigations = <String>[];
 
@@ -1970,6 +2138,7 @@ void main() {
             home: SmPlayerShellPage(
               currentPath: '/now-playing/full',
               desktopFeatureService: desktopService,
+              initialDisplayMode: SmPlayerDisplayMode.fullScreen,
               onNavigate: navigations.add,
             ),
           ),
@@ -1986,10 +2155,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(navigations.last, '/now-playing');
+    expect(navigations, isEmpty);
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-      SmPlayerDisplayMode.normal,
+      SmPlayerDisplayMode.immersive,
     );
   });
 

@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_dialog.dart';
 
 void main() {
-  test('voice assistant availability mirrors Electron platform gate', () {
-    expect(supportsVoiceAssistant(), Platform.isWindows);
+  test('voice assistant availability includes desktop speech platforms', () {
+    expect(supportsVoiceAssistant(), Platform.isWindows || Platform.isMacOS);
   });
 
   test('macOS voice assistant privacy metadata is present', () {
@@ -37,6 +37,7 @@ void main() {
     final project = File('macos/Runner.xcodeproj/project.pbxproj');
     expect(project.existsSync(), isTrue);
     final projectText = project.readAsStringSync();
+    expect(projectText, contains('patch_privacy_usage_descriptions.sh'));
     expect(
       projectText.contains('ENABLE_DEBUG_DYLIB = NO;'),
       isTrue,
@@ -44,6 +45,22 @@ void main() {
           'macOS 26 TCC checks the debug dylib as the privacy accessor when '
           'Xcode debug dylib mode is enabled.',
     );
+    expect(
+      projectText.contains('INFOPLIST_KEY_NSMicrophoneUsageDescription'),
+      isTrue,
+    );
+    expect(
+      projectText.contains('INFOPLIST_KEY_NSSpeechRecognitionUsageDescription'),
+      isTrue,
+    );
+
+    final patchScript = File(
+      'macos/Runner/patch_privacy_usage_descriptions.sh',
+    );
+    expect(patchScript.existsSync(), isTrue);
+    final patchScriptText = patchScript.readAsStringSync();
+    expect(patchScriptText, contains(r'scan_root "$TARGET_BUILD_DIR"'));
+    expect(patchScriptText, contains('NSSpeechRecognitionUsageDescription'));
   });
 
   test('macOS external audio opens keep sandboxed file access', () {

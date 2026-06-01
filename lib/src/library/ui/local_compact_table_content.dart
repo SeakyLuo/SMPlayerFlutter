@@ -254,52 +254,54 @@ class LocalCompactTableContent extends StatelessWidget {
     FolderNode folder, {
     LocalCompactTreeRow? treeRow,
   }) {
-    final rowContent = _FolderRowSurface(
-      folder: folder,
-      treeRow: treeRow,
-      selected: selectedFolderPaths.contains(folder.relativePath),
-      multiSelect: multiSelect,
-      i18n: i18n,
-      onToggleTreeFolderExpanded: onToggleTreeFolderExpanded,
-      actions:
-          multiSelect
-              ? const SizedBox.shrink()
-              : _CompactTableActions(
-                children: [
-                  IconButton(
-                    tooltip: i18n.t('local.playAllButtonTooltip'),
-                    icon: const ShuffleIcon(),
-                    onPressed: () => onPlayFolder(folder),
-                  ),
-                  Builder(
-                    builder:
-                        (buttonContext) => IconButton(
-                          tooltip: i18n.t('context.addToPlaylist'),
-                          icon: const Icon(FluentIcons.add_20_regular),
-                          onPressed:
-                              () => _invokeAtButtonBottom(
-                                buttonContext,
-                                (position) => onAddFolder(folder, position),
-                              ),
-                        ),
-                  ),
-                  IconButton(
-                    tooltip: i18n.t('local.updateFolder'),
-                    icon: const Icon(FluentIcons.arrow_sync_20_regular),
-                    onPressed: () => onRefreshFolder(folder),
-                  ),
-                  IconButton(
-                    tooltip: i18n.t('local.searchFolderButtonTooltip'),
-                    icon: const Icon(FluentIcons.search_20_regular),
-                    onPressed: () => onSearchFolder(folder),
-                  ),
-                  IconButton(
-                    tooltip: i18n.t('local.openLocalButtonTooltip'),
-                    icon: const Icon(FluentIcons.folder_open_20_regular),
-                    onPressed: () => onRevealFolder(folder),
-                  ),
-                ],
-              ),
+    final rowContent = _CompactHoverRow(
+      child: _FolderRowSurface(
+        folder: folder,
+        treeRow: treeRow,
+        selected: selectedFolderPaths.contains(folder.relativePath),
+        multiSelect: multiSelect,
+        i18n: i18n,
+        onToggleTreeFolderExpanded: onToggleTreeFolderExpanded,
+        actions:
+            multiSelect
+                ? const SizedBox.shrink()
+                : _CompactTableActions(
+                  children: [
+                    IconButton(
+                      tooltip: i18n.t('local.playAllButtonTooltip'),
+                      icon: const ShuffleIcon(),
+                      onPressed: () => onPlayFolder(folder),
+                    ),
+                    Builder(
+                      builder:
+                          (buttonContext) => IconButton(
+                            tooltip: i18n.t('context.addToPlaylist'),
+                            icon: const Icon(FluentIcons.add_20_regular),
+                            onPressed:
+                                () => _invokeAtButtonBottom(
+                                  buttonContext,
+                                  (position) => onAddFolder(folder, position),
+                                ),
+                          ),
+                    ),
+                    IconButton(
+                      tooltip: i18n.t('local.updateFolder'),
+                      icon: const Icon(FluentIcons.arrow_sync_20_regular),
+                      onPressed: () => onRefreshFolder(folder),
+                    ),
+                    IconButton(
+                      tooltip: i18n.t('local.searchFolderButtonTooltip'),
+                      icon: const Icon(FluentIcons.search_20_regular),
+                      onPressed: () => onSearchFolder(folder),
+                    ),
+                    IconButton(
+                      tooltip: i18n.t('local.openLocalButtonTooltip'),
+                      icon: const Icon(FluentIcons.folder_open_20_regular),
+                      onPressed: () => onRevealFolder(folder),
+                    ),
+                  ],
+                ),
+      ),
     );
     return DragTarget<LocalItemsDragPayload>(
       onWillAcceptWithDetails:
@@ -417,52 +419,54 @@ class LocalCompactTableContent extends StatelessWidget {
     bool playing,
     List<int> queueIds,
   ) {
-    return _SongRowSurface(
-      song: song,
-      depth: treeRow?.depth ?? 0,
-      selected: selected,
-      current: current,
-      multiSelect: multiSelect,
-      i18n: i18n,
-      actions:
-          multiSelect
-              ? const SizedBox.shrink()
-              : _CompactTableActions(
-                children: [
-                  IconButton(
-                    tooltip:
+    return _CompactHoverRow(
+      child: _SongRowSurface(
+        song: song,
+        depth: treeRow?.depth ?? 0,
+        selected: selected,
+        current: current,
+        multiSelect: multiSelect,
+        i18n: i18n,
+        actions:
+            multiSelect
+                ? const SizedBox.shrink()
+                : _CompactTableActions(
+                  children: [
+                    IconButton(
+                      tooltip:
+                          playing
+                              ? i18n.t('player.pause')
+                              : i18n.t('context.play'),
+                      icon: Icon(
                         playing
-                            ? i18n.t('player.pause')
-                            : i18n.t('context.play'),
-                    icon: Icon(
-                      playing
-                          ? FluentIcons.pause_20_regular
-                          : FluentIcons.play_20_regular,
+                            ? FluentIcons.pause_20_regular
+                            : FluentIcons.play_20_regular,
+                      ),
+                      onPressed:
+                          current
+                              ? onTogglePlayPause
+                              : () => onPlayTrack(song.id, queueIds),
                     ),
-                    onPressed:
-                        current
-                            ? onTogglePlayPause
-                            : () => onPlayTrack(song.id, queueIds),
-                  ),
-                  Builder(
-                    builder:
-                        (buttonContext) => IconButton(
-                          tooltip: i18n.t('context.addToPlaylist'),
-                          icon: const Icon(FluentIcons.add_20_regular),
-                          onPressed:
-                              () => _invokeAtButtonBottom(
-                                buttonContext,
-                                (position) => onAddSong(song, position),
-                              ),
-                        ),
-                  ),
-                  IconButton(
-                    tooltip: i18n.t('context.playNext'),
-                    icon: const SmPlayerPlayNextIcon(),
-                    onPressed: () => onPlayNext(song.id),
-                  ),
-                ],
-              ),
+                    Builder(
+                      builder:
+                          (buttonContext) => IconButton(
+                            tooltip: i18n.t('context.addToPlaylist'),
+                            icon: const Icon(FluentIcons.add_20_regular),
+                            onPressed:
+                                () => _invokeAtButtonBottom(
+                                  buttonContext,
+                                  (position) => onAddSong(song, position),
+                                ),
+                          ),
+                    ),
+                    IconButton(
+                      tooltip: i18n.t('context.playNext'),
+                      icon: const SmPlayerPlayNextIcon(),
+                      onPressed: () => onPlayNext(song.id),
+                    ),
+                  ],
+                ),
+      ),
     );
   }
 }
@@ -533,7 +537,7 @@ class _FolderRowSurface extends StatelessWidget {
             _CompactTableCheckMark(selected: selected),
             const SizedBox(width: 10),
           ],
-          Icon(FluentIcons.folder_20_regular, color: colors.artworkIcon),
+          const _CompactTableTypeImage(assetPath: 'assets/branding/folder.png'),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -613,13 +617,15 @@ class _SongRowSurface extends StatelessWidget {
                   _CompactTableCheckMark(selected: selected),
                   const SizedBox(width: 10),
                 ],
-                Icon(
-                  current
-                      ? FluentIcons.play_20_regular
-                      : FluentIcons.music_note_2_20_regular,
-                  color: current ? colors.accentStrong : colors.artworkIcon,
-                  size: 18,
-                ),
+                current
+                    ? Icon(
+                      FluentIcons.play_20_regular,
+                      color: colors.accentStrong,
+                      size: 18,
+                    )
+                    : const _CompactTableTypeImage(
+                      assetPath: 'assets/branding/colorful_no_bg.png',
+                    ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -675,20 +681,90 @@ class _CompactTableActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 24,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children:
-            children
-                .map(
-                  (child) => IconTheme(
-                    data: const IconThemeData(size: 14),
-                    child: SizedBox.square(dimension: 24, child: child),
-                  ),
-                )
-                .toList(),
+    final visible = _CompactHoverState.of(context);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.ease,
+        child: SizedBox(
+          height: 24,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children:
+                children
+                    .map(
+                      (child) => IconTheme(
+                        data: const IconThemeData(size: 14),
+                        child: SizedBox.square(dimension: 24, child: child),
+                      ),
+                    )
+                    .toList(),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _CompactHoverRow extends StatefulWidget {
+  const _CompactHoverRow({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_CompactHoverRow> createState() => _CompactHoverRowState();
+}
+
+class _CompactHoverRowState extends State<_CompactHoverRow> {
+  var _hovered = false;
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Focus(
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        child: _CompactHoverState(
+          visible: _hovered || _focused,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactHoverState extends InheritedWidget {
+  const _CompactHoverState({required this.visible, required super.child});
+
+  final bool visible;
+
+  static bool of(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<_CompactHoverState>()
+            ?.visible ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(_CompactHoverState oldWidget) {
+    return visible != oldWidget.visible;
+  }
+}
+
+class _CompactTableTypeImage extends StatelessWidget {
+  const _CompactTableTypeImage({required this.assetPath});
+
+  final String assetPath;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 24,
+      child: Image.asset(assetPath, fit: BoxFit.contain),
     );
   }
 }

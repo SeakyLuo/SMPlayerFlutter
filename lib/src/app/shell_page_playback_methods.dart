@@ -129,6 +129,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     if (trackId == null) {
       _loadedAudioTrackId = null;
       _loadedAudioPath = null;
+      _loadingAudioTrackId = null;
+      _loadingAudioPath = null;
+      _pendingAudioAutoplay = false;
       _pendingAudioSeekSeconds = null;
       unawaited(_audioPlayer.stop());
       return;
@@ -143,6 +146,10 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     }
 
     if (_loadedAudioTrackId != song.id || _loadedAudioPath != song.path) {
+      if (_loadingAudioTrackId == song.id && _loadingAudioPath == song.path) {
+        _pendingAudioAutoplay = state.isPlaying;
+        return;
+      }
       unawaited(_loadAudioSong(song, state));
       return;
     }
@@ -153,6 +160,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   Future<void> _loadAudioSong(LibrarySong song, MediaControlState state) async {
     final loadSerial = _audioLoadSerial + 1;
     _audioLoadSerial = loadSerial;
+    _loadingAudioTrackId = song.id;
+    _loadingAudioPath = song.path;
+    _pendingAudioAutoplay = state.isPlaying;
     _syncingAudioPlayer = true;
     _mediaControlController.setTrackLoading(true);
     _syncingAudioPlayer = false;
@@ -176,8 +186,16 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
                 : duration!.inMilliseconds / 1000,
       );
       _mediaControlController.setTrackLoading(false);
+      final playbackState = _mediaControlController.state;
       _syncingAudioPlayer = false;
-      await _applyAudioPlaybackState(_mediaControlController.state);
+      await _applyAudioPlaybackState(playbackState);
+      if (loadSerial == _audioLoadSerial) {
+        if (_loadingAudioTrackId == song.id) {
+          _loadingAudioTrackId = null;
+          _loadingAudioPath = null;
+        }
+        _pendingAudioAutoplay = false;
+      }
     } on Object catch (error, stackTrace) {
       debugPrint(
         'Simple Melody Player failed to load audio file: ${song.path}\n'
@@ -190,6 +208,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         }
         _loadedAudioTrackId = null;
         _loadedAudioPath = null;
+        _loadingAudioTrackId = null;
+        _loadingAudioPath = null;
+        _pendingAudioAutoplay = false;
         _syncingAudioPlayer = true;
         _mediaControlController.setPlaybackLoadFailed();
         _syncingAudioPlayer = false;
@@ -311,15 +332,23 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     }
 
     final backendLoading = _isAudioBackendLoading(state.processingState);
+    final waitingForCurrentLoad =
+        _loadingAudioTrackId == _mediaControlController.state.track.id;
+    final pendingAutoplay = waitingForCurrentLoad && _pendingAudioAutoplay;
     _syncingAudioPlayer = true;
-    if (backendLoading) {
+    if (shouldApplyAudioBackendPlayingState(
+      backendLoading: backendLoading,
+      backendPlaying: state.playing,
+      pendingAutoplay: pendingAutoplay,
+    )) {
       _mediaControlController.setPlaybackActive(state.playing);
+    }
+    if (backendLoading || waitingForCurrentLoad) {
       _mediaControlController.setTrackLoading(
         true,
         buffering: state.processingState == ProcessingState.buffering,
       );
     } else {
-      _mediaControlController.setPlaybackActive(state.playing);
       _mediaControlController.setTrackLoading(false);
     }
     _syncingAudioPlayer = false;

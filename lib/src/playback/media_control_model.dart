@@ -284,12 +284,18 @@ class MediaControlController extends ChangeNotifier {
     }
 
     final nextPlaying = !_state.isPlaying;
+    final resumeLoadedTrack =
+        nextPlaying &&
+        (_state.playbackStatus == PlaybackStatus.paused ||
+            _state.playbackStatus == PlaybackStatus.ready);
     _setState(
       _state.copyWith(
         isPlaying: nextPlaying,
         playbackStatus: transitionPlaybackStatus(
           _state.playbackStatus,
-          nextPlaying
+          resumeLoadedTrack
+              ? PlaybackTransitionType.playing
+              : nextPlaying
               ? PlaybackTransitionType.playRequested
               : PlaybackTransitionType.pause,
         ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 typedef HoldReleaseActionBuilder =
@@ -13,6 +14,7 @@ class HoldReleaseAction extends StatefulWidget {
     required this.onPressed,
     required this.builder,
     this.onHoldRelease,
+    this.onSecondaryTap,
     this.holdTooltip,
     this.disabled = false,
     this.holdDuration = const Duration(milliseconds: 200),
@@ -26,6 +28,7 @@ class HoldReleaseAction extends StatefulWidget {
   final bool triggerHoldOnReady;
   final VoidCallback onPressed;
   final VoidCallback? onHoldRelease;
+  final VoidCallback? onSecondaryTap;
   final HoldReleaseActionBuilder builder;
 
   @override
@@ -156,12 +159,24 @@ class _HoldReleaseActionState extends State<HoldReleaseAction>
           holdActive ? widget.holdTooltip ?? widget.tooltip : widget.tooltip,
       child: Listener(
         behavior: HitTestBehavior.opaque,
-        onPointerDown: (_) => _startHold(),
+        onPointerDown: (event) {
+          if ((event.buttons & kPrimaryButton) == 0) {
+            return;
+          }
+          _startHold();
+        },
         onPointerUp: (event) => _releaseHold(event.position),
         onPointerCancel: (_) => _resetHold(),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.disabled ? null : _handleTap,
+          onSecondaryTap:
+              widget.disabled
+                  ? null
+                  : () {
+                    _resetHold();
+                    widget.onSecondaryTap?.call();
+                  },
           child: AnimatedBuilder(
             animation: _holdController,
             builder: (context, _) {

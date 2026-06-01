@@ -1,11 +1,15 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
+import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -16,10 +20,12 @@ import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
+import 'package:smplayer_flutter/src/platform/desktop_features.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LocalViewMode;
+    show LocalViewMode, SettingsSnapshot;
 
 void main() {
   testWidgets('writes LocalPage light and night verification screenshots', (
@@ -141,32 +147,137 @@ void main() {
     );
   });
 
-  testWidgets('writes LocalPage table night verification screenshot', (
-    tester,
-  ) async {
-    await _writeLocalPageScreenshot(
-      tester,
-      brightness: Brightness.dark,
-      path: 'build/smplayer_local_page_table_dark_verify.png',
-      snapshot: _snapshotWithLocalViewMode(LocalViewMode.list),
-      expectedText: 'Name',
-    );
-  });
+  testWidgets(
+    'writes LocalPage stored-list grid night verification screenshot',
+    (tester) async {
+      await _writeLocalPageScreenshot(
+        tester,
+        brightness: Brightness.dark,
+        path: 'build/smplayer_local_page_stored_list_grid_dark_verify.png',
+        snapshot: _snapshotWithLocalViewMode(LocalViewMode.list),
+        expectedText: 'Intro Signal',
+      );
+      expect(find.text('Name'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('LocalTableContent.VirtualList')),
+        findsNothing,
+      );
+    },
+  );
 
-  testWidgets('writes compact LocalPage table light verification screenshot', (
+  testWidgets('writes compact LocalPage stored-list grid light screenshot', (
     tester,
   ) async {
     await _writeLocalPageScreenshot(
       tester,
       brightness: Brightness.light,
-      path: 'build/smplayer_local_page_compact_table_light_verify.png',
+      path:
+          'build/smplayer_local_page_compact_stored_list_grid_light_verify.png',
       physicalSize: const Size(640, 900),
       snapshot: _snapshotWithLocalViewMode(LocalViewMode.list),
       expectedText: 'Intro Signal',
     );
     expect(find.text('Name'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('LocalTableContent.CompactList')),
+      findsNothing,
+    );
     expect(find.text('River North'), findsOneWidget);
     expect(find.text('Archive Night'), findsWidgets);
+  });
+
+  testWidgets('writes compact folder hover actions light screenshot', (
+    tester,
+  ) async {
+    await _writeLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path: 'build/smplayer_local_page_compact_folder_hover_light_verify.png',
+      physicalSize: const Size(640, 900),
+      snapshot: _snapshotWithLocalViewMode(LocalViewMode.list),
+      expectedText: 'Encore',
+      exercise: (tester) async {
+        final folderRow = find.ancestor(
+          of: find.text('Encore'),
+          matching: find.byType(InkWell),
+        );
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        final rowCenter = tester.getCenter(folderRow);
+        await gesture.addPointer(location: rowCenter);
+        await gesture.moveTo(rowCenter);
+        await tester.pump(const Duration(milliseconds: 180));
+        expect(
+          find.byTooltip('Shuffle all music under "Encore"'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('Add To'), findsWidgets);
+      },
+    );
+  });
+
+  testWidgets('writes wide folder hover actions light screenshot', (
+    tester,
+  ) async {
+    await _writeLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path: 'build/smplayer_local_page_wide_folder_hover_light_verify.png',
+      expectedText: 'Encore',
+      exercise: (tester) async {
+        final folderCard =
+            find
+                .ancestor(
+                  of: find.text('Encore'),
+                  matching: find.byWidgetPredicate(
+                    (widget) =>
+                        widget is Container &&
+                        widget.constraints?.minHeight == 232 &&
+                        widget.decoration is BoxDecoration,
+                  ),
+                )
+                .first;
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        final cardCenter = tester.getCenter(folderCard);
+        await gesture.addPointer(location: cardCenter);
+        await gesture.moveTo(cardCenter);
+        await tester.pump(const Duration(milliseconds: 180));
+        expect(
+          find.byTooltip('Shuffle all music under "Encore"'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('Add To'), findsWidgets);
+      },
+    );
+  });
+
+  testWidgets('writes wide song hover actions light screenshot', (
+    tester,
+  ) async {
+    await _writeLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path: 'build/smplayer_local_page_wide_song_hover_light_verify.png',
+      expectedText: 'Intro Signal',
+      exercise: (tester) async {
+        final songCard = find.ancestor(
+          of: find.text('Intro Signal'),
+          matching: find.byType(InkWell),
+        );
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        final cardCenter = tester.getCenter(songCard);
+        await gesture.addPointer(location: cardCenter);
+        await gesture.moveTo(cardCenter);
+        await tester.pump(const Duration(milliseconds: 180));
+        expect(find.byTooltip('Play'), findsOneWidget);
+        expect(find.byTooltip('Add To'), findsWidgets);
+      },
+    );
   });
 
   testWidgets('writes current song night verification screenshot', (
@@ -190,6 +301,100 @@ void main() {
       path: 'build/smplayer_local_page_current_song_dark_verify.png',
       mediaController: mediaController,
       expectedText: 'Intro Signal',
+    );
+  });
+
+  testWidgets('writes shell LocalPage archive light verification screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path: 'build/smplayer_flutter_shell_local_page_archive_light_verify.png',
+    );
+  });
+
+  testWidgets('writes shell LocalPage archive folder hover screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path:
+          'build/smplayer_flutter_shell_local_page_archive_folder_hover_light_verify.png',
+      hoverTarget: _ShellLocalHoverTarget.folder,
+    );
+  });
+
+  testWidgets('writes shell LocalPage archive song hover screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path:
+          'build/smplayer_flutter_shell_local_page_archive_song_hover_light_verify.png',
+      hoverTarget: _ShellLocalHoverTarget.song,
+    );
+  });
+
+  testWidgets(
+    'writes compact shell LocalPage archive light verification screenshot',
+    (tester) async {
+      await _writeShellLocalPageScreenshot(
+        tester,
+        brightness: Brightness.light,
+        path:
+            'build/smplayer_flutter_shell_local_page_archive_compact_light_verify.png',
+        physicalSize: const Size(640, 900),
+        expectWideGridLeftEdge: false,
+        expectCompactPanelWidth: true,
+      );
+    },
+  );
+
+  testWidgets('writes compact shell LocalPage folder hover screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path:
+          'build/smplayer_flutter_shell_local_page_archive_compact_folder_hover_light_verify.png',
+      physicalSize: const Size(640, 900),
+      expectWideGridLeftEdge: false,
+      expectCompactPanelWidth: true,
+      hoverTarget: _ShellLocalHoverTarget.compactFolder,
+    );
+  });
+
+  testWidgets('writes compact shell LocalPage folder focus screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path:
+          'build/smplayer_flutter_shell_local_page_archive_compact_folder_focus_light_verify.png',
+      physicalSize: const Size(640, 900),
+      expectWideGridLeftEdge: false,
+      expectCompactPanelWidth: true,
+      hoverTarget: _ShellLocalHoverTarget.compactFolderFocus,
+    );
+  });
+
+  testWidgets('writes compact shell LocalPage song hover screenshot', (
+    tester,
+  ) async {
+    await _writeShellLocalPageScreenshot(
+      tester,
+      brightness: Brightness.light,
+      path:
+          'build/smplayer_flutter_shell_local_page_archive_compact_song_hover_light_verify.png',
+      physicalSize: const Size(640, 900),
+      expectWideGridLeftEdge: false,
+      expectCompactPanelWidth: true,
+      hoverTarget: _ShellLocalHoverTarget.compactSong,
     );
   });
 
@@ -254,6 +459,254 @@ Future<void> _writeLocalPageScreenshot(
   await _writeBoundaryPng(tester, repaintKey, path);
   await tester.tapAt(const Offset(4, 4));
   await tester.pump(const Duration(milliseconds: 50));
+}
+
+Future<void> _writeShellLocalPageScreenshot(
+  WidgetTester tester, {
+  required Brightness brightness,
+  required String path,
+  LibraryContentData snapshot = _snapshot,
+  String currentRelativePath = 'Collections/Live/Sessions/Archive',
+  Size physicalSize = const Size(1280, 820),
+  bool expectWideGridLeftEdge = true,
+  bool expectCompactPanelWidth = false,
+  _ShellLocalHoverTarget? hoverTarget,
+}) async {
+  resetSmPlayerGlobalSettingsSnapshot();
+  resetSmPlayerShellGlobalStateForTest();
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = physicalSize;
+  addTearDown(() {
+    resetSmPlayerGlobalSettingsSnapshot();
+    resetSmPlayerShellGlobalStateForTest();
+    tester.view.resetDevicePixelRatio();
+    tester.view.resetPhysicalSize();
+  });
+
+  final repository = _VisualRepository(snapshot);
+  final routeLocation =
+      Uri(
+        path: '/local',
+        queryParameters: {'path': currentRelativePath},
+      ).toString();
+  final repaintKey = GlobalKey();
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: repaintKey,
+      child: ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => _i18n),
+          libraryContentDataProvider.overrideWith((ref) async => snapshot),
+          libraryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildSmPlayerTheme(
+              const SettingsSnapshot.defaults(),
+              brightness: brightness,
+            ),
+            home: SmPlayerShellPage(
+              appVersion: '0.0.0',
+              currentPath: '/local',
+              currentLocation: routeLocation,
+              desktopFeatureService: const NoopDesktopFeatureService(),
+              settingsRepository: repository,
+              child: LocalPage(currentRelativePath: currentRelativePath),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(milliseconds: 300));
+
+  expect(find.text('Archive'), findsWidgets);
+  expect(find.text('Intro Signal'), findsWidgets);
+  expect(find.byType(SmPlayerShellPage), findsOneWidget);
+  if (expectWideGridLeftEdge) {
+    final folderCard = _wideFolderCardFinder();
+    final folderRect = tester.getRect(folderCard);
+    expect(folderRect.left, moreOrLessEquals(350, epsilon: 2));
+    expect(folderRect.top, moreOrLessEquals(220, epsilon: 3));
+    expect(folderRect.width, moreOrLessEquals(180, epsilon: 1));
+    expect(folderRect.height, moreOrLessEquals(232, epsilon: 1));
+    final songCard = _wideSongCardFinder();
+    final songRect = tester.getRect(songCard);
+    expect(songRect.left, moreOrLessEquals(350, epsilon: 2));
+    expect(songRect.top, moreOrLessEquals(520, epsilon: 3));
+    expect(songRect.width, moreOrLessEquals(180, epsilon: 1));
+    expect(songRect.height, moreOrLessEquals(232, epsilon: 1));
+
+    if (hoverTarget != null) {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final hoverFinder =
+          hoverTarget == _ShellLocalHoverTarget.folder ? folderCard : songCard;
+      final center = tester.getCenter(hoverFinder);
+      await gesture.addPointer(location: center);
+      await gesture.moveTo(center);
+      await tester.pump(const Duration(milliseconds: 180));
+
+      final playTooltip =
+          hoverTarget == _ShellLocalHoverTarget.folder
+              ? 'Shuffle all music under "Encore"'
+              : 'Play';
+      expect(find.byTooltip(playTooltip), findsOneWidget);
+      expect(find.byTooltip('Add To'), findsOneWidget);
+      final playRect = tester.getRect(_glassButtonForTooltip(playTooltip));
+      final addRect = tester.getRect(_glassButtonForTooltip('Add To'));
+      final expectedTop =
+          hoverTarget == _ShellLocalHoverTarget.folder ? 286.0 : 586.0;
+      expect(playRect.left, moreOrLessEquals(387, epsilon: 4));
+      expect(playRect.top, moreOrLessEquals(expectedTop, epsilon: 4));
+      expect(playRect.width, moreOrLessEquals(48, epsilon: 1));
+      expect(playRect.height, moreOrLessEquals(48, epsilon: 1));
+      expect(addRect.left, moreOrLessEquals(445, epsilon: 4));
+      expect(addRect.top, moreOrLessEquals(expectedTop, epsilon: 4));
+      expect(addRect.width, moreOrLessEquals(48, epsilon: 1));
+      expect(addRect.height, moreOrLessEquals(48, epsilon: 1));
+    }
+  }
+  if (expectCompactPanelWidth) {
+    final folderRow = find.ancestor(
+      of: find.text('Encore'),
+      matching: find.byType(InkWell),
+    );
+    final rowRect = tester.getRect(folderRow);
+    expect(rowRect.left, moreOrLessEquals(13, epsilon: 2));
+    expect(rowRect.width, moreOrLessEquals(614, epsilon: 4));
+    expect(rowRect.height, moreOrLessEquals(46, epsilon: 2));
+    final songRow =
+        find
+            .ancestor(
+              of: find.text('Glass Horizon'),
+              matching: find.byType(InkWell),
+            )
+            .first;
+    final songRowRect = tester.getRect(songRow);
+    expect(songRowRect.left, moreOrLessEquals(13, epsilon: 2));
+    expect(songRowRect.top, moreOrLessEquals(275, epsilon: 3));
+    expect(songRowRect.width, moreOrLessEquals(614, epsilon: 4));
+    expect(songRowRect.height, moreOrLessEquals(79, epsilon: 2));
+
+    if (hoverTarget == _ShellLocalHoverTarget.compactFolder ||
+        hoverTarget == _ShellLocalHoverTarget.compactFolderFocus) {
+      if (hoverTarget == _ShellLocalHoverTarget.compactFolderFocus) {
+        final folderContext = tester.element(folderRow);
+        FocusScope.of(folderContext).requestFocus(Focus.of(folderContext));
+      } else {
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        final center = tester.getCenter(folderRow);
+        await gesture.addPointer(location: center);
+        await gesture.moveTo(center);
+      }
+      await tester.pump(const Duration(milliseconds: 180));
+
+      final playRect = tester.getRect(
+        find.byTooltip('Shuffle all music under "Encore"'),
+      );
+      final addRect = tester.getRect(find.byTooltip('Add To'));
+      final refreshRect = tester.getRect(find.byTooltip('Refresh folder'));
+      final searchRect = tester.getRect(find.byTooltip('Search in folder'));
+      final openRect = tester.getRect(find.byTooltip('Open local'));
+      final rects = [playRect, addRect, refreshRect, searchRect, openRect];
+      for (var index = 0; index < rects.length; index += 1) {
+        expect(
+          rects[index].left,
+          moreOrLessEquals(465 + index * 30, epsilon: 4),
+        );
+        expect(rects[index].top, moreOrLessEquals(184, epsilon: 4));
+        expect(rects[index].width, moreOrLessEquals(28, epsilon: 1));
+        expect(rects[index].height, moreOrLessEquals(28, epsilon: 1));
+      }
+    }
+
+    if (hoverTarget == _ShellLocalHoverTarget.compactSong) {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final center = tester.getCenter(songRow);
+      await gesture.addPointer(location: center);
+      await gesture.moveTo(center);
+      await tester.pump(const Duration(milliseconds: 180));
+
+      expect(
+        find.descendant(of: songRow, matching: find.byTooltip('Add To')),
+        findsNothing,
+      );
+      expect(find.byTooltip('Play Next'), findsWidgets);
+      expect(find.byTooltip('More'), findsWidgets);
+      final playNextRect = tester.getRect(
+        find
+            .descendant(
+              of: songRow,
+              matching: find.byKey(
+                const ValueKey('PlaylistControlItem.PlayNextAction'),
+              ),
+            )
+            .first,
+      );
+      final moreRect = tester.getRect(
+        find
+            .descendant(
+              of: songRow,
+              matching: find.byKey(
+                const ValueKey('PlaylistControlItem.MoreAction'),
+              ),
+            )
+            .first,
+      );
+      expect(playNextRect.left, moreOrLessEquals(515, epsilon: 4));
+      expect(playNextRect.top, moreOrLessEquals(297, epsilon: 4));
+      expect(playNextRect.width, moreOrLessEquals(34, epsilon: 1));
+      expect(playNextRect.height, moreOrLessEquals(34, epsilon: 1));
+      expect(moreRect.left, moreOrLessEquals(549, epsilon: 4));
+      expect(moreRect.top, moreOrLessEquals(297, epsilon: 4));
+      expect(moreRect.width, moreOrLessEquals(34, epsilon: 1));
+      expect(moreRect.height, moreOrLessEquals(34, epsilon: 1));
+    }
+  }
+  await _writeBoundaryPng(tester, repaintKey, path);
+}
+
+Finder _wideFolderCardFinder() {
+  return find
+      .ancestor(
+        of: find.text('Encore'),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Container &&
+              widget.constraints?.minHeight == 232 &&
+              widget.decoration is BoxDecoration,
+        ),
+      )
+      .first;
+}
+
+Finder _wideSongCardFinder() {
+  return find
+      .ancestor(of: find.text('Glass Horizon'), matching: find.byType(InkWell))
+      .first;
+}
+
+Finder _glassButtonForTooltip(String tooltip) {
+  return find
+      .descendant(
+        of: find.byTooltip(tooltip),
+        matching: find.byType(GlassIconButton),
+      )
+      .first;
+}
+
+enum _ShellLocalHoverTarget {
+  folder,
+  song,
+  compactFolder,
+  compactFolderFocus,
+  compactSong,
 }
 
 Future<void> _writeHiddenFoldersScreenshot(
@@ -355,7 +808,30 @@ class _VisualVerifyApp extends StatelessWidget {
 }
 
 class _VisualRepository extends LibraryRepository {
-  const _VisualRepository();
+  const _VisualRepository([this.snapshot = _snapshot]);
+
+  final LibraryContentData snapshot;
+
+  @override
+  Future<LibraryContentData> getLibraryContentData() async {
+    return snapshot;
+  }
+
+  @override
+  Future<SettingsSnapshot?> getSettingsSnapshot() async {
+    return const SettingsSnapshot.defaults();
+  }
+
+  @override
+  Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {}
+
+  @override
+  Future<void> commitPendingDeletes() async {}
+
+  @override
+  Future<bool> shouldCheckStartupArtistSplits() async {
+    return false;
+  }
 
   @override
   Future<List<HiddenStorageItem>> getHiddenStorageItems() async {
@@ -582,6 +1058,7 @@ const _snapshot = LibraryContentData(
 const _i18n = SmPlayerI18n(
   locale: 'en-US',
   messages: {
+    'app.shell': 'Simple Melody Player',
     'albums.multiSelect': 'Multi Select',
     'common.album': 'Album',
     'common.albumUnknown': 'Unknown Album',
@@ -606,6 +1083,8 @@ const _i18n = SmPlayerI18n(
     'local.allSongs': 'All Songs',
     'local.currentPath': 'Current Path',
     'local.folderCardStats': '{folders} folders · {songs} songs',
+    'local.folderSongsShort': '{count} songs',
+    'local.gridFolderPlayInfo': 'Shuffle all music under "{name}"',
     'local.hiddenFolders': 'Hidden Folders',
     'local.libraryRoot': 'Library root',
     'local.newFolder': 'New Folder',
@@ -614,9 +1093,11 @@ const _i18n = SmPlayerI18n(
     'local.sortByAlbum': 'Album',
     'local.sortByArtist': 'Artist',
     'local.sortByTitle': 'Title',
-    'local.updateFolderShort': 'Update',
+    'local.updateFolderShort': 'Refresh',
     'local.sortReverseList': 'Reverse',
-    'local.updateFolder': 'Update Folder',
+    'local.updateFolder': 'Refresh folder',
+    'local.openLocalButtonTooltip': 'Open local',
+    'local.searchFolderButtonTooltip': 'Search in folder',
     'local.viewHiddenFolders': 'View Hidden Folders',
     'musicLibrary.titleHeader': 'Title',
     'nowPlaying.randomPlay': 'Shuffle',

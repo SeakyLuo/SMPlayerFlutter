@@ -396,7 +396,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                   defaultTargetPlatform == TargetPlatform.macOS
                                       ? _desktopTitlebarButtonInset
                                       : 0,
-                              canGoBack: widget.canGoBack,
+                              canGoBack:
+                                  defaultTargetPlatform == TargetPlatform.macOS
+                                      ? false
+                                      : widget.canGoBack,
                               backLabel: widget.i18n.t('sidebar.back'),
                               onGoBack: widget.onGoBack,
                               onWindowDragStart: widget.onWindowDragStart,

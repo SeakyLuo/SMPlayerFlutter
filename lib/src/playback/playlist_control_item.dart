@@ -297,30 +297,43 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     : compact
                     ? 20.0
                     : 74.0;
+            final artwork = _QueueArtwork(
+              song: widget.song,
+              current: widget.current,
+              playing: widget.playing,
+              hovered: _hovered,
+              selectionMode: widget.selectionMode,
+              selected: widget.selected,
+              onPlayTrack: widget.onPlayTrack,
+              onTogglePlayPause: widget.onTogglePlayPause,
+              colors: colors,
+            );
             return Row(
               children: [
-                _QueueArtwork(
-                  song: widget.song,
-                  current: widget.current,
-                  playing: widget.playing,
-                  hovered: _hovered,
-                  selectionMode: widget.selectionMode,
-                  selected: widget.selected,
-                  onPlayTrack: widget.onPlayTrack,
-                  onTogglePlayPause: widget.onTogglePlayPause,
-                  colors: colors,
-                ),
+                compactVariant
+                    ? SizedBox(
+                      width: 58,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: artwork,
+                      ),
+                    )
+                    : artwork,
                 SizedBox(width: artworkGap),
                 Expanded(
                   flex: compact ? 1 : 12,
-                  child: _QueueCopy(
-                    song: widget.song,
-                    current: widget.current,
-                    showAlbum: widget.showAlbum,
-                    compactVariant: compactVariant,
-                    onSeeAlbum: widget.onSeeAlbum,
-                    onSeeArtist: widget.onSeeArtist,
-                    colors: colors,
+                  child: Transform.translate(
+                    offset:
+                        compactVariant ? const Offset(0, 0.83) : Offset.zero,
+                    child: _QueueCopy(
+                      song: widget.song,
+                      current: widget.current,
+                      showAlbum: widget.showAlbum,
+                      compactVariant: compactVariant,
+                      onSeeAlbum: widget.onSeeAlbum,
+                      onSeeArtist: widget.onSeeArtist,
+                      colors: colors,
+                    ),
                   ),
                 ),
                 if (!compact) ...[
@@ -1026,27 +1039,30 @@ class _QueueActions extends StatelessWidget {
       );
     }
     final actionsWidth = showHoverActions ? expandedWidth : collapsedWidth;
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: actionsWidth),
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      child: OverflowBox(
-        alignment:
-            showCompactPrimaryActions
-                ? Alignment.centerLeft
-                : compactCollapsed
-                ? Alignment.centerRight
-                : Alignment.center,
-        minWidth: expandedWidth,
-        maxWidth: expandedWidth,
-        child: actions,
+    return Transform.translate(
+      offset: const Offset(0, 0.5),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: actionsWidth),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: OverflowBox(
+          alignment:
+              showCompactPrimaryActions
+                  ? Alignment.centerLeft
+                  : compactCollapsed
+                  ? Alignment.centerRight
+                  : Alignment.center,
+          minWidth: expandedWidth,
+          maxWidth: expandedWidth,
+          child: actions,
+        ),
+        builder:
+            (context, width, child) => SizedBox(
+              key: const ValueKey('PlaylistControlItem.Actions'),
+              width: width,
+              child: ClipRect(child: child),
+            ),
       ),
-      builder:
-          (context, width, child) => SizedBox(
-            key: const ValueKey('PlaylistControlItem.Actions'),
-            width: width,
-            child: ClipRect(child: child),
-          ),
     );
   }
 }

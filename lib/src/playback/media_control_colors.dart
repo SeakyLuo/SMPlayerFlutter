@@ -1,5 +1,7 @@
 part of 'media_control.dart';
 
+enum MediaControlCoverWashMode { linear, radial }
+
 class MediaControlColors {
   const MediaControlColors._();
 
@@ -86,6 +88,17 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     required this.accentStrong,
     required this.accentHover,
     required this.primaryButtonHover,
+    required this.primaryButtonBorder,
+    required this.primaryButtonShadow,
+    required this.buttonForeground,
+    required this.buttonHoverForeground,
+    required this.buttonHoverBackground,
+    required this.buttonActiveBackground,
+    required this.favoriteActiveHoverBackground,
+    required this.volumeTooltipBackground,
+    required this.volumeTooltipForeground,
+    required this.volumeTooltipBorder,
+    required this.volumeTooltipShadow,
     required this.sliderInactive,
     required this.disabledPrimaryButtonSurface,
     required this.disabledPrimaryButtonBorder,
@@ -94,19 +107,36 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     required this.disabledPrimaryButtonShadow,
     required this.disabledPrimaryButtonShadowOffset,
     required this.disabledPrimaryButtonShadowBlur,
+    required this.glassBlur,
     required this.glassThickness,
     required this.glassLightIntensity,
     required this.glassSaturation,
+    required this.compactGlassBlur,
+    required this.compactGlassSaturation,
     required this.glassColor,
     required this.coverWashAlpha,
+    required this.compactCoverWashAlpha,
     required this.playerBorder,
     required this.compactPlayerBorder,
     required this.playerShadow,
     required this.compactPlayerShadow,
     required this.wideShadowOffsetY,
+    required this.wideShadowBlur,
+    required this.compactShadowOffsetY,
+    required this.compactShadowBlur,
     required this.wideSurface,
+    required this.compactSurface,
     required this.wideWashStop,
+    required this.compactWashEnd,
+    required this.compactWashStop,
+    required this.compactBaseGradient,
+    this.compactBaseGradientStops,
+    required this.coverWashMode,
+    required this.coverWashAlignment,
+    required this.coverWashRadius,
     required this.wideHighlightGradient,
+    this.wideHighlightStops,
+    required this.wideInsetHighlight,
     required this.compactInsetHighlight,
   });
 
@@ -115,6 +145,17 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   final Color accentStrong;
   final Color accentHover;
   final Color primaryButtonHover;
+  final Color primaryButtonBorder;
+  final BoxShadow primaryButtonShadow;
+  final Color buttonForeground;
+  final Color buttonHoverForeground;
+  final Color buttonHoverBackground;
+  final Color buttonActiveBackground;
+  final Color favoriteActiveHoverBackground;
+  final Color volumeTooltipBackground;
+  final Color volumeTooltipForeground;
+  final Color volumeTooltipBorder;
+  final BoxShadow volumeTooltipShadow;
   final Color sliderInactive;
   final Color disabledPrimaryButtonSurface;
   final Color disabledPrimaryButtonBorder;
@@ -123,19 +164,36 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   final Color disabledPrimaryButtonShadow;
   final Offset disabledPrimaryButtonShadowOffset;
   final double disabledPrimaryButtonShadowBlur;
+  final double glassBlur;
   final double glassThickness;
   final double glassLightIntensity;
   final double glassSaturation;
+  final double compactGlassBlur;
+  final double compactGlassSaturation;
   final Color glassColor;
   final double coverWashAlpha;
+  final double compactCoverWashAlpha;
   final Color playerBorder;
   final Color compactPlayerBorder;
   final Color playerShadow;
   final Color compactPlayerShadow;
   final double wideShadowOffsetY;
+  final double wideShadowBlur;
+  final double compactShadowOffsetY;
+  final double compactShadowBlur;
   final Color wideSurface;
+  final Color compactSurface;
   final double wideWashStop;
+  final Color compactWashEnd;
+  final double compactWashStop;
+  final List<Color> compactBaseGradient;
+  final List<double>? compactBaseGradientStops;
+  final MediaControlCoverWashMode coverWashMode;
+  final Alignment coverWashAlignment;
+  final double coverWashRadius;
   final List<Color> wideHighlightGradient;
+  final List<double>? wideHighlightStops;
+  final Color wideInsetHighlight;
   final Color compactInsetHighlight;
 
   static const light = MediaControlThemeColors(
@@ -144,31 +202,69 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     accentStrong: MediaControlColors.accentStrong,
     accentHover: MediaControlColors.accentHover,
     primaryButtonHover: MediaControlColors.accentStrong,
+    primaryButtonBorder: MediaControlColors.accentBorder,
+    primaryButtonShadow: BoxShadow(
+      color: MediaControlColors.accentShadow,
+      offset: Offset(0, 12),
+      blurRadius: 24,
+    ),
+    buttonForeground: MediaControlColors.textStrong,
+    buttonHoverForeground: MediaControlColors.accentStrong,
+    buttonHoverBackground: MediaControlColors.accentHover,
+    buttonActiveBackground: Color(0x240078d7),
+    favoriteActiveHoverBackground: MediaControlColors.favoriteActiveHover,
+    volumeTooltipBackground: Color(0xf5ffffff),
+    volumeTooltipForeground: MediaControlColors.textStrong,
+    volumeTooltipBorder: Color(0x1a323e4e),
+    volumeTooltipShadow: BoxShadow(
+      color: Color(0x2e2a384e),
+      offset: Offset(0, 8),
+      blurRadius: 18,
+    ),
     sliderInactive: MediaControlColors.sliderInactive,
-    disabledPrimaryButtonSurface:
-        MediaControlColors.disabledPrimaryButtonSurface,
+    disabledPrimaryButtonSurface: MediaControlColors.disabledButtonSurface,
     disabledPrimaryButtonBorder: MediaControlColors.disabledPrimaryButtonBorder,
     disabledPrimaryIconColor: Colors.transparent,
     disabledPrimaryIconHidden: true,
     disabledPrimaryButtonShadow: MediaControlColors.disabledPrimaryButtonShadow,
     disabledPrimaryButtonShadowOffset: Offset(0, 8),
     disabledPrimaryButtonShadowBlur: 18,
+    glassBlur: 28,
     glassThickness: 28,
     glassLightIntensity: 0.56,
     glassSaturation: 1.34,
+    compactGlassBlur: 28,
+    compactGlassSaturation: 1.45,
     glassColor: Color(0x30ffffff),
     coverWashAlpha: 0.24,
+    compactCoverWashAlpha: 0.24,
     playerBorder: MediaControlColors.playerBorder,
     compactPlayerBorder: MediaControlColors.compactPlayerBorder,
     playerShadow: MediaControlColors.playerShadow,
     compactPlayerShadow: MediaControlColors.compactPlayerShadow,
     wideShadowOffsetY: 18,
+    wideShadowBlur: 48,
+    compactShadowOffsetY: -12,
+    compactShadowBlur: 36,
     wideSurface: MediaControlColors.playerSurfaceSolid,
+    compactSurface: MediaControlColors.compactPlayerSurface,
     wideWashStop: 0.42,
+    compactWashEnd: Color(0xa8ffffff),
+    compactWashStop: 0.54,
+    compactBaseGradient: [
+      MediaControlColors.compactPlayerTop,
+      MediaControlColors.compactPlayerBottom,
+    ],
+    compactBaseGradientStops: null,
+    coverWashMode: MediaControlCoverWashMode.linear,
+    coverWashAlignment: Alignment.centerLeft,
+    coverWashRadius: 0.42,
     wideHighlightGradient: [
       MediaControlColors.playerSurface,
       MediaControlColors.playerAccentWash,
     ],
+    wideHighlightStops: null,
+    wideInsetHighlight: Colors.transparent,
     compactInsetHighlight: MediaControlColors.compactPlayerInsetHighlight,
   );
 
@@ -178,6 +274,25 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     accentStrong: MediaControlColors.nightAccentStrong,
     accentHover: MediaControlColors.nightAccentHover,
     primaryButtonHover: MediaControlColors.nightTransportHover,
+    primaryButtonBorder: MediaControlColors.accentBorder,
+    primaryButtonShadow: BoxShadow(
+      color: MediaControlColors.accentShadow,
+      offset: Offset(0, 12),
+      blurRadius: 24,
+    ),
+    buttonForeground: MediaControlColors.nightText,
+    buttonHoverForeground: MediaControlColors.nightAccentStrong,
+    buttonHoverBackground: MediaControlColors.nightAccentHover,
+    buttonActiveBackground: Color(0x380078d7),
+    favoriteActiveHoverBackground: MediaControlColors.nightFavoriteActiveHover,
+    volumeTooltipBackground: Color(0xfa1d232b),
+    volumeTooltipForeground: MediaControlColors.nightText,
+    volumeTooltipBorder: MediaControlColors.nightPlayerBorder,
+    volumeTooltipShadow: BoxShadow(
+      color: Color(0x57000000),
+      offset: Offset(0, 8),
+      blurRadius: 18,
+    ),
     sliderInactive: MediaControlColors.nightSliderInactive,
     disabledPrimaryButtonSurface:
         MediaControlColors.nightDisabledPrimaryButtonSurface,
@@ -187,22 +302,39 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     disabledPrimaryButtonShadow: MediaControlColors.accentShadow,
     disabledPrimaryButtonShadowOffset: Offset(0, 12),
     disabledPrimaryButtonShadowBlur: 24,
+    glassBlur: 28,
     glassThickness: 34,
     glassLightIntensity: 0.42,
     glassSaturation: 1.18,
+    compactGlassBlur: 28,
+    compactGlassSaturation: 1.45,
     glassColor: Color(0x2411161c),
     coverWashAlpha: 0.22,
+    compactCoverWashAlpha: 0.2,
     playerBorder: MediaControlColors.nightPlayerBorder,
     compactPlayerBorder: MediaControlColors.nightPlayerBorder,
     playerShadow: MediaControlColors.nightPlayerShadow,
     compactPlayerShadow: MediaControlColors.nightPlayerShadow,
     wideShadowOffsetY: -18,
+    wideShadowBlur: 48,
+    compactShadowOffsetY: -12,
+    compactShadowBlur: 36,
     wideSurface: MediaControlColors.nightPlayerSurface,
+    compactSurface: Color(0xeb101419),
     wideWashStop: 0.46,
+    compactWashEnd: Color(0xc711161c),
+    compactWashStop: 0.56,
+    compactBaseGradient: [Color(0xe01d232b), Color(0xe0101419)],
+    compactBaseGradientStops: null,
+    coverWashMode: MediaControlCoverWashMode.linear,
+    coverWashAlignment: Alignment.centerLeft,
+    coverWashRadius: 0.46,
     wideHighlightGradient: [
       MediaControlColors.nightPlayerHighlight,
       MediaControlColors.nightPlayerAccentWash,
     ],
+    wideHighlightStops: null,
+    wideInsetHighlight: Colors.transparent,
     compactInsetHighlight: MediaControlColors.nightCompactPlayerInsetHighlight,
   );
 
@@ -211,8 +343,118 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
   }
 
   @override
-  MediaControlThemeColors copyWith() {
-    return this;
+  MediaControlThemeColors copyWith({
+    Color? textMuted,
+    Color? primaryButtonHover,
+    Color? primaryButtonBorder,
+    BoxShadow? primaryButtonShadow,
+    Color? disabledPrimaryButtonSurface,
+    Color? buttonForeground,
+    Color? buttonHoverForeground,
+    Color? buttonHoverBackground,
+    Color? buttonActiveBackground,
+    Color? favoriteActiveHoverBackground,
+    Color? volumeTooltipBackground,
+    Color? volumeTooltipForeground,
+    Color? volumeTooltipBorder,
+    BoxShadow? volumeTooltipShadow,
+    Color? playerBorder,
+    Color? compactPlayerBorder,
+    Color? playerShadow,
+    Color? compactPlayerShadow,
+    double? wideShadowOffsetY,
+    double? wideShadowBlur,
+    double? compactShadowOffsetY,
+    double? compactShadowBlur,
+    double? glassBlur,
+    double? glassSaturation,
+    double? compactGlassBlur,
+    double? compactGlassSaturation,
+    double? coverWashAlpha,
+    double? compactCoverWashAlpha,
+    Color? wideSurface,
+    Color? compactSurface,
+    MediaControlCoverWashMode? coverWashMode,
+    Alignment? coverWashAlignment,
+    double? coverWashRadius,
+    List<Color>? wideHighlightGradient,
+    List<double>? wideHighlightStops,
+    Color? compactWashEnd,
+    double? compactWashStop,
+    List<Color>? compactBaseGradient,
+    List<double>? compactBaseGradientStops,
+    Color? wideInsetHighlight,
+    Color? compactInsetHighlight,
+  }) {
+    return MediaControlThemeColors(
+      textStrong: textStrong,
+      textMuted: textMuted ?? this.textMuted,
+      accentStrong: accentStrong,
+      accentHover: accentHover,
+      primaryButtonHover: primaryButtonHover ?? this.primaryButtonHover,
+      primaryButtonBorder: primaryButtonBorder ?? this.primaryButtonBorder,
+      primaryButtonShadow: primaryButtonShadow ?? this.primaryButtonShadow,
+      buttonForeground: buttonForeground ?? this.buttonForeground,
+      buttonHoverForeground:
+          buttonHoverForeground ?? this.buttonHoverForeground,
+      buttonHoverBackground:
+          buttonHoverBackground ?? this.buttonHoverBackground,
+      buttonActiveBackground:
+          buttonActiveBackground ?? this.buttonActiveBackground,
+      favoriteActiveHoverBackground:
+          favoriteActiveHoverBackground ?? this.favoriteActiveHoverBackground,
+      volumeTooltipBackground:
+          volumeTooltipBackground ?? this.volumeTooltipBackground,
+      volumeTooltipForeground:
+          volumeTooltipForeground ?? this.volumeTooltipForeground,
+      volumeTooltipBorder: volumeTooltipBorder ?? this.volumeTooltipBorder,
+      volumeTooltipShadow: volumeTooltipShadow ?? this.volumeTooltipShadow,
+      sliderInactive: sliderInactive,
+      disabledPrimaryButtonSurface:
+          disabledPrimaryButtonSurface ?? this.disabledPrimaryButtonSurface,
+      disabledPrimaryButtonBorder: disabledPrimaryButtonBorder,
+      disabledPrimaryIconColor: disabledPrimaryIconColor,
+      disabledPrimaryIconHidden: disabledPrimaryIconHidden,
+      disabledPrimaryButtonShadow: disabledPrimaryButtonShadow,
+      disabledPrimaryButtonShadowOffset: disabledPrimaryButtonShadowOffset,
+      disabledPrimaryButtonShadowBlur: disabledPrimaryButtonShadowBlur,
+      glassBlur: glassBlur ?? this.glassBlur,
+      glassThickness: glassThickness,
+      glassLightIntensity: glassLightIntensity,
+      glassSaturation: glassSaturation ?? this.glassSaturation,
+      compactGlassBlur: compactGlassBlur ?? this.compactGlassBlur,
+      compactGlassSaturation:
+          compactGlassSaturation ?? this.compactGlassSaturation,
+      glassColor: glassColor,
+      coverWashAlpha: coverWashAlpha ?? this.coverWashAlpha,
+      compactCoverWashAlpha:
+          compactCoverWashAlpha ?? this.compactCoverWashAlpha,
+      playerBorder: playerBorder ?? this.playerBorder,
+      compactPlayerBorder: compactPlayerBorder ?? this.compactPlayerBorder,
+      playerShadow: playerShadow ?? this.playerShadow,
+      compactPlayerShadow: compactPlayerShadow ?? this.compactPlayerShadow,
+      wideShadowOffsetY: wideShadowOffsetY ?? this.wideShadowOffsetY,
+      wideShadowBlur: wideShadowBlur ?? this.wideShadowBlur,
+      compactShadowOffsetY: compactShadowOffsetY ?? this.compactShadowOffsetY,
+      compactShadowBlur: compactShadowBlur ?? this.compactShadowBlur,
+      wideSurface: wideSurface ?? this.wideSurface,
+      compactSurface: compactSurface ?? this.compactSurface,
+      wideWashStop: wideWashStop,
+      compactWashEnd: compactWashEnd ?? this.compactWashEnd,
+      compactWashStop: compactWashStop ?? this.compactWashStop,
+      compactBaseGradient: compactBaseGradient ?? this.compactBaseGradient,
+      compactBaseGradientStops:
+          compactBaseGradientStops ?? this.compactBaseGradientStops,
+      coverWashMode: coverWashMode ?? this.coverWashMode,
+      coverWashAlignment: coverWashAlignment ?? this.coverWashAlignment,
+      coverWashRadius: coverWashRadius ?? this.coverWashRadius,
+      wideHighlightGradient:
+          wideHighlightGradient ?? this.wideHighlightGradient,
+      wideHighlightStops: wideHighlightStops ?? this.wideHighlightStops,
+      wideInsetHighlight: wideInsetHighlight ?? this.wideInsetHighlight,
+      compactInsetHighlight:
+          compactInsetHighlight ?? this.compactInsetHighlight,
+    );
   }
 
   @override

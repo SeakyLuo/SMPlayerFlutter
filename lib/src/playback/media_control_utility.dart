@@ -1,6 +1,6 @@
 part of 'media_control.dart';
 
-class MediaControlUtilityRows extends StatelessWidget {
+class MediaControlUtilityRows extends StatefulWidget {
   const MediaControlUtilityRows({
     super.key,
     required this.trackId,
@@ -22,7 +22,13 @@ class MediaControlUtilityRows extends StatelessWidget {
     this.sliderActiveColor,
     this.sliderInactiveColor,
     this.sliderThumbColor,
+    this.sliderThumbShadow,
     this.sliderOverlayColor,
+    this.volumeSliderActiveColor,
+    this.volumeSliderInactiveColor,
+    this.volumeSliderThumbColor,
+    this.volumeSliderThumbShadow,
+    this.volumeSliderOverlayColor,
     required this.onMoreClick,
   });
 
@@ -45,14 +51,73 @@ class MediaControlUtilityRows extends StatelessWidget {
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
+  final BoxShadow? sliderThumbShadow;
   final Color? sliderOverlayColor;
+  final Color? volumeSliderActiveColor;
+  final Color? volumeSliderInactiveColor;
+  final Color? volumeSliderThumbColor;
+  final BoxShadow? volumeSliderThumbShadow;
+  final Color? volumeSliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
 
   @override
+  State<MediaControlUtilityRows> createState() =>
+      _MediaControlUtilityRowsState();
+}
+
+class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
+  final _compactVolumeKey = GlobalKey<_PlayerCompactVolumeActionState>();
+  late var _liveVolumeValue = widget.volumeValue;
+
+  @override
+  void didUpdateWidget(covariant MediaControlUtilityRows oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.volumeValue != widget.volumeValue) {
+      _liveVolumeValue = widget.volumeValue;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final trackId = widget.trackId;
+    final favorite = widget.favorite;
+    final disabled = widget.disabled;
+    final volumeValue = widget.volumeValue;
+    final isMuted = widget.isMuted;
+    final mode = widget.mode;
+    final onToggleMute = widget.onToggleMute;
+    final onToggleShuffle = widget.onToggleShuffle;
+    final onToggleRepeat = widget.onToggleRepeat;
+    final onToggleRepeatOne = widget.onToggleRepeatOne;
+    final onToggleFavorite = widget.onToggleFavorite;
+    final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
+    final condensed = widget.condensed;
+    final minimal = widget.minimal;
+    final width = widget.width;
+    final sliderActiveColor = widget.sliderActiveColor;
+    final sliderInactiveColor = widget.sliderInactiveColor;
+    final sliderThumbColor = widget.sliderThumbColor;
+    final sliderThumbShadow = widget.sliderThumbShadow;
+    final sliderOverlayColor = widget.sliderOverlayColor;
+    final volumeSliderActiveColor =
+        widget.volumeSliderActiveColor ?? sliderActiveColor;
+    final volumeSliderInactiveColor =
+        widget.volumeSliderInactiveColor ?? sliderInactiveColor;
+    final volumeSliderThumbColor =
+        widget.volumeSliderThumbColor ?? sliderThumbColor;
+    final volumeSliderThumbShadow =
+        widget.volumeSliderThumbShadow ?? sliderThumbShadow;
+    final volumeSliderOverlayColor =
+        widget.volumeSliderOverlayColor ?? sliderOverlayColor;
+    final onMoreClick = widget.onMoreClick;
     final i18n = _mediaControlI18n(context);
-    final compactMinimal =
-        minimal && (width == null ? condensed : width! <= 68);
+    final resolvedWidth = _resolvedMediaControlUtilityWidth(
+      width: width,
+      minimal: minimal,
+      condensed: condensed,
+      hasVoiceAssistant: onOpenVoiceAssistant != null,
+    );
+    final compactMinimal = minimal && (width == null ? condensed : width <= 68);
     final utilityButtonSize = compactMinimal ? 34.0 : 36.0;
     final utilityButtonPadding = compactMinimal ? 5.0 : 6.0;
     final utilityIconSize = utilityButtonSize - utilityButtonPadding * 2;
@@ -81,7 +146,9 @@ class MediaControlUtilityRows extends StatelessWidget {
                 padding: utilityButtonPadding,
                 iconSize: utilityIconSize,
                 showLongPressProgress: false,
+                holdDuration: const Duration(milliseconds: 520),
                 onPressed: () {
+                  _compactVolumeKey.currentState?._closePopover();
                   switch (getNextPlaybackMode(mode)) {
                     case PlaybackMode.shuffle:
                       onToggleShuffle();
@@ -100,7 +167,17 @@ class MediaControlUtilityRows extends StatelessWidget {
                   }
                 },
                 onLongPress: () {
-                  _showPlaybackModeMenu(
+                  _showPlaybackModeMenuClosingVolume(
+                    modeButtonContext,
+                    i18n: i18n,
+                    mode: mode,
+                    onToggleShuffle: onToggleShuffle,
+                    onToggleRepeat: onToggleRepeat,
+                    onToggleRepeatOne: onToggleRepeatOne,
+                  );
+                },
+                onSecondaryTap: () {
+                  _showPlaybackModeMenuClosingVolume(
                     modeButtonContext,
                     i18n: i18n,
                     mode: mode,
@@ -127,6 +204,7 @@ class MediaControlUtilityRows extends StatelessWidget {
           ),
           SizedBox(width: modeRowGap),
           _PlayerIconButton(
+            key: const ValueKey('MediaControl.RepeatButton'),
             tooltip:
                 mode == PlaybackMode.repeat
                     ? i18n.t('player.repeatEnabled')
@@ -138,6 +216,7 @@ class MediaControlUtilityRows extends StatelessWidget {
           ),
           SizedBox(width: modeRowGap),
           _PlayerIconButton(
+            key: const ValueKey('MediaControl.RepeatOneButton'),
             tooltip:
                 mode == PlaybackMode.repeatOne
                     ? i18n.t('player.repeatOneEnabled')
@@ -157,7 +236,7 @@ class MediaControlUtilityRows extends StatelessWidget {
             buttonSize: utilityButtonSize,
             padding: utilityButtonPadding,
             iconSize: utilityIconSize,
-            onPressed: onOpenVoiceAssistant!,
+            onPressed: onOpenVoiceAssistant,
           ),
           SizedBox(width: modeRowGap),
         ],
@@ -180,13 +259,7 @@ class MediaControlUtilityRows extends StatelessWidget {
     );
 
     return SizedBox(
-      width:
-          width ??
-          _mediaControlUtilityWidth(
-            minimal: minimal,
-            condensed: condensed,
-            hasVoiceAssistant: onOpenVoiceAssistant != null,
-          ),
+      width: resolvedWidth,
       child: Padding(
         padding:
             minimal
@@ -209,19 +282,22 @@ class MediaControlUtilityRows extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _PlayerCompactVolumeAction(
+                                key: _compactVolumeKey,
                                 tooltip:
                                     isMuted
                                         ? i18n.t('player.unmute')
                                         : i18n.t('player.mute'),
-                                icon: playerVolumeIcon(volumeValue, isMuted),
-                                active: isMuted,
+                                icon: playerVolumeIcon(
+                                  _liveVolumeValue,
+                                  isMuted,
+                                ),
                                 disabled: disabled,
                                 volumeValue: volumeValue,
                                 sliderActiveColor: sliderActiveColor,
                                 sliderInactiveColor: sliderInactiveColor,
                                 sliderThumbColor: sliderThumbColor,
                                 sliderOverlayColor: sliderOverlayColor,
-                                onVolumeChange: onVolumeChange,
+                                onVolumeChange: _handleVolumeChange,
                               ),
                               const SizedBox(width: 8),
                               if (trackId != null)
@@ -251,11 +327,17 @@ class MediaControlUtilityRows extends StatelessWidget {
                             child: Row(
                               children: [
                                 _PlayerIconButton(
+                                  key: const ValueKey(
+                                    'MediaControl.VolumeButton',
+                                  ),
                                   tooltip:
                                       isMuted
                                           ? i18n.t('player.unmute')
                                           : i18n.t('player.mute'),
-                                  icon: playerVolumeIcon(volumeValue, isMuted),
+                                  icon: playerVolumeIcon(
+                                    _liveVolumeValue,
+                                    isMuted,
+                                  ),
                                   active: isMuted,
                                   disabled: disabled,
                                   onPressed: onToggleMute,
@@ -271,18 +353,19 @@ class MediaControlUtilityRows extends StatelessWidget {
                                     value: volumeValue,
                                     disabled: disabled,
                                     activeTrackColor:
-                                        sliderActiveColor ??
+                                        volumeSliderActiveColor ??
                                         MediaControlColors.accent,
                                     inactiveTrackColor:
-                                        sliderInactiveColor ??
+                                        volumeSliderInactiveColor ??
                                         MediaControlColors.sliderInactive,
                                     thumbColor:
-                                        sliderThumbColor ??
+                                        volumeSliderThumbColor ??
                                         MediaControlColors.accent,
+                                    thumbShadow: volumeSliderThumbShadow,
                                     overlayColor:
-                                        sliderOverlayColor ??
+                                        volumeSliderOverlayColor ??
                                         MediaControlColors.accentHover,
-                                    onChange: onVolumeChange,
+                                    onChange: _handleVolumeChange,
                                   ),
                                 ),
                                 const SizedBox(width: 14),
@@ -335,6 +418,32 @@ class MediaControlUtilityRows extends StatelessWidget {
       ),
     );
   }
+
+  void _handleVolumeChange(int value) {
+    setState(() {
+      _liveVolumeValue = value;
+    });
+    widget.onVolumeChange(value);
+  }
+
+  void _showPlaybackModeMenuClosingVolume(
+    BuildContext context, {
+    required SmPlayerI18n i18n,
+    required PlaybackMode mode,
+    required VoidCallback onToggleShuffle,
+    required VoidCallback onToggleRepeat,
+    required VoidCallback onToggleRepeatOne,
+  }) {
+    _compactVolumeKey.currentState?._closePopover();
+    _showPlaybackModeMenu(
+      context,
+      i18n: i18n,
+      mode: mode,
+      onToggleShuffle: onToggleShuffle,
+      onToggleRepeat: onToggleRepeat,
+      onToggleRepeatOne: onToggleRepeatOne,
+    );
+  }
 }
 
 double _mediaControlUtilityWidth({
@@ -351,11 +460,25 @@ double _mediaControlUtilityWidth({
   return 280;
 }
 
+double _resolvedMediaControlUtilityWidth({
+  required double? width,
+  required bool minimal,
+  required bool condensed,
+  required bool hasVoiceAssistant,
+}) {
+  final utilityWidth = _mediaControlUtilityWidth(
+    minimal: minimal,
+    condensed: condensed,
+    hasVoiceAssistant: hasVoiceAssistant,
+  );
+  return max(width ?? utilityWidth, utilityWidth);
+}
+
 class _PlayerCompactVolumeAction extends StatefulWidget {
   const _PlayerCompactVolumeAction({
+    super.key,
     required this.tooltip,
     required this.icon,
-    required this.active,
     required this.disabled,
     required this.volumeValue,
     this.sliderActiveColor,
@@ -367,7 +490,6 @@ class _PlayerCompactVolumeAction extends StatefulWidget {
 
   final String tooltip;
   final IconData icon;
-  final bool active;
   final bool disabled;
   final int volumeValue;
   final Color? sliderActiveColor;
@@ -393,15 +515,6 @@ class _PlayerCompactVolumeActionState
   final _tapRegionGroup = Object();
   OverlayEntry? _popoverEntry;
   var _open = false;
-  var _popoverRebuildScheduled = false;
-
-  @override
-  void didUpdateWidget(covariant _PlayerCompactVolumeAction oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_open) {
-      _schedulePopoverRebuild();
-    }
-  }
 
   @override
   void dispose() {
@@ -423,7 +536,7 @@ class _PlayerCompactVolumeActionState
           key: const ValueKey('MediaControl.CompactVolumeButton'),
           tooltip: widget.tooltip,
           icon: widget.icon,
-          active: widget.active || _open,
+          active: _open,
           disabled: widget.disabled,
           onPressed: _togglePopover,
         ),
@@ -465,20 +578,6 @@ class _PlayerCompactVolumeActionState
     _popoverEntry = null;
   }
 
-  void _schedulePopoverRebuild() {
-    if (_popoverRebuildScheduled) {
-      return;
-    }
-    _popoverRebuildScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _popoverRebuildScheduled = false;
-      if (!mounted) {
-        return;
-      }
-      _popoverEntry?.markNeedsBuild();
-    });
-  }
-
   Widget _buildPopoverOverlay(BuildContext context) {
     final buttonBox = this.context.findRenderObject()! as RenderBox;
     final overlayBox =
@@ -496,7 +595,7 @@ class _PlayerCompactVolumeActionState
       ],
     );
     return Positioned(
-      left: buttonTopRight.dx - _popoverSize.width - 6,
+      left: buttonTopRight.dx - _popoverSize.width + 6,
       top: buttonTopRight.dy - _popoverSize.height - 8,
       width: _popoverSize.width,
       height: _popoverSize.height,
@@ -523,8 +622,18 @@ class _PlayerCompactVolumeActionState
               verticalTooltipSide: VolumeSliderVerticalTooltipSide.left,
               tooltipBackgroundColor: _popoverBackground,
               tooltipForegroundColor: Colors.white,
+              tooltipBorderColor: _popoverBorder,
+              tooltipShadow: const BoxShadow(
+                color: Color(0x57000000),
+                offset: Offset(0, 8),
+                blurRadius: 18,
+              ),
               showTooltipOnMount: true,
-              onChange: widget.onVolumeChange,
+              showTooltipOnHoverOrFocus: false,
+              onChange: (value) {
+                widget.onVolumeChange(value);
+                _popoverEntry?.markNeedsBuild();
+              },
             ),
           ),
         ),
@@ -595,8 +704,8 @@ class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
                 disabledColor: MediaControlColors.textStrongFor(
                   context,
                 ).withValues(alpha: 0.46),
-                icon: Icon(
-                  playerVolumeIcon(_liveValue, widget.muted),
+                icon: MediaControlIconGlyph(
+                  icon: playerVolumeIcon(_liveValue, widget.muted),
                   size: 18,
                 ),
                 onPressed: widget.disabled ? null : widget.onToggleMute,

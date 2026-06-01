@@ -178,6 +178,7 @@ class MediaControl extends StatelessWidget {
         if (compact) {
           return MediaControlPlayerFrame(
             artworkPath: artworkPath,
+            preserveWideBackground: true,
             child: Padding(
               padding: playerPadding,
               child: _CompactMediaControlLayout(
@@ -237,7 +238,9 @@ class MediaControl extends StatelessWidget {
           artworkPath: artworkPath,
           padding: playerPadding,
           leadingFlex: 9,
-          surfaceFlex: 19,
+          surfaceFlex: 10,
+          utilityFlex: 9,
+          preserveWideBackground: true,
           leading: _PlayerTrack(
             track: track,
             artworkPath: artworkPath,
@@ -245,7 +248,6 @@ class MediaControl extends StatelessWidget {
             onArtworkError: onArtworkError,
             disabled: track.id == null,
             onOpenNowPlaying: onOpenNowPlaying,
-            onToggleWindowFullScreen: onToggleWindowFullScreen,
           ),
           trackId: track.id,
           isLoading: track.isLoading,

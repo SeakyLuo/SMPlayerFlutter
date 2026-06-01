@@ -44,6 +44,10 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show NightMode;
 
 const _nowPlayingFullPlayerHeight = 120.0;
+const _nowPlayingFullPlayerIdleVisibleHeight = 10.0;
+const _nowPlayingFullPlayerIdleSlideOffset =
+    (_nowPlayingFullPlayerHeight - _nowPlayingFullPlayerIdleVisibleHeight) /
+    _nowPlayingFullPlayerHeight;
 const _nowPlayingFullPlayerTopRadius = 18.0;
 const _nowPlayingFullLayoutCompactBreakpoint = 760.0;
 const _nowPlayingFullImmersiveCompactBreakpoint = 800.0;
@@ -379,6 +383,98 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           );
         }
 
+        Widget buildQueueLayer(double viewportWidth) {
+          if (viewportWidth <= _nowPlayingFullLayoutCompactBreakpoint) {
+            return Positioned.fill(
+              child: KeyedSubtree(
+                key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+                child: buildQueuePopover(true),
+              ),
+            );
+          }
+          return Positioned(
+            top: 56,
+            right: 24,
+            bottom: 132,
+            width: min(viewportWidth * 0.4, 520),
+            child: KeyedSubtree(
+              key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+              child: buildQueuePopover(false),
+            ),
+          );
+        }
+
+        Widget buildPlayerBarLayer(double viewportWidth) {
+          return Positioned(
+            right: 0,
+            bottom: 0,
+            left: 0,
+            height: _nowPlayingFullPlayerHeight,
+            child: AnimatedOpacity(
+              key: const ValueKey('NowPlayingFull.PlayerBarOpacity'),
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.ease,
+              opacity: _isPlayerBarRaised ? 1 : 0.24,
+              child: AnimatedSlide(
+                key: const ValueKey('NowPlayingFull.PlayerBarSlide'),
+                duration: const Duration(milliseconds: 260),
+                curve: const Cubic(0.2, 0, 0, 1),
+                offset:
+                    _isPlayerBarRaised
+                        ? Offset.zero
+                        : const Offset(0, _nowPlayingFullPlayerIdleSlideOffset),
+                child: _NowPlayingFullControlPanel(
+                  song: currentSong,
+                  state: mediaControlState,
+                  disabled: currentSong == null,
+                  i18n: i18n,
+                  night: immersiveNightActive,
+                  onPrevious: () {
+                    _playPreviousFromQueue(queueSongs);
+                  },
+                  onNext: () {
+                    _playNextFromQueue(queueSongs);
+                  },
+                  onTogglePlayPause: () {
+                    _togglePlayPauseFromQueue(queueSongs);
+                  },
+                  onToggleShuffle: _toggleShufflePlayback,
+                  onToggleFavorite:
+                      currentSong == null
+                          ? null
+                          : () {
+                            unawaited(
+                              _toggleSongsFavorite([
+                                currentSong.id,
+                              ], !currentSong.favorite),
+                            );
+                          },
+                  onOpenVoiceAssistant: shellActions?.onOpenVoiceAssistant,
+                  onClose: () {
+                    unawaited(_closeFullPage(shellActions));
+                  },
+                  onMoreClick: (buttonContext) {
+                    unawaited(
+                      _showMoreMenu(
+                        buttonContext,
+                        currentSong,
+                        snapshot,
+                        queueSongIds,
+                        customPlaylists,
+                        recentSongs: recentSongs,
+                        shellActions: shellActions,
+                        isCompact:
+                            viewportWidth <=
+                            _nowPlayingFullImmersiveCompactBreakpoint,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        }
+
         return _NowPlayingFullScaffold(
           artworkPath: displayArtworkPath,
           coverColor: _coverColor,
@@ -393,203 +489,114 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             onExit: (_) {
               _schedulePlayerBarHide();
             },
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Padding(
-                    padding: _contentPadding(MediaQuery.sizeOf(context).width),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact =
-                            MediaQuery.sizeOf(context).width <=
-                            _nowPlayingFullLayoutCompactBreakpoint;
-                        return compact
-                            ? _buildCompactStage(
-                              currentSong,
-                              displayArtworkPath,
-                              mediaControlState,
-                              queueSongs,
-                              queueSongIds,
-                              customPlaylists,
-                              snapshot,
-                              i18n,
-                            )
-                            : _buildWideStage(
-                              currentSong,
-                              displayArtworkPath,
-                              mediaControlState,
-                              queueSongs,
-                              queueSongIds,
-                              customPlaylists,
-                              snapshot,
-                              i18n,
-                            );
-                      },
-                    ),
-                  ),
-                ),
-                _NowPlayingFullTopBar(
-                  i18n: i18n,
-                  playlistOpen: _isPlaylistOpen,
-                  onClose: () {
-                    unawaited(_closeFullPage(shellActions));
-                  },
-                  onTogglePlaylist: () {
-                    final dialogWasOpen = _dialogMode != null;
-                    setState(() {
-                      _dialogMode = null;
-                      _isPlaylistOpen = !_isPlaylistOpen;
-                    });
-                    if (dialogWasOpen) {
-                      _schedulePlayerBarHide();
-                    }
-                  },
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  left: 0,
-                  height: _nowPlayingFullPlayerHeight,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 180),
-                    opacity: _isPlayerBarRaised ? 1 : 0.24,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      offset:
-                          _isPlayerBarRaised
-                              ? Offset.zero
-                              : const Offset(0, 0.92),
-                      child: _NowPlayingFullControlPanel(
-                        song: currentSong,
-                        state: mediaControlState,
-                        disabled: currentSong == null,
-                        i18n: i18n,
-                        night: immersiveNightActive,
-                        previousButtonRestartsTrack:
-                            queueSongs.isNotEmpty &&
-                            shouldRestartCurrentTrackForPrevious(
-                              progressSeconds:
-                                  mediaControlState.progressSeconds,
-                              queueLength: queueSongs.length,
-                              restartAfterThresholdEnabled:
-                                  smPlayerGlobalSettingsSnapshot
-                                      .previousButtonRestartsTrack,
-                            ),
-                        onPrevious: () {
-                          _playPreviousFromQueue(queueSongs);
-                        },
-                        onForcePrevious: () {
-                          _playPreviousFromQueue(
-                            queueSongs,
-                            forcePrevious: true,
-                          );
-                        },
-                        onNext: () {
-                          _playNextFromQueue(queueSongs);
-                        },
-                        onTogglePlayPause: () {
-                          _togglePlayPauseFromQueue(queueSongs);
-                        },
-                        onToggleShuffle: _toggleShufflePlayback,
-                        onToggleFavorite:
-                            currentSong == null
-                                ? null
-                                : () {
-                                  unawaited(
-                                    _toggleSongsFavorite([
-                                      currentSong.id,
-                                    ], !currentSong.favorite),
-                                  );
-                                },
-                        onOpenVoiceAssistant:
-                            shellActions?.onOpenVoiceAssistant,
-                        onClose: () {
-                          unawaited(_closeFullPage(shellActions));
-                        },
-                        onMoreClick: (buttonContext) {
-                          unawaited(
-                            _showMoreMenu(
-                              buttonContext,
-                              currentSong,
-                              snapshot,
-                              queueSongIds,
-                              customPlaylists,
-                              recentSongs: recentSongs,
-                              shellActions: shellActions,
-                              isCompact:
-                                  MediaQuery.sizeOf(context).width <=
-                                  _nowPlayingFullImmersiveCompactBreakpoint,
-                            ),
-                          );
-                        },
+            child: Builder(
+              builder: (context) {
+                final viewportWidth = MediaQuery.sizeOf(context).width;
+                final queueLayer = buildQueueLayer(viewportWidth);
+                final playerBarLayer = buildPlayerBarLayer(viewportWidth);
+                final compactPlayerBarUnderQueue =
+                    viewportWidth <= _nowPlayingFullImmersiveCompactBreakpoint;
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: _contentPadding(viewportWidth),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compact =
+                                viewportWidth <=
+                                _nowPlayingFullLayoutCompactBreakpoint;
+                            return compact
+                                ? _buildCompactStage(
+                                  currentSong,
+                                  displayArtworkPath,
+                                  mediaControlState,
+                                  queueSongs,
+                                  queueSongIds,
+                                  customPlaylists,
+                                  snapshot,
+                                  i18n,
+                                )
+                                : _buildWideStage(
+                                  currentSong,
+                                  displayArtworkPath,
+                                  mediaControlState,
+                                  queueSongs,
+                                  queueSongIds,
+                                  customPlaylists,
+                                  snapshot,
+                                  i18n,
+                                );
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                if (MediaQuery.sizeOf(context).width <=
-                    _nowPlayingFullLayoutCompactBreakpoint)
-                  Positioned.fill(
-                    child: KeyedSubtree(
-                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
-                      child: buildQueuePopover(true),
+                    _NowPlayingFullTopBar(
+                      i18n: i18n,
+                      playlistOpen: _isPlaylistOpen,
+                      onClose: () {
+                        unawaited(_closeFullPage(shellActions));
+                      },
+                      onTogglePlaylist: () {
+                        final dialogWasOpen = _dialogMode != null;
+                        setState(() {
+                          _dialogMode = null;
+                          _isPlaylistOpen = !_isPlaylistOpen;
+                        });
+                        if (dialogWasOpen) {
+                          _schedulePlayerBarHide();
+                        }
+                      },
                     ),
-                  )
-                else
-                  Positioned(
-                    top: 56,
-                    right: 24,
-                    bottom: 132,
-                    width: min(MediaQuery.sizeOf(context).width * 0.4, 520),
-                    child: KeyedSubtree(
-                      key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
-                      child: buildQueuePopover(false),
-                    ),
-                  ),
-                if (noticeText != null)
-                  Positioned(
-                    right: 76,
-                    bottom: _nowPlayingFullPlayerHeight + 14,
-                    left: 76,
-                    child: _NowPlayingFullErrorBanner(message: noticeText),
-                  ),
-                if (currentSong != null && _dialogMode != null)
-                  MusicDialog(
-                    song: currentSong,
-                    initialMode: _dialogMode!,
-                    currentTrackId: mediaControlState.track.id,
-                    isPlaying: mediaControlState.isPlaying,
-                    queueSongIds: queueSongIds,
-                    canPause:
-                        mediaControlState.isPlaying &&
-                        mediaControlState.track.id == currentSong.id,
-                    onPlay:
-                        ref
-                            .read(mediaControlControllerProvider)
-                            .onTogglePlayPause,
-                    onPlayTrack: (trackId, nextQueueSongIds) {
-                      final song = songsById[trackId] ?? currentSong;
-                      ref
-                          .read(mediaControlControllerProvider)
-                          .playTrack(
-                            mediaControlTrackForSong(song, i18n),
-                            durationSeconds: song.duration.toDouble(),
-                            queueIndex: nextQueueSongIds.indexOf(trackId),
-                          );
-                      _replaceQueue(nextQueueSongIds);
-                    },
-                    onReveal: _revealPath,
-                    onClose: () {
-                      setState(() {
-                        _dialogMode = null;
-                      });
-                      _schedulePlayerBarHide();
-                    },
-                    onSaved: () {
-                      _handleMusicDialogSaved(currentSong);
-                    },
-                  ),
-              ],
+                    if (compactPlayerBarUnderQueue) playerBarLayer,
+                    queueLayer,
+                    if (!compactPlayerBarUnderQueue) playerBarLayer,
+                    if (noticeText != null)
+                      Positioned(
+                        right: 76,
+                        bottom: _nowPlayingFullPlayerHeight + 14,
+                        left: 76,
+                        child: _NowPlayingFullErrorBanner(message: noticeText),
+                      ),
+                    if (currentSong != null && _dialogMode != null)
+                      MusicDialog(
+                        song: currentSong,
+                        initialMode: _dialogMode!,
+                        currentTrackId: mediaControlState.track.id,
+                        isPlaying: mediaControlState.isPlaying,
+                        queueSongIds: queueSongIds,
+                        canPause:
+                            mediaControlState.isPlaying &&
+                            mediaControlState.track.id == currentSong.id,
+                        onPlay:
+                            ref
+                                .read(mediaControlControllerProvider)
+                                .onTogglePlayPause,
+                        onPlayTrack: (trackId, nextQueueSongIds) {
+                          final song = songsById[trackId] ?? currentSong;
+                          ref
+                              .read(mediaControlControllerProvider)
+                              .playTrack(
+                                mediaControlTrackForSong(song, i18n),
+                                durationSeconds: song.duration.toDouble(),
+                                queueIndex: nextQueueSongIds.indexOf(trackId),
+                              );
+                          _replaceQueue(nextQueueSongIds);
+                        },
+                        onReveal: _revealPath,
+                        onClose: () {
+                          setState(() {
+                            _dialogMode = null;
+                          });
+                          _schedulePlayerBarHide();
+                        },
+                        onSaved: () {
+                          _handleMusicDialogSaved(currentSong);
+                        },
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -1552,6 +1559,79 @@ class _NowPlayingFullScaffold extends StatelessWidget {
         artworkPath == null || artworkPath!.isEmpty ? null : File(artworkPath!);
     final colors = NowPlayingFullThemeColors.of(context, night: night);
     final theme = Theme.of(context);
+    final mediaControlColors = (night
+            ? MediaControlThemeColors.dark
+            : MediaControlThemeColors.light)
+        .copyWith(
+          textMuted:
+              night ? const Color(0xa8ffffff) : MediaControlColors.textMuted,
+          primaryButtonBorder:
+              night ? const Color(0x6b0078d7) : Colors.transparent,
+          primaryButtonHover: MediaControlColors.accentStrong,
+          disabledPrimaryButtonSurface: MediaControlColors.accent,
+          primaryButtonShadow: BoxShadow(
+            color:
+                night
+                    ? const Color(0x52000000)
+                    : MediaControlColors.accentShadow,
+            offset: const Offset(0, 12),
+            blurRadius: 26,
+          ),
+          buttonForeground:
+              night ? const Color(0xf0f6f9fc) : MediaControlColors.textStrong,
+          buttonHoverForeground:
+              night ? Colors.white : MediaControlColors.accentStrong,
+          buttonHoverBackground:
+              night ? const Color(0x2e0078d7) : const Color(0x1a0078d7),
+          buttonActiveBackground:
+              night ? const Color(0x380078d7) : const Color(0x1a0078d7),
+          favoriteActiveHoverBackground:
+              night ? const Color(0x38ffffff) : const Color(0x1a0078d7),
+          volumeTooltipBackground: const Color(0xe014181e),
+          volumeTooltipForeground: Colors.white,
+          volumeTooltipBorder: const Color(0x2effffff),
+          volumeTooltipShadow: const BoxShadow(
+            color: Color(0x57000000),
+            offset: Offset(0, 10),
+            blurRadius: 24,
+          ),
+          playerBorder:
+              night ? const Color(0x1fd6e0ec) : const Color(0xb8ccd5e0),
+          compactPlayerBorder:
+              night ? const Color(0x1fd6e0ec) : const Color(0xb8ccd5e0),
+          playerShadow:
+              night ? const Color(0x57000000) : const Color(0x24445870),
+          compactPlayerShadow:
+              night ? const Color(0x57000000) : const Color(0x24445870),
+          wideShadowOffsetY: -18,
+          wideShadowBlur: night ? 48 : 56,
+          compactShadowOffsetY: night ? -12 : -18,
+          compactShadowBlur: night ? 36 : 56,
+          glassBlur: night ? 28 : 18,
+          glassSaturation: night ? 1 : 1.4,
+          compactGlassBlur: night ? 28 : 18,
+          compactGlassSaturation: night ? 1.45 : 1.4,
+          coverWashAlpha: night ? 0.22 : 0.24,
+          compactCoverWashAlpha: night ? 0.2 : 0.24,
+          wideSurface:
+              night ? const Color(0xe611161c) : const Color(0xc7ffffff),
+          compactSurface:
+              night ? const Color(0xeb101419) : const Color(0xc7ffffff),
+          compactWashEnd: night ? const Color(0xc711161c) : Colors.transparent,
+          compactWashStop: night ? 0.56 : 0.42,
+          compactBaseGradient:
+              night ? const [Color(0xe01d232b), Color(0xe0101419)] : null,
+          coverWashMode: night ? null : MediaControlCoverWashMode.radial,
+          coverWashAlignment: night ? null : const Alignment(-0.6, -0.56),
+          coverWashRadius: night ? null : 0.42,
+          wideHighlightGradient:
+              night ? const [Color(0x0effffff), Color(0x1f0078d7)] : null,
+          wideHighlightStops: null,
+          wideInsetHighlight:
+              night ? const Color(0x0cffffff) : const Color(0xc7ffffff),
+          compactInsetHighlight:
+              night ? const Color(0x0cffffff) : const Color(0xc7ffffff),
+        );
     final scopedTheme = theme.copyWith(
       extensions: [
         for (final extension in theme.extensions.values)
@@ -1559,7 +1639,7 @@ class _NowPlayingFullScaffold extends StatelessWidget {
               extension is! MediaControlThemeColors)
             extension,
         colors,
-        night ? MediaControlThemeColors.dark : MediaControlThemeColors.light,
+        mediaControlColors,
       ],
     );
 
@@ -2876,9 +2956,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
     required this.disabled,
     required this.i18n,
     required this.night,
-    required this.previousButtonRestartsTrack,
     required this.onPrevious,
-    required this.onForcePrevious,
     required this.onNext,
     required this.onTogglePlayPause,
     required this.onToggleShuffle,
@@ -2893,9 +2971,7 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
   final bool disabled;
   final SmPlayerI18n i18n;
   final bool night;
-  final bool previousButtonRestartsTrack;
   final VoidCallback onPrevious;
-  final VoidCallback onForcePrevious;
   final VoidCallback onNext;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleShuffle;
@@ -2953,10 +3029,9 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
             state.durationSeconds,
             song,
           ),
-          previousButtonRestartsTrack: previousButtonRestartsTrack,
+          previousButtonRestartsTrack: false,
           onTogglePlayPause: onTogglePlayPause,
           onPrevious: onPrevious,
-          onForcePrevious: onForcePrevious,
           onNext: onNext,
           onSeek: controller.onSeek,
           onBeginSeek: controller.onBeginSeek,
@@ -2977,7 +3052,23 @@ class _NowPlayingFullControlPanel extends ConsumerWidget {
           sliderInactiveColor:
               night ? const Color(0x33ffffff) : const Color(0x2e5b697a),
           sliderThumbColor: Colors.white,
+          sliderThumbShadow: BoxShadow(
+            color: night ? const Color(0x61000000) : const Color(0x52445870),
+            offset: const Offset(0, 1),
+            blurRadius: 8,
+          ),
           sliderOverlayColor: Colors.transparent,
+          volumeSliderActiveColor:
+              night ? const Color(0xf20078d7) : const Color(0xeb0078d7),
+          volumeSliderInactiveColor:
+              night ? const Color(0x2ecbd5e1) : const Color(0x2e323e4e),
+          volumeSliderThumbColor: MediaControlColors.accent,
+          volumeSliderThumbShadow: const BoxShadow(
+            color: Color(0x47000000),
+            offset: Offset(0, 1),
+            blurRadius: 4,
+          ),
+          volumeSliderOverlayColor: Colors.transparent,
           onMoreClick: onMoreClick,
         );
       },
@@ -3091,6 +3182,7 @@ class _NowPlayingFullExitButtonState extends State<_NowPlayingFullExitButton> {
         child: AnimatedContainer(
           key: const ValueKey('NowPlayingFull.ExitArtworkShell'),
           duration: const Duration(milliseconds: 140),
+          curve: Curves.ease,
           width: size,
           height: size,
           clipBehavior: Clip.antiAlias,
@@ -3125,21 +3217,69 @@ class _NowPlayingFullExitButtonState extends State<_NowPlayingFullExitButton> {
                         offset: const Offset(0, 12),
                       ),
                     ]
-                    : const [],
+                    : null,
           ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color:
-                  dark && !active
-                      ? const Color(0x6b080c12)
-                      : Colors.transparent,
-            ),
-            child: ExitFullscreenIcon(
-              key: const ValueKey('NowPlayingFull.ExitIcon'),
-              size: 36,
-              color: iconColor,
-            ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (dark)
+                const ColoredBox(
+                  key: ValueKey('NowPlayingFull.ExitAlbumSwatch'),
+                  color: Colors.transparent,
+                ),
+              if (dark)
+                BackdropFilter(
+                  key: const ValueKey('NowPlayingFull.ExitArtworkBackdrop'),
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: _NowPlayingFullExitOverlay(
+                    color: const Color(0x6b080c12),
+                    iconColor: iconColor,
+                    shadows: const [
+                      Shadow(
+                        color: Color(0x57000000),
+                        offset: Offset(0, 2),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _NowPlayingFullExitOverlay(
+                  color: Colors.transparent,
+                  iconColor: iconColor,
+                  shadows: const [],
+                ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingFullExitOverlay extends StatelessWidget {
+  const _NowPlayingFullExitOverlay({
+    required this.color,
+    required this.iconColor,
+    required this.shadows,
+  });
+
+  final Color color;
+  final Color iconColor;
+  final List<Shadow> shadows;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: const ValueKey('NowPlayingFull.ExitArtworkOverlay'),
+      decoration: BoxDecoration(color: color),
+      child: Center(
+        child: ExitFullscreenIcon(
+          key: const ValueKey('NowPlayingFull.ExitIcon'),
+          size: 36,
+          color: iconColor,
+          strokeWidth: 2,
+          shadows: shadows,
         ),
       ),
     );

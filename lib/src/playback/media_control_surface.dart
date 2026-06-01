@@ -38,6 +38,7 @@ class MediaControlSurface extends StatefulWidget {
     this.sliderActiveColor,
     this.sliderInactiveColor,
     this.sliderThumbColor,
+    this.sliderThumbShadow,
     this.sliderOverlayColor,
     required this.onMoreClick,
   });
@@ -77,6 +78,7 @@ class MediaControlSurface extends StatefulWidget {
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
+  final BoxShadow? sliderThumbShadow;
   final Color? sliderOverlayColor;
   final ValueChanged<BuildContext> onMoreClick;
 
@@ -122,6 +124,7 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
           sliderActiveColor: widget.sliderActiveColor,
           sliderInactiveColor: widget.sliderInactiveColor,
           sliderThumbColor: widget.sliderThumbColor,
+          sliderThumbShadow: widget.sliderThumbShadow,
           sliderOverlayColor: widget.sliderOverlayColor,
           previousButtonRestartsTrack: widget.previousButtonRestartsTrack,
           onTogglePlayPause: widget.onTogglePlayPause,
@@ -180,6 +183,7 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
                 sliderActiveColor: widget.sliderActiveColor,
                 sliderInactiveColor: widget.sliderInactiveColor,
                 sliderThumbColor: widget.sliderThumbColor,
+                sliderThumbShadow: widget.sliderThumbShadow,
                 sliderOverlayColor: widget.sliderOverlayColor,
                 onMoreClick: widget.onMoreClick,
               ),
@@ -207,6 +211,7 @@ class MediaControlButtons extends StatelessWidget {
     this.sliderActiveColor,
     this.sliderInactiveColor,
     this.sliderThumbColor,
+    this.sliderThumbShadow,
     this.sliderOverlayColor,
     required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
@@ -231,6 +236,7 @@ class MediaControlButtons extends StatelessWidget {
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
+  final BoxShadow? sliderThumbShadow;
   final Color? sliderOverlayColor;
   final bool previousButtonRestartsTrack;
   final VoidCallback onTogglePlayPause;
@@ -274,11 +280,24 @@ class MediaControlButtons extends StatelessWidget {
     final progressTextWidth = navMinimal || condensed ? 42.0 : 44.0;
     final progressTextSize = navMinimal || condensed ? 12.0 : 13.0;
     final progressGap = navMinimal || condensed ? 8.0 : 12.0;
+    final navMinimalTopRowHeight =
+        navMinimal
+            ? condensed
+                ? 72.0
+                : 74.0
+            : 0.0;
+    final navMinimalTransportOffset =
+        navMinimal ? (navMinimalTopRowHeight - transportHeight) / 2 : 0.0;
+    final centerGap = navMinimal ? 0.0 : 4.0;
 
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment:
+          navMinimal ? MainAxisAlignment.start : MainAxisAlignment.center,
       children: [
+        if (navMinimalTransportOffset > 0)
+          SizedBox(height: navMinimalTransportOffset),
         SizedBox(
+          key: const ValueKey('MediaControl.TransportRow'),
           height: transportHeight,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -286,7 +305,10 @@ class MediaControlButtons extends StatelessWidget {
               _PlayerIconButton(
                 key: const ValueKey('MediaControl.PreviousButton'),
                 tooltip: previousTitle,
-                longPressTooltip: i18n.t('player.forcePrevious'),
+                longPressTooltip:
+                    previousButtonRestartsTrack
+                        ? i18n.t('player.forcePrevious')
+                        : null,
                 icon: _previousIcon,
                 buttonSize: 36,
                 padding: 6,
@@ -333,11 +355,15 @@ class MediaControlButtons extends StatelessWidget {
             ],
           ),
         ),
+        if (navMinimalTransportOffset > 0)
+          SizedBox(height: navMinimalTransportOffset),
+        if (centerGap > 0) SizedBox(height: centerGap),
         LayoutBuilder(
           builder: (context, constraints) {
             final progressWidth =
                 constraints.maxWidth + progressSideOverflow * 2;
             return SizedBox(
+              key: const ValueKey('MediaControl.ProgressRow'),
               height: progressHeight,
               child: OverflowBox(
                 alignment: Alignment.centerLeft,
@@ -381,6 +407,7 @@ class MediaControlButtons extends StatelessWidget {
                                     activeTrackColor: sliderActiveColor,
                                     inactiveTrackColor: sliderInactiveColor,
                                     thumbColor: sliderThumbColor,
+                                    thumbShadow: sliderThumbShadow,
                                     overlayColor: sliderOverlayColor,
                                   ),
                         ),

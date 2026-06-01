@@ -3421,7 +3421,7 @@ void main() {
       expect(find.text('1 selected'), findsOneWidget);
 
       await tester.tap(find.text('Play Selected'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 220));
 
       expect(repository.replacedNowPlaying, [1]);
       expect(find.text('1 selected'), findsNothing);
@@ -3502,7 +3502,7 @@ void main() {
       await tester.tap(find.text('Select All'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Play Selected'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 220));
 
       expect(repository.replacedNowPlaying, [1, 2, 3]);
       expect(mediaController.state.track.id, 1);
@@ -4122,11 +4122,12 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Green Song'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(repository.replacedNowPlaying, [1, 2, 3]);
       expect(mediaController.state.track.id, 3);
       expect(mediaController.state.selectedQueueIndex, 2);
+      expect(mediaController.state.isPlaying, isTrue);
     },
   );
 

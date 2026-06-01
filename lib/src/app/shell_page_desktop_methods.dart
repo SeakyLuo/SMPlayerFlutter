@@ -334,28 +334,19 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
 
   void _setDesktopWindowFullScreen(bool fullScreen) {
     final currentPath = widget.currentPath ?? _currentPath;
-    final currentLocation = widget.currentLocation ?? currentPath;
-    final nextPath =
-        !fullScreen && currentPath == '/now-playing/full'
-            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
-            : currentPath;
-    if (_isWindowFullScreen == fullScreen && nextPath == currentPath) {
+    if (_isWindowFullScreen == fullScreen) {
       return;
     }
     setState(() {
       _isWindowFullScreen = fullScreen;
-      if (nextPath != currentPath) {
-        _currentPath = nextPath;
-      }
     });
-    if (nextPath != currentPath) {
-      widget.onNavigate?.call(nextPath);
-    }
     unawaited(
       _settingsController.saveDisplayModeState(
         lastDisplayMode:
             fullScreen
                 ? SmPlayerDisplayMode.fullScreen
+                : currentPath == '/now-playing/full'
+                ? SmPlayerDisplayMode.immersive
                 : SmPlayerDisplayMode.normal,
       ),
     );

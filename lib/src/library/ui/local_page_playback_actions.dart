@@ -96,16 +96,31 @@ extension _LocalPagePlaybackActions on _LocalPageState {
 
   void _jumpToSongKey(
     String key,
-    Map<String, int> songQuickJumpMap, {
-    required double rowExtent,
-  }) {
+    Map<String, int> songQuickJumpMap,
+    List<LibrarySong> currentSongs,
+  ) {
     final index = songQuickJumpMap[key];
     if (index == null) {
       return;
     }
 
+    final song = currentSongs[index];
+    final targetContext = GlobalObjectKey(song).currentContext!;
+    final targetBox = targetContext.findRenderObject()! as RenderBox;
+    final firstSongContext =
+        GlobalObjectKey(currentSongs.first).currentContext!;
+    final firstSongBox = firstSongContext.findRenderObject()! as RenderBox;
+    final contentTop =
+        firstSongBox.localToGlobal(Offset.zero).dy + _scrollController.offset;
+    final targetScrollOffset = (_scrollController.offset +
+            targetBox.localToGlobal(Offset.zero).dy -
+            contentTop)
+        .clamp(
+          _scrollController.position.minScrollExtent,
+          _scrollController.position.maxScrollExtent,
+        );
     _scrollController.animateTo(
-      index * rowExtent,
+      targetScrollOffset,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
     );
