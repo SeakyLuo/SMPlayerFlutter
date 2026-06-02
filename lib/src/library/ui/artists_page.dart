@@ -19,7 +19,7 @@ import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_model.dart'
     show PlaybackMode, shufflePlaybackQueueForCurrentTrack;
 import '../../playback/media_control_track_factory.dart';
-import '../../playback/playlist_control_item.dart';
+import '../../playback/playlist_control.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
@@ -34,7 +34,7 @@ import 'music_dialog.dart';
 import 'page_selection_store.dart';
 import 'page_search_history_panel.dart';
 import 'song_artwork.dart';
-import '../../platform/desktop_features.dart';
+import '../../platform/desktop_feature_service.dart';
 import 'quick_jump_tooltip.dart';
 
 part 'artists_master_detail.dart';
@@ -554,92 +554,92 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 );
               },
             ),
-            if (_selection.multiSelect)
-              MultiSelectCommandBar(
-                visible: _selection.multiSelect,
-                selectedCount: selectedVisibleSongIds.length,
-                playlists: customPlaylists,
-                addToSongIds: selectedVisibleSongIds,
-                includeNowPlayingInAddTo: true,
-                includeFavoritesInAddTo: hasNotFavoriteSongs(
-                  selectedVisibleSongIds,
-                  songsById,
-                ),
-                onAddToNowPlaying:
-                    selectedVisibleSongIds.isEmpty
-                        ? null
-                        : () {
-                          addSongsToNowPlayingWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: selectedVisibleSongIds,
-                          );
-                        },
-                onToggleFavorite:
-                    selectedVisibleSongIds.isEmpty
-                        ? null
-                        : () {
-                          setSongsFavoriteWithUndo(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            songIds: notFavoriteSongIds(
-                              selectedVisibleSongIds,
-                              songsById,
-                            ),
-                            favorite: true,
-                          );
-                        },
-                onCreatePlaylist:
-                    selectedVisibleSongIds.isEmpty
-                        ? null
-                        : () async {
-                          await createPlaylistWithSongs(
-                            context: context,
-                            ref: ref,
-                            i18n: i18n,
-                            playlists: customLibraryPlaylists,
-                            defaultName:
-                                selectedArtistForSelection?.name ??
-                                i18n.t('common.artists'),
-                            songIds: selectedVisibleSongIds,
-                          );
-                        },
-                onPlay: () {
-                  _playSongIds(selectedVisibleSongIds);
-                  setState(() {
-                    _selection.hideAfterOperation(
-                      snapshot.hideMultiSelectCommandBarAfterOperation,
-                    );
-                  });
-                },
-                onAddToPlaylist: (playlistId) {
-                  addSongsToPlaylistWithUndo(
-                    context: context,
-                    ref: ref,
-                    i18n: i18n,
-                    playlistId: playlistId,
-                    songIds: selectedVisibleSongIds,
-                  );
-                },
-                onSelectAll: () {
-                  setState(() {
-                    _selection.selectAll(selectedArtistSongIds);
-                  });
-                },
-                onReverseSelection: () {
-                  setState(() {
-                    _selection.reverseSelection(selectedArtistSongIds);
-                  });
-                },
-                onClearSelection: () {
-                  setState(_selection.clearSelection);
-                },
-                onCancel: () {
-                  setState(_selection.cancel);
-                },
+            MultiSelectCommandBar(
+              visible: _selection.multiSelect,
+              bottomInset: multiSelectCommandBarShellBottomInset,
+              selectedCount: selectedVisibleSongIds.length,
+              playlists: customPlaylists,
+              addToSongIds: selectedVisibleSongIds,
+              includeNowPlayingInAddTo: true,
+              includeFavoritesInAddTo: hasNotFavoriteSongs(
+                selectedVisibleSongIds,
+                songsById,
               ),
+              onAddToNowPlaying:
+                  selectedVisibleSongIds.isEmpty
+                      ? null
+                      : () {
+                        addSongsToNowPlayingWithUndo(
+                          context: context,
+                          ref: ref,
+                          i18n: i18n,
+                          songIds: selectedVisibleSongIds,
+                        );
+                      },
+              onToggleFavorite:
+                  selectedVisibleSongIds.isEmpty
+                      ? null
+                      : () {
+                        setSongsFavoriteWithUndo(
+                          context: context,
+                          ref: ref,
+                          i18n: i18n,
+                          songIds: notFavoriteSongIds(
+                            selectedVisibleSongIds,
+                            songsById,
+                          ),
+                          favorite: true,
+                        );
+                      },
+              onCreatePlaylist:
+                  selectedVisibleSongIds.isEmpty
+                      ? null
+                      : () async {
+                        await createPlaylistWithSongs(
+                          context: context,
+                          ref: ref,
+                          i18n: i18n,
+                          playlists: customLibraryPlaylists,
+                          defaultName:
+                              selectedArtistForSelection?.name ??
+                              i18n.t('common.artists'),
+                          songIds: selectedVisibleSongIds,
+                        );
+                      },
+              onPlay: () {
+                _playSongIds(selectedVisibleSongIds);
+                setState(() {
+                  _selection.hideAfterOperation(
+                    snapshot.hideMultiSelectCommandBarAfterOperation,
+                  );
+                });
+              },
+              onAddToPlaylist: (playlistId) {
+                addSongsToPlaylistWithUndo(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  playlistId: playlistId,
+                  songIds: selectedVisibleSongIds,
+                );
+              },
+              onSelectAll: () {
+                setState(() {
+                  _selection.selectAll(selectedArtistSongIds);
+                });
+              },
+              onReverseSelection: () {
+                setState(() {
+                  _selection.reverseSelection(selectedArtistSongIds);
+                });
+              },
+              onClearSelection: () {
+                setState(_selection.clearSelection);
+              },
+              onCancel: () {
+                setState(_selection.cancel);
+              },
+            ),
             if (_musicDialog case final dialog?)
               MusicDialog(
                 song: dialog.song,

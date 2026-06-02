@@ -755,6 +755,87 @@ void main() {
     expect(uri.queryParameters['artist'], 'Blue');
   });
 
+  testWidgets('sidebar restores remembered local folder route like Electron', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/local?path=Jazz%2FBlue');
+    await _pumpRouter(tester);
+    router.go('/songs');
+    await _pumpRouter(tester);
+
+    await tester.tap(find.byKey(const ValueKey('LocalItem')));
+    await _pumpRouter(tester);
+
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/local');
+    expect(uri.queryParameters['path'], 'Jazz/Blue');
+  });
+
+  testWidgets('sidebar preserves recent page tab state', (tester) async {
+    final router = createSmPlayerRouter(initialLocation: '/recent');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+          recentPageDataProvider.overrideWith((ref) async {
+            return RecentPageData(
+              songs: emptyLibraryData.songs,
+              recentSongs: emptyLibraryData.recentSongs,
+              recentPlaylists: emptyLibraryData.recentPlaylists,
+              recentAlbums: emptyLibraryData.recentAlbums,
+              recentArtists: emptyLibraryData.recentArtists,
+              recentSearches: emptyLibraryData.recentSearches,
+              playlists: emptyLibraryData.playlists,
+              favoritePlaylistId: emptyLibraryData.favoritePlaylistId,
+              nowPlaying: emptyLibraryData.nowPlaying,
+              showCount: emptyLibraryData.showCount,
+              hideMultiSelectCommandBarAfterOperation:
+                  emptyLibraryData.hideMultiSelectCommandBarAfterOperation,
+            );
+          }),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    await tester.tap(find.text('recent.searches'));
+    await _pumpRouter(tester);
+    dynamic searchesTab = tester.widget(
+      find.byKey(const ValueKey('RecentPage.Tab.searches')),
+    );
+    expect(searchesTab.active, isTrue);
+
+    router.go('/songs');
+    await _pumpRouter(tester);
+    await tester.tap(find.byKey(const ValueKey('RecentItem')));
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/recent');
+    searchesTab = tester.widget(
+      find.byKey(const ValueKey('RecentPage.Tab.searches')),
+    );
+    expect(searchesTab.active, isTrue);
+  });
+
   testWidgets('library routes render migrated pages', (tester) async {
     final router = createSmPlayerRouter();
 

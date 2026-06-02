@@ -116,125 +116,23 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                   ),
                 _HeaderedPlaylistListSliver(
                   showAlbum: widget.showAlbum,
-                  itemCount: visibleSongs.length,
                   bottomPadding:
                       _selection.multiSelect
                           ? multiSelectCommandBarScrollSpacer
                           : 56,
-                  itemBuilder: (context, index) {
-                    final song = visibleSongs[index];
-                    final current = song.id == widget.selectedTrackId;
-                    return PlaylistControlItem(
-                      key: ValueKey('HeaderedPlaylist.Row.${song.id}'),
-                      song: song,
-                      current: current,
-                      playing: current && widget.isPlaying,
-                      selected: _selection.isSelected(song.id),
-                      selectionMode: _selection.multiSelect,
-                      showAlbum: widget.showAlbum,
-                      variant: PlaylistControlItemVariant.headeredPlaylist,
-                      playNextLabel: i18n.t('context.playNext'),
-                      removeLabel:
-                          widget.type == HeaderedPlaylistType.favorites
-                              ? i18n.t('context.removeFavorite')
-                              : i18n.t('context.removeFromList'),
-                      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
-                      favoriteLabel: i18n.t('common.favorite'),
-                      moreLabel: i18n.t('player.more'),
-                      onPlayTrack: () {
-                        _playSong(song, queueSongIds);
-                      },
-                      onTogglePlayPause:
-                          widget.onTogglePlayPause ??
-                          () {
-                            _playSong(song, queueSongIds);
-                          },
-                      onToggleSelection: () {
-                        _updateState(() {
-                          _selection.toggle(song.id);
-                        });
-                      },
-                      onToggleFavoriteClick:
-                          widget.onToggleFavorite == null
-                              ? null
-                              : () {
-                                _toggleSongFavoriteWithUndo(song);
-                              },
-                      onAddToPlaylistClick: (buttonContext) {
-                        final item = buildAddToPlaylistMenuFlyoutItem(
-                          i18n: i18n,
-                          songIds: [song.id],
-                          playlists: customPlaylists,
-                          currentPlaylistName: currentPlaylistName,
-                          excludePlaylistName: currentSavedPlaylist?.name,
-                          includeNowPlaying: true,
-                          includeFavorites:
-                              widget.type != HeaderedPlaylistType.favorites,
-                          onAddToNowPlaying: () {
-                            _addSongsToNowPlaying([song.id]);
-                          },
-                          onToggleFavorite:
-                              widget.onToggleFavorite == null
-                                  ? null
-                                  : () {
-                                    unawaited(
-                                      setSongsFavoriteWithUndo(
-                                        context: context,
-                                        ref: ref,
-                                        i18n: i18n,
-                                        songIds: [song.id],
-                                        favorite: true,
-                                      ),
-                                    );
-                                  },
-                          onCreatePlaylist: () {
-                            unawaited(
-                              _createPlaylistFromSongs(i18n, [song.id]),
-                            );
-                          },
-                          onAddToPlaylist: (playlistId) {
-                            unawaited(
-                              addSongsToPlaylistWithUndo(
-                                context: context,
-                                ref: ref,
-                                i18n: i18n,
-                                playlistId: playlistId,
-                                songIds: [song.id],
-                              ),
-                            );
-                          },
-                        );
-                        if (item != null) {
-                          showMenuFlyout(buttonContext, items: item.submenu);
-                        }
-                      },
-                      onRemoveFromListClick:
-                          widget.removable
-                              ? () {
-                                unawaited(
-                                  _removeSongsFromCurrentPlaylist([song.id]),
-                                );
-                              }
-                              : null,
-                      onPlayNextClick: () {
-                        _playNextSong(song.id);
-                      },
-                      onOpenContextMenu: (position) {
-                        unawaited(
-                          _showSongMenu(context, i18n, position, song, index),
-                        );
-                      },
-                      onSeeArtist: widget.onArtistClick,
-                      onSeeAlbum:
-                          widget.onAlbumClick == null
-                              ? null
-                              : () {
-                                widget.onAlbumClick!(
-                                  song_display.displayAlbum(song, i18n),
-                                );
-                              },
-                    );
-                  },
+                  entries: [
+                    for (var index = 0; index < visibleSongs.length; index += 1)
+                      _playlistControlEntryFor(
+                        context: context,
+                        i18n: i18n,
+                        song: visibleSongs[index],
+                        queueSongIds: queueSongIds,
+                        index: index,
+                        customPlaylists: customPlaylists,
+                        currentPlaylistName: currentPlaylistName,
+                        currentSavedPlaylist: currentSavedPlaylist,
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -246,6 +144,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           ),
           MultiSelectCommandBar(
             visible: _selection.multiSelect,
+            bottomInset: multiSelectCommandBarShellBottomInset,
             selectedCount: _effectiveSelectedSongIds(queueSongIds).length,
             playlists: customPlaylists,
             addToSongIds: _effectiveSelectedSongIds(queueSongIds),
@@ -254,6 +153,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 widget.type != HeaderedPlaylistType.favorites,
             currentPlaylistName: currentPlaylistName,
             excludePlaylistName: currentSavedPlaylist?.name,
+            addToMenuPosition: MultiSelectCommandBarAddToMenuPosition.pointer,
             onAddToNowPlaying: () {
               _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
               _hideSelectionAfterOperation(
@@ -315,13 +215,20 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 hideMultiSelectCommandBarAfterOperation,
               );
             },
-            onRemove: () {
-              final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
-              unawaited(_removeSongsFromCurrentPlaylist(selectedSongIds));
-              _updateState(() {
-                _selection.clearSelection();
-              });
-            },
+            onRemove:
+                widget.removable
+                    ? () {
+                      final selectedSongIds = _effectiveSelectedSongIds(
+                        queueSongIds,
+                      );
+                      unawaited(
+                        _removeSongsFromCurrentPlaylist(selectedSongIds),
+                      );
+                      _updateState(() {
+                        _selection.clearSelection();
+                      });
+                    }
+                    : null,
             onSelectAll: () {
               _updateState(() {
                 _selection.selectAll(queueSongIds);
@@ -363,6 +270,120 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
             ),
         ],
       ),
+    );
+  }
+
+  PlaylistControlEntry _playlistControlEntryFor({
+    required BuildContext context,
+    required SmPlayerI18n i18n,
+    required LibrarySong song,
+    required List<int> queueSongIds,
+    required int index,
+    required List<MultiSelectCommandBarPlaylist> customPlaylists,
+    required String currentPlaylistName,
+    required LibraryPlaylist? currentSavedPlaylist,
+  }) {
+    final current = song.id == widget.selectedTrackId;
+    return PlaylistControlEntry(
+      key: ValueKey('HeaderedPlaylist.Row.${song.id}'),
+      song: song,
+      current: current,
+      playing: current && widget.isPlaying,
+      selected: _selection.isSelected(song.id),
+      selectionMode: _selection.multiSelect,
+      showAlbum: widget.showAlbum,
+      variant: PlaylistControlItemVariant.headeredPlaylist,
+      playNextLabel: i18n.t('context.playNext'),
+      removeLabel:
+          widget.type == HeaderedPlaylistType.favorites
+              ? i18n.t('context.removeFavorite')
+              : i18n.t('context.removeFromList'),
+      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+      favoriteLabel: i18n.t('common.favorite'),
+      moreLabel: i18n.t('player.more'),
+      onPlayTrack: () {
+        _playSong(song, queueSongIds);
+      },
+      onTogglePlayPause:
+          widget.onTogglePlayPause ??
+          () {
+            _playSong(song, queueSongIds);
+          },
+      onToggleSelection: () {
+        _updateState(() {
+          _selection.toggle(song.id);
+        });
+      },
+      onToggleFavoriteClick:
+          widget.onToggleFavorite == null
+              ? null
+              : () {
+                _toggleSongFavoriteWithUndo(song);
+              },
+      onAddToPlaylistClick: (buttonContext) {
+        final item = buildAddToPlaylistMenuFlyoutItem(
+          i18n: i18n,
+          songIds: [song.id],
+          playlists: customPlaylists,
+          currentPlaylistName: currentPlaylistName,
+          excludePlaylistName: currentSavedPlaylist?.name,
+          includeNowPlaying: true,
+          includeFavorites: widget.type != HeaderedPlaylistType.favorites,
+          onAddToNowPlaying: () {
+            _addSongsToNowPlaying([song.id]);
+          },
+          onToggleFavorite:
+              widget.onToggleFavorite == null
+                  ? null
+                  : () {
+                    unawaited(
+                      setSongsFavoriteWithUndo(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        songIds: [song.id],
+                        favorite: true,
+                      ),
+                    );
+                  },
+          onCreatePlaylist: () {
+            unawaited(_createPlaylistFromSongs(i18n, [song.id]));
+          },
+          onAddToPlaylist: (playlistId) {
+            unawaited(
+              addSongsToPlaylistWithUndo(
+                context: context,
+                ref: ref,
+                i18n: i18n,
+                playlistId: playlistId,
+                songIds: [song.id],
+              ),
+            );
+          },
+        );
+        if (item != null) {
+          showMenuFlyout(buttonContext, items: item.submenu);
+        }
+      },
+      onRemoveFromListClick:
+          widget.removable
+              ? () {
+                unawaited(_removeSongsFromCurrentPlaylist([song.id]));
+              }
+              : null,
+      onPlayNextClick: () {
+        _playNextSong(song.id);
+      },
+      onOpenContextMenu: (position) {
+        unawaited(_showSongMenu(context, i18n, position, song, index));
+      },
+      onSeeArtist: widget.onArtistClick,
+      onSeeAlbum:
+          widget.onAlbumClick == null
+              ? null
+              : () {
+                widget.onAlbumClick!(song_display.displayAlbum(song, i18n));
+              },
     );
   }
 }

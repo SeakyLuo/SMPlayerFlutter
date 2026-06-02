@@ -26,6 +26,7 @@ void main() {
     locale: 'en-US',
     messages: {
       'albums.clearSelection': 'Clear Selection',
+      'albums.addSelectedTo': 'Add To',
       'albums.editArtwork': 'Edit Artwork',
       'albums.multiSelect': 'Multi Select',
       'albums.playSelected': 'Play Selected',
@@ -755,7 +756,102 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('1 selected'), findsNothing);
-      expect(find.text('Play Selected'), findsNothing);
+      final playSelected = find.text('Play Selected');
+      expect(playSelected, findsOneWidget);
+      expect(
+        tester
+            .widgetList<AnimatedOpacity>(
+              find.ancestor(
+                of: playSelected,
+                matching: find.byType(AnimatedOpacity),
+              ),
+            )
+            .any((widget) => widget.opacity == 0),
+        isTrue,
+      );
+      expect(
+        tester
+            .widgetList<IgnorePointer>(
+              find.ancestor(
+                of: playSelected,
+                matching: find.byType(IgnorePointer),
+              ),
+            )
+            .any((widget) => widget.ignoring),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl hides Remove when Electron is not removable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Multi Select'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Song'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(find.text('Remove Selected'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'HeaderedPlaylistControl multi-select Add To uses Electron pointer anchor',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.playlist,
+          title: 'Mix',
+          showAlbum: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Multi Select'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Song'));
+      await tester.pumpAndSettle();
+
+      final addToButton = find.ancestor(
+        of: find.text('Add To'),
+        matching: find.byType(TextButton),
+      );
+      final addToRect = tester.getRect(addToButton);
+
+      await tester.tapAt(addToRect.center);
+      await tester.pumpAndSettle();
+
+      final panelRect = tester.getRect(
+        find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+      );
+      expect(panelRect.bottom, moreOrLessEquals(800 - 8, epsilon: 1));
+      expect(panelRect.bottom, greaterThan(addToRect.top - 8));
     },
   );
 
@@ -885,6 +981,11 @@ void main() {
       find.ancestor(of: find.byType(BackdropFilter), matching: backdropClip),
       findsOneWidget,
     );
+    final heroSurfaceTint = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('HeaderedPlaylist.HeroSurfaceTint')),
+    );
+    final heroSurfaceDecoration = heroSurfaceTint.decoration as BoxDecoration;
+    expect(heroSurfaceDecoration.color?.a, moreOrLessEquals(0.18));
     expect(
       tester.getRect(backdropClip).height,
       moreOrLessEquals(126, epsilon: 1),

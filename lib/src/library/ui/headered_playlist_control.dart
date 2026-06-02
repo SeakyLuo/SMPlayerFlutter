@@ -30,8 +30,8 @@ import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
-import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
+import 'package:smplayer_flutter/src/playback/playlist_control.dart';
 
 part 'headered_playlist_actions.dart';
 part 'headered_playlist_artwork.dart';

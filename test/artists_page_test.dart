@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -2097,30 +2098,64 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Art');
     await tester.pumpAndSettle();
 
-    final panelDecoration = tester
-        .widgetList<DecoratedBox>(
-          find.descendant(
-            of: find.byType(PageSearchSuggestionPanel),
-            matching: find.byType(DecoratedBox),
-          ),
-        )
-        .map((box) => box.decoration)
-        .whereType<BoxDecoration>()
-        .firstWhere(
-          (decoration) => decoration.color == const Color(0xfa1d232b),
-        );
-    expect(panelDecoration.border, Border.all(color: const Color(0x1fd6e0ec)));
-    expect(panelDecoration.boxShadow?.single.color, const Color(0x5c000000));
+    final panelGlass =
+        tester
+            .widgetList<GlassContainer>(
+              find.descendant(
+                of: find.byType(PageSearchSuggestionPanel),
+                matching: find.byType(GlassContainer),
+              ),
+            )
+            .single;
+    expect(panelGlass.quality, GlassQuality.minimal);
+    expect(panelGlass.settings?.blur, 46);
+    expect(panelGlass.settings?.saturation, 1.65);
+    expect(panelGlass.settings?.glassColor, const Color(0x7a181e26));
+    expect(panelGlass.settings?.standardOpacityMultiplier, 0.32);
 
-    final suggestion = tester.widget<TextButton>(
+    final panelDecorations =
+        tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byType(PageSearchSuggestionPanel),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .map((box) => box.decoration)
+            .whereType<BoxDecoration>();
+    final panelDecoration = panelDecorations.firstWhere(
+      (decoration) => decoration.border != null,
+    );
+    expect(panelDecoration.border, Border.all(color: const Color(0x38d6e0ec)));
+    final panelShadowDecoration = panelDecorations.firstWhere(
+      (decoration) => decoration.boxShadow != null,
+    );
+    expect(
+      panelShadowDecoration.boxShadow?.single.color,
+      const Color(0x42000000),
+    );
+
+    final suggestionText = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
+        matching: find.text('Artist A'),
+      ),
+    );
+    expect(suggestionText.style?.color, const Color(0xebffffff));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(
+      location: tester.getCenter(
+        find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 140));
+    final hoveredSuggestion = tester.widget<AnimatedContainer>(
       find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
     );
     expect(
-      suggestion.style?.foregroundColor?.resolve({}),
-      const Color(0xf0f6f9fc),
-    );
-    expect(
-      suggestion.style?.backgroundColor?.resolve({WidgetState.hovered}),
+      (hoveredSuggestion.decoration! as BoxDecoration).color,
       const Color(0x290078d7),
     );
   });
@@ -3493,7 +3528,11 @@ void main() {
       selection = PageSelectionController<int>.stored('artists');
       expect(selection.multiSelect, isFalse);
       expect(selection.selectedItems, isEmpty);
-      expect(find.text('Select All'), findsNothing);
+      expect(find.text('Select All'), findsOneWidget);
+      expect(
+        _hasHiddenCommandBarAncestor(tester, find.text('Select All')),
+        isTrue,
+      );
 
       await tester.tap(find.byKey(const ValueKey('Artists.DetailHeader.More')));
       await tester.pumpAndSettle();
@@ -5971,6 +6010,20 @@ class _ValueListenableArtistsRepository extends _FakeLibraryRepository {
   Future<LibraryContentData> getLibraryContentData() async {
     return snapshot.value;
   }
+}
+
+bool _hasHiddenCommandBarAncestor(WidgetTester tester, Finder descendant) {
+  final hasHiddenOpacity = tester
+      .widgetList<AnimatedOpacity>(
+        find.ancestor(of: descendant, matching: find.byType(AnimatedOpacity)),
+      )
+      .any((widget) => widget.opacity == 0);
+  final ignoresPointer = tester
+      .widgetList<IgnorePointer>(
+        find.ancestor(of: descendant, matching: find.byType(IgnorePointer)),
+      )
+      .any((widget) => widget.ignoring);
+  return hasHiddenOpacity && ignoresPointer;
 }
 
 const _snapshot = LibraryContentData(

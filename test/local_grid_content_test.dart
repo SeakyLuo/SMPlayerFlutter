@@ -17,7 +17,7 @@ import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.d
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_card.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
-import 'package:smplayer_flutter/src/library/ui/local_grid_content.dart';
+import 'package:smplayer_flutter/src/library/ui/local_content_view.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 
@@ -416,7 +416,7 @@ void main() {
                 height: 320,
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  child: LocalGridContent(
+                  child: LocalContentView(
                     childFolders: [folderIndex.nodes['Folder']!],
                     currentSongs: songs,
                     nodes: folderIndex.nodes,
@@ -1019,7 +1019,7 @@ Widget _localGridContent(
       ),
   ];
 
-  return LocalGridContent(
+  return LocalContentView(
     childFolders: const [],
     currentSongs: songs,
     nodes: const {},
@@ -1131,7 +1131,7 @@ Widget _folderGridContent(
     r'C:\Music',
   );
 
-  return LocalGridContent(
+  return LocalContentView(
     childFolders: [folderIndex.nodes[folderName]!],
     currentSongs: const [],
     nodes: folderIndex.nodes,

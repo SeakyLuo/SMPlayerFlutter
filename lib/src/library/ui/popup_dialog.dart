@@ -67,6 +67,7 @@ class PopupDialog extends StatefulWidget {
 
 class _PopupDialogState extends State<PopupDialog> {
   late final PopupDialogCloseHandler _closeHandler;
+  final _overlayController = OverlayPortalController(debugLabel: 'PopupDialog');
 
   @override
   void initState() {
@@ -75,6 +76,7 @@ class _PopupDialogState extends State<PopupDialog> {
       widget.onClose();
     };
     _popupDialogCloseHandlers.add(_closeHandler);
+    _overlayController.show();
   }
 
   @override
@@ -85,6 +87,15 @@ class _PopupDialogState extends State<PopupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    return OverlayPortal(
+      controller: _overlayController,
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: _buildOverlay,
+      child: const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildOverlay(BuildContext context) {
     final i18n =
         context.maybeSmPlayerI18n ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
@@ -115,6 +126,7 @@ class _PopupDialogState extends State<PopupDialog> {
           scopesRoute: true,
           explicitChildNodes: true,
           child: BackdropFilter(
+            key: const ValueKey('popup-dialog-overlay'),
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Stack(
               fit: StackFit.expand,
@@ -329,31 +341,63 @@ class _PopupDialogClassNames {
   }
 }
 
-class _PopupDialogCloseButton extends StatelessWidget {
+class _PopupDialogCloseButton extends StatefulWidget {
   const _PopupDialogCloseButton({required this.colors, required this.onClose});
 
   final PopupDialogResolvedColors colors;
   final VoidCallback onClose;
 
   @override
+  State<_PopupDialogCloseButton> createState() =>
+      _PopupDialogCloseButtonState();
+}
+
+class _PopupDialogCloseButtonState extends State<_PopupDialogCloseButton> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 40,
-      child: IconButton(
+    final colors = widget.colors;
+    final background =
+        _hovered ? colors.buttonHoverSurface : colors.buttonSurface;
+    final foreground = _hovered ? colors.buttonHoverText : colors.buttonText;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: GestureDetector(
         key: const ValueKey('popup-dialog-close-button'),
-        style: IconButton.styleFrom(
-          fixedSize: const Size(42, 40),
-          foregroundColor: colors.text,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: colors.buttonBorder),
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onClose,
+        child: Semantics(
+          button: true,
+          child: DecoratedBox(
+            key: const ValueKey('popup-dialog-close-button-surface'),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: colors.buttonBorder),
+              boxShadow: colors.buttonShadow,
+            ),
+            child: SizedBox(
+              width: 42,
+              height: 40,
+              child: Icon(
+                FluentIcons.dismiss_20_regular,
+                size: 18,
+                color: foreground,
+              ),
+            ),
           ),
-          backgroundColor: colors.buttonSurface,
-          hoverColor: colors.buttonHoverSurface,
         ),
-        icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
-        onPressed: onClose,
       ),
     );
   }
@@ -1031,8 +1075,11 @@ class PopupDialogResolvedColors
     required this.activeButtonSurface,
     required this.buttonHoverSurface,
     required this.mobileBackHoverSurface,
+    required this.buttonText,
+    required this.buttonHoverText,
     required this.buttonBorder,
     required this.activeButtonBorder,
+    required this.buttonShadow,
     required this.accent,
     required this.accentStrong,
     required this.text,
@@ -1053,8 +1100,11 @@ class PopupDialogResolvedColors
   final Color activeButtonSurface;
   final Color buttonHoverSurface;
   final Color mobileBackHoverSurface;
+  final Color buttonText;
+  final Color buttonHoverText;
   final Color buttonBorder;
   final Color activeButtonBorder;
+  final List<BoxShadow> buttonShadow;
   final Color accent;
   final Color accentStrong;
   final Color text;
@@ -1075,8 +1125,13 @@ class PopupDialogResolvedColors
     activeButtonSurface: PopupDialogColors.activeButtonSurface,
     buttonHoverSurface: Color(0xfaf7fafe),
     mobileBackHoverSurface: PopupDialogColors.accentSoft,
+    buttonText: PopupDialogColors.text,
+    buttonHoverText: PopupDialogColors.text,
     buttonBorder: PopupDialogColors.buttonBorder,
     activeButtonBorder: PopupDialogColors.activeButtonBorder,
+    buttonShadow: [
+      BoxShadow(color: Color(0x0f28374c), offset: Offset(0, 8), blurRadius: 18),
+    ],
     accent: PopupDialogColors.accent,
     accentStrong: PopupDialogColors.accent,
     text: PopupDialogColors.text,
@@ -1098,8 +1153,11 @@ class PopupDialogResolvedColors
     activeButtonSurface: PopupDialogColors.nightActiveButtonSurface,
     buttonHoverSurface: Color(0x290078d7),
     mobileBackHoverSurface: Color(0x290078d7),
+    buttonText: PopupDialogColors.nightText,
+    buttonHoverText: Color(0xff48a9f9),
     buttonBorder: PopupDialogColors.nightButtonBorder,
     activeButtonBorder: PopupDialogColors.nightActiveButtonBorder,
+    buttonShadow: [],
     accent: PopupDialogColors.accent,
     accentStrong: Color(0xff66b7ff),
     text: PopupDialogColors.nightText,

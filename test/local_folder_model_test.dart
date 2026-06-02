@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
-import 'package:smplayer_flutter/src/library/ui/local_grid_content.dart';
+import 'package:smplayer_flutter/src/library/ui/grid_view_folder.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_model.dart';
 

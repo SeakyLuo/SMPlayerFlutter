@@ -59,6 +59,25 @@ void main() {
     },
   );
 
+  const zhI18n = SmPlayerI18n(
+    locale: 'zh-CN',
+    messages: {
+      'common.myFavorites': '我喜欢',
+      'common.cancel': '取消',
+      'common.nowPlaying': '正在播放',
+      'albums.addSelectedTo': '添加到',
+      'albums.clearSelection': '清除...',
+      'albums.playSelected': '播放',
+      'albums.reverseSelection': '反选',
+      'albums.selectAll': '全选',
+      'albums.selectedCount': '已选择 {count} 项',
+      'context.addToPlaylist': '添加到',
+      'context.removeFromList': '移除',
+      'player.more': '更多',
+      'playlists.newPlaylist': '新建播放列表',
+    },
+  );
+
   testWidgets('CommandBar keeps buttons inline when space is available', (
     tester,
   ) async {
@@ -96,9 +115,11 @@ void main() {
   testWidgets('MultiSelectCommandBar desktop matches Electron layout rules', (
     tester,
   ) async {
-    await _pumpMultiSelectCommandBar(tester, i18n: i18n, width: 900);
+    await _pumpMultiSelectCommandBar(tester, i18n: i18n, width: 1320);
 
     expect(multiSelectCommandBarScrollSpacer, 108);
+    expect(multiSelectCommandBarCompactBreakpoint, 1260);
+    expect(_multiSelectExcludeSemantics(tester).excluding, isFalse);
     expect(
       find.byKey(const ValueKey('MultiSelectCommandBar.MoreButton')),
       findsNothing,
@@ -110,8 +131,33 @@ void main() {
 
     final bar = _multiSelectBarContainer(tester);
     expect(tester.getSize(find.byWidget(bar)).height, 64);
+    expect(multiSelectCommandBarBackdropSaturation, 1.65);
+    final surfaceGlass = tester.widget<GlassContainer>(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Glass')),
+    );
+    expect(surfaceGlass.useOwnLayer, isTrue);
+    expect(surfaceGlass.quality, GlassQuality.minimal);
+    expect(surfaceGlass.clipBehavior, Clip.hardEdge);
+    expect(surfaceGlass.allowElevation, isFalse);
+    expect(surfaceGlass.shape, isA<LiquidRoundedRectangle>());
+    expect(surfaceGlass.settings?.blur, 46);
+    expect(surfaceGlass.settings?.thickness, 20);
+    expect(surfaceGlass.settings?.lightIntensity, 0.1);
+    expect(surfaceGlass.settings?.glowIntensity, 0.04);
+    expect(
+      surfaceGlass.settings?.saturation,
+      multiSelectCommandBarBackdropSaturation,
+    );
+    expect(surfaceGlass.settings?.standardOpacityMultiplier, 1);
+    expect(bar.padding, const EdgeInsets.fromLTRB(26, 0, 18, 0));
+    expect(_separatorCountWithHeight(tester, 28), greaterThanOrEqualTo(2));
+    expect(_selectedCountBoxWidth(tester), 154);
+    expect(_labelStyleForText(tester, '3 selected').fontSize, 13);
+    expect(_labelStyleForText(tester, '3 selected').fontVariations, const [
+      FontVariation.weight(760),
+    ]);
 
-    final cancel = _buttonWithText(tester, 'Cancel');
+    final cancel = _buttonWithIcon(tester, FluentIcons.dismiss_20_regular);
     expect(_buttonSizeWithText(tester, 'Cancel').height, 36);
     expect(
       cancel.style?.minimumSize?.resolve(<WidgetState>{}),
@@ -130,12 +176,107 @@ void main() {
       CommandBarColors.actionHoverSurface,
     );
     expect(
+      cancel.style?.backgroundColor?.resolve({WidgetState.focused}),
+      CommandBarColors.actionSurface,
+    );
+    expect(
       cancel.style?.foregroundColor?.resolve({WidgetState.hovered}),
       CommandBarColors.accentStrong,
     );
+    expect(
+      cancel.style?.foregroundColor?.resolve({WidgetState.focused}),
+      CommandBarColors.textStrong,
+    );
     expect(_labelStyleForText(tester, 'Cancel').fontSize, 13);
     expect(_labelStyleForText(tester, 'Cancel').height, 1);
+    expect(_labelStyleForText(tester, 'Cancel').fontVariations, const [
+      FontVariation.weight(640),
+    ]);
     expect(cancel.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    expect(_buttonDecorationWithText(tester, 'Cancel').boxShadow, isNotEmpty);
+
+    for (final label in [
+      'Cancel',
+      'Play Selected',
+      'Add selected to',
+      'Remove From List',
+      'Select All',
+      'Invert Selection',
+      'Clear Selection',
+    ]) {
+      expect(_buttonSizeWithText(tester, label).height, 36);
+      expect(_labelStyleForText(tester, label).fontSize, 13);
+      expect(_labelStyleForText(tester, label).height, 1);
+      expect(_labelStyleForText(tester, label).fontVariations, const [
+        FontVariation.weight(640),
+      ]);
+      expect(
+        _buttonWithText(tester, label).style?.tapTargetSize,
+        MaterialTapTargetSize.shrinkWrap,
+      );
+      expect(_buttonIconSizesWithText(tester, label), everyElement(16));
+    }
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(find.text('Cancel')));
+    await tester.pumpAndSettle();
+    final hoverShadow = _buttonDecorationWithText(tester, 'Cancel').boxShadow!;
+    expect(hoverShadow.first.blurRadius, 10);
+    expect(hoverShadow.first.offset, const Offset(0, 3));
+  });
+
+  testWidgets(
+    'MultiSelectCommandBar shell inset mirrors Electron player-overlap bottom',
+    (tester) async {
+      await _pumpMultiSelectCommandBar(
+        tester,
+        i18n: i18n,
+        width: 900,
+        bottomInset: multiSelectCommandBarShellBottomInset,
+      );
+
+      final surfaceRect = tester.getRect(
+        find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+      );
+      expect(surfaceRect.bottom, 420 - multiSelectCommandBarShellBottomInset);
+    },
+  );
+
+  testWidgets('MultiSelectCommandBar can bleed across padded page panels', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(
+      tester,
+      i18n: i18n,
+      width: 900,
+      horizontalBleed: 24,
+    );
+
+    final surfaceRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+    );
+    expect(surfaceRect.left, -24);
+    expect(surfaceRect.width, 948);
+  });
+
+  testWidgets('MultiSelectCommandBar supports asymmetric page panel bleed', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(
+      tester,
+      i18n: i18n,
+      width: 900,
+      leftBleed: 24,
+      rightBleed: 18,
+    );
+
+    final surfaceRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+    );
+    expect(surfaceRect.left, -24);
+    expect(surfaceRect.right, 918);
+    expect(surfaceRect.width, 942);
   });
 
   testWidgets(
@@ -154,8 +295,170 @@ void main() {
         more.style?.fixedSize?.resolve(<WidgetState>{}),
         const Size(44, 36),
       );
+      expect(
+        _multiSelectBarContainer(tester).padding,
+        const EdgeInsets.fromLTRB(18, 0, 12, 0),
+      );
+      expect(_separatorCountWithHeight(tester, 26), 1);
+      expect(_selectedCountBoxWidth(tester), 112);
     },
   );
+
+  testWidgets('MultiSelectCommandBar compact Chinese Add To keeps full label', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(tester, i18n: zhI18n, width: 760);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('添加到'), findsOneWidget);
+    final addToSize = _buttonSizeWithText(tester, '添加到');
+    expect(addToSize.width, greaterThanOrEqualTo(112));
+    final addToRect = tester.getRect(
+      find.ancestor(of: find.text('添加到'), matching: find.byType(TextButton)),
+    );
+    final moreRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.MoreButton')),
+    );
+    expect(addToRect.right, lessThan(moreRect.left));
+    expect(
+      _buttonWithText(
+        tester,
+        '添加到',
+      ).style?.maximumSize?.resolve(<WidgetState>{}),
+      const Size(double.infinity, 36),
+    );
+  });
+
+  testWidgets(
+    'MultiSelectCommandBar Chinese selection actions keep full labels',
+    (tester) async {
+      await _pumpMultiSelectCommandBar(tester, i18n: zhI18n, width: 1320);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('全选'), findsOneWidget);
+      expect(find.text('反选'), findsOneWidget);
+      expect(find.text('清除...'), findsOneWidget);
+
+      final reverseRect = tester.getRect(
+        find.ancestor(of: find.text('反选'), matching: find.byType(TextButton)),
+      );
+      final clearRect = tester.getRect(
+        find.ancestor(
+          of: find.text('清除...'),
+          matching: find.byType(TextButton),
+        ),
+      );
+      expect(reverseRect.right, lessThan(clearRect.left));
+      expect(clearRect.right, lessThan(1320));
+    },
+  );
+
+  testWidgets('MultiSelectCommandBar More menu opens 8px above anchor', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(tester, i18n: i18n, width: 760);
+
+    final moreFinder = find.byKey(
+      const ValueKey('MultiSelectCommandBar.MoreButton'),
+    );
+    final moreRect = tester.getRect(moreFinder);
+
+    await tester.tap(moreFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select All'), findsOneWidget);
+    expect(find.text('Invert Selection'), findsOneWidget);
+    expect(find.text('Clear Selection'), findsOneWidget);
+    expect(find.text('Remove From List'), findsWidgets);
+
+    final panelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(panelRect.bottom, moreOrLessEquals(moreRect.top - 8, epsilon: 1));
+  });
+
+  testWidgets('MultiSelectCommandBar Add To menu opens 8px above anchor', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(tester, i18n: i18n, width: 900);
+
+    final addToFinder = find.text('Add selected to');
+    final addToButton = find.ancestor(
+      of: addToFinder,
+      matching: find.byType(TextButton),
+    );
+    final addToRect = tester.getRect(addToButton);
+
+    await tester.tap(addToFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Now Playing'), findsOneWidget);
+    expect(find.text('My Favorites'), findsOneWidget);
+    expect(find.text('New Playlist'), findsOneWidget);
+
+    final panelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(panelRect.bottom, moreOrLessEquals(addToRect.top - 8, epsilon: 1));
+  });
+
+  testWidgets('MultiSelectCommandBar pointer Add To anchor is one-shot', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(
+      tester,
+      i18n: i18n,
+      width: 900,
+      addToMenuPosition: MultiSelectCommandBarAddToMenuPosition.pointer,
+    );
+
+    final addToFinder = find.text('Add selected to');
+    final addToButton = find.ancestor(
+      of: addToFinder,
+      matching: find.byType(TextButton),
+    );
+    final addToRect = tester.getRect(addToButton);
+
+    await tester.tapAt(addToRect.center);
+    await tester.pumpAndSettle();
+
+    final pointerPanelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(
+      pointerPanelRect.bottom,
+      isNot(moreOrLessEquals(addToRect.top - 8, epsilon: 1)),
+    );
+
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+    _buttonWithText(tester, 'Add selected to').onPressed?.call();
+    await tester.pumpAndSettle();
+
+    final fallbackPanelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(
+      fallbackPanelRect.bottom,
+      moreOrLessEquals(addToRect.top - 8, epsilon: 1),
+    );
+  });
+
+  testWidgets('MultiSelectCommandBar hides Add To when no target exists', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(
+      tester,
+      i18n: i18n,
+      width: 900,
+      includeNowPlayingInAddTo: false,
+      includeFavoritesInAddTo: false,
+      onCreatePlaylist: null,
+      onAddToPlaylist: null,
+    );
+
+    expect(find.text('Add selected to'), findsNothing);
+  });
 
   testWidgets('MultiSelectCommandBar phone keeps truncated Add To text', (
     tester,
@@ -170,13 +473,65 @@ void main() {
       find.byKey(const ValueKey('MultiSelectCommandBar.MoreButton')),
     );
     expect(more.style?.fixedSize?.resolve(<WidgetState>{}), const Size(40, 36));
+    expect(
+      _multiSelectBarContainer(tester).padding,
+      const EdgeInsets.fromLTRB(12, 0, 10, 0),
+    );
+    expect(_separatorCountWithHeight(tester, 28), 0);
+    expect(_separatorCountWithHeight(tester, 26), 0);
+
+    final cancel = _buttonWithIcon(tester, FluentIcons.dismiss_20_regular);
+    expect(
+      cancel.style?.fixedSize?.resolve(<WidgetState>{}),
+      const Size(40, 36),
+    );
+    expect(cancel.style?.padding?.resolve(<WidgetState>{}), EdgeInsets.zero);
 
     final addTo = _buttonWithText(tester, 'Add selected to');
     expect(_buttonSizeWithText(tester, 'Add selected to').height, 36);
     expect(
+      addTo.style?.minimumSize?.resolve(<WidgetState>{}),
+      const Size(40, 36),
+    );
+    expect(
       addTo.style?.maximumSize?.resolve(<WidgetState>{}),
       const Size(88, 36),
     );
+    expect(_buttonIconSizesWithText(tester, 'Add selected to'), [16]);
+
+    final selectedCount = tester.getRect(find.text('3 selected'));
+    final checkIcon = tester.getRect(
+      find.byIcon(FluentIcons.checkmark_20_regular),
+    );
+    expect(checkIcon.left, lessThan(selectedCount.left));
+    expect(selectedCount.right - checkIcon.left, lessThanOrEqualTo(96));
+  });
+
+  testWidgets('MultiSelectCommandBar disabled actions use Electron opacity', (
+    tester,
+  ) async {
+    await _pumpMultiSelectCommandBar(
+      tester,
+      i18n: i18n,
+      width: 900,
+      selectedCount: 0,
+    );
+
+    for (final label in [
+      'Play Selected',
+      'Add selected to',
+      'Remove From List',
+    ]) {
+      expect(_buttonWithText(tester, label).onPressed, isNull);
+      expect(_opacityForButtonText(tester, label), 0.46);
+      expect(_opacityContainsButtonShadow(tester, label), isTrue);
+      final disabledShadow =
+          _buttonDecorationWithText(tester, label).boxShadow!;
+      expect(disabledShadow, hasLength(1));
+      expect(disabledShadow.single.color, const Color(0x9effffff));
+      expect(disabledShadow.single.blurRadius, 0);
+      expect(disabledShadow.single.offset, const Offset(0, 1));
+    }
   });
 
   testWidgets(
@@ -189,24 +544,72 @@ void main() {
         visible: false,
       );
 
-      expect(find.text('Cancel'), findsNothing);
-      expect(find.text('Cancel', skipOffstage: false), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
       final opacity = tester
           .widgetList<AnimatedOpacity>(
             find.byType(AnimatedOpacity, skipOffstage: false),
           )
           .firstWhere((widget) => widget.opacity == 0);
       expect(opacity.opacity, 0);
+      expect(opacity.duration, const Duration(milliseconds: 180));
       final slide = tester.widget<AnimatedSlide>(
         find.byType(AnimatedSlide, skipOffstage: false),
       );
-      expect(slide.offset, const Offset(0, 1.1));
+      expect(
+        slide.offset,
+        const Offset(0, multiSelectCommandBarHiddenSlideFraction),
+      );
+      expect(slide.duration, const Duration(milliseconds: 180));
+      expect(slide.curve, Curves.ease);
+      expect(_multiSelectExcludeSemantics(tester).excluding, isTrue);
       final ignore = tester
           .widgetList<IgnorePointer>(
             find.byType(IgnorePointer, skipOffstage: false),
           )
           .firstWhere((widget) => widget.ignoring);
       expect(ignore.ignoring, isTrue);
+    },
+  );
+
+  testWidgets(
+    'MultiSelectCommandBar layout changes use Electron transition timing',
+    (tester) async {
+      await _pumpMultiSelectCommandBar(
+        tester,
+        i18n: i18n,
+        width: 900,
+        bottomInset: multiSelectCommandBarShellBottomInset,
+        leftBleed: 24,
+        rightBleed: 18,
+      );
+
+      final padding = tester.widget<AnimatedPadding>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+              matching: find.byType(AnimatedPadding),
+            )
+            .first,
+      );
+      expect(padding.duration, multiSelectCommandBarLayoutAnimationDuration);
+      expect(padding.curve, Curves.ease);
+      expect(
+        padding.padding,
+        const EdgeInsets.only(bottom: multiSelectCommandBarShellBottomInset),
+      );
+
+      final motionFinder =
+          find
+              .ancestor(
+                of: find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first;
+      final motion = tester.widget<AnimatedContainer>(motionFinder);
+      expect(motion.duration, multiSelectCommandBarLayoutAnimationDuration);
+      expect(motion.curve, Curves.ease);
+      expect(motion.transform, Matrix4.translationValues(-3, 0, 0));
+      expect(tester.getSize(motionFinder), const Size(942, 64));
     },
   );
 
@@ -236,6 +639,21 @@ void main() {
     expect(
       play.style?.foregroundColor?.resolve({WidgetState.hovered}),
       CommandBarColors.accentStrongNight,
+    );
+    expect(
+      play.style?.foregroundColor?.resolve({WidgetState.focused}),
+      CommandBarColors.textNight,
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(
+      location: tester.getCenter(find.text('Play Selected')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      _buttonDecorationWithText(tester, 'Play Selected').boxShadow,
+      isEmpty,
     );
   });
 
@@ -916,7 +1334,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('MenuFlyout.GlassPanel')), findsOneWidget);
-    expect(find.byType(GlassContainer), findsOneWidget);
+    final menuGlass = tester.widget<GlassContainer>(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(menuGlass.quality, GlassQuality.minimal);
+    expect(menuGlass.settings?.blur, 46);
+    expect(menuGlass.settings?.saturation, 1.65);
+    expect(menuGlass.settings?.standardOpacityMultiplier, 0.24);
     expect(find.text('Library'), findsOneWidget);
   });
 
@@ -1423,12 +1847,25 @@ void main() {
   );
 }
 
+void _noop() {}
+
 Future<void> _pumpMultiSelectCommandBar(
   WidgetTester tester, {
   required SmPlayerI18n i18n,
   required double width,
   bool visible = true,
   Brightness brightness = Brightness.light,
+  double bottomInset = 0,
+  double horizontalBleed = 0,
+  double? leftBleed,
+  double? rightBleed,
+  int selectedCount = 3,
+  MultiSelectCommandBarAddToMenuPosition addToMenuPosition =
+      MultiSelectCommandBarAddToMenuPosition.aboveButton,
+  bool includeNowPlayingInAddTo = true,
+  bool includeFavoritesInAddTo = true,
+  VoidCallback? onCreatePlaylist = _noop,
+  ValueChanged<int>? onAddToPlaylist,
 }) async {
   tester.view.physicalSize = Size(width, 420);
   tester.view.devicePixelRatio = 1;
@@ -1449,12 +1886,29 @@ Future<void> _pumpMultiSelectCommandBar(
                 Positioned.fill(
                   child: MultiSelectCommandBar(
                     visible: visible,
-                    selectedCount: 3,
+                    bottomInset: bottomInset,
+                    horizontalBleed: horizontalBleed,
+                    leftBleed: leftBleed,
+                    rightBleed: rightBleed,
+                    selectedCount: selectedCount,
                     addToSongIds: const [1, 2, 3],
-                    includeNowPlayingInAddTo: true,
-                    includeFavoritesInAddTo: true,
-                    onAddToNowPlaying: () {},
-                    onToggleFavorite: () {},
+                    playlists:
+                        onAddToPlaylist == null
+                            ? const []
+                            : const [
+                              MultiSelectCommandBarPlaylist(
+                                id: 10,
+                                name: 'Mix',
+                                songIds: [],
+                              ),
+                            ],
+                    includeNowPlayingInAddTo: includeNowPlayingInAddTo,
+                    includeFavoritesInAddTo: includeFavoritesInAddTo,
+                    addToMenuPosition: addToMenuPosition,
+                    onAddToNowPlaying: includeNowPlayingInAddTo ? _noop : null,
+                    onToggleFavorite: includeFavoritesInAddTo ? _noop : null,
+                    onCreatePlaylist: onCreatePlaylist,
+                    onAddToPlaylist: onAddToPlaylist,
                     onPlay: () {},
                     onRemove: () {},
                     onSelectAll: () {},
@@ -1479,9 +1933,28 @@ Container _multiSelectBarContainer(WidgetTester tester) {
   );
 }
 
+ExcludeSemantics _multiSelectExcludeSemantics(WidgetTester tester) {
+  return tester.widget<ExcludeSemantics>(
+    find
+        .ancestor(
+          of: find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+          matching: find.byType(ExcludeSemantics),
+        )
+        .first,
+  );
+}
+
 TextButton _buttonWithText(WidgetTester tester, String text) {
   return tester.widget<TextButton>(
     find.ancestor(of: find.text(text), matching: find.byType(TextButton)).first,
+  );
+}
+
+TextButton _buttonWithIcon(WidgetTester tester, IconData icon) {
+  return tester.widget<TextButton>(
+    find
+        .ancestor(of: find.byIcon(icon), matching: find.byType(TextButton))
+        .first,
   );
 }
 
@@ -1491,7 +1964,38 @@ Size _buttonSizeWithText(WidgetTester tester, String text) {
   );
 }
 
+List<double?> _buttonIconSizesWithText(WidgetTester tester, String text) {
+  final button =
+      find
+          .ancestor(of: find.text(text), matching: find.byType(TextButton))
+          .first;
+  return [
+    for (final iconElement
+        in find.descendant(of: button, matching: find.byType(Icon)).evaluate())
+      tester
+              .widget<Icon>(
+                find.byElementPredicate((element) => element == iconElement),
+              )
+              .size ??
+          tester
+              .widgetList<IconTheme>(
+                find.ancestor(
+                  of: find.byElementPredicate(
+                    (element) => element == iconElement,
+                  ),
+                  matching: find.byType(IconTheme),
+                ),
+              )
+              .map((theme) => theme.data.size)
+              .firstWhere((size) => size != null),
+  ];
+}
+
 TextStyle _labelStyleForText(WidgetTester tester, String text) {
+  final directStyle = tester.widget<Text>(find.text(text)).style;
+  if (directStyle != null) {
+    return directStyle;
+  }
   return tester
       .widgetList<DefaultTextStyle>(
         find.ancestor(
@@ -1501,6 +2005,63 @@ TextStyle _labelStyleForText(WidgetTester tester, String text) {
       )
       .map((widget) => widget.style)
       .firstWhere((style) => style.fontSize == 13);
+}
+
+BoxDecoration _buttonDecorationWithText(WidgetTester tester, String text) {
+  return tester
+          .widget<DecoratedBox>(
+            find
+                .ancestor(
+                  of: find.text(text),
+                  matching: find.byType(DecoratedBox),
+                )
+                .first,
+          )
+          .decoration
+      as BoxDecoration;
+}
+
+double _opacityForButtonText(WidgetTester tester, String text) {
+  return tester
+      .widget<Opacity>(
+        find
+            .ancestor(of: find.text(text), matching: find.byType(Opacity))
+            .first,
+      )
+      .opacity;
+}
+
+bool _opacityContainsButtonShadow(WidgetTester tester, String text) {
+  final opacity =
+      find.ancestor(of: find.text(text), matching: find.byType(Opacity)).first;
+  return find
+      .descendant(of: opacity, matching: find.byType(DecoratedBox))
+      .evaluate()
+      .isNotEmpty;
+}
+
+double _selectedCountBoxWidth(WidgetTester tester) {
+  return tester
+      .getSize(
+        find
+            .ancestor(
+              of: find.text('3 selected'),
+              matching: find.byType(ConstrainedBox),
+            )
+            .first,
+      )
+      .width;
+}
+
+int _separatorCountWithHeight(WidgetTester tester, double height) {
+  return tester
+      .widgetList<Container>(find.byType(Container))
+      .where(
+        (widget) =>
+            widget.constraints ==
+            BoxConstraints.tightFor(width: 1, height: height),
+      )
+      .length;
 }
 
 BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {

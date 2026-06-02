@@ -461,22 +461,28 @@ class _HeaderHeroSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = collapseProgress.clamp(0.0, 1.0);
-    final blur = 18 * progress;
+    final blur = 46 * progress;
     return ClipRect(
       key: const ValueKey('HeaderedPlaylist.HeroBackdropClip'),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        filter: ImageFilter.compose(
+          outer: const ColorFilter.matrix(
+            multiSelectCommandBarBackdropSaturationMatrix,
+          ),
+          inner: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
             _HeaderRadial(
               center: const Alignment(-0.56, -0.76),
               radius: 0.96,
-              color: coverColor.withValues(alpha: 0.22 * progress),
+              color: coverColor.withValues(alpha: 0.10 * progress),
             ),
             DecoratedBox(
+              key: const ValueKey('HeaderedPlaylist.HeroSurfaceTint'),
               decoration: BoxDecoration(
-                color: surfaceColor.withValues(alpha: 0.9 * progress),
+                color: surfaceColor.withValues(alpha: 0.18 * progress),
               ),
             ),
           ],

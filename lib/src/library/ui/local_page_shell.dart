@@ -35,12 +35,14 @@ class LocalPageContentPanel extends StatelessWidget {
     required this.scrollController,
     required this.scrollable,
     required this.compact,
+    required this.bottomPadding,
     required this.child,
   });
 
   final ScrollController scrollController;
   final bool scrollable;
   final bool compact;
+  final double bottomPadding;
   final Widget child;
 
   @override
@@ -51,7 +53,7 @@ class LocalPageContentPanel extends StatelessWidget {
       }
       return _LocalScrollableContent(
         controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(0, 4, 0, 18),
+        padding: EdgeInsets.fromLTRB(0, 4, 0, bottomPadding),
         child: child,
       );
     }
@@ -61,7 +63,7 @@ class LocalPageContentPanel extends StatelessWidget {
     }
     return _LocalScrollableContent(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(6, 4, 6, 18),
+      padding: EdgeInsets.fromLTRB(6, 4, 6, bottomPadding),
       child: child,
     );
   }

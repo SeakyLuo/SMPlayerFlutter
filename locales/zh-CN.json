@@ -667,6 +667,7 @@
   "settings.releaseNotesUi": "可在设置中查看更新日志。",
   "settings.releaseNotesVersion": "版本",
   "releaseNotes.architectureFeedback": "本次更新进行了大量调整，欢迎通过【设置】—>【其他】进行反馈。",
+  "releaseNotes.tryLiquidGlass": "尝试引入液态玻璃。",
   "settings.rescan": "刷新文件夹",
   "settings.save": "保存",
   "settings.saveChanges": "保存更改",

@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "Примечания к выпуску доступны в настройках.",
   "settings.releaseNotesVersion": "Версия",
   "releaseNotes.architectureFeedback": "Это обновление включает множество изменений. Отзывы можно отправить через [Настройки] -> [Другое].",
+  "releaseNotes.tryLiquidGlass": "Попытка внедрить жидкое стекло.",
   "settings.rescan": "Обновить папку",
   "settings.save": "Сохранить",
   "settings.saveChanges": "Сохранить изменения",

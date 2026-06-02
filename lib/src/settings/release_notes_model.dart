@@ -32,9 +32,12 @@ List<ReleaseNoteEntry> getReleaseNotes(SmPlayerI18n i18n) {
             final text = _releaseNoteTexts[key]!;
             final i18nKey = text.i18nKey;
             if (i18nKey != null) {
-              return i18n.t(i18nKey);
+              final localized = i18n.t(i18nKey);
+              if (localized != i18nKey) {
+                return localized;
+              }
             }
-            return useChinese ? text.zh : text.en;
+            return i18nKey == null && useChinese ? text.zh : text.en;
           }).toList(),
     );
   }).toList();
@@ -46,6 +49,11 @@ const _releaseNoteTexts = {
         'This new architecture release includes extensive changes. Feedback is welcome from Settings > Others.',
     zh: '全新架构版本进行了大量调整，欢迎通过【设置】—>【其他】进行反馈。',
     i18nKey: 'releaseNotes.architectureFeedback',
+  ),
+  'tryLiquidGlass': _ReleaseNoteText(
+    en: 'Try introducing liquid glass.',
+    zh: '尝试引入液态玻璃。',
+    i18nKey: 'releaseNotes.tryLiquidGlass',
   ),
   'modernUi': _ReleaseNoteText(
     en: 'Changed to a more modern UI.',
@@ -404,6 +412,7 @@ const _releaseNoteTexts = {
 };
 
 const _releaseNoteDefinitions = [
+  _ReleaseNoteDefinition('3.1.0', ['tryLiquidGlass']),
   _ReleaseNoteDefinition('3.0.0', [
     'architectureFeedback',
     'modernUi',

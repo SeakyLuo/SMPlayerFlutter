@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {

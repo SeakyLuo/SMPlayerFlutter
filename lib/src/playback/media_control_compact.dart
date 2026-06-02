@@ -354,16 +354,11 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required VoidCallback onSeeAlbumArt,
     required VoidCallback onSeeLocal,
   }) async {
-    final resolvedPreferenceLevel =
-        await onResolvePreferenceLevel?.call() ?? preferenceLevel;
     if (!context.mounted) {
       return;
     }
-    showMenuFlyout(
-      context,
-      position: _menuFlyoutPositionAboveAnchor(context),
-      avoidPlayerBar: false,
-      items: _buildPlayerMoreMenuItems(
+    List<MenuFlyoutItem> buildItems(String? resolvedPreferenceLevel) {
+      return _buildPlayerMoreMenuItems(
         i18n: i18n,
         disabled: disabled,
         trackId: trackId,
@@ -396,8 +391,31 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onSeeLyrics: onSeeLyrics,
         onSeeAlbumArt: onSeeAlbumArt,
         onSeeLocal: onSeeLocal,
-      ),
+      );
+    }
+
+    final itemsNotifier = ValueNotifier<List<MenuFlyoutItem>>(
+      buildItems(preferenceLevel),
     );
+    var menuClosed = false;
+    if (onResolvePreferenceLevel != null) {
+      unawaited(
+        Future.sync(onResolvePreferenceLevel!).then((resolvedPreferenceLevel) {
+          if (!menuClosed) {
+            itemsNotifier.value = buildItems(resolvedPreferenceLevel);
+          }
+        }),
+      );
+    }
+    await showMenuFlyout(
+      context,
+      position: _menuFlyoutPositionAboveAnchor(context),
+      avoidPlayerBar: false,
+      items: itemsNotifier.value,
+      itemsListenable: itemsNotifier,
+    );
+    menuClosed = true;
+    itemsNotifier.dispose();
   }
 
   void _showCompactPlaybackModeMenu(

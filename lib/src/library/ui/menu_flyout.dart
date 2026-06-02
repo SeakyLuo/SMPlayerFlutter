@@ -562,20 +562,20 @@ class _MenuFlyoutGlassPanel extends StatelessWidget {
       child: GlassContainer(
         key: const ValueKey('MenuFlyout.GlassPanel'),
         useOwnLayer: true,
-        quality: GlassQuality.standard,
+        quality: GlassQuality.minimal,
         clipBehavior: Clip.hardEdge,
         shape: const LiquidRoundedRectangle(borderRadius: _radius),
         settings: LiquidGlassSettings(
-          blur: 28,
-          thickness: 24,
-          refractiveIndex: 1.08,
-          saturation: 1.24,
-          chromaticAberration: 0.008,
-          lightIntensity: 0.34,
-          ambientStrength: 0.14,
-          glowIntensity: 0.22,
+          blur: 46,
+          thickness: 20,
+          refractiveIndex: 1.06,
+          saturation: 1.65,
+          chromaticAberration: 0,
+          lightIntensity: 0.1,
+          ambientStrength: 0.08,
+          glowIntensity: 0.04,
           glassColor: colors.surface,
-          standardOpacityMultiplier: 0.92,
+          standardOpacityMultiplier: 0.24,
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -917,7 +917,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
   final Color checked;
 
   static const light = MenuFlyoutThemeColors(
-    surface: Color(0xffffffff),
+    surface: Color(0x48ffffff),
     border: Color(0x337e8b9a),
     shadow: Color(0x2e263344),
     text: Color(0xff1f252b),
@@ -928,7 +928,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
   );
 
   static const dark = MenuFlyoutThemeColors(
-    surface: Color(0xfa181e26),
+    surface: Color(0x54181e26),
     border: Color(0x30d6e0ec),
     shadow: Color(0x5c000000),
     text: Colors.white,

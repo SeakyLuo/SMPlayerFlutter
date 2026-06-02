@@ -50,6 +50,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     installExternalOpenObserver()
 
     super.awakeFromNib()
+    DispatchQueue.main.async { [weak self] in
+      guard let self else {
+        return
+      }
+      self.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+    }
   }
 
   private func configureIntegratedTitlebar() {

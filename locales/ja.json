@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "リリースノートは設定で確認できます。",
   "settings.releaseNotesVersion": "バージョン",
   "releaseNotes.architectureFeedback": "今回の更新には多くの調整が含まれています。フィードバックは [設定] -> [その他] から送信できます。",
+  "releaseNotes.tryLiquidGlass": "リキッドグラスの導入を試みました。",
   "settings.rescan": "フォルダーを更新",
   "settings.save": "保存",
   "settings.saveChanges": "変更を保存する",

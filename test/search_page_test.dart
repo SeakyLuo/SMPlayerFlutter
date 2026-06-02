@@ -299,6 +299,41 @@ void main() {
     expect(repository.replacedNowPlaying, [99, 1]);
   });
 
+  testWidgets(
+    'SearchPage multi-select Play respects Electron hide preference',
+    (tester) async {
+      final repository = _FakeLibraryRepository();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(
+        _SearchPageTestApp(
+          snapshot: _keepSelectionSnapshot,
+          i18n: i18n,
+          repository: repository,
+          child: const SearchPage(query: 'song', activeType: 'songs'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Root Song'), buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Play Selected'));
+      await tester.pumpAndSettle();
+
+      expect(repository.replacedNowPlaying, [1]);
+      expect(find.text('1 selected'), findsOneWidget);
+    },
+  );
+
   testWidgets('SearchPage album add opens Electron Add To menu', (
     tester,
   ) async {
@@ -956,6 +991,21 @@ const _snapshot = LibraryContentData(
   hideMultiSelectCommandBarAfterOperation: true,
   rootPath: r'C:\Music',
   databasePath: '',
+);
+
+final _keepSelectionSnapshot = LibraryContentData(
+  songs: _snapshot.songs,
+  folders: _snapshot.folders,
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation: false,
+  rootPath: _snapshot.rootPath,
+  databasePath: _snapshot.databasePath,
 );
 
 final _artistPreviewSnapshot = LibraryContentData(

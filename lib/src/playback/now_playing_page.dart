@@ -22,13 +22,13 @@ import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
-import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
@@ -119,7 +119,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       loading: () => const _NowPlayingPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _NowPlayingPagePanel(
-            child: _NowPlayingEmptyState(
+            child: NowPlayingEmptyState(
               title: i18n.t('nowPlaying.noActiveTrack'),
               message: i18n.t('nowPlaying.noActiveTrackCopy'),
             ),
@@ -139,8 +139,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             queueEntries
                 .where((entry) => _matchesSearch(entry.$2, widget.searchQuery))
                 .toList();
-        final visibleQueueSongs =
-            visibleEntries.map((entry) => entry.$2).toList();
         final visibleQueueIndexes =
             visibleEntries.map((entry) => entry.$1).toList();
         final selectedVisibleSongIds =
@@ -314,8 +312,90 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           libraryCommandsEnabled: snapshot.songs.isNotEmpty,
         );
 
+        final multiSelectCommandBar = MultiSelectCommandBar(
+          visible: _selection.multiSelect,
+          bottomInset: multiSelectCommandBarShellBottomInset,
+          selectedCount: selectedVisibleSongIds.length,
+          playlists: customPlaylists,
+          addToSongIds: selectedVisibleSongIds,
+          includeFavoritesInAddTo: selectedVisibleSongIds.any(
+            (songId) => !songsById[songId]!.favorite,
+          ),
+          removeLabel: i18n.t('nowPlaying.remove'),
+          hideAfterOperation: snapshot.hideMultiSelectCommandBarAfterOperation,
+          onToggleFavorite: () {
+            _addSongsToFavorites(
+              selectedVisibleSongIds
+                  .where((songId) => !songsById[songId]!.favorite)
+                  .toList(),
+              songsById,
+            );
+          },
+          onCreatePlaylist: () {
+            unawaited(
+              createPlaylistWithSongs(
+                context: context,
+                ref: ref,
+                i18n: i18n,
+                playlists: snapshot.playlists,
+                defaultName: getDefaultNewPlaylistName(
+                  i18n,
+                  snapshot.playlists,
+                ),
+                songIds: selectedVisibleSongIds,
+              ),
+            );
+          },
+          onAddToPlaylist: (playlistId) {
+            unawaited(
+              _addSongsToPlaylistWithUndo(
+                playlistId,
+                selectedVisibleSongIds,
+                snapshot.playlists,
+                songsById,
+              ),
+            );
+          },
+          onPlay:
+              selectedVisibleSongIds.isEmpty
+                  ? null
+                  : () {
+                    _playSongIds(selectedVisibleSongIds);
+                  },
+          onRemove:
+              selectedVisibleSongIds.isEmpty
+                  ? null
+                  : () {
+                    _removeSelectedQueueIndexes(
+                      queueSongIds,
+                      selectedVisibleQueueIndexes,
+                      selectedVisibleSongIds,
+                      songsById,
+                    );
+                    _clearSelection();
+                  },
+          onSelectAll: () {
+            setState(() {
+              _selection.selectAll(visibleQueueIndexes);
+            });
+          },
+          onReverseSelection: () {
+            setState(() {
+              _selection.reverseSelection(visibleQueueIndexes);
+            });
+          },
+          onClearSelection: () {
+            setState(_selection.clearSelection);
+          },
+          onCancel: () {
+            setState(_selection.cancel);
+          },
+        );
+
         return _NowPlayingPagePanel(
+          overlay: multiSelectCommandBar,
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Column(
                 children: [
@@ -422,193 +502,55 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     const SizedBox(height: 8),
                   ],
                   Expanded(
-                    child:
-                        queueSongs.isEmpty
-                            ? const SizedBox.shrink()
-                            : visibleQueueSongs.isEmpty
-                            ? _NowPlayingEmptyState(
-                              title: i18n.t('nowPlaying.noQueueMatch', {
-                                'query': widget.searchQuery,
-                              }),
-                              message: i18n.t('nowPlaying.queueSearchHelp'),
-                            )
-                            : Scrollbar(
-                              controller: _listController,
-                              child: ReorderableListView.builder(
-                                scrollController: _listController,
-                                padding: EdgeInsets.fromLTRB(
-                                  0,
-                                  0,
-                                  0,
-                                  _selection.multiSelect
-                                      ? multiSelectCommandBarScrollSpacer
-                                      : 18,
-                                ),
-                                buildDefaultDragHandles: false,
-                                itemCount: visibleEntries.length,
-                                onReorderItem: (oldIndex, newIndex) {
-                                  _moveVisibleQueueSongItem(
-                                    queueSongIds,
-                                    visibleQueueIndexes,
-                                    oldIndex,
-                                    newIndex,
-                                  );
-                                },
-                                itemBuilder: (context, visibleIndex) {
-                                  final queueIndex =
-                                      visibleEntries[visibleIndex].$1;
-                                  final song = visibleEntries[visibleIndex].$2;
-                                  final current =
-                                      mediaControlState.selectedQueueIndex ==
-                                              null
-                                          ? song.id ==
-                                              mediaControlState.track.id
-                                          : queueIndex ==
-                                              mediaControlState
-                                                  .selectedQueueIndex;
-                                  return ReorderableDragStartListener(
-                                    key: ValueKey(
-                                      'now-playing-${song.id}-$queueIndex',
-                                    ),
-                                    index: visibleIndex,
-                                    child: PlaylistControlItem(
-                                      song: song,
-                                      current: current,
-                                      playing:
-                                          current &&
-                                          mediaControlState.isPlaying,
-                                      selected: _selection.isSelected(
-                                        queueIndex,
-                                      ),
-                                      selectionMode: _selection.multiSelect,
-                                      onPlayTrack: () {
-                                        _playQueueTrack(
-                                          song,
-                                          queueSongIds,
-                                          queueIndex,
-                                        );
-                                      },
-                                      onTogglePlayPause:
-                                          ref
-                                              .read(
-                                                mediaControlControllerProvider,
-                                              )
-                                              .onTogglePlayPause,
-                                      onToggleSelection: () {
-                                        _toggleQueueSelection(queueIndex);
-                                      },
-                                      onPlayNextClick: () {
-                                        _playNext(queueSongIds, queueIndex);
-                                      },
-                                      onRemoveFromListClick: () {
-                                        _removeQueueIndex(
-                                          queueSongIds,
-                                          queueIndex,
-                                          song,
-                                        );
-                                      },
-                                      onOpenContextMenu: (position) {
-                                        unawaited(
-                                          _showQueueContextMenu(
-                                            position,
-                                            song,
-                                            queueSongIds,
-                                            queueIndex,
-                                            customPlaylists,
-                                            folders,
-                                            snapshot.playlists,
-                                            songsById,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
+                    child: NowPlayingQueueView(
+                      queueSongs: queueSongs,
+                      visibleEntries: visibleEntries,
+                      searchQuery: widget.searchQuery,
+                      scrollController: _listController,
+                      selectedQueueIndex: mediaControlState.selectedQueueIndex,
+                      selectedTrackId: mediaControlState.track.id,
+                      isPlaying: mediaControlState.isPlaying,
+                      selectionMode: _selection.multiSelect,
+                      isSelected: _selection.isSelected,
+                      onReorderVisible: (oldIndex, newIndex) {
+                        _moveVisibleQueueSongItem(
+                          queueSongIds,
+                          visibleQueueIndexes,
+                          oldIndex,
+                          newIndex,
+                        );
+                      },
+                      onPlayQueueTrack: (song, queueIndex) {
+                        _playQueueTrack(song, queueSongIds, queueIndex);
+                      },
+                      onTogglePlayPause:
+                          ref
+                              .read(mediaControlControllerProvider)
+                              .onTogglePlayPause,
+                      onToggleQueueSelection: _toggleQueueSelection,
+                      onPlayNext: (queueIndex) {
+                        _playNext(queueSongIds, queueIndex);
+                      },
+                      onRemoveQueueIndex: (queueIndex, song) {
+                        _removeQueueIndex(queueSongIds, queueIndex, song);
+                      },
+                      onOpenContextMenu: (position, song, queueIndex) {
+                        unawaited(
+                          _showQueueContextMenu(
+                            position,
+                            song,
+                            queueSongIds,
+                            queueIndex,
+                            customPlaylists,
+                            folders,
+                            snapshot.playlists,
+                            songsById,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ],
-              ),
-              MultiSelectCommandBar(
-                visible: _selection.multiSelect,
-                selectedCount: selectedVisibleSongIds.length,
-                playlists: customPlaylists,
-                addToSongIds: selectedVisibleSongIds,
-                includeFavoritesInAddTo: selectedVisibleSongIds.any(
-                  (songId) => !songsById[songId]!.favorite,
-                ),
-                removeLabel: i18n.t('nowPlaying.remove'),
-                onToggleFavorite: () {
-                  _addSongsToFavorites(
-                    selectedVisibleSongIds
-                        .where((songId) => !songsById[songId]!.favorite)
-                        .toList(),
-                    songsById,
-                  );
-                  _clearSelection();
-                },
-                onCreatePlaylist: () {
-                  unawaited(
-                    createPlaylistWithSongs(
-                      context: context,
-                      ref: ref,
-                      i18n: i18n,
-                      playlists: snapshot.playlists,
-                      defaultName: getDefaultNewPlaylistName(
-                        i18n,
-                        snapshot.playlists,
-                      ),
-                      songIds: selectedVisibleSongIds,
-                    ),
-                  );
-                  _clearSelection();
-                },
-                onAddToPlaylist: (playlistId) {
-                  unawaited(
-                    _addSongsToPlaylistWithUndo(
-                      playlistId,
-                      selectedVisibleSongIds,
-                      snapshot.playlists,
-                      songsById,
-                    ),
-                  );
-                  _clearSelection();
-                },
-                onPlay:
-                    selectedVisibleSongIds.isEmpty
-                        ? null
-                        : () {
-                          _playSongIds(selectedVisibleSongIds);
-                          _clearSelection();
-                        },
-                onRemove:
-                    selectedVisibleSongIds.isEmpty
-                        ? null
-                        : () {
-                          _removeSelectedQueueIndexes(
-                            queueSongIds,
-                            selectedVisibleQueueIndexes,
-                            selectedVisibleSongIds,
-                            songsById,
-                          );
-                          _clearSelection();
-                        },
-                onSelectAll: () {
-                  setState(() {
-                    _selection.selectAll(visibleQueueIndexes);
-                  });
-                },
-                onReverseSelection: () {
-                  setState(() {
-                    _selection.reverseSelection(visibleQueueIndexes);
-                  });
-                },
-                onClearSelection: () {
-                  setState(_selection.clearSelection);
-                },
-                onCancel: () {
-                  setState(_selection.cancel);
-                },
               ),
               if (_songDialog case final dialog?)
                 MusicDialog(
@@ -1174,9 +1116,10 @@ List<int> _insertQueueEntries(
 }
 
 class _NowPlayingPagePanel extends StatelessWidget {
-  const _NowPlayingPagePanel({required this.child});
+  const _NowPlayingPagePanel({required this.child, this.overlay});
 
   final Widget child;
+  final Widget? overlay;
 
   @override
   Widget build(BuildContext context) {
@@ -1184,69 +1127,16 @@ class _NowPlayingPagePanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: ShellThemeColors.of(context).workspaceSolidSurface,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        child: SizedBox.expand(child: child),
-      ),
-    );
-  }
-}
-
-class _NowPlayingEmptyState extends StatelessWidget {
-  const _NowPlayingEmptyState({required this.title, required this.message});
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _NowPlayingColors.emptyStateSurface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _NowPlayingColors.emptyStateBorder),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: _NowPlayingColors.textStrong,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: _NowPlayingColors.textMuted,
-                    fontSize: 14,
-                    height: 1.65,
-                  ),
-                ),
-              ),
-            ],
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            child: SizedBox.expand(child: child),
           ),
-        ),
+          if (overlay != null) Positioned.fill(child: overlay!),
+        ],
       ),
     );
   }
-}
-
-class _NowPlayingColors {
-  const _NowPlayingColors._();
-
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff5b697a);
-  static const emptyStateSurface = Color(0x94ffffff);
-  static const emptyStateBorder = Color(0x94ffffff);
 }

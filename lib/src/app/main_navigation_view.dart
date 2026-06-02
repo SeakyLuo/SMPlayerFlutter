@@ -62,6 +62,8 @@ class MainNavigationView extends StatefulWidget {
     this.onPlaylistRandomPlay,
     this.onRecentSearchRemove,
     this.onRecentSearchesClear,
+    this.searchHistoryDismissEpoch = 0,
+    this.onSearchHistoryOpenChanged,
     this.onWindowDragStart,
     this.onWindowDragEnd,
   });
@@ -88,6 +90,8 @@ class MainNavigationView extends StatefulWidget {
   final ValueChanged<int>? onPlaylistRandomPlay;
   final ValueChanged<int>? onRecentSearchRemove;
   final VoidCallback? onRecentSearchesClear;
+  final int searchHistoryDismissEpoch;
+  final ValueChanged<bool>? onSearchHistoryOpenChanged;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
 
@@ -184,6 +188,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     if (oldWidget.isPaneOpen != widget.isPaneOpen && widget.isPaneOpen) {
       _floatingTooltip = null;
     }
+    if (oldWidget.searchHistoryDismissEpoch !=
+        widget.searchHistoryDismissEpoch) {
+      _closeSearchHistory();
+      return;
+    }
     if (_focusSearchAfterPaneOpen && widget.isPaneOpen) {
       _focusSearchAfterPaneOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -195,8 +204,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
         widget.recentSearches.any(
           (entry) => entry.type == SearchHistoryType.sidebar,
         )) {
-      _isSearchHistoryOpen = true;
+      _setSearchHistoryOpen(true);
     }
+  }
+
+  void _setSearchHistoryOpen(bool open) {
+    if (_isSearchHistoryOpen == open) {
+      return;
+    }
+    _isSearchHistoryOpen = open;
+    widget.onSearchHistoryOpenChanged?.call(open);
   }
 
   void _syncPlaylistExpansionWithRoute() {
@@ -217,7 +234,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       return;
     }
     setState(() {
-      _isSearchHistoryOpen = false;
+      _setSearchHistoryOpen(false);
     });
     _searchFocusNode.unfocus();
   }
@@ -371,7 +388,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                       constraints.maxWidth < _expandedNavigationContentMinWidth;
                   final showRecentSearches =
                       !contentCollapsed &&
-                      (_isSearchHistoryOpen || _searchFocusNode.hasFocus) &&
+                      _isSearchHistoryOpen &&
                       visibleRecentSearches.isNotEmpty;
                   final playlistSection = _buildPlaylistSection(
                     collapsed: contentCollapsed,
@@ -442,7 +459,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                             onSubmitted: (value) {
                               widget.onSearchCommitted(value);
                               setState(() {
-                                _isSearchHistoryOpen = false;
+                                _setSearchHistoryOpen(false);
                               });
                               _searchFocusNode.unfocus();
                             },
@@ -450,13 +467,13 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                             onFocusChanged: (focused) {
                               if (focused) {
                                 setState(() {
-                                  _isSearchHistoryOpen = true;
+                                  _setSearchHistoryOpen(true);
                                 });
                               }
                             },
                             onSearchHistoryRequested: () {
                               setState(() {
-                                _isSearchHistoryOpen = true;
+                                _setSearchHistoryOpen(true);
                               });
                             },
                             onSearchHistoryDismissed: _closeSearchHistory,
@@ -572,7 +589,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                     entry.type,
                                   );
                                   setState(() {
-                                    _isSearchHistoryOpen = false;
+                                    _setSearchHistoryOpen(false);
                                   });
                                   _searchFocusNode.unfocus();
                                 },

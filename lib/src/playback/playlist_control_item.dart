@@ -10,6 +10,7 @@ import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_overlay_glass.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
@@ -215,6 +216,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
     final compactHoverActionsVisible = !compactVariant || _hovered || _focused;
+    final multiSelectSelected = widget.selectionMode && widget.selected;
     final rowHeight =
         compactVariant
             ? 78.0
@@ -253,7 +255,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         padding: rowPadding,
         decoration: BoxDecoration(
           color:
-              widget.current
+              multiSelectSelected
+                  ? colors.hover
+                  : widget.current
                   ? colors.current
                   : widget.selected || _hovered
                   ? colors.hover
@@ -264,7 +268,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               defaultColors
                   ? widget.selected || _hovered
                       ? [
-                        if (widget.selected)
+                        if (widget.selected && !multiSelectSelected)
                           const BoxShadow(
                             color: _PlaylistControlItemColors.selectedInset,
                             offset: Offset(3, 0),
@@ -1216,6 +1220,6 @@ class _PlaylistControlItemColors {
   static const nightActionHover = Color(0x17ffffff);
   static const favorite = Color(0xffd13438);
   static const destructive = Color(0xffc42b1c);
-  static const playingOverlay = Color(0xa814181e);
+  static const playingOverlay = artworkOverlayGlassColor;
   static const playingOverlayShadow = Color(0x420e1620);
 }

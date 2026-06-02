@@ -30,7 +30,7 @@ import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
@@ -418,6 +418,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ),
                 MultiSelectCommandBar(
                   visible: _selection.multiSelect,
+                  bottomInset: multiSelectCommandBarShellBottomInset,
                   selectedCount: selectedItemCount,
                   playlists: _customPlaylists(snapshot.playlists),
                   showAddTo: true,

@@ -3,9 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_overlay_glass.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
@@ -277,6 +279,16 @@ void main() {
       expect(
         find.byKey(const ValueKey('PlaylistControlItem.Playing.Backdrop')),
         findsOneWidget,
+      );
+      final waveGlass = tester.widget<GlassContainer>(
+        find.byKey(const ValueKey('PlaylistControlItem.Playing.Backdrop')),
+      );
+      expect(waveGlass.settings?.glassColor, artworkOverlayGlassColor);
+      expect(waveGlass.settings?.blur, 46);
+      expect(waveGlass.settings?.saturation, 1.65);
+      expect(
+        waveGlass.settings?.standardOpacityMultiplier,
+        artworkOverlayGlassOpacityMultiplier,
       );
 
       final firstHeight = _playingBarHeight(tester, 0);
@@ -915,6 +927,60 @@ void main() {
       expect(
         (container.decoration! as BoxDecoration).color,
         const Color(0x9effffff),
+      );
+    },
+  );
+
+  testWidgets(
+    'PlaylistControlItem multi-select selected row uses hover color',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: true,
+                  playing: false,
+                  selected: true,
+                  selectionMode: true,
+                  addToPlaylistLabel: 'Add',
+                  moreLabel: 'More',
+                  onAddToPlaylistClick: _noopContext,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                  onPlayNextClick: _noop,
+                  onRemoveFromListClick: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final rowContainer = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byType(PlaylistControlItem),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      final decoration = rowContainer.decoration! as BoxDecoration;
+      expect(decoration.color, const Color(0x140078d7));
+      expect(
+        decoration.boxShadow?.where(
+          (shadow) => shadow.color == const Color(0xff0078d7),
+        ),
+        isEmpty,
       );
     },
   );

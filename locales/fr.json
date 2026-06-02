@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "Les notes de version sont disponibles dans les paramètres.",
   "settings.releaseNotesVersion": "Version",
   "releaseNotes.architectureFeedback": "Cette mise à jour apporte de nombreux ajustements. Les commentaires sont les bienvenus via [Paramètres] -> [Autres].",
+  "releaseNotes.tryLiquidGlass": "Tentative d'introduction du verre liquide.",
   "settings.rescan": "Actualiser le dossier",
   "settings.save": "Enregistrer",
   "settings.saveChanges": "Enregistrer les modifications",

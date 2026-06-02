@@ -634,10 +634,20 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                 ),
               ),
             ),
-            SliverList.builder(
-              itemCount: album.songs.length,
-              itemBuilder: (context, index) {
-                final song = album.songs[index];
+            PlaylistControlSliver(
+              entries: [
+                for (var index = 0; index < album.songs.length; index += 1)
+                  _albumSongEntry(
+                    context: context,
+                    song: album.songs[index],
+                    queueSongIds: queueSongIds,
+                    narrowSongRows: narrowSongRows,
+                    songRowTrailingPadding: songRowTrailingPadding,
+                    songRowColors: songRowColors,
+                    hideFavoriteAction: hideFavoriteAction,
+                  ),
+              ],
+              itemShellBuilder: (context, index, child) {
                 final first = index == 0;
                 final last = index == album.songs.length - 1;
                 return _ArtistAlbumSongRowShell(
@@ -649,61 +659,71 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                   first: first,
                   last: last,
                   radius: sectionRadius,
-                  child: PlaylistControlItem(
-                    key: ValueKey('artist-song-${song.id}'),
-                    song: song,
-                    current: song.id == selectedTrackId,
-                    playing: song.id == selectedTrackId && isPlaying,
-                    selected: selectedSongIds.contains(song.id),
-                    selectionMode: multiSelect,
-                    showAlbum: false,
-                    variant: PlaylistControlItemVariant.compact,
-                    colors: songRowColors,
-                    showCompactPrimaryActions: true,
-                    collapseCompactPrimaryActions: narrowSongRows,
-                    compactDurationWidth: narrowSongRows ? 20 : 50,
-                    compactTrailingPadding: songRowTrailingPadding,
-                    showFavoriteAction: !hideFavoriteAction,
-                    playNextLabel: i18n.t('context.playNext'),
-                    addToPlaylistLabel: i18n.t('context.addToPlaylist'),
-                    favoriteLabel: i18n.t('common.favorite'),
-                    moreLabel: i18n.t('player.more'),
-                    onPlayTrack: () {
-                      onPlayTrack(song.id, queueSongIds);
-                    },
-                    onTogglePlayPause: onTogglePlayPause,
-                    onToggleSelection: () {
-                      onToggleSongSelection(song.id);
-                    },
-                    onToggleFavoriteClick: () {
-                      onToggleFavorite(song.id, !song.favorite);
-                    },
-                    onAddToPlaylistClick: (buttonContext) {
-                      onOpenSongAddToMenu(buttonContext, song);
-                    },
-                    onPlayNextClick: () {
-                      onPlayNext(song.id);
-                    },
-                    onOpenContextMenu: (position) {
-                      onOpenSongContextMenu(position, song);
-                    },
-                    onSeeArtist: (artistName) {
-                      context.go(
-                        '/artists?artist=${Uri.encodeQueryComponent(artistName)}',
-                      );
-                    },
-                    onSeeAlbum: () {
-                      context.go(
-                        '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
-                      );
-                    },
-                  ),
+                  child: child,
                 );
               },
             ),
           ],
         ),
       ),
+    );
+  }
+
+  PlaylistControlEntry _albumSongEntry({
+    required BuildContext context,
+    required LibrarySong song,
+    required List<int> queueSongIds,
+    required bool narrowSongRows,
+    required double songRowTrailingPadding,
+    required PlaylistControlItemColors? songRowColors,
+    required bool hideFavoriteAction,
+  }) {
+    return PlaylistControlEntry(
+      key: ValueKey('artist-song-${song.id}'),
+      song: song,
+      current: song.id == selectedTrackId,
+      playing: song.id == selectedTrackId && isPlaying,
+      selected: selectedSongIds.contains(song.id),
+      selectionMode: multiSelect,
+      showAlbum: false,
+      variant: PlaylistControlItemVariant.compact,
+      colors: songRowColors,
+      showCompactPrimaryActions: true,
+      collapseCompactPrimaryActions: narrowSongRows,
+      compactDurationWidth: narrowSongRows ? 20 : 50,
+      compactTrailingPadding: songRowTrailingPadding,
+      showFavoriteAction: !hideFavoriteAction,
+      playNextLabel: i18n.t('context.playNext'),
+      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+      favoriteLabel: i18n.t('common.favorite'),
+      moreLabel: i18n.t('player.more'),
+      onPlayTrack: () {
+        onPlayTrack(song.id, queueSongIds);
+      },
+      onTogglePlayPause: onTogglePlayPause,
+      onToggleSelection: () {
+        onToggleSongSelection(song.id);
+      },
+      onToggleFavoriteClick: () {
+        onToggleFavorite(song.id, !song.favorite);
+      },
+      onAddToPlaylistClick: (buttonContext) {
+        onOpenSongAddToMenu(buttonContext, song);
+      },
+      onPlayNextClick: () {
+        onPlayNext(song.id);
+      },
+      onOpenContextMenu: (position) {
+        onOpenSongContextMenu(position, song);
+      },
+      onSeeArtist: (artistName) {
+        context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
+      },
+      onSeeAlbum: () {
+        context.go(
+          '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
+        );
+      },
     );
   }
 }

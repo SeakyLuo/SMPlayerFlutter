@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
+import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -200,6 +201,33 @@ void main() {
       'local.clearArtistSplitSelection': '清空选择',
     },
   );
+
+  test('Release notes fallback uses English instead of exposing missing keys', () {
+    final notes = getReleaseNotes(i18n);
+    final latest = notes.first;
+
+    expect(latest.version, '3.1.0');
+    expect(latest.items, contains('Try introducing liquid glass.'));
+    expect(latest.items, isNot(contains('releaseNotes.tryLiquidGlass')));
+  });
+
+  test('Release notes uses localized liquid glass text when present', () {
+    final notes = getReleaseNotes(
+      const SmPlayerI18n(
+        locale: 'fr',
+        messages: {
+          'releaseNotes.tryLiquidGlass':
+              "Tentative d'introduction du verre liquide.",
+        },
+      ),
+    );
+
+    expect(notes.first.version, '3.1.0');
+    expect(
+      notes.first.items,
+      contains("Tentative d'introduction du verre liquide."),
+    );
+  });
 
   setUp(() {
     resetSmPlayerGlobalSettingsSnapshot();
