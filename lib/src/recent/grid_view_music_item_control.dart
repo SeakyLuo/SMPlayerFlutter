@@ -68,10 +68,17 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
           height: widget.metrics.tileExtent,
           padding: widget.metrics.padding,
           decoration: BoxDecoration(
-            color: active ? colors.activeSurface : Colors.transparent,
+            color: active ? colors.activeSurface : colors.inactiveSurface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: active ? colors.activeShadow : const [],
           ),
+          foregroundDecoration:
+              active
+                  ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors.activeBorder),
+                  )
+                  : null,
           child: Row(
             children: [
               Stack(

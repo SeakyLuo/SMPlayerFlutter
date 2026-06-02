@@ -546,7 +546,7 @@ void main() {
     expect(repository.restoredRecentPlayedIds, [1]);
   });
 
-  testWidgets('RecentPage grid music hover does not add a real border', (
+  testWidgets('RecentPage grid music hover shows artist-style border', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -579,8 +579,15 @@ void main() {
     final decoration = tester.widget<AnimatedContainer>(tile).decoration;
     expect(decoration, isA<BoxDecoration>());
     final boxDecoration = decoration! as BoxDecoration;
+    final foregroundDecoration =
+        tester.widget<AnimatedContainer>(tile).foregroundDecoration!
+            as BoxDecoration;
     expect(boxDecoration.color, const Color(0x140078d7));
     expect(boxDecoration.border, isNull);
+    expect(
+      foregroundDecoration.border,
+      Border.all(color: const Color(0x260078d7)),
+    );
     expect(boxDecoration.boxShadow, isNotEmpty);
     expect(tester.getSize(tile).height, 116);
     expect(

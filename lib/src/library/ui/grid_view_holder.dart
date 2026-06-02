@@ -8,6 +8,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_artwork_card_content.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.dart';
 
 const gridViewHolderWidth = 180.0;
 const gridViewHolderHeight = 232.0;
@@ -82,6 +83,12 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
     final colors = _GridViewHolderColors.forBrightness(
       Theme.of(context).brightness,
     );
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
+    final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
+      Theme.of(context).brightness,
+    );
     final active = widget.dragging || (!widget.sorting && _hovered);
     final selectedMark =
         widget.selectedMark ??
@@ -117,9 +124,11 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
               color:
                   widget.dragging
                       ? colors.dragSurface
-                      : widget.selected || active
-                      ? colors.hoverSurface
-                      : Colors.transparent,
+                      : widget.selected
+                      ? selectedStyle.background
+                      : active
+                      ? hoverStyle.background
+                      : hoverStyle.transparentBackground,
               borderRadius: BorderRadius.circular(12),
               boxShadow:
                   widget.dragging
@@ -133,9 +142,18 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                       : widget.selected || active
                       ? [
                         BoxShadow(
-                          color: colors.hoverShadow,
-                          blurRadius: 26,
-                          offset: const Offset(0, 12),
+                          color:
+                              widget.selected
+                                  ? selectedStyle.shadow.color
+                                  : hoverStyle.shadow.color,
+                          blurRadius:
+                              widget.selected
+                                  ? selectedStyle.shadow.blurRadius
+                                  : hoverStyle.shadow.blurRadius,
+                          offset:
+                              widget.selected
+                                  ? selectedStyle.shadow.offset
+                                  : hoverStyle.shadow.offset,
                         ),
                       ]
                       : null,
@@ -149,7 +167,12 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                     : widget.selected || active
                     ? BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: colors.hoverBorder),
+                      border: Border.all(
+                        color:
+                            widget.selected
+                                ? selectedStyle.border
+                                : hoverStyle.border,
+                      ),
                     )
                     : null,
             child: Stack(
@@ -163,8 +186,12 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                   showActions:
                       !widget.selectionMode && !widget.sorting && _hovered,
                   artworkKey: widget.artworkKey,
-                  textStrongColor: colors.textStrong,
-                  textMutedColor: colors.textMuted,
+                  textStrongColor:
+                      widget.selected
+                          ? selectedStyle.foreground
+                          : colors.textStrong,
+                  textMutedColor:
+                      widget.selected ? selectedStyle.muted : colors.textMuted,
                   actions: [
                     GridArtworkAction(
                       title: widget.playTooltip,

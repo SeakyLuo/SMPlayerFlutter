@@ -1617,28 +1617,31 @@ void main() {
         .firstWhere((text) => text.style?.fontSize == 15);
     expect(inactiveTitle.style?.color, const Color(0xf0f6f9fc));
 
-    final subtitle = tester
+    final activeSubtitle = tester
         .widgetList<Text>(find.text('1 albums, 1 songs'))
         .firstWhere((text) => text.style?.fontSize == 13);
-    expect(subtitle.style?.color, const Color(0xadcbd5e1));
+    expect(activeSubtitle.style?.color, const Color(0xc276b5dc));
 
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Material && widget.color == const Color(0x330078d7),
-      ),
-      findsOneWidget,
-    );
+    final inactiveSubtitle = tester
+        .widgetList<Text>(find.text('1 albums, 1 songs'))
+        .lastWhere((text) => text.style?.fontSize == 13);
+    expect(inactiveSubtitle.style?.color, const Color(0xadcbd5e1));
+
     final activeRowDecoration = tester.widget<Container>(
       find.byKey(const ValueKey('Artists.ArtistRow.Decoration.Artist A')),
     );
     final activeRowBoxDecoration =
         activeRowDecoration.decoration! as BoxDecoration;
+    expect(activeRowBoxDecoration.color, const Color(0x330078d7));
+    expect(
+      activeRowBoxDecoration.border,
+      Border.all(color: const Color(0x380078d7)),
+    );
     expect(activeRowBoxDecoration.boxShadow, const [
       BoxShadow(
-        color: Color(0x290078d7),
-        offset: Offset(0, 14),
-        blurRadius: 30,
+        color: Color(0x24000000),
+        offset: Offset(0, 10),
+        blurRadius: 24,
       ),
     ]);
 
@@ -1686,6 +1689,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final activeTitle = tester
+        .widgetList<Text>(find.text('Artist A'))
+        .firstWhere((text) => text.style?.fontSize == 15);
+    expect(activeTitle.style?.color, const Color(0xff0063b1));
+
+    final activeSubtitle = tester
+        .widgetList<Text>(find.text('1 albums, 1 songs'))
+        .firstWhere((text) => text.style?.fontSize == 13);
+    expect(activeSubtitle.style?.color, const Color(0xff0063b1));
+
     final activeRowMaterial = tester.widget<Material>(
       find
           .ancestor(
@@ -1696,7 +1709,20 @@ void main() {
           )
           .first,
     );
-    expect(activeRowMaterial.color, const Color(0x1f0078d7));
+    expect(activeRowMaterial.color, Colors.transparent);
+    final activeRowDecoration = tester.widget<Container>(
+      find.byKey(const ValueKey('Artists.ArtistRow.Decoration.Artist A')),
+    );
+    final activeRowBoxDecoration =
+        activeRowDecoration.decoration! as BoxDecoration;
+    expect(activeRowBoxDecoration.color, const Color(0xffd9ecfb));
+    expect(
+      activeRowBoxDecoration.border,
+      Border.all(color: const Color(0x260078d7)),
+    );
+    expect(activeRowBoxDecoration.boxShadow, const [
+      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
+    ]);
     final rowInkWell = tester
         .widgetList<InkWell>(find.byType(InkWell))
         .firstWhere(
@@ -1989,6 +2015,17 @@ void main() {
     expect(songRow.colors?.artworkBackground, const Color(0x14ffffff));
     expect(songRow.colors?.actionHover, const Color(0x2e0078d7));
 
+    final songRowContainer = tester.widget<AnimatedContainer>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('artist-song-1')),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    final songRowDecoration = songRowContainer.decoration! as BoxDecoration;
+    expect(songRowDecoration.color, Colors.transparent);
+
     final title = tester.widget<Text>(
       find.byKey(const ValueKey('PlaylistControlItem.Title')),
     );
@@ -2008,7 +2045,7 @@ void main() {
     final metadata = tester
         .widgetList<Text>(find.text('Artist A'))
         .firstWhere((text) => text.style?.fontSize == 13);
-    expect(metadata.style?.color, const Color(0xff459de2));
+    expect(metadata.style?.color, const Color(0xc276b5dc));
   });
 
   testWidgets('ArtistsPage empty library keeps Electron no-artists copy', (

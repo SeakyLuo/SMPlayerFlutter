@@ -643,11 +643,11 @@ void main() {
     final artist = tester.widget<Text>(find.text('Artist').first);
 
     expect(title.style?.color, MediaControlColors.nightText);
-    expect(title.style?.fontWeight, FontWeight.w400);
-    expect(title.style?.fontVariations, isNull);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    expect(title.style?.fontVariations, const [FontVariation.weight(650)]);
     expect(artist.style?.color, MediaControlColors.nightMuted);
-    expect(artist.style?.fontWeight, FontWeight.w400);
-    expect(artist.style?.fontVariations, isNull);
+    expect(artist.style?.fontWeight, FontWeight.w500);
+    expect(artist.style?.fontVariations, const [FontVariation.weight(520)]);
   });
 
   test('MediaControl player background constants mirror Electron CSS', () {
@@ -1592,58 +1592,105 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(
-      SmPlayerI18nScope(
-        i18n: i18n,
-        child: MaterialApp(
-          theme: _mediaControlTestTheme(),
-          home: Scaffold(
-            body: MediaControl(
-              track: const MediaControlTrack(
-                id: 1,
-                title:
-                    'A very long song title that should not push the player controls away',
-                artist:
-                    'A very long artist name that should stay inside the Electron width cap',
-                artworkUrl: '',
-                isLoading: false,
-                favorite: false,
+    final title =
+        'A very long song title that should not push the player controls away';
+    final artist =
+        'A very long artist name that should stay inside the Electron width cap';
+
+    Future<void> pumpTrack({
+      required String title,
+      required String artist,
+    }) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: MediaControl(
+                track: MediaControlTrack(
+                  id: 1,
+                  title: title,
+                  artist: artist,
+                  artworkUrl: '',
+                  isLoading: false,
+                  favorite: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 0,
+                durationSeconds: 180,
+                onTogglePlayPause: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onSeek: (_) {},
+                onBeginSeek: () {},
+                onEndSeek: () {},
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
               ),
-              disabled: false,
-              isPlaying: false,
-              volume: 50,
-              isMuted: false,
-              mode: PlaybackMode.once,
-              progressSeconds: 0,
-              durationSeconds: 180,
-              onTogglePlayPause: () {},
-              onPrevious: () {},
-              onNext: () {},
-              onSeek: (_) {},
-              onBeginSeek: () {},
-              onEndSeek: () {},
-              onVolumeChange: (_) {},
-              onToggleMute: () {},
-              onToggleShuffle: () {},
-              onToggleRepeat: () {},
-              onToggleRepeatOne: () {},
-              onToggleFavorite: () {},
-              onQuickPlay: () {},
-              onOpenNowPlaying: () {},
-              onToggleWindowFullScreen: () {},
-              isWindowFullScreen: false,
-              onEnterMiniMode: () {},
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
+    await pumpTrack(title: title, artist: artist);
+
+    final titleText = tester.widget<Text>(find.text(title));
+    final artistText = tester.widget<Text>(find.text(artist));
+    expect(titleText.style?.fontWeight, FontWeight.w600);
+    expect(titleText.style?.fontVariations, const [FontVariation.weight(650)]);
+    expect(artistText.style?.fontWeight, FontWeight.w500);
+    expect(artistText.style?.fontVariations, const [FontVariation.weight(520)]);
+
+    final trackButton = find.ancestor(
+      of: find.text(title),
+      matching: find.byType(TextButton),
+    );
+    expect(tester.getSize(trackButton).width, lessThanOrEqualTo(414));
+    final trackButtonStyle = tester.widget<TextButton>(trackButton).style!;
+    expect(
+      trackButtonStyle.backgroundColor?.resolve({WidgetState.hovered}),
+      const Color(0x1f212b3a),
+    );
+    expect(
+      trackButtonStyle.side?.resolve({WidgetState.hovered})?.color,
+      const Color(0x14212b3a),
+    );
+    final expectedWideTrackColumn = (1280 - 32) * 9 / 28;
+    final expectedWideTrackCopy = expectedWideTrackColumn - 72 - 14 - 12;
     expect(
       tester
           .getSize(find.byKey(const ValueKey('MediaControl.TrackCopy')))
           .width,
-      closeTo(1280 * 0.24, 0.1),
+      closeTo(expectedWideTrackCopy, 0.1),
+    );
+
+    await pumpTrack(title: 'Song', artist: 'Artist');
+    final shortTrackButton = find.ancestor(
+      of: find.text('Song'),
+      matching: find.byType(TextButton),
+    );
+    expect(tester.getSize(shortTrackButton).width, closeTo(218, 1));
+    expect(tester.getSize(shortTrackButton).height, closeTo(96, 1));
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('MediaControl.TrackCopy')))
+          .width,
+      120,
     );
   });
 
@@ -1809,9 +1856,12 @@ void main() {
     final lyrics = tester.widget<Text>(
       find.byKey(const ValueKey('MediaControl.CurrentLyricsLine')),
     );
-    expect(lyrics.style?.color, MediaControlColors.textMuted);
-    expect(lyrics.style?.fontWeight, FontWeight.w400);
-    expect(lyrics.style?.fontVariations, isNull);
+    expect(
+      lyrics.style?.color,
+      MediaControlColors.accent.withValues(alpha: 0.94),
+    );
+    expect(lyrics.style?.fontWeight, FontWeight.w500);
+    expect(lyrics.style?.fontVariations, const [FontVariation.weight(560)]);
     expect(find.byType(AnimatedSwitcher), findsOneWidget);
     expect(find.byType(SlideTransition), findsWidgets);
   });
@@ -2915,6 +2965,72 @@ void main() {
         find.byKey(const ValueKey('MediaControl.CompactModeButton')),
       ),
       const Size(34, 34),
+    );
+  });
+
+  testWidgets('compact MediaControl keeps artwork left aligned', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack(
+                id: 1,
+                title: 'kpop4',
+                artist: '未知歌手',
+                artworkUrl: '',
+                isLoading: false,
+                favorite: false,
+              ),
+              disabled: false,
+              isPlaying: false,
+              volume: 50,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 180,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (_) {},
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
+              onEnterMiniMode: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final trackButton = find.ancestor(
+      of: find.text('kpop4'),
+      matching: find.byType(TextButton),
+    );
+    final overlay = find.byKey(const ValueKey('MediaControl.ArtworkOverlay'));
+    expect(
+      tester.getTopLeft(overlay).dx - tester.getTopLeft(trackButton).dx,
+      closeTo(0, 1),
     );
   });
 

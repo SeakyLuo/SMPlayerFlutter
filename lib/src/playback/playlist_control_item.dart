@@ -257,8 +257,6 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
           color:
               multiSelectSelected
                   ? colors.hover
-                  : widget.current
-                  ? colors.current
                   : widget.selected || _hovered
                   ? colors.hover
                   : Colors.transparent,

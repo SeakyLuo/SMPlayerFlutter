@@ -53,7 +53,9 @@ class _ArtistListItemState extends State<_ArtistListItem> {
     final activeForeground = _ArtistsColors.artistRowActiveForeground(
       brightness,
     );
+    final activeMuted = _ArtistsColors.artistRowActiveMuted(brightness);
     final revealPlay = _hovered || _focused || _focusNode.hasFocus;
+    final rowBorderRadius = BorderRadius.circular(10);
     return SizedBox(
       height: artistRowHeight,
       child: Center(
@@ -83,11 +85,8 @@ class _ArtistListItemState extends State<_ArtistListItem> {
                 });
               },
               child: Material(
-                color:
-                    widget.active
-                        ? _ArtistsColors.artistRowActiveBackground(brightness)
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.transparent,
+                borderRadius: rowBorderRadius,
                 child: InkWell(
                   key: ValueKey('Artists.ArtistRow.${widget.artist.name}'),
                   focusNode: _focusNode,
@@ -96,7 +95,7 @@ class _ArtistListItemState extends State<_ArtistListItem> {
                       _focused = focused;
                     });
                   },
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: rowBorderRadius,
                   overlayColor: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.hovered) ||
                         states.contains(WidgetState.focused)) {
@@ -120,16 +119,28 @@ class _ArtistListItemState extends State<_ArtistListItem> {
                       vertical: widget.compactNavMinimal ? 4 : 5,
                     ),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
+                      color:
+                          widget.active
+                              ? _ArtistsColors.artistRowActiveBackground(
+                                brightness,
+                              )
+                              : Colors.transparent,
+                      borderRadius: rowBorderRadius,
                       border: Border.all(
                         color:
                             widget.active
-                                ? _ArtistsColors.activeBorder
+                                ? _ArtistsColors.artistRowActiveBorder(
+                                  brightness,
+                                )
                                 : Colors.transparent,
                       ),
                       boxShadow:
                           widget.active
-                              ? [_ArtistsColors.artistRowActiveShadow]
+                              ? [
+                                _ArtistsColors.artistRowActiveShadow(
+                                  brightness,
+                                ),
+                              ]
                               : null,
                     ),
                     child: Row(
@@ -172,9 +183,12 @@ class _ArtistListItemState extends State<_ArtistListItem> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: _ArtistsColors.textMutedFor(
-                                    brightness,
-                                  ),
+                                  color:
+                                      widget.active
+                                          ? activeMuted
+                                          : _ArtistsColors.textMutedFor(
+                                            brightness,
+                                          ),
                                   fontSize: 13,
                                   height: 1.15,
                                 ),

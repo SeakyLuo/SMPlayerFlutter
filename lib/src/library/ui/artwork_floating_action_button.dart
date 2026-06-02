@@ -57,8 +57,8 @@ class _ArtworkFloatingActionButtonState
             useOwnLayer: true,
             quality: GlassQuality.minimal,
             settings: artworkOverlayGlassSettings,
-            glowColor: Colors.white.withValues(alpha: 0.18),
-            glowRadius: widget.size * 0.44,
+            glowColor: artworkOverlayGlowColor,
+            glowRadius: widget.size * artworkOverlayGlowRadiusFactor,
             onPressed: widget.onPressed,
             icon: IconTheme(
               data: IconThemeData(

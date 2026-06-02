@@ -38,4 +38,17 @@ void main() {
       const Color(0xff1e2832),
     );
   });
+
+  test('mixHeaderArtworkColors uses muted header fallback without artwork', () {
+    expect(mixHeaderArtworkColors(const []), const Color(0xff9ebbd8));
+  });
+
+  test('HeaderedPlaylist day backdrop keeps muted cover wash', () {
+    expect(HeaderedPlaylistThemeColors.day.backdropAlphaA, 0.18);
+    expect(HeaderedPlaylistThemeColors.day.backdropAlphaB, 0.08);
+    expect(HeaderedPlaylistThemeColors.day.backdropBlurAlphaA, 0.24);
+    expect(HeaderedPlaylistThemeColors.day.backdropBlurAlphaB, 0.12);
+    expect(HeaderedPlaylistThemeColors.day.backdropBlurAlphaC, 0.08);
+    expect(HeaderedPlaylistThemeColors.day.backdropBlurAlphaD, 0.06);
+  });
 }

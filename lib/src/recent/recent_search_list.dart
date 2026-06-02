@@ -470,27 +470,19 @@ class RecentSearchThemeColors extends ThemeExtension<RecentSearchThemeColors> {
 
   static const light = RecentSearchThemeColors(
     surface: Color(0x9effffff),
-    hoverSurface: SmPlayerInteractionColors.hoverSurface,
+    hoverSurface: Color(0x140078d7),
     border: Color(0x1f7e8b9a),
-    hoverBorder: SmPlayerInteractionColors.hoverSurface,
-    hoverInnerBorder: SmPlayerInteractionColors.hoverSurface,
+    hoverBorder: Color(0x260078d7),
+    hoverInnerBorder: Color(0x260078d7),
     topHighlight: Color(0x75ffffff),
     shadow: [
       BoxShadow(color: Color(0x0a273446), blurRadius: 18, offset: Offset(0, 8)),
     ],
     hoverShadow: [
-      BoxShadow(
-        color: Color(0x1035495f),
-        blurRadius: 26,
-        offset: Offset(0, 12),
-      ),
+      BoxShadow(color: Color(0x000078d7), blurRadius: 0, offset: Offset(0, 0)),
     ],
     selectedShadow: [
-      BoxShadow(
-        color: Color(0x0f273446),
-        blurRadius: 22,
-        offset: Offset(0, 10),
-      ),
+      BoxShadow(color: Color(0x300078d7), blurRadius: 18, offset: Offset(0, 8)),
     ],
     accent: Color(0xff0078d7),
     accentStrong: Color(0xff0063b1),

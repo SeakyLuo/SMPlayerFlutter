@@ -311,10 +311,16 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                             offset: const Offset(0, 12),
                             blurRadius: 26,
                           ),
-                          BoxShadow(color: colors.inset, spreadRadius: 1),
                         ]
                         : const [],
               ),
+              foregroundDecoration:
+                  surfaceActive
+                      ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: colors.inset),
+                      )
+                      : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -558,8 +564,8 @@ class LocalGridSongCardColors {
         )
         : const LocalGridSongCardColors(
           hoverSurface: Color(0x140078d7),
-          shadow: Color(0x1f1e2a3a),
-          inset: Color(0x290078d7),
+          shadow: Color(0x000078d7),
+          inset: Color(0x260078d7),
         );
   }
 }

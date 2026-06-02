@@ -5,6 +5,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 
 import '../data/library_models.dart';
+import 'selected_collection_card_style.dart';
 import 'song_artwork.dart';
 
 class AlbumTileData {
@@ -60,6 +61,10 @@ class _AlbumTileState extends State<AlbumTile> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final colors = _AlbumTileColors.forBrightness(brightness);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
+    final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
+      brightness,
+    );
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -86,25 +91,25 @@ class _AlbumTileState extends State<AlbumTile> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color:
-                widget.selected || _hovered
-                    ? colors.hoverSurface
-                    : Colors.transparent,
+                widget.selected
+                    ? selectedStyle.background
+                    : _hovered
+                    ? hoverStyle.background
+                    : hoverStyle.transparentBackground,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color:
-                  widget.selected || _hovered
-                      ? colors.hoverOutline
-                      : Colors.transparent,
+                  widget.selected
+                      ? selectedStyle.border
+                      : _hovered
+                      ? hoverStyle.border
+                      : hoverStyle.transparentBorder,
             ),
             boxShadow:
-                widget.selected || _hovered
-                    ? [
-                      BoxShadow(
-                        color: colors.cardShadow,
-                        blurRadius: 26,
-                        offset: Offset(0, 12),
-                      ),
-                    ]
+                widget.selected
+                    ? [selectedStyle.shadow]
+                    : _hovered
+                    ? [hoverStyle.shadow]
                     : null,
           ),
           child: Stack(
@@ -112,14 +117,20 @@ class _AlbumTileState extends State<AlbumTile> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AlbumArtControl(album: widget.album),
+                  AlbumArtControl(
+                    album: widget.album,
+                    selected: widget.selected || _hovered,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     widget.album.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: colors.textStrong,
+                      color:
+                          widget.selected
+                              ? selectedStyle.foreground
+                              : colors.textStrong,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       height: 1.35,
@@ -131,7 +142,10 @@ class _AlbumTileState extends State<AlbumTile> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: colors.textMuted,
+                      color:
+                          widget.selected
+                              ? selectedStyle.muted
+                              : colors.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                       height: 1.35,
@@ -194,15 +208,23 @@ class _AlbumTileState extends State<AlbumTile> {
 }
 
 class AlbumArtControl extends StatelessWidget {
-  const AlbumArtControl({super.key, required this.album, this.dimension = 160});
+  const AlbumArtControl({
+    super.key,
+    required this.album,
+    this.dimension = 160,
+    this.selected = false,
+  });
 
   final AlbumTileData album;
   final double dimension;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final firstSong = album.artworkSong ?? getAlbumArtworkSong(album.songs);
-    final colors = _AlbumTileColors.forBrightness(Theme.of(context).brightness);
+    final brightness = Theme.of(context).brightness;
+    final colors = _AlbumTileColors.forBrightness(brightness);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
     final radius = BorderRadius.circular(8);
 
     return SizedBox.square(
@@ -213,11 +235,13 @@ class AlbumArtControl extends StatelessWidget {
           color: colors.artworkSurface,
           borderRadius: radius,
           boxShadow: [
-            BoxShadow(
-              color: colors.artworkShadow,
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
+            selected
+                ? selectedStyle.artworkShadow
+                : BoxShadow(
+                  color: colors.artworkShadow,
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
           ],
         ),
         child: ClipRRect(

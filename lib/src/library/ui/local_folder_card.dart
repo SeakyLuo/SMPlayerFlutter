@@ -14,6 +14,7 @@ import 'local_folder_model.dart';
 import 'local_i18n_counts.dart';
 import 'local_page_quick_jump.dart';
 import 'playlist_artwork.dart';
+import 'selected_collection_card_style.dart';
 
 class LocalFolderCard extends StatefulWidget {
   const LocalFolderCard({
@@ -115,7 +116,14 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
 
   Widget _buildGridCard(BuildContext context, {required bool dropTarget}) {
     final colors = LocalPageColors.of(context);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
+    final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
+      Theme.of(context).brightness,
+    );
     final active = widget.selected || _hovered || _focused;
+    final hovered = _hovered || _focused;
     return GestureDetector(
       onSecondaryTapDown:
           (details) =>
@@ -131,17 +139,24 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
           constraints: const BoxConstraints(minHeight: 232),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: active ? colors.surfaceCardHover : colors.surfaceCard,
+            color:
+                widget.selected
+                    ? selectedStyle.background
+                    : hovered
+                    ? hoverStyle.background
+                    : colors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
+            border:
+                widget.selected
+                    ? Border.all(color: selectedStyle.border)
+                    : hovered
+                    ? Border.all(color: hoverStyle.border)
+                    : null,
             boxShadow:
-                active
-                    ? [
-                      BoxShadow(
-                        color: colors.panelShadow,
-                        offset: Offset(0, 16),
-                        blurRadius: 34,
-                      ),
-                    ]
+                widget.selected
+                    ? [selectedStyle.shadow]
+                    : hovered
+                    ? [hoverStyle.shadow]
                     : const [],
           ),
           child: Column(
@@ -151,6 +166,7 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 children: [
                   _FolderArtwork(
                     dropTarget: dropTarget,
+                    selected: widget.selected || hovered,
                     folder: widget.folder,
                     nodes: widget.nodes,
                     songsById: widget.songsById,
@@ -183,7 +199,10 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: colors.textStrong,
+                  color:
+                      widget.selected
+                          ? selectedStyle.foreground
+                          : colors.textStrong,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
@@ -195,7 +214,8 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: colors.textMuted,
+                  color:
+                      widget.selected ? selectedStyle.muted : colors.textMuted,
                   fontSize: 12,
                   height: 1.35,
                 ),
@@ -209,6 +229,12 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
 
   Widget _buildListCard(BuildContext context, {required bool dropTarget}) {
     final colors = LocalPageColors.of(context);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
+    final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
+      Theme.of(context).brightness,
+    );
     final active = widget.selected || _hovered || _focused;
     final hasTreeToggle =
         widget.onToggleTreeExpanded != null && widget.treeExpandable;
@@ -230,10 +256,16 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
           decoration: BoxDecoration(
             color:
                 widget.selected
-                    ? colors.rowSelected
+                    ? selectedStyle.background
                     : active
-                    ? colors.surfaceCardHover
-                    : Colors.transparent,
+                    ? hoverStyle.background
+                    : hoverStyle.transparentBackground,
+            border:
+                widget.selected
+                    ? Border.all(color: selectedStyle.border)
+                    : active
+                    ? Border.all(color: hoverStyle.border)
+                    : null,
           ),
           foregroundDecoration: ShapeDecoration(
             shape: RoundedRectangleBorder(
@@ -276,7 +308,10 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: colors.textStrong,
+                    color:
+                        widget.selected
+                            ? selectedStyle.foreground
+                            : colors.textStrong,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     fontVariations: const [FontVariation.weight(690)],
@@ -284,7 +319,11 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 ),
               ),
               if (widget.multiSelect)
-                _FolderListInfoText(text: _folderInfo, colors: colors)
+                _FolderListInfoText(
+                  text: _folderInfo,
+                  colors: colors,
+                  color: widget.selected ? selectedStyle.muted : null,
+                )
               else
                 SizedBox(
                   width: 148,
@@ -298,6 +337,7 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                           child: _FolderListInfoText(
                             text: _folderInfo,
                             colors: colors,
+                            color: widget.selected ? selectedStyle.muted : null,
                           ),
                         ),
                       ),
@@ -392,10 +432,15 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
 enum LocalFolderCardVariant { grid, list }
 
 class _FolderListInfoText extends StatelessWidget {
-  const _FolderListInfoText({required this.text, required this.colors});
+  const _FolderListInfoText({
+    required this.text,
+    required this.colors,
+    this.color,
+  });
 
   final String text;
   final LocalPageColors colors;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -404,7 +449,7 @@ class _FolderListInfoText extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: colors.textMuted,
+        color: color ?? colors.textMuted,
         fontSize: 13,
         fontWeight: FontWeight.w500,
         fontVariations: const [FontVariation.weight(520)],
@@ -437,12 +482,14 @@ class _LocalRevealedActions extends StatelessWidget {
 class _FolderArtwork extends ConsumerStatefulWidget {
   const _FolderArtwork({
     required this.dropTarget,
+    required this.selected,
     required this.folder,
     required this.nodes,
     required this.songsById,
   });
 
   final bool dropTarget;
+  final bool selected;
   final FolderNode folder;
   final Map<String, FolderNode> nodes;
   final Map<int, LibrarySong> songsById;
@@ -475,6 +522,9 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
   @override
   Widget build(BuildContext context) {
     final colors = LocalPageColors.of(context);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
     return AnimatedContainer(
       key: const ValueKey('LocalFolderCard.GridArtworkDropSurface'),
       duration: const Duration(milliseconds: 120),
@@ -493,9 +543,16 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: colors.artworkShadow,
-            offset: Offset(0, 12),
-            blurRadius: 24,
+            color:
+                widget.selected
+                    ? selectedStyle.artworkShadow.color
+                    : colors.artworkShadow,
+            offset:
+                widget.selected
+                    ? selectedStyle.artworkShadow.offset
+                    : Offset(0, 12),
+            blurRadius:
+                widget.selected ? selectedStyle.artworkShadow.blurRadius : 24,
           ),
           if (widget.dropTarget)
             BoxShadow(color: colors.accentSoft, blurRadius: 0, spreadRadius: 5),

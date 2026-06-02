@@ -126,8 +126,8 @@ class _LibraryColors {
   static const quickJumpBorder = Color(0x1a677486);
   static const appBarButtonHover = Color(0x12111827);
   static const rowBorder = Color(0x21727e8c);
-  static const rowHover = Color(0x0e0078d7);
-  static const rowSelected = Color(0xf5ffffff);
+  static const rowHover = Color(0x140078d7);
+  static const rowSelected = Color(0xffd9ecfb);
   static const selectionMark = Color(0xdfffffff);
   static const selectionBorder = Color(0x55677486);
   static const accentStrong = Color(0xff0063b1);

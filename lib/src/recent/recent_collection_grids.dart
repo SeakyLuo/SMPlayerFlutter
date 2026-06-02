@@ -327,6 +327,9 @@ class _ArtistRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: InkWell(
@@ -338,8 +341,10 @@ class _ArtistRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: selected ? _RecentColors.accentSoft : Colors.transparent,
+            color: selected ? selectedStyle.background : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
+            border: selected ? Border.all(color: selectedStyle.border) : null,
+            boxShadow: selected ? [selectedStyle.shadow] : null,
           ),
           child: Row(
             children: [
@@ -360,8 +365,11 @@ class _ArtistRow extends StatelessWidget {
                       artist.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _RecentColors.textStrong,
+                      style: TextStyle(
+                        color:
+                            selected
+                                ? selectedStyle.foreground
+                                : _RecentColors.textStrong,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -369,8 +377,11 @@ class _ArtistRow extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       formatRecentDateTime(artist.playedAt),
-                      style: const TextStyle(
-                        color: _RecentColors.textMuted,
+                      style: TextStyle(
+                        color:
+                            selected
+                                ? selectedStyle.muted
+                                : _RecentColors.textMuted,
                         fontSize: 12,
                       ),
                     ),

@@ -29,12 +29,15 @@ void main() {
     );
     expect(glassButton.quality, GlassQuality.minimal);
     expect(glassButton.settings?.glassColor, artworkOverlayGlassColor);
-    expect(glassButton.settings?.blur, 46);
-    expect(glassButton.settings?.saturation, 1.65);
+    expect(glassButton.settings?.blur, 54);
+    expect(glassButton.settings?.saturation, 1.72);
+    expect(glassButton.settings?.glowIntensity, 0.22);
     expect(
       glassButton.settings?.standardOpacityMultiplier,
       artworkOverlayGlassOpacityMultiplier,
     );
+    expect(glassButton.glowColor, artworkOverlayGlowColor);
+    expect(glassButton.glowRadius, 48 * artworkOverlayGlowRadiusFactor);
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(

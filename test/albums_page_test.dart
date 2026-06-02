@@ -15,7 +15,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart'
-    show getAlbumArtworkSong;
+    show AlbumTile, AlbumTileData, getAlbumArtworkSong;
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
@@ -771,8 +771,8 @@ void main() {
     expect(tile.padding, const EdgeInsets.all(10));
     final baseDecoration = tile.decoration! as BoxDecoration;
     expect(baseDecoration.borderRadius, BorderRadius.circular(12));
-    expect(baseDecoration.color, Colors.transparent);
-    expect(baseDecoration.border!.top.color, Colors.transparent);
+    expect(baseDecoration.color, const Color(0x000078d7));
+    expect(baseDecoration.border!.top.color, const Color(0x000078d7));
 
     final artworkDecoration =
         tester
@@ -800,16 +800,73 @@ void main() {
         tester.widget<AnimatedContainer>(tileFinder).decoration!
             as BoxDecoration;
     expect(hoverDecoration.color, const Color(0x140078d7));
-    expect(hoverDecoration.border!.top.color, const Color(0x290078d7));
-    expect(hoverDecoration.boxShadow!.single.color, const Color(0x1f1e2a3a));
-    expect(hoverDecoration.boxShadow!.single.blurRadius, 26);
-    expect(hoverDecoration.boxShadow!.single.offset, const Offset(0, 12));
+    expect(hoverDecoration.border!.top.color, const Color(0x260078d7));
+    expect(hoverDecoration.boxShadow!.single.color, const Color(0x000078d7));
+    expect(hoverDecoration.boxShadow!.single.blurRadius, 0);
+    expect(hoverDecoration.boxShadow!.single.offset, Offset.zero);
     expect(
       tester.getSize(
         find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
       ),
       baseArtworkSize,
     );
+  });
+
+  testWidgets('AlbumTile selected state uses shared clean card style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: AlbumTile(
+              album: AlbumTileData(
+                name: 'Blue Hour',
+                artist: 'Artist A',
+                songs: [_snapshot.songs.first],
+                duration: 120,
+              ),
+              multiSelect: true,
+              selected: true,
+              onOpenAlbum: () {},
+              onPlayAlbum: () {},
+              onAddAlbum: (_) {},
+              onToggleSelection: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final tile = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('AlbumTile.Container')),
+    );
+    final decoration = tile.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xffd9ecfb));
+    expect(decoration.border!.top.color, const Color(0x260078d7));
+    expect(decoration.boxShadow, const [
+      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
+    ]);
+    final artworkDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('AlbumTile.ArtworkSurface')),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(artworkDecoration.boxShadow, const [
+      BoxShadow(color: Color(0x120078d7), offset: Offset(0, 4), blurRadius: 10),
+    ]);
+
+    final title = tester.widget<Text>(find.text('Blue Hour'));
+    final subtitle = tester.widget<Text>(find.text('Artist A'));
+    expect(title.style?.color, const Color(0xff0063b1));
+    expect(subtitle.style?.color, const Color(0xff0063b1));
   });
 
   testWidgets('AlbumsPage reverse sort persists like Electron local state', (
