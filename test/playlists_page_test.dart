@@ -236,19 +236,17 @@ void main() {
     final firstCard = cards.first;
     final secondCard = cards.at(1);
     final firstCenter = tester.getCenter(firstCard);
-    final secondCenter = tester.getCenter(secondCard);
-
-    final gesture = await tester.startGesture(firstCenter);
-    await tester.pump();
-    await gesture.moveTo(secondCenter + const Offset(80, 0));
-    await tester.pump();
-    await gesture.up();
+    final secondRightCenter =
+        tester.getCenter(secondCard) + const Offset(80, 0);
+    await tester.dragFrom(firstCenter, secondRightCenter - firstCenter);
     await tester.pump();
 
     expect(repository.reorderedPlaylistIds, [8, 7]);
   });
 
-  testWidgets('PlaylistsPage drag preview follows card center', (tester) async {
+  testWidgets('PlaylistsPage keeps order when drag point misses target half', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 800);
     addTearDown(() {
@@ -267,47 +265,91 @@ void main() {
     final firstCard = cards.first;
     final secondCard = cards.at(1);
     final firstCenter = tester.getCenter(firstCard);
-    final secondRightCenter =
-        tester.getCenter(secondCard) + const Offset(80, 0);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(secondCard));
+    await tester.pump();
+    addTearDown(mouse.removePointer);
+
+    final handleCenter = tester.getCenter(find.byTooltip('Drag to Sort').first);
     await tester.dragFrom(
-      secondRightCenter,
-      firstCenter + const Offset(80, 0) - secondRightCenter,
+      handleCenter,
+      firstCenter + const Offset(80, 0) - handleCenter,
     );
     await tester.pump();
 
-    expect(repository.reorderedPlaylistIds, [8, 7]);
+    expect(repository.reorderedPlaylistIds, isNull);
   });
 
-  testWidgets('PlaylistsPage drag preview moves placeholder to target slot', (
+  testWidgets('PlaylistsPage drag handle pushes touched wrapped target', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.physicalSize = const Size(900, 800);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_PlaylistTestApp(child: const PlaylistsPage()));
+    final repository = _FakeLibraryRepository();
+    await tester.pumpWidget(
+      _PlaylistTestApp(
+        repository: repository,
+        snapshot: _wrappedPlaylistSnapshot,
+        child: const PlaylistsPage(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
     final firstCard = cards.first;
-    final secondCard = cards.at(1);
-    final firstCenter = tester.getCenter(firstCard);
-    final secondCenter = tester.getCenter(secondCard);
-    final gesture = await tester.startGesture(firstCenter);
+    final fifthCenter = tester.getCenter(cards.at(4));
+    final fifthRightCenter = fifthCenter + const Offset(80, 0);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstCard));
+    await tester.pump();
+    addTearDown(mouse.removePointer);
+
+    final handleCenter = tester.getCenter(find.byTooltip('Drag to Sort').first);
+    await tester.dragFrom(handleCenter, fifthRightCenter - handleCenter);
     await tester.pump();
 
-    await gesture.moveTo(secondCenter + const Offset(80, 0));
+    expect(repository.reorderedPlaylistIds, [11, 12, 13, 14, 10]);
+  });
+
+  testWidgets('PlaylistsPage drag preview reflows cards across wrapped rows', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(
+        snapshot: _wrappedPlaylistSnapshot,
+        child: const PlaylistsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final fifthCardCenter = tester.getCenter(cards.at(4));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstCard));
+    await tester.pump();
+    addTearDown(mouse.removePointer);
+
+    final handleCenter = tester.getCenter(find.byTooltip('Drag to Sort').first);
+    await tester.dragFrom(handleCenter, fifthCardCenter - handleCenter);
     await tester.pump();
 
-    final placeholder = find.byKey(const ValueKey('Playlists.DropPlaceholder'));
-    expect(placeholder, findsOneWidget);
-    expect(tester.getCenter(placeholder).dx, closeTo(secondCenter.dx, 1));
-
-    await gesture.up();
-    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('Playlists.DropPlaceholder')),
+      findsNothing,
+    );
   });
 
   testWidgets('PlaylistsPage hides hover actions while sorting playlists', (
@@ -357,7 +399,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('PlaylistsPage keeps placeholder until card reaches next slot', (
+  testWidgets('PlaylistsPage pushes target when drag preview touches it', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -379,8 +421,14 @@ void main() {
     final secondCard = cards.at(1);
     final firstCenter = tester.getCenter(firstCard);
     final secondCenter = tester.getCenter(secondCard);
-    await tester.drag(
-      firstCard,
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstCard));
+    await tester.pump();
+    addTearDown(mouse.removePointer);
+
+    final handleCenter = tester.getCenter(find.byTooltip('Drag to Sort').first);
+    await tester.dragFrom(
+      handleCenter,
       Offset(
         (secondCenter.dx - firstCenter.dx) * 0.35,
         secondCenter.dy - firstCenter.dy,
@@ -448,17 +496,22 @@ void main() {
 }
 
 class _PlaylistTestApp extends StatelessWidget {
-  const _PlaylistTestApp({required this.child, this.repository});
+  const _PlaylistTestApp({
+    required this.child,
+    this.repository,
+    this.snapshot = _snapshot,
+  });
 
   final Widget child;
   final LibraryRepository? repository;
+  final LibraryContentData snapshot;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         smPlayerI18nProvider.overrideWith((ref) async => _i18n),
-        libraryContentDataProvider.overrideWith((ref) async => _snapshot),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
       ],
@@ -668,6 +721,87 @@ const _snapshot = LibraryContentData(
       id: 8,
       name: 'Chill',
       priority: 2,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+  ],
+  favoritePlaylistId: 3,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+);
+
+const _wrappedPlaylistSnapshot = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  databasePath: r'C:\Music\library.db',
+  playlists: [
+    LibraryPlaylist(
+      id: 3,
+      name: 'My Favorites',
+      priority: 0,
+      songCount: 1,
+      songIds: [1],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: true,
+    ),
+    LibraryPlaylist(
+      id: 10,
+      name: 'Playlist 1',
+      priority: 1,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+    LibraryPlaylist(
+      id: 11,
+      name: 'Playlist 2',
+      priority: 2,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+    LibraryPlaylist(
+      id: 12,
+      name: 'Playlist 3',
+      priority: 3,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+    LibraryPlaylist(
+      id: 13,
+      name: 'Playlist 4',
+      priority: 4,
+      songCount: 0,
+      songIds: [],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+    LibraryPlaylist(
+      id: 14,
+      name: 'Playlist 5',
+      priority: 5,
       songCount: 0,
       songIds: [],
       sortCriterion: PlaylistSortCriterion.title,

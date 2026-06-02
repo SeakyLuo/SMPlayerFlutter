@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -195,6 +196,45 @@ void main() {
       await tester.pump();
 
       expect(menuOpened, isTrue);
+    },
+  );
+
+  testWidgets(
+    'PlaylistControlItem does not render static favorite without Electron callback',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: PlaylistControlItem(
+                  song: _favoriteSong,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayNextClick: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.FavoriteAction')),
+        findsNothing,
+      );
+      expect(find.byIcon(FluentIcons.heart_20_filled), findsNothing);
     },
   );
 
@@ -1242,6 +1282,21 @@ const _song = LibrarySong(
   lyricsOffsetMs: 0,
   dateAdded: '2026-05-25',
   favorite: false,
+  thumbnailPath: '',
+);
+
+const _favoriteSong = LibrarySong(
+  id: 3,
+  path: '/music/favorite-song.mp3',
+  title: 'Favorite Song',
+  artist: 'Artist',
+  artists: ['Artist'],
+  album: 'Album',
+  duration: 180,
+  playCount: 0,
+  lyricsOffsetMs: 0,
+  dateAdded: '2026-05-25',
+  favorite: true,
   thumbnailPath: '',
 );
 

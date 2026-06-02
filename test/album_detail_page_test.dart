@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -473,6 +474,58 @@ void main() {
     expect(find.text('My Favorites'), findsOneWidget);
     expect(find.text('Clear'), findsOneWidget);
   });
+
+  testWidgets(
+    'HeaderedPlaylistControl favorites favorite action mirrors Electron hover visibility',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(700, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _HeaderedPlaylistTestApp(
+          i18n: i18n,
+          type: HeaderedPlaylistType.favorites,
+          title: 'My Favorites',
+          removable: true,
+          showAlbum: true,
+          onToggleFavorite: (_, _) {},
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstRow = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
+      final favoriteAction = find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.FavoriteAction'),
+        ),
+      );
+      expect(favoriteAction, findsOneWidget);
+      AnimatedOpacity favoriteOpacity() {
+        return tester.widget<AnimatedOpacity>(
+          find
+              .ancestor(
+                of: favoriteAction,
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first,
+        );
+      }
+
+      expect(favoriteOpacity().opacity, 0);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(firstRow));
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(favoriteOpacity().opacity, 1);
+    },
+  );
 
   testWidgets('HeaderedPlaylistControl centers compact command bar', (
     tester,
@@ -1178,6 +1231,7 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
     this.onWindowDragEnd,
     this.onSetPreferred,
     this.onPlayTrack,
+    this.onToggleFavorite,
   });
 
   final SmPlayerI18n i18n;
@@ -1196,6 +1250,7 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
   final VoidCallback? onWindowDragEnd;
   final Future<void> Function(String level)? onSetPreferred;
   final HeaderedPlaylistTrackHandler? onPlayTrack;
+  final void Function(int songId, bool favorite)? onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -1243,6 +1298,7 @@ class _HeaderedPlaylistTestApp extends StatelessWidget {
                   onClear: () {},
                   onSetPreferred: onSetPreferred,
                   onPlayNext: (_) {},
+                  onToggleFavorite: onToggleFavorite,
                 ),
                 if (showPortalProbe)
                   Consumer(

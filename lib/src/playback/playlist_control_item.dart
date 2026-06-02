@@ -86,6 +86,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
+    this.favoriteAsHoverAction = false,
   });
 
   final LibrarySong song;
@@ -117,6 +118,7 @@ class PlaylistControlItem extends StatefulWidget {
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
+  final bool favoriteAsHoverAction;
 
   @override
   State<PlaylistControlItem> createState() => _PlaylistControlItemState();
@@ -215,6 +217,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final colors = widget.colors ?? _PlaylistControlItemColors.resolve(context);
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
+    final hoverActionsVisible = _hovered || _focused;
     final compactHoverActionsVisible = !compactVariant || _hovered || _focused;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final rowHeight =
@@ -355,6 +358,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         showHoverActions: compactHoverActionsVisible,
                         onToggleFavoriteClick: widget.onToggleFavoriteClick,
                         showFavoriteAction: widget.showFavoriteAction,
+                        favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                        favoriteHoverVisible: hoverActionsVisible,
                         onAddToPlaylistClick: widget.onAddToPlaylistClick,
                         onPlayNextClick: widget.onPlayNextClick,
                         onRemoveFromListClick: widget.onRemoveFromListClick,
@@ -381,6 +386,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     showHoverActions: compactHoverActionsVisible,
                     onToggleFavoriteClick: widget.onToggleFavoriteClick,
                     showFavoriteAction: widget.showFavoriteAction,
+                    favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                    favoriteHoverVisible: hoverActionsVisible,
                     onAddToPlaylistClick: widget.onAddToPlaylistClick,
                     onPlayNextClick: widget.onPlayNextClick,
                     onRemoveFromListClick: widget.onRemoveFromListClick,
@@ -846,6 +853,8 @@ class _QueueActions extends StatelessWidget {
     this.moreLabel,
     this.onToggleFavoriteClick,
     required this.showFavoriteAction,
+    required this.favoriteAsHoverAction,
+    required this.favoriteHoverVisible,
     this.onAddToPlaylistClick,
     this.onPlayNextClick,
     this.onRemoveFromListClick,
@@ -867,6 +876,8 @@ class _QueueActions extends StatelessWidget {
   final String? moreLabel;
   final VoidCallback? onToggleFavoriteClick;
   final bool showFavoriteAction;
+  final bool favoriteAsHoverAction;
+  final bool favoriteHoverVisible;
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
   final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
@@ -881,14 +892,15 @@ class _QueueActions extends StatelessWidget {
     final actionSize = compactVariant ? 34.0 : 32.0;
     final actionRadius = compactVariant ? 8.0 : 10.0;
     final showPrimaryActions = !compactVariant || showCompactPrimaryActions;
-    Widget hoverAction(Widget child) {
-      if (!compactVariant) {
+    Widget hoverAction(Widget child, {bool force = false, bool? visible}) {
+      if (!compactVariant && !force) {
         return child;
       }
+      final actionVisible = visible ?? showHoverActions;
       return IgnorePointer(
-        ignoring: !showHoverActions,
+        ignoring: !actionVisible,
         child: AnimatedOpacity(
-          opacity: showHoverActions ? 1 : 0,
+          opacity: actionVisible ? 1 : 0,
           duration: const Duration(milliseconds: 120),
           child: child,
         ),
@@ -899,37 +911,56 @@ class _QueueActions extends StatelessWidget {
       if (showFavoriteAction &&
           showPrimaryActions &&
           onToggleFavoriteClick != null)
-        _QueueActionButton(
-          key: const ValueKey('PlaylistControlItem.FavoriteAction'),
-          tooltip: favoriteLabel,
-          icon: Icon(
-            favorite
-                ? FluentIcons.heart_20_filled
-                : FluentIcons.heart_20_regular,
-            size: 18,
+        if (favoriteAsHoverAction)
+          hoverAction(
+            _QueueActionButton(
+              key: const ValueKey('PlaylistControlItem.FavoriteAction'),
+              tooltip: favoriteLabel,
+              icon: Icon(
+                favorite
+                    ? FluentIcons.heart_20_filled
+                    : FluentIcons.heart_20_regular,
+                size: 18,
+              ),
+              foregroundColor:
+                  favorite
+                      ? _PlaylistControlItemColors.favorite
+                      : colors.actionForeground,
+              hoverForegroundColor:
+                  favorite
+                      ? _PlaylistControlItemColors.favorite
+                      : colors.currentForeground,
+              hoverBackgroundColor: colors.actionHover,
+              size: actionSize,
+              radius: actionRadius,
+              onPressed: onToggleFavoriteClick,
+            ),
+            force: true,
+            visible: favoriteHoverVisible,
+          )
+        else
+          _QueueActionButton(
+            key: const ValueKey('PlaylistControlItem.FavoriteAction'),
+            tooltip: favoriteLabel,
+            icon: Icon(
+              favorite
+                  ? FluentIcons.heart_20_filled
+                  : FluentIcons.heart_20_regular,
+              size: 18,
+            ),
+            foregroundColor:
+                favorite
+                    ? _PlaylistControlItemColors.favorite
+                    : colors.actionForeground,
+            hoverForegroundColor:
+                favorite
+                    ? _PlaylistControlItemColors.favorite
+                    : colors.currentForeground,
+            hoverBackgroundColor: colors.actionHover,
+            size: actionSize,
+            radius: actionRadius,
+            onPressed: onToggleFavoriteClick,
           ),
-          foregroundColor:
-              favorite
-                  ? _PlaylistControlItemColors.favorite
-                  : colors.actionForeground,
-          hoverForegroundColor:
-              favorite
-                  ? _PlaylistControlItemColors.favorite
-                  : colors.currentForeground,
-          hoverBackgroundColor: colors.actionHover,
-          size: actionSize,
-          radius: actionRadius,
-          onPressed: onToggleFavoriteClick,
-        ),
-      if (showFavoriteAction &&
-          showPrimaryActions &&
-          onToggleFavoriteClick == null &&
-          favorite)
-        const Icon(
-          FluentIcons.heart_20_filled,
-          size: 18,
-          color: _PlaylistControlItemColors.favorite,
-        ),
       if (showPrimaryActions && onAddToPlaylistClick != null)
         Builder(
           builder:
