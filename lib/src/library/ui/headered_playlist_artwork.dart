@@ -1,6 +1,6 @@
 part of 'headered_playlist_control.dart';
 
-const _defaultHeaderArtworkColor = Color(0xff5b87b6);
+const _defaultHeaderArtworkColor = Color(0xff9ebbd8);
 const _headerArtworkColorMinValue = 10;
 const _headerArtworkColorMaxValue = 205;
 const _headerArtworkColorGridDivisions = 16;

@@ -94,9 +94,15 @@ void main() {
     expect(songPlayButton, findsOneWidget);
     final hoveredCard = tester.widget<Container>(songCard);
     final decoration = hoveredCard.decoration! as BoxDecoration;
+    final foregroundDecoration =
+        hoveredCard.foregroundDecoration! as BoxDecoration;
     expect(decoration.color, const Color(0x140078d7));
     expect(decoration.border, isNull);
-    expect(decoration.boxShadow, hasLength(2));
+    expect(
+      foregroundDecoration.border,
+      Border.all(color: const Color(0x260078d7)),
+    );
+    expect(decoration.boxShadow, hasLength(1));
   });
 
   testWidgets('Local grid song cover keeps Electron artwork shadow', (
@@ -316,8 +322,15 @@ void main() {
             .first;
     final focusedCard = tester.widget<Container>(songCard);
     final decoration = focusedCard.decoration! as BoxDecoration;
+    final foregroundDecoration =
+        focusedCard.foregroundDecoration! as BoxDecoration;
     expect(decoration.color, const Color(0x140078d7));
-    expect(decoration.boxShadow, hasLength(2));
+    expect(decoration.border, isNull);
+    expect(
+      foregroundDecoration.border,
+      Border.all(color: const Color(0x260078d7)),
+    );
+    expect(decoration.boxShadow, hasLength(1));
   });
 
   testWidgets('Local song quick jump uses Electron vertical metrics', (
@@ -734,6 +747,86 @@ void main() {
       expect(addPosition, isNotNull);
     },
   );
+
+  testWidgets('Local folder selected state uses shared clean card style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          libraryRepositoryProvider.overrideWithValue(
+            const _NoArtworkLibraryRepository(),
+          ),
+        ],
+        child: SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [LocalPageColors.day]),
+            home: Scaffold(
+              body: Column(
+                children: [
+                  _folderCard(
+                    i18n,
+                    variant: LocalFolderCardVariant.grid,
+                    selected: true,
+                  ),
+                  SizedBox(
+                    width: 560,
+                    child: _folderListCard(
+                      i18n,
+                      selected: true,
+                      onPlayFolder: (_) {},
+                      onAddFolder: (_, _) {},
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final gridCard =
+        find
+            .ancestor(
+              of: find.text('Sub').first,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    widget.constraints?.minHeight == 232 &&
+                    widget.decoration is BoxDecoration,
+              ),
+            )
+            .first;
+    final gridDecoration =
+        tester.widget<Container>(gridCard).decoration! as BoxDecoration;
+    expect(gridDecoration.color, const Color(0xffd9ecfb));
+    expect(gridDecoration.border!.top.color, const Color(0x260078d7));
+    expect(gridDecoration.boxShadow, const [
+      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
+    ]);
+    final folderCover = tester.widget<AnimatedContainer>(
+      find
+          .byKey(const ValueKey('LocalFolderCard.GridArtworkDropSurface'))
+          .first,
+    );
+    final folderCoverDecoration = folderCover.decoration! as BoxDecoration;
+    expect(
+      folderCoverDecoration.boxShadow!.single.color,
+      const Color(0x120078d7),
+    );
+    expect(folderCoverDecoration.boxShadow!.single.offset, const Offset(0, 4));
+    expect(folderCoverDecoration.boxShadow!.single.blurRadius, 10);
+
+    final listSurface = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('LocalFolderCard.ListDropSurface')),
+    );
+    final listDecoration = listSurface.decoration! as BoxDecoration;
+    expect(listDecoration.color, const Color(0xffd9ecfb));
+    expect(listDecoration.border!.top.color, const Color(0x260078d7));
+  });
 
   testWidgets(
     'Local folder drop target is scoped to Electron grid artwork or list row',
@@ -1187,6 +1280,7 @@ Widget _folderCard(
   SmPlayerI18n i18n, {
   required LocalFolderCardVariant variant,
   String folderName = 'Sub',
+  bool selected = false,
 }) {
   final song = LibrarySong(
     id: 1,
@@ -1217,7 +1311,7 @@ Widget _folderCard(
   final folder = folderIndex.nodes[folderName]!;
   return LocalFolderCard(
     folder: folder,
-    selected: false,
+    selected: selected,
     multiSelect: false,
     nodes: folderIndex.nodes,
     songsById: folderIndex.songsById,
@@ -1242,6 +1336,7 @@ Widget _folderListCard(
   required void Function(FolderNode folder, Offset position) onAddFolder,
   String folderName = 'Sub',
   bool includeSong = true,
+  bool selected = false,
 }) {
   final song = LibrarySong(
     id: 1,
@@ -1268,7 +1363,7 @@ Widget _folderListCard(
   final folder = folderIndex.nodes[folderName]!;
   return LocalFolderCard(
     folder: folder,
-    selected: false,
+    selected: selected,
     multiSelect: false,
     nodes: folderIndex.nodes,
     songsById: folderIndex.songsById,

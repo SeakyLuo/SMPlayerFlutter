@@ -284,8 +284,9 @@ void main() {
         find.byKey(const ValueKey('PlaylistControlItem.Playing.Backdrop')),
       );
       expect(waveGlass.settings?.glassColor, artworkOverlayGlassColor);
-      expect(waveGlass.settings?.blur, 46);
-      expect(waveGlass.settings?.saturation, 1.65);
+      expect(waveGlass.settings?.blur, 54);
+      expect(waveGlass.settings?.saturation, 1.72);
+      expect(waveGlass.settings?.glowIntensity, 0.22);
       expect(
         waveGlass.settings?.standardOpacityMultiplier,
         artworkOverlayGlassOpacityMultiplier,
@@ -1037,10 +1038,24 @@ void main() {
           .last,
     );
 
-    expect(rowDecoration.color, const Color(0x2e0078d7));
+    expect(rowDecoration.color, Colors.transparent);
     expect(title.style?.color, const Color(0xff459de2));
     expect(artist.style?.color, const Color(0xc276b5dc));
     expect(actionIconTheme.data.color, const Color(0xadcbd5e1));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+      location: tester.getCenter(find.byType(PlaylistControlItem)),
+    );
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    final hoveredDecoration =
+        tester
+                .widget<AnimatedContainer>(find.byType(AnimatedContainer).first)
+                .decoration!
+            as BoxDecoration;
+    expect(hoveredDecoration.color, const Color(0x240078d7));
   });
 
   testWidgets(

@@ -9,6 +9,8 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/grid_view_holder.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -123,6 +125,61 @@ void main() {
     expect(playAction, findsOneWidget);
     expect(tester.getSize(playAction), const Size.square(48));
     expect(tester.getCenter(playAction), tester.getCenter(firstArtwork));
+  });
+
+  testWidgets('Playlist card selected state uses shared clean card style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: GridViewHolder(
+              playlist: const LibraryPlaylist(
+                id: 7,
+                name: 'Mix',
+                priority: 0,
+                songCount: 0,
+                songIds: [],
+                sortCriterion: PlaylistSortCriterion.title,
+                isBuiltIn: false,
+              ),
+              songs: const [],
+              subtitle: '0 songs',
+              playTooltip: 'Play',
+              selected: true,
+              showDragHandle: false,
+              cardKey: const ValueKey('Playlists.PlaylistCard'),
+              onOpen: () {},
+              onPlay: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final card = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('Playlists.PlaylistCard')),
+    );
+    final decoration = card.decoration! as BoxDecoration;
+    final foreground = card.foregroundDecoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xffd9ecfb));
+    expect(decoration.boxShadow, const [
+      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
+    ]);
+    expect(foreground.border!.top.color, const Color(0x260078d7));
+    expect(
+      tester.widget<Text>(find.text('Mix')).style?.color,
+      const Color(0xff0063b1),
+    );
+    expect(
+      tester.widget<Text>(find.text('0 songs')).style?.color,
+      const Color(0xff0063b1),
+    );
   });
 
   testWidgets('PlaylistsPage drag handle mirrors Electron floating handle', (
@@ -285,7 +342,7 @@ void main() {
     var activeDragOverlayCount = 0;
     for (final container in cardContainers) {
       final decoration = container.decoration! as BoxDecoration;
-      if (decoration.color == Colors.transparent) {
+      if (decoration.color?.a == 0) {
         inactiveCardCount++;
         expect(decoration.boxShadow, isNull);
       } else {

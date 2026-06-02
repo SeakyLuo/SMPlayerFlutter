@@ -225,6 +225,8 @@ class _RecentSongTileMetrics {
 class _RecentSongTileColors {
   const _RecentSongTileColors({
     required this.activeSurface,
+    required this.inactiveSurface,
+    required this.activeBorder,
     required this.activeShadow,
     required this.artworkSurface,
     required this.artworkShadow,
@@ -240,6 +242,8 @@ class _RecentSongTileColors {
   });
 
   final Color activeSurface;
+  final Color inactiveSurface;
+  final Color activeBorder;
   final List<BoxShadow> activeShadow;
   final Color artworkSurface;
   final List<BoxShadow> artworkShadow;
@@ -255,9 +259,10 @@ class _RecentSongTileColors {
 
   static const light = _RecentSongTileColors(
     activeSurface: Color(0x140078d7),
+    inactiveSurface: Color(0x000078d7),
+    activeBorder: Color(0x260078d7),
     activeShadow: [
-      BoxShadow(color: Color(0x1a1d2a3c), blurRadius: 18, offset: Offset(0, 8)),
-      BoxShadow(color: Color(0x290078d7), spreadRadius: 1),
+      BoxShadow(color: Color(0x000078d7), blurRadius: 0, offset: Offset(0, 0)),
     ],
     artworkSurface: Color(0xc2ffffff),
     artworkShadow: [
@@ -278,6 +283,8 @@ class _RecentSongTileColors {
 
   static const dark = _RecentSongTileColors(
     activeSurface: Color(0x240078d7),
+    inactiveSurface: Color(0x000078d7),
+    activeBorder: Color(0x380078d7),
     activeShadow: [
       BoxShadow(color: Color(0x38000000), blurRadius: 18, offset: Offset(0, 8)),
       BoxShadow(color: Color(0x3d0078d7), spreadRadius: 1),

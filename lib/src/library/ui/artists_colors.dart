@@ -135,7 +135,7 @@ class _ArtistsColors {
   static Color artistRowActiveBackground(Brightness brightness) {
     return brightness == Brightness.dark
         ? const Color(0x330078d7)
-        : accentProgressTrack;
+        : const Color(0xffd9ecfb);
   }
 
   static Color artistRowHoverBackground(Brightness brightness) {
@@ -145,14 +145,36 @@ class _ArtistsColors {
   }
 
   static Color artistRowActiveForeground(Brightness brightness) {
-    return brightness == Brightness.dark ? const Color(0xff459de2) : textStrong;
+    return brightness == Brightness.dark
+        ? const Color(0xff459de2)
+        : accentStrong;
   }
 
-  static const artistRowActiveShadow = BoxShadow(
-    color: Color(0x290078d7),
-    offset: Offset(0, 14),
-    blurRadius: 30,
-  );
+  static Color artistRowActiveMuted(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0xc276b5dc)
+        : accentStrong;
+  }
+
+  static Color artistRowActiveBorder(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0x380078d7)
+        : const Color(0x260078d7);
+  }
+
+  static BoxShadow artistRowActiveShadow(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const BoxShadow(
+          color: Color(0x24000000),
+          offset: Offset(0, 10),
+          blurRadius: 24,
+        )
+        : const BoxShadow(
+          color: Color(0x300078d7),
+          offset: Offset(0, 8),
+          blurRadius: 18,
+        );
+  }
 
   static Color artistArtworkBackground(
     Brightness brightness, {
@@ -254,7 +276,6 @@ class _ArtistsColors {
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentProgressTrack = Color(0x1f0078d7);
-  static const activeBorder = Color(0x6b0078d7);
   static const textStrong = Color(0xff1f252b);
   static const textMuted = Color(0xff5f625f);
   static const disabled = Color(0x3d5b697a);

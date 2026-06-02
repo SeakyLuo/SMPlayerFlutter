@@ -36,6 +36,14 @@ class _PlayerTrackState extends State<_PlayerTrack> {
             ? widget.currentLyricsLine
             : null;
     final overlayVisible = !widget.disabled && (_hovered || _focused);
+    final trackHoverBackground =
+        Theme.of(context).brightness == Brightness.dark
+            ? const Color(0x12ffffff)
+            : const Color(0x1f212b3a);
+    final trackHoverBorder =
+        Theme.of(context).brightness == Brightness.dark
+            ? MediaControlColors.nightPlayerBorder
+            : const Color(0x14212b3a);
     final trackCopyMaxWidth =
         widget.compact
             ? double.infinity
@@ -43,7 +51,7 @@ class _PlayerTrackState extends State<_PlayerTrack> {
     final trackPadding =
         widget.compact
             ? const EdgeInsets.fromLTRB(0, 0, 10, 0)
-            : const EdgeInsets.fromLTRB(8, 8, 0, 8);
+            : const EdgeInsets.fromLTRB(4, 12, 12, 12);
     final artworkSize = widget.compact ? 68.0 : 72.0;
     final preferredArtworkGap = widget.compact ? 12.0 : 14.0;
     return MouseRegion(
@@ -75,6 +83,26 @@ class _PlayerTrackState extends State<_PlayerTrack> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
+          ).copyWith(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return Colors.transparent;
+              }
+              return states.contains(WidgetState.hovered) ||
+                      states.contains(WidgetState.focused)
+                  ? trackHoverBackground
+                  : Colors.transparent;
+            }),
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            side: WidgetStateProperty.resolveWith((states) {
+              final color =
+                  !states.contains(WidgetState.disabled) &&
+                          (states.contains(WidgetState.hovered) ||
+                              states.contains(WidgetState.focused))
+                      ? trackHoverBorder
+                      : Colors.transparent;
+              return BorderSide(color: color);
+            }),
           ),
           onPressed: widget.disabled ? null : widget.onOpenNowPlaying,
           child: LayoutBuilder(
@@ -87,6 +115,8 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                       )
                       : preferredArtworkGap;
               return Row(
+                mainAxisSize:
+                    widget.compact ? MainAxisSize.max : MainAxisSize.min,
                 children: [
                   Container(
                     width: artworkSize,
@@ -147,44 +177,54 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                         minWidth: widget.compact ? 0 : 120,
                         maxWidth: trackCopyMaxWidth,
                       ),
-                      child: SizedBox(
-                        height: artworkSize,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: textStrong,
-                                fontSize: widget.compact ? 15 : 17,
-                                fontWeight: FontWeight.w400,
-                                height: 1.08,
+                      child: IntrinsicWidth(
+                        child: SizedBox(
+                          height: artworkSize,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.track.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: textStrong,
+                                  fontSize: widget.compact ? 15 : 17,
+                                  fontWeight: FontWeight.w600,
+                                  fontVariations: const [
+                                    FontVariation.weight(650),
+                                  ],
+                                  height: 1.08,
+                                ),
                               ),
-                            ),
-                            SizedBox(height: widget.compact ? 4 : 5),
-                            Text(
-                              widget.track.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: textMuted,
-                                fontSize: widget.compact ? 12 : 14,
-                                fontWeight: FontWeight.w400,
-                                height: 1.1,
-                              ),
-                            ),
-                            if (lyricsText != null) ...[
                               SizedBox(height: widget.compact ? 4 : 5),
-                              _PlayerTrackLyrics(
-                                line: lyricsText,
-                                compact: widget.compact,
-                                color: textMuted,
+                              Text(
+                                widget.track.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: textMuted,
+                                  fontSize: widget.compact ? 12 : 14,
+                                  fontWeight: FontWeight.w500,
+                                  fontVariations: const [
+                                    FontVariation.weight(520),
+                                  ],
+                                  height: 1.1,
+                                ),
                               ),
+                              if (lyricsText != null) ...[
+                                SizedBox(height: widget.compact ? 4 : 5),
+                                _PlayerTrackLyrics(
+                                  line: lyricsText,
+                                  compact: widget.compact,
+                                  color: MediaControlColors.accent.withValues(
+                                    alpha: 0.94,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -240,7 +280,8 @@ class _PlayerTrackLyrics extends StatelessWidget {
               style: TextStyle(
                 color: color,
                 fontSize: compact ? 12 : 13,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w500,
+                fontVariations: const [FontVariation.weight(560)],
                 height: 17 / (compact ? 12 : 13),
               ),
             ),
