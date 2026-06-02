@@ -3,14 +3,12 @@ part of 'headered_playlist_control.dart';
 class _HeaderedPlaylistListSliver extends StatelessWidget {
   const _HeaderedPlaylistListSliver({
     required this.showAlbum,
-    required this.itemCount,
-    required this.itemBuilder,
+    required this.entries,
     required this.bottomPadding,
   });
 
   final bool showAlbum;
-  final int itemCount;
-  final NullableIndexedWidgetBuilder itemBuilder;
+  final List<PlaylistControlEntry> entries;
   final double bottomPadding;
 
   @override
@@ -58,16 +56,15 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
                 horizontal: compact ? 0 : 10,
                 vertical: compact ? 2 : 0,
               ),
-              sliver: SliverList.builder(
-                itemCount: itemCount,
-                itemBuilder: (context, index) {
-                  final item = itemBuilder(context, index);
-                  if (!compact || item == null) {
+              sliver: PlaylistControlSliver(
+                entries: entries,
+                itemShellBuilder: (context, index, item) {
+                  if (!compact) {
                     return item;
                   }
                   return Padding(
                     padding: EdgeInsets.only(
-                      bottom: index == itemCount - 1 ? 0 : 2,
+                      bottom: index == entries.length - 1 ? 0 : 2,
                     ),
                     child: item,
                   );

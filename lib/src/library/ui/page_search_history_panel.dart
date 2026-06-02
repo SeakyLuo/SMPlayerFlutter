@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../app/app_interaction_colors.dart';
 import '../../i18n/app_i18n.dart';
@@ -376,100 +377,124 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: false);
+    const radius = 14.0;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        key: backdropKey,
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+      borderRadius: BorderRadius.circular(radius),
+      child: GlassContainer(
+        key: panelKey,
+        useOwnLayer: true,
+        quality: GlassQuality.minimal,
+        clipBehavior: Clip.hardEdge,
+        shape: const LiquidRoundedRectangle(borderRadius: radius),
+        settings: LiquidGlassSettings(
+          blur: 46,
+          thickness: 20,
+          refractiveIndex: 1.06,
+          saturation: 1.65,
+          chromaticAberration: 0,
+          lightIntensity: 0.1,
+          ambientStrength: 0.08,
+          glowIntensity: 0.04,
+          glassColor: colors.dropdownSurface,
+          standardOpacityMultiplier: 0.32,
+        ),
         child: DecoratedBox(
-          key: panelKey,
           decoration: BoxDecoration(
-            color: colors.dropdownSurface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(radius),
             boxShadow: [
               BoxShadow(
                 color: colors.dropdownShadow,
-                blurRadius: 36,
-                offset: Offset(0, 18),
+                blurRadius: 24,
+                offset: Offset(0, 10),
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (title.isNotEmpty) ...[
-                    SizedBox(
-                      key: headerKey,
-                      height: 30,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.header,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0,
-                                  height: 1,
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: colors.dropdownBorder),
+            ),
+            child: BackdropFilter(
+              key: backdropKey,
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (title.isNotEmpty) ...[
+                        SizedBox(
+                          key: headerKey,
+                          height: 30,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: colors.header,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0,
+                                      height: 1,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (onClear != null && clearLabel != null)
+                                  _PageSearchTextButton(
+                                    label: clearLabel!,
+                                    onPressed: onClear,
+                                  ),
+                              ],
                             ),
-                            if (onClear != null && clearLabel != null)
-                              _PageSearchTextButton(
-                                label: clearLabel!,
-                                onPressed: onClear,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      Flexible(
+                        child: Column(
+                          key: listKey,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final item in items) ...[
+                              _SearchHistoryPanelRow<TValue>(
+                                item: item,
+                                itemKey:
+                                    itemKeyBuilder == null
+                                        ? ValueKey(
+                                          'PageSearchHistoryPanel.Item.${item.label}',
+                                        )
+                                        : itemKeyBuilder!(item),
+                                selectKey:
+                                    selectKeyBuilder == null
+                                        ? null
+                                        : selectKeyBuilder!(item),
+                                removeKey:
+                                    removeKeyBuilder == null
+                                        ? null
+                                        : removeKeyBuilder!(item),
+                                onSelect: onSelect,
+                                onRemove: onRemove,
+                                removeLabel:
+                                    getRemoveLabel == null
+                                        ? null
+                                        : getRemoveLabel!(item),
                               ),
+                              if (item != items.last) const SizedBox(height: 2),
+                            ],
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  Flexible(
-                    child: Column(
-                      key: listKey,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final item in items) ...[
-                          _SearchHistoryPanelRow<TValue>(
-                            item: item,
-                            itemKey:
-                                itemKeyBuilder == null
-                                    ? ValueKey(
-                                      'PageSearchHistoryPanel.Item.${item.label}',
-                                    )
-                                    : itemKeyBuilder!(item),
-                            selectKey:
-                                selectKeyBuilder == null
-                                    ? null
-                                    : selectKeyBuilder!(item),
-                            removeKey:
-                                removeKeyBuilder == null
-                                    ? null
-                                    : removeKeyBuilder!(item),
-                            onSelect: onSelect,
-                            onRemove: onRemove,
-                            removeLabel:
-                                getRemoveLabel == null
-                                    ? null
-                                    : getRemoveLabel!(item),
-                          ),
-                          if (item != items.last) const SizedBox(height: 2),
-                        ],
-                      ],
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -652,8 +677,9 @@ class _SearchHistoryRemoveButtonState
   @override
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: false);
-    return Tooltip(
-      message: widget.tooltip,
+    return Semantics(
+      label: widget.tooltip,
+      button: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) {
@@ -814,6 +840,7 @@ class _PageSearchColors {
     required this.placeholder,
     required this.iconButtonHover,
     required this.dropdownSurface,
+    required this.dropdownBorder,
     required this.dropdownShadow,
     required this.header,
     required this.accent,
@@ -831,6 +858,7 @@ class _PageSearchColors {
   final Color placeholder;
   final Color iconButtonHover;
   final Color dropdownSurface;
+  final Color dropdownBorder;
   final Color dropdownShadow;
   final Color header;
   final Color accent;
@@ -847,8 +875,9 @@ class _PageSearchColors {
     insetHighlight: Color(0x61ffffff),
     placeholder: Color(0x9e3d4958),
     iconButtonHover: Color(0x120078d7),
-    dropdownSurface: Color(0xf5f4f6f9),
-    dropdownShadow: Color(0x2935495f),
+    dropdownSurface: Color(0x74ffffff),
+    dropdownBorder: Color(0x3d7e8b9a),
+    dropdownShadow: Color(0x1a35495f),
     header: Color(0x945f625f),
     accent: SearchCommitIconButton.lightHoverForeground,
     textStrong: Color(0xff1f252b),
@@ -865,8 +894,9 @@ class _PageSearchColors {
     insetHighlight: Color(0x0effffff),
     placeholder: Color(0xadcbd5e1),
     iconButtonHover: Color(0x240078d7),
-    dropdownSurface: Color(0xfa1d232b),
-    dropdownShadow: Color(0x5c000000),
+    dropdownSurface: Color(0x7a181e26),
+    dropdownBorder: Color(0x38d6e0ec),
+    dropdownShadow: Color(0x42000000),
     header: Color(0x9ecbd5e1),
     accent: Color(0xff7fc4ff),
     textStrong: Color(0xebffffff),

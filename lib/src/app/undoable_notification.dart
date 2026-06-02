@@ -227,20 +227,21 @@ class _AppNotificationOverlay extends StatelessWidget {
       ),
       child: GlassContainer(
         useOwnLayer: true,
-        quality: GlassQuality.standard,
+        quality: GlassQuality.minimal,
         shape: const LiquidRoundedRectangle(
           borderRadius: _appNotificationRadius,
         ),
         settings: LiquidGlassSettings(
-          thickness: 26,
-          blur: 32,
-          refractiveIndex: 1.1,
-          saturation: 1.35,
-          chromaticAberration: 0.012,
-          lightIntensity: 0.46,
-          ambientStrength: 0.18,
-          glowIntensity: 0.42,
+          thickness: 20,
+          blur: 46,
+          refractiveIndex: 1.06,
+          saturation: 1.65,
+          chromaticAberration: 0,
+          lightIntensity: 0.1,
+          ambientStrength: 0.08,
+          glowIntensity: 0.04,
           glassColor: colors.glass,
+          standardOpacityMultiplier: 0.35,
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(

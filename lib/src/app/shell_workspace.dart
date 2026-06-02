@@ -623,7 +623,15 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/recent')) {
-    return '';
+    final hasRecentContent =
+        snapshot != null &&
+        (snapshot.songs.isNotEmpty ||
+            snapshot.recentSongs.isNotEmpty ||
+            snapshot.recentPlaylists.isNotEmpty ||
+            snapshot.recentAlbums.isNotEmpty ||
+            snapshot.recentArtists.isNotEmpty ||
+            snapshot.recentSearches.isNotEmpty);
+    return hasRecentContent ? '' : i18n.t('common.recent');
   }
 
   if (path.startsWith('/local')) {

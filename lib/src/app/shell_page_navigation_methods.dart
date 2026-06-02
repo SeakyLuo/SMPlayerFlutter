@@ -38,7 +38,8 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     if (section == null || section == '/albums' || section == '/playlists') {
       return;
     }
-    _routeMemory[section] = section == '/artists' ? path : normalizedPath;
+    _routeMemory[section] =
+        section == '/artists' || section == '/local' ? path : normalizedPath;
   }
 
   void _recordNavigationLocation(String location) {
@@ -239,6 +240,16 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       });
       _saveNavigationCollapsed(true);
     }
+  }
+
+  void _dismissNavigationSearchHistory() {
+    if (!_isNavigationSearchHistoryOpen) {
+      return;
+    }
+    setState(() {
+      _isNavigationSearchHistoryOpen = false;
+      _navigationSearchDismissEpoch += 1;
+    });
   }
 
   Future<void> _restoreNavigationPaneState() async {

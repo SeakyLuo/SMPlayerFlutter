@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "Las notas de la versión se pueden ver en la configuración.",
   "settings.releaseNotesVersion": "Versión",
   "releaseNotes.architectureFeedback": "Esta actualización incluye muchos ajustes. Se aceptan comentarios a través de [Configuración] -> [Otros].",
+  "releaseNotes.tryLiquidGlass": "Intento de introducir vidrio líquido.",
   "settings.rescan": "Actualizar carpeta",
   "settings.save": "Guardar",
   "settings.saveChanges": "Guardar cambios",

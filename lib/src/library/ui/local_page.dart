@@ -16,7 +16,7 @@ import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_track_factory.dart';
-import '../../platform/desktop_features.dart';
+import '../../platform/desktop_feature_service.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artists_page_model.dart';
@@ -36,7 +36,7 @@ import 'library_page_actions.dart'
         requestDeleteSongFromDisk,
         setSongsFavoriteWithUndo;
 import 'local_folder_model.dart';
-import 'local_grid_content.dart';
+import 'local_content_view.dart';
 import 'local_i18n_counts.dart';
 import 'local_page_empty_content.dart';
 import 'local_move_to_folder_menu.dart';
@@ -341,6 +341,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 .toList();
         final effectiveSelectedSongIds =
             _selectedSongIds.where(selectableSongIdSet.contains).toList();
+        final selectedFolderAbsolutePaths =
+            effectiveSelectedFolderPaths
+                .map((folderPath) => nodes[folderPath]!.path)
+                .toList();
         final selectedQueueSongIds =
             {
               ...effectiveSelectedSongIds,
@@ -351,9 +355,29 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         final selectedLocalItemCount =
             effectiveSelectedFolderPaths.length +
             effectiveSelectedSongIds.length;
+        final selectedMoveToFolderMenuItems = buildLocalMoveToFolderMenuItems(
+          nodes: nodes,
+          songsById: songsById,
+          songIds: effectiveSelectedSongIds,
+          folderPaths: selectedFolderAbsolutePaths,
+          i18n: i18n,
+          onMoveToFolder: (targetFolder) {
+            _moveLocalItemsToFolder(
+              songIds: effectiveSelectedSongIds,
+              folderPaths: selectedFolderAbsolutePaths,
+              targetFolderPath: targetFolder.path,
+            );
+            setState(() {
+              _hideMultiSelectAfterOperation(
+                snapshot.hideMultiSelectCommandBarAfterOperation,
+              );
+            });
+          },
+        );
         final showsInlineTitle = !WorkspaceNavigationAppBarScope.of(context);
         return LocalPageScaffold(
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Column(
                 children: [
@@ -500,6 +524,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                       scrollController: _scrollController,
                       scrollable: true,
                       compact: isCompactLayout,
+                      bottomPadding:
+                          _multiSelect ? multiSelectCommandBarScrollSpacer : 18,
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
                               ? buildLocalPageEmptyContent(
@@ -508,7 +534,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 searchQuery: widget.searchQuery,
                                 onOpenSettings: () => context.go('/settings'),
                               )
-                              : LocalGridContent(
+                              : LocalContentView(
                                 childFolders: childFolders,
                                 currentSongs: currentSongs,
                                 nodes: nodes,
@@ -649,8 +675,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
               ),
               MultiSelectCommandBar(
                 visible: _multiSelect,
+                bottomInset: multiSelectCommandBarShellBottomInset,
+                horizontalBleed: isCompactLayout ? 12 : 24,
                 selectedCount: selectedLocalItemCount,
                 playlists: customPlaylists,
+                showPlay: selectedQueueSongIds.isNotEmpty,
+                showAddTo: selectedQueueSongIds.isNotEmpty,
                 addToSongIds: selectedQueueSongIds,
                 includeNowPlayingInAddTo: true,
                 includeFavoritesInAddTo: _hasNotFavoriteSongs(
@@ -735,10 +765,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 onRemove:
                     () => _requestDeleteLocalItems(
                       songIds: effectiveSelectedSongIds,
-                      folderPaths:
-                          effectiveSelectedFolderPaths
-                              .map((folderPath) => nodes[folderPath]!.path)
-                              .toList(),
+                      folderPaths: selectedFolderAbsolutePaths,
                       i18n: i18n,
                     ),
                 removeLabel: i18n.t('context.deleteFromDisk'),
@@ -747,7 +774,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     key: 'move-to-folder',
                     text: i18n.t('context.moveToFolder'),
                     icon: FluentIcons.folder_20_regular,
-                    disabled: selectedLocalItemCount == 0,
+                    disabled:
+                        selectedLocalItemCount == 0 ||
+                        selectedMoveToFolderMenuItems.isEmpty,
                     onPressed: () {},
                     onPressedWithContext:
                         (buttonContext) => _showSelectedMoveToFolderMenu(
@@ -755,10 +784,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                           nodes: nodes,
                           songsById: songsById,
                           songIds: effectiveSelectedSongIds,
-                          folderPaths:
-                              effectiveSelectedFolderPaths
-                                  .map((folderPath) => nodes[folderPath]!.path)
-                                  .toList(),
+                          folderPaths: selectedFolderAbsolutePaths,
                           i18n: i18n,
                           hideMultiSelectCommandBarAfterOperation:
                               snapshot.hideMultiSelectCommandBarAfterOperation,

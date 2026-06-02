@@ -58,10 +58,8 @@ extension _LocalPageSelectionActions on _LocalPageState {
   void _hideMultiSelectAfterOperation(
     bool hideMultiSelectCommandBarAfterOperation,
   ) {
-    _selectedFolderPaths.clear();
-    _selectedSongIds.clear();
     if (hideMultiSelectCommandBarAfterOperation) {
-      _multiSelect = false;
+      _clearMultiSelectStatus();
     }
   }
 }

@@ -10,6 +10,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -20,7 +21,7 @@ import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -339,6 +340,54 @@ void main() {
   });
 
   testWidgets(
+    'writes shell LocalPage multi-select dark verification screenshot',
+    (tester) async {
+      await _writeShellLocalPageScreenshot(
+        tester,
+        brightness: Brightness.dark,
+        path: 'build/smplayer_flutter_shell_local_multiselect_dark_verify.png',
+        physicalSize: const Size(1200, 820),
+        expectWideGridLeftEdge: false,
+        exercise: (tester) async {
+          await tester.tap(find.byTooltip('More').first);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Multi Select').last);
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Select All').last);
+          await tester.pumpAndSettle();
+          expect(find.textContaining('selected'), findsWidgets);
+          final surfaceRect = tester.getRect(
+            find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+          );
+          expect(
+            surfaceRect.left,
+            moreOrLessEquals(SmPlayerShellMetrics.sidebarWidth, epsilon: 1),
+          );
+          expect(surfaceRect.right, moreOrLessEquals(1200, epsilon: 1));
+          expect(
+            surfaceRect.width,
+            moreOrLessEquals(
+              1200 - SmPlayerShellMetrics.sidebarWidth,
+              epsilon: 1,
+            ),
+          );
+          expect(
+            surfaceRect.bottom,
+            moreOrLessEquals(
+              820 - SmPlayerShellMetrics.playerHeight + 1,
+              epsilon: 1,
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  testWidgets(
     'writes compact shell LocalPage archive light verification screenshot',
     (tester) async {
       await _writeShellLocalPageScreenshot(
@@ -471,6 +520,7 @@ Future<void> _writeShellLocalPageScreenshot(
   bool expectWideGridLeftEdge = true,
   bool expectCompactPanelWidth = false,
   _ShellLocalHoverTarget? hoverTarget,
+  Future<void> Function(WidgetTester tester)? exercise,
 }) async {
   resetSmPlayerGlobalSettingsSnapshot();
   resetSmPlayerShellGlobalStateForTest();
@@ -668,6 +718,9 @@ Future<void> _writeShellLocalPageScreenshot(
       expect(moreRect.width, moreOrLessEquals(34, epsilon: 1));
       expect(moreRect.height, moreOrLessEquals(34, epsilon: 1));
     }
+  }
+  if (exercise != null) {
+    await exercise(tester);
   }
   await _writeBoundaryPng(tester, repaintKey, path);
 }
@@ -1059,21 +1112,31 @@ const _i18n = SmPlayerI18n(
   locale: 'en-US',
   messages: {
     'app.shell': 'Simple Melody Player',
+    'albums.addSelectedTo': 'Add To',
+    'albums.clearSelection': 'Clear Selection',
     'albums.multiSelect': 'Multi Select',
+    'albums.playSelected': 'Play',
+    'albums.reverseSelection': 'Reverse Selection',
+    'albums.selectAll': 'Select All',
+    'albums.selectedCount': '{count} selected',
     'common.album': 'Album',
     'common.albumUnknown': 'Unknown Album',
     'common.artist': 'Artist',
     'common.artistSeparator': ', ',
     'common.artistUnknown': 'Unknown Artist',
+    'common.cancel': 'Cancel',
     'common.folders': 'Folders',
+    'common.myFavorites': 'Favorites',
     'common.name': 'Name',
     'common.sort': 'Sort',
     'context.addFavorite': 'Add Favorite',
     'context.addToPlaylist': 'Add To',
+    'context.deleteFromDisk': 'Delete From Disk',
     'context.pause': 'Pause',
     'context.play': 'Play',
     'context.playNext': 'Play Next',
     'context.removeFavorite': 'Remove Favorite',
+    'context.removeFromList': 'Remove',
     'hiddenFolders.empty': 'No hidden items.',
     'hiddenFolders.introduction':
         'Hidden items stay out of Local until resumed.',

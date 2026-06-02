@@ -409,6 +409,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
             return _AlbumsPagePanel(
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Column(
                     children: [
@@ -533,6 +534,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   ),
                   MultiSelectCommandBar(
                     visible: _selection.multiSelect,
+                    bottomInset: multiSelectCommandBarShellBottomInset,
+                    horizontalBleed: 24,
                     selectedCount: selectedAlbums.length,
                     playlists: customPlaylists,
                     addToSongIds: selectedSongIds,

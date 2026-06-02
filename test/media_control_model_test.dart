@@ -213,6 +213,39 @@ void main() {
     expect(controller.state.playbackStatus, PlaybackStatus.loading);
   });
 
+  test('MediaControlController final ready commit clears restored track loading', () {
+    final controller = MediaControlController();
+
+    controller.playTrack(
+      const MediaControlTrack(
+        id: 2,
+        title: 'Restored',
+        artist: 'Artist',
+        artworkUrl: '',
+        isLoading: false,
+      ),
+      durationSeconds: 200,
+      queueIndex: 1,
+      progressSeconds: 42,
+      autoplay: false,
+    );
+    expect(controller.state.track.isLoading, isTrue);
+    expect(controller.state.playbackStatus, PlaybackStatus.loading);
+
+    controller.setTrackLoading(false);
+    expect(controller.state.track.isLoading, isFalse);
+    expect(controller.state.playbackStatus, PlaybackStatus.ready);
+
+    controller.setTrackLoading(true);
+    expect(controller.state.track.isLoading, isTrue);
+    expect(controller.state.playbackStatus, PlaybackStatus.loading);
+
+    controller.setTrackLoading(false);
+    expect(controller.state.track.isLoading, isFalse);
+    expect(controller.state.playbackStatus, PlaybackStatus.ready);
+    expect(controller.state.isPlaying, isFalse);
+  });
+
   test('MediaControlController updates playback runtime state', () {
     final persistedUpdates = <PlaybackSettingsUpdate>[];
     final controller = MediaControlController(

@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
@@ -17,6 +18,7 @@ import 'package:smplayer_flutter/src/library/ui/album_tile.dart'
     show getAlbumArtworkSong;
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
@@ -102,6 +104,37 @@ void main() {
 
     expect(find.text('已选择 1 项'), findsOneWidget);
     expect(find.text('Red Days'), findsOneWidget);
+  });
+
+  testWidgets('AlbumsPage multi-select bar bleeds to workspace edges', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _AlbumsTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _tapAlbumsCommand(tester, i18n.t('common.multiSelect'));
+    await tester.pumpAndSettle();
+
+    final surfaceRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+    );
+    expect(surfaceRect.left, 0);
+    expect(surfaceRect.right, 1200);
+    expect(surfaceRect.width, 1200);
+    expect(surfaceRect.bottom, 800 - multiSelectCommandBarShellBottomInset);
   });
 
   testWidgets('AlbumsPage context menu can enter selection mode', (
@@ -507,19 +540,27 @@ void main() {
     expect(tester.getSize(historyPanel).height, lessThan(160));
     expect(tester.getTopLeft(firstTile).dy, tileTopBefore);
 
-    final panelDecoration =
-        tester
-                .widgetList<DecoratedBox>(
-                  find.descendant(
-                    of: historyPanel,
-                    matching: find.byType(DecoratedBox),
-                  ),
-                )
-                .first
-                .decoration
-            as BoxDecoration;
+    final glassPanel = tester.widget<GlassContainer>(
+      find.descendant(of: historyPanel, matching: find.byType(GlassContainer)),
+    );
+    expect(glassPanel.quality, GlassQuality.minimal);
+    expect(glassPanel.settings?.blur, 46);
+    expect(glassPanel.settings?.saturation, 1.65);
+    expect(glassPanel.settings?.standardOpacityMultiplier, 0.32);
+
+    final panelDecoration = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: historyPanel,
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border != null);
     final panelBorder = panelDecoration.border as Border;
-    expect(panelBorder.top.color, const Color(0x1fd6e0ec));
+    expect(panelBorder.top.color, const Color(0x38d6e0ec));
+    expect(panelBorder.top.width, 1);
   });
 
   testWidgets('AlbumsPage multi-select play replaces Now Playing', (
@@ -549,6 +590,40 @@ void main() {
     expect(mediaController.state.track.id, 1);
     expect(mediaController.state.isPlaying, isTrue);
   });
+
+  testWidgets(
+    'AlbumsPage multi-select Play respects Electron hide preference',
+    (tester) async {
+      final repository = _FakeLibraryRepository();
+
+      await tester.pumpWidget(
+        _AlbumsTestApp(
+          snapshot: _keepSelectionSnapshot,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _tapAlbumsCommand(tester, i18n.t('common.multiSelect'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blue Hour'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(i18n.t('albums.selectedCount', {'count': 1})),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text(i18n.t('albums.playSelected')));
+      await tester.pumpAndSettle();
+
+      expect(repository.replacedNowPlaying, [1]);
+      expect(
+        find.text(i18n.t('albums.selectedCount', {'count': 1})),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('AlbumsPage multi-select adds album songs to playlist', (
     tester,
@@ -1499,6 +1574,24 @@ const _snapshot = LibraryContentData(
   showCount: true,
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
+);
+
+final _keepSelectionSnapshot = LibraryContentData(
+  songs: _snapshot.songs,
+  recentSongs: _snapshot.recentSongs,
+  recentPlaylists: _snapshot.recentPlaylists,
+  recentAlbums: _snapshot.recentAlbums,
+  recentArtists: _snapshot.recentArtists,
+  recentSearches: _snapshot.recentSearches,
+  playlists: _snapshot.playlists,
+  favoritePlaylistId: _snapshot.favoritePlaylistId,
+  nowPlaying: _snapshot.nowPlaying,
+  hasLibrary: _snapshot.hasLibrary,
+  sortCriterion: _snapshot.sortCriterion,
+  albumsSort: _snapshot.albumsSort,
+  showCount: _snapshot.showCount,
+  hideMultiSelectCommandBarAfterOperation: false,
+  databasePath: _snapshot.databasePath,
 );
 
 final _snapshotWithManyRecentSearches = LibraryContentData(

@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "Versionshinweise können in den Einstellungen angezeigt werden.",
   "settings.releaseNotesVersion": "Version",
   "releaseNotes.architectureFeedback": "Dieses Update enthält viele Anpassungen. Feedback ist über [Einstellungen] -> [Andere] willkommen.",
+  "releaseNotes.tryLiquidGlass": "Versuch, Liquid Glass einzuführen.",
   "settings.rescan": "Ordner aktualisieren",
   "settings.save": "Speichern",
   "settings.saveChanges": "Änderungen speichern",

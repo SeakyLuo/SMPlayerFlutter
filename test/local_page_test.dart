@@ -17,10 +17,15 @@ import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.d
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
+import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
+import 'package:smplayer_flutter/src/library/ui/local_move_to_folder_menu.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_shell.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page_quick_jump.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -194,6 +199,35 @@ void main() {
       'preferences.level.very-high': 'Very High',
       'preferences.undoPrefer': 'Undo Preference',
       'settings.preferenceSettings': 'Preference Settings',
+    },
+  );
+
+  testWidgets(
+    'LocalPageContentPanel uses Electron multi-select scroll spacer',
+    (tester) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LocalPageContentPanel(
+            scrollController: controller,
+            scrollable: true,
+            compact: false,
+            bottomPadding: multiSelectCommandBarScrollSpacer,
+            child: const SizedBox(height: 20),
+          ),
+        ),
+      );
+
+      final scrollView = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView),
+      );
+      final padding = scrollView.child! as Padding;
+      expect(
+        padding.padding,
+        const EdgeInsets.fromLTRB(6, 4, 6, multiSelectCommandBarScrollSpacer),
+      );
     },
   );
 
@@ -1072,6 +1106,98 @@ void main() {
     expect(repository.addedSongIds, [2]);
     await _dismissTransientNotifications(tester);
   });
+
+  testWidgets(
+    'LocalPage multi-select Add To respects Electron hide preference',
+    (tester) async {
+      _setLargeSurface(tester);
+      final repository = _FakeLibraryRepository();
+
+      await tester.pumpWidget(
+        _LocalPageTestApp(
+          snapshot: _snapshotWithHideAfterOperation(false),
+          i18n: i18n,
+          repository: repository,
+          mediaController: MediaControlController(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _pressTextButtonByLabel(tester, 'Multi Select');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sub'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Add selected to'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Road Mix'));
+      await tester.pumpAndSettle();
+
+      expect(repository.addedPlaylistId, 30);
+      expect(repository.addedSongIds, [2]);
+      expect(find.text('1 selected'), findsOneWidget);
+      await _dismissTransientNotifications(tester);
+    },
+  );
+
+  testWidgets('LocalPage multi-select Play respects Electron hide preference', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    final repository = _FakeLibraryRepository();
+    final mediaController = MediaControlController();
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshotWithHideAfterOperation(false),
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _pressTextButtonByLabel(tester, 'Multi Select');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sub'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 selected'), findsOneWidget);
+
+    await tester.tap(find.text('Play selected'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(repository.replacedNowPlaying, [2]);
+    expect(mediaController.state.track.id, 2);
+    expect(find.text('1 selected'), findsOneWidget);
+  });
+
+  testWidgets(
+    'LocalPage hides Play and Add To when selection has no songs like Electron',
+    (tester) async {
+      _setLargeSurface(tester);
+
+      await tester.pumpWidget(
+        _LocalPageTestApp(
+          snapshot: _snapshotWithTargetFolder,
+          i18n: i18n,
+          repository: _FakeLibraryRepository(),
+          mediaController: MediaControlController(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _pressTextButtonByLabel(tester, 'Multi Select');
+      await tester.tap(find.text('Target'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(find.text('Play selected'), findsNothing);
+      expect(find.text('Add selected to'), findsNothing);
+      expect(find.text('Delete from Disk'), findsWidgets);
+      expect(find.text('Move To Folder'), findsOneWidget);
+    },
+  );
 
   testWidgets('LocalPage song add menu supports now playing and favorites', (
     tester,
@@ -2555,6 +2681,64 @@ void main() {
     await _dismissTransientNotifications(tester);
   });
 
+  testWidgets('LocalPage disables selected Move when Electron has no target', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+
+    await tester.pumpWidget(
+      _LocalPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _pressCommandBarButton(tester, 'Multi Select');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sub'));
+    await tester.pumpAndSettle();
+
+    final moveButtons = tester.widgetList<TextButton>(
+      find.ancestor(
+        of: find.text('Move To Folder'),
+        matching: find.byType(TextButton),
+      ),
+    );
+    expect(moveButtons.any((button) => button.onPressed == null), isTrue);
+  });
+
+  test(
+    'Local move-to-folder targets mirror Electron source/parent filtering',
+    () {
+      final index = buildFolderIndex(const [], const [
+        LibraryFolder(id: 10, path: r'C:\Music\Sub', parentId: 0, criterion: 0),
+        LibraryFolder(
+          id: 11,
+          path: r'C:\Music\Sub\Deep',
+          parentId: 10,
+          criterion: 0,
+        ),
+      ], r'C:\Music');
+
+      final items = buildLocalMoveToFolderMenuItems(
+        nodes: index.nodes,
+        songsById: index.songsById,
+        songIds: const [],
+        folderPaths: const [r'C:\Music\Sub'],
+        i18n: i18n,
+        onMoveToFolder: (_) {},
+      );
+
+      final labels = _flattenMenuFlyoutLabels(items);
+      expect(labels, contains('Sub'));
+      expect(labels, contains('Deep'));
+      expect(labels, isNot(contains('Library root')));
+    },
+  );
+
   testWidgets('LocalPage song context menu exposes Electron song actions', (
     tester,
   ) async {
@@ -3035,6 +3219,15 @@ Future<void> _pressCommandBarButton(WidgetTester tester, String label) async {
   await tester.tap(find.byTooltip('More').first);
   await tester.pumpAndSettle();
   await tester.tap(find.text(label).first);
+}
+
+List<String> _flattenMenuFlyoutLabels(List<MenuFlyoutItem> items) {
+  return [
+    for (final item in items) ...[
+      if (item.text.isNotEmpty) item.text,
+      ..._flattenMenuFlyoutLabels(item.submenu),
+    ],
+  ];
 }
 
 class _LocalPageTestApp extends StatelessWidget {

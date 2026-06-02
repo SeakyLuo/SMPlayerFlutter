@@ -68,8 +68,7 @@ List<MenuFlyoutItem> buildLocalMoveToFolderMenuItems({
     return sourceFolders.every(
       (sourceFolder) =>
           folder.relativePath != sourceFolder.relativePath &&
-          (folder.relativePath.isEmpty ||
-              !folder.relativePath.startsWith('${sourceFolder.relativePath}/')),
+          folder.relativePath != getParentPath(sourceFolder.relativePath),
     );
   }
 

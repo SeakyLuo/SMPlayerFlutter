@@ -13,7 +13,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -2191,6 +2191,7 @@ void main() {
   );
 
   testWidgets('release notes open after app version upgrade', (tester) async {
+    _setViewSize(tester, const Size(1300, 700));
     setSmPlayerGlobalSettingsSnapshot(
       const SettingsSnapshot.defaults().copyWith(
         lastReleaseNotesVersion: '0.9.0',
@@ -2207,6 +2208,10 @@ void main() {
 
     expect(find.text('Release Notes'), findsOneWidget);
     expect(find.text('Version 3.0.0'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('popup-dialog-overlay'))),
+      const Size(1300, 700),
+    );
 
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();

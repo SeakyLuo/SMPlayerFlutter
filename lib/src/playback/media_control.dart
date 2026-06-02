@@ -290,16 +290,11 @@ class MediaControl extends StatelessWidget {
     BuildContext context, {
     required SmPlayerI18n i18n,
   }) async {
-    final resolvedPreferenceLevel =
-        await onResolvePreferenceLevel?.call() ?? preferenceLevel;
     if (!context.mounted) {
       return;
     }
-    return showMenuFlyout(
-      context,
-      position: _menuFlyoutPositionAboveAnchor(context),
-      avoidPlayerBar: false,
-      items: _buildPlayerMoreMenuItems(
+    List<MenuFlyoutItem> buildItems(String? resolvedPreferenceLevel) {
+      return _buildPlayerMoreMenuItems(
         i18n: i18n,
         disabled: disabled || track.id == null,
         trackId: track.id,
@@ -332,7 +327,31 @@ class MediaControl extends StatelessWidget {
         onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
         onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
         onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
-      ),
+      );
+    }
+
+    final itemsNotifier = ValueNotifier<List<MenuFlyoutItem>>(
+      buildItems(preferenceLevel),
     );
+    var menuClosed = false;
+    final resolvePreferenceLevel = onResolvePreferenceLevel;
+    if (resolvePreferenceLevel != null) {
+      unawaited(
+        Future.sync(resolvePreferenceLevel).then((resolvedPreferenceLevel) {
+          if (!menuClosed) {
+            itemsNotifier.value = buildItems(resolvedPreferenceLevel);
+          }
+        }),
+      );
+    }
+    await showMenuFlyout(
+      context,
+      position: _menuFlyoutPositionAboveAnchor(context),
+      avoidPlayerBar: false,
+      items: itemsNotifier.value,
+      itemsListenable: itemsNotifier,
+    );
+    menuClosed = true;
+    itemsNotifier.dispose();
   }
 }

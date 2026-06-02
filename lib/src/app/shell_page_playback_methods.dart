@@ -195,6 +195,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
           _loadingAudioPath = null;
         }
         _pendingAudioAutoplay = false;
+        _syncingAudioPlayer = true;
+        _mediaControlController.setTrackLoading(false);
+        _syncingAudioPlayer = false;
       }
     } on Object catch (error, stackTrace) {
       debugPrint(

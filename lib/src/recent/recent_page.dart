@@ -31,7 +31,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/playing_wave.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 
 import 'recent_page_model.dart';
 import 'recent_scrollbar.dart';
@@ -80,6 +80,8 @@ class RecentPage extends ConsumerStatefulWidget {
 
 class _RecentPageState extends ConsumerState<RecentPage> {
   static const recentAddedLimit = 500;
+  static const _activeTabStorageKey = 'RecentPage.activeTab';
+  static const _activePlayedFilterStorageKey = 'RecentPage.activePlayedFilter';
 
   var _activeTab = RecentTab.added;
   var _activePlayedFilter = RecentPlayedFilter.songs;
@@ -93,6 +95,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+  var _pageStorageRestored = false;
 
   @override
   void initState() {
@@ -111,6 +114,27 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       _appBarPortalNotifier,
       _appBarPortalOwner,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_pageStorageRestored) {
+      return;
+    }
+    _pageStorageRestored = true;
+    final storedTab = PageStorage.maybeOf(
+      context,
+    )?.readState(context, identifier: _activeTabStorageKey);
+    final storedFilter = PageStorage.maybeOf(
+      context,
+    )?.readState(context, identifier: _activePlayedFilterStorageKey);
+    if (storedTab is RecentTab) {
+      _activeTab = storedTab;
+    }
+    if (storedFilter is RecentPlayedFilter) {
+      _activePlayedFilter = storedFilter;
+    }
   }
 
   void _syncAppBarPortal({
@@ -164,6 +188,9 @@ class _RecentPageState extends ConsumerState<RecentPage> {
       _activeTab = tab;
       _clearSelection();
     });
+    PageStorage.maybeOf(
+      context,
+    )?.writeState(context, tab, identifier: _activeTabStorageKey);
   }
 
   @override
@@ -282,6 +309,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
               );
 
               return Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Column(
                     spacing: 4,
@@ -349,6 +377,11 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                 _activePlayedFilter = filter;
                                 _clearSelection();
                               });
+                              PageStorage.maybeOf(context)?.writeState(
+                                context,
+                                filter,
+                                identifier: _activePlayedFilterStorageKey,
+                              );
                             },
                             onToggleMultiSelect: () {
                               setState(() {
@@ -393,166 +426,159 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                           ),
                         },
                       ),
-                      if (_multiSelect)
-                        MultiSelectCommandBar(
-                          visible: _multiSelect,
-                          selectedCount: selectedCount,
-                          playlists: customPlaylists,
-                          showAddTo: _activeTab != RecentTab.searches,
-                          addToSongIds: selectedOperationSongIds,
-                          includeNowPlayingInAddTo: true,
-                          includeFavoritesInAddTo: hasNotFavoriteSongs(
-                            selectedOperationSongIds,
-                            {for (final song in snapshot.songs) song.id: song},
-                          ),
-                          removeLabel: i18n.t('context.removeFromList'),
-                          onPlay: () {
-                            if (_activeTab == RecentTab.searches) {
-                              return;
-                            }
-                            _playSongIds(selectedOperationSongIds);
-                            setState(() {
-                              _hideAfterOperation(
-                                snapshot
-                                    .hideMultiSelectCommandBarAfterOperation,
-                              );
-                            });
-                          },
-                          onAddToNowPlaying: () {
-                            addSongsToNowPlayingWithUndo(
-                              context: context,
-                              ref: ref,
-                              i18n: i18n,
-                              songIds: selectedOperationSongIds,
-                            );
-                            setState(() {
-                              _hideAfterOperation(
-                                snapshot
-                                    .hideMultiSelectCommandBarAfterOperation,
-                              );
-                            });
-                          },
-                          onToggleFavorite: () {
-                            final songsById = {
-                              for (final song in snapshot.songs) song.id: song,
-                            };
-                            setSongsFavoriteWithUndo(
-                              context: context,
-                              ref: ref,
-                              i18n: i18n,
-                              songIds: notFavoriteSongIds(
-                                selectedOperationSongIds,
-                                songsById,
-                              ),
-                              favorite: true,
-                            );
-                            setState(() {
-                              _hideAfterOperation(
-                                snapshot
-                                    .hideMultiSelectCommandBarAfterOperation,
-                              );
-                            });
-                          },
-                          onCreatePlaylist: () async {
-                            await createPlaylistWithSongs(
-                              context: context,
-                              ref: ref,
-                              i18n: i18n,
-                              playlists: snapshot.playlists,
-                              defaultName: _selectedPlaylistDefaultName(
-                                i18n,
-                                snapshot.playlists,
-                                recentPlaylistViews,
-                                recentAlbumViews,
-                                recentArtistViews,
-                              ),
-                              songIds: selectedOperationSongIds,
-                            );
-                            if (mounted) {
+                    ],
+                  ),
+                  MultiSelectCommandBar(
+                    visible: _multiSelect,
+                    bottomInset: multiSelectCommandBarShellBottomInset,
+                    leftBleed: useAppBarTabs ? 8 : 24,
+                    rightBleed: useAppBarTabs ? 8 : 18,
+                    selectedCount: selectedCount,
+                    playlists: customPlaylists,
+                    showPlay: _activeTab != RecentTab.searches,
+                    showAddTo: _activeTab != RecentTab.searches,
+                    addToSongIds: selectedOperationSongIds,
+                    includeNowPlayingInAddTo: true,
+                    includeFavoritesInAddTo: hasNotFavoriteSongs(
+                      selectedOperationSongIds,
+                      {for (final song in snapshot.songs) song.id: song},
+                    ),
+                    removeLabel: i18n.t('context.removeFromList'),
+                    onPlay: () {
+                      _playSongIds(selectedOperationSongIds);
+                      setState(() {
+                        _hideAfterOperation(
+                          snapshot.hideMultiSelectCommandBarAfterOperation,
+                        );
+                      });
+                    },
+                    onAddToNowPlaying: () {
+                      addSongsToNowPlayingWithUndo(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        songIds: selectedOperationSongIds,
+                      );
+                      setState(() {
+                        _hideAfterOperation(
+                          snapshot.hideMultiSelectCommandBarAfterOperation,
+                        );
+                      });
+                    },
+                    onToggleFavorite: () {
+                      final songsById = {
+                        for (final song in snapshot.songs) song.id: song,
+                      };
+                      setSongsFavoriteWithUndo(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        songIds: notFavoriteSongIds(
+                          selectedOperationSongIds,
+                          songsById,
+                        ),
+                        favorite: true,
+                      );
+                      setState(() {
+                        _hideAfterOperation(
+                          snapshot.hideMultiSelectCommandBarAfterOperation,
+                        );
+                      });
+                    },
+                    onCreatePlaylist: () async {
+                      await createPlaylistWithSongs(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        playlists: snapshot.playlists,
+                        defaultName: _selectedPlaylistDefaultName(
+                          i18n,
+                          snapshot.playlists,
+                          recentPlaylistViews,
+                          recentAlbumViews,
+                          recentArtistViews,
+                        ),
+                        songIds: selectedOperationSongIds,
+                      );
+                      if (mounted) {
+                        setState(() {
+                          _hideAfterOperation(
+                            snapshot.hideMultiSelectCommandBarAfterOperation,
+                          );
+                        });
+                      }
+                    },
+                    onAddToPlaylist: (playlistId) {
+                      addSongsToPlaylistWithUndo(
+                        context: context,
+                        ref: ref,
+                        i18n: i18n,
+                        playlistId: playlistId,
+                        songIds: selectedOperationSongIds,
+                      );
+                      setState(() {
+                        _hideAfterOperation(
+                          snapshot.hideMultiSelectCommandBarAfterOperation,
+                        );
+                      });
+                    },
+                    onRemove:
+                        _activeTab == RecentTab.added ||
+                                (_activeTab == RecentTab.played &&
+                                    _activePlayedFilter !=
+                                        RecentPlayedFilter.songs)
+                            ? null
+                            : () {
+                              if (_activeTab == RecentTab.searches) {
+                                unawaited(
+                                  _removeRecentSearchesWithUndo(
+                                    selectedSearchIds,
+                                  ),
+                                );
+                              } else {
+                                ref
+                                    .read(libraryRepositoryProvider)
+                                    .removeRecentPlayed(selectedVisibleSongIds);
+                              }
+                              ref.invalidate(recentPageDataProvider);
                               setState(() {
                                 _hideAfterOperation(
                                   snapshot
                                       .hideMultiSelectCommandBarAfterOperation,
                                 );
                               });
-                            }
-                          },
-                          onAddToPlaylist: (playlistId) {
-                            addSongsToPlaylistWithUndo(
-                              context: context,
-                              ref: ref,
-                              i18n: i18n,
-                              playlistId: playlistId,
-                              songIds: selectedOperationSongIds,
-                            );
-                            setState(() {
-                              _hideAfterOperation(
-                                snapshot
-                                    .hideMultiSelectCommandBarAfterOperation,
-                              );
-                            });
-                          },
-                          onRemove:
-                              _activeTab == RecentTab.added ||
-                                      (_activeTab == RecentTab.played &&
-                                          _activePlayedFilter !=
-                                              RecentPlayedFilter.songs)
-                                  ? null
-                                  : () {
-                                    if (_activeTab == RecentTab.searches) {
-                                      unawaited(
-                                        _removeRecentSearchesWithUndo(
-                                          selectedSearchIds,
-                                        ),
-                                      );
-                                    } else {
-                                      ref
-                                          .read(libraryRepositoryProvider)
-                                          .removeRecentPlayed(
-                                            selectedVisibleSongIds,
-                                          );
-                                    }
-                                    ref.invalidate(recentPageDataProvider);
-                                    setState(() {
-                                      _hideAfterOperation(
-                                        snapshot
-                                            .hideMultiSelectCommandBarAfterOperation,
-                                      );
-                                    });
-                                  },
-                          onSelectAll: () {
-                            setState(() {
-                              _selectAll(
-                                snapshot,
-                                visibleSongs,
-                                recentPlaylistViews,
-                                recentAlbumViews,
-                                recentArtistViews,
-                              );
-                            });
-                          },
-                          onReverseSelection: () {
-                            setState(() {
-                              _reverseSelection(
-                                snapshot,
-                                visibleSongs,
-                                recentPlaylistViews,
-                                recentAlbumViews,
-                                recentArtistViews,
-                              );
-                            });
-                          },
-                          onClearSelection: () {
-                            setState(_clearSelection);
-                          },
-                          onCancel: () {
-                            setState(() {
-                              _multiSelect = false;
-                              _clearSelection();
-                            });
-                          },
-                        ),
-                    ],
+                            },
+                    onSelectAll: () {
+                      setState(() {
+                        _selectAll(
+                          snapshot,
+                          visibleSongs,
+                          recentPlaylistViews,
+                          recentAlbumViews,
+                          recentArtistViews,
+                        );
+                      });
+                    },
+                    onReverseSelection: () {
+                      setState(() {
+                        _reverseSelection(
+                          snapshot,
+                          visibleSongs,
+                          recentPlaylistViews,
+                          recentAlbumViews,
+                          recentArtistViews,
+                        );
+                      });
+                    },
+                    onClearSelection: () {
+                      setState(_clearSelection);
+                    },
+                    onCancel: () {
+                      setState(() {
+                        _multiSelect = false;
+                        _clearSelection();
+                      });
+                    },
                   ),
                   if (_musicDialog case final dialog?)
                     MusicDialog(

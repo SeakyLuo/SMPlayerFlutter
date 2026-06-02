@@ -22,13 +22,16 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -188,16 +191,58 @@ void main() {
     });
 
     await tester.pumpWidget(
-      _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+      ),
     );
     await tester.pumpAndSettle();
 
     final commandBarRight = tester.getRect(find.byType(CommandBar)).right;
     final rowRight =
-        tester.getRect(find.byKey(const ValueKey('now-playing-1-0'))).right;
+        tester
+            .getRect(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is PlaylistControlItem &&
+                    widget.key == const ValueKey('now-playing-1-0'),
+              ),
+            )
+            .right;
 
     expect(rowRight, commandBarRight);
   });
+
+  testWidgets(
+    'NowPlayingPage multi-select bar overlays outside panel padding',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Multi Select').hitTestable().first);
+      await tester.pumpAndSettle();
+
+      final surfaceRect = tester.getRect(
+        find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+      );
+      expect(surfaceRect.left, 0);
+      expect(surfaceRect.right, 1400);
+      expect(surfaceRect.width, 1400);
+      expect(surfaceRect.bottom, 900 - multiSelectCommandBarShellBottomInset);
+    },
+  );
 
   testWidgets('NowPlayingPage keeps queue body empty when queue is empty', (
     tester,
@@ -282,6 +327,59 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'NowPlayingPage multi-select Add To respects Electron hide preference',
+    (tester) async {
+      final snapshot = _snapshotWithHideAfterOperation(_snapshot, false);
+      final repository = _FakeNowPlayingRepository(snapshot);
+      await tester.pumpWidget(
+        _NowPlayingTestApp(
+          snapshot: snapshot,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _selectBlueSongInNowPlayingMultiSelect(tester);
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Add To').hitTestable().last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('My Favorites'));
+      await tester.pumpAndSettle();
+
+      expect(repository.favoriteSongIds, [1]);
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'NowPlayingPage multi-select Play Selected respects Electron hide preference',
+    (tester) async {
+      final snapshot = _snapshotWithHideAfterOperation(_snapshot, false);
+      final repository = _FakeNowPlayingRepository(snapshot);
+      await tester.pumpWidget(
+        _NowPlayingTestApp(
+          snapshot: snapshot,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _selectBlueSongInNowPlayingMultiSelect(tester);
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Play Selected'));
+      await tester.pumpAndSettle();
+
+      expect(repository.snapshot.nowPlaying.songIds, [1]);
+      expect(find.text('1 selected'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'NowPlayingPage queue menu hides file-management actions like Electron',
@@ -390,6 +488,10 @@ void main() {
       expect(queueCloseGlass.width, 42);
       expect(queueCloseGlass.height, 42);
       expect(queueCloseGlass.useOwnLayer, isTrue);
+      expect(queueCloseGlass.quality, GlassQuality.minimal);
+      expect(queueCloseGlass.settings?.blur, 46);
+      expect(queueCloseGlass.settings?.saturation, 1.65);
+      expect(queueCloseGlass.settings?.standardOpacityMultiplier, 0.28);
       expect(queueCloseGlass.shape, isA<LiquidRoundedRectangle>());
       final queueCloseButton = tester.widget<TextButton>(
         find.descendant(
@@ -1169,6 +1271,13 @@ void main() {
       find.byKey(const ValueKey('NowPlayingFull.QueuePanelGlass')),
       findsOneWidget,
     );
+    final queuePanelGlass = tester.widget<GlassContainer>(
+      find.byKey(const ValueKey('NowPlayingFull.QueuePanelGlass')),
+    );
+    expect(queuePanelGlass.quality, GlassQuality.minimal);
+    expect(queuePanelGlass.settings?.blur, 46);
+    expect(queuePanelGlass.settings?.saturation, 1.65);
+    expect(queuePanelGlass.settings?.standardOpacityMultiplier, 0.35);
     expect(
       tester.widget<Text>(find.text('1 songs')).style?.color,
       const Color(0xb8ffffff),
@@ -1915,6 +2024,13 @@ void main() {
       find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
       findsOneWidget,
     );
+    final backButtonGlass = tester.widget<GlassContainer>(
+      find.byKey(const ValueKey('NowPlayingFull.TopButtonGlass.Back')),
+    );
+    expect(backButtonGlass.quality, GlassQuality.minimal);
+    expect(backButtonGlass.settings?.blur, 46);
+    expect(backButtonGlass.settings?.saturation, 1.65);
+    expect(backButtonGlass.settings?.standardOpacityMultiplier, 0.35);
     await _writeNowPlayingBoundaryPng(
       tester,
       repaintKey,
@@ -3039,8 +3155,8 @@ void main() {
             )
             .first,
       );
-      expect(compactFrameGlass.settings?.blur, 18);
-      expect(compactFrameGlass.settings?.saturation, 1.4);
+      expect(compactFrameGlass.settings?.blur, 46);
+      expect(compactFrameGlass.settings?.saturation, 1.65);
       final compactFrameBorderDecoration = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
       );
@@ -3165,8 +3281,8 @@ void main() {
             )
             .first,
       );
-      expect(wideFrameGlass.settings?.blur, 18);
-      expect(wideFrameGlass.settings?.saturation, 1.4);
+      expect(wideFrameGlass.settings?.blur, 46);
+      expect(wideFrameGlass.settings?.saturation, 1.65);
       final wideFrameBorderDecoration = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
       );
@@ -3963,8 +4079,8 @@ void main() {
             )
             .first,
       );
-      expect(frameGlass.settings?.blur, 18);
-      expect(frameGlass.settings?.saturation, 1.4);
+      expect(frameGlass.settings?.blur, 46);
+      expect(frameGlass.settings?.saturation, 1.65);
       expect(frameBorder.top, isNot(BorderSide.none));
       expect(frameBorder.top.color, const Color(0xb8ccd5e0));
       expect(frameBorder.right, frameBorder.top);
@@ -4242,8 +4358,8 @@ void main() {
             )
             .first,
       );
-      expect(frameGlass.settings?.blur, 28);
-      expect(frameGlass.settings?.saturation, 1);
+      expect(frameGlass.settings?.blur, 46);
+      expect(frameGlass.settings?.saturation, 1.65);
 
       final frameBorderDecoration = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
@@ -4903,8 +5019,8 @@ void main() {
             )
             .first,
       );
-      expect(frameGlass.settings?.blur, 28);
-      expect(frameGlass.settings?.saturation, 1.45);
+      expect(frameGlass.settings?.blur, 46);
+      expect(frameGlass.settings?.saturation, 1.65);
 
       final frameBorderDecoration = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
@@ -6250,7 +6366,7 @@ void main() {
     await tester.tap(redRow.first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Play Selected'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 220));
 
     expect(repository.snapshot.nowPlaying.songIds, [1, 2]);
     expect(mediaController.state.track.id, 1);
@@ -6419,9 +6535,17 @@ void main() {
     await tester.tap(find.text('Select'));
     await tester.pumpAndSettle();
     expect(find.text('1 selected'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.MoreButton')),
+      findsNothing,
+    );
+    final commandBarRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+    );
+    expect(commandBarRect.left, 0);
+    expect(commandBarRect.width, 2200);
+    expect(commandBarRect.bottom, 900 - nowPlayingFullPlayerHeight + 1);
 
-    await tester.ensureVisible(find.text('Remove').last);
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Remove').last);
     await tester.pumpAndSettle();
 
@@ -6495,6 +6619,69 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.favoriteSongIds, [1]);
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'NowPlayingFullPage multi-select playlist Add To respects hide preference',
+    (tester) async {
+      tester.view.physicalSize = const Size(2200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        PageSelectionController.clearStoredStates();
+      });
+      final snapshot = _snapshotWithHideAfterOperation(_searchSnapshot, false);
+      final repository = _FakeNowPlayingRepository(snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+        autoplay: false,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingFullTestApp(
+          snapshot: snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Now Playing').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      final blueRow = find.descendant(
+        of: find.byType(PlaylistControlItem),
+        matching: find.text('Blue Song'),
+      );
+
+      await tester.tap(blueRow.first, buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Add To').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add To').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mix'));
+      await tester.pumpAndSettle();
+
+      expect(repository.playlistSongIds[10], [1]);
       expect(find.text('1 selected'), findsOneWidget);
       await tester.pump(const Duration(seconds: 5));
     },
@@ -7831,7 +8018,7 @@ LibrarySong _songWithFavorite(LibrarySong song, bool favorite) {
 }
 
 Future<void> _openAddToMenu(WidgetTester tester) async {
-  final inlineAddTo = find.text('Add To');
+  final inlineAddTo = find.text('Add To').hitTestable();
   if (inlineAddTo.evaluate().isNotEmpty) {
     await tester.tap(inlineAddTo.first);
     await tester.pumpAndSettle();
@@ -7840,7 +8027,22 @@ Future<void> _openAddToMenu(WidgetTester tester) async {
 
   await tester.tap(find.byTooltip('More').first);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Add To').first);
+  await tester.tap(find.text('Add To').hitTestable().first);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectBlueSongInNowPlayingMultiSelect(WidgetTester tester) async {
+  await tester.tap(
+    find
+        .descendant(
+          of: find.byType(PlaylistControlItem),
+          matching: find.text('Blue Song'),
+        )
+        .first,
+    buttons: kSecondaryMouseButton,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Select'));
   await tester.pumpAndSettle();
 }
 

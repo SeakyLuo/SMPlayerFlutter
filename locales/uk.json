@@ -662,6 +662,7 @@
   "settings.releaseNotesUi": "Примітки до випуску доступні в налаштуваннях.",
   "settings.releaseNotesVersion": "Версія",
   "releaseNotes.architectureFeedback": "Це оновлення містить багато змін. Відгук можна надіслати через [Налаштування] -> [Інші].",
+  "releaseNotes.tryLiquidGlass": "Спроба впровадити рідке скло.",
   "settings.rescan": "Оновити папку",
   "settings.save": "Зберегти",
   "settings.saveChanges": "Зберегти зміни",

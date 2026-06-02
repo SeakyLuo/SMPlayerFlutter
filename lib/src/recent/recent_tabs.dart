@@ -33,6 +33,7 @@ class _RecentTabs extends StatelessWidget {
             spacing: colors.tabsSpacing,
             children: [
               _RecentTabButton(
+                key: const ValueKey('RecentPage.Tab.added'),
                 active: activeTab == RecentTab.added,
                 label: i18n.t('recent.added'),
                 count: addedCount,
@@ -40,6 +41,7 @@ class _RecentTabs extends StatelessWidget {
                 onPressed: () => onChanged(RecentTab.added),
               ),
               _RecentTabButton(
+                key: const ValueKey('RecentPage.Tab.played'),
                 active: activeTab == RecentTab.played,
                 label: i18n.t('recent.played'),
                 count: playedCount,
@@ -47,6 +49,7 @@ class _RecentTabs extends StatelessWidget {
                 onPressed: () => onChanged(RecentTab.played),
               ),
               _RecentTabButton(
+                key: const ValueKey('RecentPage.Tab.searches'),
                 active: activeTab == RecentTab.searches,
                 label: i18n.t('recent.searches'),
                 count: searchesCount,
@@ -63,6 +66,7 @@ class _RecentTabs extends StatelessWidget {
 
 class _RecentTabButton extends StatelessWidget {
   const _RecentTabButton({
+    super.key,
     required this.active,
     required this.label,
     required this.count,

@@ -11,12 +11,19 @@ import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/shell_desktop_lyrics_host.dart';
 import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_frame.dart';
+import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
-import 'package:smplayer_flutter/src/app/shell_workspace.dart';
+import 'package:smplayer_flutter/src/app/shell_navigation_host.dart';
+import 'package:smplayer_flutter/src/app/shell_now_playing_full_sync_host.dart';
+import 'package:smplayer_flutter/src/app/shell_overlay_host.dart';
+import 'package:smplayer_flutter/src/app/shell_player_host.dart';
+import 'package:smplayer_flutter/src/app/shell_titlebar_host.dart';
+import 'package:smplayer_flutter/src/app/shell_workspace_host.dart';
 import 'package:smplayer_flutter/src/app/shell_voice_helpers.dart';
-import 'package:smplayer_flutter/src/app/shell_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_dialog.dart';
 import 'package:smplayer_flutter/src/app/voice_assistant_model.dart';
@@ -31,8 +38,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
-import 'package:smplayer_flutter/src/lyrics/desktop_lyrics_overlay.dart';
-import 'package:smplayer_flutter/src/platform/desktop_features.dart';
+import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
@@ -41,8 +47,6 @@ import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
-import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
-import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -115,6 +119,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   late final List<StreamSubscription<Object?>> _audioSubscriptions;
   var _isNavigationPaneOpen = true;
   var _isMinimalNavigationOpen = false;
+  var _isNavigationSearchHistoryOpen = false;
+  var _navigationSearchDismissEpoch = 0;
   late var _isMiniMode = widget.initialDisplayMode == SmPlayerDisplayMode.mini;
   var _isWindowVisible = true;
   late var _isWindowFullScreen =
@@ -134,6 +140,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _currentPath = '/songs';
   final _routeMemory = <String, String>{};
   final _navigationHistory = <String>[];
+  final _pageStorageBucket = PageStorageBucket();
   var _searchText = '';
   int? _loadedAudioTrackId;
   String? _loadedAudioPath;
@@ -266,65 +273,23 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   @override
   Widget build(BuildContext context) {
     final currentPath = widget.currentPath ?? _currentPath;
-    final isNowPlayingFullRoute = currentPath == '/now-playing/full';
     final windowWidth = MediaQuery.sizeOf(context).width;
-    final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
-      windowWidth,
-    );
     _syncNavigationMode(windowWidth);
-    final isNavigationPaneVisible =
-        isNowPlayingFullRoute
-            ? false
-            : navigationMode == SmPlayerNavigationMode.minimal
-            ? _isMinimalNavigationOpen
-            : _isNavigationPaneOpen;
     final canGoBack = widget.canGoBack || _navigationHistory.length > 1;
-    final shellSidebarWidth =
-        navigationMode == SmPlayerNavigationMode.minimal
-            ? 0.0
-            : navigationMode != SmPlayerNavigationMode.wide
-            ? SmPlayerShellMetrics.collapsedSidebarWidth
-            : isNavigationPaneVisible
-            ? SmPlayerShellMetrics.sidebarWidth
-            : SmPlayerShellMetrics.collapsedSidebarWidth;
-    final sidebarSurfaceWidth =
-        navigationMode == SmPlayerNavigationMode.minimal
-            ? isNavigationPaneVisible
-                ? SmPlayerShellMetrics.sidebarWidth
-                : 0.0
-            : isNavigationPaneVisible &&
-                navigationMode != SmPlayerNavigationMode.wide
-            ? SmPlayerShellMetrics.sidebarWidth
-            : shellSidebarWidth;
     final shellColors = ShellThemeColors.of(context);
-    final isNavigationOverlaySurface =
-        isNavigationPaneVisible &&
-        navigationMode != SmPlayerNavigationMode.wide;
     final rawHeaderedPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
     final currentLocation = widget.currentLocation ?? currentPath;
-    final headeredPlaylistAppBar =
-        rawHeaderedPlaylistAppBar != null &&
-                (rawHeaderedPlaylistAppBar.routeLocation == null ||
-                    rawHeaderedPlaylistAppBar.routeLocation == currentLocation)
-            ? rawHeaderedPlaylistAppBar
-            : null;
-    final minimalTitlebarHeight =
-        !isNowPlayingFullRoute &&
-                navigationMode == SmPlayerNavigationMode.minimal
-            ? SmPlayerShellMetrics.minimalTitlebarHeight
-            : 0.0;
-    final immersiveMinimalTitlebar =
-        minimalTitlebarHeight > 0 && headeredPlaylistAppBar != null;
-    final workspaceTop = immersiveMinimalTitlebar ? 0.0 : minimalTitlebarHeight;
-    final navigationSurfaceTop =
-        headeredPlaylistAppBar != null &&
-                navigationMode == SmPlayerNavigationMode.minimal
-            ? 0.0
-            : minimalTitlebarHeight;
-    final navigationContentTopInset =
-        minimalTitlebarHeight - navigationSurfaceTop;
+    final layout = ShellLayoutState.resolve(
+      currentPath: currentPath,
+      currentLocation: currentLocation,
+      windowWidth: windowWidth,
+      navigationPaneOpen: _isNavigationPaneOpen,
+      minimalNavigationOpen: _isMinimalNavigationOpen,
+      canGoBack: canGoBack,
+      rawHeaderedPlaylistAppBar: rawHeaderedPlaylistAppBar,
+    );
     return ProviderScope(
       overrides: [
         mediaControlControllerProvider.overrideWith((ref) {
@@ -337,7 +302,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           ),
         ),
         headeredPlaylistScrollbarBottomProvider.overrideWithValue(
-          isNowPlayingFullRoute
+          layout.isNowPlayingFullRoute
               ? 10
               : SmPlayerShellMetrics.playerTopRadius + 10,
         ),
@@ -365,907 +330,260 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           ),
         ),
       ],
-      child: Focus(
-        autofocus: true,
+      child: SmPlayerShellFrame(
+        colors: shellColors,
+        isMiniMode: _isMiniMode,
+        miniModeHost: _buildMiniModeHost(),
         onKeyEvent: _handlePlaybackShortcutKey,
-        child: Scaffold(
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [shellColors.bodyTop, shellColors.bodyBottom],
-              ),
+        children: [
+          ShellWorkspaceHost(
+            layout: layout,
+            pageStorageBucket: _pageStorageBucket,
+            navigationMenuLabel: shellNavigationMenuLabel(
+              context: context,
+              navigationVisible: layout.isNavigationPaneVisible,
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [shellColors.bodyHighlight, Colors.transparent],
-                  stops: const [0, 0.36],
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child:
-                    _isMiniMode
-                        ? _buildMiniModeHost()
-                        : Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            AnimatedPositioned(
-                              duration: const Duration(milliseconds: 180),
-                              curve: Curves.easeOutCubic,
-                              left:
-                                  isNowPlayingFullRoute ? 0 : shellSidebarWidth,
-                              top: workspaceTop,
-                              right: 0,
-                              height:
-                                  isNowPlayingFullRoute
-                                      ? MediaQuery.sizeOf(context).height
-                                      : MediaQuery.sizeOf(context).height -
-                                          SmPlayerShellMetrics.playerHeight +
-                                          SmPlayerShellMetrics.playerTopRadius -
-                                          workspaceTop,
-                              child: SmPlayerWorkspace(
-                                key: SmPlayerShellKeys.workspace,
-                                currentPath: currentPath,
-                                currentLocation:
-                                    widget.currentLocation ?? currentPath,
-                                headerHeight:
-                                    SmPlayerShellMetrics.workspaceHeaderHeight,
-                                showNavigationAppBar:
-                                    navigationMode ==
-                                        SmPlayerNavigationMode.minimal &&
-                                    !isNowPlayingFullRoute,
-                                navigationMenuLabel:
-                                    isNavigationPaneVisible
-                                        ? context.smPlayerI18n.t(
-                                          'sidebar.collapseNavigation',
-                                        )
-                                        : context.smPlayerI18n.t(
-                                          'sidebar.expandNavigation',
-                                        ),
-                                onNavigationMenuPressed: _toggleNavigationPane,
-                                navigationAppBarTopInset:
-                                    immersiveMinimalTitlebar
-                                        ? minimalTitlebarHeight
-                                        : 0,
-                                child: widget.child,
-                              ),
-                            ),
-                            if (isNowPlayingFullRoute)
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: AnimatedBuilder(
-                                    animation: _mediaControlController,
-                                    builder: (context, _) {
-                                      return Consumer(
-                                        builder: (context, ref, _) {
-                                          final snapshot =
-                                              ref
-                                                  .watch(
-                                                    libraryContentDataProvider,
-                                                  )
-                                                  .valueOrNull;
-                                          _scheduleRestorePlaybackTrack(
-                                            snapshot,
-                                          );
-                                          final mediaControlState =
-                                              _mediaControlController.state;
-                                          final currentSong =
-                                              _resolvePlayerSong(
-                                                mediaControlState,
-                                                snapshot,
-                                              );
-                                          _ensurePlayerArtworkResolved(
-                                            currentSong,
-                                            ref,
-                                          );
-                                          final recentSongs =
-                                              ref
-                                                  .watch(recentPageDataProvider)
-                                                  .valueOrNull
-                                                  ?.recentSongs ??
-                                              const <RecentLibrarySong>[];
-                                          final i18n =
-                                              ref
-                                                  .watch(smPlayerI18nProvider)
-                                                  .valueOrNull ??
-                                              const SmPlayerI18n(
-                                                locale: smPlayerFallbackLocale,
-                                                messages: {},
-                                              );
-                                          _syncDesktopFeatures(
-                                            i18n: i18n,
-                                            snapshot: snapshot,
-                                            recentSongs: recentSongs,
-                                            mediaControlState:
-                                                mediaControlState,
-                                            currentSong: currentSong,
-                                          );
-                                          return const SizedBox.shrink();
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            if (isNavigationOverlaySurface)
-                              Positioned.fill(
-                                child: GestureDetector(
-                                  key: SmPlayerShellKeys.navigationDismissLayer,
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: _closeNavigationOverlay,
-                                  child: const SizedBox.expand(),
-                                ),
-                              ),
-                            if (!isNowPlayingFullRoute &&
-                                (navigationMode !=
-                                        SmPlayerNavigationMode.minimal ||
-                                    _isMinimalNavigationOpen))
-                              AnimatedPositioned(
-                                duration: const Duration(milliseconds: 180),
-                                curve: Curves.easeOutCubic,
-                                left: 0,
-                                top: navigationSurfaceTop,
-                                bottom: SmPlayerShellMetrics.playerHeight,
-                                width: sidebarSurfaceWidth,
-                                child: ShellNavigationGlassSurface(
-                                  key: SmPlayerShellKeys.sidebar,
-                                  surface:
-                                      isNavigationOverlaySurface
-                                          ? shellColors.navigationOverlaySurface
-                                          : shellColors.navigationSurface,
-                                  shadowColor:
-                                      isNavigationOverlaySurface
-                                          ? navigationMode ==
-                                                  SmPlayerNavigationMode.minimal
-                                              ? shellColors
-                                                  .navigationMinimalShadow
-                                              : shellColors
-                                                  .navigationOverlayShadow
-                                          : Colors.transparent,
-                                  shadowBlur:
-                                      navigationMode ==
-                                              SmPlayerNavigationMode.minimal
-                                          ? 42
-                                          : 48,
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      top: navigationContentTopInset,
-                                    ),
-                                    child: Consumer(
-                                      builder: (context, ref, _) {
-                                        final snapshot =
-                                            ref
-                                                .watch(
-                                                  libraryContentDataProvider,
-                                                )
-                                                .valueOrNull;
-                                        final i18n =
-                                            ref
-                                                .watch(smPlayerI18nProvider)
-                                                .value ??
-                                            const SmPlayerI18n(
-                                              locale: smPlayerFallbackLocale,
-                                              messages: {},
-                                            );
-                                        final recentSearches =
-                                            snapshot?.recentSearches ??
-                                            const <SearchHistoryEntry>[];
-                                        return MainNavigationView(
-                                          isPaneOpen: isNavigationPaneVisible,
-                                          showTitlebar:
-                                              navigationMode !=
-                                              SmPlayerNavigationMode.minimal,
-                                          currentPath: currentPath,
-                                          searchText: _searchText,
-                                          i18n: i18n,
-                                          canGoBack: canGoBack,
-                                          playlists:
-                                              snapshot?.playlists ?? const [],
-                                          recentSearches: recentSearches,
-                                          onPaneToggle: _toggleNavigationPane,
-                                          onGoBack: _goBack,
-                                          onSearchTextChanged: (value) {
-                                            _searchText = value;
-                                          },
-                                          onSearchCommitted: (
-                                            value, [
-                                            type = SearchHistoryType.sidebar,
-                                          ]) {
-                                            _commitSearchWithRepository(
-                                              value,
-                                              type,
-                                              repository: ref.read(
-                                                libraryRepositoryProvider,
-                                              ),
-                                              onRecentSearchRecorded: () {
-                                                _invalidateRecentSearchData();
-                                              },
-                                            );
-                                          },
-                                          onSearchCleared: _clearSearch,
-                                          onItemInvoked: _navigateTo,
-                                          onRecentSearchRemove: (entryId) {
-                                            unawaited(
-                                              ref
-                                                  .read(
-                                                    libraryRepositoryProvider,
-                                                  )
-                                                  .removeRecentSearches([
-                                                    entryId,
-                                                  ])
-                                                  .then((_) {
-                                                    _invalidateRecentSearchData();
-                                                  }),
-                                            );
-                                          },
-                                          onRecentSearchesClear: () {
-                                            unawaited(
-                                              ref
-                                                  .read(
-                                                    libraryRepositoryProvider,
-                                                  )
-                                                  .clearRecentSearches()
-                                                  .then((_) {
-                                                    _invalidateRecentSearchData();
-                                                  }),
-                                            );
-                                          },
-                                          onCreatePlaylist: () {
-                                            unawaited(
-                                              _createPlaylistFromNavigation(
-                                                context: context,
-                                                ref: ref,
-                                                i18n: i18n,
-                                                snapshot: snapshot,
-                                              ),
-                                            );
-                                          },
-                                          onDuplicatePlaylist: (playlist) {
-                                            unawaited(
-                                              _duplicatePlaylistFromNavigation(
-                                                ref: ref,
-                                                snapshot: snapshot,
-                                                playlist: playlist,
-                                              ),
-                                            );
-                                          },
-                                          onRenamePlaylist: (playlist) {
-                                            unawaited(
-                                              _renamePlaylistFromNavigation(
-                                                context: context,
-                                                ref: ref,
-                                                i18n: i18n,
-                                                snapshot: snapshot,
-                                                playlist: playlist,
-                                              ),
-                                            );
-                                          },
-                                          onDeletePlaylist: (playlist) {
-                                            unawaited(
-                                              _deletePlaylistFromNavigation(
-                                                ref: ref,
-                                                i18n: i18n,
-                                                snapshot: snapshot,
-                                                playlist: playlist,
-                                              ),
-                                            );
-                                          },
-                                          onReorderPlaylists: (playlistIds) {
-                                            unawaited(
-                                              ref
-                                                  .read(
-                                                    libraryRepositoryProvider,
-                                                  )
-                                                  .reorderPlaylists(
-                                                    playlistIds,
-                                                  ),
-                                            );
-                                            ref.invalidate(
-                                              libraryContentDataProvider,
-                                            );
-                                          },
-                                          onPlaylistRandomPlay: (playlistId) {
-                                            unawaited(
-                                              _randomPlayPlaylist(
-                                                ref,
-                                                playlistId,
-                                              ),
-                                            );
-                                          },
-                                          onWindowDragStart: _startWindowDrag,
-                                          onWindowDragEnd: _stopWindowDrag,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (minimalTitlebarHeight > 0)
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                height: minimalTitlebarHeight,
-                                child: MinimalTitlebar(
-                                  title:
-                                      Platform.isMacOS
-                                          ? ''
-                                          : context.smPlayerI18n.t('app.shell'),
-                                  canGoBack: canGoBack,
-                                  backLabel: context.smPlayerI18n.t(
-                                    'sidebar.back',
-                                  ),
-                                  onGoBack: _goBack,
-                                  onWindowDragStart: _startWindowDrag,
-                                  onWindowDragEnd: _stopWindowDrag,
-                                  headeredPlaylistAppBar:
-                                      headeredPlaylistAppBar,
-                                ),
-                              ),
-                            if (Platform.isWindows &&
-                                !isNowPlayingFullRoute &&
-                                minimalTitlebarHeight == 0)
-                              Positioned(
-                                top: 0,
-                                left: sidebarSurfaceWidth,
-                                right: 0,
-                                height:
-                                    SmPlayerShellMetrics.minimalTitlebarHeight,
-                                child: WindowsAppTitleBar(
-                                  isMaximized: _isWindowMaximized,
-                                  light:
-                                      _lastWindowControlsLight ??
-                                      (Theme.of(context).brightness ==
-                                          Brightness.dark),
-                                  showDragRegion: true,
-                                  onWindowDragStart: _startWindowDrag,
-                                  onWindowDragEnd: _stopWindowDrag,
-                                  onMinimize: _minimizeDesktopWindow,
-                                  onToggleMaximize:
-                                      _toggleDesktopWindowMaximized,
-                                  onClose: _closeDesktopWindow,
-                                ),
-                              ),
-                            if (Platform.isWindows &&
-                                !isNowPlayingFullRoute &&
-                                minimalTitlebarHeight > 0)
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                width: WindowsAppTitleBar.controlsWidth,
-                                height:
-                                    SmPlayerShellMetrics.minimalTitlebarHeight,
-                                child: WindowsAppTitleBar(
-                                  isMaximized: _isWindowMaximized,
-                                  light:
-                                      _lastWindowControlsLight ??
-                                      (Theme.of(context).brightness ==
-                                          Brightness.dark),
-                                  showDragRegion: false,
-                                  onWindowDragStart: _startWindowDrag,
-                                  onWindowDragEnd: _stopWindowDrag,
-                                  onMinimize: _minimizeDesktopWindow,
-                                  onToggleMaximize:
-                                      _toggleDesktopWindowMaximized,
-                                  onClose: _closeDesktopWindow,
-                                ),
-                              ),
-                            if (!isNowPlayingFullRoute)
-                              Positioned(
-                                left: 0,
-                                bottom: 0,
-                                width: sidebarSurfaceWidth,
-                                height: SmPlayerShellMetrics.playerHeight,
-                                child: ShellNavigationGlassSurface(
-                                  surface:
-                                      isNavigationOverlaySurface
-                                          ? shellColors.navigationOverlaySurface
-                                          : shellColors.navigationSurface,
-                                  shadowColor: Colors.transparent,
-                                  shadowBlur: 0,
-                                  child: const SizedBox.expand(),
-                                ),
-                              ),
-                            if (!isNowPlayingFullRoute)
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                height: SmPlayerShellMetrics.playerHeight,
-                                child: SizedBox.expand(
-                                  key: SmPlayerShellKeys.reservedPlayer,
-                                  child: AnimatedBuilder(
-                                    animation: _mediaControlController,
-                                    builder: (context, _) {
-                                      final mediaControlState =
-                                          _mediaControlController.state;
-                                      return Consumer(
-                                        builder: (context, ref, _) {
-                                          final snapshot =
-                                              ref
-                                                  .watch(
-                                                    libraryContentDataProvider,
-                                                  )
-                                                  .valueOrNull;
-                                          _scheduleRestorePlaybackTrack(
-                                            snapshot,
-                                          );
-                                          final currentSong =
-                                              _resolvePlayerSong(
-                                                mediaControlState,
-                                                snapshot,
-                                              );
-                                          final playbackSongIds =
-                                              snapshot == null
-                                                  ? const <int>[]
-                                                  : _playbackSongIds(snapshot);
-                                          final previousButtonRestartsTrack =
-                                              playbackSongIds.isNotEmpty &&
-                                              shouldRestartCurrentTrackForPrevious(
-                                                progressSeconds:
-                                                    mediaControlState
-                                                        .progressSeconds,
-                                                queueLength:
-                                                    playbackSongIds.length,
-                                                restartAfterThresholdEnabled:
-                                                    _settingsController
-                                                        .snapshot
-                                                        .previousButtonRestartsTrack,
-                                              );
-                                          _ensurePlayerArtworkResolved(
-                                            currentSong,
-                                            ref,
-                                          );
-                                          final i18n =
-                                              ref
-                                                  .watch(smPlayerI18nProvider)
-                                                  .valueOrNull ??
-                                              const SmPlayerI18n(
-                                                locale: smPlayerFallbackLocale,
-                                                messages: {},
-                                              );
-                                          final recentSongs =
-                                              ref
-                                                  .watch(recentPageDataProvider)
-                                                  .valueOrNull
-                                                  ?.recentSongs ??
-                                              const <RecentLibrarySong>[];
-                                          _syncDesktopFeatures(
-                                            i18n: i18n,
-                                            snapshot: snapshot,
-                                            recentSongs: recentSongs,
-                                            mediaControlState:
-                                                mediaControlState,
-                                            currentSong: currentSong,
-                                          );
-                                          final playerLyricsLine =
-                                              resolvePlayerLyricLine(
-                                                lyrics: _desktopLyricsForSong(
-                                                  currentSong,
-                                                ),
-                                                song: currentSong,
-                                                progressSeconds:
-                                                    mediaControlState
-                                                        .progressSeconds,
-                                                durationSeconds:
-                                                    mediaControlState
-                                                        .durationSeconds,
-                                              );
-                                          return MediaControl(
-                                            track: mediaControlState.track,
-                                            currentSong: currentSong,
-                                            playlists:
-                                                snapshot?.playlists ?? const [],
-                                            disabled: _isPlaybackQueueEmpty(
-                                              snapshot,
-                                            ),
-                                            isPlaying:
-                                                mediaControlState.isPlaying,
-                                            volume: mediaControlState.volume,
-                                            isMuted: mediaControlState.isMuted,
-                                            mode: mediaControlState.mode,
-                                            progressSeconds:
-                                                mediaControlState
-                                                    .progressSeconds,
-                                            durationSeconds:
-                                                mediaControlState
-                                                    .durationSeconds,
-                                            previousButtonRestartsTrack:
-                                                previousButtonRestartsTrack,
-                                            playbackNoticeKey:
-                                                mediaControlState
-                                                    .playbackNoticeKey,
-                                            currentLyricsLine: playerLyricsLine,
-                                            onTogglePlayPause:
-                                                _togglePlayPauseFromCurrentQueue,
-                                            onPrevious:
-                                                _playPreviousFromCurrentQueue,
-                                            onForcePrevious: () {
-                                              _playPreviousFromCurrentQueue(
-                                                forcePrevious: true,
-                                              );
-                                            },
-                                            onNext: _playNextFromCurrentQueue,
-                                            onSeek:
-                                                _mediaControlController.onSeek,
-                                            onBeginSeek:
-                                                _mediaControlController
-                                                    .onBeginSeek,
-                                            onEndSeek:
-                                                _mediaControlController
-                                                    .onEndSeek,
-                                            onVolumeChange:
-                                                _mediaControlController
-                                                    .onVolumeChange,
-                                            onToggleMute:
-                                                _mediaControlController
-                                                    .onToggleMute,
-                                            onToggleShuffle:
-                                                _toggleShufflePlayback,
-                                            onToggleRepeat:
-                                                _mediaControlController
-                                                    .onToggleRepeat,
-                                            onToggleRepeatOne:
-                                                _mediaControlController
-                                                    .onToggleRepeatOne,
-                                            onToggleFavorite:
-                                                currentSong == null
-                                                    ? _mediaControlController
-                                                        .onToggleFavorite
-                                                    : () {
-                                                      _togglePlayerFavorite(
-                                                        ref,
-                                                        currentSong,
-                                                      );
-                                                    },
-                                            onQuickPlay: () {
-                                              _quickPlayLibrary(ref);
-                                            },
-                                            onOpenNowPlaying: () {
-                                              _navigateTo(
-                                                nowPlayingFullRouteFrom(
-                                                  widget.currentLocation ??
-                                                      currentPath,
-                                                ),
-                                              );
-                                            },
-                                            onArtworkError:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _refreshPlayerArtworkAfterError(
-                                                        currentSong,
-                                                        ref,
-                                                      );
-                                                    },
-                                            onToggleWindowFullScreen: () {
-                                              _toggleDesktopWindowFullScreen();
-                                            },
-                                            isWindowFullScreen:
-                                                _isWindowFullScreen,
-                                            onEnterMiniMode: _enterMiniMode,
-                                            onOpenVoiceAssistant:
-                                                supportsVoiceAssistant()
-                                                    ? () {
-                                                      _showVoiceAssistantDialog(
-                                                        snapshot,
-                                                        i18n,
-                                                      );
-                                                    }
-                                                    : null,
-                                            onAddToNowPlaying:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _addPlayerSongToNowPlaying(
-                                                        ref,
-                                                        currentSong,
-                                                      );
-                                                    },
-                                            onCreatePlaylist:
-                                                currentSong == null
-                                                    ? null
-                                                    : (name) {
-                                                      createPlaylistWithSongs(
-                                                        context: context,
-                                                        ref: ref,
-                                                        i18n:
-                                                            context
-                                                                .smPlayerI18n,
-                                                        playlists:
-                                                            snapshot
-                                                                ?.playlists ??
-                                                            const [],
-                                                        defaultName: name,
-                                                        songIds: [
-                                                          currentSong.id,
-                                                        ],
-                                                      );
-                                                    },
-                                            onAddToPlaylist:
-                                                currentSong == null
-                                                    ? null
-                                                    : (playlistId) {
-                                                      _addPlayerSongToPlaylist(
-                                                        ref,
-                                                        currentSong,
-                                                        playlistId,
-                                                        snapshot?.playlists ??
-                                                            const [],
-                                                      );
-                                                    },
-                                            onResolvePreferenceLevel:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      return ref
-                                                          .read(
-                                                            libraryRepositoryProvider,
-                                                          )
-                                                          .getPreferenceLevel(
-                                                            'song',
-                                                            '${currentSong.id}',
-                                                          );
-                                                    },
-                                            onUndoPreference:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      unawaited(
-                                                        ref
-                                                            .read(
-                                                              libraryRepositoryProvider,
-                                                            )
-                                                            .removePreferenceItem(
-                                                              'song',
-                                                              '${currentSong.id}',
-                                                            ),
-                                                      );
-                                                    },
-                                            onSetPreference:
-                                                currentSong == null
-                                                    ? null
-                                                    : (level) {
-                                                      unawaited(
-                                                        ref
-                                                            .read(
-                                                              libraryRepositoryProvider,
-                                                            )
-                                                            .addPreferenceItem(
-                                                              'song',
-                                                              '${currentSong.id}',
-                                                              currentSong.title,
-                                                              level,
-                                                            ),
-                                                      );
-                                                    },
-                                            onSeeArtist:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      final artist =
-                                                          resolvePlayerArtistRouteName(
-                                                            currentSong,
-                                                            context
-                                                                .smPlayerI18n,
-                                                          );
-                                                      _navigateTo(
-                                                        '/artists?artist=${Uri.encodeQueryComponent(artist)}',
-                                                      );
-                                                    },
-                                            onSeeAlbum:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      final album =
-                                                          currentSong
-                                                                  .album
-                                                                  .isEmpty
-                                                              ? context
-                                                                  .smPlayerI18n
-                                                                  .t(
-                                                                    'common.albumUnknown',
-                                                                  )
-                                                              : currentSong
-                                                                  .album;
-                                                      _navigateTo(
-                                                        '/albums?album=${Uri.encodeQueryComponent(album)}',
-                                                      );
-                                                    },
-                                            onSeeMusicInfo:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _playerDialogNotifier
-                                                          .value = (
-                                                        song: currentSong,
-                                                        mode:
-                                                            SongDialogMode
-                                                                .properties,
-                                                      );
-                                                    },
-                                            onSeeLyrics:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _playerDialogNotifier
-                                                          .value = (
-                                                        song: currentSong,
-                                                        mode:
-                                                            SongDialogMode
-                                                                .lyrics,
-                                                      );
-                                                    },
-                                            onSeeAlbumArt:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _playerDialogNotifier
-                                                          .value = (
-                                                        song: currentSong,
-                                                        mode:
-                                                            SongDialogMode
-                                                                .albumArt,
-                                                      );
-                                                    },
-                                            onSeeLocal:
-                                                currentSong == null
-                                                    ? null
-                                                    : () {
-                                                      _revealPath(
-                                                        currentSong.path,
-                                                      );
-                                                    },
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            Positioned.fill(
-                              child: Consumer(
-                                builder: (context, ref, _) {
-                                  final snapshot =
-                                      ref
-                                          .watch(libraryContentDataProvider)
-                                          .valueOrNull;
-                                  final state = _mediaControlController.state;
-                                  final currentSong = _resolvePlayerSong(
-                                    state,
-                                    snapshot,
-                                  );
-                                  final settings = _settingsController.snapshot;
-                                  if (!settings.desktopLyricsEnabled ||
-                                      currentSong == null ||
-                                      usesNativeDesktopLyricsWindow()) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Padding(
-                                    padding: EdgeInsets.only(
-                                      left: shellSidebarWidth + 24,
-                                      right: 24,
-                                      top: 26,
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.topCenter,
-                                      child: DesktopLyricsOverlay(
-                                        song: currentSong,
-                                        settings: settings,
-                                        repository: ref.read(
-                                          libraryRepositoryProvider,
-                                        ),
-                                        i18n: context.smPlayerI18n,
-                                        progressSeconds: state.progressSeconds,
-                                        isPlaying: state.isPlaying,
-                                        onPrevious:
-                                            _playPreviousFromCurrentQueue,
-                                        onNext: _playNextFromCurrentQueue,
-                                        onTogglePlayPause:
-                                            _togglePlayPauseFromCurrentQueue,
-                                        onSeekOffset: (deltaMs) {
-                                          _updateDesktopLyricsOffset(
-                                            currentSong,
-                                            currentSong.lyricsOffsetMs +
-                                                deltaMs,
-                                          );
-                                        },
-                                        onResetOffset: () {
-                                          _updateDesktopLyricsOffset(
-                                            currentSong,
-                                            0,
-                                          );
-                                        },
-                                        onToggleLock: _toggleDesktopLyricsLock,
-                                        onClose: _disableDesktopLyrics,
-                                        onOpenSettings: () {
-                                          _navigateTo(
-                                            '/settings#desktop-lyrics',
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            ValueListenableBuilder<
-                              ({LibrarySong song, SongDialogMode mode})?
-                            >(
-                              valueListenable: _playerDialogNotifier,
-                              builder: (context, dialog, _) {
-                                if (dialog == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                return ValueListenableBuilder<int>(
-                                  valueListenable: _playerDialogRefreshNotifier,
-                                  builder: (context, _, _) {
-                                    return MusicDialog(
-                                      song: dialog.song,
-                                      initialMode: dialog.mode,
-                                      canPause:
-                                          _mediaControlController
-                                              .state
-                                              .isPlaying &&
-                                          _mediaControlController
-                                                  .state
-                                                  .track
-                                                  .id ==
-                                              dialog.song.id,
-                                      onPlay: _togglePlayPauseFromCurrentQueue,
-                                      onReveal: _revealPath,
-                                      onSaved: () {
-                                        _playerDialogRefreshNotifier.value += 1;
-                                      },
-                                      onClose: () {
-                                        _playerDialogNotifier.value = null;
-                                      },
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                            if (_releaseNotesDialogVersion
-                                case final String version)
-                              ReleaseNotesDialog(
-                                version: version,
-                                onClose: () {
-                                  unawaited(_closeReleaseNotes(version));
-                                },
-                              ),
-                            if (_startupArtistSplitResult
-                                case final ArtistSplitAnalysisResult result)
-                              ArtistSplitReviewDialog(
-                                result: result,
-                                applying: _startupArtistSplitApplying,
-                                artworkPathBySongId: {
-                                  for (final song
-                                      in ref
-                                              .watch(libraryContentDataProvider)
-                                              .valueOrNull
-                                              ?.songs ??
-                                          const <LibrarySong>[])
-                                    song.id: song.thumbnailPath,
-                                },
-                                onCancel: () {
-                                  _dismissStartupArtistSplitReview();
-                                },
-                                onApply: (splits) {
-                                  return _applyStartupArtistSplits(splits);
-                                },
-                              ),
-                          ],
-                        ),
-              ),
-            ),
+            onNavigationMenuPressed: _toggleNavigationPane,
+            child: widget.child ?? const SizedBox.shrink(),
           ),
-        ),
+          ShellNowPlayingFullSyncHost(
+            visible: layout.isNowPlayingFullRoute,
+            mediaControlController: _mediaControlController,
+            resolvePlayerSong: _resolvePlayerSong,
+            scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
+            ensurePlayerArtworkResolved: _ensurePlayerArtworkResolved,
+            syncDesktopFeatures: _syncDesktopFeatures,
+          ),
+          ShellNavigationDismissLayer(
+            visible:
+                layout.isNavigationOverlaySurface ||
+                _isNavigationSearchHistoryOpen,
+            onDismiss: () {
+              if (_isNavigationSearchHistoryOpen) {
+                _dismissNavigationSearchHistory();
+                return;
+              }
+              _closeNavigationOverlay();
+            },
+          ),
+          ShellNavigationHost(
+            layout: layout,
+            colors: shellColors,
+            searchText: _searchText,
+            onPaneToggle: _toggleNavigationPane,
+            onGoBack: _goBack,
+            onSearchTextChanged: (value) {
+              _searchText = value;
+            },
+            onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
+              _commitSearchWithRepository(
+                value,
+                type,
+                repository: ref.read(libraryRepositoryProvider),
+                onRecentSearchRecorded: _invalidateRecentSearchData,
+              );
+            },
+            onSearchCleared: _clearSearch,
+            searchHistoryDismissEpoch: _navigationSearchDismissEpoch,
+            onSearchHistoryOpenChanged: (open) {
+              if (_isNavigationSearchHistoryOpen == open) {
+                return;
+              }
+              setState(() {
+                _isNavigationSearchHistoryOpen = open;
+              });
+            },
+            onItemInvoked: _navigateTo,
+            onRecentSearchRemove: (entryId) {
+              unawaited(
+                ref
+                    .read(libraryRepositoryProvider)
+                    .removeRecentSearches([entryId])
+                    .then((_) {
+                      _invalidateRecentSearchData();
+                    }),
+              );
+            },
+            onRecentSearchesClear: () {
+              unawaited(
+                ref.read(libraryRepositoryProvider).clearRecentSearches().then((
+                  _,
+                ) {
+                  _invalidateRecentSearchData();
+                }),
+              );
+            },
+            onCreatePlaylist: () {
+              final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+              final i18n =
+                  ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
+              unawaited(
+                _createPlaylistFromNavigation(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  snapshot: snapshot,
+                ),
+              );
+            },
+            onDuplicatePlaylist: (playlist) {
+              unawaited(
+                _duplicatePlaylistFromNavigation(
+                  ref: ref,
+                  snapshot: ref.read(libraryContentDataProvider).valueOrNull,
+                  playlist: playlist,
+                ),
+              );
+            },
+            onRenamePlaylist: (playlist) {
+              final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+              final i18n =
+                  ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
+              unawaited(
+                _renamePlaylistFromNavigation(
+                  context: context,
+                  ref: ref,
+                  i18n: i18n,
+                  snapshot: snapshot,
+                  playlist: playlist,
+                ),
+              );
+            },
+            onDeletePlaylist: (playlist) {
+              final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+              final i18n =
+                  ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
+              unawaited(
+                _deletePlaylistFromNavigation(
+                  ref: ref,
+                  i18n: i18n,
+                  snapshot: snapshot,
+                  playlist: playlist,
+                ),
+              );
+            },
+            onReorderPlaylists: (playlistIds) {
+              unawaited(
+                ref
+                    .read(libraryRepositoryProvider)
+                    .reorderPlaylists(playlistIds),
+              );
+              ref.invalidate(libraryContentDataProvider);
+            },
+            onPlaylistRandomPlay: (playlistId) {
+              unawaited(_randomPlayPlaylist(ref, playlistId));
+            },
+            onWindowDragStart: _startWindowDrag,
+            onWindowDragEnd: _stopWindowDrag,
+          ),
+          ShellTitlebarHost(
+            layout: layout,
+            windowControlsLight: _lastWindowControlsLight,
+            isWindowMaximized: _isWindowMaximized,
+            onGoBack: _goBack,
+            onWindowDragStart: _startWindowDrag,
+            onWindowDragEnd: _stopWindowDrag,
+            onMinimize: _minimizeDesktopWindow,
+            onToggleMaximize: _toggleDesktopWindowMaximized,
+            onClose: _closeDesktopWindow,
+          ),
+          ShellNavigationPlayerBackdrop(
+            visible: !layout.isNowPlayingFullRoute,
+            layout: layout,
+            colors: shellColors,
+          ),
+          ShellPlayerHost(
+            layout: layout,
+            mediaControlController: _mediaControlController,
+            settingsController: _settingsController,
+            isWindowFullScreen: _isWindowFullScreen,
+            playerDialogNotifier: _playerDialogNotifier,
+            resolvePlayerSong: _resolvePlayerSong,
+            playbackSongIds: _playbackSongIds,
+            isPlaybackQueueEmpty: _isPlaybackQueueEmpty,
+            scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
+            ensurePlayerArtworkResolved: _ensurePlayerArtworkResolved,
+            syncDesktopFeatures: _syncDesktopFeatures,
+            desktopLyricsForSong: _desktopLyricsForSong,
+            onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
+            onPrevious: _playPreviousFromCurrentQueue,
+            onForcePrevious: () {
+              _playPreviousFromCurrentQueue(forcePrevious: true);
+            },
+            onNext: _playNextFromCurrentQueue,
+            onToggleShuffle: _toggleShufflePlayback,
+            onToggleFavorite: _togglePlayerFavorite,
+            onQuickPlay: _quickPlayLibrary,
+            onOpenNowPlaying: () {
+              _navigateTo(nowPlayingFullRouteFrom(layout.currentLocation));
+            },
+            onArtworkError: _refreshPlayerArtworkAfterError,
+            onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,
+            onEnterMiniMode: _enterMiniMode,
+            onOpenVoiceAssistant:
+                supportsVoiceAssistant() ? _showVoiceAssistantDialog : null,
+            onAddToNowPlaying: _addPlayerSongToNowPlaying,
+            onCreatePlaylist: (ref, song, name) {
+              createPlaylistWithSongs(
+                context: context,
+                ref: ref,
+                i18n: context.smPlayerI18n,
+                playlists:
+                    ref
+                        .read(libraryContentDataProvider)
+                        .valueOrNull
+                        ?.playlists ??
+                    const [],
+                defaultName: name,
+                songIds: [song.id],
+              );
+            },
+            onAddToPlaylist: (ref, song, playlistId) {
+              _addPlayerSongToPlaylist(
+                ref,
+                song,
+                playlistId,
+                ref.read(libraryContentDataProvider).valueOrNull?.playlists ??
+                    const [],
+              );
+            },
+            onRevealPath: _revealPath,
+            onNavigate: _navigateTo,
+          ),
+          ShellDesktopLyricsHost(
+            layout: layout,
+            mediaControlController: _mediaControlController,
+            settingsController: _settingsController,
+            resolvePlayerSong: _resolvePlayerSong,
+            onPrevious: _playPreviousFromCurrentQueue,
+            onNext: _playNextFromCurrentQueue,
+            onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
+            onSeekOffset: (song, deltaMs) {
+              _updateDesktopLyricsOffset(song, song.lyricsOffsetMs + deltaMs);
+            },
+            onResetOffset: (song) {
+              _updateDesktopLyricsOffset(song, 0);
+            },
+            onToggleLock: _toggleDesktopLyricsLock,
+            onClose: _disableDesktopLyrics,
+            onOpenSettings: () {
+              _navigateTo('/settings#desktop-lyrics');
+            },
+          ),
+          ShellOverlayHost(
+            playerDialogNotifier: _playerDialogNotifier,
+            playerDialogRefreshNotifier: _playerDialogRefreshNotifier,
+            mediaControlController: _mediaControlController,
+            releaseNotesDialogVersion: _releaseNotesDialogVersion,
+            startupArtistSplitResult: _startupArtistSplitResult,
+            startupArtistSplitApplying: _startupArtistSplitApplying,
+            onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
+            onRevealPath: _revealPath,
+            onCloseReleaseNotes: _closeReleaseNotes,
+            onDismissStartupArtistSplitReview: _dismissStartupArtistSplitReview,
+            onApplyStartupArtistSplits: _applyStartupArtistSplits,
+          ),
+        ],
       ),
     );
   }

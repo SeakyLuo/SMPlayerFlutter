@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
@@ -564,19 +565,14 @@ void main() {
           .height,
       130,
     );
-    final historyPanel = tester.widget<DecoratedBox>(
+    final historyPanel = tester.widget<GlassContainer>(
       find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
     );
-    final historyDecoration = historyPanel.decoration as BoxDecoration;
-    expect(historyDecoration.color, MainNavigationViewColors.dropdownSurface);
-    expect(historyDecoration.borderRadius, BorderRadius.circular(14));
-    expect(historyDecoration.boxShadow, const [
-      BoxShadow(
-        color: MainNavigationViewColors.dropdownShadow,
-        blurRadius: 36,
-        offset: Offset(0, 18),
-      ),
-    ]);
+    expect(historyPanel.quality, GlassQuality.minimal);
+    expect(historyPanel.settings?.blur, 46);
+    expect(historyPanel.settings?.saturation, 1.65);
+    expect(historyPanel.settings?.glassColor, const Color(0x74ffffff));
+    expect(historyPanel.settings?.standardOpacityMultiplier, 0.32);
     expect(
       tester.getSize(
         find.byKey(const ValueKey('MainNavigationView.SearchHistoryHeader')),
@@ -667,11 +663,68 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     await tester.pump();
-    await tester.tap(find.byTooltip('移除最近搜索 jazz'));
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchHistoryRemove.10')),
+    );
     expect(removedId, 10);
 
     await tester.tap(find.text('清空'));
     expect(cleared, isTrue);
+  });
+
+  testWidgets('sidebar search history closes from shell dismiss token', (
+    tester,
+  ) async {
+    var dismissEpoch = 0;
+    final openStates = <bool>[];
+
+    Future<void> pumpNavigation() {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 320,
+            height: 720,
+            child: MainNavigationView(
+              isPaneOpen: true,
+              currentPath: '/songs',
+              searchText: '',
+              i18n: testI18n,
+              recentSearches: const [
+                SearchHistoryEntry(
+                  id: 10,
+                  query: 'jazz',
+                  type: SearchHistoryType.sidebar,
+                  searchedAt: '2026-05-21T00:00:00Z',
+                ),
+              ],
+              searchHistoryDismissEpoch: dismissEpoch,
+              onSearchHistoryOpenChanged: openStates.add,
+              onPaneToggle: () {},
+              onSearchTextChanged: (_) {},
+              onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+              onSearchCleared: () {},
+              onItemInvoked: (_) {},
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpNavigation();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    await tester.pump();
+
+    expect(find.text('最近搜索'), findsOneWidget);
+    expect(openStates, [true]);
+
+    dismissEpoch += 1;
+    await pumpNavigation();
+    await tester.pump();
+
+    expect(find.text('最近搜索'), findsNothing);
+    expect(openStates, [true, false]);
   });
 
   testWidgets('sidebar search dropdown mirrors Electron night colors', (
@@ -724,19 +777,14 @@ void main() {
       Border.all(color: colors.focusedSearchBorder),
     );
 
-    final historyPanel = tester.widget<DecoratedBox>(
+    final historyPanel = tester.widget<GlassContainer>(
       find.byKey(const ValueKey('MainNavigationView.SearchHistoryPanel')),
     );
-    final historyDecoration = historyPanel.decoration as BoxDecoration;
-    expect(historyDecoration.color, colors.dropdownSurface);
-    expect(historyDecoration.border, Border.all(color: colors.searchBorder));
-    expect(historyDecoration.boxShadow, [
-      BoxShadow(
-        color: colors.dropdownShadow,
-        blurRadius: 36,
-        offset: const Offset(0, 18),
-      ),
-    ]);
+    expect(historyPanel.quality, GlassQuality.minimal);
+    expect(historyPanel.settings?.blur, 46);
+    expect(historyPanel.settings?.saturation, 1.65);
+    expect(historyPanel.settings?.glassColor, const Color(0x7a181e26));
+    expect(historyPanel.settings?.standardOpacityMultiplier, 0.32);
   });
 
   testWidgets('sidebar playlist group expands and invokes playlist actions', (

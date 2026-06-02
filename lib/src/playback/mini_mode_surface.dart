@@ -872,15 +872,15 @@ class _MiniModeButtonState extends State<_MiniModeButton> {
   LiquidGlassSettings _glassSettings(Color glassColor) {
     return LiquidGlassSettings(
       glassColor: glassColor,
-      thickness: 34,
-      blur: 12,
-      chromaticAberration: 0.012,
-      lightIntensity: 0.42,
+      thickness: 20,
+      blur: 46,
+      chromaticAberration: 0,
+      lightIntensity: 0.1,
       ambientStrength: 0.08,
-      refractiveIndex: 1.16,
-      saturation: 1.12,
-      glowIntensity: 0.28,
-      standardOpacityMultiplier: 1.1,
+      refractiveIndex: 1.06,
+      saturation: 1.65,
+      glowIntensity: 0.04,
+      standardOpacityMultiplier: 0.35,
     );
   }
 

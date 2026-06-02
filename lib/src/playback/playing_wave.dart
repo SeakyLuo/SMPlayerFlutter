@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/library/ui/artwork_overlay_glass.dart';
 
 const smPlayerPlayingWaveSaturate150 = ColorFilter.matrix([
   1.3935,
@@ -29,7 +30,7 @@ class SmPlayerPlayingWaveGlass extends StatelessWidget {
     super.key,
     required this.playing,
     this.dimension = 34,
-    this.backgroundColor = const Color(0xb81e2228),
+    this.backgroundColor = artworkOverlayGlassColor,
     this.shadowColor = const Color(0x470e1620),
     this.keyPrefix = 'PlayingWave',
   });
@@ -60,19 +61,20 @@ class SmPlayerPlayingWaveGlass extends StatelessWidget {
             width: dimension,
             height: dimension,
             useOwnLayer: true,
-            quality: GlassQuality.standard,
+            quality: GlassQuality.minimal,
             shape: const LiquidOval(),
             settings: LiquidGlassSettings(
               glassColor: backgroundColor,
-              thickness: 34,
-              blur: 12,
-              chromaticAberration: 0.012,
-              lightIntensity: 0.42,
-              ambientStrength: 0.08,
-              refractiveIndex: 1.16,
-              saturation: 1.12,
-              glowIntensity: 0.28,
-              standardOpacityMultiplier: 1.1,
+              thickness: artworkOverlayGlassSettings.thickness,
+              blur: artworkOverlayGlassSettings.blur,
+              chromaticAberration:
+                  artworkOverlayGlassSettings.chromaticAberration,
+              lightIntensity: artworkOverlayGlassSettings.lightIntensity,
+              ambientStrength: artworkOverlayGlassSettings.ambientStrength,
+              refractiveIndex: artworkOverlayGlassSettings.refractiveIndex,
+              saturation: artworkOverlayGlassSettings.saturation,
+              glowIntensity: artworkOverlayGlassSettings.glowIntensity,
+              standardOpacityMultiplier: artworkOverlayGlassOpacityMultiplier,
             ),
             clipBehavior: Clip.hardEdge,
             allowElevation: false,

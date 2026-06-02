@@ -499,17 +499,16 @@ class _PlayerLiquidGlassFrame extends StatelessWidget {
     final colors = MediaControlThemeColors.of(context);
     return GlassContainer(
       useOwnLayer: true,
-      quality: GlassQuality.standard,
+      quality: GlassQuality.minimal,
       shape: const LiquidRoundedRectangle(borderRadius: 0),
       settings: LiquidGlassSettings(
-        blur: compact ? colors.compactGlassBlur : colors.glassBlur,
-        thickness: colors.glassThickness,
-        lightIntensity: colors.glassLightIntensity,
-        chromaticAberration: 0.08,
-        saturation:
-            compact ? colors.compactGlassSaturation : colors.glassSaturation,
+        blur: 46,
+        thickness: 20,
+        lightIntensity: 0.1,
+        chromaticAberration: 0,
+        saturation: 1.65,
         glassColor: colors.glassColor,
-        standardOpacityMultiplier: 0.72,
+        standardOpacityMultiplier: 0.35,
       ),
       clipBehavior: Clip.hardEdge,
       allowElevation: false,

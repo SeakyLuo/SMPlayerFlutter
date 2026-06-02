@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
@@ -193,6 +194,59 @@ void main() {
     expect(repository.replacedNowPlaying, [1]);
     expect(find.text('1 selected'), findsNothing);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('RecentPage searches multi-select hides Play and Add To', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithSearches, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Multi Select'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('Recent.SearchRow.4')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 selected'), findsOneWidget);
+    expect(find.text('Play Selected'), findsNothing);
+    expect(find.text('Add To'), findsNothing);
+    expect(find.text('Remove'), findsOneWidget);
+  });
+
+  testWidgets('RecentPage multi-select bar bleeds to workspace edges', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_RecentTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Multi Select'));
+    await tester.pumpAndSettle();
+
+    final surfaceRect = tester.getRect(
+      find.byKey(const ValueKey('MultiSelectCommandBar.Surface')),
+    );
+    expect(surfaceRect.left, 0);
+    expect(surfaceRect.right, 1200);
+    expect(surfaceRect.width, 1200);
+    expect(surfaceRect.bottom, 800 - multiSelectCommandBarShellBottomInset);
   });
 
   testWidgets('RecentPage confirms before clearing recent searches', (

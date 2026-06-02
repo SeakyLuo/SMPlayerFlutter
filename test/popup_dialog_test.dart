@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +38,17 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('popup-dialog-close-button'))),
       const Size(42, 40),
     );
+    expect(_closeButtonSurface(tester).color, const Color(0xebffffff));
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('popup-dialog-close-button'))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_closeButtonSurface(tester).color, const Color(0xfaf7fafe));
     expect(
       tester.getSize(
         find.byKey(const ValueKey('popup-dialog-window-drag-strip')),
@@ -45,6 +58,42 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('popup-dialog-close-button')));
     expect(closed, isTrue);
+  });
+
+  testWidgets('PopupDialog portal covers the root app overlay', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 300,
+            child: PopupDialog(
+              navLabel: 'Dialog title',
+              navChildren: const [Text('Dialog title')],
+              onClose: () {},
+              child: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('popup-dialog-overlay'))),
+      const Size(1200, 900),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('popup-dialog-shell'))),
+      const Size(780, 760),
+    );
   });
 
   testWidgets('PopupDialog switches to Electron mobile shell at 720px', (
@@ -226,6 +275,13 @@ void main() {
       moreOrLessEquals(112),
     );
   });
+}
+
+BoxDecoration _closeButtonSurface(WidgetTester tester) {
+  final decoratedBox = tester.widget<DecoratedBox>(
+    find.byKey(const ValueKey('popup-dialog-close-button-surface')),
+  );
+  return decoratedBox.decoration as BoxDecoration;
 }
 
 class _TestApp extends StatelessWidget {
