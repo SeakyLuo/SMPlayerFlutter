@@ -589,19 +589,19 @@ void FlutterWindow::EnsureTaskbarToolbar() {
   buttons[0].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[0].iId = kTaskbarButtonPrevious;
   buttons[0].hIcon = taskbar_previous_icon_;
-  buttons[0].dwFlags = THBF_DISABLED;
+  buttons[0].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[0].szTip, L"Previous");
 
   buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[1].iId = kTaskbarButtonPlayPause;
   buttons[1].hIcon = taskbar_play_icon_;
-  buttons[1].dwFlags = THBF_DISABLED;
+  buttons[1].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[1].szTip, L"Play");
 
   buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[2].iId = kTaskbarButtonNext;
   buttons[2].hIcon = taskbar_next_icon_;
-  buttons[2].dwFlags = THBF_DISABLED;
+  buttons[2].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[2].szTip, L"Next");
 
   if (SUCCEEDED(taskbar_list_->ThumbBarAddButtons(GetHandle(), 3, buttons))) {
@@ -612,32 +612,28 @@ void FlutterWindow::EnsureTaskbarToolbar() {
 void FlutterWindow::UpdateTaskbarToolbar(bool active, bool playing) {
   taskbar_media_active_ = active;
   taskbar_media_playing_ = playing;
-  if (!active && !taskbar_buttons_added_) {
-    return;
-  }
   EnsureTaskbarToolbar();
   if (!taskbar_buttons_added_ || !taskbar_list_) {
     return;
   }
 
-  const THUMBBUTTONFLAGS flags = active ? THBF_ENABLED : THBF_DISABLED;
   THUMBBUTTON buttons[3] = {};
   buttons[0].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[0].iId = kTaskbarButtonPrevious;
   buttons[0].hIcon = taskbar_previous_icon_;
-  buttons[0].dwFlags = flags;
+  buttons[0].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[0].szTip, L"Previous");
 
   buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[1].iId = kTaskbarButtonPlayPause;
   buttons[1].hIcon = playing ? taskbar_pause_icon_ : taskbar_play_icon_;
-  buttons[1].dwFlags = flags;
+  buttons[1].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[1].szTip, playing ? L"Pause" : L"Play");
 
   buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[2].iId = kTaskbarButtonNext;
   buttons[2].hIcon = taskbar_next_icon_;
-  buttons[2].dwFlags = flags;
+  buttons[2].dwFlags = THBF_ENABLED;
   wcscpy_s(buttons[2].szTip, L"Next");
 
   taskbar_list_->ThumbBarUpdateButtons(GetHandle(), 3, buttons);
@@ -701,7 +697,11 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
   namespace storage = winrt::Windows::Storage;
   namespace streams = winrt::Windows::Storage::Streams;
 
-  if (!EncodableBool(state, "active")) {
+  const bool active = EncodableBool(state, "active");
+  const bool playing = EncodableBool(state, "playing");
+  UpdateTaskbarToolbar(active, playing);
+
+  if (!active) {
     if (media_session_ && media_session_->controls) {
       media_session_->controls.PlaybackStatus(
           media::MediaPlaybackStatus::Closed);
@@ -710,7 +710,6 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
       updater.ClearAll();
       updater.Update();
     }
-    UpdateTaskbarToolbar(false, false);
     return;
   }
 
@@ -779,10 +778,8 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
     controls.IsPreviousEnabled(true);
     controls.IsNextEnabled(true);
     controls.PlaybackStatus(
-        EncodableBool(state, "playing")
-            ? media::MediaPlaybackStatus::Playing
-            : media::MediaPlaybackStatus::Paused);
-    UpdateTaskbarToolbar(true, EncodableBool(state, "playing"));
+        playing ? media::MediaPlaybackStatus::Playing
+                : media::MediaPlaybackStatus::Paused);
 
     auto updater = controls.DisplayUpdater();
     updater.ClearAll();
