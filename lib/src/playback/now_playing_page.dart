@@ -528,8 +528,19 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                               .read(mediaControlControllerProvider)
                               .onTogglePlayPause,
                       onToggleQueueSelection: _toggleQueueSelection,
-                      onPlayNext: (queueIndex) {
-                        _playNext(queueSongIds, queueIndex);
+                      onToggleFavorite: (song) {
+                        unawaited(
+                          setSongsFavorite(ref, [song.id], !song.favorite),
+                        );
+                      },
+                      onOpenAddToPlaylist: (buttonContext, song) {
+                        _showQueueAddToPlaylistMenu(
+                          buttonContext,
+                          song,
+                          customPlaylists,
+                          snapshot.playlists,
+                          songsById,
+                        );
                       },
                       onRemoveQueueIndex: (queueIndex, song) {
                         _removeQueueIndex(queueSongIds, queueIndex, song);
@@ -1010,6 +1021,54 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       context.smPlayerI18n.t('nowPlaying.clearQueue'),
       () => _replaceQueue(before),
     );
+  }
+
+  void _showQueueAddToPlaylistMenu(
+    BuildContext buttonContext,
+    LibrarySong song,
+    List<MultiSelectCommandBarPlaylist> playlists,
+    List<LibraryPlaylist> allPlaylists,
+    Map<int, LibrarySong> songsById,
+  ) {
+    final box = buttonContext.findRenderObject() as RenderBox;
+    final position = box.localToGlobal(Offset(0, box.size.height + 8));
+    final i18n = context.smPlayerI18n;
+    final addToItem = buildAddToPlaylistMenuFlyoutItem(
+      i18n: i18n,
+      songIds: [song.id],
+      playlists: playlists,
+      currentPlaylistName: i18n.t('common.nowPlaying'),
+      includeFavorites: !song.favorite,
+      onToggleFavorite:
+          song.favorite
+              ? null
+              : () {
+                _addSongsToFavorites([song.id], songsById);
+              },
+      onCreatePlaylist: () {
+        unawaited(
+          createPlaylistWithSongs(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlists: allPlaylists,
+            defaultName: getNextPlaylistName(song.title, allPlaylists),
+            songIds: [song.id],
+          ),
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        unawaited(
+          _addSongsToPlaylistWithUndo(
+            playlistId,
+            [song.id],
+            allPlaylists,
+            songsById,
+          ),
+        );
+      },
+    );
+    showMenuFlyout(context, position: position, items: addToItem!.submenu);
   }
 
   Future<void> _hideQueueSongFileWithUndo(

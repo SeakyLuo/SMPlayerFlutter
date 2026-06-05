@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/app_interaction_colors.dart';
 import '../../app/loading_state.dart';
 import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';
@@ -304,7 +305,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                         },
                       },
                       child: Focus(
-                        autofocus: true,
                         child: NotificationListener<UserScrollNotification>(
                           onNotification: _handleUserScroll,
                           child: Stack(

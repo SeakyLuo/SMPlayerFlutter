@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -18,7 +19,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode, SettingsSnapshot;
+    show LyricsRequestMode, NightMode, SettingsSnapshot;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -102,11 +103,11 @@ void main() {
     await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Add To'), findsOneWidget);
+    expect(find.text('Add To'), findsWidgets);
     expect(find.text('Mix'), findsNothing);
     expect(find.text('Built in'), findsNothing);
 
-    await tester.tap(find.text('Add To'));
+    await tester.tap(find.text('Add To').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Now Playing'), findsOneWidget);
@@ -582,18 +583,218 @@ void main() {
     final foregroundDecoration =
         tester.widget<AnimatedContainer>(tile).foregroundDecoration!
             as BoxDecoration;
-    expect(boxDecoration.color, const Color(0x140078d7));
+    expect(boxDecoration.color, GlobalUI.hoverBgColorDay);
     expect(boxDecoration.border, isNull);
     expect(
       foregroundDecoration.border,
-      Border.all(color: const Color(0x260078d7)),
+      Border.all(color: GlobalUI.hoverBorderColorDay),
     );
     expect(boxDecoration.boxShadow, isNotEmpty);
+    expect(boxDecoration.boxShadow!.single, GlobalUI.hoverShadowDay);
     expect(tester.getSize(tile).height, 116);
     expect(
       tester.widget<AnimatedContainer>(tile).padding,
       const EdgeInsets.fromLTRB(3, 3, 8, 3),
     );
+  });
+
+  testWidgets(
+    'RecentPage song hover artwork action opens Add To like Electron',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeLibraryRepository();
+
+      await tester.pumpWidget(
+        _RecentTestApp(
+          snapshot: _snapshotWithRecentPlayed,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Played'));
+      await tester.pumpAndSettle();
+
+      final tile =
+          find
+              .ancestor(
+                of: find.text('Blue Song'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(tile));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+
+      final addButton = find.descendant(
+        of: tile,
+        matching: find.byIcon(FluentIcons.add_20_regular),
+      );
+      expect(addButton, findsOneWidget);
+      expect(
+        find.descendant(
+          of: tile,
+          matching: find.byIcon(FluentIcons.play_20_regular),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(addButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.replacedNowPlaying, isEmpty);
+      expect(find.text('Now Playing'), findsOneWidget);
+      expect(find.text('My Favorites'), findsOneWidget);
+      expect(find.text('New Playlist'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'RecentPage song hover actions match Electron Play Next and More',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeLibraryRepository();
+
+      await tester.pumpWidget(
+        _RecentTestApp(
+          snapshot: _snapshotWithRecentPlayed,
+          i18n: i18n,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Played'));
+      await tester.pumpAndSettle();
+
+      final tile =
+          find
+              .ancestor(
+                of: find.text('Blue Song'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(tile));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+
+      final playNext = find.descendant(
+        of: tile,
+        matching: find.byType(SmPlayerPlayNextIcon),
+      );
+      final more = find.descendant(
+        of: tile,
+        matching: find.byIcon(FluentIcons.more_horizontal_20_regular),
+      );
+      expect(playNext, findsOneWidget);
+      expect(more, findsOneWidget);
+
+      await tester.tap(playNext);
+      await tester.pumpAndSettle();
+
+      expect(repository.replacedNowPlaying, [1]);
+
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add To'), findsWidgets);
+      expect(find.text('View'), findsOneWidget);
+    },
+  );
+
+  testWidgets('RecentPage song hover actions use Electron night colors', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(
+        snapshot: _snapshotWithRecentPlayed,
+        i18n: i18n,
+        theme: _recentPageTestTheme(brightness: Brightness.dark),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    final tile =
+        find
+            .ancestor(
+              of: find.text('Blue Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final tileMouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await tileMouse.addPointer(location: tester.getCenter(tile));
+    addTearDown(tileMouse.removePointer);
+    await tester.pump();
+
+    final moreButton = find.ancestor(
+      of: find.descendant(
+        of: tile,
+        matching: find.byIcon(FluentIcons.more_horizontal_20_regular),
+      ),
+      matching: find.byType(IconButton),
+    );
+    final button = tester.widget<IconButton>(moreButton);
+    expect(button.style?.foregroundColor?.resolve({}), const Color(0xadcbd5e1));
+    final playNextIconTheme = tester.widget<IconTheme>(
+      find
+          .ancestor(
+            of: find.descendant(
+              of: tile,
+              matching: find.byType(SmPlayerPlayNextIcon),
+            ),
+            matching: find.byType(IconTheme),
+          )
+          .first,
+    );
+    expect(playNextIconTheme.data.color, const Color(0xadcbd5e1));
+
+    await tileMouse.moveTo(tester.getCenter(moreButton));
+    await tester.pump();
+
+    final hoveredButton = tester.widget<IconButton>(moreButton);
+    expect(
+      hoveredButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
+      const Color(0x17ffffff),
+    );
+    expect(
+      hoveredButton.style?.foregroundColor?.resolve({WidgetState.hovered}),
+      const Color(0xff459de2),
+    );
+    final moreIconTheme = tester.widget<IconTheme>(
+      find
+          .ancestor(
+            of: find.descendant(
+              of: tile,
+              matching: find.byIcon(FluentIcons.more_horizontal_20_regular),
+            ),
+            matching: find.byType(IconTheme),
+          )
+          .first,
+    );
+    expect(moreIconTheme.data.color, const Color(0xff459de2));
   });
 
   testWidgets('RecentPage grid music unknown artist uses i18n', (tester) async {
@@ -979,7 +1180,14 @@ void main() {
     addTearDown(mouse.removePointer);
     await tester.pump();
 
-    expect(find.byType(SmPlayerPauseIcon), findsOneWidget);
+    expect(
+      find.descendant(
+        of: songTile.first,
+        matching: find.byIcon(FluentIcons.add_20_regular),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SmPlayerPauseIcon), findsNothing);
   });
 }
 
@@ -989,12 +1197,14 @@ class _RecentTestApp extends StatelessWidget {
     required this.i18n,
     this.repository,
     this.mediaController,
+    this.theme,
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final LibraryRepository? repository;
   final MediaControlController? mediaController;
+  final ThemeData? theme;
 
   @override
   Widget build(BuildContext context) {
@@ -1016,7 +1226,7 @@ class _RecentTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          theme: _recentPageTestTheme(),
+          theme: theme ?? _recentPageTestTheme(),
           home: const Scaffold(body: RecentPage()),
         ),
       ),
@@ -1077,8 +1287,13 @@ class _RecentRouterTestApp extends StatelessWidget {
   }
 }
 
-ThemeData _recentPageTestTheme() {
-  return buildSmPlayerTheme(const SettingsSnapshot.defaults());
+ThemeData _recentPageTestTheme({Brightness brightness = Brightness.light}) {
+  return buildSmPlayerTheme(
+    const SettingsSnapshot.defaults().copyWith(
+      nightMode:
+          brightness == Brightness.dark ? NightMode.onMode : NightMode.never,
+    ),
+  );
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

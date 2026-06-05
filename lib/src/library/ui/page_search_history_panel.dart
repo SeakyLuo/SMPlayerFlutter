@@ -114,17 +114,21 @@ class PageSearchField extends StatefulWidget {
 
 class _PageSearchFieldState extends State<PageSearchField> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  var _focused = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.value);
+    _focusNode = FocusNode(debugLabel: 'PageSearchField');
+    _focusNode.addListener(_handleFocusChanged);
   }
 
   @override
   void didUpdateWidget(covariant PageSearchField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != _controller.text) {
+    if (oldWidget.value != widget.value && widget.value != _controller.text) {
       _controller.value = TextEditingValue(
         text: widget.value,
         selection: TextSelection.collapsed(offset: widget.value.length),
@@ -134,28 +138,39 @@ class _PageSearchFieldState extends State<PageSearchField> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChanged);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    final focused = _focusNode.hasFocus;
+    if (_focused != focused) {
+      setState(() {
+        _focused = focused;
+      });
+    }
+    widget.onFocusChanged(focused);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: widget.appBar);
+    final focused = _focused || _focusNode.hasFocus || widget.focused;
     const borderRadius = 10.0;
     return SizedBox(
       height: widget.height,
-      child: Focus(
-        onFocusChange: widget.onFocusChanged,
+      child: TextFieldTapRegion(
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color:
-                widget.focused ? colors.focusedSurface : colors.searchSurface,
+            color: focused ? colors.focusedSurface : colors.searchSurface,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color: widget.focused ? colors.focusedBorder : colors.border,
+              color: focused ? colors.focusedBorder : colors.border,
             ),
             boxShadow:
-                widget.focused
+                focused
                     ? [
                       BoxShadow(
                         color: colors.focusRing,
@@ -191,10 +206,9 @@ class _PageSearchFieldState extends State<PageSearchField> {
                 child: TextField(
                   autofocus: widget.autofocus,
                   controller: _controller,
-                  onTap: () {
-                    widget.onFocusChanged(true);
-                  },
+                  focusNode: _focusNode,
                   onChanged: widget.onChanged,
+                  onTapOutside: (_) {},
                   onSubmitted: (_) {
                     widget.onSubmitted();
                   },
@@ -223,7 +237,10 @@ class _PageSearchFieldState extends State<PageSearchField> {
                     hoverBackground: colors.iconButtonHover,
                     foreground: colors.textMuted,
                     hoverForeground: colors.accent,
-                    onPressed: widget.onClear,
+                    onPressed: () {
+                      _controller.clear();
+                      widget.onClear();
+                    },
                   ),
                 ),
               const SizedBox(width: 10),

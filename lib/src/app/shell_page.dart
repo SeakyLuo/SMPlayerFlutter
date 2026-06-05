@@ -176,6 +176,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(_handlePlaybackShortcutKey);
     _settingsController = SettingsController(null, widget.settingsRepository);
     _mediaControlController = MediaControlController(
       null,
@@ -240,6 +241,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handlePlaybackShortcutKey);
     WidgetsBinding.instance.removeObserver(this);
     _mediaControlController.removeListener(_syncAudioPlayerFromController);
     for (final subscription in _audioSubscriptions) {
@@ -334,7 +336,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         colors: shellColors,
         isMiniMode: _isMiniMode,
         miniModeHost: _buildMiniModeHost(),
-        onKeyEvent: _handlePlaybackShortcutKey,
         children: [
           ShellWorkspaceHost(
             layout: layout,
@@ -358,6 +359,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             visible:
                 layout.isNavigationOverlaySurface ||
                 _isNavigationSearchHistoryOpen,
+            leftInset: layout.sidebarSurfaceWidth,
             onDismiss: () {
               if (_isNavigationSearchHistoryOpen) {
                 _dismissNavigationSearchHistory();
@@ -373,7 +375,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onPaneToggle: _toggleNavigationPane,
             onGoBack: _goBack,
             onSearchTextChanged: (value) {
-              _searchText = value;
+              setState(() {
+                _searchText = value;
+              });
             },
             onSearchCommitted: (value, [type = SearchHistoryType.sidebar]) {
               _commitSearchWithRepository(
@@ -595,10 +599,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     return resolveShellPlayerSong(snapshot, mediaControlState.track.id);
   }
 
-  KeyEventResult _handlePlaybackShortcutKey(FocusNode node, KeyEvent event) {
+  bool _handlePlaybackShortcutKey(KeyEvent event) {
     if (event is! KeyDownEvent ||
         _isPlaybackShortcutEditableFocus(FocusManager.instance.primaryFocus)) {
-      return KeyEventResult.ignored;
+      return false;
     }
 
     final keyboard = HardwareKeyboard.instance;
@@ -610,10 +614,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       shift: keyboard.isShiftPressed,
     );
     if (shortcut == null) {
-      return KeyEventResult.ignored;
+      return false;
     }
 
     _applyPlaybackShortcut(shortcut);
-    return KeyEventResult.handled;
+    return true;
   }
 }

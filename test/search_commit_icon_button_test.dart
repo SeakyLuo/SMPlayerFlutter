@@ -198,6 +198,53 @@ void main() {
     },
   );
 
+  testWidgets('PageSearchField keeps local input across unrelated rebuilds', (
+    tester,
+  ) async {
+    var hintText = 'Search artists';
+
+    Future<void> pumpField() {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 240,
+                child: PageSearchField(
+                  value: '',
+                  hintText: hintText,
+                  focused: false,
+                  onChanged: (_) {},
+                  onFocusChanged: (_) {},
+                  onSubmitted: () {},
+                  onClear: () {},
+                  searchTooltip: 'Search',
+                  clearTooltip: 'Clear',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpField();
+    await tester.enterText(find.byType(TextField), 'abc123');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'abc123',
+    );
+
+    hintText = 'Search albums';
+    await pumpField();
+    await tester.pump();
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'abc123',
+    );
+  });
+
   testWidgets('PageSearchField uses Electron night colors outside appbar', (
     tester,
   ) async {

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -1632,29 +1633,23 @@ void main() {
     );
     final activeRowBoxDecoration =
         activeRowDecoration.decoration! as BoxDecoration;
-    expect(activeRowBoxDecoration.color, const Color(0x330078d7));
+    expect(activeRowBoxDecoration.color, GlobalUI.selectedBgColorNight);
     expect(
       activeRowBoxDecoration.border,
-      Border.all(color: const Color(0x380078d7)),
+      Border.all(color: GlobalUI.selectedBorderColorNight),
     );
-    expect(activeRowBoxDecoration.boxShadow, const [
-      BoxShadow(
-        color: Color(0x24000000),
-        offset: Offset(0, 10),
-        blurRadius: 24,
-      ),
-    ]);
+    expect(activeRowBoxDecoration.boxShadow, [GlobalUI.selectedShadowNight]);
 
     final rowInkWell = tester
         .widgetList<InkWell>(find.byType(InkWell))
         .firstWhere(
           (inkWell) =>
               inkWell.overlayColor?.resolve({WidgetState.hovered}) ==
-              const Color(0x210078d7),
+              GlobalUI.hoverBgColorNight,
         );
     expect(
       rowInkWell.overlayColor?.resolve({WidgetState.focused}),
-      const Color(0x210078d7),
+      GlobalUI.hoverBgColorNight,
     );
 
     expect(
@@ -1715,24 +1710,22 @@ void main() {
     );
     final activeRowBoxDecoration =
         activeRowDecoration.decoration! as BoxDecoration;
-    expect(activeRowBoxDecoration.color, const Color(0xffd9ecfb));
+    expect(activeRowBoxDecoration.color, GlobalUI.selectedBgColorDay);
     expect(
       activeRowBoxDecoration.border,
-      Border.all(color: const Color(0x260078d7)),
+      Border.all(color: GlobalUI.selectedBorderColorDay),
     );
-    expect(activeRowBoxDecoration.boxShadow, const [
-      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
-    ]);
+    expect(activeRowBoxDecoration.boxShadow, [GlobalUI.selectedShadowDay]);
     final rowInkWell = tester
         .widgetList<InkWell>(find.byType(InkWell))
         .firstWhere(
           (inkWell) =>
               inkWell.overlayColor?.resolve({WidgetState.hovered}) ==
-              const Color(0x140078d7),
+              GlobalUI.hoverBgColorDay,
         );
     expect(
       rowInkWell.overlayColor?.resolve({WidgetState.focused}),
-      const Color(0x140078d7),
+      GlobalUI.hoverBgColorDay,
     );
 
     expect(
@@ -2006,9 +1999,9 @@ void main() {
     );
     expect(songRow.variant, PlaylistControlItemVariant.compact);
     expect(songRow.colors?.border, Colors.transparent);
-    expect(songRow.colors?.hover, const Color(0x240078d7));
-    expect(songRow.colors?.hoverBorder, const Color(0x380078d7));
-    expect(songRow.colors?.current, const Color(0x330078d7));
+    expect(songRow.colors?.hover, GlobalUI.hoverBgColorNight);
+    expect(songRow.colors?.hoverBorder, GlobalUI.hoverBorderColorNight);
+    expect(songRow.colors?.current, GlobalUI.selectedBgColorNight);
     expect(songRow.colors?.currentForeground, const Color(0xff459de2));
     expect(songRow.colors?.textStrong, const Color(0xf0f6f9fc));
     expect(songRow.colors?.textMuted, const Color(0xadcbd5e1));

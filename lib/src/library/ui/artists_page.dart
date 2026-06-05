@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/app_interaction_colors.dart';
 import '../../app/loading_state.dart';
 import '../../app/input_dialog.dart';
 import '../../app/smplayer_vector_icons.dart';

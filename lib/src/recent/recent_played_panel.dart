@@ -22,7 +22,9 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onRecordAlbumPlayed,
     required this.onRecordArtistPlayed,
     required this.onTimelineLabelChange,
+    required this.onOpenSongAddToMenu,
     required this.onOpenSongContextMenu,
+    required this.onPlayNext,
     required this.onOpenAlbumAddMenu,
     required this.onOpenArtistContextMenu,
   });
@@ -52,8 +54,10 @@ class _RecentPlayedPanel extends StatelessWidget {
   final ValueChanged<String> onRecordAlbumPlayed;
   final ValueChanged<String> onRecordArtistPlayed;
   final ValueChanged<String> onTimelineLabelChange;
+  final void Function(Offset position, LibrarySong song) onOpenSongAddToMenu;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenSongContextMenu;
+  final ValueChanged<int> onPlayNext;
   final void Function(Offset position, RecentAlbumView album)
   onOpenAlbumAddMenu;
   final void Function(Offset position, RecentArtistView artist)
@@ -74,7 +78,10 @@ class _RecentPlayedPanel extends StatelessWidget {
                 formatRecentDateTime((song as RecentLibrarySong).playedAt),
         onPlaySong: onPlaySong,
         onToggleSelection: onToggleSongSelection,
+        onOpenAddToMenu: onOpenSongAddToMenu,
         onOpenContextMenu: onOpenSongContextMenu,
+        onPlayNext: onPlayNext,
+        onOpenMoreMenu: onOpenSongContextMenu,
         onTimelineLabelChange: onTimelineLabelChange,
       ),
       RecentPlayedFilter.playlists => _RecentPlaylistGrid(
@@ -122,4 +129,3 @@ class _RecentPlayedPanel extends StatelessWidget {
     };
   }
 }
-

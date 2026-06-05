@@ -134,14 +134,14 @@ class _ArtistsColors {
 
   static Color artistRowActiveBackground(Brightness brightness) {
     return brightness == Brightness.dark
-        ? const Color(0x330078d7)
-        : const Color(0xffd9ecfb);
+        ? GlobalUI.selectedBgColorNight
+        : GlobalUI.selectedBgColorDay;
   }
 
   static Color artistRowHoverBackground(Brightness brightness) {
     return brightness == Brightness.dark
-        ? const Color(0x210078d7)
-        : const Color(0x140078d7);
+        ? GlobalUI.hoverBgColorNight
+        : GlobalUI.hoverBgColorDay;
   }
 
   static Color artistRowActiveForeground(Brightness brightness) {
@@ -158,22 +158,14 @@ class _ArtistsColors {
 
   static Color artistRowActiveBorder(Brightness brightness) {
     return brightness == Brightness.dark
-        ? const Color(0x380078d7)
-        : const Color(0x260078d7);
+        ? GlobalUI.selectedBorderColorNight
+        : GlobalUI.selectedBorderColorDay;
   }
 
   static BoxShadow artistRowActiveShadow(Brightness brightness) {
     return brightness == Brightness.dark
-        ? const BoxShadow(
-          color: Color(0x24000000),
-          offset: Offset(0, 10),
-          blurRadius: 24,
-        )
-        : const BoxShadow(
-          color: Color(0x300078d7),
-          offset: Offset(0, 8),
-          blurRadius: 18,
-        );
+        ? GlobalUI.selectedShadowNight
+        : GlobalUI.selectedShadowDay;
   }
 
   static Color artistArtworkBackground(
@@ -226,7 +218,7 @@ class _ArtistsColors {
     if (brightness != Brightness.dark) {
       return const PlaylistControlItemColors(
         border: Colors.transparent,
-        hover: Color(0x140078d7),
+        hover: GlobalUI.hoverBgColorDay,
         hoverBorder: Colors.transparent,
         current: Color(0x1f0078d7),
         currentForeground: accentStrong,
@@ -240,9 +232,9 @@ class _ArtistsColors {
     }
     return const PlaylistControlItemColors(
       border: Colors.transparent,
-      hover: Color(0x240078d7),
-      hoverBorder: Color(0x380078d7),
-      current: Color(0x330078d7),
+      hover: GlobalUI.hoverBgColorNight,
+      hoverBorder: GlobalUI.hoverBorderColorNight,
+      current: GlobalUI.selectedBgColorNight,
       currentForeground: Color(0xff459de2),
       currentMuted: Color(0xc276b5dc),
       textStrong: Color(0xf0f6f9fc),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/app_interaction_colors.dart';
 import '../../i18n/app_i18n.dart';
 
 const localQuickJumpKeys = [
@@ -323,10 +324,10 @@ class LocalPageColors extends ThemeExtension<LocalPageColors> {
     surfaceControlHover: Color(0x1a0078d7),
     borderSubtle: Color(0x2e768499),
     surfaceCard: Color(0x00ffffff),
-    surfaceCardHover: Color(0x140078d7),
+    surfaceCardHover: GlobalUI.hoverBgColorDay,
     rowBorder: Color(0x21727e8c),
     rowHover: Color(0x0e0078d7),
-    rowSelected: Color(0xffd9ecfb),
+    rowSelected: GlobalUI.selectedBgColorDay,
     accentStrong: Color(0xff0063b1),
     accentSoft: Color(0x1a0078d7),
     commandText: Color(0xff1f252b),
@@ -353,10 +354,10 @@ class LocalPageColors extends ThemeExtension<LocalPageColors> {
     surfaceControlHover: Color(0x2e0078d7),
     borderSubtle: Color(0x38d6e0ec),
     surfaceCard: Color(0x00ffffff),
-    surfaceCardHover: Color(0x0fffffff),
+    surfaceCardHover: GlobalUI.hoverBgColorNight,
     rowBorder: Color(0x24d6e0ec),
     rowHover: Color(0x2e0078d7),
-    rowSelected: Color(0x18ffffff),
+    rowSelected: GlobalUI.selectedBgColorNight,
     accentStrong: Color(0xff7ab7ff),
     accentSoft: Color(0x2e0078d7),
     commandText: Color(0xffe8edf5),

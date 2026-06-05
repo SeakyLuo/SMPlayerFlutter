@@ -216,6 +216,20 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     widget.onSearchHistoryOpenChanged?.call(open);
   }
 
+  void _openSearchHistoryAfterTextInputFocus() {
+    if (_isSearchHistoryOpen) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_searchFocusNode.hasFocus) {
+        return;
+      }
+      setState(() {
+        _setSearchHistoryOpen(true);
+      });
+    });
+  }
+
   void _syncPlaylistExpansionWithRoute() {
     if (widget.isPaneOpen && widget.currentPath.startsWith('/playlists')) {
       _isPlaylistNavExpanded = true;
@@ -236,7 +250,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     setState(() {
       _setSearchHistoryOpen(false);
     });
-    _searchFocusNode.unfocus();
   }
 
   void _invokeNavigationItem(String target) {
@@ -466,17 +479,9 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                             onCleared: widget.onSearchCleared,
                             onFocusChanged: (focused) {
                               if (focused) {
-                                setState(() {
-                                  _setSearchHistoryOpen(true);
-                                });
+                                _openSearchHistoryAfterTextInputFocus();
                               }
                             },
-                            onSearchHistoryRequested: () {
-                              setState(() {
-                                _setSearchHistoryOpen(true);
-                              });
-                            },
-                            onSearchHistoryDismissed: _closeSearchHistory,
                             onCollapsedSearchPressed: () {
                               _hideFloatingTooltip();
                               _focusSearchAfterPaneOpen = true;
@@ -558,17 +563,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                           ),
                         ],
                       ),
-                      if (showRecentSearches)
-                        Positioned.fill(
-                          child: GestureDetector(
-                            key: const ValueKey(
-                              'MainNavigationView.SearchDismissLayer',
-                            ),
-                            behavior: HitTestBehavior.translucent,
-                            onTap: _closeSearchHistory,
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
                       if (showRecentSearches)
                         Positioned(
                           left: 0,

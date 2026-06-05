@@ -10,8 +10,6 @@ class _MainNavigationViewSearchBox extends StatefulWidget {
     required this.onSubmitted,
     required this.onCleared,
     required this.onFocusChanged,
-    required this.onSearchHistoryRequested,
-    required this.onSearchHistoryDismissed,
     required this.onCollapsedSearchPressed,
     required this.searchFieldLayerLink,
     this.onTooltipRequested,
@@ -26,8 +24,6 @@ class _MainNavigationViewSearchBox extends StatefulWidget {
   final ValueChanged<String> onSubmitted;
   final VoidCallback onCleared;
   final ValueChanged<bool> onFocusChanged;
-  final VoidCallback onSearchHistoryRequested;
-  final VoidCallback onSearchHistoryDismissed;
   final VoidCallback onCollapsedSearchPressed;
   final LayerLink searchFieldLayerLink;
   final _NavigationTooltipRequest? onTooltipRequested;
@@ -53,7 +49,7 @@ class _MainNavigationViewSearchBoxState
   @override
   void didUpdateWidget(covariant _MainNavigationViewSearchBox oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_controller.text != widget.value) {
+    if (oldWidget.value != widget.value && _controller.text != widget.value) {
       _controller.value = TextEditingValue(
         text: widget.value,
         selection: TextSelection.collapsed(offset: widget.value.length),
@@ -81,6 +77,7 @@ class _MainNavigationViewSearchBoxState
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
+    final focused = _focused || widget.focusNode.hasFocus;
     return LayoutBuilder(
       builder: (context, constraints) {
         if (widget.collapsed || constraints.maxWidth <= 64) {
@@ -100,121 +97,104 @@ class _MainNavigationViewSearchBoxState
           height: 40,
           child: CompositedTransformTarget(
             link: widget.searchFieldLayerLink,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                DecoratedBox(
-                  key: const ValueKey('MainNavigationView.SearchForm'),
-                  decoration: BoxDecoration(
+            child: TextFieldTapRegion(
+              child: DecoratedBox(
+                key: const ValueKey('MainNavigationView.SearchForm'),
+                decoration: BoxDecoration(
+                  color:
+                      focused
+                          ? colors.focusedSearchSurface
+                          : colors.searchSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
                     color:
-                        _focused
-                            ? colors.focusedSearchSurface
-                            : colors.searchSurface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color:
-                          _focused
-                              ? colors.focusedSearchBorder
-                              : colors.searchBorder,
-                    ),
-                    boxShadow:
-                        _focused
-                            ? [
-                              BoxShadow(
-                                color: colors.searchFocusRing,
-                                blurRadius: 0,
-                                spreadRadius: 3,
-                              ),
-                            ]
-                            : [
-                              BoxShadow(
-                                color: colors.searchInsetHighlight,
-                                offset: Offset(0, 1),
-                                blurRadius: 0,
-                                spreadRadius: 0,
-                                blurStyle: BlurStyle.inner,
-                              ),
-                            ],
+                        focused
+                            ? colors.focusedSearchBorder
+                            : colors.searchBorder,
                   ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: SearchCommitIconButton(
-                          tooltip: widget.i18n.t('common.search'),
-                          foreground: SearchCommitIconButton.foregroundFor(
-                            context,
-                          ),
-                          hoverForeground:
-                              SearchCommitIconButton.hoverForegroundFor(
-                                context,
+                  boxShadow:
+                      focused
+                          ? [
+                            BoxShadow(
+                              color: colors.searchFocusRing,
+                              blurRadius: 0,
+                              spreadRadius: 3,
+                            ),
+                          ]
+                          : [
+                            BoxShadow(
+                              color: colors.searchInsetHighlight,
+                              offset: Offset(0, 1),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                              blurStyle: BlurStyle.inner,
+                            ),
+                          ],
+                ),
+                child: TextField(
+                  key: const ValueKey('MainNavigationView.SearchTextField'),
+                  controller: _controller,
+                  focusNode: widget.focusNode,
+                  onChanged: widget.onChanged,
+                  onTapOutside: (_) {},
+                  onSubmitted: widget.onSubmitted,
+                  textInputAction: TextInputAction.search,
+                  textAlignVertical: TextAlignVertical.center,
+                  style: TextStyle(fontSize: 14, color: colors.textStrong),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: widget.i18n.t('common.search'),
+                    hintStyle: TextStyle(color: colors.searchPlaceholder),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    prefixIconConstraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    prefixIcon: SearchCommitIconButton(
+                      tooltip: widget.i18n.t('common.search'),
+                      foreground: SearchCommitIconButton.foregroundFor(context),
+                      hoverForeground:
+                          SearchCommitIconButton.hoverForegroundFor(context),
+                      onPressed: () {
+                        if (_controller.text.isEmpty) {
+                          widget.focusNode.requestFocus();
+                          return;
+                        }
+                        widget.onSubmitted(_controller.text);
+                      },
+                    ),
+                    suffixIconConstraints:
+                        widget.value.isEmpty
+                            ? const BoxConstraints.tightFor(
+                              width: 10,
+                              height: 40,
+                            )
+                            : const BoxConstraints.tightFor(
+                              width: 34,
+                              height: 40,
+                            ),
+                    suffixIcon:
+                        widget.value.isEmpty
+                            ? const SizedBox.shrink()
+                            : Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: _SearchClearButton(
+                                key: const ValueKey(
+                                  'MainNavigationView.ClearSearchButton',
+                                ),
+                                tooltip: widget.i18n.t('common.clear'),
+                                onPressed: () {
+                                  _controller.clear();
+                                  widget.onChanged('');
+                                  widget.onCleared();
+                                  widget.focusNode.requestFocus();
+                                },
                               ),
-                          onPressed: () {
-                            widget.onSubmitted(_controller.text);
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          key: const ValueKey(
-                            'MainNavigationView.SearchTextField',
-                          ),
-                          controller: _controller,
-                          focusNode: widget.focusNode,
-                          onTapAlwaysCalled: true,
-                          onTap: () {
-                            setState(() {
-                              _focused = true;
-                            });
-                            widget.onFocusChanged(true);
-                            widget.onSearchHistoryRequested();
-                          },
-                          onTapOutside: (_) {
-                            setState(() {
-                              _focused = false;
-                            });
-                            widget.focusNode.unfocus();
-                            widget.onSearchHistoryDismissed();
-                          },
-                          onChanged: widget.onChanged,
-                          onSubmitted: widget.onSubmitted,
-                          textInputAction: TextInputAction.search,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: colors.textStrong,
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: widget.i18n.t('common.search'),
-                            hintStyle: TextStyle(
-                              color: colors.searchPlaceholder,
                             ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
-                      if (widget.value.isNotEmpty)
-                        SizedBox(
-                          width: 24,
-                          height: 40,
-                          child: _SearchClearButton(
-                            key: const ValueKey(
-                              'MainNavigationView.ClearSearchButton',
-                            ),
-                            tooltip: widget.i18n.t('common.clear'),
-                            onPressed: () {
-                              widget.onChanged('');
-                              widget.onCleared();
-                            },
-                          ),
-                        ),
-                      const SizedBox(width: 10),
-                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );

@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -96,13 +97,14 @@ void main() {
     final decoration = hoveredCard.decoration! as BoxDecoration;
     final foregroundDecoration =
         hoveredCard.foregroundDecoration! as BoxDecoration;
-    expect(decoration.color, const Color(0x140078d7));
+    expect(decoration.color, GlobalUI.hoverBgColorDay);
     expect(decoration.border, isNull);
     expect(
       foregroundDecoration.border,
-      Border.all(color: const Color(0x260078d7)),
+      Border.all(color: GlobalUI.hoverBorderColorDay),
     );
     expect(decoration.boxShadow, hasLength(1));
+    expect(decoration.boxShadow!.single, GlobalUI.hoverShadowDay);
   });
 
   testWidgets('Local grid song cover keeps Electron artwork shadow', (
@@ -324,13 +326,14 @@ void main() {
     final decoration = focusedCard.decoration! as BoxDecoration;
     final foregroundDecoration =
         focusedCard.foregroundDecoration! as BoxDecoration;
-    expect(decoration.color, const Color(0x140078d7));
+    expect(decoration.color, GlobalUI.hoverBgColorDay);
     expect(decoration.border, isNull);
     expect(
       foregroundDecoration.border,
-      Border.all(color: const Color(0x260078d7)),
+      Border.all(color: GlobalUI.hoverBorderColorDay),
     );
     expect(decoration.boxShadow, hasLength(1));
+    expect(decoration.boxShadow!.single, GlobalUI.hoverShadowDay);
   });
 
   testWidgets('Local song quick jump uses Electron vertical metrics', (
@@ -802,11 +805,9 @@ void main() {
             .first;
     final gridDecoration =
         tester.widget<Container>(gridCard).decoration! as BoxDecoration;
-    expect(gridDecoration.color, const Color(0xffd9ecfb));
-    expect(gridDecoration.border!.top.color, const Color(0x260078d7));
-    expect(gridDecoration.boxShadow, const [
-      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
-    ]);
+    expect(gridDecoration.color, GlobalUI.selectedBgColorDay);
+    expect(gridDecoration.border!.top.color, GlobalUI.selectedBorderColorDay);
+    expect(gridDecoration.boxShadow, [GlobalUI.selectedShadowDay]);
     final folderCover = tester.widget<AnimatedContainer>(
       find
           .byKey(const ValueKey('LocalFolderCard.GridArtworkDropSurface'))
@@ -824,8 +825,8 @@ void main() {
       find.byKey(const ValueKey('LocalFolderCard.ListDropSurface')),
     );
     final listDecoration = listSurface.decoration! as BoxDecoration;
-    expect(listDecoration.color, const Color(0xffd9ecfb));
-    expect(listDecoration.border!.top.color, const Color(0x260078d7));
+    expect(listDecoration.color, GlobalUI.selectedBgColorDay);
+    expect(listDecoration.border!.top.color, GlobalUI.selectedBorderColorDay);
   });
 
   testWidgets(

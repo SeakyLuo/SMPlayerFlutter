@@ -516,6 +516,7 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     await tester.pump();
+    await tester.pump();
 
     expect(find.text('最近搜索'), findsOneWidget);
     expect(find.text('jazz'), findsOneWidget);
@@ -644,15 +645,14 @@ void main() {
       libraryTop,
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('MainNavigationView.SearchDismissLayer')),
-    );
+    await tester.tap(find.byKey(const ValueKey('SettingsItem')));
     await tester.pump();
     expect(find.text('最近搜索'), findsNothing);
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
+    await tester.pump();
     await tester.pump();
 
     await tester.tap(find.text('jazz'));
@@ -663,6 +663,7 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     await tester.pump();
+    await tester.pump();
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.SearchHistoryRemove.10')),
     );
@@ -670,6 +671,286 @@ void main() {
 
     await tester.tap(find.text('清空'));
     expect(cleared, isTrue);
+  });
+
+  testWidgets('sidebar search remains focusable while history is open', (
+    tester,
+  ) async {
+    var changedText = '';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            recentSearches: const [
+              SearchHistoryEntry(
+                id: 10,
+                query: 'jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-21T00:00:00Z',
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (value) {
+              changedText = value;
+            },
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('最近搜索'), findsOneWidget);
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      'blue',
+    );
+    await tester.pump();
+
+    final textField = tester.widget<TextField>(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    expect(textField.controller?.text, 'blue');
+    expect(changedText, 'blue');
+    expect(find.text('最近搜索'), findsOneWidget);
+  });
+
+  testWidgets('sidebar search keeps local input across unrelated rebuilds', (
+    tester,
+  ) async {
+    var canGoBack = false;
+
+    Future<void> pumpNavigation() {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 320,
+            height: 720,
+            child: MainNavigationView(
+              isPaneOpen: true,
+              currentPath: '/songs',
+              searchText: '',
+              i18n: testI18n,
+              canGoBack: canGoBack,
+              onPaneToggle: () {},
+              onSearchTextChanged: (_) {},
+              onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+              onSearchCleared: () {},
+              onItemInvoked: (_) {},
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpNavigation();
+    await tester.enterText(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      'abc123',
+    );
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+          )
+          .controller
+          ?.text,
+      'abc123',
+    );
+
+    canGoBack = true;
+    await pumpNavigation();
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+          )
+          .controller
+          ?.text,
+      'abc123',
+    );
+  });
+
+  testWidgets('sidebar search form tap focuses editable input', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            recentSearches: const [
+              SearchHistoryEntry(
+                id: 10,
+                query: 'jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-21T00:00:00Z',
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+
+    editableTextState.widget.focusNode.unfocus();
+    await tester.pump();
+    expect(editableTextState.widget.focusNode.hasFocus, isFalse);
+
+    await tester.tapAt(
+      tester.getCenter(
+        find.byKey(const ValueKey('MainNavigationView.SearchForm')),
+      ),
+    );
+    await tester.pump();
+
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('sidebar empty search icon focuses input', (tester) async {
+    var committedText = 'not-committed';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            recentSearches: const [
+              SearchHistoryEntry(
+                id: 10,
+                query: 'jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-21T00:00:00Z',
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (value, [__ = SearchHistoryType.sidebar]) {
+              committedText = value;
+            },
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final searchFormRect = tester.getRect(
+      find.byKey(const ValueKey('MainNavigationView.SearchForm')),
+    );
+    await tester.tapAt(searchFormRect.centerLeft + const Offset(20, 0));
+    await tester.pump();
+    await tester.pump();
+
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(find.text('最近搜索'), findsOneWidget);
+    expect(committedText, 'not-committed');
+  });
+
+  testWidgets('sidebar search clear keeps input focus like Electron', (
+    tester,
+  ) async {
+    var changedText = '';
+    var clearCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 720,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: 'blue',
+            i18n: testI18n,
+            recentSearches: const [
+              SearchHistoryEntry(
+                id: 10,
+                query: 'jazz',
+                type: SearchHistoryType.sidebar,
+                searchedAt: '2026-05-21T00:00:00Z',
+              ),
+            ],
+            onPaneToggle: () {},
+            onSearchTextChanged: (value) {
+              changedText = value;
+            },
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {
+              clearCount += 1;
+            },
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('最近搜索'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(changedText, '');
+    expect(clearCount, 1);
   });
 
   testWidgets('sidebar search history closes from shell dismiss token', (
@@ -715,6 +996,7 @@ void main() {
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
     );
     await tester.pump();
+    await tester.pump();
 
     expect(find.text('最近搜索'), findsOneWidget);
     expect(openStates, [true]);
@@ -725,6 +1007,10 @@ void main() {
 
     expect(find.text('最近搜索'), findsNothing);
     expect(openStates, [true, false]);
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
   });
 
   testWidgets('sidebar search dropdown mirrors Electron night colors', (
@@ -761,8 +1047,16 @@ void main() {
 
     await tester.tap(
       find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
     );
     await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
 
     final colors = MainNavigationViewColors.of(
       tester.element(find.byType(MainNavigationView)),
@@ -1094,10 +1388,6 @@ void main() {
       expect(
         navigationViewAfterTap.recentSearches.map((entry) => entry.query),
         ['Jazz'],
-      );
-      expect(
-        find.byKey(const ValueKey('MainNavigationView.SearchDismissLayer')),
-        findsOneWidget,
       );
       expect(find.text('最近搜索'), findsOneWidget);
       expect(find.text('Jazz'), findsNWidgets(2));

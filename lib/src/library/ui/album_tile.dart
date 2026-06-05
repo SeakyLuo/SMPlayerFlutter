@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
@@ -310,8 +311,8 @@ class _AlbumTileColors {
   }
 
   static const light = _AlbumTileColorSet(
-    hoverSurface: Color(0x140078d7),
-    hoverOutline: Color(0x290078d7),
+    hoverSurface: GlobalUI.hoverBgColorDay,
+    hoverOutline: GlobalUI.hoverBorderColorDay,
     cardShadow: Color(0x1f1e2a3a),
     artworkSurface: Color(0xb8ffffff),
     artworkShadow: Color(0x21202d3f),
@@ -323,8 +324,8 @@ class _AlbumTileColors {
   );
 
   static const dark = _AlbumTileColorSet(
-    hoverSurface: Color(0x240078d7),
-    hoverOutline: Color(0x380078d7),
+    hoverSurface: GlobalUI.hoverBgColorNight,
+    hoverOutline: GlobalUI.hoverBorderColorNight,
     cardShadow: Color(0x3d000000),
     artworkSurface: Color(0x14ffffff),
     artworkShadow: Color(0x4d000000),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
@@ -771,7 +772,7 @@ void main() {
     expect(tile.padding, const EdgeInsets.all(10));
     final baseDecoration = tile.decoration! as BoxDecoration;
     expect(baseDecoration.borderRadius, BorderRadius.circular(12));
-    expect(baseDecoration.color, const Color(0x000078d7));
+    expect(baseDecoration.color, const Color(0x00eaf6ff));
     expect(baseDecoration.border!.top.color, const Color(0x000078d7));
 
     final artworkDecoration =
@@ -799,11 +800,9 @@ void main() {
     final hoverDecoration =
         tester.widget<AnimatedContainer>(tileFinder).decoration!
             as BoxDecoration;
-    expect(hoverDecoration.color, const Color(0x140078d7));
-    expect(hoverDecoration.border!.top.color, const Color(0x260078d7));
-    expect(hoverDecoration.boxShadow!.single.color, const Color(0x000078d7));
-    expect(hoverDecoration.boxShadow!.single.blurRadius, 0);
-    expect(hoverDecoration.boxShadow!.single.offset, Offset.zero);
+    expect(hoverDecoration.color, GlobalUI.hoverBgColorDay);
+    expect(hoverDecoration.border!.top.color, GlobalUI.hoverBorderColorDay);
+    expect(hoverDecoration.boxShadow!.single, GlobalUI.hoverShadowDay);
     expect(
       tester.getSize(
         find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
@@ -847,11 +846,9 @@ void main() {
       find.byKey(const ValueKey('AlbumTile.Container')),
     );
     final decoration = tile.decoration! as BoxDecoration;
-    expect(decoration.color, const Color(0xffd9ecfb));
-    expect(decoration.border!.top.color, const Color(0x260078d7));
-    expect(decoration.boxShadow, const [
-      BoxShadow(color: Color(0x300078d7), offset: Offset(0, 8), blurRadius: 18),
-    ]);
+    expect(decoration.color, GlobalUI.selectedBgColorDay);
+    expect(decoration.border!.top.color, GlobalUI.selectedBorderColorDay);
+    expect(decoration.boxShadow, [GlobalUI.selectedShadowDay]);
     final artworkDecoration =
         tester
                 .widget<DecoratedBox>(

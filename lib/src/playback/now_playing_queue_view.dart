@@ -21,7 +21,8 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.onPlayQueueTrack,
     required this.onTogglePlayPause,
     required this.onToggleQueueSelection,
-    required this.onPlayNext,
+    required this.onToggleFavorite,
+    required this.onOpenAddToPlaylist,
     required this.onRemoveQueueIndex,
     required this.onOpenContextMenu,
   });
@@ -40,7 +41,9 @@ class NowPlayingQueueView extends StatelessWidget {
   final void Function(LibrarySong song, int queueIndex) onPlayQueueTrack;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleQueueSelection;
-  final ValueChanged<int> onPlayNext;
+  final ValueChanged<LibrarySong> onToggleFavorite;
+  final void Function(BuildContext buttonContext, LibrarySong song)
+  onOpenAddToPlaylist;
   final void Function(int queueIndex, LibrarySong song) onRemoveQueueIndex;
   final void Function(Offset position, LibrarySong song, int queueIndex)
   onOpenContextMenu;
@@ -64,6 +67,7 @@ class NowPlayingQueueView extends StatelessWidget {
           queueIndex: entry.$1,
           song: entry.$2,
           selectedQueueIndex: selectedQueueIndex,
+          i18n: i18n,
         ),
     ];
     return Scrollbar(
@@ -86,6 +90,7 @@ class NowPlayingQueueView extends StatelessWidget {
     required int queueIndex,
     required LibrarySong song,
     required int? selectedQueueIndex,
+    required SmPlayerI18n i18n,
   }) {
     final current =
         selectedQueueIndex == null
@@ -99,6 +104,10 @@ class NowPlayingQueueView extends StatelessWidget {
       playing: current && isPlaying,
       selected: isSelected(queueIndex),
       selectionMode: selectionMode,
+      favoriteLabel: i18n.t('common.favorite'),
+      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+      removeLabel: i18n.t('nowPlaying.remove'),
+      moreLabel: i18n.t('player.more'),
       onPlayTrack: () {
         onPlayQueueTrack(song, queueIndex);
       },
@@ -106,8 +115,11 @@ class NowPlayingQueueView extends StatelessWidget {
       onToggleSelection: () {
         onToggleQueueSelection(queueIndex);
       },
-      onPlayNextClick: () {
-        onPlayNext(queueIndex);
+      onToggleFavoriteClick: () {
+        onToggleFavorite(song);
+      },
+      onAddToPlaylistClick: (buttonContext) {
+        onOpenAddToPlaylist(buttonContext, song);
       },
       onRemoveFromListClick: () {
         onRemoveQueueIndex(queueIndex, song);
