@@ -470,20 +470,16 @@ class RecentSearchThemeColors extends ThemeExtension<RecentSearchThemeColors> {
 
   static const light = RecentSearchThemeColors(
     surface: Color(0x9effffff),
-    hoverSurface: Color(0x140078d7),
+    hoverSurface: GlobalUI.hoverBgColorDay,
     border: Color(0x1f7e8b9a),
-    hoverBorder: Color(0x260078d7),
-    hoverInnerBorder: Color(0x260078d7),
+    hoverBorder: GlobalUI.hoverBorderColorDay,
+    hoverInnerBorder: GlobalUI.hoverBorderColorDay,
     topHighlight: Color(0x75ffffff),
     shadow: [
       BoxShadow(color: Color(0x0a273446), blurRadius: 18, offset: Offset(0, 8)),
     ],
-    hoverShadow: [
-      BoxShadow(color: Color(0x000078d7), blurRadius: 0, offset: Offset(0, 0)),
-    ],
-    selectedShadow: [
-      BoxShadow(color: Color(0x300078d7), blurRadius: 18, offset: Offset(0, 8)),
-    ],
+    hoverShadow: [GlobalUI.hoverShadowDay],
+    selectedShadow: [GlobalUI.selectedShadowDay],
     accent: Color(0xff0078d7),
     accentStrong: Color(0xff0063b1),
     textStrong: Color(0xff1f252b),
@@ -497,10 +493,10 @@ class RecentSearchThemeColors extends ThemeExtension<RecentSearchThemeColors> {
 
   static const dark = RecentSearchThemeColors(
     surface: Color(0x0cffffff),
-    hoverSurface: SmPlayerInteractionColors.hoverSurfaceDark,
+    hoverSurface: GlobalUI.hoverBgColorNight,
     border: Color(0x1fd6e0ec),
-    hoverBorder: Color(0x470078d7),
-    hoverInnerBorder: SmPlayerInteractionColors.hoverSurfaceDark,
+    hoverBorder: GlobalUI.hoverBorderColorNight,
+    hoverInnerBorder: GlobalUI.hoverBorderColorNight,
     topHighlight: Color(0x0cffffff),
     shadow: [
       BoxShadow(color: Color(0x24000000), blurRadius: 18, offset: Offset(0, 8)),

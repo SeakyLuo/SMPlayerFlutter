@@ -126,8 +126,8 @@ class _LibraryColors {
   static const quickJumpBorder = Color(0x1a677486);
   static const appBarButtonHover = Color(0x12111827);
   static const rowBorder = Color(0x21727e8c);
-  static const rowHover = Color(0x140078d7);
-  static const rowSelected = Color(0xffd9ecfb);
+  static const rowHover = GlobalUI.hoverBgColorDay;
+  static const rowSelected = GlobalUI.selectedBgColorDay;
   static const selectionMark = Color(0xdfffffff);
   static const selectionBorder = Color(0x55677486);
   static const accentStrong = Color(0xff0063b1);
@@ -229,9 +229,9 @@ class _LibraryPalette {
     panelShadow: Color(0x57000000),
     quickJumpBorder: Color(0x1fd6e0ec),
     rowBorder: Color(0x1fd6e0ec),
-    rowHover: Color(0x1f0078d7),
+    rowHover: GlobalUI.hoverBgColorNight,
     rowCurrent: Color(0x2e0078d7),
-    rowSelected: Color(0x2e0078d7),
+    rowSelected: GlobalUI.selectedBgColorNight,
     selectionMark: Color(0x0effffff),
     selectionBorder: Color(0x1fd6e0ec),
     accentStrong: Color(0xff459de2),

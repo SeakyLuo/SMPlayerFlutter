@@ -203,10 +203,12 @@ class ShellNavigationDismissLayer extends StatelessWidget {
   const ShellNavigationDismissLayer({
     super.key,
     required this.visible,
+    required this.leftInset,
     required this.onDismiss,
   });
 
   final bool visible;
+  final double leftInset;
   final VoidCallback onDismiss;
 
   @override
@@ -214,7 +216,11 @@ class ShellNavigationDismissLayer extends StatelessWidget {
     if (!visible) {
       return const SizedBox.shrink();
     }
-    return Positioned.fill(
+    return Positioned(
+      left: leftInset,
+      top: 0,
+      right: 0,
+      bottom: 0,
       child: GestureDetector(
         key: SmPlayerShellKeys.navigationDismissLayer,
         behavior: HitTestBehavior.translucent,

@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_interaction_colors.dart';
 import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/playlist_control_item.dart';
@@ -308,8 +309,8 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                         ? [
                           BoxShadow(
                             color: colors.shadow,
-                            offset: const Offset(0, 12),
-                            blurRadius: 26,
+                            offset: const Offset(0, 10),
+                            blurRadius: 24,
                           ),
                         ]
                         : const [],
@@ -558,14 +559,14 @@ class LocalGridSongCardColors {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return dark
         ? const LocalGridSongCardColors(
-          hoverSurface: Color(0x240078d7),
-          shadow: Color(0x3d000000),
-          inset: Color(0x380078d7),
+          hoverSurface: GlobalUI.hoverBgColorNight,
+          shadow: GlobalUI.hoverShadowColorNight,
+          inset: GlobalUI.hoverBorderColorNight,
         )
         : const LocalGridSongCardColors(
-          hoverSurface: Color(0x140078d7),
-          shadow: Color(0x000078d7),
-          inset: Color(0x260078d7),
+          hoverSurface: GlobalUI.hoverBgColorDay,
+          shadow: GlobalUI.hoverShadowColorDay,
+          inset: GlobalUI.hoverBorderColorDay,
         );
   }
 }

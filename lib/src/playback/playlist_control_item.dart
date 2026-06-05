@@ -1238,8 +1238,8 @@ class _PlaylistControlItemColors {
   static const actionForeground = Color(0xb8586474);
   static const actionHover = Color(0x9effffff);
   static const nightBorder = Color(0x1fd6e0ec);
-  static const nightHover = Color(0x240078d7);
-  static const nightHoverBorder = Color(0x380078d7);
+  static const nightHover = GlobalUI.hoverBgColorNight;
+  static const nightHoverBorder = GlobalUI.hoverBorderColorNight;
   static const nightCurrent = Color(0x2e0078d7);
   static const nightCurrentForeground = Color(0xff459de2);
   static const nightCurrentMuted = Color(0xc276b5dc);

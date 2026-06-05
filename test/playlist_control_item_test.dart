@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -1016,7 +1017,7 @@ void main() {
             .first,
       );
       final decoration = rowContainer.decoration! as BoxDecoration;
-      expect(decoration.color, const Color(0x140078d7));
+      expect(decoration.color, GlobalUI.hoverBgColorDay);
       expect(
         decoration.boxShadow?.where(
           (shadow) => shadow.color == const Color(0xff0078d7),
@@ -1095,7 +1096,7 @@ void main() {
                 .widget<AnimatedContainer>(find.byType(AnimatedContainer).first)
                 .decoration!
             as BoxDecoration;
-    expect(hoveredDecoration.color, const Color(0x240078d7));
+    expect(hoveredDecoration.color, GlobalUI.hoverBgColorNight);
   });
 
   testWidgets(

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
@@ -385,8 +386,8 @@ class _GridViewHolderColors {
   }
 
   static const light = _GridViewHolderColors(
-    hoverSurface: Color(0x140078d7),
-    hoverBorder: Color(0x290078d7),
+    hoverSurface: GlobalUI.hoverBgColorDay,
+    hoverBorder: GlobalUI.hoverBorderColorDay,
     hoverShadow: Color(0x1f1e2a3a),
     dragSurface: Color(0xf7ffffff),
     dragBorder: Color(0x660078d7),
@@ -396,8 +397,8 @@ class _GridViewHolderColors {
   );
 
   static const dark = _GridViewHolderColors(
-    hoverSurface: Color(0x240078d7),
-    hoverBorder: Color(0x380078d7),
+    hoverSurface: GlobalUI.hoverBgColorNight,
+    hoverBorder: GlobalUI.hoverBorderColorNight,
     hoverShadow: Color(0x3d000000),
     dragSurface: Color(0xf01a2028),
     dragBorder: Color(0x660078d7),

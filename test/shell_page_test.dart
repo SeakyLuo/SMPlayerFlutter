@@ -988,6 +988,220 @@ void main() {
     expect(find.text('Recent'), findsOneWidget);
   });
 
+  testWidgets('shell sidebar search keeps typed value editable', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [
+          SearchHistoryEntry(
+            id: 1,
+            query: 'Jazz',
+            type: SearchHistoryType.sidebar,
+            searchedAt: '2026-05-21T00:00:00Z',
+          ),
+        ],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        messages: const {
+          'common.search': 'Search',
+          'common.clear': 'Clear',
+          'sidebar.recentSearches': 'Recent searches',
+          'sidebar.removeRecentSearch': 'Remove {query}',
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Recent searches'), findsOneWidget);
+    expect(
+      tester
+          .getTopLeft(find.byKey(SmPlayerShellKeys.navigationDismissLayer))
+          .dx,
+      SmPlayerShellMetrics.sidebarWidth,
+    );
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    for (var frame = 0; frame < 10; frame += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    }
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(find.text('Recent searches'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      'Blue',
+    );
+    await tester.pump();
+
+    final textField = tester.widget<TextField>(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    expect(textField.controller?.text, 'Blue');
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shell shortcuts do not steal sidebar search focus', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        autoPlay: false,
+      ),
+    );
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(repository: repository, desktopService: desktopService),
+    );
+    for (var pump = 0; pump < 6; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      'Blue',
+    );
+    await tester.pump();
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(_lastActiveMediaSession(desktopService).playing, isFalse);
+  });
+
+  testWidgets('overlay sidebar search expands and keeps focus', (tester) async {
+    _setViewSize(tester, const Size(800, 600));
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [
+          SearchHistoryEntry(
+            id: 1,
+            query: 'Jazz',
+            type: SearchHistoryType.sidebar,
+            searchedAt: '2026-05-21T00:00:00Z',
+          ),
+        ],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        messages: const {
+          'common.search': 'Search',
+          'common.clear': 'Clear',
+          'sidebar.recentSearches': 'Recent searches',
+          'sidebar.removeRecentSearch': 'Remove {query}',
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchButton')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(SmPlayerShellKeys.sidebar)).width,
+      SmPlayerShellMetrics.sidebarWidth,
+    );
+    expect(find.text('Recent searches'), findsOneWidget);
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+  });
+
   testWidgets(
     'shell hides Recent workspace header when recent page has content',
     (tester) async {

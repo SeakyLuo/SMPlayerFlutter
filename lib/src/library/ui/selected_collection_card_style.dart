@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 
 class SelectedCollectionCardStyle {
   const SelectedCollectionCardStyle({
@@ -29,13 +30,9 @@ class SelectedCollectionCardStyle {
   }
 
   static const light = SelectedCollectionCardStyle(
-    background: Color(0xffd9ecfb),
-    border: Color(0x260078d7),
-    shadow: BoxShadow(
-      color: Color(0x300078d7),
-      offset: Offset(0, 8),
-      blurRadius: 18,
-    ),
+    background: GlobalUI.selectedBgColorDay,
+    border: GlobalUI.selectedBorderColorDay,
+    shadow: GlobalUI.selectedShadowDay,
     artworkShadow: BoxShadow(
       color: Color(0x120078d7),
       offset: Offset(0, 4),
@@ -46,13 +43,9 @@ class SelectedCollectionCardStyle {
   );
 
   static const lightHover = SelectedCollectionCardStyle(
-    background: Color(0x140078d7),
-    border: Color(0x260078d7),
-    shadow: BoxShadow(
-      color: Color(0x000078d7),
-      offset: Offset(0, 0),
-      blurRadius: 0,
-    ),
+    background: GlobalUI.hoverBgColorDay,
+    border: GlobalUI.hoverBorderColorDay,
+    shadow: GlobalUI.hoverShadowDay,
     artworkShadow: BoxShadow(
       color: Color(0x0f0078d7),
       offset: Offset(0, 4),
@@ -63,13 +56,9 @@ class SelectedCollectionCardStyle {
   );
 
   static const dark = SelectedCollectionCardStyle(
-    background: Color(0x330078d7),
-    border: Color(0x380078d7),
-    shadow: BoxShadow(
-      color: Color(0x24000000),
-      offset: Offset(0, 10),
-      blurRadius: 24,
-    ),
+    background: GlobalUI.selectedBgColorNight,
+    border: GlobalUI.selectedBorderColorNight,
+    shadow: GlobalUI.selectedShadowNight,
     artworkShadow: BoxShadow(
       color: Color(0x36000000),
       offset: Offset(0, 6),
@@ -80,13 +69,9 @@ class SelectedCollectionCardStyle {
   );
 
   static const darkHover = SelectedCollectionCardStyle(
-    background: Color(0x260078d7),
-    border: Color(0x330078d7),
-    shadow: BoxShadow(
-      color: Color(0x26000000),
-      offset: Offset(0, 10),
-      blurRadius: 24,
-    ),
+    background: GlobalUI.hoverBgColorNight,
+    border: GlobalUI.hoverBorderColorNight,
+    shadow: GlobalUI.hoverShadowNight,
     artworkShadow: BoxShadow(
       color: Color(0x30000000),
       offset: Offset(0, 6),

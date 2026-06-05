@@ -12,7 +12,9 @@ class _RecentAddedPage extends StatelessWidget {
     required this.onToggleMultiSelect,
     required this.onPlaySong,
     required this.onToggleSelection,
+    required this.onOpenSongAddToMenu,
     required this.onOpenSongContextMenu,
+    required this.onPlayNext,
     required this.onTimelineLabelChange,
   });
 
@@ -31,6 +33,13 @@ class _RecentAddedPage extends StatelessWidget {
   ])
   onPlaySong;
   final ValueChanged<int> onToggleSelection;
+  final void Function(
+    Offset position,
+    String defaultName,
+    List<int> songIds,
+    List<MultiSelectCommandBarPlaylist> customPlaylists,
+  )
+  onOpenSongAddToMenu;
   final Future<void> Function(
     Offset position,
     LibrarySong song,
@@ -38,6 +47,7 @@ class _RecentAddedPage extends StatelessWidget {
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   )
   onOpenSongContextMenu;
+  final ValueChanged<int> onPlayNext;
   final ValueChanged<String> onTimelineLabelChange;
 
   @override
@@ -69,7 +79,21 @@ class _RecentAddedPage extends StatelessWidget {
             getDetailLabel: (song) => formatRecentDateTime(song.dateAdded),
             onPlaySong: onPlaySong,
             onToggleSelection: onToggleSelection,
+            onOpenAddToMenu: (position, song) {
+              onOpenSongAddToMenu(position, song.title, [
+                song.id,
+              ], customPlaylists);
+            },
             onOpenContextMenu: (position, song, queueSongIds) {
+              onOpenSongContextMenu(
+                position,
+                song,
+                queueSongIds,
+                customPlaylists,
+              );
+            },
+            onPlayNext: onPlayNext,
+            onOpenMoreMenu: (position, song, queueSongIds) {
               onOpenSongContextMenu(
                 position,
                 song,

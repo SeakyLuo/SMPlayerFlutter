@@ -53,6 +53,7 @@ void main() {
       'common.album': 'Album',
       'common.artist': 'Artist',
       'common.cancel': 'Cancel',
+      'common.favorite': 'Favorite',
       'common.multiSelect': 'Multi Select',
       'common.myFavorites': 'My Favorites',
       'common.nowPlaying': 'Now Playing',
@@ -200,18 +201,87 @@ void main() {
     await tester.pumpAndSettle();
 
     final commandBarRight = tester.getRect(find.byType(CommandBar)).right;
-    final rowRight =
-        tester
-            .getRect(
-              find.byWidgetPredicate(
-                (widget) =>
-                    widget is PlaylistControlItem &&
-                    widget.key == const ValueKey('now-playing-1-0'),
-              ),
-            )
-            .right;
+    final firstRow = find.byWidgetPredicate(
+      (widget) =>
+          widget is PlaylistControlItem &&
+          widget.key == const ValueKey('now-playing-1-0'),
+    );
+    final rowRight = tester.getRect(firstRow).right;
 
     expect(rowRight, commandBarRight);
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.FavoriteAction'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.PlayNextAction'),
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('NowPlayingPage queue row favorite toggles like Electron', (
+    tester,
+  ) async {
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    await tester.pumpWidget(
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstRow = find.byWidgetPredicate(
+      (widget) =>
+          widget is PlaylistControlItem &&
+          widget.key == const ValueKey('now-playing-1-0'),
+    );
+    await tester.tap(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.FavoriteAction'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.snapshot.songs.single.favorite, isTrue);
   });
 
   testWidgets(

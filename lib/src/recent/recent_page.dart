@@ -395,6 +395,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                             },
                             onPlaySongs: _playSongIds,
                             onPlaySong: _playSong,
+                            onPlayNext: _playNext,
                             onToggleSongSelection: _toggleSongSelection,
                             onToggleCollectionSelection:
                                 _toggleCollectionSelection,
@@ -421,7 +422,9 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                               });
                             },
                             onPlaySong: _playSong,
+                            onPlayNext: _playNext,
                             onToggleSelection: _toggleSongSelection,
+                            onOpenSongAddToMenu: _showCollectionAddToMenu,
                             onOpenSongContextMenu: _showSongContextMenu,
                             onTimelineLabelChange: _setRecentAddedTimelineLabel,
                           ),

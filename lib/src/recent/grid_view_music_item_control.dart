@@ -11,7 +11,10 @@ class _GridViewMusicItemControl extends StatefulWidget {
     required this.metrics,
     required this.onPlayTrack,
     required this.onToggleSelection,
+    required this.onOpenAddToMenu,
     required this.onOpenContextMenu,
+    required this.onPlayNext,
+    required this.onOpenMoreMenu,
   });
 
   final LibrarySong song;
@@ -23,7 +26,10 @@ class _GridViewMusicItemControl extends StatefulWidget {
   final _RecentSongTileMetrics metrics;
   final VoidCallback onPlayTrack;
   final VoidCallback onToggleSelection;
+  final ValueChanged<Offset> onOpenAddToMenu;
   final ValueChanged<Offset> onOpenContextMenu;
+  final VoidCallback onPlayNext;
+  final ValueChanged<Offset> onOpenMoreMenu;
 
   @override
   State<_GridViewMusicItemControl> createState() =>
@@ -79,132 +85,292 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                     border: Border.all(color: colors.activeBorder),
                   )
                   : null,
-          child: Row(
+          child: Stack(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
+              Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: SizedBox.square(
-                      dimension: widget.metrics.artworkSize,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colors.artworkSurface,
-                          boxShadow: active ? colors.artworkShadow : const [],
-                        ),
-                        child: _RecentSongArtwork(song: widget.song),
-                      ),
-                    ),
-                  ),
-                  if (widget.multiSelect || widget.selected)
-                    Positioned(
-                      top: -6,
-                      right: -6,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: _RecentColors.accent,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: colors.selectionMarkBorder,
-                            width: 2,
-                          ),
-                          boxShadow: colors.selectionMarkShadow,
-                        ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
                         child: SizedBox.square(
-                          dimension: 30,
-                          child:
-                              widget.selected
-                                  ? const Icon(
-                                    FluentIcons.checkmark_16_regular,
-                                    color: Colors.white,
-                                    size: 17,
-                                  )
-                                  : null,
-                        ),
-                      ),
-                    )
-                  else if (_hovered)
-                    Positioned.fill(
-                      child: Center(
-                        child: ArtworkFloatingActionButton(
-                          tooltip: context.smPlayerI18n.t('context.play'),
-                          size: 48,
-                          iconSize: 19,
-                          icon:
-                              widget.playing
-                                  ? const SmPlayerPauseIcon(
-                                    size: 19,
-                                    color: Colors.white,
-                                  )
-                                  : const SmPlayerPlayIcon(
-                                    size: 19,
-                                    color: Colors.white,
-                                  ),
-                          onPressed: widget.onPlayTrack,
-                        ),
-                      ),
-                    ),
-                  if (widget.current && !_hovered && !widget.multiSelect)
-                    Positioned.fill(
-                      child: SmPlayerPlayingWaveGlass(
-                        playing: widget.playing,
-                        dimension: 48,
-                        keyPrefix: 'RecentSong.Playing.${widget.song.id}',
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(width: widget.metrics.copyGap),
-              Expanded(
-                child: SizedBox.expand(
-                  child: Padding(
-                    padding: widget.metrics.copyPadding,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.song.title,
-                          maxLines: widget.detailLabel.isEmpty ? 2 : 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 15,
-                            height: 1.32,
-                            fontVariations: const [FontVariation('wght', 650)],
+                          dimension: widget.metrics.artworkSize,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: colors.artworkSurface,
+                              boxShadow:
+                                  active ? colors.artworkShadow : const [],
+                            ),
+                            child: _RecentSongArtwork(song: widget.song),
                           ),
                         ),
-                        SizedBox(height: widget.metrics.copyLineGap),
-                        Text(
-                          displayArtists(widget.song, context.smPlayerI18n),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: artistColor, fontSize: 13),
-                        ),
-                        if (widget.detailLabel.isNotEmpty) ...[
-                          SizedBox(height: widget.metrics.copyLineGap),
-                          Text(
-                            widget.detailLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: detailColor,
-                              fontSize: 12,
-                              height: 1.25,
+                      ),
+                      if (widget.multiSelect || widget.selected)
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: _RecentColors.accent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colors.selectionMarkBorder,
+                                width: 2,
+                              ),
+                              boxShadow: colors.selectionMarkShadow,
+                            ),
+                            child: SizedBox.square(
+                              dimension: 30,
+                              child:
+                                  widget.selected
+                                      ? const Icon(
+                                        FluentIcons.checkmark_16_regular,
+                                        color: Colors.white,
+                                        size: 17,
+                                      )
+                                      : null,
                             ),
                           ),
-                        ],
-                      ],
+                        )
+                      else if (_hovered)
+                        Positioned.fill(
+                          child: Center(
+                            child: Builder(
+                              builder:
+                                  (buttonContext) =>
+                                      ArtworkFloatingActionButton(
+                                        tooltip: context.smPlayerI18n.t(
+                                          'context.addToPlaylist',
+                                        ),
+                                        size: 48,
+                                        iconSize: 19,
+                                        icon: const Icon(
+                                          FluentIcons.add_20_regular,
+                                          color: Colors.white,
+                                          size: 19,
+                                        ),
+                                        onPressed: () {
+                                          final box =
+                                              buttonContext.findRenderObject()
+                                                  as RenderBox;
+                                          widget.onOpenAddToMenu(
+                                            box.localToGlobal(
+                                              Offset(0, box.size.height + 8),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                            ),
+                          ),
+                        ),
+                      if (widget.current && !_hovered && !widget.multiSelect)
+                        Positioned.fill(
+                          child: SmPlayerPlayingWaveGlass(
+                            playing: widget.playing,
+                            dimension: 48,
+                            keyPrefix: 'RecentSong.Playing.${widget.song.id}',
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(width: widget.metrics.copyGap),
+                  Expanded(
+                    child: SizedBox.expand(
+                      child: Padding(
+                        padding: widget.metrics.copyPadding,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.song.title,
+                              maxLines: widget.detailLabel.isEmpty ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 15,
+                                height: 1.32,
+                                fontVariations: const [
+                                  FontVariation('wght', 650),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: widget.metrics.copyLineGap),
+                            Text(
+                              displayArtists(widget.song, context.smPlayerI18n),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: artistColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (widget.detailLabel.isNotEmpty) ...[
+                              SizedBox(height: widget.metrics.copyLineGap),
+                              Text(
+                                widget.detailLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: detailColor,
+                                  fontSize: 12,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
+              if (active && !widget.multiSelect)
+                Positioned(
+                  top: (widget.metrics.tileExtent - 32) / 2,
+                  right: 8,
+                  child: Row(
+                    spacing: 4,
+                    children: [
+                      _RecentSongActionButton(
+                        tooltip: context.smPlayerI18n.t('context.playNext'),
+                        icon: const SmPlayerPlayNextIcon(size: 18),
+                        onPressed: widget.onPlayNext,
+                      ),
+                      Builder(
+                        builder:
+                            (buttonContext) => _RecentSongActionButton(
+                              tooltip: context.smPlayerI18n.t('player.more'),
+                              icon: const Icon(
+                                FluentIcons.more_horizontal_20_regular,
+                                size: 18,
+                              ),
+                              onPressed: () {
+                                final box =
+                                    buttonContext.findRenderObject()
+                                        as RenderBox;
+                                widget.onOpenMoreMenu(
+                                  box.localToGlobal(
+                                    Offset(0, box.size.height + 8),
+                                  ),
+                                );
+                              },
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _RecentSongActionButton extends StatefulWidget {
+  const _RecentSongActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final Widget icon;
+  final VoidCallback onPressed;
+
+  @override
+  State<_RecentSongActionButton> createState() =>
+      _RecentSongActionButtonState();
+}
+
+class _RecentSongActionButtonState extends State<_RecentSongActionButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _RecentSongActionButtonColors.of(context);
+    final foreground = _hovered ? colors.hoverForeground : colors.foreground;
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) {
+          setState(() {
+            _hovered = true;
+          });
+        },
+        onExit: (_) {
+          setState(() {
+            _hovered = false;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          transform: Matrix4.translationValues(0, _hovered ? -1 : 0, 0),
+          child: IconButton(
+            tooltip: widget.tooltip,
+            style: ButtonStyle(
+              fixedSize: const WidgetStatePropertyAll(Size.square(32)),
+              minimumSize: const WidgetStatePropertyAll(Size.square(32)),
+              maximumSize: const WidgetStatePropertyAll(Size.square(32)),
+              padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)) {
+                  return colors.hoverBackground;
+                }
+                return Colors.transparent;
+              }),
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)) {
+                  return colors.hoverForeground;
+                }
+                return colors.foreground;
+              }),
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            ),
+            onPressed: widget.onPressed,
+            icon: IconTheme(
+              data: IconThemeData(color: foreground, size: 18),
+              child: widget.icon,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentSongActionButtonColors {
+  const _RecentSongActionButtonColors({
+    required this.foreground,
+    required this.hoverBackground,
+    required this.hoverForeground,
+  });
+
+  final Color foreground;
+  final Color hoverBackground;
+  final Color hoverForeground;
+
+  static const light = _RecentSongActionButtonColors(
+    foreground: Color(0xb8586474),
+    hoverBackground: Color(0x9effffff),
+    hoverForeground: _RecentColors.accentStrong,
+  );
+
+  static const dark = _RecentSongActionButtonColors(
+    foreground: Color(0xadcbd5e1),
+    hoverBackground: Color(0x17ffffff),
+    hoverForeground: Color(0xff459de2),
+  );
+
+  static _RecentSongActionButtonColors of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
   }
 }
 
