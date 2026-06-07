@@ -37,6 +37,20 @@ final nowPlayingQueueOverrideProvider = StateProvider<List<int>?>((ref) {
   return null;
 });
 
+final lyricsSavedEventProvider = StateProvider<({int revision, int songId})?>((
+  ref,
+) {
+  return null;
+});
+
+void notifyLyricsSaved(WidgetRef ref, int songId) {
+  final notifier = ref.read(lyricsSavedEventProvider.notifier);
+  notifier.state = (
+    revision: (notifier.state?.revision ?? 0) + 1,
+    songId: songId,
+  );
+}
+
 void invalidateRecentSearchData(WidgetRef ref) {
   ref.invalidate(libraryContentDataProvider);
   ref.invalidate(recentPageDataProvider);

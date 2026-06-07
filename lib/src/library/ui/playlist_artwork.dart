@@ -1,7 +1,6 @@
 import '../data/library_models.dart';
 import '../data/library_repository.dart';
 import 'local_folder_model.dart';
-import 'song_display_helpers.dart';
 
 final _playlistArtworkUrlsCache = <String, List<String>>{};
 final _localFolderThumbnailUrlsCache = <String, List<String>>{};
@@ -26,7 +25,7 @@ Future<List<String>> resolvePlaylistArtworkUrls(
   final songsByAlbum = <String, List<LibrarySong>>{};
 
   for (final song in songs) {
-    final album = canonicalAlbumName(song);
+    final album = song.album;
     final albumSongs = songsByAlbum[album];
     if (albumSongs == null) {
       songsByAlbum[album] = [song];

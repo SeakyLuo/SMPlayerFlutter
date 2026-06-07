@@ -11,7 +11,7 @@ Flutter target:
 
 | Area | Electron rule | Flutter acceptance check |
 | --- | --- | --- |
-| Overlay | `.song-dialog-overlay` covers viewport, z-index layer, centered grid, `rgba(24,30,38,.24)`, blur 12. Night overlay is `rgba(4,8,13,.62)`. | `PopupDialog` fills the viewport, applies 12 blur, and uses `PopupDialogResolvedColors.overlay` for light/night. |
+| Overlay | `.song-dialog-overlay` covers viewport, z-index layer, centered grid, `rgba(24,30,38,.24)`, blur 12. Night overlay is `rgba(4,8,13,.62)`. User later overrode the Flutter target by requesting the plain BackgroundFilter be changed to project liquid glass. | `PopupDialog` fills the viewport, uses `PopupDialogResolvedColors.overlay` for light/night, removes the old standalone `BackdropFilter blur(12)` wrapper, and drives the backdrop through the same `GlassContainer` liquid-glass settings as `MenuFlyout`. |
 | Desktop shell size | `.song-dialog` is `width:min(780px, calc(100vw - 48px))`, `height:min(760px, calc(100vh - 48px))`, centered. | At `1200x900`, default dialog is `780x760`; at desktop sizes smaller than defaults it subtracts `48px`. |
 | Desktop shell chrome | Border `rgba(185,195,210,.5)`, radius `12px`, background `rgba(250,252,255,.98)`, shadow `0 26 80 rgba(35,45,60,.28)`. | Light colors come from `PopupDialogResolvedColors.light`; dark shell uses dark extension values. |
 | Layout rows | Electron default grid is `auto auto minmax(0,1fr)`; dialogs that do not use `afterNav` effectively render nav, optional after-nav, body, footer. | Flutter shell renders nav, optional `afterNav`, expanded child, optional footer in that order. |

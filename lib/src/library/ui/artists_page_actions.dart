@@ -148,9 +148,13 @@ extension _ArtistsPageActions on _ArtistsPageState {
     );
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     _updateArtistsPageState(() {
-      _musicDialog = (song: song, mode: mode);
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
     });
   }
 

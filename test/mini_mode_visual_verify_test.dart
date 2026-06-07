@@ -92,6 +92,7 @@ void main() {
                 ),
                 repository: const _MiniModeVisualRepository(),
                 playerLyricsSource: LyricsRequestMode.auto,
+                lyricsRefreshRevision: 0,
                 previousButtonRestartsTrack: false,
                 onExit: () {},
                 onTogglePlayPause: () {},
@@ -137,6 +138,99 @@ void main() {
       repaintKey,
       '/tmp/smplayer_mini_mode_controls_verify.png',
     );
+  });
+
+  testWidgets('mini mode refreshes lyrics after MusicDialog save event', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 360);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _RefreshingMiniModeRepository();
+
+    Widget buildMiniMode(int revision) {
+      return SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.dark],
+          ),
+          home: Material(
+            child: MiniModeSurface(
+              state: const MediaControlState(
+                track: MediaControlTrack(
+                  id: 10,
+                  title: 'First Song',
+                  artist: 'First Artist',
+                  artworkUrl: '',
+                  isLoading: false,
+                  favorite: false,
+                ),
+                disabled: false,
+                isPlaying: false,
+                volume: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                progressSeconds: 42,
+                durationSeconds: 180,
+                isProgressSeeking: false,
+              ),
+              i18n: i18n,
+              currentSong: const LibrarySong(
+                id: 10,
+                path: '/tmp/first.mp3',
+                title: 'First Song',
+                artist: 'First Artist',
+                artists: ['First Artist'],
+                album: 'First Album',
+                duration: 180,
+                playCount: 0,
+                lyricsOffsetMs: 0,
+                dateAdded: '2026-01-01T00:00:00Z',
+                favorite: false,
+                thumbnailPath: '',
+              ),
+              repository: repository,
+              playerLyricsSource: LyricsRequestMode.auto,
+              lyricsRefreshRevision: revision,
+              previousButtonRestartsTrack: false,
+              onExit: () {},
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onForcePrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onCyclePlaybackMode: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleMute: () {},
+              onVolumeChange: (_) {},
+              onOpenVoiceAssistant: null,
+              onWindowDragStart: null,
+              onWindowDragEnd: null,
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildMiniMode(0));
+    await tester.pumpAndSettle();
+    expect(repository.requests, 1);
+    expect(find.text('First refreshed lyric'), findsWidgets);
+
+    await tester.pumpWidget(buildMiniMode(1));
+    await tester.pumpAndSettle();
+    expect(repository.requests, 2);
+    expect(find.text('Second refreshed lyric'), findsWidgets);
+    expect(find.text('First refreshed lyric'), findsNothing);
   });
 
   testWidgets('mini mode playback mode button follows compact cycle surface', (
@@ -192,6 +286,7 @@ void main() {
               ),
               repository: const _MiniModeVisualRepository(),
               playerLyricsSource: LyricsRequestMode.auto,
+              lyricsRefreshRevision: 0,
               previousButtonRestartsTrack: false,
               onExit: () {},
               onTogglePlayPause: () {},
@@ -295,6 +390,7 @@ void main() {
                 ),
                 repository: const _MiniModeVisualRepository(),
                 playerLyricsSource: LyricsRequestMode.auto,
+                lyricsRefreshRevision: 0,
                 previousButtonRestartsTrack: false,
                 onExit: () {},
                 onTogglePlayPause: () {},
@@ -396,6 +492,26 @@ class _MiniModeVisualRepository extends LibraryRepository {
           text: 'This is the current lyric line',
         ),
       ],
+    );
+  }
+}
+
+class _RefreshingMiniModeRepository extends LibraryRepository {
+  int requests = 0;
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
+    requests += 1;
+    final text =
+        requests == 1 ? 'First refreshed lyric' : 'Second refreshed lyric';
+    return LyricsSnapshot(
+      source: LyricsSource.textFile,
+      isSynced: true,
+      rawText: text,
+      lines: [LyricsLine(id: requests, timestampMs: 0, text: text)],
     );
   }
 }

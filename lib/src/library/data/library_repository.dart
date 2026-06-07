@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'library_audio_metadata_service.dart';
 import 'library_artist_split_service.dart';
@@ -899,6 +900,15 @@ class LibraryRepository {
   Future<LyricsSnapshot> getInternetLyrics(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
     return _lyricsService.getInternetLyrics(databaseFile, songId);
+  }
+
+  Future<void> openLyricsSearchInBrowser(int songId) async {
+    final databaseFile = await _resolveDatabaseFile();
+    final uri = await _lyricsService.getLyricsSearchUri(databaseFile, songId);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      throw StateError('Failed to open lyrics search in browser.');
+    }
   }
 
   Future<LyricsBatchResult> batchAddInternetLyrics({

@@ -7,6 +7,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
     Offset position,
     LibrarySong song,
     int index,
+    List<int> queueSongIds,
   ) async {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
@@ -159,13 +160,13 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
           widget.onAlbumClick?.call(song_display.displayAlbum(song, i18n));
         },
         onSeeMusicInfo: () {
-          _openMusicDialog(song, SongDialogMode.properties);
+          _openMusicDialog(song, SongDialogMode.properties, queueSongIds);
         },
         onSeeLyrics: () {
-          _openMusicDialog(song, SongDialogMode.lyrics);
+          _openMusicDialog(song, SongDialogMode.lyrics, queueSongIds);
         },
         onSeeAlbumArt: () {
-          _openMusicDialog(song, SongDialogMode.albumArt);
+          _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
         onSeeLocal: () {
           unawaited(_revealPath(song.path));

@@ -1,21 +1,34 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+// ignore: unnecessary_import
+import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+// ignore: unused_import
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/svg_icon.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
+import 'package:path/path.dart' as p;
 
 part 'music_dialog_helpers.dart';
 part 'music_info_control.dart';
@@ -23,9 +36,12 @@ part 'music_lyrics_control.dart';
 part 'music_album_art_control.dart';
 part 'music_dialog_controls.dart';
 part 'album_art_library_picker_dialog.dart';
+part 'music_dialog_state_helpers.dart';
 
 typedef MusicDialogPlayTrackCallback =
     void Function(int trackId, List<int> queueSongIds);
+typedef MusicDialogEntry =
+    ({LibrarySong song, SongDialogMode mode, List<int> queueSongIds});
 
 enum SongDialogMode { properties, lyrics, albumArt }
 
@@ -102,19 +118,23 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _updatingControllers = false;
   var _showLyricsTimestamps = true;
   var _showArtworkDeleteConfirm = false;
+  var _discardLyricsConfirmOpen = false;
   SongPropertiesSnapshot? _properties;
   SongPropertiesSnapshot? _originalProperties;
   LyricsSnapshot? _lyrics;
   String _lyricsRawText = '';
   String _originalLyricsText = '';
-  String _artworkUrl = '';
-  String _originalArtworkUrl = '';
+  String _displayArtworkUrl = '';
+  String _originalDisplayArtworkUrl = '';
   String _artworkSourcePath = '';
   var _artworkMissing = false;
   var _originalArtworkMissing = false;
   var _artworkRecommendationLoading = false;
+  var _artworkRecommendationRequestKey = '';
   AlbumArtRecommendation? _artworkRecommendation;
   var _libraryArtworkPickerOpen = false;
+  var _loadGeneration = 0;
+  var _dependenciesInitialized = false;
   final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');
 
   final _titleController = TextEditingController();
@@ -135,20 +155,48 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   final _genreController = TextEditingController();
   final _pathController = TextEditingController();
   final _lyricsController = TextEditingController();
+  final _lyricsScrollController = ScrollController();
   final _artistControllers = <TextEditingController>[];
 
   @override
   void initState() {
     super.initState();
     _addControllerListeners();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_dependenciesInitialized) {
+      return;
+    }
+    _dependenciesInitialized = true;
     _loadSong();
   }
 
   @override
   void didUpdateWidget(covariant MusicDialog oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialMode != widget.initialMode ||
-        oldWidget.song.id != widget.song.id) {
+    if (oldWidget.song.id != widget.song.id) {
+      _queuePendingLyricsNotificationIfNeeded(
+        songId: oldWidget.song.id,
+        title: oldWidget.song.title,
+        rawLyrics: _currentLyricsRawText,
+        refreshLatestLyrics: true,
+      );
+    } else if (oldWidget.currentTrackId == oldWidget.song.id &&
+        widget.currentTrackId != widget.song.id) {
+      _queuePendingLyricsNotificationIfNeeded(
+        songId: widget.song.id,
+        title: widget.song.title,
+        rawLyrics: _currentLyricsRawText,
+        refreshLatestLyrics: true,
+      );
+    }
+    if (oldWidget.initialMode != widget.initialMode) {
+      _mode = widget.initialMode;
+    }
+    if (oldWidget.song.id != widget.song.id) {
       _mode = widget.initialMode;
       _loadSong();
     }
@@ -166,14 +214,23 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       _yearController,
       _genreController,
       _composersController,
-      _lyricsController,
     ]) {
       controller.addListener(_handleEditorChanged);
     }
+    _lyricsController.addListener(_handleLyricsEditorChanged);
   }
 
   void _handleEditorChanged() {
     if (mounted && !_updatingControllers) {
+      setState(() {});
+    }
+  }
+
+  void _handleLyricsEditorChanged() {
+    if (mounted && !_updatingControllers) {
+      if (_showLyricsTimestamps) {
+        _lyricsRawText = _lyricsController.text;
+      }
       setState(() {});
     }
   }
@@ -198,6 +255,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     _genreController.dispose();
     _pathController.dispose();
     _lyricsController.dispose();
+    _lyricsScrollController.dispose();
     _shortcutFocusNode.dispose();
     for (final controller in _artistControllers) {
       controller.dispose();
@@ -221,10 +279,18 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     final librarySongs =
         ref.watch(libraryContentDataProvider).valueOrNull?.songs ??
         const <LibrarySong>[];
+    final artworkRecommendationRequestKey =
+        _artworkMissing &&
+                !_artworkRecommendationLoading &&
+                _artworkRecommendation == null &&
+                librarySongs.isNotEmpty
+            ? _albumArtRecommendationRequestKey(widget.song, librarySongs)
+            : '';
     if (_artworkMissing &&
         !_artworkRecommendationLoading &&
         _artworkRecommendation == null &&
-        librarySongs.isNotEmpty) {
+        librarySongs.isNotEmpty &&
+        artworkRecommendationRequestKey != _artworkRecommendationRequestKey) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _loadArtworkRecommendation();
@@ -248,7 +314,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
             navChildren: [
               PopupDialogTab(
                 label: _dialogTabLabel(i18n.t('context.seeMusicInfo')),
-                icon: FluentIcons.info_20_regular,
+                iconWidget: const _ElectronIcon(_ElectronIconName.info),
                 selected: _mode == SongDialogMode.properties,
                 first: true,
                 onPressed: () {
@@ -259,7 +325,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
               ),
               PopupDialogTab(
                 label: _dialogTabLabel(i18n.t('context.seeLyrics')),
-                icon: FluentIcons.text_quote_20_regular,
+                iconWidget: const _ElectronIcon(_ElectronIconName.lyrics),
                 selected: _mode == SongDialogMode.lyrics,
                 onPressed: () {
                   setState(() {
@@ -269,7 +335,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
               ),
               PopupDialogTab(
                 label: _dialogTabLabel(i18n.t('context.seeAlbumArt')),
-                icon: FluentIcons.image_20_regular,
+                iconWidget: const _ElectronIcon(_ElectronIconName.pictures),
                 selected: _mode == SongDialogMode.albumArt,
                 last: true,
                 onPressed: () {
@@ -317,6 +383,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 saving: _saving,
                 lyrics: _lyrics,
                 lyricsController: _lyricsController,
+                lyricsScrollController: _lyricsScrollController,
                 lyricsDirty: _lyricsDirty,
                 showLyricsTimestamps: _showLyricsTimestamps,
                 lyricsCanToggleTimestamps: _lyricsCanToggleTimestamps,
@@ -330,7 +397,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 song: widget.song,
                 loading: _artworkLoading,
                 saving: _saving,
-                artworkUrl: _artworkUrl,
+                artworkUrl: _displayArtworkUrl,
                 artworkDirty: _artworkDirty,
                 recommendation: _artworkMissing ? _artworkRecommendation : null,
                 showDeleteConfirm: _showArtworkDeleteConfirm,
@@ -358,8 +425,8 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
             },
           ),
           if (_libraryArtworkPickerOpen)
-            _AlbumArtLibraryPickerDialog(
-              albumName: song_display.canonicalAlbumName(widget.song),
+            AlbumArtLibraryPickerDialog(
+              albumName: widget.song.album,
               currentSong: widget.song,
               songs: librarySongs,
               onApply: _applyAlbumArtLibraryChoice,
@@ -418,6 +485,8 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   }
 
   Future<void> _loadSong() async {
+    final generation = ++_loadGeneration;
+    final songId = widget.song.id;
     final repository = ref.read(libraryRepositoryProvider);
     setState(() {
       _loading = true;
@@ -426,43 +495,123 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       _showArtworkDeleteConfirm = false;
       _artworkSourcePath = '';
       _artworkRecommendation = null;
+      _artworkRecommendationLoading = false;
+      _artworkRecommendationRequestKey = '';
       _libraryArtworkPickerOpen = false;
     });
 
+    await Future.wait<void>([
+      _loadProperties(repository, songId, generation),
+      _loadLyrics(repository, songId, generation),
+      _loadArtwork(repository, songId, generation),
+    ]);
+  }
+
+  Future<void> _loadProperties(
+    LibraryRepository repository,
+    int songId,
+    int generation,
+  ) async {
     try {
-      final results = await Future.wait<Object>([
-        repository.getSongProperties(widget.song.id),
-        repository.getSongLyrics(widget.song.id),
-        repository.getSongArtworkSnapshot(widget.song.id),
-      ]);
-      if (!mounted) {
+      final properties = await repository.getSongProperties(songId);
+      if (!_isActiveLoad(songId, generation)) {
         return;
       }
 
-      final properties = results[0] as SongPropertiesSnapshot;
-      final lyrics = results[1] as LyricsSnapshot;
-      final artwork = results[2] as SongArtworkSnapshot;
-      _applyProperties(properties);
-      _lyrics = lyrics;
-      _lyricsRawText = lyrics.rawText;
-      _originalLyricsText = lyrics.rawText;
-      _lyricsController.text = lyrics.rawText;
-      _artworkUrl = artwork.artworkUrl;
-      _originalArtworkUrl = artwork.artworkUrl;
-      _artworkMissing =
-          artwork.source == SongArtworkSource.none ||
-          artwork.artworkUrl.isEmpty;
-      _originalArtworkMissing = _artworkMissing;
-      _loadArtworkRecommendation();
-    } finally {
-      if (mounted) {
+      setState(() {
+        _applyProperties(properties);
+        _loading = false;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadLyrics(
+    LibraryRepository repository,
+    int songId,
+    int generation,
+  ) async {
+    final i18n = context.smPlayerI18n;
+    try {
+      final lyrics = await repository.getSongLyrics(
+        songId,
+        mode: LyricsRequestMode.embedded,
+      );
+      if (!_isActiveLoad(songId, generation)) {
+        return;
+      }
+
+      setState(() {
+        _lyrics = lyrics;
+        _lyricsRawText = lyrics.rawText;
+        _originalLyricsText = lyrics.rawText;
+        _lyricsController.text = lyrics.rawText;
+        _lyricsLoading = false;
+      });
+    } catch (_) {
+      if (_isActiveLoad(songId, generation)) {
         setState(() {
-          _loading = false;
           _lyricsLoading = false;
+        });
+        _showMessage(i18n.t('song.getLyricsFailed'));
+      }
+    }
+  }
+
+  Future<void> _loadArtwork(
+    LibraryRepository repository,
+    int songId,
+    int generation,
+  ) async {
+    try {
+      final artwork = await repository.getSongArtworkSnapshot(songId);
+      if (!_isActiveLoad(songId, generation)) {
+        return;
+      }
+
+      setState(() {
+        _displayArtworkUrl = artwork.artworkUrl;
+        _originalDisplayArtworkUrl = artwork.artworkUrl;
+        _artworkMissing =
+            artwork.source == SongArtworkSource.none ||
+            artwork.artworkUrl.isEmpty;
+        _originalArtworkMissing = _artworkMissing;
+        _artworkLoading = false;
+      });
+      await _resolveDisplayArtwork(repository, songId, generation);
+      await _loadArtworkRecommendation();
+    } catch (_) {
+      if (_isActiveLoad(songId, generation)) {
+        setState(() {
           _artworkLoading = false;
         });
       }
     }
+  }
+
+  Future<void> _resolveDisplayArtwork(
+    LibraryRepository repository,
+    int songId,
+    int generation,
+  ) async {
+    if (!_artworkMissing || _displayArtworkUrl.isNotEmpty) {
+      return;
+    }
+    final snapshots = await repository.getSongArtworkSnapshots([songId]);
+    if (!_isActiveLoad(songId, generation)) {
+      return;
+    }
+    final snapshot = snapshots.single;
+    if (snapshot.artworkUrl.isEmpty) {
+      return;
+    }
+    setState(() {
+      _displayArtworkUrl = snapshot.artworkUrl;
+      _originalDisplayArtworkUrl = snapshot.artworkUrl;
+    });
+  }
+
+  bool _isActiveLoad(int songId, int generation) {
+    return mounted && _loadGeneration == generation && widget.song.id == songId;
   }
 
   Future<void> _loadArtworkRecommendation() async {
@@ -476,6 +625,12 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     if (songs == null) {
       return;
     }
+
+    final requestKey = _albumArtRecommendationRequestKey(widget.song, songs);
+    if (requestKey == _artworkRecommendationRequestKey) {
+      return;
+    }
+    _artworkRecommendationRequestKey = requestKey;
 
     final candidates = _getAlbumArtRecommendationCandidates(widget.song, songs);
     if (candidates.isEmpty) {
@@ -496,6 +651,9 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
           candidates.map((candidate) => candidate.song.id).toList(),
         );
     if (!mounted) {
+      return;
+    }
+    if (_artworkRecommendationRequestKey != requestKey) {
       return;
     }
     if (!_artworkMissing) {
@@ -541,8 +699,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     _subtitleController.text = properties.subtitle;
     _albumController.text = properties.album;
     _albumArtistController.text = properties.albumArtist;
-    _playCountController.text =
-        properties.playCount == 0 ? '' : properties.playCount.toString();
+    _playCountController.text = properties.playCount.toString();
     _publisherController.text = properties.publisher;
     _trackNumberController.text =
         properties.trackNumber == 0 ? '' : properties.trackNumber.toString();
@@ -550,13 +707,13 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         properties.year == 0 ? '' : properties.year.toString();
     _bitrateController.text =
         properties.bitrate == 0 ? '' : properties.bitrate.toString();
-    _composersController.text = properties.composers;
+    _composersController.text = _formatTagList(properties.composers);
     _dateCreatedController.text = _formatDateTime(properties.dateCreated);
     _dateModifiedController.text = _formatDateTime(properties.dateModified);
     _durationController.text = formatDuration(properties.duration.toDouble());
     _fileSizeController.text = _formatBytes(properties.fileSize);
     _fileTypeController.text = properties.fileType;
-    _genreController.text = properties.genre;
+    _genreController.text = _formatTagList(properties.genre);
     _pathController.text = properties.path;
     for (final controller in _artistControllers) {
       controller.dispose();
@@ -576,17 +733,18 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   }
 
   Future<void> _saveProperties() async {
-    if (_saving || _loading || _properties == null) {
+    if (_saving ||
+        _loading ||
+        _properties == null ||
+        _originalProperties == null) {
       return;
     }
     final i18n = context.smPlayerI18n;
 
     final artists =
-        _artistControllers
-            .map((controller) => controller.text.trim())
-            .where((artist) => artist.isNotEmpty)
-            .toSet()
-            .toList();
+        _normalizeArtists(
+          _artistControllers.map((controller) => controller.text).toList(),
+        ).take(maxArtistCells).toList();
     final nextProperties = _properties!.copyWith(
       title: _titleController.text.trim(),
       subtitle: _subtitleController.text.trim(),
@@ -599,6 +757,11 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       year: int.tryParse(_yearController.text) ?? 0,
       playCount: int.tryParse(_playCountController.text) ?? 0,
     );
+    if (!_isPropertiesModified(nextProperties, _originalProperties!)) {
+      _applyProperties(nextProperties);
+      _showMessage(i18n.t('song.propertiesUpdated'));
+      return;
+    }
     setState(() {
       _saving = true;
     });
@@ -644,26 +807,17 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       return;
     }
 
-    setState(() {
-      _saving = true;
-    });
-    try {
-      await ref
-          .read(libraryRepositoryProvider)
-          .updateSongPlayCount(widget.song.id, 0);
-      if (!mounted) {
-        return;
-      }
-      final nextProperties = _properties!.copyWith(playCount: 0);
-      _applyProperties(nextProperties);
-      _notifySaved();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-        });
-      }
+    await ref
+        .read(libraryRepositoryProvider)
+        .updateSongPlayCount(widget.song.id, 0);
+    if (!mounted) {
+      return;
     }
+    final nextProperties = _properties!.copyWith(playCount: 0);
+    setState(() {
+      _applyProperties(nextProperties);
+    });
+    _notifySaved();
   }
 
   Future<void> _saveLyrics() async {
@@ -690,14 +844,122 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       }
       _lyricsRawText = nextRawText;
       _originalLyricsText = nextRawText;
-      _lyrics = LyricsSnapshot(
-        source: LyricsSource.lrcFile,
-        isSynced: _lyricsCanToggleTimestamps,
-        rawText: _originalLyricsText,
-        lines: _parseLyricsLines(nextRawText),
-      );
+      _lyrics = _lyricsWithRawText(_lyrics, nextRawText);
       _notifySaved();
+      notifyLyricsSaved(ref, widget.song.id);
       _showMessage(i18n.t('song.lyricsUpdated', {'title': widget.song.title}));
+    } catch (_) {
+      if (mounted) {
+        _showMessage(i18n.t('song.updateFailed'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  void _queuePendingLyricsNotificationIfNeeded({
+    required int songId,
+    required String title,
+    required String rawLyrics,
+    required bool refreshLatestLyrics,
+  }) {
+    if (_mode != SongDialogMode.lyrics || !_lyricsDirty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _showPendingLyricsNotification(
+        songId: songId,
+        title: title,
+        rawLyrics: rawLyrics,
+        refreshLatestLyrics: refreshLatestLyrics,
+      );
+    });
+  }
+
+  void _showPendingLyricsNotification({
+    required int songId,
+    required String title,
+    required String rawLyrics,
+    required bool refreshLatestLyrics,
+  }) {
+    final i18n = context.smPlayerI18n;
+    showAppNotification(
+      context: context,
+      message: i18n.t('song.pendingSaveLyrics', {'title': title}),
+      duration: undoableNotificationDuration,
+      actions: [
+        AppNotificationAction(
+          label: i18n.t('song.saveImmediately'),
+          onPressed: () {
+            return _savePendingLyricsSnapshot(
+              songId: songId,
+              title: title,
+              rawLyrics: rawLyrics,
+              refreshLatestLyrics: refreshLatestLyrics,
+            );
+          },
+        ),
+        AppNotificationAction(
+          label: i18n.t('song.discardChanges'),
+          onPressed: () {
+            if (mounted && songId == widget.song.id) {
+              setState(() {
+                _lyricsRawText = _originalLyricsText;
+                _lyricsController.text =
+                    _showLyricsTimestamps
+                        ? _originalLyricsText
+                        : _stripLyricsTimestamps(_originalLyricsText);
+              });
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _savePendingLyricsSnapshot({
+    required int songId,
+    required String title,
+    required String rawLyrics,
+    required bool refreshLatestLyrics,
+  }) async {
+    final i18n = context.smPlayerI18n;
+    setState(() {
+      _saving = true;
+    });
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .saveSongLyrics(songId, rawLyrics);
+      if (!mounted) {
+        return;
+      }
+      ref.invalidate(libraryContentDataProvider);
+      if (songId == widget.song.id) {
+        _lyricsRawText = rawLyrics;
+        _originalLyricsText = rawLyrics;
+        _lyrics = _lyricsWithRawText(_lyrics, rawLyrics);
+        widget.onSaved?.call();
+        setState(() {});
+      }
+      notifyLyricsSaved(ref, songId);
+      if (refreshLatestLyrics) {
+        _showMessage(
+          i18n.t('song.lyricsUpdatedAndRefreshed', {
+            'savedTitle': title,
+            'currentTitle': _currentTrackTitle(),
+          }),
+        );
+      } else {
+        _showMessage(i18n.t('song.lyricsUpdated', {'title': title}));
+      }
     } catch (_) {
       if (mounted) {
         _showMessage(i18n.t('song.updateFailed'));
@@ -718,37 +980,46 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
     final i18n = context.smPlayerI18n;
     final beforeText = _lyricsController.text;
-    final uri = musicLyricsSearchUri(
-      locale: i18n.locale,
-      title: widget.song.title,
-      artist: song_display.displayArtists(widget.song, i18n),
-    );
     setState(() {
       _saving = true;
     });
     try {
-      final snapshot = await ref
-          .read(libraryRepositoryProvider)
-          .getInternetLyrics(widget.song.id);
+      final repository = ref.read(libraryRepositoryProvider);
+      late final LyricsSnapshot snapshot;
+      try {
+        snapshot = await repository.getInternetLyrics(widget.song.id);
+      } catch (_) {
+        await repository.openLyricsSearchInBrowser(widget.song.id);
+        if (!mounted) {
+          return;
+        }
+        _showMessage(i18n.t('song.openBrowserSuccessful'));
+        return;
+      }
       if (!mounted) {
         return;
       }
       if (snapshot.rawText.trim().isNotEmpty) {
-        _lyrics = snapshot;
-        _lyricsRawText = snapshot.rawText;
-        _lyricsController.text =
+        final nextText =
             _showLyricsTimestamps
                 ? snapshot.rawText
                 : _stripLyricsTimestamps(snapshot.rawText);
+        final unchanged = beforeText == nextText;
+        _lyrics = snapshot;
+        _lyricsRawText = snapshot.rawText;
+        _lyricsController.text = nextText;
+        if (!unchanged) {
+          _scrollLyricsToTop();
+        }
         _showMessage(
-          beforeText == _lyricsController.text
+          unchanged
               ? i18n.t('song.nothingChanged')
               : i18n.t('song.searchLyricsSuccessful'),
         );
         return;
       }
 
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await repository.openLyricsSearchInBrowser(widget.song.id);
       if (!mounted) {
         return;
       }
@@ -778,6 +1049,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     });
     try {
       final result = await FilePicker.pickFiles(
+        dialogTitle: i18n.t('song.importLyrics'),
         type: FileType.custom,
         allowedExtensions: _lyricsImportExtensions,
       );
@@ -795,6 +1067,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       _lyricsRawText = rawText;
       _lyricsController.text =
           _showLyricsTimestamps ? rawText : _stripLyricsTimestamps(rawText);
+      _scrollLyricsToTop();
       setState(() {});
     } catch (_) {
       if (mounted) {
@@ -822,14 +1095,15 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     var sourceName = '';
     try {
       final result = await FilePicker.pickFiles(
+        dialogTitle: i18n.t('song.chooseAlbumArtwork'),
         type: FileType.custom,
-        allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'mp3'],
+        allowedExtensions: _artworkSourceExtensions,
       );
       final filePath = result?.files.single.path;
       if (filePath == null) {
         return;
       }
-      sourceName = result!.files.single.name;
+      sourceName = p.basenameWithoutExtension(filePath);
 
       final preparedPath = await ref
           .read(libraryRepositoryProvider)
@@ -838,7 +1112,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         return;
       }
       setState(() {
-        _artworkUrl = preparedPath;
+        _displayArtworkUrl = preparedPath;
         _artworkSourcePath = preparedPath;
         _artworkMissing = false;
         _artworkRecommendation = null;
@@ -882,8 +1156,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         return;
       }
       setState(() {
-        _artworkUrl = _artworkSourcePath;
-        _originalArtworkUrl = _artworkSourcePath;
+        _originalDisplayArtworkUrl = _displayArtworkUrl;
         _artworkSourcePath = '';
         _artworkMissing = false;
         _originalArtworkMissing = false;
@@ -922,12 +1195,13 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         return;
       }
       setState(() {
-        _artworkUrl = '';
-        _originalArtworkUrl = '';
+        _displayArtworkUrl = '';
+        _originalDisplayArtworkUrl = '';
         _artworkSourcePath = '';
         _artworkMissing = true;
         _originalArtworkMissing = true;
         _artworkRecommendation = null;
+        _artworkRecommendationRequestKey = '';
         _showArtworkDeleteConfirm = false;
       });
       _loadArtworkRecommendation();
@@ -948,7 +1222,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   void _resetProperties() {
     final originalProperties = _originalProperties;
-    if (originalProperties == null) {
+    if (originalProperties == null || !_propertiesDirty) {
       return;
     }
 
@@ -959,20 +1233,29 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   }
 
   void _resetLyrics() {
+    if (!_lyricsDirty) {
+      return;
+    }
     _lyricsRawText = _originalLyricsText;
     _lyricsController.text =
         _showLyricsTimestamps
             ? _originalLyricsText
             : _stripLyricsTimestamps(_originalLyricsText);
+    _scrollLyricsToTop();
     setState(() {});
     _showMessage(context.smPlayerI18n.t('song.lyricsReset'));
   }
 
   void _resetArtwork() {
+    if (_artworkSourcePath.isEmpty) {
+      return;
+    }
     setState(() {
-      _artworkUrl = _originalArtworkUrl;
+      _displayArtworkUrl = _originalDisplayArtworkUrl;
       _artworkSourcePath = '';
       _artworkMissing = _originalArtworkMissing;
+      _artworkRecommendation = null;
+      _artworkRecommendationRequestKey = '';
       _showArtworkDeleteConfirm = false;
     });
     _loadArtworkRecommendation();
@@ -991,16 +1274,17 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   void _applyAlbumArtRecommendation(AlbumArtRecommendation recommendation) {
     setState(() {
-      _artworkUrl = recommendation.sourceUrl;
+      _displayArtworkUrl = recommendation.sourceUrl;
       _artworkSourcePath = recommendation.sourcePath;
       _artworkMissing = false;
+      _artworkRecommendation = null;
       _showArtworkDeleteConfirm = false;
     });
   }
 
   void _applyAlbumArtLibraryChoice(AlbumArtLibraryChoice choice) {
     setState(() {
-      _artworkUrl = choice.sourceUrl;
+      _displayArtworkUrl = choice.sourceUrl;
       _artworkSourcePath = choice.sourcePath;
       _artworkMissing = false;
       _artworkRecommendation = null;
@@ -1022,112 +1306,5 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       final controller = _artistControllers.removeAt(index);
       controller.dispose();
     });
-  }
-
-  void _requestClose() {
-    if (!_lyricsDirty) {
-      widget.onClose();
-      return;
-    }
-
-    showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final i18n = dialogContext.smPlayerI18n;
-        return AlertDialog(
-          title: Text(i18n.t('common.confirm')),
-          content: Text(i18n.t('song.discardLyricsConfirm')),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: Text(i18n.t('common.cancel')),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: Text(i18n.t('common.confirm')),
-            ),
-          ],
-        );
-      },
-    ).then((confirmed) {
-      if (confirmed == true) {
-        widget.onClose();
-      }
-    });
-  }
-
-  void _play() {
-    final currentTrackId = widget.currentTrackId;
-    if (currentTrackId == null || currentTrackId == widget.song.id) {
-      widget.onPlay?.call();
-      return;
-    }
-
-    widget.onPlayTrack?.call(widget.song.id, _playQueueSongIds);
-  }
-
-  List<int> get _playQueueSongIds {
-    if (widget.queueSongIds.contains(widget.song.id)) {
-      return widget.queueSongIds;
-    }
-    return [...widget.queueSongIds, widget.song.id];
-  }
-
-  void _notifySaved() {
-    ref.invalidate(libraryContentDataProvider);
-    widget.onSaved?.call();
-  }
-
-  bool get _propertiesDirty {
-    final original = _originalProperties;
-    if (original == null) {
-      return false;
-    }
-
-    return _titleController.text != original.title ||
-        _subtitleController.text != original.subtitle ||
-        _albumController.text != original.album ||
-        _albumArtistController.text != original.albumArtist ||
-        _publisherController.text != original.publisher ||
-        _trackNumberController.text !=
-            (original.trackNumber == 0
-                ? ''
-                : original.trackNumber.toString()) ||
-        _yearController.text !=
-            (original.year == 0 ? '' : original.year.toString()) ||
-        _playCountController.text !=
-            (original.playCount == 0 ? '' : original.playCount.toString()) ||
-        _artistControllers.map((controller) => controller.text).join('\n') !=
-            original.artists.join('\n');
-  }
-
-  String get _currentLyricsRawText {
-    return _showLyricsTimestamps
-        ? _lyricsController.text
-        : _mergePlainLyricsWithTimedRaw(_lyricsRawText, _lyricsController.text);
-  }
-
-  bool get _lyricsDirty => _currentLyricsRawText != _originalLyricsText;
-
-  bool get _artworkDirty => _artworkSourcePath.isNotEmpty;
-
-  bool get _lyricsCanToggleTimestamps {
-    return RegExp(
-      r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]',
-    ).hasMatch(_lyricsRawText);
-  }
-
-  String _dialogTabLabel(String label) {
-    return label
-        .replaceFirst(RegExp(r'^查看\s*'), '')
-        .replaceFirst(RegExp(r'^See\s+', caseSensitive: false), '');
-  }
-
-  void _showMessage(String message) {
-    showAppNotification(context: context, message: message);
   }
 }

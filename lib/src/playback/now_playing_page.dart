@@ -48,7 +48,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
-  ({LibrarySong song, SongDialogMode mode})? _songDialog;
+  MusicDialogEntry? _songDialog;
 
   @override
   void initState() {
@@ -567,13 +567,21 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                 MusicDialog(
                   song: dialog.song,
                   initialMode: dialog.mode,
-                  canPause:
-                      mediaControlState.isPlaying &&
-                      mediaControlState.track.id == dialog.song.id,
+                  currentTrackId: mediaControlState.track.id,
+                  isPlaying: mediaControlState.isPlaying,
+                  queueSongIds: dialog.queueSongIds,
                   onPlay:
                       ref
                           .read(mediaControlControllerProvider)
                           .onTogglePlayPause,
+                  onPlayTrack: (trackId, nextQueueSongIds) {
+                    final song = songsById[trackId]!;
+                    _playQueueTrack(
+                      song,
+                      nextQueueSongIds,
+                      nextQueueSongIds.indexOf(trackId),
+                    );
+                  },
                   onReveal: _revealPath,
                   onSaved: () {
                     ref.invalidate(libraryContentDataProvider);
@@ -886,17 +894,29 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         },
         onSeeMusicInfo: () {
           setState(() {
-            _songDialog = (song: song, mode: SongDialogMode.properties);
+            _songDialog = (
+              song: song,
+              mode: SongDialogMode.properties,
+              queueSongIds: queueSongIds,
+            );
           });
         },
         onSeeLyrics: () {
           setState(() {
-            _songDialog = (song: song, mode: SongDialogMode.lyrics);
+            _songDialog = (
+              song: song,
+              mode: SongDialogMode.lyrics,
+              queueSongIds: queueSongIds,
+            );
           });
         },
         onSeeAlbumArt: () {
           setState(() {
-            _songDialog = (song: song, mode: SongDialogMode.albumArt);
+            _songDialog = (
+              song: song,
+              mode: SongDialogMode.albumArt,
+              queueSongIds: queueSongIds,
+            );
           });
         },
         onSeeLocal: () {

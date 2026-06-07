@@ -12,6 +12,13 @@ const _appNotificationRadius = 8.0;
 
 _AppNotificationController? _currentNotification;
 
+class AppNotificationAction {
+  const AppNotificationAction({required this.label, required this.onPressed});
+
+  final String label;
+  final FutureOr<void> Function() onPressed;
+}
+
 class AppNotificationThemeColors
     extends ThemeExtension<AppNotificationThemeColors> {
   const AppNotificationThemeColors({
@@ -107,6 +114,7 @@ Future<SnackBarClosedReason> showAppNotification({
   Duration duration = appNotificationDuration,
   String? actionLabel,
   FutureOr<void> Function()? onAction,
+  List<AppNotificationAction>? actions,
 }) {
   return _showAppOverlayNotification(
     context: context,
@@ -114,6 +122,7 @@ Future<SnackBarClosedReason> showAppNotification({
     duration: duration,
     actionLabel: actionLabel,
     onAction: onAction,
+    actions: actions,
   );
 }
 
@@ -123,28 +132,32 @@ Future<SnackBarClosedReason> _showAppOverlayNotification({
   required Duration duration,
   String? actionLabel,
   FutureOr<void> Function()? onAction,
+  List<AppNotificationAction>? actions,
 }) {
   _currentNotification?.close(SnackBarClosedReason.hide);
 
   final controller = _AppNotificationController();
   final overlay = Overlay.of(context, rootOverlay: true);
-  final hasAction = actionLabel != null;
+  final resolvedActions =
+      actions ??
+      (actionLabel == null || onAction == null
+          ? const <AppNotificationAction>[]
+          : [AppNotificationAction(label: actionLabel, onPressed: onAction)]);
+  final hasAction = resolvedActions.isNotEmpty;
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder:
         (context) => _AppNotificationOverlay(
           message: message,
-          actionLabel: actionLabel,
+          actions: resolvedActions,
           bottomAligned: hasAction,
-          running: controller.running,
-          onAction:
-              hasAction
-                  ? () async {
-                    controller.setRunning();
-                    await Future<void>.sync(onAction!);
-                    controller.close(SnackBarClosedReason.action);
-                  }
-                  : null,
+          runningActionIndex: controller.runningActionIndex,
+          onAction: (actionIndex) async {
+            final action = resolvedActions[actionIndex];
+            controller.setRunning(actionIndex);
+            await Future<void>.sync(action.onPressed);
+            controller.close(SnackBarClosedReason.action);
+          },
         ),
   );
 
@@ -157,9 +170,10 @@ Future<SnackBarClosedReason> _showAppOverlayNotification({
 
 class _AppNotificationController {
   final closedCompleter = Completer<SnackBarClosedReason>();
-  final running = ValueNotifier<bool>(false);
+  final runningActionIndex = ValueNotifier<int?>(null);
   OverlayEntry? entry;
   Timer? timer;
+  bool isClosed = false;
 
   Future<SnackBarClosedReason> get closed => closedCompleter.future;
 
@@ -171,15 +185,20 @@ class _AppNotificationController {
     timer = Timer(duration, () => close(SnackBarClosedReason.timeout));
   }
 
-  void setRunning() {
+  void setRunning(int actionIndex) {
     timer?.cancel();
-    running.value = true;
+    runningActionIndex.value = actionIndex;
   }
 
   void close(SnackBarClosedReason reason) {
+    if (isClosed) {
+      return;
+    }
+    isClosed = true;
     timer?.cancel();
     entry?.remove();
-    running.dispose();
+    entry = null;
+    runningActionIndex.dispose();
     if (_currentNotification == this) {
       _currentNotification = null;
     }
@@ -193,16 +212,16 @@ class _AppNotificationOverlay extends StatelessWidget {
   const _AppNotificationOverlay({
     required this.message,
     required this.bottomAligned,
-    required this.running,
-    this.actionLabel,
-    this.onAction,
+    required this.runningActionIndex,
+    required this.actions,
+    required this.onAction,
   });
 
   final String message;
-  final String? actionLabel;
+  final List<AppNotificationAction> actions;
   final bool bottomAligned;
-  final ValueListenable<bool> running;
-  final VoidCallback? onAction;
+  final ValueListenable<int?> runningActionIndex;
+  final ValueChanged<int> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +247,7 @@ class _AppNotificationOverlay extends StatelessWidget {
       child: GlassContainer(
         useOwnLayer: true,
         quality: GlassQuality.minimal,
+        clipBehavior: Clip.hardEdge,
         shape: const LiquidRoundedRectangle(
           borderRadius: _appNotificationRadius,
         ),
@@ -241,7 +261,7 @@ class _AppNotificationOverlay extends StatelessWidget {
           ambientStrength: 0.08,
           glowIntensity: 0.04,
           glassColor: colors.glass,
-          standardOpacityMultiplier: 0.35,
+          standardOpacityMultiplier: 0.24,
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -254,12 +274,7 @@ class _AppNotificationOverlay extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              22,
-              15,
-              actionLabel == null ? 22 : 16,
-              15,
-            ),
+            padding: EdgeInsets.fromLTRB(22, 15, actions.isEmpty ? 22 : 16, 15),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -277,12 +292,22 @@ class _AppNotificationOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (actionLabel != null) ...[
+                if (actions.isNotEmpty) ...[
                   const SizedBox(width: 14),
-                  _NotificationActionButton(
-                    label: actionLabel!,
-                    running: running,
-                    onPressed: onAction!,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (index, action) in actions.indexed)
+                        _NotificationActionButton(
+                          label: action.label,
+                          actionIndex: index,
+                          runningActionIndex: runningActionIndex,
+                          onPressed: () {
+                            onAction(index);
+                          },
+                        ),
+                    ],
                   ),
                 ],
               ],
@@ -309,23 +334,27 @@ class _AppNotificationOverlay extends StatelessWidget {
 class _NotificationActionButton extends StatelessWidget {
   const _NotificationActionButton({
     required this.label,
-    required this.running,
+    required this.actionIndex,
+    required this.runningActionIndex,
     required this.onPressed,
   });
 
   final String label;
-  final ValueListenable<bool> running;
+  final int actionIndex;
+  final ValueListenable<int?> runningActionIndex;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppNotificationThemeColors.of(context);
     final accent = Theme.of(context).colorScheme.primary;
-    return ValueListenableBuilder<bool>(
-      valueListenable: running,
-      builder: (context, isRunning, child) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: runningActionIndex,
+      builder: (context, runningIndex, child) {
+        final hasRunningAction = runningIndex != null;
+        final isRunning = runningIndex == actionIndex;
         return TextButton(
-          onPressed: isRunning ? null : onPressed,
+          onPressed: hasRunningAction ? null : onPressed,
           style: ButtonStyle(
             minimumSize: const WidgetStatePropertyAll(Size(64, 36)),
             padding: const WidgetStatePropertyAll(

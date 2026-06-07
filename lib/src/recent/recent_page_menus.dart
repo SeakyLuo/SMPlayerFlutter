@@ -141,13 +141,13 @@ extension _RecentPageMenus on _RecentPageState {
           );
         },
         onSeeMusicInfo: () {
-          _openMusicDialog(song, SongDialogMode.properties);
+          _openMusicDialog(song, SongDialogMode.properties, queueSongIds);
         },
         onSeeLyrics: () {
-          _openMusicDialog(song, SongDialogMode.lyrics);
+          _openMusicDialog(song, SongDialogMode.lyrics, queueSongIds);
         },
         onSeeAlbumArt: () {
-          _openMusicDialog(song, SongDialogMode.albumArt);
+          _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
         onSeeLocal: () {
           unawaited(revealItemInFolder(song.path));
@@ -156,9 +156,13 @@ extension _RecentPageMenus on _RecentPageState {
     );
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     setState(() {
-      _musicDialog = (song: song, mode: mode);
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
     });
   }
 

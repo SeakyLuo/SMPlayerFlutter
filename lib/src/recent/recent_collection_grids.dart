@@ -185,10 +185,9 @@ class _RecentArtistList extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final artist = group.items[index];
                           final key = 'artists:${artist.name}';
-                          final firstSong = artist.songs.first;
                           return _ArtistRow(
                             artist: artist,
-                            imagePath: firstSong.thumbnailPath,
+                            imagePath: artist.artworkUrl,
                             selected: selectedKeys.contains(key),
                             multiSelect: multiSelect,
                             onOpen: () {

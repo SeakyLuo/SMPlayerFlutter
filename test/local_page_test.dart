@@ -2928,8 +2928,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Root Song'), findsWidgets);
-    expect(find.text('See Lyrics'), findsOneWidget);
-    expect(find.text('See Album Art'), findsOneWidget);
+    expect(find.text('Music Info'), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Album Art'), findsOneWidget);
   });
 
   testWidgets('LocalPage song See Local sends Electron song path', (

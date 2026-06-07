@@ -120,7 +120,7 @@ class _SearchResultSection extends StatelessWidget {
   final ValueChanged<LibrarySong> onDeleteSong;
   final ValueChanged<String> onOpenArtist;
   final ValueChanged<String> onOpenAlbum;
-  final void Function(LibrarySong, SongDialogMode) onOpenMusicDialog;
+  final void Function(LibrarySong, SongDialogMode, List<int>) onOpenMusicDialog;
   final ValueChanged<SearchResult> onPreviewAlbumArt;
   final ValueChanged<SearchResult> onSearchDirectory;
   final Future<void> Function(SearchResult) onRevealCard;
@@ -264,7 +264,12 @@ class _SearchResultSection extends StatelessWidget {
             },
             onRemoveFromListClick: () {},
             onOpenContextMenu: (position) {
-              _showSongContextMenu(context, position, songs[index]);
+              _showSongContextMenu(
+                context,
+                position,
+                songs[index],
+                songs.map((song) => song.id).toList(),
+              );
             },
           ),
       ],
@@ -442,6 +447,7 @@ class _SearchResultSection extends StatelessWidget {
     BuildContext context,
     Offset position,
     LibrarySong song,
+    List<int> queueSongIds,
   ) async {
     final mediaState = mediaControlState;
     final preferenceLevel = await onGetSongPreferenceLevel(song);
@@ -515,13 +521,13 @@ class _SearchResultSection extends StatelessWidget {
           onOpenAlbum(song_display.displayAlbum(song, context.smPlayerI18n));
         },
         onSeeMusicInfo: () {
-          onOpenMusicDialog(song, SongDialogMode.properties);
+          onOpenMusicDialog(song, SongDialogMode.properties, queueSongIds);
         },
         onSeeLyrics: () {
-          onOpenMusicDialog(song, SongDialogMode.lyrics);
+          onOpenMusicDialog(song, SongDialogMode.lyrics, queueSongIds);
         },
         onSeeAlbumArt: () {
-          onOpenMusicDialog(song, SongDialogMode.albumArt);
+          onOpenMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
         onSeeLocal: () => onRevealSong(song),
       ),

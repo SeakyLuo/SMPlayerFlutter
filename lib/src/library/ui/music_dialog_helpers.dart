@@ -1,39 +1,27 @@
 part of 'music_dialog.dart';
 
-const _lyricsImportExtensions = [
-  'lrc',
-  'txt',
+const _musicDialogAudioExtensions = [
   'aac',
   'aiff',
-  'aif',
   'alac',
   'ape',
   'flac',
   'm4a',
   'mp3',
-  'mp4',
-  'oga',
   'ogg',
   'opus',
   'wav',
   'wma',
 ];
 
-Uri musicLyricsSearchUri({
-  required String locale,
-  required String title,
-  required String artist,
-}) {
-  final isChineseLanguage = locale == 'zh-CN' || locale == 'zh-Hant';
-  final keyword = isChineseLanguage ? '歌词' : 'lyrics';
-  final host =
-      isChineseLanguage
-          ? 'https://cn.bing.com/search'
-          : 'https://www.bing.com/search';
-  return Uri.parse(
-    '$host?q=${Uri.encodeQueryComponent([keyword, title, artist].where((value) => value.isNotEmpty).join(' '))}',
-  );
-}
+const _lyricsImportExtensions = ['lrc', 'txt', ..._musicDialogAudioExtensions];
+
+const _artworkImageExtensions = ['jpg', 'png', 'jpeg', 'webp', 'bmp'];
+
+const _artworkSourceExtensions = [
+  ..._artworkImageExtensions,
+  ..._musicDialogAudioExtensions,
+];
 
 final _lyricsTimestampRegex = RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]');
 final _lyricsMetadataRegex = RegExp(
@@ -99,31 +87,17 @@ String _mergePlainLyricsWithTimedRaw(String rawText, String plainText) {
   return mergedLines.join('\n').trim();
 }
 
-List<LyricsLine> _parseLyricsLines(String rawText) {
-  final lines = rawText.split(_lyricsLineBreakRegex);
-  return [
-    for (final entry in lines.indexed)
-      LyricsLine(
-        id: entry.$1,
-        timestampMs: _parseLyricsTimestamp(entry.$2),
-        text: entry.$2.replaceAll(_lyricsTimestampRegex, '').trim(),
-      ),
-  ];
-}
-
-int? _parseLyricsTimestamp(String line) {
-  final match = RegExp(
-    r'\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]',
-  ).firstMatch(line);
-  if (match == null) {
-    return null;
+LyricsSnapshot? _lyricsWithRawText(LyricsSnapshot? current, String rawText) {
+  if (current == null) {
+    return current;
   }
 
-  final minutes = int.parse(match.group(1)!);
-  final seconds = int.parse(match.group(2)!);
-  final fractionText = match.group(3) ?? '0';
-  final fraction = int.parse(fractionText.padRight(3, '0').substring(0, 3));
-  return minutes * 60000 + seconds * 1000 + fraction;
+  return LyricsSnapshot(
+    source: current.source,
+    isSynced: current.isSynced,
+    rawText: rawText,
+    lines: current.lines,
+  );
 }
 
 class _RankedSong {
@@ -150,11 +124,9 @@ List<_RankedSong> _getAlbumArtRecommendationCandidates(
               return null;
             }
 
-            final albumName = song_display.canonicalAlbumName(song);
             final sameAlbum =
-                albumName.isNotEmpty &&
-                song_display.canonicalAlbumName(candidate) == albumName;
-            final similarTitle = _isSimilarArtworkTitle(
+                song.album.trim().isNotEmpty && candidate.album == song.album;
+            final similarTitle = _isSimilarArtworkRecommendationTitle(
               song.title,
               candidate.title,
             );
@@ -183,68 +155,110 @@ List<_RankedSong> _getAlbumArtRecommendationCandidates(
   return candidates.take(24).toList();
 }
 
+String _albumArtRecommendationRequestKey(
+  LibrarySong currentSong,
+  List<LibrarySong> songs,
+) {
+  final buffer =
+      StringBuffer()
+        ..write(currentSong.id)
+        ..write('|')
+        ..write(currentSong.title)
+        ..write('|')
+        ..write(currentSong.album)
+        ..write('|')
+        ..write(currentSong.artists.join(','))
+        ..write('|');
+  for (final song in songs) {
+    buffer
+      ..write(song.id)
+      ..write('|')
+      ..write(song.title)
+      ..write('|')
+      ..write(song.album)
+      ..write('|')
+      ..write(song.artists.join(','))
+      ..write('|')
+      ..write(song.playCount)
+      ..write(';');
+  }
+  return buffer.toString();
+}
+
 List<_RankedSong> _getRankedArtworkSourceSongs({
   required List<LibrarySong> songs,
   required String albumName,
-  required LibrarySong currentSong,
+  required LibrarySong? currentSong,
   required String normalizedQuery,
 }) {
+  final artistSourceSongs =
+      currentSong == null
+          ? songs.where((song) => song.album == albumName)
+          : [currentSong];
   final artistKeys =
-      _getSongArtists(
-        currentSong,
-      ).map((artist) => artist.toLowerCase()).toSet();
+      artistSourceSongs
+          .expand((song) => _getSongArtists(song))
+          .map((artist) => artist.toLowerCase())
+          .toSet();
   final librarySongs =
-      songs.where((song) => song.id != currentSong.id).toList();
-  final ranked =
-      librarySongs
-          .map((song) {
-            final searchableText = _normalizeSearchText(
-              song_display.searchableSongText(song),
-            );
-            if (normalizedQuery.isNotEmpty &&
-                !searchableText.contains(normalizedQuery)) {
-              return null;
-            }
+      songs.where((song) => song.id != currentSong?.id).toList();
+  List<_RankedSong> rankSongs(Iterable<LibrarySong> sourceSongs) {
+    return sourceSongs
+        .map((song) {
+          final searchableText = _normalizeSearchText(
+            [song.title, song.album, ..._getSongArtists(song)].join(' '),
+          );
+          if (normalizedQuery.isNotEmpty &&
+              !searchableText.contains(normalizedQuery)) {
+            return null;
+          }
 
-            final sameAlbum =
-                albumName.isNotEmpty &&
-                song_display.canonicalAlbumName(song) == albumName;
-            final sameArtist = _isSameArtistSong(song, artistKeys);
-            final similarTitle = _isSimilarArtworkTitle(
-              currentSong.title,
-              song.title,
-            );
-            if (normalizedQuery.isEmpty && !sameArtist) {
-              return null;
-            }
+          final sameAlbum = albumName.isNotEmpty && song.album == albumName;
+          final sameArtist = _isSameArtistSong(song, artistKeys);
+          final similarTitle =
+              currentSong == null
+                  ? false
+                  : _isSimilarArtworkLibraryTitle(
+                    currentSong.title,
+                    song.title,
+                  );
 
-            return _RankedSong(
-              song: song,
-              score:
-                  (sameAlbum ? 40 : 0) +
-                  (sameArtist ? 20 : 0) +
-                  (similarTitle ? 12 : 0) +
-                  song.playCount.clamp(0, 5).toInt(),
-            );
-          })
-          .whereType<_RankedSong>()
-          .toList();
-
-  if (ranked.isEmpty && normalizedQuery.isEmpty) {
-    return [
-      for (final entry in librarySongs.take(20).indexed)
-        _RankedSong(song: entry.$2, score: 20 - entry.$1),
-    ];
+          return _RankedSong(
+            song: song,
+            score:
+                (sameAlbum ? 40 : 0) +
+                (sameArtist ? 20 : 0) +
+                (similarTitle ? 12 : 0) +
+                song.playCount.clamp(0, 5).toInt(),
+          );
+        })
+        .whereType<_RankedSong>()
+        .toList()
+      ..sort((left, right) {
+        final scoreCompare = right.score.compareTo(left.score);
+        if (scoreCompare != 0) {
+          return scoreCompare;
+        }
+        return left.song.title.compareTo(right.song.title);
+      });
   }
 
-  ranked.sort((left, right) {
-    final scoreCompare = right.score.compareTo(left.score);
-    if (scoreCompare != 0) {
-      return scoreCompare;
-    }
-    return left.song.title.compareTo(right.song.title);
-  });
-  return ranked;
+  if (normalizedQuery.isNotEmpty) {
+    return rankSongs(librarySongs);
+  }
+
+  final sameArtistSongs =
+      librarySongs
+          .where((song) => _isSameArtistSong(song, artistKeys))
+          .toList();
+  if (sameArtistSongs.isNotEmpty) {
+    return rankSongs(sameArtistSongs);
+  }
+
+  return [
+    for (final entry in librarySongs.take(20).indexed)
+      _RankedSong(song: entry.$2, score: 20 - entry.$1),
+  ];
 }
 
 bool _isSameArtistSong(LibrarySong song, Set<String> artistKeys) {
@@ -253,24 +267,44 @@ bool _isSameArtistSong(LibrarySong song, Set<String> artistKeys) {
   ).any((artist) => artistKeys.contains(artist.toLowerCase()));
 }
 
-List<String> _getSongArtists(LibrarySong song) {
-  return song_display.songArtists(song);
+List<String> _getSongArtists(
+  LibrarySong song, {
+  String unknownArtist = 'Unknown artist',
+}) {
+  final artists = song_display.songArtists(song);
+  return artists.isNotEmpty ? artists : [unknownArtist];
 }
 
 String _getDisplayArtists(LibrarySong song, SmPlayerI18n i18n) {
-  final artists = _getSongArtists(song);
-  if (artists.isEmpty) {
-    return i18n.t('common.artistUnknown');
-  }
-
-  return artists.join(i18n.t('common.artistSeparator'));
+  return _getSongArtists(
+    song,
+    unknownArtist: i18n.t('common.artistUnknown'),
+  ).join(i18n.t('common.artistSeparator'));
 }
 
 String _normalizeSearchText(String value) {
   return value.toLowerCase().replaceAll(RegExp(r'\s+'), '');
 }
 
-String _normalizeArtworkMatchText(String value) {
+String _normalizeArtworkRecommendationMatchText(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[（(【[].*?[）)】\]]'), '')
+      .replaceAll(RegExp(r'[\s\-_.·・:：,，/\\|]+'), '')
+      .trim();
+}
+
+bool _isSimilarArtworkRecommendationTitle(String left, String right) {
+  final normalizedLeft = _normalizeArtworkRecommendationMatchText(left);
+  final normalizedRight = _normalizeArtworkRecommendationMatchText(right);
+
+  return normalizedLeft.length >= 2 &&
+      normalizedRight.length >= 2 &&
+      (normalizedLeft.contains(normalizedRight) ||
+          normalizedRight.contains(normalizedLeft));
+}
+
+String _normalizeArtworkLibraryMatchText(String value) {
   return value
       .toLowerCase()
       .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '')
@@ -278,9 +312,9 @@ String _normalizeArtworkMatchText(String value) {
       .trim();
 }
 
-bool _isSimilarArtworkTitle(String left, String right) {
-  final normalizedLeft = _normalizeArtworkMatchText(left);
-  final normalizedRight = _normalizeArtworkMatchText(right);
+bool _isSimilarArtworkLibraryTitle(String left, String right) {
+  final normalizedLeft = _normalizeArtworkLibraryMatchText(left);
+  final normalizedRight = _normalizeArtworkLibraryMatchText(right);
 
   return normalizedLeft.length >= 2 &&
       normalizedRight.length >= 2 &&

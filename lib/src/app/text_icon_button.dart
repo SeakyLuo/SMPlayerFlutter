@@ -96,6 +96,7 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         constraints: BoxConstraints(
           minWidth: widget.showLabel ? widget.minWidth : iconOnlyWidth,
           minHeight: widget.height,
+          maxHeight: widget.height,
           maxWidth:
               widget.showLabel
                   ? widget.maxWidth ?? double.infinity

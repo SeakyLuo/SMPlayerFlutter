@@ -69,32 +69,54 @@ class MusicInfoControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final currentProperties = properties;
+    final titleFilename =
+        currentProperties == null
+            ? ''
+            : p.basenameWithoutExtension(currentProperties.path);
+    final showUseFilenameButton =
+        currentProperties != null && titleController.text != titleFilename;
+    final playCount = currentProperties?.playCount ?? 0;
+    final playCountTooltip =
+        playCount == 0
+            ? i18n.t('song.notPlayedYet', {'title': titleController.text})
+            : i18n.t('song.hasBeenPlayed', {
+              'title': titleController.text,
+              'count': playCount.toString(),
+            });
 
     return Column(
       children: [
         _MusicDialogCommandBar(
+          showBusy: saving,
           children: [
             if (onPlay != null)
               _MusicDialogCommandButton(
-                icon:
-                    canPause
-                        ? FluentIcons.pause_20_regular
-                        : FluentIcons.play_20_regular,
+                iconWidget: _ElectronIcon(
+                  canPause ? _ElectronIconName.pause : _ElectronIconName.play,
+                  size: 20,
+                ),
                 label:
                     canPause ? i18n.t('context.pause') : i18n.t('context.play'),
+                commandBar: true,
                 onPressed: onPlay,
               ),
             _MusicDialogCommandButton(
-              icon: FluentIcons.save_20_regular,
+              iconWidget: const _ElectronIcon(_ElectronIconName.save, size: 20),
               label: i18n.t('settings.save'),
               primary: true,
+              commandBar: true,
               disabled: loading || saving,
               onPressed: onSave,
             ),
             if (propertiesDirty)
               _MusicDialogCommandButton(
-                icon: FluentIcons.arrow_reset_20_regular,
+                iconWidget: const _ElectronIcon(
+                  _ElectronIconName.undo,
+                  size: 20,
+                ),
                 label: i18n.t('common.reset'),
+                commandBar: true,
                 disabled: loading || saving,
                 onPressed: onReset,
               ),
@@ -112,7 +134,34 @@ class MusicInfoControl extends StatelessWidget {
                       children: [
                         _PropertyRow(
                           label: i18n.t('table.title'),
-                          child: _DialogField(controller: titleController),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _DialogField(
+                                  controller: titleController,
+                                ),
+                              ),
+                              if (showUseFilenameButton) ...[
+                                const SizedBox(width: 8),
+                                _MusicDialogIconButton(
+                                  key: const ValueKey(
+                                    'MusicDialog.UseFileNameButton',
+                                  ),
+                                  iconWidget: const _ElectronIcon(
+                                    _ElectronIconName.refresh,
+                                    size: 18,
+                                  ),
+                                  tooltip: i18n.t('song.syncTitleToFilename', {
+                                    'filename': titleFilename,
+                                  }),
+                                  disabled: saving,
+                                  onPressed: () {
+                                    titleController.text = titleFilename;
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.subtitle'),
@@ -142,16 +191,25 @@ class MusicInfoControl extends StatelessWidget {
                           child: Row(
                             children: [
                               Expanded(
-                                child: _DialogField(
-                                  controller: playCountController,
-                                  readOnly: true,
+                                child: Tooltip(
+                                  message: playCountTooltip,
+                                  child: _DialogField(
+                                    controller: playCountController,
+                                    readOnly: true,
+                                  ),
                                 ),
                               ),
-                              if ((properties?.playCount ?? 0) > 0) ...[
+                              if (playCount > 0) ...[
                                 const SizedBox(width: 8),
-                                _MusicDialogCommandButton(
-                                  label: i18n.t('song.clearPlayCount'),
-                                  compact: true,
+                                _MusicDialogIconButton(
+                                  key: const ValueKey(
+                                    'MusicDialog.ClearPlayCountButton',
+                                  ),
+                                  iconWidget: const _ElectronIcon(
+                                    _ElectronIconName.undo,
+                                    size: 18,
+                                  ),
+                                  tooltip: i18n.t('song.resetPlayCountToZero'),
                                   disabled: saving,
                                   onPressed: onClearPlayCount,
                                 ),
@@ -241,9 +299,15 @@ class MusicInfoControl extends StatelessWidget {
                               ),
                               if (onReveal != null) ...[
                                 const SizedBox(width: 8),
-                                _MusicDialogCommandButton(
-                                  label: i18n.t('song.showInExplorer'),
-                                  compact: true,
+                                _MusicDialogIconButton(
+                                  key: const ValueKey(
+                                    'MusicDialog.ShowInExplorerButton',
+                                  ),
+                                  iconWidget: const _ElectronIcon(
+                                    _ElectronIconName.folder,
+                                    size: 18,
+                                  ),
+                                  tooltip: i18n.t('song.showInExplorer'),
                                   onPressed: () {
                                     onReveal!(pathController.text);
                                   },

@@ -638,13 +638,13 @@ Future<void> _showSongContextMenuForArtistsPage(
         );
       },
       onSeeMusicInfo: () {
-        state._openMusicDialog(song, SongDialogMode.properties);
+        state._openMusicDialog(song, SongDialogMode.properties, queueSongIds);
       },
       onSeeLyrics: () {
-        state._openMusicDialog(song, SongDialogMode.lyrics);
+        state._openMusicDialog(song, SongDialogMode.lyrics, queueSongIds);
       },
       onSeeAlbumArt: () {
-        state._openMusicDialog(song, SongDialogMode.albumArt);
+        state._openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
       },
       onSeeLocal: () {
         unawaited(revealItemInFolder(song.path));

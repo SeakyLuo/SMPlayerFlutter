@@ -117,7 +117,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
-  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  MusicDialogEntry? _musicDialog;
 
   @override
   void initState() {
@@ -543,21 +543,24 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                 MusicDialog(
                                   song: dialog.song,
                                   initialMode: dialog.mode,
-                                  canPause:
-                                      dialog.song.id ==
-                                          ref
-                                              .read(
-                                                mediaControlControllerProvider,
-                                              )
-                                              .state
-                                              .track
-                                              .id &&
+                                  currentTrackId:
                                       ref
-                                          .read(mediaControlControllerProvider)
+                                          .watch(mediaControlControllerProvider)
+                                          .state
+                                          .track
+                                          .id,
+                                  isPlaying:
+                                      ref
+                                          .watch(mediaControlControllerProvider)
                                           .state
                                           .isPlaying,
-                                  onPlay: () {
-                                    _playSongIds([dialog.song.id]);
+                                  queueSongIds: dialog.queueSongIds,
+                                  onPlay:
+                                      ref
+                                          .read(mediaControlControllerProvider)
+                                          .onTogglePlayPause,
+                                  onPlayTrack: (trackId, queueSongIds) {
+                                    _playTrackInQueue(trackId, queueSongIds);
                                   },
                                   onReveal: (path) {
                                     unawaited(revealItemInFolder(path));
@@ -754,12 +757,18 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       return;
     }
 
-    _showSongContextMenu(position, song, customPlaylists);
+    _showSongContextMenu(
+      position,
+      song,
+      sortedSongs.map((song) => song.id).toList(),
+      customPlaylists,
+    );
   }
 
   Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
+    List<int> queueSongIds,
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
@@ -899,13 +908,13 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         },
         onSeeMusicInfo: () {
-          _openMusicDialog(song, SongDialogMode.properties);
+          _openMusicDialog(song, SongDialogMode.properties, queueSongIds);
         },
         onSeeLyrics: () {
-          _openMusicDialog(song, SongDialogMode.lyrics);
+          _openMusicDialog(song, SongDialogMode.lyrics, queueSongIds);
         },
         onSeeAlbumArt: () {
-          _openMusicDialog(song, SongDialogMode.albumArt);
+          _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
         onSeeLocal: () {
           unawaited(revealItemInFolder(song.path));
@@ -914,9 +923,13 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     );
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     setState(() {
-      _musicDialog = (song: song, mode: mode);
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
     });
   }
 
@@ -1079,6 +1092,21 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           mediaControlTrackForSong(firstSong, context.smPlayerI18n),
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
+        );
+    ref.invalidate(libraryContentDataProvider);
+  }
+
+  void _playTrackInQueue(int trackId, List<int> queueSongIds) {
+    final snapshot = ref.read(libraryContentDataProvider).value!;
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final song = songsById[trackId]!;
+    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref
+        .read(mediaControlControllerProvider)
+        .playTrack(
+          mediaControlTrackForSong(song, context.smPlayerI18n),
+          durationSeconds: song.duration.toDouble(),
+          queueIndex: queueSongIds.indexOf(trackId),
         );
     ref.invalidate(libraryContentDataProvider);
   }

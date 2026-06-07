@@ -197,10 +197,13 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     ref.invalidate(libraryContentDataProvider);
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     _updateState(() {
-      _dialogSong = song;
-      _dialogMode = mode;
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
     });
   }
 

@@ -79,6 +79,24 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         : null;
   }
 
+  void _refreshPlayerLyricsAfterSave(int savedSongId) {
+    final currentSong = _resolvePlayerSong(
+      _mediaControlController.state,
+      ref.read(libraryContentDataProvider).valueOrNull,
+    );
+    if (currentSong?.id != savedSongId) {
+      return;
+    }
+    _desktopLyricsSongId = null;
+    _desktopLyricsLoadingSongId = null;
+    _desktopLyricsMode = null;
+    _desktopLyrics = null;
+    _lastDesktopLyricsSignature = null;
+    setState(() {
+      _playerLyricsRefreshRevision += 1;
+    });
+  }
+
   void _ensurePlayerArtworkResolved(LibrarySong? currentSong, WidgetRef ref) {
     if (currentSong == null) {
       return;

@@ -10,6 +10,7 @@ class SearchCommitIconButton extends StatefulWidget {
     required this.hoverForeground,
     this.hoverBackground = Colors.transparent,
     this.borderRadius = 0,
+    this.icon,
   });
 
   static const lightForeground = Color(0xff5f625f);
@@ -36,6 +37,7 @@ class SearchCommitIconButton extends StatefulWidget {
   final Color hoverForeground;
   final Color hoverBackground;
   final double borderRadius;
+  final Widget? icon;
 
   @override
   State<SearchCommitIconButton> createState() => _SearchCommitIconButtonState();
@@ -72,10 +74,17 @@ class _SearchCommitIconButtonState extends State<SearchCommitIconButton> {
                 borderRadius: BorderRadius.circular(widget.borderRadius),
               ),
               child: Center(
-                child: Icon(
-                  FluentIcons.search_24_regular,
-                  size: 19,
-                  color: _hovered ? widget.hoverForeground : widget.foreground,
+                child: IconTheme(
+                  data: IconThemeData(
+                    size: 19,
+                    color:
+                        _hovered
+                            ? widget.hoverForeground
+                            : widget.foreground,
+                  ),
+                  child:
+                      widget.icon ??
+                      const Icon(FluentIcons.search_24_regular),
                 ),
               ),
             ),

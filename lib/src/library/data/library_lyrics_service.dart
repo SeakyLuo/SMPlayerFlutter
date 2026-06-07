@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -25,6 +26,8 @@ const _audioFileExtensions = {
   '.wav',
   '.wma',
 };
+const _qqInvalidLyricsMarker = '濮濄倖鐡曢弴韫礋濞屸剝婀佹繅顐ョ槤閻ㄥ嫮鍑介棅鍏呯';
+const _qqNoLyricsPlaceholder = '此歌曲为没有填词的纯音乐请您欣赏';
 
 typedef InternetLyricsResolver = Future<String> Function(LibrarySong song);
 
@@ -153,6 +156,28 @@ class LibraryLyricsService {
     );
   }
 
+  Future<Uri> getLyricsSearchUri(File databaseFile, int songId) async {
+    final song = _getLyricsSongLookup(databaseFile, songId);
+    final settingsSnapshot = await _settingsSnapshotResolver();
+    final preferredLanguage =
+        settingsSnapshot?.preferredLanguage ??
+        settings.PreferredLanguage.system;
+    final isChineseLanguage =
+        preferredLanguage == settings.PreferredLanguage.zhCN ||
+        preferredLanguage == settings.PreferredLanguage.zhHant;
+    final keyword = isChineseLanguage ? '歌词' : 'lyrics';
+    final host =
+        isChineseLanguage
+            ? 'https://cn.bing.com/search'
+            : 'https://www.bing.com/search';
+    final query = [
+      keyword,
+      song.title,
+      song.artist,
+    ].where((value) => value.isNotEmpty).join(' ');
+    return Uri.parse('$host?q=${Uri.encodeQueryComponent(query)}');
+  }
+
   Future<LyricsBatchResult> batchAddInternetLyrics({
     required List<LibrarySong> songs,
     bool overwrite = false,
@@ -227,6 +252,7 @@ class LibraryLyricsService {
             _internetLyricsResolver == null
                 ? await _searchInternetLyrics(
                   _LyricsSongLookup(
+                    id: song.id,
                     title: song.title,
                     artist: song.artist,
                     album: song.album,
@@ -386,6 +412,7 @@ class LibraryLyricsService {
           _internetLyricsResolver == null
               ? await _searchInternetLyrics(
                 _LyricsSongLookup(
+                  id: song.id,
                   title: song.title,
                   artist: song.artist,
                   album: song.album,
@@ -453,6 +480,7 @@ class LibraryLyricsService {
       );
       final row = rows.first;
       return _LyricsSongLookup(
+        id: songId,
         title: row['title'] as String,
         artist: row['artist'] as String,
         album: row['album'] as String,
@@ -464,6 +492,27 @@ class LibraryLyricsService {
   }
 
   Future<String> _searchInternetLyrics(_LyricsSongLookup song) async {
+    final resolver = _internetLyricsResolver;
+    if (resolver != null) {
+      final lyrics = await resolver(
+        LibrarySong(
+          id: song.id,
+          path: song.path,
+          title: song.title,
+          artist: song.artist,
+          artists: const [],
+          album: song.album,
+          duration: 0,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+      );
+      return _isInvalidInternetLyricsResponse(lyrics) ? '' : lyrics;
+    }
+
     final songMid = await _getSongMid(song);
     if (songMid.isEmpty) {
       return '';
@@ -478,7 +527,7 @@ class LibraryLyricsService {
       final response = await _fetchLyricsJson(uri);
       final lyrics =
           _decodeHtmlEntities(response['lyric'] as String? ?? '').trim();
-      if (lyrics.isEmpty || _isNoLyricsPlaceholder(lyrics)) {
+      if (_isInvalidInternetLyricsResponse(lyrics)) {
         return '';
       }
 
@@ -496,11 +545,7 @@ class LibraryLyricsService {
       return null;
     }
 
-    final internetLyrics = await _prepareInternetLyrics(rawLyrics);
-    final snapshot = _createLyricsSnapshot(
-      internetLyrics,
-      LyricsSource.internet,
-    );
+    final snapshot = _createLyricsSnapshot(rawLyrics, LyricsSource.internet);
     return snapshot.isSynced && snapshot.lines.isNotEmpty ? snapshot : null;
   }
 
@@ -738,7 +783,10 @@ class LibraryLyricsService {
     final normalized =
         rawLyrics
             .replaceAll(
-              RegExp(r'\[(ti|ar|al|by|offset):[^\]]*\]', caseSensitive: false),
+              RegExp(
+                r'\[(ti|ar|al|au|by|offset|re|ve|length):[^\]]*\]',
+                caseSensitive: false,
+              ),
               ' ',
             )
             .replaceAll(RegExp(r'\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]'), ' ')
@@ -748,7 +796,13 @@ class LibraryLyricsService {
       return false;
     }
 
-    return normalized.contains('姝ゆ瓕鏇蹭负娌℃湁濉瘝鐨勭函闊充箰璇锋偍娆ｈ祻');
+    return normalized.contains(_qqNoLyricsPlaceholder);
+  }
+
+  bool _isInvalidInternetLyricsResponse(String rawLyrics) {
+    return rawLyrics.trim().isEmpty ||
+        rawLyrics.contains(_qqInvalidLyricsMarker) ||
+        _isNoLyricsPlaceholder(rawLyrics);
   }
 
   String _normalizeLyricsForCompare(String rawLyrics) {
@@ -764,18 +818,18 @@ class LibraryLyricsService {
   Future<LyricsSnapshot?> _getSidecarLyrics(String songPath) async {
     final lrcFile = File(p.setExtension(songPath, '.lrc'));
     if (await lrcFile.exists()) {
-      return _createLyricsSnapshot(
-        await lrcFile.readAsString(),
-        LyricsSource.lrcFile,
-      );
+      final lrcText = await lrcFile.readAsString();
+      if (lrcText.trim().isNotEmpty) {
+        return _createLyricsSnapshot(lrcText, LyricsSource.lrcFile);
+      }
     }
 
     final textFile = File(p.setExtension(songPath, '.txt'));
     if (await textFile.exists()) {
-      return _createLyricsSnapshot(
-        await textFile.readAsString(),
-        LyricsSource.textFile,
-      );
+      final text = await textFile.readAsString();
+      if (text.trim().isNotEmpty) {
+        return _createLyricsSnapshot(text, LyricsSource.textFile);
+      }
     }
 
     return null;
@@ -859,8 +913,11 @@ class LibraryLyricsService {
       final matches = timestampRegex.allMatches(line).toList();
       final text = line.replaceAll(timestampRegex, '').trim();
       if (matches.isEmpty) {
-        parsedLines.add(LyricsLine(id: lineId, timestampMs: null, text: text));
+        parsedLines.add(LyricsLine(id: lineId, timestampMs: null, text: line));
         lineId += 1;
+        continue;
+      }
+      if (text.isEmpty) {
         continue;
       }
 
@@ -877,8 +934,10 @@ class LibraryLyricsService {
         parsedLines.add(
           LyricsLine(
             id: lineId,
-            timestampMs:
-                minutes * 60000 + seconds * 1000 + fractionMs + offsetMs,
+            timestampMs: math.max(
+              0,
+              minutes * 60000 + seconds * 1000 + fractionMs + offsetMs,
+            ),
             text: text,
           ),
         );
@@ -892,10 +951,10 @@ class LibraryLyricsService {
         return left.id.compareTo(right.id);
       }
       if (leftTimestamp == null) {
-        return 1;
+        return -1;
       }
       if (rightTimestamp == null) {
-        return -1;
+        return 1;
       }
       final timestampCompare = leftTimestamp.compareTo(rightTimestamp);
       return timestampCompare == 0
@@ -908,12 +967,14 @@ class LibraryLyricsService {
 
 class _LyricsSongLookup {
   const _LyricsSongLookup({
+    required this.id,
     required this.title,
     required this.artist,
     required this.album,
     required this.path,
   });
 
+  final int id;
   final String title;
   final String artist;
   final String album;

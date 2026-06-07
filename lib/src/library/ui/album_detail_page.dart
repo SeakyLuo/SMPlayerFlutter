@@ -184,7 +184,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
               if (_showArtworkDialog)
                 AlbumArtworkDialog(
                   albumName: routeAlbumName,
-                  storedAlbumName: artworkSong.album,
                   artworkUrl: artworkUrl,
                   songId: artworkSong.id,
                   onClose: () {

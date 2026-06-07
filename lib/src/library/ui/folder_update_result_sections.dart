@@ -1,11 +1,13 @@
 import 'dart:async';
 
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/playback/playing_wave.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_panel.dart';
 
 import '../data/library_models.dart';
+import 'artwork_floating_action_button.dart';
 import 'default_album_artwork.dart';
 import 'folder_update_result_file_title.dart';
 import 'local_folder_model.dart';
@@ -73,7 +75,7 @@ class FolderUpdateResultFileSection extends StatelessWidget {
             final showsFullPath = title == path;
             final song =
                 playable
-                    ? songsByPathKey[normalizePath(path).toLowerCase()]!
+                    ? songsByPathKey[normalizePath(path).toLowerCase()]
                     : null;
             final current = song != null && song.id == selectedTrackId;
             return _FolderUpdateResultRow(
@@ -151,26 +153,27 @@ class _FolderUpdateResultArtworkState extends State<FolderUpdateResultArtwork> {
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 120),
                 opacity: showPlayOverlay ? 1 : 0,
-                child: SizedBox.square(
-                  dimension: 34,
-                  child: Material(
-                    color: const Color(0xb81e2228),
-                    shape: const CircleBorder(),
-                    elevation: 2,
-                    shadowColor: const Color(0x47141e28),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onFocusChange:
-                          (focused) => setState(() => _focused = focused),
-                      onTap: widget.onPlay,
-                      child: Icon(
+                child: Focus(
+                  onFocusChange:
+                      (focused) => setState(() => _focused = focused),
+                  child: ArtworkFloatingActionButton(
+                    tooltip:
                         widget.isPlaying
-                            ? FluentIcons.pause_16_filled
-                            : FluentIcons.play_16_filled,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
+                            ? context.smPlayerI18n.t('player.pause')
+                            : context.smPlayerI18n.t('context.play'),
+                    size: 34,
+                    iconSize: 16,
+                    icon:
+                        widget.isPlaying
+                            ? const SmPlayerPauseIcon(
+                              size: 16,
+                              color: Colors.white,
+                            )
+                            : const SmPlayerPlayIcon(
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                    onPressed: widget.onPlay,
                   ),
                 ),
               ),

@@ -7,12 +7,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
+import 'package:smplayer_flutter/src/app/shell_overlay_host.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
+import 'package:smplayer_flutter/src/app/shell_player_host.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -176,6 +179,129 @@ void main() {
 
     expect(resolveShellPlayerSong(snapshot, 3)?.title, 'Current artist song');
     expect(resolveShellPlayerSong(snapshot, null), isNull);
+  });
+
+  testWidgets('ShellOverlayHost opens MusicDialog from player dialog state', (
+    tester,
+  ) async {
+    const currentSong = LibrarySong(
+      id: 10,
+      path: '/tmp/current.mp3',
+      title: 'Current Song',
+      artist: 'Artist',
+      artists: ['Artist'],
+      album: 'Album',
+      duration: 180,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '',
+      favorite: false,
+      thumbnailPath: '',
+    );
+    const dialogSong = LibrarySong(
+      id: 20,
+      path: '/tmp/dialog.mp3',
+      title: 'Dialog Song',
+      artist: 'Artist',
+      artists: ['Artist'],
+      album: 'Album',
+      duration: 200,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '',
+      favorite: false,
+      thumbnailPath: '',
+    );
+    const snapshot = LibraryContentData(
+      songs: [currentSong, dialogSong],
+      hasLibrary: true,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      databasePath: '',
+      nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10, 20]),
+    );
+    final repository = _SnapshotRepository(snapshot);
+    final playerDialogNotifier = ValueNotifier<ShellPlayerDialog?>(null);
+    final playerDialogRefreshNotifier = ValueNotifier<int>(0);
+    final mediaController =
+        MediaControlController()..playTrack(
+          const MediaControlTrack(
+            id: 10,
+            title: 'Current Song',
+            artist: 'Artist',
+            artworkUrl: '',
+            isLoading: false,
+          ),
+          durationSeconds: 180,
+          queueIndex: 0,
+        );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          libraryRepositoryProvider.overrideWithValue(repository),
+          libraryContentDataProvider.overrideWith((ref) async => snapshot),
+        ],
+        child: SmPlayerI18nScope(
+          i18n: const SmPlayerI18n(
+            locale: 'en-US',
+            messages: {
+              'common.artist': 'Artist',
+              'common.import': 'Import',
+              'common.reset': 'Reset',
+              'common.search': 'Search',
+              'context.pause': 'Pause',
+              'context.play': 'Play',
+              'context.seeAlbumArt': 'Album Art',
+              'context.seeLyrics': 'Lyrics',
+              'context.seeMusicInfo': 'Music Info',
+              'nowPlaying.loading': 'Loading',
+              'nowPlaying.noLyrics': 'No Lyrics',
+              'settings.save': 'Save',
+            },
+          ),
+          child: MaterialApp(
+            theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+            home: ShellOverlayHost(
+              playerDialogNotifier: playerDialogNotifier,
+              playerDialogRefreshNotifier: playerDialogRefreshNotifier,
+              mediaControlController: mediaController,
+              releaseNotesDialogVersion: null,
+              startupArtistSplitResult: null,
+              startupArtistSplitApplying: false,
+              onTogglePlayPause: () {},
+              onRevealPath: (_) {},
+              onCloseReleaseNotes: (_) async {},
+              onDismissStartupArtistSplitReview: () {},
+              onApplyStartupArtistSplits: (_) async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    playerDialogNotifier.value = (
+      song: dialogSong,
+      mode: SongDialogMode.lyrics,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MusicDialog), findsOneWidget);
+    final dialog = tester.widget<MusicDialog>(find.byType(MusicDialog));
+    expect(dialog.song.id, 20);
+    expect(dialog.initialMode, SongDialogMode.lyrics);
+    expect(dialog.currentTrackId, 10);
+    expect(dialog.isPlaying, isTrue);
+    expect(dialog.queueSongIds, [10, 20]);
+
+    dialog.onSaved?.call();
+    await tester.pump();
+    expect(playerDialogRefreshNotifier.value, 1);
+
+    dialog.onClose();
+    await tester.pump();
+    expect(playerDialogNotifier.value, isNull);
   });
 
   test('pending seek filter mirrors Electron position-event guard', () {
@@ -2513,6 +2639,33 @@ class _SnapshotRepository extends _StartupRepository {
   Future<LibraryContentData> getLibraryContentData() async {
     getLibraryContentDataCount += 1;
     return snapshot;
+  }
+
+  @override
+  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
+    final song = snapshot.songs.firstWhere((song) => song.id == songId);
+    return SongPropertiesSnapshot(
+      songId: song.id,
+      path: song.path,
+      title: song.title,
+      subtitle: '',
+      artist: song.artist,
+      artists: song.artists,
+      album: song.album,
+      albumArtist: '',
+      publisher: '',
+      trackNumber: 0,
+      year: 0,
+      genre: '',
+      composers: '',
+      duration: song.duration,
+      bitrate: 0,
+      fileSize: 1024,
+      dateCreated: '2026-01-01T00:00:00Z',
+      dateModified: '2026-01-01T00:00:00Z',
+      fileType: 'MP3',
+      playCount: song.playCount,
+    );
   }
 
   @override
