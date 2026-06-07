@@ -373,7 +373,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool showPreference = true,
   bool showMoveToFolder = false,
   bool showAlbumArt = true,
-  bool keepViewActionsOpen = true,
+  bool keepViewActionsOpen = false,
 }) {
   final items = <MenuFlyoutItem>[
     if (isCurrentTrack && isPlaying)

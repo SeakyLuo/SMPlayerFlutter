@@ -35,11 +35,10 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     final uri = Uri.tryParse(path);
     final normalizedPath = uri?.path ?? path;
     final section = _routeSection(normalizedPath);
-    if (section == null || section == '/albums' || section == '/playlists') {
+    if (section == null) {
       return;
     }
-    _routeMemory[section] =
-        section == '/artists' || section == '/local' ? path : normalizedPath;
+    _routeMemory[section] = path;
   }
 
   void _recordNavigationLocation(String location) {

@@ -92,7 +92,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   final _selectedSongIds = <int>{};
   final _selectedCollectionKeys = <String>{};
   final _selectedSearchIds = <int>{};
-  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  MusicDialogEntry? _musicDialog;
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
@@ -588,11 +588,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                     MusicDialog(
                       song: dialog.song,
                       initialMode: dialog.mode,
-                      canPause:
-                          dialog.song.id == mediaControlState.track.id &&
-                          mediaControlState.isPlaying,
-                      onPlay: () {
-                        _playSong(dialog.song, [dialog.song.id], 0);
+                      currentTrackId: mediaControlState.track.id,
+                      isPlaying: mediaControlState.isPlaying,
+                      queueSongIds: dialog.queueSongIds,
+                      onPlay:
+                          ref
+                              .read(mediaControlControllerProvider)
+                              .onTogglePlayPause,
+                      onPlayTrack: (trackId, queueSongIds) {
+                        final songsById = {
+                          for (final song
+                              in ref.read(recentPageDataProvider).value!.songs)
+                            song.id: song,
+                        };
+                        _playSong(
+                          songsById[trackId]!,
+                          queueSongIds,
+                          queueSongIds.indexOf(trackId),
+                        );
                       },
                       onReveal: (path) {
                         unawaited(revealItemInFolder(path));

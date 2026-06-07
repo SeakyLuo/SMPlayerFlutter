@@ -18,6 +18,7 @@ import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
+import 'package:smplayer_flutter/src/recent/recent_page_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode, NightMode, SettingsSnapshot;
 
@@ -86,6 +87,51 @@ void main() {
       'recent.time.month2': 'February',
     },
   );
+
+  test('Recent artist artwork uses first song with artwork like Electron', () {
+    final artists = buildRecentArtistViews(
+      const [
+        LibrarySong(
+          id: 1,
+          path: r'C:\Music\a.mp3',
+          title: 'No Cover',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album A',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+        LibrarySong(
+          id: 2,
+          path: r'C:\Music\b.mp3',
+          title: 'Has Cover',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album B',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: r'C:\covers\artist.png',
+        ),
+      ],
+      const [
+        RecentArtistPlayback(
+          id: 1,
+          artist: 'Artist',
+          playedAt: '2026-05-20T00:00:00',
+        ),
+      ],
+      i18n,
+    );
+
+    expect(artists.single.artworkUrl, r'C:\covers\artist.png');
+  });
 
   testWidgets('RecentPage song menu uses Electron Add To submenu', (
     tester,

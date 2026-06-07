@@ -108,7 +108,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   String? _localOperationTitle;
   LocalFolderScanCancellation? _scanCancellation;
   var _refreshFolderRunning = false;
-  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  MusicDialogEntry? _musicDialog;
   var _rootScanRunning = false;
   var _pickingLibraryRoot = false;
 
@@ -846,7 +846,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   selectedTrackId: mediaState.track.id,
                   isPlaying: mediaState.isPlaying,
                   onPlay: (songId) {
-                    _playTrack(songId, [songId]);
+                    if (songId == mediaState.track.id) {
+                      ref
+                          .read(mediaControlControllerProvider)
+                          .onTogglePlayPause();
+                    } else {
+                      _playTrack(songId, [songId]);
+                    }
                   },
                   onOpenSongMenu:
                       (song, position) => _showSongMenu(
@@ -874,17 +880,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 MusicDialog(
                   song: dialog.song,
                   initialMode: dialog.mode,
-                  canPause:
-                      dialog.song.id ==
-                          ref
-                              .read(mediaControlControllerProvider)
-                              .state
-                              .track
-                              .id &&
-                      ref.read(mediaControlControllerProvider).state.isPlaying,
-                  onPlay: () {
-                    _playTrack(dialog.song.id, [dialog.song.id]);
-                  },
+                  currentTrackId: mediaState.track.id,
+                  isPlaying: mediaState.isPlaying,
+                  queueSongIds: dialog.queueSongIds,
+                  onPlay:
+                      ref
+                          .read(mediaControlControllerProvider)
+                          .onTogglePlayPause,
+                  onPlayTrack: _playTrack,
                   onReveal: (path) {
                     unawaited(revealItemInFolder(path));
                   },

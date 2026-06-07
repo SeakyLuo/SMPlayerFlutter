@@ -63,6 +63,10 @@ void main() {
     expect(find.text('Sub'), findsOneWidget);
     expect(find.text('Deep'), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('FolderChainListView.GlassBackground')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('FolderChain.Dropdown.Sub')),
       findsOneWidget,
     );
@@ -178,7 +182,7 @@ void main() {
     },
   );
 
-  testWidgets('FolderChainListView closes and switches child flyouts', (
+  testWidgets('FolderChainListView closes child flyouts and opens next menu', (
     tester,
   ) async {
     _setSurface(tester);
@@ -202,7 +206,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('FolderChain.Child.C')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
+    await tester.tapAt(const Offset(4, 4));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('FolderChain.Child.C')), findsNothing);
 
@@ -210,7 +214,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('FolderChain.Child.C')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.A')));
+    await tester.tapAt(const Offset(4, 4));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('FolderChain.Child.C')), findsNothing);
 
@@ -225,7 +229,7 @@ void main() {
   });
 
   testWidgets(
-    'FolderChainListView child flyout clamps, scrolls, and targets child menu',
+    'FolderChainListView child flyout uses MenuFlyout and targets child menu',
     (tester) async {
       _setSmallSurface(tester);
       final folders = [
@@ -256,13 +260,14 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
       await tester.pumpAndSettle();
 
+      expect(
+        find.byKey(const ValueKey('MenuFlyoutPanel.0.18')),
+        findsOneWidget,
+      );
       final firstChild = find.byKey(const ValueKey('FolderChain.Child.Child0'));
       final lastChild = find.byKey(const ValueKey('FolderChain.Child.Child17'));
       expect(firstChild, findsOneWidget);
-      expect(lastChild, findsOneWidget);
-      final overlayRight = tester.getRect(find.byType(Overlay).first).right;
       expect(tester.getRect(firstChild).left, greaterThanOrEqualTo(0));
-      expect(tester.getRect(firstChild).right, lessThanOrEqualTo(overlayRight));
 
       await tester.tap(firstChild, buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
@@ -275,15 +280,20 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
       await tester.pumpAndSettle();
       expect(firstChild, findsOneWidget);
-      expect(lastChild, findsOneWidget);
 
-      final lastTopBefore = tester.getTopLeft(lastChild).dy;
-      await tester.drag(
-        find.byType(SingleChildScrollView).last,
-        const Offset(0, -180),
+      final menuList = find
+          .descendant(
+            of: find.byKey(const ValueKey('MenuFlyoutPanel.0.18')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        lastChild,
+        180,
+        scrollable: menuList,
       );
       await tester.pumpAndSettle();
-      expect(tester.getTopLeft(lastChild).dy, lessThan(lastTopBefore));
+      expect(lastChild, findsOneWidget);
 
       await tester.tapAt(const Offset(4, 4));
       await tester.pumpAndSettle();
@@ -334,12 +344,33 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
       await tester.pumpAndSettle();
-      await tester.drag(
-        find.byKey(const ValueKey('FolderChain.DragSource')),
-        tester.getCenter(find.byKey(const ValueKey('FolderChain.Child.C'))) -
-            tester.getCenter(
-              find.byKey(const ValueKey('FolderChain.DragSource')),
-            ),
+      final childTarget = tester.widget<DragTarget<Object>>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('FolderChain.Child.C')),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is DragTarget,
+              ),
+            )
+            .first,
+      );
+      const payload = LocalItemsDragPayload(songIds: [7], folderPaths: []);
+      final willAccept = childTarget.onWillAcceptWithDetails!(
+        DragTargetDetails<Object>(
+          data: payload,
+          offset: tester.getCenter(
+            find.byKey(const ValueKey('FolderChain.Child.C')),
+          ),
+        ),
+      );
+      expect(willAccept, isTrue);
+      childTarget.onAcceptWithDetails!(
+        DragTargetDetails<Object>(
+          data: payload,
+          offset: tester.getCenter(
+            find.byKey(const ValueKey('FolderChain.Child.C')),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 

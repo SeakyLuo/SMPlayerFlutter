@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:smplayer_flutter/src/library/data/id3_tag_service.dart';
+import 'package:smplayer_flutter/src/library/data/library_lyrics_service.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -1645,6 +1646,44 @@ void main() {
     );
   });
 
+  test(
+    'getLyricsSearchUri follows Electron preferred language search rules',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-lyrics-search-uri-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/Mode.mp3');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLyricsModeDatabase(databaseFile, songFile.path);
+
+      final englishService = LibraryLyricsService(
+        settingsSnapshotResolver:
+            () async => const SettingsSnapshot.defaults().copyWith(
+              preferredLanguage: PreferredLanguage.enUS,
+            ),
+      );
+      final chineseService = LibraryLyricsService(
+        settingsSnapshotResolver:
+            () async => const SettingsSnapshot.defaults().copyWith(
+              preferredLanguage: PreferredLanguage.zhCN,
+            ),
+      );
+
+      expect(
+        (await englishService.getLyricsSearchUri(databaseFile, 1)).toString(),
+        'https://www.bing.com/search?q=lyrics+Mode+Artist',
+      );
+      expect(
+        (await chineseService.getLyricsSearchUri(databaseFile, 1)).toString(),
+        'https://cn.bing.com/search?q=%E6%AD%8C%E8%AF%8D+Mode+Artist',
+      );
+    },
+  );
+
   test('getSongLyrics respects Electron lyrics request modes', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-lyrics-mode-',
@@ -1688,6 +1727,138 @@ void main() {
     expect(automatic.source, LyricsSource.lrcFile);
   });
 
+  test(
+    'getSongLyrics auto keeps synced internet lyrics before timestamp stripping like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-auto-internet-lyrics-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/AutoInternet.mp3');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLyricsModeDatabase(databaseFile, songFile.path);
+      final service = LibraryLyricsService(
+        settingsSnapshotResolver:
+            () async => const SettingsSnapshot.defaults().copyWith(
+              preserveInternetLyricsTimestamps: false,
+            ),
+        internetLyricsResolver: (_) async => '[00:02.00]Internet line',
+      );
+
+      final automatic = await service.getSongLyrics(
+        databaseFile,
+        1,
+        mode: LyricsRequestMode.auto,
+      );
+      final internet = await service.getSongLyrics(
+        databaseFile,
+        1,
+        mode: LyricsRequestMode.internet,
+      );
+
+      expect(automatic.source, LyricsSource.internet);
+      expect(automatic.rawText, '[00:02.00]Internet line');
+      expect(automatic.lines.single.timestampMs, 2000);
+      expect(internet.source, LyricsSource.internet);
+      expect(internet.rawText, 'Internet line');
+      expect(internet.isSynced, isFalse);
+    },
+  );
+
+  test(
+    'getSongLyrics keeps placeholder text inside metadata like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-internet-placeholder-metadata-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/Placeholder.mp3');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLyricsModeDatabase(databaseFile, songFile.path);
+      const metadataOnlyLyrics = '[length:此歌曲为没有填词的纯音乐请您欣赏]';
+      final service = LibraryLyricsService(
+        settingsSnapshotResolver: () async => const SettingsSnapshot.defaults(),
+        internetLyricsResolver: (_) async => metadataOnlyLyrics,
+      );
+
+      final lyrics = await service.getSongLyrics(
+        databaseFile,
+        1,
+        mode: LyricsRequestMode.internet,
+      );
+
+      expect(lyrics.source, LyricsSource.internet);
+      expect(lyrics.rawText, metadataOnlyLyrics);
+      expect(lyrics.lines, isEmpty);
+    },
+  );
+
+  test(
+    'getSongLyrics filters QQ no-lyrics placeholder like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-internet-no-lyrics-placeholder-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/Instrumental.mp3');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLyricsModeDatabase(databaseFile, songFile.path);
+      final service = LibraryLyricsService(
+        settingsSnapshotResolver: () async => const SettingsSnapshot.defaults(),
+        internetLyricsResolver: (_) async => '[00:01.00]此歌曲为没有填词的纯音乐请您欣赏',
+      );
+
+      final lyrics = await service.getSongLyrics(
+        databaseFile,
+        1,
+        mode: LyricsRequestMode.internet,
+      );
+
+      expect(lyrics.source, LyricsSource.none);
+      expect(lyrics.rawText, isEmpty);
+      expect(lyrics.lines, isEmpty);
+    },
+  );
+
+  test(
+    'getSongLyrics filters QQ invalid mojibake lyrics like Electron',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-internet-invalid-lyrics-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final songFile = File('${directory.path}/Invalid.mp3');
+      await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createLyricsModeDatabase(databaseFile, songFile.path);
+      final service = LibraryLyricsService(
+        settingsSnapshotResolver: () async => const SettingsSnapshot.defaults(),
+        internetLyricsResolver: (_) async => '濮濄倖鐡曢弴韫礋濞屸剝婀佹繅顐ョ槤閻ㄥ嫮鍑介棅鍏呯',
+      );
+
+      final lyrics = await service.getSongLyrics(
+        databaseFile,
+        1,
+        mode: LyricsRequestMode.internet,
+      );
+
+      expect(lyrics.source, LyricsSource.none);
+      expect(lyrics.rawText, isEmpty);
+      expect(lyrics.lines, isEmpty);
+    },
+  );
+
   test('getSongLyrics ignores extended Electron metadata tags', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-lyrics-metadata-',
@@ -1719,6 +1890,78 @@ void main() {
     );
 
     expect(lyrics.lines.map((line) => line.text), ['First line']);
+  });
+
+  test('getSongLyrics parses local lyrics lines like Electron', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-lyrics-parser-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}/Parser.mp3');
+    await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    await File(p.setExtension(songFile.path, '.lrc')).writeAsString('''
+[offset:-2000]
+Plain first
+[00:01.00]
+[00:01.00]Clamped line
+[00:03.00][00:04.00]Repeated line
+[ar:Metadata]
+''');
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createLyricsModeDatabase(databaseFile, songFile.path);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final lyrics = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.local,
+    );
+
+    expect(lyrics.source, LyricsSource.lrcFile);
+    expect(lyrics.isSynced, isTrue);
+    expect(
+      lyrics.lines
+          .map((line) => (text: line.text, timestampMs: line.timestampMs))
+          .toList(),
+      [
+        (text: 'Plain first', timestampMs: null),
+        (text: 'Clamped line', timestampMs: 0),
+        (text: 'Repeated line', timestampMs: 1000),
+        (text: 'Repeated line', timestampMs: 2000),
+      ],
+    );
+  });
+
+  test('getSongLyrics ignores empty sidecar files like Electron', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-empty-sidecar-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songFile = File('${directory.path}/Sidecar.mp3');
+    await songFile.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+    await File(p.setExtension(songFile.path, '.lrc')).writeAsString('  \n');
+    await File(
+      p.setExtension(songFile.path, '.txt'),
+    ).writeAsString('Text fallback line');
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createLyricsModeDatabase(databaseFile, songFile.path);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    final lyrics = await repository.getSongLyrics(
+      1,
+      mode: LyricsRequestMode.local,
+    );
+
+    expect(lyrics.source, LyricsSource.textFile);
+    expect(lyrics.rawText, 'Text fallback line');
+    expect(lyrics.lines.single.text, 'Text fallback line');
   });
 
   test(

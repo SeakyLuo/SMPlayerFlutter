@@ -131,68 +131,72 @@ class _MainNavigationViewSearchBoxState
                             ),
                           ],
                 ),
-                child: TextField(
-                  key: const ValueKey('MainNavigationView.SearchTextField'),
-                  controller: _controller,
-                  focusNode: widget.focusNode,
-                  onChanged: widget.onChanged,
-                  onTapOutside: (_) {},
-                  onSubmitted: widget.onSubmitted,
-                  textInputAction: TextInputAction.search,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: TextStyle(fontSize: 14, color: colors.textStrong),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: widget.i18n.t('common.search'),
-                    hintStyle: TextStyle(color: colors.searchPlaceholder),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    prefixIconConstraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
+                child: Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 40,
+                      child: SearchCommitIconButton(
+                        tooltip: widget.i18n.t('common.search'),
+                        foreground: SearchCommitIconButton.foregroundFor(
+                          context,
+                        ),
+                        hoverForeground:
+                            SearchCommitIconButton.hoverForegroundFor(context),
+                        onPressed: () {
+                          if (_controller.text.isEmpty) {
+                            widget.focusNode.requestFocus();
+                            return;
+                          }
+                          widget.onSubmitted(_controller.text);
+                        },
+                      ),
                     ),
-                    prefixIcon: SearchCommitIconButton(
-                      tooltip: widget.i18n.t('common.search'),
-                      foreground: SearchCommitIconButton.foregroundFor(context),
-                      hoverForeground:
-                          SearchCommitIconButton.hoverForegroundFor(context),
-                      onPressed: () {
-                        if (_controller.text.isEmpty) {
-                          widget.focusNode.requestFocus();
-                          return;
-                        }
-                        widget.onSubmitted(_controller.text);
-                      },
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey(
+                          'MainNavigationView.SearchTextField',
+                        ),
+                        controller: _controller,
+                        focusNode: widget.focusNode,
+                        onChanged: widget.onChanged,
+                        onTapOutside: (_) {
+                          widget.focusNode.unfocus();
+                        },
+                        onSubmitted: widget.onSubmitted,
+                        textInputAction: TextInputAction.search,
+                        textAlignVertical: TextAlignVertical.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.textStrong,
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: widget.i18n.t('common.search'),
+                          hintStyle: TextStyle(color: colors.searchPlaceholder),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     ),
-                    suffixIconConstraints:
-                        widget.value.isEmpty
-                            ? const BoxConstraints.tightFor(
-                              width: 10,
-                              height: 40,
-                            )
-                            : const BoxConstraints.tightFor(
-                              width: 34,
-                              height: 40,
-                            ),
-                    suffixIcon:
-                        widget.value.isEmpty
-                            ? const SizedBox.shrink()
-                            : Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: _SearchClearButton(
-                                key: const ValueKey(
-                                  'MainNavigationView.ClearSearchButton',
-                                ),
-                                tooltip: widget.i18n.t('common.clear'),
-                                onPressed: () {
-                                  _controller.clear();
-                                  widget.onChanged('');
-                                  widget.onCleared();
-                                  widget.focusNode.requestFocus();
-                                },
-                              ),
-                            ),
-                  ),
+                    if (widget.value.isEmpty)
+                      const SizedBox(width: 10)
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: _SearchClearButton(
+                          key: const ValueKey(
+                            'MainNavigationView.ClearSearchButton',
+                          ),
+                          tooltip: widget.i18n.t('common.clear'),
+                          onPressed: () {
+                            _controller.clear();
+                            widget.onChanged('');
+                            widget.onCleared();
+                            widget.focusNode.requestFocus();
+                          },
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

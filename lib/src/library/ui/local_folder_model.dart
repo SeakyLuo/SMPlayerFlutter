@@ -145,7 +145,7 @@ List<List<LibrarySong>> _getAlbumSongGroups(
 
   for (final songId in songIds) {
     final song = songsById[songId]!;
-    final album = song_display.canonicalAlbumName(song);
+    final album = song.album;
     final groupSongs = albumSongs[album];
     if (groupSongs == null) {
       albumSongs[album] = [song];

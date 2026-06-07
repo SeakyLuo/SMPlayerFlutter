@@ -50,227 +50,262 @@ GoRouter createSmPlayerRouter({
     initialLocation: resolveRestoredPage(initialLocation),
     routes: [
       GoRoute(path: '/', redirect: (_, _) => '/songs'),
-      GoRoute(
-        path: '/songs',
+      StatefulShellRoute.indexedStack(
         pageBuilder:
-            (context, state) => _smPlayerShellPage(
+            (context, state, navigationShell) => _smPlayerShellPage(
               state: state,
               settingsController: settingsController,
               initialExternalFilePaths: initialExternalFilePaths,
               initialExternalCommands: initialExternalCommands,
-              child: MusicLibraryPage(
-                searchQuery: state.uri.queryParameters['search'] ?? '',
-              ),
+              navigationShell: navigationShell,
             ),
-      ),
-      GoRoute(
-        path: '/artists',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: ArtistsPage(
-                searchQuery: state.uri.queryParameters['search'] ?? '',
-                targetArtistName: state.uri.queryParameters['artist'],
-              ),
-            ),
-      ),
-      GoRoute(
-        path: '/artists/:artistName',
-        redirect: (context, state) {
-          final artistName = state.pathParameters['artistName']!;
-          return '/artists?artist=${Uri.encodeQueryComponent(artistName)}';
-        },
-      ),
-      GoRoute(
-        path: '/albums',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child:
-                  state.uri.queryParameters['album'] == null
-                      ? const AlbumsPage()
-                      : AlbumDetailPage(
-                        albumName: state.uri.queryParameters['album']!,
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/songs',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: MusicLibraryPage(
+                        searchQuery: state.uri.queryParameters['search'] ?? '',
                       ),
-            ),
-      ),
-      GoRoute(
-        path: '/local',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: LocalPage(
-                currentRelativePath: state.uri.queryParameters['path'] ?? '',
-                searchQuery: state.uri.queryParameters['query'] ?? '',
-              ),
-            ),
-      ),
-      GoRoute(
-        path: '/hidden-folders',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: const HiddenFoldersPage(),
-            ),
-      ),
-      GoRoute(
-        path: '/recent',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: const RecentPage(),
-            ),
-      ),
-      GoRoute(
-        path: '/now-playing',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: NowPlayingPage(
-                searchQuery: state.uri.queryParameters['search'] ?? '',
-              ),
-            ),
-      ),
-      GoRoute(
-        path: '/now-playing/full',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: const NowPlayingFullPage(),
-            ),
-      ),
-      GoRoute(
-        path: '/favorites',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: const MyFavoritesPage(),
-            ),
-      ),
-      GoRoute(
-        path: '/playlists',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: const PlaylistsPage(),
-            ),
-      ),
-      GoRoute(
-        path: '/settings',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: Consumer(
-                builder:
-                    (context, ref, _) => SettingsPage(
-                      controller: settingsController,
-                      initialFragment: state.uri.fragment,
-                      lyricsBatchSongCount:
-                          ref.watch(librarySongCountProvider).valueOrNull,
-                      librarySongs:
-                          ref
-                              .watch(libraryContentDataProvider)
-                              .valueOrNull
-                              ?.songs ??
-                          const [],
-                      libraryRepository: ref.read(libraryRepositoryProvider),
-                      onScanLibrary: (
-                        rootPath, {
-                        cancellation,
-                        onProgress,
-                      }) async {
-                        final result = await ref
-                            .read(libraryRepositoryProvider)
-                            .scanAllMusicLibrary(
-                              rootPath,
-                              cancellation: cancellation,
-                              onProgress: onProgress,
-                            );
-                        _invalidateLibraryData(ref);
-                        return result;
-                      },
-                      onDataImported: () async {
-                        if (onDataImported != null) {
-                          await onDataImported();
-                        } else {
-                          await settingsController?.refresh();
-                          _invalidateLibraryData(ref);
-                        }
-                      },
-                      onSendFeedbackEmail: () {
-                        unawaited(
-                          _sendFeedbackEmail(context.smPlayerI18n.locale),
-                        );
-                      },
-                      onOpenFeedbackInBrowser: () {
-                        unawaited(launchUrl(Uri.parse(_feedbackIssueUrl)));
-                      },
-                      onRevealSystemLogs: () {
-                        unawaited(_revealSystemLogs());
-                      },
                     ),
               ),
-            ),
-      ),
-      GoRoute(
-        path: '/search',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: SearchPage(
-                query: state.uri.queryParameters['query'] ?? '',
-                activeType: state.uri.queryParameters['type'],
-                folderRelativePath: state.uri.queryParameters['folder'],
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/artists',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: ArtistsPage(
+                        searchQuery: state.uri.queryParameters['search'] ?? '',
+                        targetArtistName: state.uri.queryParameters['artist'],
+                      ),
+                    ),
               ),
-            ),
-      ),
-      GoRoute(
-        path: '/playlists/:playlistId',
-        pageBuilder:
-            (context, state) => _smPlayerShellPage(
-              state: state,
-              settingsController: settingsController,
-              initialExternalFilePaths: initialExternalFilePaths,
-              initialExternalCommands: initialExternalCommands,
-              child: PlaylistsPage(
-                selectedPlaylistId: int.parse(
-                  state.pathParameters['playlistId']!,
-                ),
+              GoRoute(
+                path: '/artists/:artistName',
+                redirect: (context, state) {
+                  final artistName = state.pathParameters['artistName']!;
+                  return '/artists?artist=${Uri.encodeQueryComponent(artistName)}';
+                },
               ),
-            ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/albums',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child:
+                          state.uri.queryParameters['album'] == null
+                              ? const AlbumsPage()
+                              : AlbumDetailPage(
+                                albumName: state.uri.queryParameters['album']!,
+                              ),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/local',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: LocalPage(
+                        currentRelativePath:
+                            state.uri.queryParameters['path'] ?? '',
+                        searchQuery: state.uri.queryParameters['query'] ?? '',
+                      ),
+                    ),
+              ),
+              GoRoute(
+                path: '/hidden-folders',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: const HiddenFoldersPage(),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/recent',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: const RecentPage(),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/now-playing',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: NowPlayingPage(
+                        searchQuery: state.uri.queryParameters['search'] ?? '',
+                      ),
+                    ),
+              ),
+              GoRoute(
+                path: '/now-playing/full',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: const NowPlayingFullPage(),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/favorites',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: const MyFavoritesPage(),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/playlists',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: const PlaylistsPage(),
+                    ),
+              ),
+              GoRoute(
+                path: '/playlists/:playlistId',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: PlaylistsPage(
+                        selectedPlaylistId: int.parse(
+                          state.pathParameters['playlistId']!,
+                        ),
+                      ),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: Consumer(
+                        builder:
+                            (context, ref, _) => SettingsPage(
+                              controller: settingsController,
+                              initialFragment: state.uri.fragment,
+                              lyricsBatchSongCount:
+                                  ref
+                                      .watch(librarySongCountProvider)
+                                      .valueOrNull,
+                              librarySongs:
+                                  ref
+                                      .watch(libraryContentDataProvider)
+                                      .valueOrNull
+                                      ?.songs ??
+                                  const [],
+                              libraryRepository: ref.read(
+                                libraryRepositoryProvider,
+                              ),
+                              onScanLibrary: (
+                                rootPath, {
+                                cancellation,
+                                onProgress,
+                              }) async {
+                                final result = await ref
+                                    .read(libraryRepositoryProvider)
+                                    .scanAllMusicLibrary(
+                                      rootPath,
+                                      cancellation: cancellation,
+                                      onProgress: onProgress,
+                                    );
+                                _invalidateLibraryData(ref);
+                                return result;
+                              },
+                              onDataImported: () async {
+                                if (onDataImported != null) {
+                                  await onDataImported();
+                                } else {
+                                  await settingsController?.refresh();
+                                  _invalidateLibraryData(ref);
+                                }
+                              },
+                              onSendFeedbackEmail: () {
+                                unawaited(
+                                  _sendFeedbackEmail(
+                                    context.smPlayerI18n.locale,
+                                  ),
+                                );
+                              },
+                              onOpenFeedbackInBrowser: () {
+                                unawaited(
+                                  launchUrl(Uri.parse(_feedbackIssueUrl)),
+                                );
+                              },
+                              onRevealSystemLogs: () {
+                                unawaited(_revealSystemLogs());
+                              },
+                            ),
+                      ),
+                    ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/search',
+                pageBuilder:
+                    (context, state) => _smPlayerBranchPage(
+                      state: state,
+                      settingsController: settingsController,
+                      child: SearchPage(
+                        query: state.uri.queryParameters['query'] ?? '',
+                        activeType: state.uri.queryParameters['type'],
+                        folderRelativePath: state.uri.queryParameters['folder'],
+                      ),
+                    ),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
@@ -307,7 +342,7 @@ Page<void> _smPlayerShellPage({
   required SettingsController? settingsController,
   required List<String> initialExternalFilePaths,
   required List<ExternalAppCommand> initialExternalCommands,
-  required Widget child,
+  required StatefulNavigationShell navigationShell,
 }) {
   return NoTransitionPage<void>(
     key: _shellRoutePageKey,
@@ -316,6 +351,21 @@ Page<void> _smPlayerShellPage({
       settingsController: settingsController,
       initialExternalFilePaths: initialExternalFilePaths,
       initialExternalCommands: initialExternalCommands,
+      navigationShell: navigationShell,
+    ),
+  );
+}
+
+Page<void> _smPlayerBranchPage({
+  required GoRouterState state,
+  required SettingsController? settingsController,
+  required Widget child,
+}) {
+  return NoTransitionPage<void>(
+    key: state.pageKey,
+    child: _LibraryRootGate(
+      path: state.uri.path,
+      settingsController: settingsController,
       child: child,
     ),
   );
@@ -327,23 +377,25 @@ class _SmPlayerRouteShell extends ConsumerWidget {
     required this.settingsController,
     required this.initialExternalFilePaths,
     required this.initialExternalCommands,
-    required this.child,
+    required this.navigationShell,
   });
 
   final GoRouterState state;
   final SettingsController? settingsController;
   final List<String> initialExternalFilePaths;
   final List<ExternalAppCommand> initialExternalCommands;
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final path = state.uri.path;
+    final routeState = GoRouterState.of(context);
+    final uri = routeState.uri;
+    final path = uri.path;
     final isPlaylistDetailRoute = path.startsWith('/playlists/');
     final isAlbumDetailRoute =
-        path == '/albums' && state.uri.queryParameters.containsKey('album');
+        path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
-        path == '/artists' && state.uri.queryParameters.containsKey('artist');
+        path == '/artists' && uri.queryParameters.containsKey('artist');
     final canGoBack =
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
@@ -353,10 +405,14 @@ class _SmPlayerRouteShell extends ConsumerWidget {
 
     return SmPlayerShellPage(
       currentPath: path,
-      currentLocation: state.uri.toString(),
+      currentLocation: uri.toString(),
       canGoBack: canGoBack,
       settingsRepository: repository,
       onNavigate: (target) {
+        if (_branchRootIndex(target) case final branchIndex?) {
+          navigationShell.goBranch(branchIndex, initialLocation: false);
+          return;
+        }
         context.go(target);
       },
       onGoBack: () {
@@ -387,13 +443,29 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       initialDisplayMode:
           settingsController?.snapshot.lastDisplayMode ??
           smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-      child: _LibraryRootGate(
-        path: path,
-        settingsController: settingsController,
-        child: child,
-      ),
+      child: navigationShell,
     );
   }
+}
+
+int? _branchRootIndex(String location) {
+  final uri = Uri.tryParse(location);
+  if (uri == null || uri.hasQuery || uri.hasFragment) {
+    return null;
+  }
+  return switch (uri.path) {
+    '/songs' => 0,
+    '/artists' => 1,
+    '/albums' => 2,
+    '/local' => 3,
+    '/recent' => 4,
+    '/now-playing' => 5,
+    '/favorites' => 6,
+    '/playlists' => 7,
+    '/settings' => 8,
+    '/search' => 9,
+    _ => null,
+  };
 }
 
 const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerEletron/issues';

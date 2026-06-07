@@ -1,15 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artwork_floating_action_button.dart';
+import 'grid_artwork_card_content.dart';
 import 'local_folder_model.dart';
 import 'local_i18n_counts.dart';
 import 'local_page_quick_jump.dart';
@@ -146,12 +147,6 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                     ? hoverStyle.background
                     : colors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
-            border:
-                widget.selected
-                    ? Border.all(color: selectedStyle.border)
-                    : hovered
-                    ? Border.all(color: hoverStyle.border)
-                    : null,
             boxShadow:
                 widget.selected
                     ? [selectedStyle.shadow]
@@ -159,6 +154,18 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                     ? [hoverStyle.shadow]
                     : const [],
           ),
+          foregroundDecoration:
+              active
+                  ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color:
+                          widget.selected
+                              ? selectedStyle.border
+                              : hoverStyle.border,
+                    ),
+                  )
+                  : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -260,18 +267,19 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                     : active
                     ? hoverStyle.background
                     : hoverStyle.transparentBackground,
-            border:
-                widget.selected
-                    ? Border.all(color: selectedStyle.border)
-                    : active
-                    ? Border.all(color: hoverStyle.border)
-                    : null,
           ),
           foregroundDecoration: ShapeDecoration(
             shape: RoundedRectangleBorder(
               side: BorderSide(
-                color: dropTarget ? colors.accentStrong : Colors.transparent,
-                width: 2,
+                color:
+                    dropTarget
+                        ? colors.accentStrong
+                        : widget.selected
+                        ? selectedStyle.border
+                        : active
+                        ? hoverStyle.border
+                        : Colors.transparent,
+                width: dropTarget ? 2 : 1,
                 strokeAlign: BorderSide.strokeAlignOutside,
               ),
             ),
@@ -562,36 +570,10 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
         borderRadius: BorderRadius.circular(8),
         child: SizedBox.square(
           dimension: 160,
-          child:
-              _thumbnailPaths.isEmpty
-                  ? Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _LocalDefaultArtworkBackground(),
-                      Center(
-                        child: FractionallySizedBox(
-                          widthFactor: 0.72,
-                          heightFactor: 0.72,
-                          child: Opacity(
-                            opacity: 0.86,
-                            child: Image.asset(
-                              'assets/branding/colorful_no_bg.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                  : GridView.count(
-                    crossAxisCount: _thumbnailPaths.length == 1 ? 1 : 2,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    children: [
-                      for (final path in _thumbnailPaths)
-                        Image.file(File(path), fit: BoxFit.cover),
-                    ],
-                  ),
+          child: GridArtworkCover(
+            artworkUrls: _thumbnailPaths,
+            fallback: const _LocalFolderArtworkFallback(),
+          ),
         ),
       ),
     );
@@ -633,6 +615,33 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
           _thumbnailPaths = artworkUrls;
         });
       }),
+    );
+  }
+}
+
+class _LocalFolderArtworkFallback extends StatelessWidget {
+  const _LocalFolderArtworkFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const _LocalDefaultArtworkBackground(),
+        Center(
+          child: FractionallySizedBox(
+            widthFactor: 0.72,
+            heightFactor: 0.72,
+            child: Opacity(
+              opacity: 0.86,
+              child: Image.asset(
+                'assets/branding/colorful_no_bg.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -830,22 +839,40 @@ class _FolderTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nightMode = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: 32,
-      height: 32,
+    return DecoratedBox(
+      key: const ValueKey('LocalFolderCard.FolderTypeBadge'),
       decoration: BoxDecoration(
-        color: nightMode ? const Color(0xe61f2732) : const Color(0xedffffff),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color:
-                nightMode ? const Color(0x57000000) : const Color(0x1f1f2a38),
-            offset: Offset(0, 6),
-            blurRadius: 14,
+                nightMode ? const Color(0x3d000000) : const Color(0x1f1e2a3a),
+            offset: const Offset(0, 12),
+            blurRadius: 26,
           ),
         ],
       ),
-      child: const _FolderTypeBadgeImage(iconSize: 20),
+      child: GlassContainer(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        useOwnLayer: true,
+        quality: GlassQuality.minimal,
+        clipBehavior: Clip.antiAlias,
+        shape: const LiquidRoundedRectangle(borderRadius: 8),
+        settings: LiquidGlassSettings(
+          glassColor:
+              nightMode ? const Color(0xc7181e26) : const Color(0xd1ffffff),
+          blur: 16,
+          thickness: 18,
+          chromaticAberration: 0,
+          lightIntensity: 0.18,
+          ambientStrength: 0.12,
+          saturation: 1.5,
+          glowIntensity: 0,
+        ),
+        child: const _FolderTypeBadgeImage(iconSize: 20),
+      ),
     );
   }
 }

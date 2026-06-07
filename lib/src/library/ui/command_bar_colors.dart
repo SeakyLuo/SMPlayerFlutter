@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 
 class CommandBarColors {
   const CommandBarColors._();
 
   static const surface = Color(0xb8ffffff);
   static const buttonSurface = Color(0x8fffffff);
-  static const buttonHoverSurface = Color(0xbdffffff);
+  static const buttonHoverSurface = GlobalUI.buttonHoverBgColorDay;
   static const buttonPressedSurface = Color(0xdbffffff);
   static const buttonBorder = Color(0x24536379);
-  static const nightButtonHoverSurface = Color(0x17ffffff);
+  static const nightButtonHoverSurface = GlobalUI.buttonHoverBgColorNight;
   static const buttonInsetHighlight = Color(0x6bffffff);
   static const multiSelectSurface = Color(0x10f6faff);
   static const multiSelectGradientTop = Color(0x08f9fcff);
@@ -21,11 +22,11 @@ class CommandBarColors {
   static const multiSelectNightBorder = Color(0x17ffffff);
   static const multiSelectNightInsetHighlight = Color(0x14ffffff);
   static const actionSurface = Color(0xb3ffffff);
-  static const actionHoverSurface = Color(0xe6ffffff);
+  static const actionHoverSurface = GlobalUI.buttonHoverBgColorDay;
   static const actionBorder = Color(0x2e7e8b9a);
   static const actionHoverBorder = Color(0x420078d7);
   static const actionNightSurface = Color(0x11ffffff);
-  static const actionNightHoverSurface = Color(0x290078d7);
+  static const actionNightHoverSurface = GlobalUI.buttonHoverBgColorNight;
   static const actionNightBorder = Color(0x1fd6e0ec);
   static const actionNightHoverBorder = Color(0x570078d7);
   static const border = Color(0x2b64748b);

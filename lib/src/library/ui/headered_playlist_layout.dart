@@ -250,21 +250,22 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
               });
             },
           ),
-          if (_dialogSong != null && _dialogMode != null)
+          if (_musicDialog case final dialog?)
             MusicDialog(
-              song: _dialogSong!,
-              initialMode: _dialogMode!,
-              canPause:
-                  widget.isPlaying && widget.selectedTrackId == _dialogSong!.id,
+              song: dialog.song,
+              initialMode: dialog.mode,
+              currentTrackId: widget.selectedTrackId,
+              isPlaying: widget.isPlaying,
+              queueSongIds: dialog.queueSongIds,
               onPlay: widget.onTogglePlayPause,
+              onPlayTrack: widget.onPlayTrack,
               onReveal: _revealPath,
               onSaved: () {
                 ref.invalidate(libraryContentDataProvider);
               },
               onClose: () {
                 _updateState(() {
-                  _dialogSong = null;
-                  _dialogMode = null;
+                  _musicDialog = null;
                 });
               },
             ),
@@ -376,7 +377,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
         _playNextSong(song.id);
       },
       onOpenContextMenu: (position) {
-        unawaited(_showSongMenu(context, i18n, position, song, index));
+        unawaited(
+          _showSongMenu(context, i18n, position, song, index, queueSongIds),
+        );
       },
       onSeeArtist: widget.onArtistClick,
       onSeeAlbum:

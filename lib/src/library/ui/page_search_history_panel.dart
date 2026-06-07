@@ -91,8 +91,12 @@ class PageSearchField extends StatefulWidget {
     this.autofocus = false,
     this.height = 40,
     this.appBar = false,
+    this.leadingGap = 0,
+    this.searchSurface,
+    this.insetHighlight,
     this.searchTooltip,
     this.clearTooltip,
+    this.searchIcon,
   });
 
   final String value;
@@ -105,8 +109,12 @@ class PageSearchField extends StatefulWidget {
   final bool autofocus;
   final double height;
   final bool appBar;
+  final double leadingGap;
+  final Color? searchSurface;
+  final Color? insetHighlight;
   final String? searchTooltip;
   final String? clearTooltip;
+  final Widget? searchIcon;
 
   @override
   State<PageSearchField> createState() => _PageSearchFieldState();
@@ -158,13 +166,15 @@ class _PageSearchFieldState extends State<PageSearchField> {
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: widget.appBar);
     final focused = _focused || _focusNode.hasFocus || widget.focused;
+    final searchSurface = widget.searchSurface ?? colors.searchSurface;
+    final insetHighlight = widget.insetHighlight ?? colors.insetHighlight;
     const borderRadius = 10.0;
     return SizedBox(
       height: widget.height,
       child: TextFieldTapRegion(
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: focused ? colors.focusedSurface : colors.searchSurface,
+            color: focused ? colors.focusedSurface : searchSurface,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
               color: focused ? colors.focusedBorder : colors.border,
@@ -180,7 +190,7 @@ class _PageSearchFieldState extends State<PageSearchField> {
                     ]
                     : [
                       BoxShadow(
-                        color: colors.insetHighlight,
+                        color: insetHighlight,
                         offset: Offset(0, 1),
                         blurRadius: 0,
                         spreadRadius: 0,
@@ -190,25 +200,28 @@ class _PageSearchFieldState extends State<PageSearchField> {
           ),
           child: Row(
             children: [
-              SizedBox(
-                width: widget.height,
-                height: widget.height,
+              SizedBox.square(
+                dimension: widget.height,
                 child: SearchCommitIconButton(
                   tooltip: widget.searchTooltip ?? widget.hintText,
                   foreground: colors.textMuted,
                   hoverForeground: colors.accent,
                   hoverBackground:
                       SearchCommitIconButton.transparentHoverBackground,
+                  icon: widget.searchIcon,
                   onPressed: widget.onSubmitted,
                 ),
               ),
+              if (widget.leadingGap > 0) SizedBox(width: widget.leadingGap),
               Expanded(
                 child: TextField(
                   autofocus: widget.autofocus,
                   controller: _controller,
                   focusNode: _focusNode,
                   onChanged: widget.onChanged,
-                  onTapOutside: (_) {},
+                  onTapOutside: (_) {
+                    _focusNode.unfocus();
+                  },
                   onSubmitted: (_) {
                     widget.onSubmitted();
                   },
@@ -374,6 +387,8 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
     this.itemKeyBuilder,
     this.selectKeyBuilder,
     this.removeKeyBuilder,
+    this.includeBorderInset = false,
+    this.useElectronPanelStyle = false,
   });
 
   final List<SearchHistoryPanelItem<TValue>> items;
@@ -390,11 +405,53 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
   final Key Function(SearchHistoryPanelItem<TValue> item)? itemKeyBuilder;
   final Key Function(SearchHistoryPanelItem<TValue> item)? selectKeyBuilder;
   final Key Function(SearchHistoryPanelItem<TValue> item)? removeKeyBuilder;
+  final bool includeBorderInset;
+  final bool useElectronPanelStyle;
 
   @override
   Widget build(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: false);
     const radius = 14.0;
+    if (useElectronPanelStyle) {
+      final panelColors = _ElectronSearchHistoryPanelColors.resolve(context);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: DecoratedBox(
+          key: panelKey,
+          decoration: BoxDecoration(
+            color: panelColors.background,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: panelColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: panelColors.shadow,
+                blurRadius: 36,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: BackdropFilter(
+            key: backdropKey,
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: _SearchHistoryPanelContent<TValue>(
+              items: items,
+              title: title,
+              onSelect: onSelect,
+              clearLabel: clearLabel,
+              onClear: onClear,
+              onRemove: onRemove,
+              getRemoveLabel: getRemoveLabel,
+              headerKey: headerKey,
+              listKey: listKey,
+              itemKeyBuilder: itemKeyBuilder,
+              selectKeyBuilder: selectKeyBuilder,
+              removeKeyBuilder: removeKeyBuilder,
+              includeBorderInset: includeBorderInset,
+            ),
+          ),
+        ),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: GlassContainer(
@@ -435,86 +492,140 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
             child: BackdropFilter(
               key: backdropKey,
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 360),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              child: _SearchHistoryPanelContent<TValue>(
+                items: items,
+                title: title,
+                onSelect: onSelect,
+                clearLabel: clearLabel,
+                onClear: onClear,
+                onRemove: onRemove,
+                getRemoveLabel: getRemoveLabel,
+                headerKey: headerKey,
+                listKey: listKey,
+                itemKeyBuilder: itemKeyBuilder,
+                selectKeyBuilder: selectKeyBuilder,
+                removeKeyBuilder: removeKeyBuilder,
+                includeBorderInset: includeBorderInset,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchHistoryPanelContent<TValue> extends StatelessWidget {
+  const _SearchHistoryPanelContent({
+    required this.items,
+    required this.title,
+    required this.onSelect,
+    required this.clearLabel,
+    required this.onClear,
+    required this.onRemove,
+    required this.getRemoveLabel,
+    required this.headerKey,
+    required this.listKey,
+    required this.itemKeyBuilder,
+    required this.selectKeyBuilder,
+    required this.removeKeyBuilder,
+    required this.includeBorderInset,
+  });
+
+  final List<SearchHistoryPanelItem<TValue>> items;
+  final String title;
+  final ValueChanged<SearchHistoryPanelItem<TValue>> onSelect;
+  final String? clearLabel;
+  final VoidCallback? onClear;
+  final ValueChanged<SearchHistoryPanelItem<TValue>>? onRemove;
+  final String Function(SearchHistoryPanelItem<TValue> item)? getRemoveLabel;
+  final Key? headerKey;
+  final Key? listKey;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? itemKeyBuilder;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? selectKeyBuilder;
+  final Key Function(SearchHistoryPanelItem<TValue> item)? removeKeyBuilder;
+  final bool includeBorderInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _PageSearchColors.resolve(context, appBar: false);
+    return Padding(
+      padding: EdgeInsets.all(includeBorderInset ? 9 : 8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (title.isNotEmpty) ...[
+              SizedBox(
+                key: headerKey,
+                height: 30,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
                     children: [
-                      if (title.isNotEmpty) ...[
-                        SizedBox(
-                          key: headerKey,
-                          height: 30,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: colors.header,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ),
-                                if (onClear != null && clearLabel != null)
-                                  _PageSearchTextButton(
-                                    label: clearLabel!,
-                                    onPressed: onClear,
-                                  ),
-                              ],
-                            ),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.header,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                            height: 1,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                      ],
-                      Flexible(
-                        child: Column(
-                          key: listKey,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final item in items) ...[
-                              _SearchHistoryPanelRow<TValue>(
-                                item: item,
-                                itemKey:
-                                    itemKeyBuilder == null
-                                        ? ValueKey(
-                                          'PageSearchHistoryPanel.Item.${item.label}',
-                                        )
-                                        : itemKeyBuilder!(item),
-                                selectKey:
-                                    selectKeyBuilder == null
-                                        ? null
-                                        : selectKeyBuilder!(item),
-                                removeKey:
-                                    removeKeyBuilder == null
-                                        ? null
-                                        : removeKeyBuilder!(item),
-                                onSelect: onSelect,
-                                onRemove: onRemove,
-                                removeLabel:
-                                    getRemoveLabel == null
-                                        ? null
-                                        : getRemoveLabel!(item),
-                              ),
-                              if (item != items.last) const SizedBox(height: 2),
-                            ],
-                          ],
-                        ),
                       ),
+                      if (onClear != null && clearLabel != null)
+                        _PageSearchTextButton(
+                          label: clearLabel!,
+                          onPressed: onClear,
+                        ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 6),
+            ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  key: listKey,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final item in items) ...[
+                      _SearchHistoryPanelRow<TValue>(
+                        item: item,
+                        itemKey:
+                            itemKeyBuilder == null
+                                ? ValueKey(
+                                  'PageSearchHistoryPanel.Item.${item.label}',
+                                )
+                                : itemKeyBuilder!(item),
+                        selectKey:
+                            selectKeyBuilder == null
+                                ? null
+                                : selectKeyBuilder!(item),
+                        removeKey:
+                            removeKeyBuilder == null
+                                ? null
+                                : removeKeyBuilder!(item),
+                        onSelect: onSelect,
+                        onRemove: onRemove,
+                        removeLabel:
+                            getRemoveLabel == null
+                                ? null
+                                : getRemoveLabel!(item),
+                      ),
+                      if (item != items.last) const SizedBox(height: 2),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -929,5 +1040,33 @@ class _PageSearchColors {
       return dark;
     }
     return light;
+  }
+}
+
+class _ElectronSearchHistoryPanelColors {
+  const _ElectronSearchHistoryPanelColors({
+    required this.background,
+    required this.border,
+    required this.shadow,
+  });
+
+  final Color background;
+  final Color border;
+  final Color shadow;
+
+  static const light = _ElectronSearchHistoryPanelColors(
+    background: Color(0xf5f4f6f9),
+    border: Color(0x24536379),
+    shadow: Color(0x2935495f),
+  );
+
+  static const dark = _ElectronSearchHistoryPanelColors(
+    background: Color(0xfa1d232b),
+    border: Color(0x1fd6e0ec),
+    shadow: Color(0x5c000000),
+  );
+
+  static _ElectronSearchHistoryPanelColors resolve(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -1380,6 +1381,167 @@ void main() {
     expect(find.byType(UniformMultiSelectIcon), findsOneWidget);
   });
 
+  test('MenuFlyout hover surface matches sidebar selected tab', () {
+    expect(
+      MenuFlyoutThemeColors.light.hoverSurface,
+      GlobalUI.selectedBgColorDay,
+    );
+    expect(
+      MenuFlyoutThemeColors.dark.hoverSurface,
+      GlobalUI.selectedBgColorNight,
+    );
+  });
+
+  testWidgets('MenuFlyout anchors inside nested navigator overlay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const SizedBox(height: 72),
+              Expanded(
+                child: Row(
+                  children: [
+                    const SizedBox(width: 220),
+                    Expanded(
+                      child: Navigator(
+                        onGenerateRoute:
+                            (_) => MaterialPageRoute<void>(
+                              builder:
+                                  (context) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 48,
+                                      top: 64,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Builder(
+                                        builder: (context) {
+                                          return TextButton(
+                                            onPressed: () {
+                                              showMenuFlyout(
+                                                context,
+                                                items: [
+                                                  MenuFlyoutItem(
+                                                    key: 'nested',
+                                                    text: 'Nested Item',
+                                                    onPressed: () {},
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            child: const Text('Nested Open'),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.widgetWithText(TextButton, 'Nested Open');
+    final buttonRect = tester.getRect(button);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    final panelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(panelRect.left, moreOrLessEquals(buttonRect.left, epsilon: 1));
+    expect(panelRect.top, moreOrLessEquals(buttonRect.bottom + 4, epsilon: 1));
+  });
+
+  testWidgets('MenuFlyout explicit anchor uses nested overlay coordinates', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const SizedBox(height: 72),
+              Expanded(
+                child: Row(
+                  children: [
+                    const SizedBox(width: 220),
+                    Expanded(
+                      child: Navigator(
+                        onGenerateRoute:
+                            (_) => MaterialPageRoute<void>(
+                              builder:
+                                  (context) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 48,
+                                      top: 180,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Builder(
+                                        builder: (context) {
+                                          return TextButton(
+                                            onPressed: () {
+                                              final box =
+                                                  context.findRenderObject()
+                                                      as RenderBox;
+                                              showMenuFlyout(
+                                                context,
+                                                position: box.localToGlobal(
+                                                  const Offset(0, -8),
+                                                ),
+                                                items: [
+                                                  MenuFlyoutItem(
+                                                    key: 'nested-above',
+                                                    text: 'Nested Above Item',
+                                                    onPressed: () {},
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            child: const Text(
+                                              'Nested Above Open',
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final button = find.widgetWithText(TextButton, 'Nested Above Open');
+    final buttonRect = tester.getRect(button);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    final panelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(panelRect.left, moreOrLessEquals(buttonRect.left, epsilon: 1));
+    expect(panelRect.bottom, moreOrLessEquals(buttonRect.top - 8, epsilon: 1));
+  });
+
   testWidgets('MenuFlyout closes on Escape like Electron flyouts', (
     tester,
   ) async {
@@ -1464,6 +1626,659 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(actionContext, same(sourceContext));
+  });
+
+  testWidgets('MenuFlyout closes before async dialog actions complete', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'open-dialog',
+                        text: 'Open Dialog',
+                        onPressedWithContext: (menuContext) {
+                          return showDialog<void>(
+                            context: menuContext,
+                            builder:
+                                (context) => AlertDialog(
+                                  content: const Text('Dialog Body'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.of(context).pop(),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
+                                ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Dialog'), findsOneWidget);
+
+    await tester.tap(find.text('Open Dialog'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Dialog'), findsNothing);
+    expect(find.text('Dialog Body'), findsOneWidget);
+  });
+
+  testWidgets('MenuFlyout closes before synchronous dialog actions run', (
+    tester,
+  ) async {
+    var showDialogBody = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              body: Stack(
+                children: [
+                  Builder(
+                    builder: (context) {
+                      return TextButton(
+                        onPressed: () {
+                          showMenuFlyout(
+                            context,
+                            items: [
+                              MenuFlyoutItem(
+                                key: 'open-sync-dialog',
+                                text: 'Open Sync Dialog',
+                                onPressed:
+                                    () => setState(() {
+                                      showDialogBody = true;
+                                    }),
+                              ),
+                            ],
+                          );
+                        },
+                        child: const Text('Open'),
+                      );
+                    },
+                  ),
+                  if (showDialogBody) const Text('Sync Dialog Body'),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Sync Dialog'), findsOneWidget);
+
+    await tester.tap(find.text('Open Sync Dialog'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Sync Dialog'), findsNothing);
+    expect(find.text('Sync Dialog Body'), findsOneWidget);
+  });
+
+  testWidgets('MenuFlyout action closes every open flyout', (tester) async {
+    var actionRan = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              body: Stack(
+                children: [
+                  Builder(
+                    builder: (context) {
+                      return TextButton(
+                        onPressed: () {
+                          showMenuFlyout(
+                            context,
+                            position: const Offset(20, 20),
+                            avoidPlayerBar: false,
+                            items: [
+                              MenuFlyoutItem(
+                                key: 'first-open-flyout-action',
+                                text: 'First Open Flyout Action',
+                                onPressed: () {},
+                              ),
+                            ],
+                          );
+                          showMenuFlyout(
+                            context,
+                            position: const Offset(260, 20),
+                            avoidPlayerBar: false,
+                            items: [
+                              MenuFlyoutItem(
+                                key: 'second-open-flyout-action',
+                                text: 'Second Open Flyout Action',
+                                onPressed:
+                                    () => setState(() {
+                                      actionRan = true;
+                                    }),
+                              ),
+                            ],
+                          );
+                        },
+                        child: const Text('Open'),
+                      );
+                    },
+                  ),
+                  if (actionRan) const Text('Action Ran'),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First Open Flyout Action'), findsOneWidget);
+    expect(find.text('Second Open Flyout Action'), findsOneWidget);
+
+    await tester.tap(find.text('Second Open Flyout Action'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First Open Flyout Action'), findsNothing);
+    expect(find.text('Second Open Flyout Action'), findsNothing);
+    expect(find.text('Action Ran'), findsOneWidget);
+  });
+
+  testWidgets('MusicMenuFlyout view info closes the submenu before opening', (
+    tester,
+  ) async {
+    var dialogShown = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              body: Stack(
+                children: [
+                  Builder(
+                    builder: (context) {
+                      return TextButton(
+                        onPressed: () {
+                          showMenuFlyout(
+                            context,
+                            position: const Offset(20, 20),
+                            avoidPlayerBar: false,
+                            items: buildMusicMenuFlyoutItems(
+                              i18n: i18n,
+                              songId: 1,
+                              isFavorite: false,
+                              isCurrentTrack: false,
+                              isPlaying: false,
+                              playlists: const [],
+                              showSelect: false,
+                              showPreference: false,
+                              onPlay: () {},
+                              onPause: () {},
+                              onPlayNext: () {},
+                              onAddToNowPlaying: () {},
+                              onCreatePlaylist: () {},
+                              onAddToPlaylist: (_) {},
+                              onRemove: () {},
+                              onToggleFavorite: () {},
+                              onSetPreference: (_) {},
+                              onSeeArtist: () {},
+                              onSeeAlbum: () {},
+                              onSeeMusicInfo:
+                                  () => setState(() {
+                                    dialogShown = true;
+                                  }),
+                              onSeeLyrics: () {},
+                              onSeeAlbumArt: () {},
+                              onSeeLocal: () {},
+                              onSelect: () {},
+                            ),
+                          );
+                        },
+                        child: const Text('Open'),
+                      );
+                    },
+                  ),
+                  if (dialogShown) const Text('Music Info Dialog'),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('View')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('See Music Info'), findsOneWidget);
+
+    await tester.tap(find.text('See Music Info'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('View'), findsNothing);
+    expect(find.text('See Music Info'), findsNothing);
+    expect(find.text('Music Info Dialog'), findsOneWidget);
+  });
+
+  testWidgets('MenuFlyout hover highlights only the hovered root item', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'second',
+                        text: 'Second',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'third',
+                        text: 'Third',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Second')));
+    await tester.pumpAndSettle();
+
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'First').color,
+      Colors.transparent,
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Second').color,
+      MenuFlyoutThemeColors.light.hoverSurface,
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Third').color,
+      Colors.transparent,
+    );
+  });
+
+  testWidgets('MenuFlyout hover does not rebuild the glass panel', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'second',
+                        text: 'Second',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'third',
+                        text: 'Third',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final glassPanel = tester.widget<GlassContainer>(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Second')));
+    await tester.pump();
+
+    expect(
+      tester.widget<GlassContainer>(
+        find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+      ),
+      same(glassPanel),
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Second').color,
+      MenuFlyoutThemeColors.light.hoverSurface,
+    );
+
+    await gesture.moveTo(tester.getCenter(find.text('Third')));
+    await tester.pump();
+
+    expect(
+      tester.widget<GlassContainer>(
+        find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+      ),
+      same(glassPanel),
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Second').color,
+      Colors.transparent,
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Third').color,
+      MenuFlyoutThemeColors.light.hoverSurface,
+    );
+  });
+
+  testWidgets('MenuFlyout items render above the glass layer', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+        matching: find.text('First'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('MenuFlyout hover has no implicit row animation', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'first',
+                        text: 'First',
+                        onPressed: () {},
+                      ),
+                      MenuFlyoutItem(
+                        key: 'second',
+                        text: 'Second',
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+        matching: find.byType(AnimatedContainer),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MenuFlyoutPanel.0.2')),
+        matching: find.byType(AnimatedContainer),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'MenuFlyout submenu hover highlights only the active branch and item',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showMenuFlyout(
+                      context,
+                      position: const Offset(8, 8),
+                      avoidPlayerBar: false,
+                      items: [
+                        MenuFlyoutItem(
+                          key: 'parent',
+                          text: 'Parent',
+                          submenu: [
+                            MenuFlyoutItem(
+                              key: 'child-a',
+                              text: 'Child A',
+                              onPressed: () {},
+                            ),
+                            MenuFlyoutItem(
+                              key: 'child-b',
+                              text: 'Child B',
+                              onPressed: () {},
+                            ),
+                            MenuFlyoutItem(
+                              key: 'child-c',
+                              text: 'Child C',
+                              onPressed: () {},
+                            ),
+                          ],
+                        ),
+                        MenuFlyoutItem(
+                          key: 'sibling',
+                          text: 'Sibling',
+                          onPressed: () {},
+                        ),
+                      ],
+                    );
+                  },
+                  child: const Text('Open'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(find.text('Parent')));
+      await tester.pumpAndSettle();
+      await gesture.moveTo(tester.getCenter(find.text('Child B')));
+      await tester.pumpAndSettle();
+
+      expect(
+        _menuFlyoutItemDecorationWithText(tester, 'Parent').color,
+        MenuFlyoutThemeColors.light.hoverSurface,
+      );
+      expect(
+        _menuFlyoutItemDecorationWithText(tester, 'Sibling').color,
+        Colors.transparent,
+      );
+      expect(
+        _menuFlyoutItemDecorationWithText(tester, 'Child A').color,
+        Colors.transparent,
+      );
+      expect(
+        _menuFlyoutItemDecorationWithText(tester, 'Child B').color,
+        MenuFlyoutThemeColors.light.hoverSurface,
+      );
+      expect(
+        _menuFlyoutItemDecorationWithText(tester, 'Child C').color,
+        Colors.transparent,
+      );
+    },
+  );
+
+  testWidgets('MenuFlyout submenu item hover does not rebuild glass panels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    position: const Offset(8, 8),
+                    avoidPlayerBar: false,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'parent',
+                        text: 'Parent',
+                        submenu: [
+                          MenuFlyoutItem(
+                            key: 'child-a',
+                            text: 'Child A',
+                            onPressed: () {},
+                          ),
+                          MenuFlyoutItem(
+                            key: 'child-b',
+                            text: 'Child B',
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Parent')));
+    await tester.pumpAndSettle();
+    await gesture.moveTo(tester.getCenter(find.text('Child A')));
+    await tester.pump();
+    final glassPanels =
+        tester
+            .widgetList<GlassContainer>(
+              find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+            )
+            .toList();
+
+    expect(glassPanels, hasLength(2));
+
+    await gesture.moveTo(tester.getCenter(find.text('Child B')));
+    await tester.pump();
+    final movedGlassPanels =
+        tester
+            .widgetList<GlassContainer>(
+              find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+            )
+            .toList();
+
+    expect(movedGlassPanels[0], same(glassPanels[0]));
+    expect(movedGlassPanels[1], same(glassPanels[1]));
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Child A').color,
+      Colors.transparent,
+    );
+    expect(
+      _menuFlyoutItemDecorationWithText(tester, 'Child B').color,
+      MenuFlyoutThemeColors.light.hoverSurface,
+    );
   });
 
   testWidgets('MenuFlyout does not scroll when all items fit', (tester) async {
@@ -1667,98 +2482,95 @@ void main() {
     },
   );
 
-  test(
-    'MusicMenuFlyout mirrors Electron Add To filtering and View submenu',
-    () {
-      final items = buildMusicMenuFlyoutItems(
-        i18n: i18n,
-        songId: 1,
-        isFavorite: false,
-        isCurrentTrack: false,
-        isPlaying: true,
-        currentTrackId: 2,
-        playlists: const [
-          MultiSelectCommandBarPlaylist(
-            id: 10,
-            name: 'Already Has Song',
-            songIds: [1],
-          ),
-          MultiSelectCommandBarPlaylist(id: 11, name: 'Mix', songIds: [2]),
-        ],
-        folders: const [
-          MenuFlyoutFolder(
-            id: 1,
-            name: 'Rock',
-            path: r'C:\Music\Rock',
-            parentId: 0,
-          ),
-        ],
-        showMoveToFolder: true,
-        showHideFile: true,
-        preferenceLevel: 'high',
-        onPlay: () {},
-        onPause: () {},
-        onPlayNext: () {},
-        onAddToNowPlaying: () {},
-        onCreatePlaylist: () {},
-        onAddToPlaylist: (_) {},
-        onRemove: () {},
-        onSelect: () {},
-        onToggleFavorite: () {},
-        onSetPreference: (_) {},
-        onUndoPreference: () {},
-        onMoveToFolder: (_) {},
-        onDelete: () {},
-        onHide: () {},
-        onSeeArtist: () {},
-        onSeeAlbum: () {},
-        onSeeMusicInfo: () {},
-        onSeeLyrics: () {},
-        onSeeAlbumArt: () {},
-        onSeeLocal: () {},
-      );
+  test('MusicMenuFlyout filters Add To and closes View dialog actions', () {
+    final items = buildMusicMenuFlyoutItems(
+      i18n: i18n,
+      songId: 1,
+      isFavorite: false,
+      isCurrentTrack: false,
+      isPlaying: true,
+      currentTrackId: 2,
+      playlists: const [
+        MultiSelectCommandBarPlaylist(
+          id: 10,
+          name: 'Already Has Song',
+          songIds: [1],
+        ),
+        MultiSelectCommandBarPlaylist(id: 11, name: 'Mix', songIds: [2]),
+      ],
+      folders: const [
+        MenuFlyoutFolder(
+          id: 1,
+          name: 'Rock',
+          path: r'C:\Music\Rock',
+          parentId: 0,
+        ),
+      ],
+      showMoveToFolder: true,
+      showHideFile: true,
+      preferenceLevel: 'high',
+      onPlay: () {},
+      onPause: () {},
+      onPlayNext: () {},
+      onAddToNowPlaying: () {},
+      onCreatePlaylist: () {},
+      onAddToPlaylist: (_) {},
+      onRemove: () {},
+      onSelect: () {},
+      onToggleFavorite: () {},
+      onSetPreference: (_) {},
+      onUndoPreference: () {},
+      onMoveToFolder: (_) {},
+      onDelete: () {},
+      onHide: () {},
+      onSeeArtist: () {},
+      onSeeAlbum: () {},
+      onSeeMusicInfo: () {},
+      onSeeLyrics: () {},
+      onSeeAlbumArt: () {},
+      onSeeLocal: () {},
+    );
 
-      final addToItem = items.singleWhere((item) => item.key == 'add-to');
-      expect(
-        addToItem.submenu.map((item) => item.text),
-        containsAll(['Now Playing', 'My Favorites', 'New Playlist', 'Mix']),
-      );
-      expect(
-        addToItem.submenu.map((item) => item.text),
-        isNot(contains('Already Has Song')),
-      );
+    final addToItem = items.singleWhere((item) => item.key == 'add-to');
+    expect(
+      addToItem.submenu.map((item) => item.text),
+      containsAll(['Now Playing', 'My Favorites', 'New Playlist', 'Mix']),
+    );
+    expect(
+      addToItem.submenu.map((item) => item.text),
+      isNot(contains('Already Has Song')),
+    );
 
-      expect(
-        items.map((item) => item.key),
-        containsAll(['select', 'preference', 'delete', 'hide-file', 'view']),
-      );
-      expect(
-        items.singleWhere((item) => item.key == 'select').icon,
-        FluentIcons.multiselect_ltr_20_regular,
-      );
-      final viewItem = items.singleWhere((item) => item.key == 'view');
-      expect(viewItem.submenu.map((item) => item.text), [
-        'See Artist',
-        'See Album',
-        'See Music Info',
-        'See Lyrics',
-        'See Album Art',
-        'See In File Explorer',
-      ]);
-      expect(
-        viewItem.submenu
-            .where(
-              (item) => {
-                'see-music-info',
-                'see-lyrics',
-                'see-album-art',
-              }.contains(item.key),
-            )
-            .map((item) => item.keepOpen),
-        everyElement(isTrue),
-      );
-    },
-  );
+    expect(
+      items.map((item) => item.key),
+      containsAll(['select', 'preference', 'delete', 'hide-file', 'view']),
+    );
+    expect(
+      items.singleWhere((item) => item.key == 'select').icon,
+      FluentIcons.multiselect_ltr_20_regular,
+    );
+    final viewItem = items.singleWhere((item) => item.key == 'view');
+    expect(viewItem.submenu.map((item) => item.text), [
+      'See Artist',
+      'See Album',
+      'See Music Info',
+      'See Lyrics',
+      'See Album Art',
+      'See In File Explorer',
+    ]);
+    expect(
+      viewItem.submenu
+          .where(
+            (item) => {
+              'see-music-info',
+              'see-lyrics',
+              'see-album-art',
+            }.contains(item.key),
+          )
+          .map((item) => item.keepOpen),
+      everyElement(isFalse),
+    );
+  });
 
   test('MusicMenuFlyout hides View when music properties are disabled', () {
     final items = buildMusicMenuFlyoutItems(
@@ -2070,6 +2882,20 @@ BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
             find.descendant(of: scope, matching: find.byType(DecoratedBox)),
           )
           .firstWhere((box) => box.decoration is BoxDecoration)
+          .decoration
+      as BoxDecoration;
+}
+
+BoxDecoration _menuFlyoutItemDecorationWithText(
+  WidgetTester tester,
+  String text,
+) {
+  return tester
+          .widget<Container>(
+            find
+                .ancestor(of: find.text(text), matching: find.byType(Container))
+                .first,
+          )
           .decoration
       as BoxDecoration;
 }

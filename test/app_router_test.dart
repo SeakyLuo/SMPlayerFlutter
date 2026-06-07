@@ -824,9 +824,11 @@ void main() {
     );
     expect(searchesTab.active, isTrue);
 
-    router.go('/songs');
+    await tester.tap(
+      find.byKey(const ValueKey('MusicLibraryItem')).hitTestable(),
+    );
     await _pumpRouter(tester);
-    await tester.tap(find.byKey(const ValueKey('RecentItem')));
+    await tester.tap(find.byKey(const ValueKey('RecentItem')).hitTestable());
     await _pumpRouter(tester);
 
     expect(router.routeInformationProvider.value.uri.path, '/recent');
@@ -834,6 +836,54 @@ void main() {
       find.byKey(const ValueKey('RecentPage.Tab.searches')),
     );
     expect(searchesTab.active, isTrue);
+  });
+
+  testWidgets('sidebar indexed stack preserves music library scroll offset', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 820);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final libraryData = _libraryDataWithSongs(80);
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith((ref) async => libraryData),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(libraryData),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    expect(firstRow, findsOneWidget);
+    final initialTop = tester.getTopLeft(firstRow).dy;
+
+    await tester.dragFrom(tester.getCenter(firstRow), const Offset(0, -120));
+    await tester.pumpAndSettle();
+
+    final scrolledTop = tester.getTopLeft(firstRow).dy;
+    expect(scrolledTop, lessThan(initialTop));
+
+    await tester.tap(find.byKey(const ValueKey('RecentItem')).hitTestable());
+    await _pumpRouter(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('MusicLibraryItem')).hitTestable(),
+    );
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
+    expect(tester.getTopLeft(firstRow).dy, moreOrLessEquals(scrolledTop));
   });
 
   testWidgets('library routes render migrated pages', (tester) async {
@@ -865,6 +915,46 @@ Future<void> _pumpRouter(WidgetTester tester) async {
   for (var pumpIndex = 0; pumpIndex < 6; pumpIndex += 1) {
     await tester.pump(const Duration(milliseconds: 100));
   }
+}
+
+LibraryContentData _libraryDataWithSongs(int count) {
+  final songs = [
+    for (var index = 1; index <= count; index += 1)
+      LibrarySong(
+        id: index,
+        path:
+            r'C:\Music\song_'
+            '$index.mp3',
+        title: 'Song ${index.toString().padLeft(3, '0')}',
+        artist: 'Artist ${index % 5}',
+        artists: ['Artist ${index % 5}'],
+        album: 'Album ${index % 7}',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+  ];
+  return LibraryContentData(
+    songs: songs,
+    recentSongs: const [],
+    recentPlaylists: const [],
+    recentAlbums: const [],
+    recentArtists: const [],
+    recentSearches: const [],
+    playlists: const [],
+    favoritePlaylistId: 0,
+    nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    hasLibrary: true,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    showCount: true,
+    hideMultiSelectCommandBarAfterOperation: true,
+    databasePath: '',
+    rootPath: r'C:\Music',
+  );
 }
 
 class _RouterTestApp extends StatelessWidget {

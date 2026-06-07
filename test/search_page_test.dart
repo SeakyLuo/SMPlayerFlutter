@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart'
@@ -18,7 +19,12 @@ import 'package:smplayer_flutter/src/library/ui/search_page_model.dart'
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show AppSettingsUpdate, NightMode, SearchSortCriterion, SettingsSnapshot;
+    show
+        AppSettingsUpdate,
+        LyricsRequestMode,
+        NightMode,
+        SearchSortCriterion,
+        SettingsSnapshot;
 
 void main() {
   const i18n = SmPlayerI18n(
@@ -51,7 +57,11 @@ void main() {
       'cards.trackCount': '{count} tracks',
       'context.addToPlaylist': 'Add To',
       'context.play': 'Play',
+      'context.seeAlbumArt': 'Album Art',
+      'context.seeLyrics': 'Lyrics',
+      'context.seeMusicInfo': 'Music Info',
       'context.select': 'Select',
+      'context.view': 'View',
       'playlists.newPlaylist': 'New Playlist',
       'player.more': 'More',
       'search.directoryResultOf': 'Results for {query} in {folder}',
@@ -791,6 +801,31 @@ void main() {
       expect(find.text('2 selected'), findsOneWidget);
     },
   );
+
+  testWidgets('SearchPage song view menu opens MusicDialog', (tester) async {
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        child: const SearchPage(query: 'song', activeType: 'songs'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Root Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Music Info'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(MusicDialog), findsOneWidget);
+    final dialog = tester.widget<MusicDialog>(find.byType(MusicDialog));
+    expect(dialog.song.id, 1);
+    expect(dialog.initialMode, SongDialogMode.properties);
+    expect(dialog.queueSongIds, [2, 1]);
+  });
 }
 
 class _SearchPageRouterTestApp extends StatelessWidget {
@@ -934,6 +969,57 @@ class _FakeLibraryRepository extends LibraryRepository {
           source: SongArtworkSource.none,
         ),
     ];
+  }
+
+  @override
+  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
+    final song = _snapshot.songs.firstWhere((song) => song.id == songId);
+    return SongPropertiesSnapshot(
+      songId: song.id,
+      path: song.path,
+      title: song.title,
+      subtitle: '',
+      artist: song.artist,
+      artists: song.artists,
+      album: song.album,
+      albumArtist: '',
+      publisher: '',
+      trackNumber: 0,
+      year: 0,
+      genre: '',
+      composers: '',
+      duration: song.duration,
+      bitrate: 0,
+      fileSize: 0,
+      dateCreated: '2026-06-06T00:00:00Z',
+      dateModified: '2026-06-06T00:00:00Z',
+      fileType: 'MP3',
+      playCount: song.playCount,
+    );
+  }
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
+    return const LyricsSnapshot(
+      source: LyricsSource.none,
+      isSynced: false,
+      rawText: '',
+      lines: [],
+    );
+  }
+
+  @override
+  Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
+    return SongArtworkSnapshot(
+      songId: songId,
+      artworkUrl: '',
+      sourceUrl: '',
+      sourcePath: '',
+      source: SongArtworkSource.none,
+    );
   }
 }
 

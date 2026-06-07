@@ -99,7 +99,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
-  ({LibrarySong song, SongDialogMode mode})? _musicDialog;
+  MusicDialogEntry? _musicDialog;
 
   @override
   void initState() {
@@ -645,12 +645,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               MusicDialog(
                 song: dialog.song,
                 initialMode: dialog.mode,
-                canPause:
-                    dialog.song.id == mediaState.track.id &&
-                    mediaState.isPlaying,
-                onPlay: () {
-                  _playTrackInQueue(dialog.song.id, [dialog.song.id]);
-                },
+                currentTrackId: mediaState.track.id,
+                isPlaying: mediaState.isPlaying,
+                queueSongIds: dialog.queueSongIds,
+                onPlay:
+                    ref.read(mediaControlControllerProvider).onTogglePlayPause,
+                onPlayTrack: _playTrackInQueue,
                 onReveal: (path) {
                   unawaited(revealItemInFolder(path));
                 },

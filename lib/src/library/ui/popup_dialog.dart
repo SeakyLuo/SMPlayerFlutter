@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:ui';
-
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 const popupDialogMobileBreakpoint = 720.0;
@@ -76,13 +77,27 @@ class _PopupDialogState extends State<PopupDialog> {
       widget.onClose();
     };
     _popupDialogCloseHandlers.add(_closeHandler);
+    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
     _overlayController.show();
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     _popupDialogCloseHandlers.remove(_closeHandler);
     super.dispose();
+  }
+
+  bool _handleGlobalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return false;
+    }
+    if (_popupDialogCloseHandlers.lastOrNull != _closeHandler) {
+      return false;
+    }
+    widget.onClose();
+    return true;
   }
 
   @override
@@ -125,18 +140,15 @@ class _PopupDialogState extends State<PopupDialog> {
           namesRoute: true,
           scopesRoute: true,
           explicitChildNodes: true,
-          child: BackdropFilter(
-            key: const ValueKey('popup-dialog-overlay'),
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: _PopupDialogLiquidGlassBackdrop(
+            colors: colors,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: widget.closeOnBackdrop ? widget.onClose : null,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: colors.overlay),
-                  ),
+                  child: const SizedBox.expand(),
                 ),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -152,6 +164,13 @@ class _PopupDialogState extends State<PopupDialog> {
                             ? constraints.maxHeight
                             : (constraints.maxHeight - widget.verticalInset)
                                 .clamp(0.0, widget.height);
+                    final navChildren = _navChildrenForMode(
+                      widget.navChildren,
+                      mobile: mobile,
+                      dialogClasses: dialogClasses,
+                    );
+                    final useTrailingSpacer =
+                        !mobile && !dialogClasses.usesFullWidthNavTitle;
                     final dialog = GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},
@@ -160,6 +179,7 @@ class _PopupDialogState extends State<PopupDialog> {
                         width: dialogWidth,
                         height: dialogHeight,
                         child: Container(
+                          key: const ValueKey('popup-dialog-surface'),
                           decoration: BoxDecoration(
                             color: colors.surface,
                             borderRadius: BorderRadius.circular(
@@ -214,12 +234,8 @@ class _PopupDialogState extends State<PopupDialog> {
                                             ),
                                     child: Row(
                                       children: [
-                                        ..._navChildrenForMode(
-                                          widget.navChildren,
-                                          mobile: mobile,
-                                          dialogClasses: dialogClasses,
-                                        ),
-                                        if (!mobile) const Spacer(),
+                                        ...navChildren,
+                                        if (useTrailingSpacer) const Spacer(),
                                         if (!mobile)
                                           Tooltip(
                                             message: i18n.t('common.close'),
@@ -313,6 +329,51 @@ class _PopupDialogState extends State<PopupDialog> {
   }
 }
 
+class _PopupDialogLiquidGlassBackdrop extends StatelessWidget {
+  const _PopupDialogLiquidGlassBackdrop({
+    required this.colors,
+    required this.child,
+  });
+
+  final PopupDialogResolvedColors colors;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      key: const ValueKey('popup-dialog-overlay'),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          GlassContainer(
+            key: const ValueKey('popup-dialog-overlay-glass'),
+            useOwnLayer: true,
+            quality: GlassQuality.minimal,
+            clipBehavior: Clip.hardEdge,
+            allowElevation: false,
+            shape: const LiquidRoundedRectangle(borderRadius: 0),
+            settings: LiquidGlassSettings(
+              blur: 46,
+              thickness: 20,
+              refractiveIndex: 1.06,
+              saturation: 1.65,
+              chromaticAberration: 0,
+              lightIntensity: 0.1,
+              ambientStrength: 0.08,
+              glowIntensity: 0.04,
+              glassColor: colors.overlay,
+              standardOpacityMultiplier: 0.24,
+            ),
+            child: const SizedBox.expand(),
+          ),
+          DecoratedBox(decoration: BoxDecoration(color: colors.overlay)),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 class _PopupDialogClassNames {
   const _PopupDialogClassNames({
     required this.className,
@@ -334,6 +395,10 @@ class _PopupDialogClassNames {
     return _contains(navClassName, 'music-dialog-pivot') ||
         _contains(className, 'music-dialog') ||
         _contains(className, 'album-artwork-dialog');
+  }
+
+  bool get usesFullWidthNavTitle {
+    return _contains(className, 'album-art-library-picker-dialog');
   }
 
   bool _contains(String source, String token) {
@@ -358,9 +423,13 @@ class _PopupDialogCloseButtonState extends State<_PopupDialogCloseButton> {
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
-    final background =
-        _hovered ? colors.buttonHoverSurface : colors.buttonSurface;
-    final foreground = _hovered ? colors.buttonHoverText : colors.buttonText;
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    final hoverSurface =
+        nightMode
+            ? GlobalUI.buttonHoverBgColorNight
+            : GlobalUI.buttonHoverBgColorDay;
+    final background = _hovered ? hoverSurface : colors.buttonSurface;
+    final foreground = colors.buttonText;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -390,8 +459,9 @@ class _PopupDialogCloseButtonState extends State<_PopupDialogCloseButton> {
             child: SizedBox(
               width: 42,
               height: 40,
-              child: Icon(
-                FluentIcons.dismiss_20_regular,
+              child: SvgIcon(
+                key: const ValueKey('popup-dialog-close-icon'),
+                svg: _popupDialogCloseIconSvg,
                 size: 18,
                 color: foreground,
               ),
@@ -402,6 +472,12 @@ class _PopupDialogCloseButtonState extends State<_PopupDialogCloseButton> {
     );
   }
 }
+
+const _popupDialogCloseIconSvg =
+    '<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="m4.09 4.22.06-.07a.5.5 0 0 1 .63-.06l.07.06L10 9.29l5.15-5.14a.5.5 0 0 1 .63-.06l.07.06c.18.17.2.44.06.63l-.06.07L10.71 10l5.14 5.15c.18.17.2.44.06.63l-.06.07a.5.5 0 0 1-.63.06l-.07-.06L10 10.71l-5.15 5.14a.5.5 0 0 1-.63.06l-.07-.06a.5.5 0 0 1-.06-.63l.06-.07L9.29 10 4.15 4.85a.5.5 0 0 1-.06-.63l.06-.07-.06.07Z"/></svg>';
+
+const _popupDialogArrowLeftIconSvg =
+    '<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M9.16 16.87a.5.5 0 1 0 .67-.74L3.67 10.5H17.5a.5.5 0 0 0 0-1H3.67l6.16-5.63a.5.5 0 0 0-.67-.74L2.24 9.44a.75.75 0 0 0 0 1.11l6.92 6.32Z"/></svg>';
 
 class _PopupDialogMobileTitleBar extends StatelessWidget {
   const _PopupDialogMobileTitleBar({
@@ -420,28 +496,12 @@ class _PopupDialogMobileTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Padding(
       key: const ValueKey('popup-dialog-mobile-titlebar'),
-      color: Colors.transparent,
+      padding: const EdgeInsets.only(left: 8),
       child: Row(
         children: [
-          SizedBox(
-            width: 40,
-            height: 32,
-            child: IconButton(
-              key: const ValueKey('popup-dialog-mobile-back-button'),
-              style: IconButton.styleFrom(
-                padding: EdgeInsets.zero,
-                fixedSize: const Size(40, 32),
-                foregroundColor: colors.text,
-                backgroundColor: Colors.transparent,
-                hoverColor: colors.mobileBackHoverSurface,
-                shape: const RoundedRectangleBorder(),
-              ),
-              icon: const Icon(FluentIcons.arrow_left_20_regular, size: 18),
-              onPressed: onClose,
-            ),
-          ),
+          _PopupDialogMobileBackButton(colors: colors, onClose: onClose),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -477,19 +537,102 @@ class _PopupDialogMobileTitleBar extends StatelessWidget {
   }
 }
 
+class _PopupDialogMobileBackButton extends StatefulWidget {
+  const _PopupDialogMobileBackButton({
+    required this.colors,
+    required this.onClose,
+  });
+
+  final PopupDialogResolvedColors colors;
+  final VoidCallback onClose;
+
+  @override
+  State<_PopupDialogMobileBackButton> createState() =>
+      _PopupDialogMobileBackButtonState();
+}
+
+class _PopupDialogMobileBackButtonState
+    extends State<_PopupDialogMobileBackButton> {
+  var _hovered = false;
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final background =
+        _pressed
+            ? colors.mobileBackActiveSurface
+            : _hovered
+            ? colors.mobileBackHoverSurface
+            : Colors.transparent;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+          _pressed = false;
+        });
+      },
+      child: GestureDetector(
+        key: const ValueKey('popup-dialog-mobile-back-button'),
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onClose,
+        onTapDown: (_) {
+          setState(() {
+            _pressed = true;
+          });
+        },
+        onTapUp: (_) {
+          setState(() {
+            _pressed = false;
+          });
+        },
+        onTapCancel: () {
+          setState(() {
+            _pressed = false;
+          });
+        },
+        child: DecoratedBox(
+          key: const ValueKey('popup-dialog-mobile-back-button-surface'),
+          decoration: BoxDecoration(color: background),
+          child: SizedBox(
+            width: 40,
+            height: 32,
+            child: Center(
+              child: SvgIcon(
+                key: const ValueKey('popup-dialog-mobile-back-icon'),
+                svg: _popupDialogArrowLeftIconSvg,
+                size: 18,
+                color: colors.text,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class PopupDialogTab extends StatelessWidget {
   const PopupDialogTab({
     super.key,
     required this.label,
-    required this.icon,
     required this.selected,
     required this.onPressed,
+    this.icon,
+    this.iconWidget,
     this.first = false,
     this.last = false,
   });
 
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? iconWidget;
   final bool selected;
   final VoidCallback onPressed;
   final bool first;
@@ -507,7 +650,7 @@ class PopupDialogTab extends StatelessWidget {
         maximumSize:
             mobile ? const Size(double.infinity, 40) : const Size(138, 40),
         padding: const EdgeInsets.symmetric(horizontal: 14),
-        foregroundColor: selected ? colors.accent : colors.text,
+        foregroundColor: selected ? colors.activeButtonText : colors.text,
         backgroundColor:
             selected ? colors.activeButtonSurface : colors.buttonSurface,
         shape: RoundedRectangleBorder(
@@ -524,20 +667,41 @@ class PopupDialogTab extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 6),
+          iconWidget ?? Icon(icon, size: 18),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontVariations: [FontVariation.weight(650)],
+              ),
             ),
           ),
         ],
       ),
     );
     if (!mobile) {
-      return button;
+      if (first) {
+        return SizedBox(width: 138, height: 40, child: button);
+      }
+      return SizedBox(
+        width: 137,
+        height: 40,
+        child: OverflowBox(
+          minWidth: 138,
+          maxWidth: 138,
+          minHeight: 40,
+          maxHeight: 40,
+          alignment: Alignment.centerLeft,
+          child: Transform.translate(
+            offset: const Offset(-1, 0),
+            child: button,
+          ),
+        ),
+      );
     }
     return SizedBox(width: double.infinity, height: 40, child: button);
   }
@@ -631,7 +795,7 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PopupDialogTitle(widget.title, centered: true),
+          _InputDialogTitle(widget.title),
           const SizedBox(height: 18),
           PopupDialogTextField(
             controller: _controller,
@@ -731,7 +895,7 @@ Future<bool> showPopupConfirmDialog({
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    PopupDialogTitle(title, centered: true),
+                    _InputDialogTitle(title),
                     const SizedBox(height: 18),
                     Text(
                       message,
@@ -786,6 +950,21 @@ class _InputDialogShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor =
+        dark ? PopupDialogColors.nightBorder : const Color(0x2e768499);
+    final shadow =
+        dark
+            ? const BoxShadow(
+              color: Color(0x6b000000),
+              blurRadius: 60,
+              offset: Offset(0, 24),
+            )
+            : const BoxShadow(
+              color: Color(0x2435495f),
+              blurRadius: 70,
+              offset: Offset(0, 26),
+            );
     return Material(
       color: Colors.transparent,
       child: Semantics(
@@ -793,29 +972,23 @@ class _InputDialogShell extends StatelessWidget {
         namesRoute: true,
         scopesRoute: true,
         explicitChildNodes: true,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: _InputDialogBackdrop(
+          colors: colors,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              DecoratedBox(decoration: BoxDecoration(color: colors.overlay)),
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 480),
                     child: DecoratedBox(
+                      key: const ValueKey('popup-input-dialog-surface'),
                       decoration: BoxDecoration(
                         color: colors.surface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.inputBorder),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.shadow,
-                            blurRadius: 60,
-                            offset: const Offset(0, 24),
-                          ),
-                        ],
+                        border: Border.all(color: borderColor),
+                        boxShadow: [shadow],
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -828,6 +1001,32 @@ class _InputDialogShell extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InputDialogBackdrop extends StatelessWidget {
+  const _InputDialogBackdrop({required this.colors, required this.child});
+
+  final PopupDialogResolvedColors colors;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      key: const ValueKey('popup-dialog-overlay'),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: colors.overlay),
+            ),
+          ),
+          child,
+        ],
       ),
     );
   }
@@ -852,6 +1051,28 @@ class PopupDialogTitle extends StatelessWidget {
         color: colors.textStrong,
         fontSize: mobile ? 18 : 22,
         fontWeight: FontWeight.w500,
+        height: 1.25,
+      ),
+    );
+  }
+}
+
+class _InputDialogTitle extends StatelessWidget {
+  const _InputDialogTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = PopupDialogColors.resolve(context);
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: colors.textStrong,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
         height: 1.25,
       ),
     );
@@ -967,6 +1188,9 @@ class PopupDialogActionButton extends StatelessWidget {
                 : colors.accent
             : Colors.transparent;
     final foreground = primary ? Colors.white : colors.accentStrong;
+    final resolvedForeground =
+        onPressed == null ? foreground.withValues(alpha: 0.72) : foreground;
+    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
 
     return TextButton(
       style: TextButton.styleFrom(
@@ -980,10 +1204,10 @@ class PopupDialogActionButton extends StatelessWidget {
         backgroundColor: background,
         disabledBackgroundColor: background.withValues(alpha: 0.72),
         textStyle: const TextStyle(
-          fontSize: 14,
+          fontSize: 16,
           fontWeight: FontWeight.w700,
           height: 1.2,
-        ),
+        ).copyWith(fontFamily: fontFamily),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ).copyWith(
         side: const WidgetStatePropertyAll(BorderSide.none),
@@ -1014,7 +1238,16 @@ class PopupDialogActionButton extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: TextStyle(
+              color: resolvedForeground,
+              fontFamily: fontFamily,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
         ],
       ),
     );
@@ -1027,33 +1260,34 @@ class PopupDialogColors {
   static const overlay = Color(0x3d181e26);
   static const surface = Color(0xfafbfcff);
   static const border = Color(0x80b9c3d2);
-  static const inputBorder = Color(0x33b9c3d2);
+  static const inputBorder = Color(0x94c0cad8);
   static const shadow = Color(0x47232d3c);
   static const buttonSurface = Color(0xebffffff);
   static const activeButtonSurface = Color(0xf5eff6ff);
   static const buttonBorder = Color(0x9ebec8d6);
   static const activeButtonBorder = Color(0x610078d7);
-  static const accent = Color(0xff0063b1);
+  static const accent = Color(0xff0078d7);
   static const accentSoft = Color(0x290078d7);
-  static const text = Color(0xff273142);
-  static const textStrong = Color(0xff111827);
-  static const textMuted = Color(0xff5b697a);
+  static const text = Color(0xff5f625f);
+  static const textStrong = Color(0xff1f252b);
+  static const textMuted = Color(0xff5f625f);
   static const fieldSurface = Color(0xe6ffffff);
   static const fieldDisabledSurface = Color(0xade6ebf3);
-  static const focusRing = Color(0x240078d7);
+  static const focusRing = Color(0x290078d7);
   static const destructive = Color(0xffd13438);
   static const nightOverlay = Color(0x9e04080d);
-  static const nightSurface = Color(0xf00f1722);
-  static const nightBorder = Color(0x4dffffff);
-  static const nightInputBorder = Color(0x33ffffff);
-  static const nightShadow = Color(0x6b000000);
-  static const nightButtonSurface = Color(0x12ffffff);
+  static const nightSurface = Color(0xfa161c24);
+  static const nightBorder = Color(0x1fd6e0ec);
+  static const nightInputBorder = Color(0x1fd6e0ec);
+  static const nightShadow = Color(0x7a000000);
+  static const nightButtonSurface = Color(0x11ffffff);
   static const nightActiveButtonSurface = Color(0x2e0078d7);
-  static const nightButtonBorder = Color(0x33ffffff);
+  static const nightButtonBorder = Color(0x1fd6e0ec);
   static const nightActiveButtonBorder = Color(0x610078d7);
-  static const nightText = Color(0xffdbeafe);
+  static const nightActiveText = Color(0xff459de2);
+  static const nightText = Color(0xebffffff);
   static const nightTextStrong = Color(0xfff8fafc);
-  static const nightTextMuted = Color(0xffcbd5e1);
+  static const nightTextMuted = Color(0xadcbd5e1);
   static const nightFieldSurface = Color(0x11ffffff);
   static const nightFieldDisabledSurface = Color(0x0affffff);
 
@@ -1075,8 +1309,10 @@ class PopupDialogResolvedColors
     required this.activeButtonSurface,
     required this.buttonHoverSurface,
     required this.mobileBackHoverSurface,
+    required this.mobileBackActiveSurface,
     required this.buttonText,
     required this.buttonHoverText,
+    required this.activeButtonText,
     required this.buttonBorder,
     required this.activeButtonBorder,
     required this.buttonShadow,
@@ -1085,6 +1321,7 @@ class PopupDialogResolvedColors
     required this.text,
     required this.textStrong,
     required this.textMuted,
+    required this.fieldDisabledText,
     required this.fieldSurface,
     required this.fieldDisabledSurface,
     required this.focusRing,
@@ -1100,8 +1337,10 @@ class PopupDialogResolvedColors
   final Color activeButtonSurface;
   final Color buttonHoverSurface;
   final Color mobileBackHoverSurface;
+  final Color mobileBackActiveSurface;
   final Color buttonText;
   final Color buttonHoverText;
+  final Color activeButtonText;
   final Color buttonBorder;
   final Color activeButtonBorder;
   final List<BoxShadow> buttonShadow;
@@ -1110,6 +1349,7 @@ class PopupDialogResolvedColors
   final Color text;
   final Color textStrong;
   final Color textMuted;
+  final Color fieldDisabledText;
   final Color fieldSurface;
   final Color fieldDisabledSurface;
   final Color focusRing;
@@ -1124,9 +1364,11 @@ class PopupDialogResolvedColors
     buttonSurface: PopupDialogColors.buttonSurface,
     activeButtonSurface: PopupDialogColors.activeButtonSurface,
     buttonHoverSurface: Color(0xfaf7fafe),
-    mobileBackHoverSurface: PopupDialogColors.accentSoft,
+    mobileBackHoverSurface: Color(0x12111827),
+    mobileBackActiveSurface: Color(0x1f0078d7),
     buttonText: PopupDialogColors.text,
     buttonHoverText: PopupDialogColors.text,
+    activeButtonText: PopupDialogColors.accent,
     buttonBorder: PopupDialogColors.buttonBorder,
     activeButtonBorder: PopupDialogColors.activeButtonBorder,
     buttonShadow: [
@@ -1137,6 +1379,7 @@ class PopupDialogResolvedColors
     text: PopupDialogColors.text,
     textStrong: PopupDialogColors.textStrong,
     textMuted: PopupDialogColors.textMuted,
+    fieldDisabledText: Color(0xd1535d6c),
     fieldSurface: PopupDialogColors.fieldSurface,
     fieldDisabledSurface: PopupDialogColors.fieldDisabledSurface,
     focusRing: PopupDialogColors.focusRing,
@@ -1152,9 +1395,11 @@ class PopupDialogResolvedColors
     buttonSurface: PopupDialogColors.nightButtonSurface,
     activeButtonSurface: PopupDialogColors.nightActiveButtonSurface,
     buttonHoverSurface: Color(0x290078d7),
-    mobileBackHoverSurface: Color(0x290078d7),
+    mobileBackHoverSurface: Color(0x14ffffff),
+    mobileBackActiveSurface: Color(0x1f0078d7),
     buttonText: PopupDialogColors.nightText,
-    buttonHoverText: Color(0xff48a9f9),
+    buttonHoverText: PopupDialogColors.nightActiveText,
+    activeButtonText: PopupDialogColors.nightActiveText,
     buttonBorder: PopupDialogColors.nightButtonBorder,
     activeButtonBorder: PopupDialogColors.nightActiveButtonBorder,
     buttonShadow: [],
@@ -1163,9 +1408,10 @@ class PopupDialogResolvedColors
     text: PopupDialogColors.nightText,
     textStrong: PopupDialogColors.nightTextStrong,
     textMuted: PopupDialogColors.nightTextMuted,
+    fieldDisabledText: PopupDialogColors.nightTextMuted,
     fieldSurface: PopupDialogColors.nightFieldSurface,
     fieldDisabledSurface: PopupDialogColors.nightFieldDisabledSurface,
-    focusRing: Color(0x2e0078d7),
+    focusRing: Color(0x330078d7),
     destructive: PopupDialogColors.destructive,
   );
 

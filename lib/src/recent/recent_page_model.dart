@@ -36,11 +36,13 @@ class RecentArtistView {
   const RecentArtistView({
     required this.name,
     required this.songs,
+    required this.artworkUrl,
     required this.playedAt,
   });
 
   final String name;
   final List<LibrarySong> songs;
+  final String artworkUrl;
   final String playedAt;
 }
 
@@ -126,6 +128,12 @@ List<RecentArtistView> buildRecentArtistViews(
         RecentArtistView(
           name: recentArtist.artist,
           songs: artistSongs,
+          artworkUrl:
+              artistSongs
+                  .where((song) => song.thumbnailPath.isNotEmpty)
+                  .map((song) => song.thumbnailPath)
+                  .firstOrNull ??
+              '',
           playedAt: recentArtist.playedAt,
         ),
       );

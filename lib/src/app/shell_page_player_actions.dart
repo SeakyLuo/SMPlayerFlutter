@@ -45,6 +45,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
               currentSong: currentSong,
               repository: ref.read(libraryRepositoryProvider),
               playerLyricsSource: settings.playerLyricsSource,
+              lyricsRefreshRevision: _playerLyricsRefreshRevision,
               previousButtonRestartsTrack: previousButtonRestartsTrack,
               onExit: _exitMiniMode,
               onTogglePlayPause: _togglePlayPauseFromCurrentQueue,

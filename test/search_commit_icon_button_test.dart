@@ -335,6 +335,74 @@ void main() {
         .where((decoration) => decoration.color == const Color(0x2e0078d7));
     expect(hoverDecorations, isNotEmpty);
   });
+
+  testWidgets('PageSearchField unfocuses when tapping outside', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              SizedBox(
+                width: 260,
+                child: PageSearchField(
+                  value: '',
+                  hintText: 'Search',
+                  focused: false,
+                  onChanged: (_) {},
+                  onFocusChanged: (_) {},
+                  onSubmitted: () {},
+                  onClear: () {},
+                ),
+              ),
+              GestureDetector(
+                key: const ValueKey('OutsidePageSearchTarget'),
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox(width: 200, height: 80),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('OutsidePageSearchTarget')));
+    await tester.pump();
+
+    expect(editableTextState.widget.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('PageSearchField search icon slot is square', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 260,
+            child: PageSearchField(
+              value: '',
+              hintText: 'Search',
+              focused: false,
+              onChanged: (_) {},
+              onFocusChanged: (_) {},
+              onSubmitted: () {},
+              onClear: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byType(SearchCommitIconButton)),
+      const Size.square(40),
+    );
+  });
 }
 
 BoxDecoration _fieldDecoration(WidgetTester tester) {

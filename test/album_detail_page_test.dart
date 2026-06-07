@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:ui' show PointerDeviceKind;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,10 +15,13 @@ import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 void main() {
   setUp(PageSelectionController.clearStoredStates);
@@ -58,6 +61,10 @@ void main() {
       'context.play': 'Play',
       'context.playNext': 'Play Next',
       'context.removeFromList': 'Remove From List',
+      'context.seeAlbumArt': 'Album Art',
+      'context.seeLyrics': 'Lyrics',
+      'context.seeMusicInfo': 'Music Info',
+      'context.view': 'View',
       'headeredPlaylist.songArtist': 'Song/Artist',
       'headeredPlaylist.songsPrefix': 'Songs: ',
       'nowPlaying.randomPlay': 'Shuffle',
@@ -946,6 +953,36 @@ void main() {
     },
   );
 
+  testWidgets('HeaderedPlaylistControl song view menu opens MusicDialog', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _HeaderedPlaylistTestApp(
+        i18n: i18n,
+        type: HeaderedPlaylistType.playlist,
+        title: 'Mix',
+        showAlbum: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('HeaderedPlaylist.Row.1')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Music Info'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(MusicDialog), findsOneWidget);
+    final dialog = tester.widget<MusicDialog>(find.byType(MusicDialog));
+    expect(dialog.song.id, 1);
+    expect(dialog.initialMode, SongDialogMode.properties);
+    expect(dialog.queueSongIds, [1, 9]);
+  });
+
   testWidgets('AlbumDetailPage shows Electron current preference state', (
     tester,
   ) async {
@@ -1439,6 +1476,57 @@ class _FakeLibraryRepository extends LibraryRepository {
           source: SongArtworkSource.none,
         ),
     ];
+  }
+
+  @override
+  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
+    final song = _snapshot.songs.firstWhere((song) => song.id == songId);
+    return SongPropertiesSnapshot(
+      songId: song.id,
+      path: song.path,
+      title: song.title,
+      subtitle: '',
+      artist: song.artist,
+      artists: song.artists,
+      album: song.album,
+      albumArtist: '',
+      publisher: '',
+      trackNumber: 0,
+      year: 0,
+      genre: '',
+      composers: '',
+      duration: song.duration,
+      bitrate: 0,
+      fileSize: 0,
+      dateCreated: '2026-06-06T00:00:00Z',
+      dateModified: '2026-06-06T00:00:00Z',
+      fileType: 'MP3',
+      playCount: song.playCount,
+    );
+  }
+
+  @override
+  Future<LyricsSnapshot> getSongLyrics(
+    int songId, {
+    LyricsRequestMode mode = LyricsRequestMode.auto,
+  }) async {
+    return const LyricsSnapshot(
+      source: LyricsSource.none,
+      isSynced: false,
+      rawText: '',
+      lines: [],
+    );
+  }
+
+  @override
+  Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
+    return SongArtworkSnapshot(
+      songId: songId,
+      artworkUrl: '',
+      sourceUrl: '',
+      sourcePath: '',
+      source: SongArtworkSource.none,
+    );
   }
 }
 

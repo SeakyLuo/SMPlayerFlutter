@@ -33,6 +33,7 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
         searchArtists;
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
@@ -2802,10 +2803,11 @@ void main() {
     await tester.tap(find.text('See Music Info'));
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Blue Song'), findsWidgets);
-    expect(find.text('See Lyrics'), findsOneWidget);
-    expect(find.text('See Album Art'), findsOneWidget);
-    expect(find.text('See In File Explorer'), findsOneWidget);
+    expect(find.byType(MusicDialog), findsOneWidget);
+    final dialog = tester.widget<MusicDialog>(find.byType(MusicDialog));
+    expect(dialog.song.id, 1);
+    expect(dialog.initialMode, SongDialogMode.properties);
+    expect(dialog.queueSongIds, [1]);
   });
 
   testWidgets('ArtistsPage song View See Artist routes like Electron', (

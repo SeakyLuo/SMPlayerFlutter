@@ -160,6 +160,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   int? _desktopLyricsLoadingSongId;
   LyricsRequestMode? _desktopLyricsMode;
   LyricsSnapshot? _desktopLyrics;
+  var _playerLyricsRefreshRevision = 0;
   final _playerArtworkResolveAttemptedSongIds = <int>{};
   final _playerArtworkResolvingSongIds = <int>{};
   final _playerArtworkErrorAttemptedKeys = <String>{};
@@ -282,6 +283,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     final rawHeaderedPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
+    ref.listen(lyricsSavedEventProvider, (previous, next) {
+      if (next case final event?) {
+        _refreshPlayerLyricsAfterSave(event.songId);
+      }
+    });
     final currentLocation = widget.currentLocation ?? currentPath;
     final layout = ShellLayoutState.resolve(
       currentPath: currentPath,

@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/search_commit_icon_button.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show SettingsSnapshot;
@@ -1397,6 +1398,82 @@ void main() {
       expect(find.text('最近搜索'), findsNothing);
     },
   );
+
+  testWidgets('sidebar search unfocuses when tapping outside', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Column(
+          children: [
+            SizedBox(
+              width: 320,
+              height: 240,
+              child: MainNavigationView(
+                isPaneOpen: true,
+                currentPath: '/songs',
+                searchText: '',
+                i18n: testI18n,
+                onPaneToggle: () {},
+                onSearchTextChanged: (_) {},
+                onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+                onSearchCleared: () {},
+                onItemInvoked: (_) {},
+              ),
+            ),
+            GestureDetector(
+              key: const ValueKey('OutsideSearchTarget'),
+              behavior: HitTestBehavior.opaque,
+              child: const SizedBox(width: 200, height: 80),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+
+    await tester.tap(
+      find.byKey(const ValueKey('OutsideSearchTarget')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+
+    expect(editableTextState.widget.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('sidebar search icon slot is square', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 240,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byType(SearchCommitIconButton).first),
+      const Size.square(40),
+    );
+  });
 }
 
 class _MainNavigationShellRepository extends LibraryRepository {

@@ -23,6 +23,7 @@ class MiniModeSurface extends StatefulWidget {
     required this.currentSong,
     required this.repository,
     required this.playerLyricsSource,
+    required this.lyricsRefreshRevision,
     required this.previousButtonRestartsTrack,
     required this.onExit,
     required this.onTogglePlayPause,
@@ -50,6 +51,7 @@ class MiniModeSurface extends StatefulWidget {
   final LibrarySong? currentSong;
   final LibraryRepository repository;
   final LyricsRequestMode playerLyricsSource;
+  final int lyricsRefreshRevision;
   final bool previousButtonRestartsTrack;
   final VoidCallback onExit;
   final VoidCallback onTogglePlayPause;
@@ -96,7 +98,8 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
   void didUpdateWidget(covariant MiniModeSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentSong?.id != widget.currentSong?.id ||
-        oldWidget.playerLyricsSource != widget.playerLyricsSource) {
+        oldWidget.playerLyricsSource != widget.playerLyricsSource ||
+        oldWidget.lyricsRefreshRevision != widget.lyricsRefreshRevision) {
       _lyrics = null;
       _loadLyricsForSong();
     }

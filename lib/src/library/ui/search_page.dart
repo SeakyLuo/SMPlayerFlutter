@@ -72,8 +72,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   late final VoidCallback _clearAppBarPortalOwner;
   var _settings = const SettingsSnapshot.defaults();
   late var _activeFilter = searchFilterKeyFromType(widget.activeType);
-  LibrarySong? _dialogSong;
-  SongDialogMode? _dialogMode;
+  MusicDialogEntry? _musicDialog;
   SearchResult? _albumArtPreview;
   final _expandedSections = <SearchResultType>{};
 
@@ -105,8 +104,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _expandedSections.clear();
       _selection.cancel();
       _activeFilter = SearchFilterKey.all;
-      _dialogSong = null;
-      _dialogMode = null;
+      _musicDialog = null;
       _albumArtPreview = null;
       return;
     }
@@ -512,27 +510,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     setState(_selection.cancel);
                   },
                 ),
-                if (_dialogSong != null && _dialogMode != null)
+                if (_musicDialog case final dialog?)
                   MusicDialog(
-                    song: _dialogSong!,
-                    initialMode: _dialogMode!,
-                    canPause:
-                        mediaControlState.isPlaying &&
-                        mediaControlState.track.id == _dialogSong!.id,
-                    onPlay: () {
-                      if (mediaControlState.track.id == _dialogSong!.id) {
+                    song: dialog.song,
+                    initialMode: dialog.mode,
+                    currentTrackId: mediaControlState.track.id,
+                    isPlaying: mediaControlState.isPlaying,
+                    queueSongIds: dialog.queueSongIds,
+                    onPlay:
                         ref
                             .read(mediaControlControllerProvider)
-                            .onTogglePlayPause();
-                        return;
-                      }
-                      _playSongIds([_dialogSong!.id]);
+                            .onTogglePlayPause,
+                    onPlayTrack: (trackId, queueSongIds) {
+                      final songsById = {
+                        for (final song
+                            in ref
+                                .read(libraryContentDataProvider)
+                                .value!
+                                .songs)
+                          song.id: song,
+                      };
+                      _playTrack(
+                        songsById[trackId]!,
+                        queueSongIds.indexOf(trackId),
+                        queueSongIds,
+                      );
                     },
                     onReveal: _revealSongPath,
                     onClose: () {
                       setState(() {
-                        _dialogSong = null;
-                        _dialogMode = null;
+                        _musicDialog = null;
                       });
                     },
                   ),
@@ -926,10 +933,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref.invalidate(libraryContentDataProvider);
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     setState(() {
-      _dialogSong = song;
-      _dialogMode = mode;
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
       _albumArtPreview = null;
     });
   }
@@ -937,8 +947,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _showAlbumArtPreview(SearchResult card) {
     setState(() {
       _albumArtPreview = card;
-      _dialogSong = null;
-      _dialogMode = null;
+      _musicDialog = null;
     });
   }
 

@@ -63,6 +63,10 @@ class LocalContentSection extends StatelessWidget {
             : const EdgeInsets.symmetric(horizontal: 8);
     final headerForeground =
         dark && expanded ? colors.accentStrong : colors.textStrong;
+    final headerFontSize = dark || compact ? 15.0 : 16.0;
+    final countForeground =
+        dark ? headerForeground.withValues(alpha: 0.72) : colors.textMuted;
+    final borderRadius = BorderRadius.circular(headerRadius);
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 14 : 24),
       child: Column(
@@ -70,73 +74,85 @@ class LocalContentSection extends StatelessWidget {
         children: [
           Padding(
             padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 0),
-            child: SizedBox(
-              height: headerHeight,
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  minimumSize: Size(0, headerHeight),
-                  padding: headerPadding,
-                  backgroundColor:
-                      dark
-                          ? expanded
-                              ? const Color(0x3d0078d7)
-                              : const Color(0x09ffffff)
-                          : Colors.transparent,
-                  side:
-                      dark
-                          ? BorderSide(
-                            color:
-                                expanded
-                                    ? const Color(0x7a0078d7)
-                                    : const Color(0x38d6e0ec),
-                          )
-                          : BorderSide.none,
-                  foregroundColor: headerForeground,
-                  shadowColor:
-                      dark && expanded ? const Color(0x140078d7) : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(headerRadius),
-                  ),
-                ),
-                onPressed: onToggle,
-                icon:
-                    dark
-                        ? const SizedBox.shrink()
-                        : Icon(
-                          expanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.chevron_right,
-                          size: compact ? 15 : 18,
-                        ),
-                label: RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      color: headerForeground,
-                      fontSize: compact ? 15 : 16,
-                      fontWeight: FontWeight.w700,
-                      fontVariations: const [FontVariation.weight(760)],
-                      height: 1,
+            child: Semantics(
+              button: true,
+              child: Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: onToggle,
+                  borderRadius: borderRadius,
+                  hoverColor: dark ? const Color(0x09ffffff) : null,
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  child: Container(
+                    height: headerHeight,
+                    padding: headerPadding,
+                    decoration: BoxDecoration(
+                      color:
+                          dark
+                              ? expanded
+                                  ? const Color(0x3d0078d7)
+                                  : const Color(0x09ffffff)
+                              : Colors.transparent,
+                      border:
+                          dark
+                              ? Border.all(
+                                color:
+                                    expanded
+                                        ? const Color(0x7a0078d7)
+                                        : const Color(0x38d6e0ec),
+                              )
+                              : null,
+                      borderRadius: borderRadius,
                     ),
-                    children: [
-                      TextSpan(text: title),
-                      TextSpan(
-                        text: '  $count',
-                        style: TextStyle(
-                          color:
-                              dark && expanded
-                                  ? headerForeground.withValues(alpha: 0.72)
-                                  : colors.textMuted,
-                          fontWeight:
-                              dark && expanded
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                          fontVariations: [
-                            FontVariation.weight(dark && expanded ? 650 : 560),
-                          ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        if (!dark) ...[
+                          Icon(
+                            expanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.chevron_right,
+                            size: 15,
+                            color: headerForeground,
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                        Text(
+                          title,
+                          textHeightBehavior: const TextHeightBehavior(
+                            applyHeightToFirstAscent: false,
+                            applyHeightToLastDescent: false,
+                          ),
+                          style: TextStyle(
+                            color: headerForeground,
+                            fontSize: headerFontSize,
+                            fontWeight: FontWeight.w700,
+                            fontVariations: const [FontVariation.weight(760)],
+                            height: 1,
+                          ),
                         ),
-                      ),
-                    ],
+                        SizedBox(width: dark ? 8 : 7),
+                        Text(
+                          '$count',
+                          textHeightBehavior: const TextHeightBehavior(
+                            applyHeightToFirstAscent: false,
+                            applyHeightToLastDescent: false,
+                          ),
+                          style: TextStyle(
+                            color: countForeground,
+                            fontSize: headerFontSize,
+                            fontWeight:
+                                dark ? FontWeight.w600 : FontWeight.w500,
+                            fontVariations: [
+                              FontVariation.weight(dark ? 650 : 560),
+                            ],
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

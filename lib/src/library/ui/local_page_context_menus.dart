@@ -386,17 +386,25 @@ extension _LocalPageContextMenus on _LocalPageState {
             '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
           );
         },
-        onSeeMusicInfo: () => _openMusicDialog(song, SongDialogMode.properties),
-        onSeeLyrics: () => _openMusicDialog(song, SongDialogMode.lyrics),
-        onSeeAlbumArt: () => _openMusicDialog(song, SongDialogMode.albumArt),
+        onSeeMusicInfo:
+            () =>
+                _openMusicDialog(song, SongDialogMode.properties, queueSongIds),
+        onSeeLyrics:
+            () => _openMusicDialog(song, SongDialogMode.lyrics, queueSongIds),
+        onSeeAlbumArt:
+            () => _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds),
         onSeeLocal: () => _revealSong(song),
       ),
     );
   }
 
-  void _openMusicDialog(LibrarySong song, SongDialogMode mode) {
+  void _openMusicDialog(
+    LibrarySong song,
+    SongDialogMode mode,
+    List<int> queueSongIds,
+  ) {
     _updateLocalPageState(() {
-      _musicDialog = (song: song, mode: mode);
+      _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
     });
   }
 

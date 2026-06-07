@@ -150,8 +150,7 @@ class _HeaderedPlaylistControlState
   final _scrollController = ScrollController();
   List<int>? _orderedSongIds;
   PlaylistSortCriterion? _selectedSortCriterion;
-  LibrarySong? _dialogSong;
-  SongDialogMode? _dialogMode;
+  MusicDialogEntry? _musicDialog;
   List<String> _resolvedPlaylistArtworkUrls = const [];
   String _playlistArtworkSignature = '';
   var _playlistArtworkGeneration = 0;

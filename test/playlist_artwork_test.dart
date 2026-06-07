@@ -37,6 +37,25 @@ void main() {
     ]);
   });
 
+  test('playlist artwork groups by raw Electron album key', () async {
+    final repository = _ArtworkRepository({
+      1: _snapshot(1, '/covers/empty.png'),
+      2: _snapshot(2, '/covers/space.png'),
+      3: _snapshot(3, '/covers/empty-alt.png'),
+    });
+
+    final urls = await resolvePlaylistArtworkUrls([
+      _song(1, ''),
+      _song(2, ' '),
+      _song(3, ''),
+    ], repository);
+
+    expect(urls, ['/covers/empty.png', '/covers/space.png']);
+    expect(repository.requests, [
+      [1, 2, 3],
+    ]);
+  });
+
   test(
     'playlist artwork display uses mosaic only for three or more covers',
     () {
@@ -79,6 +98,28 @@ void main() {
       );
     },
   );
+
+  test('folder thumbnail candidates group raw album names like Electron', () {
+    final root =
+        createFolderNode('', '/music')..thumbnailDirectSongIds = [1, 2, 3];
+    final songsById = {
+      1: _song(1, ''),
+      2: _song(2, ' '),
+      3: _song(3, ''),
+    };
+
+    final groups = getOriginalFolderThumbnailCandidateGroups(root, {
+      '': root,
+    }, songsById);
+
+    expect(
+      groups.map((group) => group.map((song) => song.id).toList()).toList(),
+      [
+        [1, 3],
+        [2],
+      ],
+    );
+  });
 
   test(
     'folder thumbnail resolver skips only missing artwork sources',

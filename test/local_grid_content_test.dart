@@ -42,6 +42,53 @@ void main() {
     },
   );
 
+  testWidgets('Local content section tag centers night title and count', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            brightness: Brightness.dark,
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.dark,
+              LocalPageColors.night,
+            ],
+          ),
+          home: Scaffold(
+            body: LocalContentSection(
+              title: '文件夹',
+              count: 2,
+              expanded: true,
+              onToggle: () {},
+              child: const SizedBox(width: 320, height: 40),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final title = find.text('文件夹');
+    final count = find.text('2');
+    expect(title, findsOneWidget);
+    expect(count, findsOneWidget);
+
+    final header = find.ancestor(of: title, matching: find.byType(InkWell));
+    final headerCenterY = tester.getCenter(header).dy;
+    final titleCenterY = tester.getCenter(title).dy;
+    final countCenterY = tester.getCenter(count).dy;
+
+    expect((titleCenterY - headerCenterY).abs(), lessThanOrEqualTo(0.5));
+    expect((countCenterY - headerCenterY).abs(), lessThanOrEqualTo(0.5));
+    expect((titleCenterY - countCenterY).abs(), lessThanOrEqualTo(0.5));
+
+    final titleText = tester.widget<Text>(title);
+    final countText = tester.widget<Text>(count);
+    expect(titleText.style?.fontSize, 15);
+    expect(countText.style?.fontSize, 15);
+  });
+
   testWidgets('Local grid song hover mirrors Electron card surface', (
     tester,
   ) async {
@@ -662,10 +709,22 @@ void main() {
               ),
             )
             .first;
+    final cardSizeBeforeHover = tester.getSize(folderCard);
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: tester.getCenter(folderCard));
     addTearDown(gesture.removePointer);
     await tester.pump(const Duration(milliseconds: 140));
+    expect(tester.getSize(folderCard), cardSizeBeforeHover);
+
+    final hoveredCard = tester.widget<Container>(folderCard);
+    final hoveredDecoration = hoveredCard.decoration! as BoxDecoration;
+    final hoveredForeground =
+        hoveredCard.foregroundDecoration! as BoxDecoration;
+    expect(hoveredDecoration.border, isNull);
+    expect(
+      hoveredForeground.border,
+      Border.all(color: GlobalUI.hoverBorderColorDay),
+    );
 
     await tester.tap(find.byTooltip('Play Sub'));
     await tester.pump();
@@ -805,8 +864,15 @@ void main() {
             .first;
     final gridDecoration =
         tester.widget<Container>(gridCard).decoration! as BoxDecoration;
+    final gridForeground =
+        tester.widget<Container>(gridCard).foregroundDecoration!
+            as BoxDecoration;
     expect(gridDecoration.color, GlobalUI.selectedBgColorDay);
-    expect(gridDecoration.border!.top.color, GlobalUI.selectedBorderColorDay);
+    expect(gridDecoration.border, isNull);
+    expect(
+      gridForeground.border,
+      Border.all(color: GlobalUI.selectedBorderColorDay),
+    );
     expect(gridDecoration.boxShadow, [GlobalUI.selectedShadowDay]);
     final folderCover = tester.widget<AnimatedContainer>(
       find
@@ -825,8 +891,96 @@ void main() {
       find.byKey(const ValueKey('LocalFolderCard.ListDropSurface')),
     );
     final listDecoration = listSurface.decoration! as BoxDecoration;
+    final listForeground = listSurface.foregroundDecoration! as ShapeDecoration;
+    final listShape = listForeground.shape as RoundedRectangleBorder;
     expect(listDecoration.color, GlobalUI.selectedBgColorDay);
-    expect(listDecoration.border!.top.color, GlobalUI.selectedBorderColorDay);
+    expect(listDecoration.border, isNull);
+    expect(listShape.side.color, GlobalUI.selectedBorderColorDay);
+    expect(listShape.side.strokeAlign, BorderSide.strokeAlignOutside);
+  });
+
+  testWidgets('Local folder grid badge mirrors Electron floating icon style', (
+    tester,
+  ) async {
+    Future<({BoxDecoration decoration, GlassContainer glass})> pumpBadge(
+      Brightness brightness,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(
+              const _NoArtworkLibraryRepository(),
+            ),
+          ],
+          child: SmPlayerI18nScope(
+            i18n: i18n,
+            child: MaterialApp(
+              theme: (brightness == Brightness.dark
+                      ? ThemeData.dark()
+                      : ThemeData.light())
+                  .copyWith(
+                    extensions: [
+                      brightness == Brightness.dark
+                          ? LocalPageColors.night
+                          : LocalPageColors.day,
+                    ],
+                  ),
+              home: Scaffold(
+                body: _folderCard(i18n, variant: LocalFolderCardVariant.grid),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final badge = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey('LocalFolderCard.FolderTypeBadge')),
+      );
+      final glass = tester.widget<GlassContainer>(
+        find.descendant(
+          of: find.byKey(const ValueKey('LocalFolderCard.FolderTypeBadge')),
+          matching: find.byType(GlassContainer),
+        ),
+      );
+      return (decoration: badge.decoration as BoxDecoration, glass: glass);
+    }
+
+    final lightBadge = await pumpBadge(Brightness.light);
+    expect(lightBadge.decoration.borderRadius, BorderRadius.circular(8));
+    expect(lightBadge.decoration.boxShadow, hasLength(1));
+    expect(
+      lightBadge.decoration.boxShadow!.single.color,
+      const Color(0x1f1e2a3a),
+    );
+    expect(lightBadge.decoration.boxShadow!.single.offset, const Offset(0, 12));
+    expect(lightBadge.decoration.boxShadow!.single.blurRadius, 26);
+    expect(lightBadge.glass.width, 32);
+    expect(lightBadge.glass.height, 32);
+    expect(lightBadge.glass.useOwnLayer, isTrue);
+    expect(lightBadge.glass.quality, GlassQuality.minimal);
+    expect(
+      (lightBadge.glass.settings as LiquidGlassSettings).glassColor,
+      const Color(0xd1ffffff),
+    );
+    expect((lightBadge.glass.settings as LiquidGlassSettings).blur, 16);
+
+    final badgeSize = tester.getSize(
+      find.byKey(const ValueKey('LocalFolderCard.FolderTypeBadge')),
+    );
+    expect(badgeSize, const Size.square(32));
+
+    final darkBadge = await pumpBadge(Brightness.dark);
+    expect(
+      (darkBadge.glass.settings as LiquidGlassSettings).glassColor,
+      const Color(0xc7181e26),
+    );
+    expect(
+      darkBadge.decoration.boxShadow!.single.color,
+      const Color(0x3d000000),
+    );
   });
 
   testWidgets(
@@ -1070,6 +1224,61 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'Local grid folder card uses single cover for two thumbnails like Electron',
+    (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'smplayer_local_grid_two_artwork_',
+      );
+      addTearDown(() {
+        tempDir.deleteSync(recursive: true);
+      });
+      final firstArtworkFile = File('${tempDir.path}/folder-artwork-a.png');
+      final secondArtworkFile = File('${tempDir.path}/folder-artwork-b.png');
+      firstArtworkFile.writeAsBytesSync(_pngFixtureBytes);
+      secondArtworkFile.writeAsBytesSync(_pngFixtureBytes);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(
+              _ArtworkLibraryRepository({
+                101: firstArtworkFile.path,
+                102: secondArtworkFile.path,
+              }),
+            ),
+          ],
+          child: SmPlayerI18nScope(
+            i18n: i18n,
+            child: MaterialApp(
+              theme: ThemeData(
+                extensions: const [
+                  DefaultAlbumArtworkThemeColors.light,
+                  LocalPageColors.day,
+                ],
+              ),
+              home: Scaffold(
+                body: _folderGridContent(
+                  i18n,
+                  folderName: 'ArtworkSub',
+                  rootSongId: 101,
+                  deepSongId: 102,
+                  onPlayFolder: (_) {},
+                  onAddFolder: (_, _) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(_fileImage(firstArtworkFile.path), findsOneWidget);
+      expect(_fileImage(secondArtworkFile.path), findsNothing);
+    },
+  );
 }
 
 Finder _assetImage(String assetPath) {
@@ -1078,6 +1287,15 @@ Finder _assetImage(String assetPath) {
         widget is Image &&
         widget.image is AssetImage &&
         (widget.image as AssetImage).assetName == assetPath,
+  );
+}
+
+Finder _fileImage(String filePath) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is Image &&
+        widget.image is FileImage &&
+        (widget.image as FileImage).file.path == filePath,
   );
 }
 
