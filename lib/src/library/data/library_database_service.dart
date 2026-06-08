@@ -235,6 +235,7 @@ class LibraryDatabaseService {
     if (!_tableHasRows(db, 'Settings')) {
       db.execute('INSERT INTO Settings DEFAULT VALUES');
     }
+    _ensureMyFavoritesPlaylist(db);
     db.execute(
       "INSERT OR IGNORE INTO SearchState (Id, LastQuery) VALUES (1, '')",
     );
@@ -294,6 +295,108 @@ class LibraryDatabaseService {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_hidden_storage_item_type_path
         ON HiddenStorageItem(Type, Path)
     ''');
+  }
+
+  void _ensureMyFavoritesPlaylist(Database db) {
+    final settingsRows = db.select('''
+      SELECT Id, MyFavorites
+      FROM Settings
+      ORDER BY Id
+      LIMIT 1
+    ''');
+    final setting = settingsRows.first;
+    final settingId = setting['Id'] as int;
+    final currentFavoriteId = setting['MyFavorites'] as int;
+    final currentRows = db.select(
+      '''
+      SELECT Id
+      FROM Playlist
+      WHERE Id = ?
+      LIMIT 1
+    ''',
+      [currentFavoriteId],
+    );
+    if (currentRows.isNotEmpty) {
+      db.execute(
+        '''
+        UPDATE Playlist
+        SET State = 1
+        WHERE Id = ?
+      ''',
+        [currentFavoriteId],
+      );
+      return;
+    }
+
+    final namedRows = db.select(
+      '''
+      SELECT Id
+      FROM Playlist
+      WHERE Name = ?
+        AND State = 1
+      ORDER BY Id
+      LIMIT 1
+    ''',
+      ['My Favorites'],
+    );
+    final favoritePlaylistId =
+        namedRows.isNotEmpty
+            ? namedRows.first['Id'] as int
+            : _insertMyFavoritesPlaylist(db);
+    db.execute(
+      '''
+      UPDATE Settings
+      SET MyFavorites = ?
+      WHERE Id = ?
+    ''',
+      [favoritePlaylistId, settingId],
+    );
+    if (currentFavoriteId != favoritePlaylistId) {
+      _moveActivePlaylistItems(db, currentFavoriteId, favoritePlaylistId);
+    }
+  }
+
+  int _insertMyFavoritesPlaylist(Database db) {
+    db.execute(
+      '''
+      INSERT INTO Playlist (Name, Criterion, Priority, State)
+      VALUES (?, -1, 0, 1)
+    ''',
+      ['My Favorites'],
+    );
+    return db.lastInsertRowId;
+  }
+
+  void _moveActivePlaylistItems(
+    Database db,
+    int fromPlaylistId,
+    int toPlaylistId,
+  ) {
+    db.execute(
+      '''
+      UPDATE PlaylistItem
+      SET State = 0
+      WHERE PlaylistId = ?
+        AND State = 1
+        AND EXISTS (
+          SELECT 1
+          FROM PlaylistItem AS ExistingItem
+          WHERE ExistingItem.PlaylistId = ?
+            AND ExistingItem.ItemId = PlaylistItem.ItemId
+            AND ExistingItem.State = 1
+        )
+    ''',
+      [fromPlaylistId, toPlaylistId],
+    );
+    db.execute(
+      '''
+      UPDATE PlaylistItem
+      SET PlaylistId = ?
+      WHERE PlaylistId = ?
+        AND State = 1
+    ''',
+      [toPlaylistId, fromPlaylistId],
+    );
   }
 
   void _ensureLibrarySchemaColumns(Database db) {

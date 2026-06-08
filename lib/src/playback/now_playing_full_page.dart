@@ -1022,15 +1022,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   Future<void> _toggleSongsFavorite(List<int> songIds, bool favorite) async {
-    await ref
-        .read(libraryRepositoryProvider)
-        .setSongsFavorite(songIds, favorite);
-    final mediaController = ref.read(mediaControlControllerProvider);
-    if (songIds.contains(mediaController.state.track.id) &&
-        mediaController.state.track.favorite != favorite) {
-      mediaController.onToggleFavorite();
-    }
-    ref.invalidate(libraryContentDataProvider);
+    await setSongsFavorite(ref, songIds, favorite);
   }
 
   void _addSongToNowPlaying(LibrarySong song, List<int> queueSongIds) {

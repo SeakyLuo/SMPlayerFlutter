@@ -10,6 +10,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
+import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -502,16 +503,19 @@ void main() {
               matching: find.byType(AnimatedOpacity),
             )
             .first;
-    final actionsOpacityFinder =
+    final favoriteActionOpacityFinder =
         find
             .ancestor(
-              of: find.byKey(const ValueKey('MusicLibrary.RowActions.1')),
+              of: find.byKey(const ValueKey('MusicLibrary.FavoriteAction.1')),
               matching: find.byType(AnimatedOpacity),
             )
             .first;
 
     expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 0);
-    expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 0);
+    expect(
+      tester.widget<AnimatedOpacity>(favoriteActionOpacityFinder).opacity,
+      0,
+    );
     var rowDecoration =
         tester.widget<Container>(rowFinder).decoration as BoxDecoration;
     expect(rowDecoration.color, Colors.transparent);
@@ -522,13 +526,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.widget<AnimatedOpacity>(playOpacityFinder).opacity, 1);
-    expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 1);
+    expect(
+      tester.widget<AnimatedOpacity>(favoriteActionOpacityFinder).opacity,
+      1,
+    );
     rowDecoration =
         tester.widget<Container>(rowFinder).decoration as BoxDecoration;
-    expect(rowDecoration.color, const Color(0x0e0078d7));
+    expect(rowDecoration.color, const Color(0xffeaf6ff));
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.FavoriteAction.1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.AddToAction.1')),
+      findsNothing,
+    );
     expect(
       find.byKey(const ValueKey('MusicLibrary.PlayNextAction.1')),
-      findsOneWidget,
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.MoreAction.1')),
+      findsNothing,
     );
 
     await gesture.removePointer();
@@ -580,7 +599,7 @@ void main() {
       expect(tester.widget<AnimatedOpacity>(actionsOpacityFinder).opacity, 1);
       rowDecoration =
           tester.widget<Container>(rowFinder).decoration as BoxDecoration;
-      expect(rowDecoration.color, const Color(0x0e0078d7));
+      expect(rowDecoration.color, const Color(0xffeaf6ff));
       expect(
         find.byKey(const ValueKey('MusicLibrary.MoreAction.1')),
         findsOneWidget,
@@ -594,7 +613,7 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.physicalSize = const Size(640, 900);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -610,7 +629,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final rowFinder = find.byKey(const ValueKey('MusicLibrary.Row.1'));
+    final rowFinder = find.byKey(const ValueKey('MusicLibrary.CompactRow.1'));
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer();
     await gesture.moveTo(tester.getCenter(rowFinder));
@@ -814,6 +833,97 @@ void main() {
     expect(find.text('Electron Date Added'), findsOneWidget);
     expect(find.text('Table Play Count'), findsNothing);
     expect(find.text('Table Date Added'), findsNothing);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('MusicLibrary.Header.favorite')))
+          .width,
+      96,
+    );
+  });
+
+  testWidgets('MusicLibraryPage sorted wide header has selected background', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final titleButton = tester.widget<TextButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Header.title')),
+        matching: find.byType(TextButton),
+      ),
+    );
+    final artistButton = tester.widget<TextButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Header.artist')),
+        matching: find.byType(TextButton),
+      ),
+    );
+
+    expect(
+      titleButton.style?.backgroundColor?.resolve({}),
+      const Color(0x1a0078d7),
+    );
+    expect(
+      artistButton.style?.backgroundColor?.resolve({}),
+      Colors.transparent,
+    );
+  });
+
+  testWidgets('MusicLibraryPage wide table shows zero play count', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Row.1')),
+        matching: find.text('0'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('MusicLibraryPage favorite column cannot resize', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.ColumnResizer.favorite')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('MusicLibrary.ColumnResizer.artwork')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -832,18 +942,18 @@ void main() {
       await tester.pumpAndSettle();
 
       final header = find.byKey(const ValueKey('MusicLibrary.TableHeader'));
-      final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.100'));
+      final visibleRow = find.byKey(const ValueKey('MusicLibrary.Row.107'));
       final headerTop = tester.getTopLeft(header).dy;
-      final firstRowTop = tester.getTopLeft(firstRow).dy;
+      final visibleRowTop = tester.getTopLeft(visibleRow).dy;
 
       await tester.dragFrom(
-        tester.getTopLeft(firstRow) + const Offset(20, 20),
+        tester.getTopLeft(visibleRow) + const Offset(20, 20),
         const Offset(0, -260),
       );
       await tester.pumpAndSettle();
 
       expect(tester.getTopLeft(header).dy, headerTop);
-      expect(tester.getTopLeft(firstRow).dy, lessThan(firstRowTop));
+      expect(tester.getTopLeft(visibleRow).dy, lessThan(visibleRowTop));
     },
   );
 
@@ -864,7 +974,7 @@ void main() {
 
     final header = find.byKey(const ValueKey('MusicLibrary.TableHeader'));
     final thumb = find.byKey(const ValueKey('MusicLibrary.ScrollbarThumb'));
-    final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.100'));
+    final visibleRow = find.byKey(const ValueKey('MusicLibrary.Row.107'));
     final shellRight =
         tester
             .getTopRight(
@@ -872,7 +982,7 @@ void main() {
             )
             .dx;
     final thumbRight = tester.getTopRight(thumb).dx;
-    final firstRowTop = tester.getTopLeft(firstRow).dy;
+    final visibleRowTop = tester.getTopLeft(visibleRow).dy;
 
     expect(shellRight - thumbRight, inInclusiveRange(0, 20));
 
@@ -887,7 +997,24 @@ void main() {
     await tester.drag(thumb, const Offset(0, 80));
     await tester.pumpAndSettle();
 
-    expect(tester.getTopLeft(firstRow).dy, lessThan(firstRowTop));
+    expect(tester.getTopLeft(visibleRow).dy, lessThan(visibleRowTop));
+  });
+
+  testWidgets('MusicLibraryPage wide table virtualizes rows', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _virtualizedTableSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('MusicLibrary.Row.5000')), findsOneWidget);
+    expect(find.byKey(const ValueKey('MusicLibrary.Row.5499')), findsNothing);
   });
 
   testWidgets('MusicLibraryPage resizes wide columns like Electron', (
@@ -1095,6 +1222,59 @@ void main() {
     expect(
       tester.getTopLeft(find.text('Unknown Album Song')).dy,
       lessThan(tester.getTopLeft(find.text('Alpha Album Song')).dy),
+    );
+  });
+
+  testWidgets('MusicLibraryPage header click sorts immediately', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(
+        snapshot: _interactiveSortSnapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Alpha Title Song')).dy,
+      lessThan(tester.getTopLeft(find.text('Beta Title Song')).dy),
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Header.artist')),
+        matching: find.byType(TextButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.musicLibrarySort, MusicLibrarySortCriterion.artist);
+    expect(
+      tester.getTopLeft(find.text('Beta Title Song')).dy,
+      lessThan(tester.getTopLeft(find.text('Alpha Title Song')).dy),
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Header.artist')),
+        matching: find.byType(TextButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Alpha Title Song')).dy,
+      lessThan(tester.getTopLeft(find.text('Beta Title Song')).dy),
     );
   });
 
@@ -1353,6 +1533,46 @@ void main() {
     expect(repository.favoriteValue, isFalse);
   });
 
+  testWidgets('MusicLibraryPage favorite cell patches row without reload', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final snapshot = ValueNotifier<LibraryContentData>(_favoriteSnapshot);
+    final repository = _ValueListenableLibraryRepository(snapshot);
+
+    await tester.pumpWidget(
+      _RepositoryBackedMusicLibraryTestApp(
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.libraryContentLoadCount, 1);
+    final favoriteButton = find.ancestor(
+      of: find.byTooltip('Favorite').first,
+      matching: find.byType(IconButton),
+    );
+    tester.widget<IconButton>(favoriteButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.favoriteValue, isFalse);
+    expect(repository.libraryContentLoadCount, 1);
+    final actionTooltip = tester.widget<Tooltip>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.FavoriteAction.1')),
+        matching: find.byType(Tooltip),
+      ),
+    );
+    expect(actionTooltip.message, 'Add Favorite');
+  });
+
   testWidgets('MusicLibraryPage multi-select adds selected songs to playlist', (
     tester,
   ) async {
@@ -1417,6 +1637,60 @@ void main() {
 
     expect(repository.favoriteSongIds, [1]);
     expect(repository.favoriteValue, isTrue);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('MusicLibraryPage Add To My Favorites refreshes favorite state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final snapshot = ValueNotifier<LibraryContentData>(_snapshot);
+    final repository = _ValueListenableLibraryRepository(snapshot);
+
+    await tester.pumpWidget(
+      _LibraryContentDataListenableTestApp(
+        snapshot: snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add To').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My Favorites'));
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.favoriteValue, isTrue);
+    expect(snapshot.value.songs.first.favorite, isTrue);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicLibrary.Row.1')),
+        matching: find.byTooltip('Favorite'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(
+      _LibraryContentDataListenableTestApp(
+        snapshot: snapshot,
+        i18n: i18n,
+        repository: repository,
+        child: const MyFavoritesPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blue Song'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
   });
@@ -1644,11 +1918,13 @@ class _LibraryContentDataListenableTestApp extends StatelessWidget {
     required this.snapshot,
     required this.i18n,
     required this.repository,
+    this.child = const MusicLibraryPage(),
   });
 
   final ValueNotifier<LibraryContentData> snapshot;
   final SmPlayerI18n i18n;
   final _ValueListenableLibraryRepository repository;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -1659,16 +1935,47 @@ class _LibraryContentDataListenableTestApp extends StatelessWidget {
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
-        child: _LibraryContentDataInvalidator(snapshot: snapshot),
+        child: _LibraryContentDataInvalidator(snapshot: snapshot, child: child),
+      ),
+    );
+  }
+}
+
+class _RepositoryBackedMusicLibraryTestApp extends StatelessWidget {
+  const _RepositoryBackedMusicLibraryTestApp({
+    required this.i18n,
+    required this.repository,
+  });
+
+  final SmPlayerI18n i18n;
+  final LibraryRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryRepositoryProvider.overrideWithValue(repository),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
+          home: const Scaffold(body: MusicLibraryPage()),
+        ),
       ),
     );
   }
 }
 
 class _LibraryContentDataInvalidator extends ConsumerStatefulWidget {
-  const _LibraryContentDataInvalidator({required this.snapshot});
+  const _LibraryContentDataInvalidator({
+    required this.snapshot,
+    required this.child,
+  });
 
   final ValueNotifier<LibraryContentData> snapshot;
+  final Widget child;
 
   @override
   ConsumerState<_LibraryContentDataInvalidator> createState() =>
@@ -1702,7 +2009,7 @@ class _LibraryContentDataInvalidatorState
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
-      home: const Scaffold(body: MusicLibraryPage()),
+      home: Scaffold(body: widget.child),
     );
   }
 
@@ -1721,6 +2028,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceItemId;
   String? preferenceName;
   String? preferenceLevel;
+  MusicLibrarySortCriterion? musicLibrarySort;
   int? pendingDeletedSongId;
   final committedDeleteIds = <String>[];
   final undoneDeleteIds = <String>[];
@@ -1743,6 +2051,13 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     favoriteSongIds = songIds.toList();
     favoriteValue = favorite;
+  }
+
+  @override
+  Future<void> updateMusicLibrarySort(
+    MusicLibrarySortCriterion criterion,
+  ) async {
+    musicLibrarySort = criterion;
   }
 
   @override
@@ -1886,11 +2201,95 @@ class _ValueListenableLibraryRepository extends _FakeLibraryRepository {
   _ValueListenableLibraryRepository(this.snapshot);
 
   final ValueNotifier<LibraryContentData> snapshot;
+  int libraryContentLoadCount = 0;
 
   @override
   Future<LibraryContentData> getLibraryContentData() async {
+    libraryContentLoadCount += 1;
     return snapshot.value;
   }
+
+  @override
+  Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
+    await super.setSongsFavorite(songIds, favorite);
+    snapshot.value = _setSnapshotSongsFavorite(
+      snapshot.value,
+      songIds,
+      favorite,
+    );
+  }
+}
+
+LibraryContentData _setSnapshotSongsFavorite(
+  LibraryContentData snapshot,
+  List<int> songIds,
+  bool favorite,
+) {
+  final songIdSet = songIds.toSet();
+  final songs =
+      snapshot.songs.map((song) {
+        if (!songIdSet.contains(song.id)) {
+          return song;
+        }
+        return LibrarySong(
+          id: song.id,
+          path: song.path,
+          title: song.title,
+          artist: song.artist,
+          artists: song.artists,
+          album: song.album,
+          duration: song.duration,
+          playCount: song.playCount,
+          lyricsOffsetMs: song.lyricsOffsetMs,
+          dateAdded: song.dateAdded,
+          favorite: favorite,
+          thumbnailPath: song.thumbnailPath,
+        );
+      }).toList();
+  final playlists =
+      snapshot.playlists.map((playlist) {
+        if (playlist.id != snapshot.favoritePlaylistId) {
+          return playlist;
+        }
+        final nextSongIds = [
+          if (favorite) ...{
+            ...playlist.songIds,
+            ...songIds,
+          } else
+            ...playlist.songIds.where((songId) => !songIdSet.contains(songId)),
+        ];
+        return LibraryPlaylist(
+          id: playlist.id,
+          name: playlist.name,
+          priority: playlist.priority,
+          songCount: nextSongIds.length,
+          songIds: nextSongIds,
+          sortCriterion: playlist.sortCriterion,
+          isBuiltIn: playlist.isBuiltIn,
+        );
+      }).toList();
+
+  return LibraryContentData(
+    songs: songs,
+    recentSongs: snapshot.recentSongs,
+    recentPlaylists: snapshot.recentPlaylists,
+    recentAlbums: snapshot.recentAlbums,
+    recentArtists: snapshot.recentArtists,
+    recentSearches: snapshot.recentSearches,
+    playlists: playlists,
+    folders: snapshot.folders,
+    favoritePlaylistId: snapshot.favoritePlaylistId,
+    nowPlaying: snapshot.nowPlaying,
+    hasLibrary: snapshot.hasLibrary,
+    sortCriterion: snapshot.sortCriterion,
+    albumsSort: snapshot.albumsSort,
+    showCount: snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        snapshot.hideMultiSelectCommandBarAfterOperation,
+    localViewMode: snapshot.localViewMode,
+    rootPath: snapshot.rootPath,
+    databasePath: snapshot.databasePath,
+  );
 }
 
 const _snapshot = LibraryContentData(
@@ -2064,6 +2463,43 @@ final _tailQuickJumpSongs = List.generate(10, (index) {
   );
 });
 
+final _virtualizedTableSongs = List.generate(500, (index) {
+  return LibrarySong(
+    id: 5000 + index,
+    path:
+        r'C:\Music\virtualized-'
+        '$index.mp3',
+    title: 'Virtualized Song $index',
+    artist: 'Virtual Artist $index',
+    artists: ['Virtual Artist $index'],
+    album: 'Virtual Album',
+    duration: 120,
+    playCount: 0,
+    lyricsOffsetMs: 0,
+    dateAdded: '2026-05-20T00:00:00',
+    favorite: false,
+    thumbnailPath: '',
+  );
+});
+
+final _virtualizedTableSnapshot = LibraryContentData(
+  songs: _virtualizedTableSongs,
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 1,
+  nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
 const _accentQuickJumpSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
@@ -2194,6 +2630,53 @@ final _unknownAlbumTitleSortSnapshot = LibraryContentData(
   hideMultiSelectCommandBarAfterOperation:
       _unknownAlbumSortSnapshot.hideMultiSelectCommandBarAfterOperation,
   databasePath: _unknownAlbumSortSnapshot.databasePath,
+);
+
+const _interactiveSortSnapshot = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 40,
+      path: r'C:\Music\alpha-title.mp3',
+      title: 'Alpha Title Song',
+      artist: 'Zed Artist',
+      artists: ['Zed Artist'],
+      album: 'Sort Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 41,
+      path: r'C:\Music\beta-title.mp3',
+      title: 'Beta Title Song',
+      artist: 'Aardvark Artist',
+      artists: ['Aardvark Artist'],
+      album: 'Sort Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 1,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
 );
 
 final _foldersSnapshot = LibraryContentData(

@@ -77,45 +77,48 @@ class _WideSongTable extends StatelessWidget {
               onResizeColumn: onResizeColumn,
             ),
             Expanded(
-              child: SingleChildScrollView(
-                controller: scrollController,
-                child: Column(
-                  children:
-                      songs
-                          .map(
-                            (song) => _WideSongRow(
-                              song: song,
-                              selected: selectedSongIds.contains(song.id),
-                              current: song.id == selectedTrackId,
-                              playing: song.id == selectedTrackId && isPlaying,
-                              selectionMode: multiSelect,
-                              i18n: i18n,
-                              columnWidths: columnWidths,
-                              onSelected: () {
-                                onSelected(song.id);
-                              },
-                              onAddNextAndPlay: () {
-                                onAddNextAndPlay(song.id);
-                              },
-                              onTogglePlayPause: onTogglePlayPause,
-                              onToggleSelection: () {
-                                onToggleSelection(song.id);
-                              },
-                              onToggleFavorite: () {
-                                onToggleFavorite(song.id);
-                              },
-                              onPlayNext: () {
-                                onPlayNext(song.id);
-                              },
-                              onOpenAddToPlaylistMenu: (buttonContext) {
-                                onOpenAddToPlaylistMenu(buttonContext, song);
-                              },
-                              onOpenContextMenu: (position) {
-                                onOpenContextMenu(position, song);
-                              },
-                            ),
-                          )
-                          .toList(),
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemExtent: _wideVirtualRowHeight,
+                  itemCount: songs.length,
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return _WideSongRow(
+                      song: song,
+                      selected: selectedSongIds.contains(song.id),
+                      current: song.id == selectedTrackId,
+                      playing: song.id == selectedTrackId && isPlaying,
+                      selectionMode: multiSelect,
+                      i18n: i18n,
+                      columnWidths: columnWidths,
+                      onSelected: () {
+                        onSelected(song.id);
+                      },
+                      onAddNextAndPlay: () {
+                        onAddNextAndPlay(song.id);
+                      },
+                      onTogglePlayPause: onTogglePlayPause,
+                      onToggleSelection: () {
+                        onToggleSelection(song.id);
+                      },
+                      onToggleFavorite: () {
+                        onToggleFavorite(song.id);
+                      },
+                      onPlayNext: () {
+                        onPlayNext(song.id);
+                      },
+                      onOpenAddToPlaylistMenu: (buttonContext) {
+                        onOpenAddToPlaylistMenu(buttonContext, song);
+                      },
+                      onOpenContextMenu: (position) {
+                        onOpenContextMenu(position, song);
+                      },
+                    );
+                  },
                 ),
               ),
             ),
@@ -365,6 +368,7 @@ class _TableHeader extends StatelessWidget {
             width: columnWidths[_LibraryColumn.favorite]!,
             label: i18n.t('table.favorite'),
             onResizeColumn: onResizeColumn,
+            resizable: false,
           ),
           _HeaderCell(
             column: _LibraryColumn.playCount,
@@ -426,6 +430,8 @@ class _HeaderCell extends StatelessWidget {
             child: TextButton(
               style: TextButton.styleFrom(
                 alignment: Alignment.centerLeft,
+                backgroundColor:
+                    sorted ? colors.accentSoft : Colors.transparent,
                 foregroundColor: sorted ? colors.textStrong : colors.headerText,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 shape: const RoundedRectangleBorder(),
@@ -468,12 +474,14 @@ class _StaticHeaderCell extends StatelessWidget {
     required this.width,
     required this.label,
     required this.onResizeColumn,
+    this.resizable = true,
   });
 
   final _LibraryColumn column;
   final double width;
   final String label;
   final void Function(_LibraryColumn column, double deltaX) onResizeColumn;
+  final bool resizable;
 
   @override
   Widget build(BuildContext context) {
@@ -493,7 +501,8 @@ class _StaticHeaderCell extends StatelessWidget {
               ),
             ),
           ),
-          _ColumnResizer(column: column, onResizeColumn: onResizeColumn),
+          if (resizable)
+            _ColumnResizer(column: column, onResizeColumn: onResizeColumn),
         ],
       ),
     );
@@ -673,24 +682,36 @@ class _WideSongRowState extends State<_WideSongRow> {
                             ),
                           ),
                         ),
-                        _MusicLibraryRowActions(
-                          song: widget.song,
-                          visible: _hovered,
-                          i18n: widget.i18n,
-                          onToggleFavorite: widget.onToggleFavorite,
-                          onAddToPlaylist: widget.onOpenAddToPlaylistMenu,
-                          onPlayNext: widget.onPlayNext,
-                          onOpenContextMenu: widget.onOpenContextMenu,
+                        IgnorePointer(
+                          ignoring: !_hovered,
+                          child: AnimatedOpacity(
+                            opacity: _hovered ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: _MusicLibraryRowActionButton(
+                              key: ValueKey(
+                                'MusicLibrary.FavoriteAction.${widget.song.id}',
+                              ),
+                              tooltip:
+                                  widget.song.favorite
+                                      ? widget.i18n.t('context.removeFavorite')
+                                      : widget.i18n.t('context.addFavorite'),
+                              icon: Icon(
+                                widget.song.favorite
+                                    ? FluentIcons.heart_20_filled
+                                    : FluentIcons.heart_20_regular,
+                                size: 18,
+                              ),
+                              active: widget.song.favorite,
+                              onPressed: widget.onToggleFavorite,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                   _SongTextCell(
                     width: widget.columnWidths[_LibraryColumn.playCount]!,
-                    text:
-                        widget.song.playCount == 0
-                            ? ''
-                            : widget.song.playCount.toString(),
+                    text: widget.song.playCount.toString(),
                     current: widget.current,
                   ),
                   _SongTextCell(

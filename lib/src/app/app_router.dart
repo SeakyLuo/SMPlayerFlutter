@@ -396,10 +396,12 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
         path == '/artists' && uri.queryParameters.containsKey('artist');
+    final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
         isArtistDetailRoute ||
+        isHiddenFoldersRoute ||
         path == '/now-playing/full';
     final repository = ref.read(libraryRepositoryProvider);
 
@@ -409,6 +411,10 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       canGoBack: canGoBack,
       settingsRepository: repository,
       onNavigate: (target) {
+        if (target == '/local' && isHiddenFoldersRoute) {
+          context.go('/local');
+          return;
+        }
         if (target == '/playlists') {
           navigationShell.goBranch(7, initialLocation: true);
           return;
@@ -432,6 +438,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
 
         if (isArtistDetailRoute) {
           context.go('/artists');
+          return;
+        }
+
+        if (isHiddenFoldersRoute) {
+          context.go('/local');
           return;
         }
 

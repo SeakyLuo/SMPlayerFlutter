@@ -369,6 +369,45 @@ void main() {
     );
   });
 
+  test('audio loading indicator clears once pending autoplay is playing', () {
+    expect(
+      shouldShowAudioBackendLoading(
+        backendLoading: true,
+        waitingForCurrentLoad: true,
+        pendingAutoplay: true,
+        backendPlaying: false,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldShowAudioBackendLoading(
+        backendLoading: false,
+        waitingForCurrentLoad: true,
+        pendingAutoplay: true,
+        backendPlaying: false,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldShowAudioBackendLoading(
+        backendLoading: false,
+        waitingForCurrentLoad: true,
+        pendingAutoplay: true,
+        backendPlaying: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldShowAudioBackendLoading(
+        backendLoading: false,
+        waitingForCurrentLoad: true,
+        pendingAutoplay: false,
+        backendPlaying: false,
+      ),
+      isFalse,
+    );
+  });
+
   test('audio file permission classifier detects macOS sandbox denials', () {
     expect(
       isAudioFilePermissionDenied(
@@ -1969,6 +2008,18 @@ void main() {
           sortCriterion: MusicLibrarySortCriterion.title,
           albumsSort: AlbumSortCriterion.defaultSort,
           databasePath: '',
+          playlists: [
+            LibraryPlaylist(
+              id: 2,
+              name: 'My Favorites',
+              priority: 0,
+              songCount: 0,
+              songIds: [],
+              sortCriterion: PlaylistSortCriterion.title,
+              isBuiltIn: true,
+            ),
+          ],
+          favoritePlaylistId: 2,
           nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
         ),
       );
@@ -1988,6 +2039,9 @@ void main() {
 
       await tester.tap(find.byTooltip('Add to My Favorites'));
       await tester.pump();
+      expect(repository.snapshot.songs.single.favorite, isTrue);
+      expect(_snapshotFavoritePlaylist(repository.snapshot).songIds, [10]);
+
       await tester.tap(find.byTooltip('Remove from My Favorites'));
       await tester.pump();
 
@@ -1996,6 +2050,8 @@ void main() {
       expect(repository.favoriteWrites[0].favorite, isTrue);
       expect(repository.favoriteWrites[1].songIds, [10]);
       expect(repository.favoriteWrites[1].favorite, isFalse);
+      expect(repository.snapshot.songs.single.favorite, isFalse);
+      expect(_snapshotFavoritePlaylist(repository.snapshot).songIds, isEmpty);
     },
   );
 
@@ -2640,7 +2696,7 @@ class _StartupRepository extends LibraryRepository {
 class _SnapshotRepository extends _StartupRepository {
   _SnapshotRepository(this.snapshot);
 
-  final LibraryContentData snapshot;
+  LibraryContentData snapshot;
   var getLibraryContentDataCount = 0;
   var artworkSnapshotRequestCount = 0;
   final artworkSnapshotSongIds = <int>[];
@@ -2709,12 +2765,91 @@ class _SnapshotRepository extends _StartupRepository {
   @override
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     favoriteWrites.add((songIds: songIds, favorite: favorite));
+    snapshot = _snapshotWithFavoriteSongs(snapshot, songIds, favorite);
   }
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
     replaceNowPlayingCalls.add(songIds);
   }
+}
+
+LibraryContentData _snapshotWithFavoriteSongs(
+  LibraryContentData snapshot,
+  List<int> songIds,
+  bool favorite,
+) {
+  final songIdSet = songIds.toSet();
+  final songs =
+      snapshot.songs.map((song) {
+        if (!songIdSet.contains(song.id)) {
+          return song;
+        }
+        return LibrarySong(
+          id: song.id,
+          path: song.path,
+          title: song.title,
+          artist: song.artist,
+          artists: song.artists,
+          album: song.album,
+          duration: song.duration,
+          playCount: song.playCount,
+          lyricsOffsetMs: song.lyricsOffsetMs,
+          dateAdded: song.dateAdded,
+          favorite: favorite,
+          thumbnailPath: song.thumbnailPath,
+        );
+      }).toList();
+  final playlists =
+      snapshot.playlists.map((playlist) {
+        if (playlist.id != snapshot.favoritePlaylistId) {
+          return playlist;
+        }
+        final nextSongIds = [
+          if (favorite) ...{
+            ...playlist.songIds,
+            ...songIds,
+          } else
+            ...playlist.songIds.where((songId) => !songIdSet.contains(songId)),
+        ];
+        return LibraryPlaylist(
+          id: playlist.id,
+          name: playlist.name,
+          priority: playlist.priority,
+          songCount: nextSongIds.length,
+          songIds: nextSongIds,
+          sortCriterion: playlist.sortCriterion,
+          isBuiltIn: playlist.isBuiltIn,
+        );
+      }).toList();
+
+  return LibraryContentData(
+    songs: songs,
+    recentSongs: snapshot.recentSongs,
+    recentPlaylists: snapshot.recentPlaylists,
+    recentAlbums: snapshot.recentAlbums,
+    recentArtists: snapshot.recentArtists,
+    recentSearches: snapshot.recentSearches,
+    playlists: playlists,
+    folders: snapshot.folders,
+    favoritePlaylistId: snapshot.favoritePlaylistId,
+    nowPlaying: snapshot.nowPlaying,
+    hasLibrary: snapshot.hasLibrary,
+    sortCriterion: snapshot.sortCriterion,
+    albumsSort: snapshot.albumsSort,
+    showCount: snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        snapshot.hideMultiSelectCommandBarAfterOperation,
+    localViewMode: snapshot.localViewMode,
+    rootPath: snapshot.rootPath,
+    databasePath: snapshot.databasePath,
+  );
+}
+
+LibraryPlaylist _snapshotFavoritePlaylist(LibraryContentData snapshot) {
+  return snapshot.playlists.firstWhere(
+    (playlist) => playlist.id == snapshot.favoritePlaylistId,
+  );
 }
 
 class _ShellDesktopFeatureService implements DesktopFeatureService {

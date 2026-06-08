@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/library/ui/album_artwork_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -32,6 +33,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const _AlbumDetailPanel(child: SmPlayerLoadingState());
@@ -53,7 +55,11 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 message: i18n.t('collection.albumNotFoundCopy'),
               ),
             ),
-        data: (snapshot) {
+        data: (rawSnapshot) {
+          final snapshot = applyLibraryFavoriteOverrides(
+            rawSnapshot,
+            favoriteOverrides,
+          );
           final routeAlbumName = widget.albumName;
           final albumSongs =
               snapshot.songs
@@ -141,10 +147,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   ref.invalidate(libraryContentDataProvider);
                 },
                 onToggleFavorite: (songId, favorite) {
-                  ref
-                      .read(libraryRepositoryProvider)
-                      .setSongFavorite(songId, favorite);
-                  ref.invalidate(libraryContentDataProvider);
+                  unawaited(setSongsFavorite(ref, [songId], favorite));
                 },
                 onRecordPlay: () {
                   ref

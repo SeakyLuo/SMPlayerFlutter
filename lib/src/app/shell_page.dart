@@ -553,8 +553,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 ref,
                 song,
                 playlistId,
-                ref.read(libraryContentDataProvider).valueOrNull?.playlists ??
-                    const [],
               );
             },
             onRevealPath: _revealPath,

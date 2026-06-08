@@ -193,6 +193,13 @@ void main() {
       );
       expect(moreAction, findsOneWidget);
 
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(PlaylistControlItem)),
+      );
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
       await tester.tap(moreAction);
       await tester.pump();
 
@@ -936,10 +943,24 @@ void main() {
       final remove = find.byKey(
         const ValueKey('PlaylistControlItem.RemoveAction'),
       );
+      final more = find.byKey(const ValueKey('PlaylistControlItem.MoreAction'));
+      AnimatedOpacity hoverOpacity(Finder action) {
+        return tester.widget<AnimatedOpacity>(
+          find
+              .ancestor(of: action, matching: find.byType(AnimatedOpacity))
+              .first,
+        );
+      }
+
       expect(tester.getSize(playNext), const Size.square(32));
       expect(tester.getSize(addTo), const Size.square(32));
       expect(tester.getRect(playNext).left - tester.getRect(addTo).right, 8);
       expect(tester.getRect(remove).left - tester.getRect(playNext).right, 8);
+      expect(tester.getRect(more).left - tester.getRect(remove).right, 8);
+      expect(hoverOpacity(addTo).opacity, 0);
+      expect(hoverOpacity(playNext).opacity, 0);
+      expect(hoverOpacity(remove).opacity, 0);
+      expect(hoverOpacity(more).opacity, 0);
       var slide = tester.widget<AnimatedSlide>(
         find.descendant(of: playNext, matching: find.byType(AnimatedSlide)),
       );
@@ -954,8 +975,18 @@ void main() {
       );
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(playNext));
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(PlaylistControlItem)),
+      );
       addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(hoverOpacity(addTo).opacity, 1);
+      expect(hoverOpacity(playNext).opacity, 1);
+      expect(hoverOpacity(remove).opacity, 1);
+      expect(hoverOpacity(more).opacity, 1);
+
+      await mouse.moveTo(tester.getCenter(playNext));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 160));
 

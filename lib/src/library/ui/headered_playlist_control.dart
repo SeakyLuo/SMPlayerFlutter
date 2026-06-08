@@ -159,6 +159,7 @@ class _HeaderedPlaylistControlState
   var _headerCoverColor = _defaultHeaderArtworkColor;
   var _scrollTop = 0.0;
   var _headerCollapsed = false;
+  final _pendingFavoriteSongIds = <int>{};
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final VoidCallback _clearAppBarPortalOwner;

@@ -74,6 +74,16 @@ bool shouldApplyAudioBackendPlayingState({
   return backendPlaying || (!backendLoading && !pendingAutoplay);
 }
 
+bool shouldShowAudioBackendLoading({
+  required bool backendLoading,
+  required bool waitingForCurrentLoad,
+  required bool pendingAutoplay,
+  required bool backendPlaying,
+}) {
+  return backendLoading ||
+      (waitingForCurrentLoad && pendingAutoplay && !backendPlaying);
+}
+
 enum SmPlayerNavigationMode { minimal, overlay, wide }
 
 enum SmPlayerPlaybackShortcut {
