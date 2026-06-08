@@ -32,7 +32,6 @@ Future<bool> showSmPlayerConfirmDialog({
   required String title,
   required String message,
   required String confirmText,
-  String? pendingText,
   bool destructive = true,
   FutureOr<void> Function()? onConfirm,
 }) {
@@ -42,7 +41,6 @@ Future<bool> showSmPlayerConfirmDialog({
     message: message,
     confirmLabel: confirmText,
     i18n: i18n,
-    pendingLabel: pendingText,
     destructive: destructive,
     onConfirm:
         onConfirm == null

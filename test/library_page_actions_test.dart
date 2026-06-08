@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -18,6 +19,7 @@ void main() {
         child: SmPlayerI18nScope(
           i18n: _i18n,
           child: MaterialApp(
+            theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
             home: Consumer(
               builder: (context, ref, _) {
                 return Scaffold(

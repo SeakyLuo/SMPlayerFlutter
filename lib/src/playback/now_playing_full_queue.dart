@@ -663,7 +663,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
           },
           onRemoveFromListClick: () {
             onRemove(songIds, index);
-            showUndoableSnackBar(
+            showUndoableNotification(
               context: context,
               i18n: i18n,
               message: i18n.t('notification.removedFrom', {
@@ -802,7 +802,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
       defaultPlaylistName: _nextPlaylistName(song.title),
       onToggleFavorite: () {
         onToggleFavorite([song.id], true);
-        showUndoableSnackBar(
+        showUndoableNotification(
           context: buttonContext,
           i18n: i18n,
           message: i18n.t('notification.songAddedTo', {
@@ -905,7 +905,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
         },
         onRemove: () {
           onRemove(songIds, queueIndex);
-          showUndoableSnackBar(
+          showUndoableNotification(
             context: context,
             i18n: i18n,
             message: i18n.t('notification.removedFrom', {
@@ -929,7 +929,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
         onToggleFavorite: () {
           final nextFavorite = !song.favorite;
           onToggleFavorite([song.id], nextFavorite);
-          showUndoableSnackBar(
+          showUndoableNotification(
             context: context,
             i18n: i18n,
             message: i18n.t(

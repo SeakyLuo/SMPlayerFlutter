@@ -4,77 +4,80 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 
 void main() {
-  testWidgets('showUndoableSnackBar replaces the current undo notification', (
-    tester,
-  ) async {
-    final closedReasons = <SnackBarClosedReason>[];
-    var undoCount = 0;
+  testWidgets(
+    'showUndoableNotification replaces the current undo notification',
+    (tester) async {
+      final closedReasons = <AppNotificationClosedReason>[];
+      var undoCount = 0;
 
-    await tester.pumpWidget(
-      SmPlayerI18nScope(
-        i18n: _i18n,
-        child: MaterialApp(
-          theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
-          home: Builder(
-            builder: (context) {
-              return Scaffold(
-                body: Column(
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        showUndoableSnackBar(
-                          context: context,
-                          i18n: _i18n,
-                          message: 'First',
-                          onUndo: () {
-                            undoCount += 1;
-                          },
-                        ).then(closedReasons.add);
-                      },
-                      child: const Text('First'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        showUndoableSnackBar(
-                          context: context,
-                          i18n: _i18n,
-                          message: 'Second',
-                          onUndo: () {
-                            undoCount += 1;
-                          },
-                        ).then(closedReasons.add);
-                      },
-                      child: const Text('Second'),
-                    ),
-                  ],
-                ),
-              );
-            },
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
+            home: Builder(
+              builder: (context) {
+                return Scaffold(
+                  body: Column(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          showUndoableNotification(
+                            context: context,
+                            i18n: _i18n,
+                            message: 'First',
+                            onUndo: () {
+                              undoCount += 1;
+                            },
+                          ).then(closedReasons.add);
+                        },
+                        child: const Text('First'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          showUndoableNotification(
+                            context: context,
+                            i18n: _i18n,
+                            message: 'Second',
+                            onUndo: () {
+                              undoCount += 1;
+                            },
+                          ).then(closedReasons.add);
+                        },
+                        child: const Text('Second'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.text('First'));
-    await tester.pump();
-    expect(find.text('First'), findsNWidgets(2));
+      await tester.tap(find.text('First'));
+      await tester.pump();
+      expect(find.text('First'), findsNWidgets(2));
 
-    await tester.tap(find.text('Second'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Second'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('First'), findsOneWidget);
-    expect(find.text('Second'), findsNWidgets(2));
-    expect(closedReasons, [SnackBarClosedReason.hide]);
+      expect(find.text('First'), findsOneWidget);
+      expect(find.text('Second'), findsNWidgets(2));
+      expect(closedReasons, [AppNotificationClosedReason.hide]);
 
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
 
-    expect(undoCount, 1);
-    expect(closedReasons.last, SnackBarClosedReason.action);
-  });
+      expect(undoCount, 1);
+      expect(closedReasons.last, AppNotificationClosedReason.action);
+    },
+  );
 
   test('undoable notification duration matches Electron store', () {
     expect(undoableNotificationDuration, const Duration(seconds: 5));
@@ -130,6 +133,7 @@ void main() {
     tester,
   ) async {
     final actionCompleter = Completer<void>();
+    var actionStarted = false;
 
     await tester.pumpWidget(
       SmPlayerI18nScope(
@@ -151,7 +155,10 @@ void main() {
                         ),
                         AppNotificationAction(
                           label: 'Discard Changes',
-                          onPressed: () => actionCompleter.future,
+                          onPressed: () {
+                            actionStarted = true;
+                            return actionCompleter.future;
+                          },
                         ),
                       ],
                     );
@@ -168,18 +175,85 @@ void main() {
     await tester.tap(find.text('Show'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard Changes'));
+
+    expect(actionStarted, isFalse);
+
     await tester.pump();
 
+    expect(actionStarted, isTrue);
     expect(find.text('Save Immediately'), findsOneWidget);
-    expect(find.text('Discard Changes'), findsNothing);
+    expect(find.text('Discard Changes'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    final saveButton = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Save Immediately'),
+    final saveButton = tester.widget<SmPlayerTextIconButton>(
+      find.widgetWithText(SmPlayerTextIconButton, 'Save Immediately'),
     );
-    expect(saveButton.onPressed, isNull);
+    expect(saveButton.disabled, isTrue);
+    final discardButton = tester.widget<SmPlayerTextIconButton>(
+      find.widgetWithText(SmPlayerTextIconButton, 'Discard Changes'),
+    );
+    expect(discardButton.loading, isTrue);
 
     actionCompleter.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('notification action reuses CommandBar button styling', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: TextButton(
+                  onPressed: () {
+                    showUndoableNotification(
+                      context: context,
+                      i18n: _i18n,
+                      message: 'Removed',
+                      onUndo: () {},
+                    );
+                  },
+                  child: const Text('Show'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show'));
+    await tester.pumpAndSettle();
+
+    final undoButton = tester.widget<SmPlayerTextIconButton>(
+      find.widgetWithText(SmPlayerTextIconButton, 'Undo'),
+    );
+    expect(undoButton.minWidth, 64);
+    expect(undoButton.height, 36);
+    expect(undoButton.horizontalPadding, 16);
+    expect(undoButton.borderRadius, 10);
+    expect(undoButton.fontWeight, FontWeight.w700);
+    expect(undoButton.fontVariations, const [FontVariation.weight(720)]);
+
+    final decoratedBox =
+        tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.widgetWithText(SmPlayerTextIconButton, 'Undo'),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .last;
+    final decoration = decoratedBox.decoration as BoxDecoration;
+    expect(decoration.color, CommandBarColors.actionSurface);
+    expect(decoration.border, Border.all(color: CommandBarColors.actionBorder));
+
+    await tester.tap(find.text('Undo'));
     await tester.pumpAndSettle();
   });
 }

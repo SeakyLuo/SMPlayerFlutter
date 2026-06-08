@@ -359,7 +359,7 @@ extension _RecentPageMenus on _RecentPageState {
     if (!mounted) {
       return;
     }
-    showUndoableSnackBar(
+    showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),
@@ -378,7 +378,7 @@ extension _RecentPageMenus on _RecentPageState {
     if (!mounted) {
       return;
     }
-    showUndoableSnackBar(
+    showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),

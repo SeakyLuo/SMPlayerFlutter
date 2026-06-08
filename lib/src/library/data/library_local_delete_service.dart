@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -14,16 +15,157 @@ class LibraryLocalDeleteService {
   const LibraryLocalDeleteService({
     required LibraryHiddenStorageService hiddenStorageService,
     required LibraryPendingDeleteService pendingDeleteService,
-  }) : _hiddenStorageService = hiddenStorageService,
-       _pendingDeleteService = pendingDeleteService;
+  }) : _hiddenStorageService = hiddenStorageService;
 
   final LibraryHiddenStorageService _hiddenStorageService;
-  final LibraryPendingDeleteService _pendingDeleteService;
 
   Future<PendingSongDelete> beginDeleteSongFromDisk(
     File databaseFile,
     File pendingFile,
     int songId,
+  ) async {
+    final databasePath = databaseFile.path;
+    final pendingPath = pendingFile.path;
+    return Isolate.run(
+      () =>
+          _beginDeleteSongFromDiskInIsolate(databasePath, pendingPath, songId),
+    );
+  }
+
+  Future<void> undoDeleteSongFromDisk(
+    File databaseFile,
+    File pendingFile,
+    String deleteId,
+  ) async {
+    final databasePath = databaseFile.path;
+    final pendingPath = pendingFile.path;
+    await Isolate.run(
+      () =>
+          _undoDeleteSongFromDiskInIsolate(databasePath, pendingPath, deleteId),
+    );
+  }
+
+  Future<PendingLocalItemsDelete> beginDeleteLocalItems(
+    File databaseFile,
+    File pendingFile,
+    List<int> songIds,
+    List<String> folderPaths,
+  ) async {
+    final databasePath = databaseFile.path;
+    final pendingPath = pendingFile.path;
+    return Isolate.run(
+      () => _beginDeleteLocalItemsInIsolate(
+        databasePath,
+        pendingPath,
+        songIds,
+        folderPaths,
+      ),
+    );
+  }
+
+  Future<void> undoDeleteLocalItems(
+    File databaseFile,
+    File pendingFile,
+    String deleteId,
+  ) async {
+    final databasePath = databaseFile.path;
+    final pendingPath = pendingFile.path;
+    await Isolate.run(
+      () => _undoDeleteLocalItemsInIsolate(databasePath, pendingPath, deleteId),
+    );
+  }
+
+  void deleteSongsInsideTransaction(
+    Database db,
+    List<int> songIds,
+    List<String> songPaths,
+  ) {
+    _deleteSongsInsideTransaction(db, songIds, songPaths);
+  }
+}
+
+Future<PendingSongDelete> _beginDeleteSongFromDiskInIsolate(
+  String databasePath,
+  String pendingPath,
+  int songId,
+) async {
+  final service = LibraryLocalDeleteService(
+    hiddenStorageService: const LibraryHiddenStorageService(),
+    pendingDeleteService: const LibraryPendingDeleteService(),
+  );
+  final pendingDeleteService = const LibraryPendingDeleteService();
+  final databaseFile = File(databasePath);
+  final pendingFile = File(pendingPath);
+  return service._beginDeleteSongFromDisk(
+    databaseFile,
+    pendingFile,
+    songId,
+    pendingDeleteService,
+  );
+}
+
+Future<void> _undoDeleteSongFromDiskInIsolate(
+  String databasePath,
+  String pendingPath,
+  String deleteId,
+) async {
+  final service = LibraryLocalDeleteService(
+    hiddenStorageService: const LibraryHiddenStorageService(),
+    pendingDeleteService: const LibraryPendingDeleteService(),
+  );
+  final pendingDeleteService = const LibraryPendingDeleteService();
+  await service._undoDeleteSongFromDisk(
+    File(databasePath),
+    File(pendingPath),
+    deleteId,
+    pendingDeleteService,
+  );
+}
+
+Future<PendingLocalItemsDelete> _beginDeleteLocalItemsInIsolate(
+  String databasePath,
+  String pendingPath,
+  List<int> songIds,
+  List<String> folderPaths,
+) async {
+  final service = LibraryLocalDeleteService(
+    hiddenStorageService: const LibraryHiddenStorageService(),
+    pendingDeleteService: const LibraryPendingDeleteService(),
+  );
+  final pendingDeleteService = const LibraryPendingDeleteService();
+  return service._beginDeleteLocalItems(
+    File(databasePath),
+    File(pendingPath),
+    songIds,
+    folderPaths,
+    pendingDeleteService,
+  );
+}
+
+Future<void> _undoDeleteLocalItemsInIsolate(
+  String databasePath,
+  String pendingPath,
+  String deleteId,
+) async {
+  final service = LibraryLocalDeleteService(
+    hiddenStorageService: const LibraryHiddenStorageService(),
+    pendingDeleteService: const LibraryPendingDeleteService(),
+  );
+  final pendingDeleteService = const LibraryPendingDeleteService();
+  await service._undoDeleteLocalItems(
+    File(databasePath),
+    File(pendingPath),
+    deleteId,
+    pendingDeleteService,
+  );
+}
+
+extension _LibraryLocalDeleteServiceIsolateWork on LibraryLocalDeleteService {
+  Future<PendingSongDelete> _beginDeleteSongFromDisk(
+    File databaseFile,
+    File pendingFile,
+    int songId,
+    LibraryPendingDeleteService pendingDeleteService,
   ) async {
     final db = sqlite3.open(databaseFile.path);
     try {
@@ -42,15 +184,15 @@ class LibraryLocalDeleteService {
         recentRecordIds: _readActiveRecentSongRowIds(db, songId),
         hiddenStorageItemIds: _readActiveHiddenFileRowIds(db, songPath),
       );
-      await _pendingDeleteService.prependRecord(pendingFile, record);
+      await pendingDeleteService.prependRecord(pendingFile, record);
 
       db.execute('BEGIN');
       try {
-        deleteSongsInsideTransaction(db, [songId], [songPath]);
+        _deleteSongsInsideTransaction(db, [songId], [songPath]);
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
-        await _pendingDeleteService.removeRecord(pendingFile, record.id);
+        await pendingDeleteService.removeRecord(pendingFile, record.id);
         rethrow;
       }
       return PendingSongDelete(id: record.id, songId: songId);
@@ -59,16 +201,14 @@ class LibraryLocalDeleteService {
     }
   }
 
-  Future<void> undoDeleteSongFromDisk(
+  Future<void> _undoDeleteSongFromDisk(
     File databaseFile,
     File pendingFile,
     String deleteId,
+    LibraryPendingDeleteService pendingDeleteService,
   ) async {
-    final records = await _pendingDeleteService.readRecords(pendingFile);
-    final record = _pendingDeleteService.findSongDeleteRecord(
-      records,
-      deleteId,
-    );
+    final records = await pendingDeleteService.readRecords(pendingFile);
+    final record = pendingDeleteService.findSongDeleteRecord(records, deleteId);
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -82,14 +222,15 @@ class LibraryLocalDeleteService {
     } finally {
       db.dispose();
     }
-    await _pendingDeleteService.removeRecord(pendingFile, deleteId);
+    await pendingDeleteService.removeRecord(pendingFile, deleteId);
   }
 
-  Future<PendingLocalItemsDelete> beginDeleteLocalItems(
+  Future<PendingLocalItemsDelete> _beginDeleteLocalItems(
     File databaseFile,
     File pendingFile,
     List<int> songIds,
     List<String> folderPaths,
+    LibraryPendingDeleteService pendingDeleteService,
   ) async {
     if (songIds.isEmpty && folderPaths.isEmpty) {
       return const PendingLocalItemsDelete(
@@ -150,12 +291,12 @@ class LibraryLocalDeleteService {
           folderPaths,
         ),
       );
-      await _pendingDeleteService.prependRecord(pendingFile, record);
+      await pendingDeleteService.prependRecord(pendingFile, record);
 
       db.execute('BEGIN');
       try {
         if (songRows.isNotEmpty) {
-          deleteSongsInsideTransaction(
+          _deleteSongsInsideTransaction(
             db,
             effectiveSongIds,
             songRows.map((row) => row.path).toList(),
@@ -169,7 +310,7 @@ class LibraryLocalDeleteService {
         db.execute('COMMIT');
       } on Object {
         db.execute('ROLLBACK');
-        await _pendingDeleteService.removeRecord(pendingFile, record.id);
+        await pendingDeleteService.removeRecord(pendingFile, record.id);
         rethrow;
       }
 
@@ -183,13 +324,14 @@ class LibraryLocalDeleteService {
     }
   }
 
-  Future<void> undoDeleteLocalItems(
+  Future<void> _undoDeleteLocalItems(
     File databaseFile,
     File pendingFile,
     String deleteId,
+    LibraryPendingDeleteService pendingDeleteService,
   ) async {
-    final records = await _pendingDeleteService.readRecords(pendingFile);
-    final record = _pendingDeleteService.findLocalItemsDeleteRecord(
+    final records = await pendingDeleteService.readRecords(pendingFile);
+    final record = pendingDeleteService.findLocalItemsDeleteRecord(
       records,
       deleteId,
     );
@@ -206,10 +348,10 @@ class LibraryLocalDeleteService {
     } finally {
       db.dispose();
     }
-    await _pendingDeleteService.removeRecord(pendingFile, deleteId);
+    await pendingDeleteService.removeRecord(pendingFile, deleteId);
   }
 
-  void deleteSongsInsideTransaction(
+  void _deleteSongsInsideTransaction(
     Database db,
     List<int> songIds,
     List<String> songPaths,

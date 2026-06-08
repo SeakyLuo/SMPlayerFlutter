@@ -88,7 +88,7 @@ class NowPlayingFullMultiSelectCommandBar extends StatelessWidget {
           final selectedIds = selectedUnfavoritedSongIds();
           onToggleFavorite(selectedIds, true);
           final songsById = {for (final song in songs) song.id: song};
-          showUndoableSnackBar(
+          showUndoableNotification(
             context: context,
             i18n: i18n,
             message: songsAddedUndoMessage(
@@ -120,7 +120,7 @@ class NowPlayingFullMultiSelectCommandBar extends StatelessWidget {
               if (!selectedIndexes.contains(index)) songIds[index],
           ];
           onReplaceQueue(nextSongIds);
-          showUndoableSnackBar(
+          showUndoableNotification(
             context: context,
             i18n: i18n,
             message: songsRemovedUndoMessage(

@@ -3,14 +3,19 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 
 const undoableNotificationDuration = Duration(seconds: 5);
 const appNotificationDuration = Duration(seconds: 2);
 const _appNotificationRadius = 8.0;
 
 _AppNotificationController? _currentNotification;
+
+enum AppNotificationClosedReason { hide, action, timeout }
 
 class AppNotificationAction {
   const AppNotificationAction({required this.label, required this.onPressed});
@@ -93,7 +98,7 @@ class AppNotificationThemeColors
   }
 }
 
-Future<SnackBarClosedReason> showUndoableSnackBar({
+Future<AppNotificationClosedReason> showUndoableNotification({
   required BuildContext context,
   required SmPlayerI18n i18n,
   required String message,
@@ -108,7 +113,7 @@ Future<SnackBarClosedReason> showUndoableSnackBar({
   );
 }
 
-Future<SnackBarClosedReason> showAppNotification({
+Future<AppNotificationClosedReason> showAppNotification({
   required BuildContext context,
   required String message,
   Duration duration = appNotificationDuration,
@@ -126,7 +131,7 @@ Future<SnackBarClosedReason> showAppNotification({
   );
 }
 
-Future<SnackBarClosedReason> _showAppOverlayNotification({
+Future<AppNotificationClosedReason> _showAppOverlayNotification({
   required BuildContext context,
   required String message,
   required Duration duration,
@@ -134,7 +139,7 @@ Future<SnackBarClosedReason> _showAppOverlayNotification({
   FutureOr<void> Function()? onAction,
   List<AppNotificationAction>? actions,
 }) {
-  _currentNotification?.close(SnackBarClosedReason.hide);
+  _currentNotification?.close(AppNotificationClosedReason.hide);
 
   final controller = _AppNotificationController();
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -155,8 +160,9 @@ Future<SnackBarClosedReason> _showAppOverlayNotification({
           onAction: (actionIndex) async {
             final action = resolvedActions[actionIndex];
             controller.setRunning(actionIndex);
+            await SchedulerBinding.instance.endOfFrame;
             await Future<void>.sync(action.onPressed);
-            controller.close(SnackBarClosedReason.action);
+            controller.close(AppNotificationClosedReason.action);
           },
         ),
   );
@@ -169,20 +175,20 @@ Future<SnackBarClosedReason> _showAppOverlayNotification({
 }
 
 class _AppNotificationController {
-  final closedCompleter = Completer<SnackBarClosedReason>();
+  final closedCompleter = Completer<AppNotificationClosedReason>();
   final runningActionIndex = ValueNotifier<int?>(null);
   OverlayEntry? entry;
   Timer? timer;
   bool isClosed = false;
 
-  Future<SnackBarClosedReason> get closed => closedCompleter.future;
+  Future<AppNotificationClosedReason> get closed => closedCompleter.future;
 
   void attach(OverlayEntry overlayEntry) {
     entry = overlayEntry;
   }
 
   void startTimer(Duration duration) {
-    timer = Timer(duration, () => close(SnackBarClosedReason.timeout));
+    timer = Timer(duration, () => close(AppNotificationClosedReason.timeout));
   }
 
   void setRunning(int actionIndex) {
@@ -190,7 +196,7 @@ class _AppNotificationController {
     runningActionIndex.value = actionIndex;
   }
 
-  void close(SnackBarClosedReason reason) {
+  void close(AppNotificationClosedReason reason) {
     if (isClosed) {
       return;
     }
@@ -346,56 +352,54 @@ class _NotificationActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppNotificationThemeColors.of(context);
-    final accent = Theme.of(context).colorScheme.primary;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = SmPlayerTextIconButtonColors.of(context).copyWith(
+      commandText:
+          dark ? CommandBarColors.textNight : CommandBarColors.textStrong,
+      commandTextHover:
+          dark
+              ? CommandBarColors.accentStrongNight
+              : CommandBarColors.accentStrong,
+      control:
+          dark
+              ? CommandBarColors.actionNightSurface
+              : CommandBarColors.actionSurface,
+      controlHover:
+          dark
+              ? CommandBarColors.actionNightHoverSurface
+              : CommandBarColors.actionHoverSurface,
+      controlHoverBorder:
+          dark
+              ? CommandBarColors.actionNightHoverBorder
+              : CommandBarColors.actionHoverBorder,
+      controlActive: CommandBarColors.accentSoft,
+      controlBorder:
+          dark
+              ? CommandBarColors.actionNightBorder
+              : CommandBarColors.actionBorder,
+      accentStrong: CommandBarColors.accentStrong,
+    );
     return ValueListenableBuilder<int?>(
       valueListenable: runningActionIndex,
       builder: (context, runningIndex, child) {
         final hasRunningAction = runningIndex != null;
         final isRunning = runningIndex == actionIndex;
-        return TextButton(
-          onPressed: hasRunningAction ? null : onPressed,
-          style: ButtonStyle(
-            minimumSize: const WidgetStatePropertyAll(Size(64, 36)),
-            padding: const WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: 16),
-            ),
-            foregroundColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.focused)) {
-                return accent;
-              }
-              return colors.actionForeground;
-            }),
-            backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.focused)) {
-                return colors.actionHoverBackground;
-              }
-              return colors.actionBackground;
-            }),
-            side: WidgetStateProperty.resolveWith((states) {
-              final color =
-                  states.contains(WidgetState.hovered) ||
-                          states.contains(WidgetState.focused)
-                      ? accent.withValues(alpha: 0.24)
-                      : colors.actionBorder;
-              return BorderSide(color: color);
-            }),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-            ),
-            textStyle: const WidgetStatePropertyAll(
-              TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
+        return SmPlayerTextIconButtonTheme(
+          colors: colors,
+          child: SmPlayerTextIconButton(
+            label: label,
+            loading: isRunning,
+            disabled: hasRunningAction && !isRunning,
+            minWidth: 64,
+            height: 36,
+            horizontalPadding: 16,
+            borderRadius: 10,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontVariations: const [FontVariation.weight(720)],
+            opacityWhenDisabled: isRunning ? 1 : 0.45,
+            onPressed: onPressed,
           ),
-          child:
-              isRunning
-                  ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                  : Text(label),
         );
       },
     );

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -8,6 +9,7 @@ import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 const popupDialogMobileBreakpoint = 720.0;
+const popupConfirmDialogDismissDelay = Duration(milliseconds: 170);
 
 typedef PopupDialogCloseHandler = VoidCallback;
 
@@ -854,11 +856,11 @@ Future<bool> showPopupConfirmDialog({
   required String message,
   required String confirmLabel,
   SmPlayerI18n? i18n,
-  String? pendingLabel,
   bool destructive = true,
   Future<void> Function()? onConfirm,
 }) async {
-  return await showDialog<bool>(
+  final confirmed =
+      await showDialog<bool>(
         context: context,
         barrierColor: Colors.transparent,
         barrierDismissible: false,
@@ -883,6 +885,7 @@ Future<bool> showPopupConfirmDialog({
                 setDialogState(() {
                   submitting = true;
                 });
+                await SchedulerBinding.instance.endOfFrame;
                 await callback();
                 if (dialogContext.mounted) {
                   Navigator.of(dialogContext).pop(true);
@@ -910,10 +913,7 @@ Future<bool> showPopupConfirmDialog({
                       compact: true,
                       children: [
                         PopupDialogActionButton(
-                          label:
-                              submitting
-                                  ? pendingLabel ?? confirmLabel
-                                  : confirmLabel,
+                          label: confirmLabel,
                           primary: true,
                           destructive: destructive,
                           loading: submitting,
@@ -939,6 +939,10 @@ Future<bool> showPopupConfirmDialog({
         },
       ) ??
       false;
+  if (confirmed) {
+    await Future<void>.delayed(popupConfirmDialogDismissDelay);
+  }
+  return confirmed;
 }
 
 class _InputDialogShell extends StatelessWidget {
@@ -1149,14 +1153,11 @@ class PopupDialogActions extends StatelessWidget {
           compact
               ? const EdgeInsets.only(top: 20)
               : const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var index = 0; index < children.length; index += 1) ...[
-            if (index > 0) const SizedBox(width: 18),
-            children[index],
-          ],
-        ],
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 18,
+        runSpacing: 10,
+        children: children,
       ),
     );
   }
@@ -1181,15 +1182,20 @@ class PopupDialogActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
+    final primaryDestructive = primary && destructive;
     final background =
         primary
-            ? destructive
+            ? primaryDestructive
                 ? colors.destructive
                 : colors.accent
             : Colors.transparent;
     final foreground = primary ? Colors.white : colors.accentStrong;
     final resolvedForeground =
-        onPressed == null ? foreground.withValues(alpha: 0.72) : foreground;
+        onPressed == null
+            ? primary
+                ? foreground.withValues(alpha: 0.72)
+                : colors.textMuted.withValues(alpha: 0.54)
+            : foreground;
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
 
     return TextButton(
@@ -1201,8 +1207,6 @@ class PopupDialogActionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         foregroundColor: foreground,
         disabledForegroundColor: foreground.withValues(alpha: 0.72),
-        backgroundColor: background,
-        disabledBackgroundColor: background.withValues(alpha: 0.72),
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
@@ -1210,11 +1214,27 @@ class PopupDialogActionButton extends StatelessWidget {
         ).copyWith(fontFamily: fontFamily),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ).copyWith(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return primary
+                ? background.withValues(alpha: 0.72)
+                : Colors.transparent;
+          }
+          if (primaryDestructive &&
+              (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.pressed))) {
+            return PopupDialogColors.destructiveHover;
+          }
+          return background;
+        }),
         side: const WidgetStatePropertyAll(BorderSide.none),
         elevation: const WidgetStatePropertyAll(0),
         shadowColor: const WidgetStatePropertyAll(Colors.transparent),
         overlayColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.disabled)) {
+            return Colors.transparent;
+          }
+          if (primaryDestructive) {
             return Colors.transparent;
           }
           if (primary) {
@@ -1275,6 +1295,7 @@ class PopupDialogColors {
   static const fieldDisabledSurface = Color(0xade6ebf3);
   static const focusRing = Color(0x290078d7);
   static const destructive = Color(0xffd13438);
+  static const destructiveHover = Color(0xffa4262c);
   static const nightOverlay = Color(0x9e04080d);
   static const nightSurface = Color(0xfa161c24);
   static const nightBorder = Color(0x1fd6e0ec);
