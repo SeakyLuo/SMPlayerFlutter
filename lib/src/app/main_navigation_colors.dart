@@ -17,7 +17,7 @@ class MainNavigationViewColors {
   static const searchFocusRing = Color(0x1a0078d7);
   static const searchInsetHighlight = Color(0x61ffffff);
   static const searchPlaceholder = Color(0x9e3d4958);
-  static const clearButton = SmPlayerInteractionColors.hoverSurface;
+  static const clearButton = Colors.transparent;
   static const clearButtonHover = Color(0x1f0078d7);
   static const sectionDivider = Color(0x3d6c7580);
   static const sectionLabel = Color(0x8a5f625f);
@@ -101,7 +101,7 @@ class MainNavigationPalette extends ThemeExtension<MainNavigationPalette> {
     searchPlaceholder: MainNavigationViewColors.searchPlaceholder,
     clearButton: MainNavigationViewColors.clearButton,
     clearButtonHover: MainNavigationViewColors.clearButtonHover,
-    clearForeground: MainNavigationViewColors.accentStrong,
+    clearForeground: MainNavigationViewColors.textMuted,
     sectionDivider: MainNavigationViewColors.sectionDivider,
     sectionLabel: MainNavigationViewColors.sectionLabel,
     dropdownSurface: MainNavigationViewColors.dropdownSurface,
@@ -126,9 +126,9 @@ class MainNavigationPalette extends ThemeExtension<MainNavigationPalette> {
     searchFocusRing: Color(0x290078d7),
     searchInsetHighlight: Color(0x00ffffff),
     searchPlaceholder: Color(0x94ffffff),
-    clearButton: SmPlayerInteractionColors.hoverSurfaceDark,
+    clearButton: Colors.transparent,
     clearButtonHover: SmPlayerInteractionColors.hoverSurfaceDark,
-    clearForeground: Color(0xffffffff),
+    clearForeground: Color(0xc7ffffff),
     sectionDivider: Color(0x1fd6e0ec),
     sectionLabel: Color(0x9ecbd5e1),
     dropdownSurface: Color(0xfa1d232b),

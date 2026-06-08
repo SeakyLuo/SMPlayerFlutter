@@ -306,7 +306,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
               math.min(constraints.biggest.height, viewSize.height),
             );
             final boundaryBottom = _boundaryBottom(size);
-            final panels = _resolvedPanels(size, boundaryBottom);
+            final panels = _resolvedPanels(context, size, boundaryBottom);
             return Stack(
               children: [
                 Positioned.fill(
@@ -372,6 +372,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }
 
   List<_MenuFlyoutPanelState> _resolvedPanels(
+    BuildContext context,
     Size size,
     double boundaryBottom,
   ) {
@@ -387,10 +388,10 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
             .resolve(
               size: size,
               boundaryBottom: boundaryBottom,
-              width: _menuFlyoutMaxWidth.clamp(
-                0,
-                size.width - _menuFlyoutMargin * 2,
-              ),
+              width: _menuFlyoutPanelWidth(
+                context,
+                _panels[index].items,
+              ).clamp(0, size.width - _menuFlyoutMargin * 2),
               maxWidth: _menuFlyoutMaxWidth,
             ),
     ];
@@ -457,10 +458,10 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }) {
     final size = MediaQuery.sizeOf(context);
     final boundaryBottom = _boundaryBottom(size);
-    final panelWidth = _menuFlyoutMaxWidth.clamp(
-      0.0,
-      size.width - _menuFlyoutMargin * 2,
-    );
+    final panelWidth = _menuFlyoutPanelWidth(
+      context,
+      items,
+    ).clamp(0.0, size.width - _menuFlyoutMargin * 2);
     final fullHeight = _menuFlyoutItemsHeight(items);
     var left = triggerRect.right + _menuFlyoutMargin;
     if (left + panelWidth > size.width - _menuFlyoutMargin) {
@@ -1113,6 +1114,37 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
 double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
   return (_menuFlyoutPadding + _menuFlyoutBorderWidth) * 2 +
       _menuFlyoutItemsContentHeight(items);
+}
+
+double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
+  final textDirection = Directionality.of(context);
+  final textScaler = MediaQuery.textScalerOf(context);
+  var width = _menuFlyoutWidth;
+  for (final item in items) {
+    if (item.separator || item.content != null) {
+      continue;
+    }
+    final painter = TextPainter(
+      text: TextSpan(
+        text: item.pendingText ?? item.text,
+        style: const TextStyle(fontSize: 13, height: 1),
+      ),
+      maxLines: 1,
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout();
+    final trailingWidth =
+        item.checked || item.submenu.isNotEmpty && !item.disabled ? 16.0 : 0.0;
+    final itemWidth =
+        (_menuFlyoutPadding + _menuFlyoutBorderWidth) * 2 +
+        20 +
+        10 +
+        20 +
+        painter.width +
+        trailingWidth;
+    width = math.max(width, itemWidth);
+  }
+  return width.clamp(_menuFlyoutWidth, _menuFlyoutMaxWidth).toDouble();
 }
 
 double _menuFlyoutItemsContentHeight(List<MenuFlyoutItem> items) {

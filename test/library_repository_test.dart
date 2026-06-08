@@ -1341,6 +1341,109 @@ void main() {
     }
   });
 
+  test(
+    'updateSongProperties reuses existing artist rows when saving title',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-update-song-properties-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final song = File('${directory.path}/Track.mp3');
+      await song.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      await const Id3TagService().writeSongTagProperties(
+        song.path,
+        const Id3SongTagProperties(title: 'Old Title', artist: 'Artist'),
+      );
+
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      final db = sqlite3.open(databaseFile.path);
+      try {
+        db.execute('''
+        CREATE TABLE Music (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Path TEXT NOT NULL UNIQUE,
+          Name TEXT,
+          Artist TEXT,
+          Album TEXT,
+          PlayCount INTEGER DEFAULT 0,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+        db.execute('''
+        CREATE TABLE MusicArtist (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          MusicId INTEGER,
+          Name TEXT,
+          Priority INTEGER DEFAULT 0,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+        db.execute('''
+        CREATE UNIQUE INDEX idx_music_artist_music_name
+          ON MusicArtist(MusicId, Name COLLATE NOCASE)
+      ''');
+        db.execute(
+          '''
+        INSERT INTO Music (Id, Path, Name, Artist, Album, PlayCount, State)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      ''',
+          [1, song.path, 'Old Title', 'Artist', 'Album', 3, 1],
+        );
+        db.execute(
+          '''
+        INSERT INTO MusicArtist (MusicId, Name, Priority, State)
+        VALUES (?, ?, ?, ?)
+      ''',
+          [1, 'Artist', 0, 1],
+        );
+      } finally {
+        db.dispose();
+      }
+
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
+
+      await repository.updateSongProperties(
+        1,
+        const SongPropertiesUpdate(
+          title: 'New Title',
+          artist: 'Artist',
+          artists: ['Artist'],
+          album: 'Album',
+          playCount: 3,
+        ),
+      );
+
+      final checkDb = sqlite3.open(databaseFile.path);
+      try {
+        final songRow =
+            checkDb.select('SELECT Name, Artist FROM Music WHERE Id = ?', [
+              1,
+            ]).single;
+        expect(songRow['Name'], 'New Title');
+        expect(songRow['Artist'], 'Artist');
+        final artistRows = checkDb.select(
+          '''
+        SELECT Name, Priority, State
+        FROM MusicArtist
+        WHERE MusicId = ?
+        ORDER BY Id
+      ''',
+          [1],
+        );
+        expect(artistRows, hasLength(1));
+        expect(artistRows.single['Name'], 'Artist');
+        expect(artistRows.single['Priority'], 0);
+        expect(artistRows.single['State'], 1);
+      } finally {
+        checkDb.dispose();
+      }
+    },
+  );
+
   test('createLocalFolder mirrors Electron create then refresh flow', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-create-local-folder-',

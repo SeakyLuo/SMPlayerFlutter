@@ -409,6 +409,10 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       canGoBack: canGoBack,
       settingsRepository: repository,
       onNavigate: (target) {
+        if (target == '/playlists') {
+          navigationShell.goBranch(7, initialLocation: true);
+          return;
+        }
         if (_branchRootIndex(target) case final branchIndex?) {
           navigationShell.goBranch(branchIndex, initialLocation: false);
           return;

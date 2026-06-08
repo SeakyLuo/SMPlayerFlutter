@@ -208,25 +208,37 @@ class LibrarySongPropertiesService {
       _inactiveState,
       songId,
     ]);
-    if (artists.isEmpty) {
-      return;
+    for (final entry in artists.indexed) {
+      final artist = entry.$2;
+      final existingRows = db.select(
+        '''
+        SELECT Id AS id
+        FROM MusicArtist
+        WHERE MusicId = ?
+          AND Name = ? COLLATE NOCASE
+        LIMIT 1
+      ''',
+        [songId, artist],
+      );
+      if (existingRows.isEmpty) {
+        db.execute(
+          '''
+          INSERT INTO MusicArtist (MusicId, Name, Priority, State)
+          VALUES (?, ?, ?, ?)
+        ''',
+          [songId, artist, entry.$1, _activeState],
+        );
+      } else {
+        db.execute(
+          '''
+          UPDATE MusicArtist
+          SET Name = ?, Priority = ?, State = ?
+          WHERE Id = ?
+        ''',
+          [artist, entry.$1, _activeState, existingRows.single['id'] as int],
+        );
+      }
     }
-
-    final values = List.filled(artists.length, '(?, ?, ?, ?)').join(', ');
-    db.execute(
-      '''
-      INSERT INTO MusicArtist (MusicId, Name, Priority, State)
-      VALUES $values
-    ''',
-      [
-        for (final entry in artists.indexed) ...[
-          songId,
-          entry.$2,
-          entry.$1,
-          _activeState,
-        ],
-      ],
-    );
   }
 
   List<String> normalizeArtists(List<String> artists) {

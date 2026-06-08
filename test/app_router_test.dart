@@ -785,6 +785,65 @@ void main() {
     expect(uri.queryParameters['path'], 'Jazz/Blue');
   });
 
+  testWidgets(
+    'sidebar playlist root opens PlaylistsPage from playlist detail',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final router = createSmPlayerRouter();
+      final libraryData = _libraryDataWithSongs(
+        3,
+        playlists: const [
+          LibraryPlaylist(
+            id: 7,
+            name: 'Road Mix',
+            priority: 1,
+            songCount: 2,
+            songIds: [1, 2],
+            sortCriterion: PlaylistSortCriterion.title,
+            isBuiltIn: false,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+            libraryContentDataProvider.overrideWith((ref) async => libraryData),
+            shellNavigationDataProvider.overrideWith(
+              (ref) async => _shellNavigationData(libraryData),
+            ),
+          ],
+          child: _RouterTestApp(router: router, i18n: testI18n),
+        ),
+      );
+      await _pumpRouter(tester);
+
+      router.go('/playlists/7');
+      await _pumpRouter(tester);
+
+      expect(router.routeInformationProvider.value.uri.path, '/playlists/7');
+
+      final playlistsHeading = find.byKey(
+        const ValueKey('MainNavigationView.PlaylistsHeadingItem'),
+      );
+      await tester.tapAt(
+        tester.getTopLeft(playlistsHeading.hitTestable()) +
+            const Offset(20, 20),
+      );
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/playlists');
+      expect(find.byType(PlaylistsPage), findsOneWidget);
+    },
+  );
+
   testWidgets('sidebar preserves recent page tab state', (tester) async {
     final router = createSmPlayerRouter(initialLocation: '/recent');
 
@@ -886,6 +945,59 @@ void main() {
     expect(tester.getTopLeft(firstRow).dy, moreOrLessEquals(scrolledTop));
   });
 
+  testWidgets('sidebar restores workspace app bar title for indexed tabs', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 820);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const titledI18n = SmPlayerI18n(
+      locale: 'en-US',
+      messages: {
+        'library.allSongs': 'All Songs',
+        'library.allSongsWithCount': 'All Songs ({count})',
+        'library.allAlbums': 'All Albums',
+        'library.allAlbumsWithCount': 'All Albums ({count})',
+      },
+    );
+    final libraryData = _libraryDataWithSongs(80);
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => titledI18n),
+          libraryContentDataProvider.overrideWith((ref) async => libraryData),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(libraryData),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: titledI18n),
+      ),
+    );
+    await _pumpRouter(tester);
+
+    expect(find.text('All Songs (80)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('AlbumsItem')).hitTestable());
+    await _pumpRouter(tester);
+    expect(find.text('All Albums (7)'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MusicLibraryItem')).hitTestable(),
+    );
+    await _pumpRouter(tester);
+    expect(find.text('All Songs (80)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('AlbumsItem')).hitTestable());
+    await _pumpRouter(tester);
+    expect(find.text('All Albums (7)'), findsOneWidget);
+  });
+
   testWidgets('library routes render migrated pages', (tester) async {
     final router = createSmPlayerRouter();
 
@@ -917,7 +1029,10 @@ Future<void> _pumpRouter(WidgetTester tester) async {
   }
 }
 
-LibraryContentData _libraryDataWithSongs(int count) {
+LibraryContentData _libraryDataWithSongs(
+  int count, {
+  List<LibraryPlaylist> playlists = const [],
+}) {
   final songs = [
     for (var index = 1; index <= count; index += 1)
       LibrarySong(
@@ -944,7 +1059,7 @@ LibraryContentData _libraryDataWithSongs(int count) {
     recentAlbums: const [],
     recentArtists: const [],
     recentSearches: const [],
-    playlists: const [],
+    playlists: playlists,
     favoritePlaylistId: 0,
     nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
     hasLibrary: true,

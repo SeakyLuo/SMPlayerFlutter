@@ -100,7 +100,7 @@ class SmPlayerPlayNextIcon extends StatelessWidget {
 class ShuffleIcon extends StatelessWidget {
   const ShuffleIcon({
     super.key,
-    this.size = 16,
+    this.size = 15,
     this.color,
     this.strokeWidth = 0.4,
   });

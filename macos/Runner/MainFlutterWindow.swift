@@ -122,9 +122,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       [weak self] event in
       _ = self?.handleSystemDefinedEvent(event)
     }
-    localMediaEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .systemDefined]) {
+    localMediaEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) {
       [weak self] event in
-      return self?.handlePlaybackKeyEvent(event) == true ? nil : event
+      return self?.handleSystemDefinedEvent(event) == true ? nil : event
     }
   }
 
@@ -166,37 +166,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       CFRunLoopAddSource(CFRunLoopGetMain(), mediaKeyEventTapRunLoopSource, .commonModes)
     }
     CGEvent.tapEnable(tap: eventTap, enable: true)
-  }
-
-  override func sendEvent(_ event: NSEvent) {
-    if handlePlaybackKeyEvent(event) {
-      return
-    }
-    super.sendEvent(event)
-  }
-
-  private func handlePlaybackKeyEvent(_ event: NSEvent) -> Bool {
-    if handleFunctionPlaybackKey(event) {
-      return true
-    }
-    return handleSystemDefinedEvent(event)
-  }
-
-  private func handleFunctionPlaybackKey(_ event: NSEvent) -> Bool {
-    guard event.type == .keyDown else { return false }
-    switch event.keyCode {
-    case 98:
-      sendDesktopCommand("previous")
-      return true
-    case 100:
-      sendDesktopCommand("play-pause")
-      return true
-    case 101:
-      sendDesktopCommand("next")
-      return true
-    default:
-      return false
-    }
   }
 
   private func installFunctionPlaybackHotKeys() {

@@ -214,27 +214,34 @@ class _PageSearchFieldState extends State<PageSearchField> {
               ),
               if (widget.leadingGap > 0) SizedBox(width: widget.leadingGap),
               Expanded(
-                child: TextField(
-                  autofocus: widget.autofocus,
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  onChanged: widget.onChanged,
-                  onTapOutside: (_) {
-                    _focusNode.unfocus();
-                  },
-                  onSubmitted: (_) {
-                    widget.onSubmitted();
-                  },
-                  textInputAction: TextInputAction.search,
-                  style: const TextStyle(
-                    fontSize: 14,
-                  ).copyWith(color: colors.textStrong),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: widget.hintText,
-                    hintStyle: TextStyle(color: colors.placeholder),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                child: SizedBox(
+                  height: widget.height,
+                  child: TextField(
+                    autofocus: widget.autofocus,
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    onChanged: widget.onChanged,
+                    onTapOutside: (_) {
+                      _focusNode.unfocus();
+                    },
+                    onSubmitted: (_) {
+                      widget.onSubmitted();
+                    },
+                    textInputAction: TextInputAction.search,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                    ).copyWith(color: colors.textStrong),
+                    cursorColor: colors.textStrong,
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      hintText: widget.hintText,
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: colors.placeholder,
+                      ),
+                      border: InputBorder.none,
+                    ),
                   ),
                 ),
               ),

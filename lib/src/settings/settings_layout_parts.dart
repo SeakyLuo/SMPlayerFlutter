@@ -419,24 +419,17 @@ class _SettingsIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
+    return _settingsNoTextScaling(
+      context,
+      SmPlayerTextIconButton(
+        icon: icon,
+        label: tooltip,
+        loading: busy,
+        showLabel: false,
+        minWidth: 52,
+        height: 42,
+        iconSize: 24,
         onPressed: onPressed,
-        icon:
-            busy
-                ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-                : Icon(icon),
-        style: IconButton.styleFrom(
-          backgroundColor: colors.buttonSurface,
-          side: BorderSide(color: colors.inputBorder),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
       ),
     );
   }
