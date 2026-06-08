@@ -52,7 +52,7 @@ Future<void> addSongsToNowPlayingWithUndo({
   if (!context.mounted) {
     return;
   }
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: context,
     i18n: i18n,
     message: songsAddedUndoMessage(
@@ -117,7 +117,7 @@ Future<void> addSongsToPlaylistWithUndo({
   if (!context.mounted) {
     return;
   }
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: context,
     i18n: i18n,
     message: songsAddedUndoMessage(
@@ -165,7 +165,7 @@ Future<void> setSongsFavoriteWithUndo({
   if (!context.mounted) {
     return;
   }
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: context,
     i18n: i18n,
     message:
@@ -250,21 +250,24 @@ Future<void> requestDeleteSongFromDisk({
   required SmPlayerI18n i18n,
   required LibrarySong song,
 }) async {
+  late final PendingSongDelete pendingDelete;
   final confirmed = await showPopupConfirmDialog(
     context: context,
     title: i18n.t('playlists.delete'),
     message: i18n.t('context.deleteSongConfirm', {'title': song.title}),
     confirmLabel: i18n.t('playlists.delete'),
+    onConfirm: () async {
+      pendingDelete = await ref
+          .read(libraryRepositoryProvider)
+          .beginDeleteSongFromDisk(song.id);
+      ref.invalidate(libraryContentDataProvider);
+    },
   );
 
   if (!confirmed) {
     return;
   }
 
-  final pendingDelete = await ref
-      .read(libraryRepositoryProvider)
-      .beginDeleteSongFromDisk(song.id);
-  ref.invalidate(libraryContentDataProvider);
   if (!context.mounted) {
     await ref
         .read(libraryRepositoryProvider)
@@ -272,7 +275,7 @@ Future<void> requestDeleteSongFromDisk({
     return;
   }
 
-  final closedReason = await showUndoableSnackBar(
+  final closedReason = await showUndoableNotification(
     context: context,
     i18n: i18n,
     message: i18n.t('notification.deletedFromDisk', {'title': song.title}),
@@ -283,7 +286,7 @@ Future<void> requestDeleteSongFromDisk({
       ref.invalidate(libraryContentDataProvider);
     },
   );
-  if (closedReason != SnackBarClosedReason.action) {
+  if (closedReason != AppNotificationClosedReason.action) {
     await ref
         .read(libraryRepositoryProvider)
         .commitDeleteSongFromDisk(pendingDelete.id);
@@ -306,7 +309,7 @@ Future<void> hideSongFileWithUndo({
   if (!context.mounted) {
     return;
   }
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: context,
     i18n: i18n,
     message: i18n.t('notification.hiddenStorageItem', {'name': song.title}),
@@ -352,7 +355,7 @@ Future<void> moveSongToFolderWithUndo({
   if (!context.mounted || result.itemCount == 0) {
     return;
   }
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: context,
     i18n: i18n,
     message: i18n.t('notification.movedSong', {'title': song.title}),

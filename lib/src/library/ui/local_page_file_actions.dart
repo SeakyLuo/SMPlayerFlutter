@@ -71,7 +71,7 @@ extension _LocalPageFileActions on _LocalPageState {
       }
       ref.invalidate(libraryContentDataProvider);
       if (result.itemCount > 0) {
-        showUndoableSnackBar(
+        showUndoableNotification(
           context: context,
           i18n: context.smPlayerI18n,
           message: context.smPlayerI18n.t('notification.movedLocalItems', {
@@ -100,6 +100,7 @@ extension _LocalPageFileActions on _LocalPageState {
     required List<String> folderPaths,
     required SmPlayerI18n i18n,
   }) async {
+    late final PendingLocalItemsDelete pendingDelete;
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
@@ -109,14 +110,16 @@ extension _LocalPageFileActions on _LocalPageState {
         songIds.length + folderPaths.length,
       ),
       confirmText: i18n.t('context.deleteFromDisk'),
+      onConfirm: () async {
+        pendingDelete = await ref
+            .read(libraryRepositoryProvider)
+            .beginDeleteLocalItems(songIds, folderPaths);
+      },
     );
     if (!confirmed) {
       return;
     }
 
-    final pendingDelete = await ref
-        .read(libraryRepositoryProvider)
-        .beginDeleteLocalItems(songIds, folderPaths);
     await _showPendingLocalItemsDeleteUndo(
       pendingDelete.id,
       i18n.t('notification.deletedLocalItems', {
@@ -134,20 +137,23 @@ extension _LocalPageFileActions on _LocalPageState {
     FolderNode folder,
     SmPlayerI18n i18n,
   ) async {
+    late final PendingLocalItemsDelete pendingDelete;
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
       title: i18n.t('local.deleteFolder'),
       message: i18n.t('local.deleteFolderConfirm', {'name': folder.name}),
       confirmText: i18n.t('local.deleteFolder'),
+      onConfirm: () async {
+        pendingDelete = await ref
+            .read(libraryRepositoryProvider)
+            .beginDeleteLocalItems(const [], [folder.path]);
+      },
     );
     if (!confirmed) {
       return;
     }
 
-    final pendingDelete = await ref
-        .read(libraryRepositoryProvider)
-        .beginDeleteLocalItems(const [], [folder.path]);
     await _showPendingLocalItemsDeleteUndo(
       pendingDelete.id,
       i18n.t('notification.deletedLocalItems', {'count': 1}),
@@ -166,7 +172,7 @@ extension _LocalPageFileActions on _LocalPageState {
       return;
     }
 
-    final closedReason = await showUndoableSnackBar(
+    final closedReason = await showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: message,
@@ -177,7 +183,7 @@ extension _LocalPageFileActions on _LocalPageState {
         ref.invalidate(libraryContentDataProvider);
       },
     );
-    if (closedReason != SnackBarClosedReason.action) {
+    if (closedReason != AppNotificationClosedReason.action) {
       await ref
           .read(libraryRepositoryProvider)
           .commitDeleteLocalItems(deleteId);

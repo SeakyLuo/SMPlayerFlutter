@@ -1141,7 +1141,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   void _showUndo(String message, FutureOr<void> Function() action) {
-    showUndoableSnackBar(
+    showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: message,

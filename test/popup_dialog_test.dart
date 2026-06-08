@@ -403,6 +403,31 @@ void main() {
         matching: find.text('Confirm'),
       ),
     );
+    final confirmButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Confirm'),
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      PopupDialogColors.destructive,
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.hovered,
+      }),
+      PopupDialogColors.destructiveHover,
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.pressed,
+      }),
+      PopupDialogColors.destructiveHover,
+    );
+    expect(
+      confirmButton.style?.overlayColor?.resolve(const <WidgetState>{
+        WidgetState.hovered,
+      }),
+      Colors.transparent,
+    );
     expect(confirmText.style?.fontSize, 16);
     expect(confirmText.style?.fontWeight, FontWeight.w700);
     final messageText = tester.widget<Text>(

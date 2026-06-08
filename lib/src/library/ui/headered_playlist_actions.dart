@@ -111,7 +111,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     final i18n = context.smPlayerI18n;
     final songsById = {for (final song in widget.songs) song.id: song};
     if (widget.type == HeaderedPlaylistType.favorites) {
-      _showUndoSnackBar(
+      _showUndoNotification(
         () async {
           await ref
               .read(libraryRepositoryProvider)
@@ -131,7 +131,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       final playlist = widget.playlists.firstWhere(
         (playlist) => playlist.name == widget.title,
       );
-      _showUndoSnackBar(
+      _showUndoNotification(
         () async {
           await ref
               .read(libraryRepositoryProvider)
@@ -148,9 +148,9 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     }
   }
 
-  void _showUndoSnackBar(FutureOr<void> Function() onUndo, String message) {
+  void _showUndoNotification(FutureOr<void> Function() onUndo, String message) {
     final i18n = context.smPlayerI18n;
-    showUndoableSnackBar(
+    showUndoableNotification(
       context: context,
       i18n: i18n,
       message: message,

@@ -986,7 +986,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ...songIds,
     ]);
     ref.invalidate(libraryContentDataProvider);
-    _showUndoSnackBar(
+    _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
             'title': songsById[songIds.first]!.title,
@@ -1035,7 +1035,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
     ref.invalidate(libraryContentDataProvider);
-    _showUndoSnackBar(
+    _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
             'title': songsById[songIds.first]!.title,
@@ -1066,7 +1066,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
     await setSongsFavorite(ref, songIds, favorite);
-    _showUndoSnackBar(
+    _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
             'title': songsById[songIds.first]!.title,
@@ -1082,8 +1082,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     );
   }
 
-  void _showUndoSnackBar(String message, FutureOr<void> Function() onUndo) {
-    showUndoableSnackBar(
+  void _showUndoNotification(String message, FutureOr<void> Function() onUndo) {
+    showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: message,

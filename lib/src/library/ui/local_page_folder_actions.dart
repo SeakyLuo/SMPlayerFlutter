@@ -88,7 +88,7 @@ extension _LocalPageFolderActions on _LocalPageState {
     ref.invalidate(libraryContentDataProvider);
     if (mounted) {
       _updateLocalPageState(_clearMultiSelectStatus);
-      showUndoableSnackBar(
+      showUndoableNotification(
         context: context,
         i18n: context.smPlayerI18n,
         message: context.smPlayerI18n.t('notification.hiddenStorageItem', {

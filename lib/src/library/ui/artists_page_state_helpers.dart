@@ -292,7 +292,7 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
   state.ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
   state.ref.invalidate(libraryContentDataProvider);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  showUndoableSnackBar(
+  showUndoableNotification(
     context: state.context,
     i18n: state.context.smPlayerI18n,
     message: state.context.smPlayerI18n.t('notification.playNext', {

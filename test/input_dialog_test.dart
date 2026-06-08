@@ -82,10 +82,11 @@ void main() {
     expect(result, 'Mix');
   });
 
-  testWidgets('confirm dialog disables actions while async confirm runs', (
+  testWidgets('confirm dialog shows loading while async confirm runs', (
     tester,
   ) async {
     final completer = Completer<void>();
+    var confirmStarted = false;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -99,8 +100,10 @@ void main() {
                     title: 'Delete',
                     message: 'Delete item?',
                     confirmText: 'Delete',
-                    pendingText: 'Deleting',
-                    onConfirm: () => completer.future,
+                    onConfirm: () {
+                      confirmStarted = true;
+                      return completer.future;
+                    },
                   );
                 },
                 child: const Text('Open'),
@@ -112,15 +115,28 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete').last);
+
+    expect(confirmStarted, isFalse);
+
     await tester.pump();
 
-    expect(find.text('Deleting'), findsOneWidget);
+    expect(confirmStarted, isTrue);
+    expect(find.text('Delete item?'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
       tester
           .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
           .enabled,
       isFalse,
+    );
+    final cancelButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Cancel'),
+    );
+    expect(
+      cancelButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.disabled,
+      }),
+      Colors.transparent,
     );
 
     completer.complete();
