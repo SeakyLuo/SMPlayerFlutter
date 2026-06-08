@@ -1304,6 +1304,62 @@ void main() {
     expect(selected, 'mix');
   });
 
+  testWidgets('MenuFlyout left-opening submenu stays beside parent', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    position: const Offset(260, 40),
+                    avoidPlayerBar: false,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'view',
+                        text: 'View',
+                        submenu: [
+                          MenuFlyoutItem(
+                            key: 'artist',
+                            text: 'See Artist',
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+
+    final panels = find.byKey(const ValueKey('MenuFlyout.GlassPanel'));
+    expect(panels, findsNWidgets(2));
+    final rootPanelRect = tester.getRect(panels.first);
+    final submenuPanelRect = tester.getRect(panels.last);
+    expect(rootPanelRect.left - submenuPanelRect.right, lessThanOrEqualTo(8));
+  });
+
   testWidgets('MenuFlyout uses liquid glass background', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

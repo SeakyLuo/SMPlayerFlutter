@@ -229,9 +229,9 @@ void main() {
     }
 
     await pumpField();
-    await tester.enterText(find.byType(TextField), 'abc123');
+    await tester.enterText(find.byType(EditableText), 'abc123');
     expect(
-      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       'abc123',
     );
 
@@ -240,7 +240,7 @@ void main() {
     await tester.pump();
 
     expect(
-      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       'abc123',
     );
   });
@@ -276,14 +276,15 @@ void main() {
     expect(fieldDecoration.color, const Color(0x0effffff));
     expect(fieldDecoration.border, Border.all(color: const Color(0x1fd6e0ec)));
 
-    final icon = tester.widget<Icon>(
-      find.byIcon(FluentIcons.search_24_regular),
+    final searchButton = tester.widget<SearchCommitIconButton>(
+      find.byType(SearchCommitIconButton),
     );
-    expect(icon.color, const Color(0xadcbd5e1));
+    expect(searchButton.foreground, const Color(0xc7ffffff));
 
-    final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.style?.color, const Color(0xf0f6f9fc));
-    expect(field.decoration?.hintStyle?.color, const Color(0x85dee7f2));
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    expect(field.style.color, const Color(0xebffffff));
+    final placeholder = tester.widget<Text>(find.text('Search artists'));
+    expect(placeholder.style?.color, const Color(0xadcbd5e1));
   });
 
   testWidgets('PageSearchField uses Electron night hover accent', (
@@ -318,22 +319,11 @@ void main() {
     await gesture.moveTo(tester.getCenter(find.byType(SearchCommitIconButton)));
     await tester.pump();
 
-    final icon = tester.widget<Icon>(
-      find.byIcon(FluentIcons.search_24_regular),
+    final searchButton = tester.widget<SearchCommitIconButton>(
+      find.byType(SearchCommitIconButton),
     );
-    expect(icon.color, const Color(0xff459de2));
-
-    final hoverDecorations = tester
-        .widgetList<DecoratedBox>(
-          find.descendant(
-            of: find.byType(SearchCommitIconButton),
-            matching: find.byType(DecoratedBox),
-          ),
-        )
-        .map((widget) => widget.decoration)
-        .whereType<BoxDecoration>()
-        .where((decoration) => decoration.color == const Color(0x2e0078d7));
-    expect(hoverDecorations, isNotEmpty);
+    expect(searchButton.hoverForeground, const Color(0xff7fc4ff));
+    expect(searchButton.hoverBackground, Colors.transparent);
   });
 
   testWidgets('PageSearchField unfocuses when tapping outside', (tester) async {
@@ -365,7 +355,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(find.byType(EditableText));
     await tester.pump();
     final editableTextState = tester.state<EditableTextState>(
       find.byType(EditableText),
@@ -402,6 +392,33 @@ void main() {
       tester.getSize(find.byType(SearchCommitIconButton)),
       const Size.square(40),
     );
+  });
+
+  testWidgets('PageSearchField fills Electron input height', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 260,
+            child: PageSearchField(
+              value: '',
+              hintText: 'Search',
+              focused: false,
+              onChanged: (_) {},
+              onFocusChanged: (_) {},
+              onSubmitted: () {},
+              onClear: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textField = tester.widget<EditableText>(find.byType(EditableText));
+    expect(textField.cursorHeight, isNull);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.decoration?.isCollapsed, isTrue);
+    expect(tester.getSize(find.byType(TextField)).height, 40);
   });
 }
 

@@ -19,6 +19,30 @@ import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 
 void main() {
+  testWidgets('workspace app bar shows route title on first frame', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(430, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const _WorkspaceAppBarTestApp(
+        currentPath: '/songs',
+        textScaler: TextScaler.noScaling,
+      ),
+    );
+
+    expect(find.text('所有歌曲'), findsOneWidget);
+
+    await tester.pump();
+
+    expect(find.text('所有歌曲（1）'), findsOneWidget);
+  });
+
   testWidgets('minimal now-playing app bar keeps the full title visible', (
     tester,
   ) async {

@@ -4,7 +4,8 @@ part of 'shell_page.dart';
 
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
-    final restoredTarget = _routeMemory[target] ?? target;
+    final restoredTarget =
+        target == '/playlists' ? target : _routeMemory[target] ?? target;
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
     if (targetPath == '/now-playing/full') {
@@ -245,6 +246,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     if (!_isNavigationSearchHistoryOpen) {
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _isNavigationSearchHistoryOpen = false;
       _navigationSearchDismissEpoch += 1;

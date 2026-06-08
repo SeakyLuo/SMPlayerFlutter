@@ -1079,7 +1079,7 @@ void main() {
           .last,
     );
 
-    expect(rowDecoration.color, Colors.transparent);
+    expect(rowDecoration.color, const Color(0x2e0078d7));
     expect(title.style?.color, const Color(0xff459de2));
     expect(artist.style?.color, const Color(0xc276b5dc));
     expect(actionIconTheme.data.color, const Color(0xadcbd5e1));
@@ -1096,8 +1096,169 @@ void main() {
                 .widget<AnimatedContainer>(find.byType(AnimatedContainer).first)
                 .decoration!
             as BoxDecoration;
-    expect(hoveredDecoration.color, GlobalUI.hoverBgColorNight);
+    expect(hoveredDecoration.color, const Color(0x2e0078d7));
   });
+
+  testWidgets(
+    'PlaylistControlItem current row keeps Electron current background on hover handoff',
+    (tester) async {
+      const secondSong = LibrarySong(
+        id: 2,
+        path: '/music/song-2.mp3',
+        title: 'Acid Jazz 3',
+        artist: 'Unknown Artist',
+        artists: ['Unknown Artist'],
+        album: 'Unknown Album',
+        duration: 180,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-25',
+        favorite: false,
+        thumbnailPath: '',
+      );
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: Column(
+                  children: [
+                    PlaylistControlItem(
+                      song: _song,
+                      current: true,
+                      playing: false,
+                      selected: false,
+                      selectionMode: false,
+                      onOpenContextMenu: _noopPosition,
+                      onPlayTrack: _noop,
+                      onTogglePlayPause: _noop,
+                      onToggleSelection: _noop,
+                    ),
+                    PlaylistControlItem(
+                      song: secondSong,
+                      current: false,
+                      playing: false,
+                      selected: false,
+                      selectionMode: false,
+                      onOpenContextMenu: _noopPosition,
+                      onPlayTrack: _noop,
+                      onTogglePlayPause: _noop,
+                      onToggleSelection: _noop,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final rows = find.byType(PlaylistControlItem);
+      BoxDecoration rowDecorationAt(int index) {
+        final rowContainer =
+            find
+                .descendant(
+                  of: rows.at(index),
+                  matching: find.byType(AnimatedContainer),
+                )
+                .first;
+        return tester.widget<AnimatedContainer>(rowContainer).decoration!
+            as BoxDecoration;
+      }
+
+      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+      expect(
+        rowDecorationAt(1).color,
+        GlobalUI.hoverBgColorDay.withValues(alpha: 0),
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rows.first));
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+
+      await mouse.moveTo(tester.getCenter(rows.at(1)));
+      await tester.pump();
+      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+      expect(rowDecorationAt(1).color, GlobalUI.hoverBgColorDay);
+    },
+  );
+
+  testWidgets(
+    'PlaylistControlItem row hover uses only Electron background layer',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final rowInkWell = tester.widget<InkWell>(
+        find
+            .descendant(
+              of: find.byType(PlaylistControlItem),
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      expect(
+        rowInkWell.overlayColor?.resolve({WidgetState.hovered}),
+        Colors.transparent,
+      );
+      expect(
+        rowInkWell.overlayColor?.resolve({WidgetState.pressed}),
+        Colors.transparent,
+      );
+      expect(
+        rowInkWell.overlayColor?.resolve({WidgetState.focused}),
+        Colors.transparent,
+      );
+      expect(rowInkWell.hoverColor, Colors.transparent);
+      expect(rowInkWell.focusColor, Colors.transparent);
+      expect(rowInkWell.highlightColor, Colors.transparent);
+      expect(rowInkWell.splashColor, Colors.transparent);
+
+      final rowContainer = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byType(PlaylistControlItem),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      expect(
+        (rowContainer.decoration! as BoxDecoration).color,
+        GlobalUI.hoverBgColorDay.withValues(alpha: 0),
+      );
+    },
+  );
 
   testWidgets(
     'PlaylistControlItem narrow compact hover expands actions like Electron',

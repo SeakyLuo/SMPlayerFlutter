@@ -171,6 +171,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   final _searchFieldLayerLink = LayerLink();
   var _focusSearchAfterPaneOpen = false;
   var _isSearchHistoryOpen = false;
+  var _searchHistoryOpenScheduled = false;
   var _isPlaylistNavExpanded = true;
   int? _draggingPlaylistId;
   ({int playlistId, _PlaylistDropPosition position})? _playlistDropIndicator;
@@ -190,7 +191,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     }
     if (oldWidget.searchHistoryDismissEpoch !=
         widget.searchHistoryDismissEpoch) {
-      _closeSearchHistory();
+      _closeSearchHistory(unfocus: true);
       return;
     }
     if (_focusSearchAfterPaneOpen && widget.isPaneOpen) {
@@ -204,7 +205,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
         widget.recentSearches.any(
           (entry) => entry.type == SearchHistoryType.sidebar,
         )) {
-      _setSearchHistoryOpen(true);
+      _openSearchHistoryAfterTextInputFocus();
     }
   }
 
@@ -217,11 +218,18 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   }
 
   void _openSearchHistoryAfterTextInputFocus() {
-    if (_isSearchHistoryOpen) {
+    if (_isSearchHistoryOpen || _searchHistoryOpenScheduled) {
       return;
     }
+    _searchHistoryOpenScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_searchFocusNode.hasFocus) {
+      _searchHistoryOpenScheduled = false;
+      if (!mounted ||
+          !_searchFocusNode.hasFocus ||
+          _isSearchHistoryOpen ||
+          !widget.recentSearches.any(
+            (entry) => entry.type == SearchHistoryType.sidebar,
+          )) {
         return;
       }
       setState(() {
@@ -243,12 +251,15 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     });
   }
 
-  void _closeSearchHistory() {
-    if (!_isSearchHistoryOpen && !_searchFocusNode.hasFocus) {
+  void _closeSearchHistory({bool unfocus = false}) {
+    if (!_isSearchHistoryOpen && !(unfocus && _searchFocusNode.hasFocus)) {
       return;
     }
     setState(() {
       _setSearchHistoryOpen(false);
+      if (unfocus) {
+        _searchFocusNode.unfocus();
+      }
     });
   }
 
@@ -480,6 +491,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                             onFocusChanged: (focused) {
                               if (focused) {
                                 _openSearchHistoryAfterTextInputFocus();
+                              } else {
+                                _closeSearchHistory();
                               }
                             },
                             onCollapsedSearchPressed: () {

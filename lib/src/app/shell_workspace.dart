@@ -20,7 +20,7 @@ class SmPlayerShellWorkspaceKeys {
   );
 }
 
-class SmPlayerWorkspace extends ConsumerWidget {
+class SmPlayerWorkspace extends ConsumerStatefulWidget {
   const SmPlayerWorkspace({
     super.key,
     required this.currentPath,
@@ -43,13 +43,26 @@ class SmPlayerWorkspace extends ConsumerWidget {
   final Widget? child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SmPlayerWorkspace> createState() => _SmPlayerWorkspaceState();
+}
+
+class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
+  final _workspaceAppBarPortals =
+      <_WorkspaceAppBarPortalKey, WorkspaceAppBarPortalEntry>{};
+
+  @override
+  Widget build(BuildContext context) {
     final shellColors = ShellThemeColors.of(context);
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
     final title = _workspaceTitle(
-      path: currentPath,
+      path: widget.currentPath,
+      snapshot: snapshot,
+      i18n: i18n,
+    );
+    final synchronousPortalTitle = _synchronousWorkspaceAppBarTitle(
+      location: widget.currentLocation,
       snapshot: snapshot,
       i18n: i18n,
     );
@@ -59,19 +72,18 @@ class SmPlayerWorkspace extends ConsumerWidget {
     final headeredPlaylistAppBar =
         rawHeaderedPlaylistAppBar != null &&
                 (rawHeaderedPlaylistAppBar.routeLocation == null ||
-                    rawHeaderedPlaylistAppBar.routeLocation == currentLocation)
+                    rawHeaderedPlaylistAppBar.routeLocation ==
+                        widget.currentLocation)
             ? rawHeaderedPlaylistAppBar
             : null;
     final workspaceAppBarPortal = ref.watch(workspaceAppBarPortalProvider);
-    final currentUri = Uri.parse(currentLocation);
+    _rememberWorkspaceAppBarPortal(workspaceAppBarPortal);
+    final currentUri = Uri.parse(widget.currentLocation);
     final currentRoutePath = currentUri.path;
-    final currentWorkspaceAppBarPortal =
-        workspaceAppBarPortal != null &&
-                workspaceAppBarPortal.routePath == currentRoutePath &&
-                (workspaceAppBarPortal.routeLocation == null ||
-                    workspaceAppBarPortal.routeLocation == currentLocation)
-            ? workspaceAppBarPortal
-            : null;
+    final currentWorkspaceAppBarPortal = _workspaceAppBarPortalFor(
+      routePath: currentRoutePath,
+      routeLocation: widget.currentLocation,
+    );
     final localTitleContent =
         currentRoutePath == '/local' &&
                 snapshot != null &&
@@ -82,7 +94,7 @@ class SmPlayerWorkspace extends ConsumerWidget {
               i18n: i18n,
               rootPath: snapshot.rootPath,
               currentRelativePath: currentUri.queryParameters['path'] ?? '',
-              compact: showNavigationAppBar,
+              compact: widget.showNavigationAppBar,
               onHiddenFoldersListButtonClick: () {
                 context.go('/hidden-folders');
               },
@@ -102,21 +114,22 @@ class SmPlayerWorkspace extends ConsumerWidget {
             )
             : null;
     final routeSurface =
-        showNavigationAppBar
+        widget.showNavigationAppBar
             ? shellColors.workspaceSolidSurface
             : shellColors.workspaceSurface;
     final page = _WorkspacePageSurface(
       title: title,
-      headerHeight: headerHeight,
-      showNavigationAppBar: showNavigationAppBar,
-      navigationMenuLabel: navigationMenuLabel,
-      onNavigationMenuPressed: onNavigationMenuPressed,
+      synchronousPortalTitle: synchronousPortalTitle,
+      headerHeight: widget.headerHeight,
+      showNavigationAppBar: widget.showNavigationAppBar,
+      navigationMenuLabel: widget.navigationMenuLabel,
+      onNavigationMenuPressed: widget.onNavigationMenuPressed,
       routeSurface: routeSurface,
       workspaceAppBarPortal: currentWorkspaceAppBarPortal,
       localTitleContent: localTitleContent,
       headeredPlaylistAppBar: headeredPlaylistAppBar,
-      navigationAppBarTopInset: navigationAppBarTopInset,
-      child: child ?? const SizedBox.shrink(),
+      navigationAppBarTopInset: widget.navigationAppBarTopInset,
+      child: widget.child ?? const SizedBox.shrink(),
     );
     final workspace = DecoratedBox(
       decoration: _workspaceDecoration(shellColors: shellColors),
@@ -124,6 +137,51 @@ class SmPlayerWorkspace extends ConsumerWidget {
     );
     return RepaintBoundary(child: workspace);
   }
+
+  void _rememberWorkspaceAppBarPortal(WorkspaceAppBarPortalEntry? entry) {
+    if (entry == null) {
+      return;
+    }
+    _workspaceAppBarPortals[_WorkspaceAppBarPortalKey(
+          routePath: entry.routePath,
+          routeLocation: entry.routeLocation,
+        )] =
+        entry;
+  }
+
+  WorkspaceAppBarPortalEntry? _workspaceAppBarPortalFor({
+    required String routePath,
+    required String routeLocation,
+  }) {
+    return _workspaceAppBarPortals[_WorkspaceAppBarPortalKey(
+          routePath: routePath,
+          routeLocation: routeLocation,
+        )] ??
+        _workspaceAppBarPortals[_WorkspaceAppBarPortalKey(
+          routePath: routePath,
+          routeLocation: null,
+        )];
+  }
+}
+
+class _WorkspaceAppBarPortalKey {
+  const _WorkspaceAppBarPortalKey({
+    required this.routePath,
+    required this.routeLocation,
+  });
+
+  final String routePath;
+  final String? routeLocation;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _WorkspaceAppBarPortalKey &&
+        other.routePath == routePath &&
+        other.routeLocation == routeLocation;
+  }
+
+  @override
+  int get hashCode => Object.hash(routePath, routeLocation);
 }
 
 BoxDecoration _workspaceDecoration({required ShellThemeColors shellColors}) {
@@ -141,6 +199,7 @@ BoxDecoration _workspaceDecoration({required ShellThemeColors shellColors}) {
 class _WorkspacePageSurface extends StatelessWidget {
   const _WorkspacePageSurface({
     required this.title,
+    required this.synchronousPortalTitle,
     required this.headerHeight,
     required this.showNavigationAppBar,
     required this.navigationMenuLabel,
@@ -154,6 +213,7 @@ class _WorkspacePageSurface extends StatelessWidget {
   });
 
   final String title;
+  final String? synchronousPortalTitle;
   final double headerHeight;
   final bool showNavigationAppBar;
   final String navigationMenuLabel;
@@ -175,7 +235,7 @@ class _WorkspacePageSurface extends StatelessWidget {
         headeredPlaylistAppBar?.title ??
         (workspaceAppBarPortal?.replacesTitle == true
             ? ''
-            : workspaceAppBarPortal?.title ?? title);
+            : workspaceAppBarPortal?.title ?? synchronousPortalTitle ?? title);
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar || localTitleContent != null,
       child: _WorkspaceContentMediaQuery(child: child),
@@ -595,6 +655,78 @@ class _WorkspaceHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _synchronousWorkspaceAppBarTitle({
+  required String location,
+  required LibraryContentData? snapshot,
+  required SmPlayerI18n i18n,
+}) {
+  final uri = Uri.parse(location);
+  final path = uri.path;
+  if (snapshot == null) {
+    return switch (path) {
+      '/songs' => i18n.t('library.allSongs'),
+      '/albums' => i18n.t('library.allAlbums'),
+      '/playlists' => i18n.t('common.playlists'),
+      '/now-playing' => i18n.t('common.nowPlaying'),
+      '/search' => _searchWorkspaceTitle(uri, i18n),
+      _ => null,
+    };
+  }
+
+  return switch (path) {
+    '/songs' =>
+      snapshot.showCount
+          ? i18n.t('library.allSongsWithCount', {
+            'count': snapshot.songs.length,
+          })
+          : i18n.t('library.allSongs'),
+    '/albums' =>
+      snapshot.showCount
+          ? i18n.t('library.allAlbumsWithCount', {
+            'count': _albumCount(snapshot, i18n),
+          })
+          : i18n.t('library.allAlbums'),
+    '/playlists' =>
+      snapshot.showCount
+          ? i18n.t('search.playlistsWithCount', {
+            'count':
+                snapshot.playlists
+                    .where((playlist) => !playlist.isBuiltIn)
+                    .length,
+          })
+          : i18n.t('common.playlists'),
+    '/now-playing' =>
+      snapshot.showCount
+          ? i18n.t('nowPlaying.titleWithCount', {
+            'count': snapshot.nowPlaying.songIds.length,
+          })
+          : i18n.t('common.nowPlaying'),
+    '/search' => _searchWorkspaceTitle(uri, i18n),
+    _ => null,
+  };
+}
+
+int _albumCount(LibraryContentData snapshot, SmPlayerI18n i18n) {
+  return {
+    for (final song in snapshot.songs)
+      song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album,
+  }.length;
+}
+
+String _searchWorkspaceTitle(Uri uri, SmPlayerI18n i18n) {
+  final query = uri.queryParameters['query']?.trim() ?? '';
+  final folder = uri.queryParameters['folder'] ?? '';
+  if (query.isNotEmpty && folder.isNotEmpty) {
+    return i18n.t('search.directoryResultOf', {
+      'query': query,
+      'folder': folder.split('/').last,
+    });
+  }
+  return query.isNotEmpty
+      ? i18n.t('search.resultOf', {'query': query})
+      : i18n.t('search.resultTitle');
 }
 
 String _workspaceTitle({

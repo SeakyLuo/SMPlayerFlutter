@@ -400,7 +400,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     var menuClosed = false;
     if (onResolvePreferenceLevel != null) {
       unawaited(
-        Future.sync(onResolvePreferenceLevel!).then((resolvedPreferenceLevel) {
+        Future.sync(onResolvePreferenceLevel).then((resolvedPreferenceLevel) {
           if (!menuClosed) {
             itemsNotifier.value = buildItems(resolvedPreferenceLevel);
           }

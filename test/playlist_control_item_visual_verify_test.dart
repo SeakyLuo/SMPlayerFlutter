@@ -45,6 +45,17 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'writes PlaylistControlItem hover handoff verification screenshot',
+    (tester) async {
+      await _writeHandoffScreenshot(
+        tester,
+        size: const Size(390, 260),
+        path: '/tmp/smplayer_playlist_control_item_hover_handoff_verify.png',
+      );
+    },
+  );
 }
 
 Future<void> _writeScreenshot(
@@ -143,6 +154,103 @@ Future<void> _writeScreenshot(
   });
 }
 
+Future<void> _writeHandoffScreenshot(
+  WidgetTester tester, {
+  required Size size,
+  required String path,
+}) async {
+  final repaintKey = GlobalKey();
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(() {
+    tester.view.resetDevicePixelRatio();
+    tester.view.resetPhysicalSize();
+  });
+
+  await tester.pumpWidget(
+    SmPlayerI18nScope(
+      i18n: _i18n,
+      child: MaterialApp(
+        theme: ThemeData(
+          extensions: const [DefaultAlbumArtworkThemeColors.light],
+        ),
+        home: Scaffold(
+          backgroundColor: const Color(0xfff6f9fc),
+          body: Center(
+            child: RepaintBoundary(
+              key: repaintKey,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x297e8b9a)),
+                ),
+                child: const SizedBox(
+                  width: 360,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PlaylistControlItem(
+                        song: _song,
+                        current: false,
+                        playing: false,
+                        selected: false,
+                        selectionMode: false,
+                        variant: PlaylistControlItemVariant.compact,
+                        compactDurationWidth: 20,
+                        moreLabel: 'More',
+                        onOpenContextMenu: _noopPosition,
+                        onPlayTrack: _noop,
+                        onTogglePlayPause: _noop,
+                        onToggleSelection: _noop,
+                        onPlayNextClick: _noop,
+                      ),
+                      PlaylistControlItem(
+                        song: _songTwo,
+                        current: false,
+                        playing: false,
+                        selected: false,
+                        selectionMode: false,
+                        variant: PlaylistControlItemVariant.compact,
+                        compactDurationWidth: 20,
+                        moreLabel: 'More',
+                        onOpenContextMenu: _noopPosition,
+                        onPlayTrack: _noop,
+                        onTogglePlayPause: _noop,
+                        onToggleSelection: _noop,
+                        onPlayNextClick: _noop,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  final rows = find.byType(PlaylistControlItem);
+  final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await mouse.addPointer(location: tester.getCenter(rows.first));
+  addTearDown(mouse.removePointer);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 180));
+  await mouse.moveTo(tester.getCenter(rows.at(1)));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 60));
+
+  await tester.runAsync(() async {
+    final boundary =
+        repaintKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    await File(path).writeAsBytes(bytes!.buffer.asUint8List());
+  });
+}
+
 void _noop() {}
 
 void _noopPosition(Offset position) {}
@@ -168,6 +276,21 @@ const _song = LibrarySong(
   artists: ['Unknown Artist'],
   album: 'Unknown Album',
   duration: 227,
+  playCount: 0,
+  lyricsOffsetMs: 0,
+  dateAdded: '2026-05-25',
+  favorite: false,
+  thumbnailPath: '',
+);
+
+const _songTwo = LibrarySong(
+  id: 2,
+  path: '/music/song-2.mp3',
+  title: 'Acid Jazz 3',
+  artist: 'Unknown Artist',
+  artists: ['Unknown Artist'],
+  album: 'Unknown Album',
+  duration: 180,
   playCount: 0,
   lyricsOffsetMs: 0,
   dateAdded: '2026-05-25',

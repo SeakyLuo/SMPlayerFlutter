@@ -220,6 +220,15 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final hoverActionsVisible = _hovered || _focused;
     final compactHoverActionsVisible = !compactVariant || _hovered || _focused;
     final multiSelectSelected = widget.selectionMode && widget.selected;
+    final transparentHover = colors.hover.withValues(alpha: 0);
+    final rowBackgroundColor =
+        multiSelectSelected || widget.selected
+            ? colors.hover
+            : widget.current
+            ? colors.current
+            : _hovered
+            ? colors.hover
+            : transparentHover;
     final rowHeight =
         compactVariant
             ? 78.0
@@ -247,6 +256,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
             : 14.0;
     final dropPosition = widget.dropPosition;
     final content = InkWell(
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      hoverColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      splashColor: Colors.transparent,
       onTap: _activateRow,
       onSecondaryTapDown: (details) {
         widget.onOpenContextMenu(details.globalPosition);
@@ -257,12 +271,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         margin: EdgeInsets.zero,
         padding: rowPadding,
         decoration: BoxDecoration(
-          color:
-              multiSelectSelected
-                  ? colors.hover
-                  : widget.selected || _hovered
-                  ? colors.hover
-                  : Colors.transparent,
+          color: rowBackgroundColor,
           borderRadius: BorderRadius.circular(8),
           border: Border(bottom: BorderSide(color: colors.border)),
           boxShadow:

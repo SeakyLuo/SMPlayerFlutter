@@ -464,7 +464,6 @@ class _MainNavigationPlaylistItemButtonState
                                         child: SizedBox.square(
                                           dimension: 32,
                                           child: ShuffleIcon(
-                                            size: 18,
                                             color: colors.clearForeground,
                                           ),
                                         ),

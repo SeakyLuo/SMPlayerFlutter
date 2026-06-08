@@ -726,10 +726,13 @@ void main() {
     );
     await tester.pump();
 
-    final textField = tester.widget<TextField>(
-      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    final textField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+        matching: find.byType(EditableText),
+      ),
     );
-    expect(textField.controller?.text, 'blue');
+    expect(textField.controller.text, 'blue');
     expect(changedText, 'blue');
     expect(find.text('最近搜索'), findsOneWidget);
   });
@@ -769,11 +772,16 @@ void main() {
     );
     expect(
       tester
-          .widget<TextField>(
-            find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey('MainNavigationView.SearchTextField'),
+              ),
+              matching: find.byType(EditableText),
+            ),
           )
           .controller
-          ?.text,
+          .text,
       'abc123',
     );
 
@@ -783,11 +791,16 @@ void main() {
 
     expect(
       tester
-          .widget<TextField>(
-            find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey('MainNavigationView.SearchTextField'),
+              ),
+              matching: find.byType(EditableText),
+            ),
           )
           .controller
-          ?.text,
+          .text,
       'abc123',
     );
   });
@@ -1011,7 +1024,7 @@ void main() {
     final editableTextState = tester.state<EditableTextState>(
       find.byType(EditableText),
     );
-    expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(editableTextState.widget.focusNode.hasFocus, isFalse);
   });
 
   testWidgets('sidebar search dropdown mirrors Electron night colors', (
@@ -1354,10 +1367,13 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
 
-      final textField = tester.widget<TextField>(
-        find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+      final textField = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+          matching: find.byType(EditableText),
+        ),
       );
-      expect(textField.controller?.text, 'Jazz');
+      expect(textField.controller.text, 'Jazz');
       expect(
         find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
         findsOneWidget,
@@ -1412,6 +1428,14 @@ void main() {
                 currentPath: '/songs',
                 searchText: '',
                 i18n: testI18n,
+                recentSearches: const [
+                  SearchHistoryEntry(
+                    id: 10,
+                    query: 'Jazz',
+                    type: SearchHistoryType.sidebar,
+                    searchedAt: '2026-05-21T00:00:00Z',
+                  ),
+                ],
                 onPaneToggle: () {},
                 onSearchTextChanged: (_) {},
                 onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
@@ -1434,10 +1458,12 @@ void main() {
       kind: PointerDeviceKind.mouse,
     );
     await tester.pump();
+    await tester.pump();
     final editableTextState = tester.state<EditableTextState>(
       find.byType(EditableText),
     );
     expect(editableTextState.widget.focusNode.hasFocus, isTrue);
+    expect(find.text('最近搜索'), findsOneWidget);
 
     await tester.tap(
       find.byKey(const ValueKey('OutsideSearchTarget')),
@@ -1446,6 +1472,7 @@ void main() {
     await tester.pump();
 
     expect(editableTextState.widget.focusNode.hasFocus, isFalse);
+    expect(find.text('最近搜索'), findsNothing);
   });
 
   testWidgets('sidebar search icon slot is square', (tester) async {
@@ -1473,6 +1500,116 @@ void main() {
       tester.getSize(find.byType(SearchCommitIconButton).first),
       const Size.square(40),
     );
+  });
+
+  testWidgets('sidebar search input fills Electron input height', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 240,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final textField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(textField.cursorHeight, isNull);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    );
+    expect(field.decoration?.isDense, isTrue);
+    expect(
+      field.decoration?.contentPadding,
+      const EdgeInsets.only(top: 16, bottom: 10),
+    );
+    expect(tester.getSize(find.byType(TextField).first).height, 40);
+  });
+
+  testWidgets('sidebar search clear button only shows background on hover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 240,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/songs',
+            searchText: '流星',
+            i18n: testI18n,
+            onPaneToggle: () {},
+            onSearchTextChanged: (_) {},
+            onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+            onSearchCleared: () {},
+            onItemInvoked: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    BoxDecoration clearDecoration() {
+      final boxes = tester.widgetList<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('MainNavigationView.ClearSearchButton'),
+          ),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      return boxes
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .firstWhere(
+            (decoration) => decoration.borderRadius == BorderRadius.circular(6),
+          );
+    }
+
+    expect(clearDecoration().color, Colors.transparent);
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey('MainNavigationView.ClearSearchButton'),
+              ),
+              matching: find.byIcon(FluentIcons.dismiss_16_regular),
+            ),
+          )
+          .color,
+      SearchCommitIconButton.foregroundFor(
+        tester.element(find.byType(MainNavigationView)),
+      ),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(
+      tester.getCenter(
+        find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
+      ),
+    );
+    await tester.pump();
+
+    expect(clearDecoration().color, MainNavigationViewColors.clearButtonHover);
   });
 }
 

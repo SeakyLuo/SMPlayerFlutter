@@ -61,10 +61,7 @@ extension _SettingsPageSections on _SettingsPageState {
               style: TextStyle(color: colors.textMuted, fontSize: 13),
             ),
           ToggleSettingRow(
-            label:
-                _snapshot.useFilenameNotMusicName
-                    ? i18n.t('settings.loadUsingFilename')
-                    : i18n.t('settings.loadUsingMusicName'),
+            label: i18n.t('settings.loadUsingFilename'),
             checked: _snapshot.useFilenameNotMusicName,
             onChange: (checked) {
               _updateSettings(

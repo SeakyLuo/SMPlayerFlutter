@@ -26,6 +26,9 @@ void main() {
   setUp(() {
     resetSmPlayerGlobalSettingsSnapshot();
     resetSmPlayerShellGlobalStateForTest();
+    addTearDown(() {
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
   });
 
   test('shell matches Electron navigation breakpoints', () {
@@ -1190,14 +1193,23 @@ void main() {
     );
     await tester.pump();
 
-    final textField = tester.widget<TextField>(
-      find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+    final textField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MainNavigationView.SearchTextField')),
+        matching: find.byType(EditableText),
+      ),
     );
-    expect(textField.controller?.text, 'Blue');
+    expect(textField.controller.text, 'Blue');
     expect(
       find.byKey(const ValueKey('MainNavigationView.ClearSearchButton')),
       findsOneWidget,
     );
+
+    await tester.tap(find.byKey(SmPlayerShellKeys.navigationDismissLayer));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent searches'), findsNothing);
+    expect(editableTextState.widget.focusNode.hasFocus, isFalse);
   });
 
   testWidgets('shell shortcuts do not steal sidebar search focus', (

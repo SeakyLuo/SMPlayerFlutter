@@ -152,29 +152,46 @@ class _MainNavigationViewSearchBoxState
                       ),
                     ),
                     Expanded(
-                      child: TextField(
-                        key: const ValueKey(
-                          'MainNavigationView.SearchTextField',
-                        ),
-                        controller: _controller,
-                        focusNode: widget.focusNode,
-                        onChanged: widget.onChanged,
-                        onTapOutside: (_) {
-                          widget.focusNode.unfocus();
-                        },
-                        onSubmitted: widget.onSubmitted,
-                        textInputAction: TextInputAction.search,
-                        textAlignVertical: TextAlignVertical.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: colors.textStrong,
-                        ),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: widget.i18n.t('common.search'),
-                          hintStyle: TextStyle(color: colors.searchPlaceholder),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
+                      child: SizedBox(
+                        height: 40,
+                        child: TextField(
+                          key: const ValueKey(
+                            'MainNavigationView.SearchTextField',
+                          ),
+                          controller: _controller,
+                          focusNode: widget.focusNode,
+                          onChanged: widget.onChanged,
+                          onTapOutside: (_) {
+                            widget.focusNode.unfocus();
+                          },
+                          onSubmitted: widget.onSubmitted,
+                          textInputAction: TextInputAction.search,
+                          textAlignVertical: TextAlignVertical.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1,
+                            color: colors.textStrong,
+                          ),
+                          strutStyle: const StrutStyle(
+                            fontSize: 14,
+                            height: 1,
+                            forceStrutHeight: true,
+                          ),
+                          cursorColor: colors.textStrong,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: widget.i18n.t('common.search'),
+                            hintStyle: TextStyle(
+                              fontSize: 14,
+                              height: 1,
+                              color: colors.searchPlaceholder,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.only(
+                              top: 16,
+                              bottom: 10,
+                            ),
+                          ),
                         ),
                       ),
                     ),

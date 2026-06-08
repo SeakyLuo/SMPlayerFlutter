@@ -1,5 +1,15 @@
 part of 'recent_page.dart';
 
+const _recentSongActionButtonSize = 32.0;
+const _recentSongActionsSpacing = 4.0;
+const _recentSongActionsRightInset = 8.0;
+const _recentSongHoverActionsReservedWidth =
+    _recentSongActionButtonSize * 2 +
+    _recentSongActionsSpacing +
+    _recentSongActionsRightInset;
+const _recentSongArtistLineHoverReserveWidth =
+    _recentSongHoverActionsReservedWidth + _recentSongActionButtonSize;
+
 class _GridViewMusicItemControl extends StatefulWidget {
   const _GridViewMusicItemControl({
     required this.song,
@@ -43,6 +53,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
   Widget build(BuildContext context) {
     final colors = _RecentSongTileColors.of(context);
     final active = widget.selected || _hovered;
+    final showHoverActions = active && !widget.multiSelect;
     final textColor = widget.current ? colors.currentText : colors.textStrong;
     final artistColor = widget.current ? colors.currentMuted : colors.textMuted;
     final detailColor = widget.current ? colors.currentSoft : colors.textSoft;
@@ -197,13 +208,27 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                               ),
                             ),
                             SizedBox(height: widget.metrics.copyLineGap),
-                            Text(
-                              displayArtists(widget.song, context.smPlayerI18n),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: artistColor,
-                                fontSize: 13,
+                            AnimatedPadding(
+                              duration: const Duration(milliseconds: 120),
+                              curve: Curves.ease,
+                              padding: EdgeInsets.only(
+                                right:
+                                    showHoverActions
+                                        ? _recentSongArtistLineHoverReserveWidth
+                                        : 0,
+                              ),
+                              child: Text(
+                                key: const ValueKey('RecentSong.ArtistLine'),
+                                displayArtists(
+                                  widget.song,
+                                  context.smPlayerI18n,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: artistColor,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                             if (widget.detailLabel.isNotEmpty) ...[
@@ -226,12 +251,15 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                   ),
                 ],
               ),
-              if (active && !widget.multiSelect)
+              if (showHoverActions)
                 Positioned(
-                  top: (widget.metrics.tileExtent - 32) / 2,
-                  right: 8,
+                  top:
+                      (widget.metrics.tileExtent -
+                          _recentSongActionButtonSize) /
+                      2,
+                  right: _recentSongActionsRightInset,
                   child: Row(
-                    spacing: 4,
+                    spacing: _recentSongActionsSpacing,
                     children: [
                       _RecentSongActionButton(
                         tooltip: context.smPlayerI18n.t('context.playNext'),
@@ -311,9 +339,15 @@ class _RecentSongActionButtonState extends State<_RecentSongActionButton> {
           child: IconButton(
             tooltip: widget.tooltip,
             style: ButtonStyle(
-              fixedSize: const WidgetStatePropertyAll(Size.square(32)),
-              minimumSize: const WidgetStatePropertyAll(Size.square(32)),
-              maximumSize: const WidgetStatePropertyAll(Size.square(32)),
+              fixedSize: const WidgetStatePropertyAll(
+                Size.square(_recentSongActionButtonSize),
+              ),
+              minimumSize: const WidgetStatePropertyAll(
+                Size.square(_recentSongActionButtonSize),
+              ),
+              maximumSize: const WidgetStatePropertyAll(
+                Size.square(_recentSongActionButtonSize),
+              ),
               padding: const WidgetStatePropertyAll(EdgeInsets.zero),
               shape: WidgetStatePropertyAll(
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

@@ -761,6 +761,102 @@ void main() {
     },
   );
 
+  testWidgets('RecentPage song hover narrows artist line before actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const longArtist = 'distinctivecontactdistinctivecontactdistinctivecontact';
+    const snapshot = LibraryContentData(
+      songs: [
+        LibrarySong(
+          id: 21,
+          path: r'C:\Music\drill.mp3',
+          title: 'Meteor Drill',
+          artist: longArtist,
+          artists: [longArtist],
+          album: 'Blue Hour',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+      ],
+      recentSongs: [
+        RecentLibrarySong(
+          id: 21,
+          path: r'C:\Music\drill.mp3',
+          title: 'Meteor Drill',
+          artist: longArtist,
+          artists: [longArtist],
+          album: 'Blue Hour',
+          duration: 120,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-05-20T00:00:00',
+          favorite: false,
+          thumbnailPath: '',
+          playedAt: '2026-05-20T00:00:00',
+        ),
+      ],
+      recentSearches: [],
+      playlists: [],
+      favoritePlaylistId: 0,
+      nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+      hasLibrary: true,
+      sortCriterion: MusicLibrarySortCriterion.title,
+      albumsSort: AlbumSortCriterion.defaultSort,
+      showCount: true,
+      hideMultiSelectCommandBarAfterOperation: true,
+      databasePath: '',
+    );
+
+    await tester.pumpWidget(_RecentTestApp(snapshot: snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    final tile =
+        find
+            .ancestor(
+              of: find.text('Meteor Drill'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(tile));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+
+    final artistLine = find.descendant(
+      of: tile,
+      matching: find.byKey(const ValueKey('RecentSong.ArtistLine')),
+    );
+    final playNextButton = find.ancestor(
+      of: find.descendant(
+        of: tile,
+        matching: find.byType(SmPlayerPlayNextIcon),
+      ),
+      matching: find.byType(IconButton),
+    );
+
+    expect(artistLine, findsOneWidget);
+    expect(playNextButton, findsOneWidget);
+    expect(
+      tester.getRect(artistLine).right,
+      lessThanOrEqualTo(tester.getRect(playNextButton).left),
+    );
+  });
+
   testWidgets('RecentPage song hover actions use Electron night colors', (
     tester,
   ) async {
