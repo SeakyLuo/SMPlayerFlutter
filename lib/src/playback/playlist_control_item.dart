@@ -87,6 +87,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
     this.favoriteAsHoverAction = false,
+    this.favoriteLoading = false,
   });
 
   final LibrarySong song;
@@ -119,6 +120,7 @@ class PlaylistControlItem extends StatefulWidget {
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
+  final bool favoriteLoading;
 
   @override
   State<PlaylistControlItem> createState() => _PlaylistControlItemState();
@@ -218,7 +220,6 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
     final hoverActionsVisible = _hovered || _focused;
-    final compactHoverActionsVisible = !compactVariant || _hovered || _focused;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
     final rowBackgroundColor =
@@ -364,10 +365,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         favoriteLabel: widget.favoriteLabel,
                         moreLabel: widget.moreLabel,
                         compactVariant: compactVariant,
-                        showHoverActions: compactHoverActionsVisible,
+                        showHoverActions: hoverActionsVisible,
                         onToggleFavoriteClick: widget.onToggleFavoriteClick,
                         showFavoriteAction: widget.showFavoriteAction,
                         favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                        favoriteLoading: widget.favoriteLoading,
                         favoriteHoverVisible: hoverActionsVisible,
                         onAddToPlaylistClick: widget.onAddToPlaylistClick,
                         onPlayNextClick: widget.onPlayNextClick,
@@ -392,10 +394,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     favoriteLabel: widget.favoriteLabel,
                     moreLabel: widget.moreLabel,
                     compactVariant: compactVariant,
-                    showHoverActions: compactHoverActionsVisible,
+                    showHoverActions: hoverActionsVisible,
                     onToggleFavoriteClick: widget.onToggleFavoriteClick,
                     showFavoriteAction: widget.showFavoriteAction,
                     favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                    favoriteLoading: widget.favoriteLoading,
                     favoriteHoverVisible: hoverActionsVisible,
                     onAddToPlaylistClick: widget.onAddToPlaylistClick,
                     onPlayNextClick: widget.onPlayNextClick,
@@ -863,6 +866,7 @@ class _QueueActions extends StatelessWidget {
     this.onToggleFavoriteClick,
     required this.showFavoriteAction,
     required this.favoriteAsHoverAction,
+    required this.favoriteLoading,
     required this.favoriteHoverVisible,
     this.onAddToPlaylistClick,
     this.onPlayNextClick,
@@ -886,6 +890,7 @@ class _QueueActions extends StatelessWidget {
   final VoidCallback? onToggleFavoriteClick;
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
+  final bool favoriteLoading;
   final bool favoriteHoverVisible;
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
   final VoidCallback? onPlayNextClick;
@@ -901,10 +906,7 @@ class _QueueActions extends StatelessWidget {
     final actionSize = compactVariant ? 34.0 : 32.0;
     final actionRadius = compactVariant ? 8.0 : 10.0;
     final showPrimaryActions = !compactVariant || showCompactPrimaryActions;
-    Widget hoverAction(Widget child, {bool force = false, bool? visible}) {
-      if (!compactVariant && !force) {
-        return child;
-      }
+    Widget hoverAction(Widget child, {bool? visible}) {
       final actionVisible = visible ?? showHoverActions;
       return IgnorePointer(
         ignoring: !actionVisible,
@@ -925,50 +927,55 @@ class _QueueActions extends StatelessWidget {
             _QueueActionButton(
               key: const ValueKey('PlaylistControlItem.FavoriteAction'),
               tooltip: favoriteLabel,
-              icon: Icon(
-                favorite
-                    ? FluentIcons.heart_20_filled
-                    : FluentIcons.heart_20_regular,
-                size: 18,
-              ),
+              icon:
+                  favoriteLoading
+                      ? const _QueueActionSpinner()
+                      : Icon(
+                        favorite
+                            ? FluentIcons.heart_20_filled
+                            : FluentIcons.heart_20_regular,
+                        size: 18,
+                      ),
               foregroundColor:
-                  favorite
+                  favoriteLoading || favorite
                       ? _PlaylistControlItemColors.favorite
                       : colors.actionForeground,
               hoverForegroundColor:
-                  favorite
+                  favoriteLoading || favorite
                       ? _PlaylistControlItemColors.favorite
                       : colors.currentForeground,
               hoverBackgroundColor: colors.actionHover,
               size: actionSize,
               radius: actionRadius,
-              onPressed: onToggleFavoriteClick,
+              onPressed: favoriteLoading ? null : onToggleFavoriteClick,
             ),
-            force: true,
             visible: favoriteHoverVisible,
           )
         else
           _QueueActionButton(
             key: const ValueKey('PlaylistControlItem.FavoriteAction'),
             tooltip: favoriteLabel,
-            icon: Icon(
-              favorite
-                  ? FluentIcons.heart_20_filled
-                  : FluentIcons.heart_20_regular,
-              size: 18,
-            ),
+            icon:
+                favoriteLoading
+                    ? const _QueueActionSpinner()
+                    : Icon(
+                      favorite
+                          ? FluentIcons.heart_20_filled
+                          : FluentIcons.heart_20_regular,
+                      size: 18,
+                    ),
             foregroundColor:
-                favorite
+                favoriteLoading || favorite
                     ? _PlaylistControlItemColors.favorite
                     : colors.actionForeground,
             hoverForegroundColor:
-                favorite
+                favoriteLoading || favorite
                     ? _PlaylistControlItemColors.favorite
                     : colors.currentForeground,
             hoverBackgroundColor: colors.actionHover,
             size: actionSize,
             radius: actionRadius,
-            onPressed: onToggleFavoriteClick,
+            onPressed: favoriteLoading ? null : onToggleFavoriteClick,
           ),
       if (showPrimaryActions && onAddToPlaylistClick != null)
         Builder(
@@ -1004,16 +1011,18 @@ class _QueueActions extends StatelessWidget {
           ),
         ),
       if (!compactVariant && onRemoveFromListClick != null)
-        _QueueActionButton(
-          key: const ValueKey('PlaylistControlItem.RemoveAction'),
-          tooltip: removeLabel,
-          icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
-          foregroundColor: colors.actionForeground,
-          hoverForegroundColor: colors.currentForeground,
-          hoverBackgroundColor: colors.actionHover,
-          size: actionSize,
-          radius: actionRadius,
-          onPressed: onRemoveFromListClick,
+        hoverAction(
+          _QueueActionButton(
+            key: const ValueKey('PlaylistControlItem.RemoveAction'),
+            tooltip: removeLabel,
+            icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
+            foregroundColor: colors.actionForeground,
+            hoverForegroundColor: colors.currentForeground,
+            hoverBackgroundColor: colors.actionHover,
+            size: actionSize,
+            radius: actionRadius,
+            onPressed: onRemoveFromListClick,
+          ),
         ),
       Builder(
         builder:
@@ -1185,6 +1194,7 @@ class _QueueActionButtonState extends State<_QueueActionButton> {
               foregroundColor: foregroundColor,
               hoverColor: Colors.transparent,
               highlightColor: Colors.transparent,
+              disabledForegroundColor: foregroundColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(widget.radius),
               ),
@@ -1197,6 +1207,18 @@ class _QueueActionButtonState extends State<_QueueActionButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _QueueActionSpinner extends StatelessWidget {
+  const _QueueActionSpinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.square(
+      dimension: 16,
+      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }

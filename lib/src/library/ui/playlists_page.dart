@@ -99,6 +99,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const SmPlayerLoadingState();
@@ -118,7 +119,11 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               style: const TextStyle(color: _PlaylistsColors.textMuted),
             ),
           ),
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          favoriteOverrides,
+        );
         final selectedPlaylist =
             snapshot.playlists
                 .where((playlist) => playlist.id == widget.selectedPlaylistId)
@@ -241,8 +246,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             );
             return;
           }
-          ref.read(libraryRepositoryProvider).setSongFavorite(songId, false);
-          ref.invalidate(libraryContentDataProvider);
+          unawaited(setSongsFavorite(ref, [songId], false));
         },
         onRemoveSongs: (songIds) async {
           await ref

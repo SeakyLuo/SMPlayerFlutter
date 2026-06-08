@@ -100,8 +100,21 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
   }
 
   Future<void> _removeSongsFromCurrentPlaylist(List<int> songIds) async {
-    await widget.onRemoveSongs?.call(songIds);
-    _showUndoRemoveSongs(songIds);
+    if (widget.type == HeaderedPlaylistType.favorites) {
+      _updateState(() {
+        _pendingFavoriteSongIds.addAll(songIds);
+      });
+    }
+    try {
+      await widget.onRemoveSongs?.call(songIds);
+      _showUndoRemoveSongs(songIds);
+    } finally {
+      if (widget.type == HeaderedPlaylistType.favorites) {
+        _updateState(() {
+          _pendingFavoriteSongIds.removeAll(songIds);
+        });
+      }
+    }
   }
 
   void _showUndoRemoveSongs(List<int> songIds) {
@@ -113,10 +126,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     if (widget.type == HeaderedPlaylistType.favorites) {
       _showUndoNotification(
         () async {
-          await ref
-              .read(libraryRepositoryProvider)
-              .setSongsFavorite(songIds, true);
-          ref.invalidate(libraryContentDataProvider);
+          await setSongsFavorite(ref, songIds, true);
         },
         songsRemovedUndoMessage(
           i18n: i18n,

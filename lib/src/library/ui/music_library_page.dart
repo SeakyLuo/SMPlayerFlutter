@@ -91,7 +91,7 @@ const _defaultColumnWidths = {
   _LibraryColumn.artist: 200.0,
   _LibraryColumn.album: 240.0,
   _LibraryColumn.duration: 110.0,
-  _LibraryColumn.favorite: 136.0,
+  _LibraryColumn.favorite: 96.0,
   _LibraryColumn.playCount: 120.0,
   _LibraryColumn.dateAdded: 170.0,
 };
@@ -107,6 +107,7 @@ class MusicLibraryPage extends ConsumerStatefulWidget {
 
 class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   var _sortCriterion = MusicLibrarySortCriterion.title;
+  var _snapshotSortCriterion = MusicLibrarySortCriterion.title;
   var _sortDirection = MusicLibrarySortDirection.ascending;
   var _quickJumpPanelOpen = false;
   String? _quickJumpPinnedKey;
@@ -196,6 +197,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
 
     if (i18nValue.isLoading) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
@@ -216,7 +218,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             ),
           ),
       data: (snapshot) {
-        if (_sortCriterion != snapshot.sortCriterion) {
+        if (_snapshotSortCriterion != snapshot.sortCriterion) {
+          _snapshotSortCriterion = snapshot.sortCriterion;
           _sortCriterion = snapshot.sortCriterion;
           _sortDirection = MusicLibrarySortDirection.ascending;
         }
@@ -238,7 +241,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         }
 
-        final sortedSongs = _sortSongs(snapshot.songs, i18n);
+        final songs = applyFavoriteOverridesToSongs(
+          snapshot.songs,
+          favoriteOverrides,
+        );
+        final sortedSongs = _sortSongs(songs, i18n);
         final mediaState = ref.watch(mediaControlControllerProvider).state;
         final quickJumpMap = _buildQuickJumpMap(
           sortedSongs,

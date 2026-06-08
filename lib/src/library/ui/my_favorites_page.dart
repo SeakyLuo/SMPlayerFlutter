@@ -8,6 +8,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
@@ -18,6 +19,7 @@ class MyFavoritesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const _FavoritesPagePanel(child: SmPlayerLoadingState());
@@ -37,7 +39,11 @@ class MyFavoritesPage extends ConsumerWidget {
               style: const TextStyle(color: _FavoritesColors.textMuted),
             ),
           ),
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          favoriteOverrides,
+        );
         final favoritesPlaylist =
             snapshot.playlists
                 .where((playlist) => playlist.id == snapshot.favoritePlaylistId)
@@ -120,17 +126,11 @@ class MyFavoritesPage extends ConsumerWidget {
               ref.invalidate(libraryContentDataProvider);
             },
             onRemoveSongs: (songIds) async {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .setSongsFavorite(songIds, false);
-              ref.invalidate(libraryContentDataProvider);
+              await setSongsFavorite(ref, songIds, false);
             },
             onClear: () {
               final songIds = songs.map((song) => song.id).toList();
-              ref
-                  .read(libraryRepositoryProvider)
-                  .setSongsFavorite(songIds, false);
-              ref.invalidate(libraryContentDataProvider);
+              unawaited(setSongsFavorite(ref, songIds, false));
             },
             onSetPreferred: (level) async {
               await ref
@@ -160,10 +160,7 @@ class MyFavoritesPage extends ConsumerWidget {
               context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
             },
             onToggleFavorite: (songId, favorite) {
-              ref
-                  .read(libraryRepositoryProvider)
-                  .setSongFavorite(songId, favorite);
-              ref.invalidate(libraryContentDataProvider);
+              unawaited(setSongsFavorite(ref, [songId], favorite));
             },
           ),
         );

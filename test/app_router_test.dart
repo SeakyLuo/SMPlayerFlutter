@@ -785,6 +785,32 @@ void main() {
     expect(uri.queryParameters['path'], 'Jazz/Blue');
   });
 
+  testWidgets('sidebar local exits hidden folders route like Electron', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/hidden-folders');
+    await _pumpRouter(tester);
+
+    await tester.tap(find.byKey(const ValueKey('LocalItem')));
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/local');
+  });
+
   testWidgets(
     'sidebar playlist root opens PlaylistsPage from playlist detail',
     (tester) async {
@@ -924,15 +950,17 @@ void main() {
     );
     await _pumpRouter(tester);
 
-    final firstRow = find.byKey(const ValueKey('MusicLibrary.Row.1'));
-    expect(firstRow, findsOneWidget);
-    final initialTop = tester.getTopLeft(firstRow).dy;
+    final visibleRow = find.byKey(const ValueKey('MusicLibrary.Row.4'));
+    expect(visibleRow, findsOneWidget);
+    final listView = tester.widget<ListView>(find.byType(ListView).first);
+    final scrollController = listView.controller!;
+    final initialOffset = scrollController.offset;
 
-    await tester.dragFrom(tester.getCenter(firstRow), const Offset(0, -120));
+    await tester.dragFrom(tester.getCenter(visibleRow), const Offset(0, -120));
     await tester.pumpAndSettle();
 
-    final scrolledTop = tester.getTopLeft(firstRow).dy;
-    expect(scrolledTop, lessThan(initialTop));
+    final scrolledOffset = scrollController.offset;
+    expect(scrolledOffset, greaterThan(initialOffset));
 
     await tester.tap(find.byKey(const ValueKey('RecentItem')).hitTestable());
     await _pumpRouter(tester);
@@ -942,7 +970,7 @@ void main() {
     await _pumpRouter(tester);
 
     expect(router.routeInformationProvider.value.uri.path, '/songs');
-    expect(tester.getTopLeft(firstRow).dy, moreOrLessEquals(scrolledTop));
+    expect(scrollController.offset, moreOrLessEquals(scrolledOffset));
   });
 
   testWidgets('sidebar restores workspace app bar title for indexed tabs', (

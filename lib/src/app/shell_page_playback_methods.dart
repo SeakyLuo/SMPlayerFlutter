@@ -338,6 +338,12 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     final waitingForCurrentLoad =
         _loadingAudioTrackId == _mediaControlController.state.track.id;
     final pendingAutoplay = waitingForCurrentLoad && _pendingAudioAutoplay;
+    final showTrackLoading = shouldShowAudioBackendLoading(
+      backendLoading: backendLoading,
+      waitingForCurrentLoad: waitingForCurrentLoad,
+      pendingAutoplay: pendingAutoplay,
+      backendPlaying: state.playing,
+    );
     _syncingAudioPlayer = true;
     if (shouldApplyAudioBackendPlayingState(
       backendLoading: backendLoading,
@@ -346,7 +352,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     )) {
       _mediaControlController.setPlaybackActive(state.playing);
     }
-    if (backendLoading || waitingForCurrentLoad) {
+    if (showTrackLoading) {
       _mediaControlController.setTrackLoading(
         true,
         buffering: state.processingState == ProcessingState.buffering,

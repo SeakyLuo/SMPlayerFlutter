@@ -123,11 +123,11 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   void _togglePlayerFavorite(WidgetRef ref, LibrarySong song) {
     final nextFavorite = !_mediaControlController.state.track.favorite;
-    setSongsFavorite(ref, [song.id], nextFavorite);
     if (_mediaControlController.state.track.id == song.id &&
         _mediaControlController.state.track.favorite != nextFavorite) {
       _mediaControlController.onToggleFavorite();
     }
+    unawaited(setSongsFavorite(ref, [song.id], nextFavorite));
   }
 
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
@@ -163,26 +163,15 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     WidgetRef ref,
     LibrarySong song,
     int playlistId,
-    List<LibraryPlaylist> playlists,
   ) {
-    final targetPlaylist = playlists.firstWhere(
-      (playlist) => playlist.id == playlistId,
-    );
-    ref.read(libraryRepositoryProvider).addSongsToPlaylist(playlistId, [
-      song.id,
-    ]);
-    ref.invalidate(libraryContentDataProvider);
-    _showUndo(
-      context.smPlayerI18n.t('notification.songAddedTo', {
-        'title': song.title,
-        'target': targetPlaylist.name,
-      }),
-      () {
-        ref
-            .read(libraryRepositoryProvider)
-            .removeSongFromPlaylist(playlistId, song.id);
-        ref.invalidate(libraryContentDataProvider);
-      },
+    unawaited(
+      addSongsToPlaylistWithUndo(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        playlistId: playlistId,
+        songIds: [song.id],
+      ),
     );
   }
 

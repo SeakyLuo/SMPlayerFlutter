@@ -841,6 +841,7 @@ class LibraryRepository {
 
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
     final databaseFile = await _resolveDatabaseFile();
+    _initializeLibraryDatabaseFile(databaseFile);
     await _playlistService.setSongsFavorite(databaseFile, songIds, favorite);
   }
 
@@ -1124,6 +1125,11 @@ class LibraryRepository {
       windowsUwpDatabaseResolver:
           _dataTransferService.resolveWindowsUwpDatabaseFile,
     );
+  }
+
+  void _initializeLibraryDatabaseFile(File databaseFile) {
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
+    db.dispose();
   }
 
   Future<File> _resolvePendingSongDeletesFile() async {

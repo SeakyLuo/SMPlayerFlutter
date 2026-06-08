@@ -84,6 +84,11 @@ Future<void> addSongsToPlaylist(
   int playlistId,
   List<int> songIds,
 ) async {
+  final snapshot = await _readLibraryContentData(ref);
+  if (playlistId == snapshot.favoritePlaylistId) {
+    await setSongsFavorite(ref, songIds, true);
+    return;
+  }
   await ref
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
@@ -101,16 +106,20 @@ Future<void> addSongsToPlaylistWithUndo({
   if (songIds.isEmpty) {
     return;
   }
-  final snapshot = ref.read(libraryContentDataProvider).value!;
+  final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final playlist = snapshot.playlists.firstWhere(
     (playlist) => playlist.id == playlistId,
   );
   if (useSingleSongCall && songIds.length == 1) {
-    await ref
-        .read(libraryRepositoryProvider)
-        .addSongToPlaylist(playlistId, songIds.first);
-    ref.invalidate(libraryContentDataProvider);
+    if (playlistId == snapshot.favoritePlaylistId) {
+      await setSongsFavorite(ref, songIds, true);
+    } else {
+      await ref
+          .read(libraryRepositoryProvider)
+          .addSongToPlaylist(playlistId, songIds.first);
+      ref.invalidate(libraryContentDataProvider);
+    }
   } else {
     await addSongsToPlaylist(ref, playlistId, songIds);
   }
@@ -127,10 +136,14 @@ Future<void> addSongsToPlaylistWithUndo({
       target: playlist.name,
     ),
     onUndo: () async {
-      await ref
-          .read(libraryRepositoryProvider)
-          .removeSongsFromPlaylist(playlistId, songIds);
-      ref.invalidate(libraryContentDataProvider);
+      if (playlistId == snapshot.favoritePlaylistId) {
+        await setSongsFavorite(ref, songIds, false);
+      } else {
+        await ref
+            .read(libraryRepositoryProvider)
+            .removeSongsFromPlaylist(playlistId, songIds);
+        ref.invalidate(libraryContentDataProvider);
+      }
     },
   );
 }
@@ -141,12 +154,18 @@ Future<void> setSongsFavorite(
   bool favorite,
 ) async {
   await ref.read(libraryRepositoryProvider).setSongsFavorite(songIds, favorite);
+  patchLibraryFavoriteOverrides(ref, songIds, favorite);
   final mediaController = ref.read(mediaControlControllerProvider);
   if (songIds.contains(mediaController.state.track.id) &&
       mediaController.state.track.favorite != favorite) {
     mediaController.onToggleFavorite();
   }
-  ref.invalidate(libraryContentDataProvider);
+  invalidateLibraryMutationData(ref);
+}
+
+void invalidateLibraryMutationData(WidgetRef ref) {
+  ref.invalidate(recentPageDataProvider);
+  ref.invalidate(shellNavigationDataProvider);
 }
 
 Future<void> setSongsFavoriteWithUndo({
@@ -159,7 +178,7 @@ Future<void> setSongsFavoriteWithUndo({
   if (songIds.isEmpty) {
     return;
   }
-  final snapshot = ref.read(libraryContentDataProvider).value!;
+  final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
   await setSongsFavorite(ref, songIds, favorite);
   if (!context.mounted) {

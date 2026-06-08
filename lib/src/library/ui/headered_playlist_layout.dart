@@ -303,6 +303,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       favoriteLabel: i18n.t('common.favorite'),
       moreLabel: i18n.t('player.more'),
       favoriteAsHoverAction: widget.type == HeaderedPlaylistType.favorites,
+      favoriteLoading:
+          widget.type == HeaderedPlaylistType.favorites &&
+          _pendingFavoriteSongIds.contains(song.id),
       onPlayTrack: () {
         _playSong(song, queueSongIds);
       },

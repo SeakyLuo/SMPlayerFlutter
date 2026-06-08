@@ -44,6 +44,191 @@ void main() {
     }
   });
 
+  test('library initialization restores Electron My Favorites playlist', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_favorites_migration_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('''
+        CREATE TABLE Settings (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          MyFavorites INTEGER DEFAULT 0,
+          NowPlaying INTEGER DEFAULT 0
+        )
+      ''');
+      db.execute('INSERT INTO Settings (MyFavorites) VALUES (0)');
+      db.execute('''
+        CREATE TABLE Music (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Path TEXT NOT NULL,
+          Name TEXT DEFAULT '',
+          Artist TEXT DEFAULT '',
+          Album TEXT DEFAULT '',
+          Duration INTEGER DEFAULT 0,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute(
+        '''
+        INSERT INTO Music (Id, Path, Name, State)
+        VALUES (7, ?, 'Favorite Song', 1)
+      ''',
+        ['${directory.path}/favorite.mp3'],
+      );
+      db.execute('''
+        CREATE TABLE Playlist (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Name TEXT NOT NULL,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute('''
+        CREATE TABLE PlaylistItem (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          PlaylistId INTEGER NOT NULL,
+          ItemId INTEGER NOT NULL,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute(
+        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (0, 7, 1)',
+      );
+    } finally {
+      db.dispose();
+    }
+
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+    final snapshot = await repository.getLibraryContentData();
+
+    expect(snapshot.favoritePlaylistId, greaterThan(0));
+    expect(snapshot.songs.single.favorite, isTrue);
+    final favoritesPlaylist = snapshot.playlists.singleWhere(
+      (playlist) => playlist.id == snapshot.favoritePlaylistId,
+    );
+    expect(favoritesPlaylist.name, 'My Favorites');
+    expect(favoritesPlaylist.isBuiltIn, isTrue);
+    expect(favoritesPlaylist.songIds, [7]);
+
+    final verifyDb = sqlite3.open(databaseFile.path);
+    try {
+      final settings = verifyDb.select('SELECT MyFavorites FROM Settings');
+      final favoritePlaylistId = settings.single['MyFavorites'] as int;
+      expect(favoritePlaylistId, snapshot.favoritePlaylistId);
+      final itemRows = verifyDb.select(
+        '''
+        SELECT PlaylistId, ItemId, State
+        FROM PlaylistItem
+        WHERE ItemId = 7
+      ''',
+      );
+      expect(itemRows.single['PlaylistId'], favoritePlaylistId);
+      expect(itemRows.single['State'], 1);
+    } finally {
+      verifyDb.dispose();
+    }
+  });
+
+  test('setSongsFavorite writes to restored My Favorites playlist', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer_favorites_write_test_',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      db.execute('''
+        CREATE TABLE Settings (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          MyFavorites INTEGER DEFAULT 0,
+          NowPlaying INTEGER DEFAULT 0
+        )
+      ''');
+      db.execute('INSERT INTO Settings (MyFavorites) VALUES (0)');
+      db.execute('''
+        CREATE TABLE Music (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Path TEXT NOT NULL,
+          Name TEXT DEFAULT '',
+          Artist TEXT DEFAULT '',
+          Album TEXT DEFAULT '',
+          Duration INTEGER DEFAULT 0,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute(
+        '''
+        INSERT INTO Music (Id, Path, Name, State)
+        VALUES (9, ?, 'New Favorite', 1)
+      ''',
+        ['${directory.path}/new-favorite.mp3'],
+      );
+      db.execute('''
+        CREATE TABLE Playlist (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Name TEXT NOT NULL,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+      db.execute('''
+        CREATE TABLE PlaylistItem (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          PlaylistId INTEGER NOT NULL,
+          ItemId INTEGER NOT NULL,
+          State INTEGER DEFAULT 1
+        )
+      ''');
+    } finally {
+      db.dispose();
+    }
+
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+    );
+
+    await repository.setSongsFavorite([9], true);
+    final verifyDb = sqlite3.open(databaseFile.path);
+    try {
+      final favoritePlaylistId =
+          verifyDb.select('SELECT MyFavorites FROM Settings').single
+              ['MyFavorites']
+              as int;
+      expect(favoritePlaylistId, greaterThan(0));
+      final zeroRows = verifyDb.select(
+        'SELECT Id FROM PlaylistItem WHERE PlaylistId = 0 AND State = 1',
+      );
+      expect(zeroRows, isEmpty);
+      final favoriteRows = verifyDb.select(
+        '''
+        SELECT ItemId, State
+        FROM PlaylistItem
+        WHERE PlaylistId = ?
+      ''',
+        [favoritePlaylistId],
+      );
+      expect(favoriteRows.single['ItemId'], 9);
+      expect(favoriteRows.single['State'], 1);
+    } finally {
+      verifyDb.dispose();
+    }
+
+    final snapshot = await repository.getLibraryContentData();
+    expect(snapshot.favoritePlaylistId, greaterThan(0));
+    expect(snapshot.songs.single.favorite, isTrue);
+    final favoritesPlaylist = snapshot.playlists.singleWhere(
+      (playlist) => playlist.id == snapshot.favoritePlaylistId,
+    );
+    expect(favoritesPlaylist.songIds, [9]);
+  });
+
   test('detectMovedLocalAudioFiles mirrors Electron refresh result rules', () {
     final movedFiles = detectMovedLocalAudioFiles(
       addedPaths: const [

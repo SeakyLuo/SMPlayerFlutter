@@ -85,6 +85,7 @@ void main() {
       'recent.time.recent30Days': 'Last 30 days',
       'recent.time.month1': 'January',
       'recent.time.month2': 'February',
+      'notification.songAddedTo': 'Added {title} to {target}',
     },
   );
 
@@ -161,6 +162,43 @@ void main() {
     expect(find.text('New Playlist'), findsOneWidget);
     expect(find.text('Mix'), findsOneWidget);
     expect(find.text('Built in'), findsNothing);
+  });
+
+  testWidgets('RecentPage Add To My Favorites writes favorite state', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add To').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My Favorites'));
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.favoriteValue, isTrue);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(repository.favoriteSongIds, [1]);
+    expect(repository.favoriteValue, isFalse);
   });
 
   testWidgets('RecentPage song view menu opens MusicDialog', (tester) async {
@@ -1449,10 +1487,18 @@ class _FakeLibraryRepository extends LibraryRepository {
   List<List<int>> artworkSnapshotRequests = [];
   Completer<void>? albumRecordCompleter;
   int? hiddenSongId;
+  List<int> favoriteSongIds = [];
+  bool? favoriteValue;
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
     replacedNowPlaying = songIds.toList();
+  }
+
+  @override
+  Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
+    favoriteSongIds = songIds.toList();
+    favoriteValue = favorite;
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -493,6 +495,65 @@ void main() {
     expect(repository.preferenceName, 'My Favorites');
     expect(repository.preferenceLevel, 'high');
   });
+
+  testWidgets(
+    'MyFavoritesPage removes favorite without reloading library data',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final repository = _DelayedFavoriteLibraryRepository();
+
+      await tester.pumpWidget(
+        _RepositoryBackedPlaylistTestApp(
+          repository: repository,
+          child: const MyFavoritesPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.libraryContentLoadCount, 1);
+      expect(find.text('Blue Song'), findsOneWidget);
+
+      final row = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(row));
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      await tester.tap(
+        find.descendant(
+          of: row,
+          matching: find.byKey(
+            const ValueKey('PlaylistControlItem.FavoriteAction'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(repository.favoriteSongIds, [1]);
+      expect(repository.favoriteValue, isFalse);
+      expect(repository.libraryContentLoadCount, 1);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+
+      repository.completeFavoriteWrite();
+      await tester.pumpAndSettle();
+
+      expect(repository.libraryContentLoadCount, 1);
+      expect(find.text('Blue Song'), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
 }
 
 class _PlaylistTestApp extends StatelessWidget {
@@ -514,6 +575,30 @@ class _PlaylistTestApp extends StatelessWidget {
         libraryContentDataProvider.overrideWith((ref) async => snapshot),
         if (repository != null)
           libraryRepositoryProvider.overrideWithValue(repository!),
+      ],
+      child: MaterialApp(
+        theme: _playlistsPageTestTheme(),
+        home: Scaffold(body: child),
+      ),
+    );
+  }
+}
+
+class _RepositoryBackedPlaylistTestApp extends StatelessWidget {
+  const _RepositoryBackedPlaylistTestApp({
+    required this.child,
+    required this.repository,
+  });
+
+  final Widget child;
+  final LibraryRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => _i18n),
+        libraryRepositoryProvider.overrideWithValue(repository),
       ],
       child: MaterialApp(
         theme: _playlistsPageTestTheme(),
@@ -575,6 +660,14 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceLevel;
   int? lastPlaylistId;
   List<int>? reorderedPlaylistIds;
+  List<int> favoriteSongIds = [];
+  bool? favoriteValue;
+
+  @override
+  Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
+    favoriteSongIds = songIds.toList();
+    favoriteValue = favorite;
+  }
 
   @override
   Future<void> addPreferenceItem(
@@ -602,6 +695,27 @@ class _FakeLibraryRepository extends LibraryRepository {
   @override
   Future<void> reorderPlaylists(List<int> playlistIds) async {
     reorderedPlaylistIds = playlistIds;
+  }
+}
+
+class _DelayedFavoriteLibraryRepository extends _FakeLibraryRepository {
+  final _favoriteWriteCompleter = Completer<void>();
+  int libraryContentLoadCount = 0;
+
+  @override
+  Future<LibraryContentData> getLibraryContentData() async {
+    libraryContentLoadCount += 1;
+    return _favoritesSnapshot;
+  }
+
+  @override
+  Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
+    await super.setSongsFavorite(songIds, favorite);
+    await _favoriteWriteCompleter.future;
+  }
+
+  void completeFavoriteWrite() {
+    _favoriteWriteCompleter.complete();
   }
 }
 
@@ -725,6 +839,42 @@ const _snapshot = LibraryContentData(
       songIds: [],
       sortCriterion: PlaylistSortCriterion.title,
       isBuiltIn: false,
+    ),
+  ],
+  favoritePlaylistId: 3,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+);
+
+const _favoritesSnapshot = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: true,
+      thumbnailPath: '',
+    ),
+  ],
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  databasePath: r'C:\Music\library.db',
+  playlists: [
+    LibraryPlaylist(
+      id: 3,
+      name: 'My Favorites',
+      priority: 0,
+      songCount: 1,
+      songIds: [1],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: true,
     ),
   ],
   favoritePlaylistId: 3,
