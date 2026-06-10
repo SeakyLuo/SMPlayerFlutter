@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -19,7 +20,7 @@ const multiSelectCommandBarLayoutAnimationDuration = Duration(
 const multiSelectCommandBarVisibilityAnimationDuration = Duration(
   milliseconds: 180,
 );
-const multiSelectCommandBarCompactBreakpoint = 1260.0;
+const multiSelectCommandBarCompactBreakpoint = 760.0;
 const multiSelectCommandBarBackdropSaturation = 1.65;
 const multiSelectCommandBarBackdropSaturationMatrix = <double>[
   1.51155,
@@ -49,7 +50,7 @@ final multiSelectCommandBarBackdropFilter = ImageFilter.compose(
   ),
   inner: ImageFilter.blur(sigmaX: 46, sigmaY: 46),
 );
-const multiSelectCommandBarGlassOverlayOpacity = 0.18;
+const multiSelectCommandBarGlassOverlayOpacity = 0.08;
 
 class MultiSelectCommandBar extends StatelessWidget {
   const MultiSelectCommandBar({
@@ -148,7 +149,7 @@ class MultiSelectCommandBar extends StatelessWidget {
             child: AnimatedPadding(
               duration: multiSelectCommandBarLayoutAnimationDuration,
               curve: Curves.ease,
-              padding: EdgeInsets.only(bottom: bottomInset),
+              padding: EdgeInsets.zero,
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: LayoutBuilder(
@@ -162,7 +163,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                     final commandBarWidth =
                         hostWidth + resolvedLeftBleed + resolvedRightBleed;
                     final compactSelection =
-                        commandBarWidth <
+                        commandBarWidth <=
                         multiSelectCommandBarCompactBreakpoint;
                     final compactPhone = commandBarWidth <= 520;
 
@@ -230,6 +231,8 @@ class MultiSelectCommandBar extends StatelessWidget {
                             : compactSelection
                             ? 8.0
                             : 9.0;
+                    final surfaceExtension = bottomInset;
+                    final surfaceHeight = 64.0 + surfaceExtension;
                     final contentGap =
                         compactPhone
                             ? 8.0
@@ -359,27 +362,33 @@ class MultiSelectCommandBar extends StatelessWidget {
                           builder: (moreButtonContext) {
                             return _MultiSelectActionShadow(
                               style: style,
-                              child: IconButton(
-                                key: const ValueKey(
-                                  'MultiSelectCommandBar.MoreButton',
-                                ),
-                                tooltip: i18n.t('player.more'),
-                                icon: const SmPlayerMoreHorizontalIcon(
-                                  size: 16,
-                                ),
-                                style: _multiSelectMoreButtonStyle(
-                                  compactPhone,
-                                  style,
-                                ),
-                                onPressed: () {
-                                  showMenuFlyout(
-                                    moreButtonContext,
-                                    position: _menuFlyoutPositionAbove(
+                              child: SmPlayerTextIconButtonTheme(
+                                colors: _multiSelectTextIconButtonColors(style),
+                                child: SmPlayerTextIconButton(
+                                  key: const ValueKey(
+                                    'MultiSelectCommandBar.MoreButton',
+                                  ),
+                                  label: i18n.t('player.more'),
+                                  tooltip: i18n.t('player.more'),
+                                  iconWidget:
+                                      const SmPlayerMoreHorizontalIcon(),
+                                  showLabel: false,
+                                  minWidth: compactPhone ? 40 : 44,
+                                  maxWidth: compactPhone ? 40 : 44,
+                                  height: 36,
+                                  horizontalPadding: compactPhone ? 9 : 10,
+                                  iconSize: 16,
+                                  opacityWhenDisabled: 1,
+                                  onPressed: () {
+                                    showMenuFlyout(
                                       moreButtonContext,
-                                    ),
-                                    items: moreItems(moreButtonContext),
-                                  );
-                                },
+                                      position: _menuFlyoutPositionAbove(
+                                        moreButtonContext,
+                                      ),
+                                      items: moreItems(moreButtonContext),
+                                    );
+                                  },
+                                ),
                               ),
                             );
                           },
@@ -432,8 +441,8 @@ class MultiSelectCommandBar extends StatelessWidget {
                                     lightIntensity: 0.1,
                                     ambientStrength: 0.08,
                                     glowIntensity: 0.04,
-                                    glassColor: Colors.white,
-                                    standardOpacityMultiplier: 1,
+                                    glassColor: style.surface,
+                                    standardOpacityMultiplier: 0.24,
                                   ),
                                   child: const SizedBox.expand(),
                                 ),
@@ -447,7 +456,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                                   key: const ValueKey(
                                     'MultiSelectCommandBar.Surface',
                                   ),
-                                  height: 64,
+                                  height: surfaceHeight,
                                   margin: EdgeInsets.zero,
                                   padding: EdgeInsets.fromLTRB(
                                     compactPhone
@@ -461,7 +470,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                                         : compactSelection
                                         ? 12
                                         : 18,
-                                    0,
+                                    surfaceExtension,
                                   ),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -469,7 +478,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                                       end: Alignment.bottomCenter,
                                       colors: style.gradient,
                                     ),
-                                    color: Colors.transparent,
+                                    color: style.surface,
                                     boxShadow: [
                                       BoxShadow(
                                         color: style.insetHighlight,
@@ -570,7 +579,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                       duration: multiSelectCommandBarLayoutAnimationDuration,
                       curve: Curves.ease,
                       width: commandBarWidth,
-                      height: 64,
+                      height: surfaceHeight,
                       transform: Matrix4.translationValues(
                         (resolvedRightBleed - resolvedLeftBleed) / 2,
                         0,
@@ -585,8 +594,8 @@ class MultiSelectCommandBar extends StatelessWidget {
                       alignment: Alignment.bottomCenter,
                       minWidth: commandBarWidth,
                       maxWidth: commandBarWidth,
-                      minHeight: 64,
-                      maxHeight: 64,
+                      minHeight: surfaceHeight,
+                      maxHeight: surfaceHeight,
                       child: animatedSurface,
                     );
                   },
@@ -685,67 +694,48 @@ class _MultiSelectAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showLabel = !hideLabel;
-    final inheritedFontFamily = DefaultTextStyle.of(context).style.fontFamily;
-    final actionTextStyle =
-        inheritedFontFamily == null
-            ? _multiSelectActionTextStyle
-            : _multiSelectActionTextStyle.copyWith(
-              fontFamily: inheritedFontFamily,
-            );
-    final fixedSize = hideLabel ? const Size(40, 36) : null;
-    final minimumSize = Size(hideLabel ? 40 : minWidth, 36);
-    final truncateLabel = !preserveLabel;
-    final maximumSize =
-        hideLabel
-            ? const Size(40, 36)
-            : maxWidth == null
-            ? const Size(double.infinity, 36)
-            : Size(maxWidth!, 36);
+    final trailingIcon = this.trailingIcon;
 
     return Opacity(
       opacity: disabled ? 0.46 : 1,
       child: _MultiSelectActionShadow(
         style: style,
         disabled: disabled,
-        child: TextButton(
-          style: _multiSelectActionStyle(
-            style,
-            fixedSize: fixedSize,
-            minimumSize: minimumSize,
-            maximumSize: maximumSize,
-            horizontalPadding: hideLabel ? 0 : 12,
-          ),
-          onPressed: disabled ? null : onPressed,
-          child: DefaultTextStyle.merge(
-            style: actionTextStyle,
-            child: IconTheme.merge(
-              data: const IconThemeData(size: 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon),
-                  if (showLabel) ...[
-                    const SizedBox(width: 7),
-                    if (truncateLabel)
-                      Flexible(
-                        child: Text(
-                          label,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          softWrap: false,
-                        ),
-                      )
-                    else
-                      Text(label, maxLines: 1, softWrap: false),
-                  ],
-                  if (trailingIcon != null) ...[
-                    const SizedBox(width: 7),
-                    Icon(trailingIcon),
-                  ],
-                ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final canShowLabel = showLabel && constraints.maxWidth >= 40;
+            final canShowTrailing =
+                canShowLabel &&
+                trailingIcon != null &&
+                constraints.maxWidth >= 46;
+            final resolvedMaxWidth =
+                canShowLabel ? maxWidth ?? double.infinity : 40.0;
+            return SmPlayerTextIconButtonTheme(
+              colors: _multiSelectTextIconButtonColors(style),
+              child: SmPlayerTextIconButton(
+                label: label,
+                iconWidget: _multiSelectActionIcon(icon),
+                trailingIconWidget:
+                    canShowTrailing
+                        ? _multiSelectActionIcon(trailingIcon)
+                        : null,
+                showLabel: canShowLabel,
+                disabled: disabled,
+                onPressed: onPressed,
+                minWidth: canShowLabel ? minWidth : 40,
+                maxWidth: hideLabel ? 40 : resolvedMaxWidth,
+                height: 36,
+                horizontalPadding: canShowLabel ? 12 : 0,
+                iconSize: 16,
+                iconGap: 7,
+                opacityWhenDisabled: 1,
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontVariations: const [FontVariation.weight(640)],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -806,70 +796,18 @@ class _MultiSelectActionShadowState extends State<_MultiSelectActionShadow> {
   }
 }
 
-const _multiSelectActionTextStyle = TextStyle(
-  fontSize: 13,
-  fontWeight: FontWeight.w600,
-  fontVariations: [FontVariation.weight(640)],
-  height: 1,
-);
-
-ButtonStyle _multiSelectActionStyle(
-  _MultiSelectCommandBarStyle style, {
-  required Size? fixedSize,
-  required Size minimumSize,
-  required Size maximumSize,
-  required double horizontalPadding,
-}) {
-  return ButtonStyle(
-    fixedSize: WidgetStatePropertyAll(fixedSize),
-    minimumSize: WidgetStatePropertyAll(minimumSize),
-    maximumSize: WidgetStatePropertyAll(maximumSize),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    visualDensity: VisualDensity.standard,
-    padding: WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: horizontalPadding),
-    ),
-    foregroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.hovered)) {
-        return style.actionHoverForeground;
-      }
-      return style.actionForeground;
-    }),
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.hovered)) {
-        return style.actionHoverSurface;
-      }
-      return style.actionSurface;
-    }),
-    side: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.hovered)) {
-        return BorderSide(color: style.actionHoverBorder);
-      }
-      return BorderSide(color: style.actionBorder);
-    }),
-    shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-    elevation: const WidgetStatePropertyAll(0),
-    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    splashFactory: NoSplash.splashFactory,
-    animationDuration: Duration.zero,
-    textStyle: const WidgetStatePropertyAll(_multiSelectActionTextStyle),
-  );
-}
-
-ButtonStyle _multiSelectMoreButtonStyle(
-  bool compactPhone,
+SmPlayerTextIconButtonColors _multiSelectTextIconButtonColors(
   _MultiSelectCommandBarStyle style,
 ) {
-  return _multiSelectActionStyle(
-    style,
-    fixedSize: Size(compactPhone ? 40 : 44, 36),
-    minimumSize: Size(compactPhone ? 40 : 44, 36),
-    maximumSize: Size(compactPhone ? 40 : 44, 36),
-    horizontalPadding: compactPhone ? 9 : 10,
+  return SmPlayerTextIconButtonColors(
+    commandText: style.actionForeground,
+    commandTextHover: style.actionHoverForeground,
+    control: style.actionSurface,
+    controlHover: style.actionHoverSurface,
+    controlHoverBorder: style.actionHoverBorder,
+    controlActive: style.actionHoverSurface,
+    controlBorder: style.actionBorder,
+    accentStrong: style.accent,
   );
 }
 
@@ -1011,6 +949,13 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
 Offset _menuFlyoutPositionAbove(BuildContext context) {
   final box = context.findRenderObject() as RenderBox;
   return box.localToGlobal(Offset(0, -8));
+}
+
+Widget _multiSelectActionIcon(IconData icon) {
+  return SizedBox.square(
+    dimension: 16,
+    child: Center(child: Icon(icon, size: 16)),
+  );
 }
 
 class _MultiSelectSeparator extends StatelessWidget {

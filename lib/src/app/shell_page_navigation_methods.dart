@@ -5,7 +5,9 @@ part of 'shell_page.dart';
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
     final restoredTarget =
-        target == '/playlists' ? target : _routeMemory[target] ?? target;
+        target == '/playlists' || target == '/albums'
+            ? target
+            : _routeMemory[target] ?? target;
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
     if (targetPath == '/now-playing/full') {
@@ -33,10 +35,13 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   }
 
   void _rememberRoute(String path) {
-    final uri = Uri.tryParse(path);
-    final normalizedPath = uri?.path ?? path;
+    final uri = Uri.parse(path);
+    final normalizedPath = uri.path;
     final section = _routeSection(normalizedPath);
     if (section == null) {
+      return;
+    }
+    if (section == '/albums' && uri.queryParameters.containsKey('album')) {
       return;
     }
     _routeMemory[section] = path;
@@ -149,6 +154,17 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       return;
     }
     _closeNavigationOverlay();
+    final currentLocation =
+        widget.currentLocation ?? widget.currentPath ?? _currentPath;
+    final currentUri = Uri.parse(currentLocation);
+    final isAlbumDetailRoute =
+        currentUri.path == '/albums' &&
+        currentUri.queryParameters.containsKey('album');
+    if (isAlbumDetailRoute && widget.onGoBack != null) {
+      _navigationHistory.clear();
+      widget.onGoBack!.call();
+      return;
+    }
     if (_navigationHistory.length > 1) {
       final targetLocation = _navigationHistory[_navigationHistory.length - 2];
       setState(() {
@@ -263,12 +279,16 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     });
   }
 
-  void _persistCurrentPage(String path) {
-    if (!restorableRoutes.contains(path) || _lastPersistedPage == path) {
+  void _persistCurrentPage(String location) {
+    final uri = Uri.parse(location);
+    final path = uri.path;
+    final restorablePath = _routeSection(path) ?? path;
+    if (!restorableRoutes.contains(restorablePath) ||
+        _lastPersistedPage == restorablePath) {
       return;
     }
-    _lastPersistedPage = path;
-    unawaited(_saveLastPage(path));
+    _lastPersistedPage = restorablePath;
+    unawaited(_saveLastPage(restorablePath));
   }
 
   Future<void> _saveLastPage(String path) async {

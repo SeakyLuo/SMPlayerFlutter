@@ -229,18 +229,26 @@ class _PageSearchFieldState extends State<PageSearchField> {
                     },
                     textInputAction: TextInputAction.search,
                     textAlignVertical: TextAlignVertical.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ).copyWith(color: colors.textStrong),
+                    style: TextStyle(
+                      fontSize: SearchTextInputMetrics.fontSize,
+                      height: SearchTextInputMetrics.lineHeight,
+                      color: colors.textStrong,
+                    ),
+                    strutStyle: SearchTextInputMetrics.strutStyle,
                     cursorColor: colors.textStrong,
                     decoration: InputDecoration(
-                      isCollapsed: true,
+                      isDense: true,
                       hintText: widget.hintText,
                       hintStyle: TextStyle(
-                        fontSize: 14,
+                        fontSize: SearchTextInputMetrics.fontSize,
+                        height: SearchTextInputMetrics.lineHeight,
                         color: colors.placeholder,
                       ),
                       border: InputBorder.none,
+                      contentPadding:
+                          SearchTextInputMetrics.contentPaddingForHeight(
+                            widget.height,
+                          ),
                     ),
                   ),
                 ),

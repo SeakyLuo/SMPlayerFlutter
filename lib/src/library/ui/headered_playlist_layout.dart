@@ -73,26 +73,23 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
               slivers: [
                 if (compact)
                   SliverToBoxAdapter(
-                    child:
-                        _headerCollapsed
-                            ? const SizedBox.shrink()
-                            : _HeaderHero(
-                              type: widget.type,
-                              title: widget.title,
-                              info: getHeaderPlaylistInfo(headerSongs, i18n),
-                              artworkUrls: headerArtworkUrls,
-                              coverColor: _headerCoverColor,
-                              collapseProgress: collapseProgress,
-                              windowDragCallbacks: windowDragCallbacks,
-                              commandBar: _buildCommandBar(
-                                context,
-                                i18n,
-                                visibleSongs,
-                                queueSongIds,
-                                activeSortCriterion,
-                                customPlaylists,
-                              ),
-                            ),
+                    child: _HeaderHero(
+                      type: widget.type,
+                      title: widget.title,
+                      info: getHeaderPlaylistInfo(headerSongs, i18n),
+                      artworkUrls: headerArtworkUrls,
+                      coverColor: _headerCoverColor,
+                      collapseProgress: 0,
+                      windowDragCallbacks: windowDragCallbacks,
+                      commandBar: _buildCommandBar(
+                        context,
+                        i18n,
+                        visibleSongs,
+                        queueSongIds,
+                        activeSortCriterion,
+                        customPlaylists,
+                      ),
+                    ),
                   )
                 else
                   SliverPersistentHeader(
@@ -153,7 +150,6 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 widget.type != HeaderedPlaylistType.favorites,
             currentPlaylistName: currentPlaylistName,
             excludePlaylistName: currentSavedPlaylist?.name,
-            addToMenuPosition: MultiSelectCommandBarAddToMenuPosition.pointer,
             onAddToNowPlaying: () {
               _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
               _hideSelectionAfterOperation(

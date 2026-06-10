@@ -1538,7 +1538,7 @@ void main() {
     expect(field.decoration?.isDense, isTrue);
     expect(
       field.decoration?.contentPadding,
-      const EdgeInsets.only(top: 16, bottom: 10),
+      SearchTextInputMetrics.contentPaddingForHeight(40),
     );
     expect(tester.getSize(find.byType(TextField).first).height, 40);
   });

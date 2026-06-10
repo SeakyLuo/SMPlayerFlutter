@@ -12,6 +12,8 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.child,
     this.icon,
     this.iconWidget,
+    this.trailingIcon,
+    this.trailingIconWidget,
     this.loading = false,
     this.active = false,
     this.activeSurface = true,
@@ -36,6 +38,8 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final Widget? child;
   final IconData? icon;
   final Widget? iconWidget;
+  final IconData? trailingIcon;
+  final Widget? trailingIconWidget;
   final bool loading;
   final bool active;
   final bool activeSurface;
@@ -151,6 +155,20 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                     child: widget.child ?? Text(widget.label),
                   ),
                 ),
+                if (widget.trailingIconWidget != null ||
+                    widget.trailingIcon != null) ...[
+                  SizedBox(width: widget.iconGap),
+                  if (widget.trailingIconWidget case final trailingIconWidget?)
+                    IconTheme(
+                      data: IconThemeData(
+                        size: widget.iconSize,
+                        color: foreground,
+                      ),
+                      child: trailingIconWidget,
+                    )
+                  else if (widget.trailingIcon case final trailingIcon?)
+                    Icon(trailingIcon, size: widget.iconSize, color: foreground),
+                ],
               ],
             ],
           ),

@@ -43,6 +43,25 @@ class SearchCommitIconButton extends StatefulWidget {
   State<SearchCommitIconButton> createState() => _SearchCommitIconButtonState();
 }
 
+class SearchTextInputMetrics {
+  const SearchTextInputMetrics._();
+
+  static const fontSize = 14.0;
+  static const lineHeight = 1.0;
+  static const strutStyle = StrutStyle(
+    fontSize: fontSize,
+    height: lineHeight,
+    forceStrutHeight: true,
+  );
+
+  static EdgeInsets contentPaddingForHeight(double height) {
+    final availablePadding = height - fontSize;
+    final visualOffset = height >= 38 ? 3.0 : 2.0;
+    final top = availablePadding / 2 + visualOffset;
+    return EdgeInsets.only(top: top, bottom: availablePadding - top);
+  }
+}
+
 class _SearchCommitIconButtonState extends State<SearchCommitIconButton> {
   var _hovered = false;
 
@@ -78,13 +97,10 @@ class _SearchCommitIconButtonState extends State<SearchCommitIconButton> {
                   data: IconThemeData(
                     size: 19,
                     color:
-                        _hovered
-                            ? widget.hoverForeground
-                            : widget.foreground,
+                        _hovered ? widget.hoverForeground : widget.foreground,
                   ),
                   child:
-                      widget.icon ??
-                      const Icon(FluentIcons.search_24_regular),
+                      widget.icon ?? const Icon(FluentIcons.search_24_regular),
                 ),
               ),
             ),

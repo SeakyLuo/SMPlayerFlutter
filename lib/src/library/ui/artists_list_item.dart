@@ -59,144 +59,147 @@ class _ArtistListItemState extends State<_ArtistListItem> {
     return SizedBox(
       height: artistRowHeight,
       child: Center(
-        child: Shortcuts(
-          shortcuts: const {
-            SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-            SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-          },
-          child: Actions(
-            actions: {
-              ActivateIntent: CallbackAction<ActivateIntent>(
-                onInvoke: (_) {
-                  widget.onPressed();
-                  return null;
-                },
-              ),
+        child: SizedBox(
+          height: artistRowContentHeight,
+          child: Shortcuts(
+            shortcuts: const {
+              SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
             },
-            child: MouseRegion(
-              onEnter: (_) {
-                setState(() {
-                  _hovered = true;
-                });
-              },
-              onExit: (_) {
-                setState(() {
-                  _hovered = false;
-                });
-              },
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: rowBorderRadius,
-                child: InkWell(
-                  key: ValueKey('Artists.ArtistRow.${widget.artist.name}'),
-                  focusNode: _focusNode,
-                  onFocusChange: (focused) {
-                    setState(() {
-                      _focused = focused;
-                    });
-                  },
-                  borderRadius: rowBorderRadius,
-                  overlayColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.hovered) ||
-                        states.contains(WidgetState.focused)) {
-                      return _ArtistsColors.artistRowHoverBackground(
-                        brightness,
-                      );
-                    }
+            child: Actions(
+              actions: {
+                ActivateIntent: CallbackAction<ActivateIntent>(
+                  onInvoke: (_) {
+                    widget.onPressed();
                     return null;
-                  }),
-                  onTap: widget.onPressed,
-                  onSecondaryTapDown: (details) {
-                    widget.onOpenContextMenu(details.globalPosition);
                   },
-                  child: Container(
-                    key: ValueKey(
-                      'Artists.ArtistRow.Decoration.${widget.artist.name}',
-                    ),
-                    constraints: const BoxConstraints(minHeight: 62),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: widget.compactNavMinimal ? 4 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          widget.active
-                              ? _ArtistsColors.artistRowActiveBackground(
-                                brightness,
-                              )
-                              : Colors.transparent,
-                      borderRadius: rowBorderRadius,
-                      border: Border.all(
+                ),
+              },
+              child: MouseRegion(
+                onEnter: (_) {
+                  setState(() {
+                    _hovered = true;
+                  });
+                },
+                onExit: (_) {
+                  setState(() {
+                    _hovered = false;
+                  });
+                },
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: rowBorderRadius,
+                  child: InkWell(
+                    key: ValueKey('Artists.ArtistRow.${widget.artist.name}'),
+                    focusNode: _focusNode,
+                    onFocusChange: (focused) {
+                      setState(() {
+                        _focused = focused;
+                      });
+                    },
+                    borderRadius: rowBorderRadius,
+                    overlayColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.hovered) ||
+                          states.contains(WidgetState.focused)) {
+                        return _ArtistsColors.artistRowHoverBackground(
+                          brightness,
+                        );
+                      }
+                      return null;
+                    }),
+                    onTap: widget.onPressed,
+                    onSecondaryTapDown: (details) {
+                      widget.onOpenContextMenu(details.globalPosition);
+                    },
+                    child: Container(
+                      key: ValueKey(
+                        'Artists.ArtistRow.Decoration.${widget.artist.name}',
+                      ),
+                      constraints: const BoxConstraints(minHeight: 62),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: widget.compactNavMinimal ? 4 : 5,
+                      ),
+                      decoration: BoxDecoration(
                         color:
                             widget.active
-                                ? _ArtistsColors.artistRowActiveBorder(
+                                ? _ArtistsColors.artistRowActiveBackground(
                                   brightness,
                                 )
                                 : Colors.transparent,
+                        borderRadius: rowBorderRadius,
+                        border: Border.all(
+                          color:
+                              widget.active
+                                  ? _ArtistsColors.artistRowActiveBorder(
+                                    brightness,
+                                  )
+                                  : Colors.transparent,
+                        ),
+                        boxShadow:
+                            widget.active
+                                ? [
+                                  _ArtistsColors.artistRowActiveShadow(
+                                    brightness,
+                                  ),
+                                ]
+                                : null,
                       ),
-                      boxShadow:
-                          widget.active
-                              ? [
-                                _ArtistsColors.artistRowActiveShadow(
-                                  brightness,
-                                ),
-                              ]
-                              : null,
-                    ),
-                    child: Row(
-                      children: [
-                        ArtistListArtwork(
-                          artist: widget.artist,
-                          onPlay: widget.onPlay,
-                          brightness: brightness,
-                          revealPlay: revealPlay,
-                        ),
-                        SizedBox(width: widget.compactNavMinimal ? 10 : 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.artist.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color:
-                                      widget.active
-                                          ? activeForeground
-                                          : _ArtistsColors.textStrongFor(
-                                            brightness,
-                                          ),
-                                  fontSize: 15,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w700,
-                                  fontVariations: [FontVariation.weight(720)],
-                                ),
-                              ),
-                              Text(
-                                _formatArtistSummary(
-                                  widget.i18n,
-                                  widget.artist.albumCount,
-                                  widget.artist.songs.length,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color:
-                                      widget.active
-                                          ? activeMuted
-                                          : _ArtistsColors.textMutedFor(
-                                            brightness,
-                                          ),
-                                  fontSize: 13,
-                                  height: 1.15,
-                                ),
-                              ),
-                            ],
+                      child: Row(
+                        children: [
+                          ArtistListArtwork(
+                            artist: widget.artist,
+                            onPlay: widget.onPlay,
+                            brightness: brightness,
+                            revealPlay: revealPlay,
                           ),
-                        ),
-                      ],
+                          SizedBox(width: widget.compactNavMinimal ? 10 : 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.artist.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color:
+                                        widget.active
+                                            ? activeForeground
+                                            : _ArtistsColors.textStrongFor(
+                                              brightness,
+                                            ),
+                                    fontSize: 15,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w700,
+                                    fontVariations: [FontVariation.weight(720)],
+                                  ),
+                                ),
+                                Text(
+                                  _formatArtistSummary(
+                                    widget.i18n,
+                                    widget.artist.albumCount,
+                                    widget.artist.songs.length,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color:
+                                        widget.active
+                                            ? activeMuted
+                                            : _ArtistsColors.textMutedFor(
+                                              brightness,
+                                            ),
+                                    fontSize: 13,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

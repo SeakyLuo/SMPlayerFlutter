@@ -52,6 +52,12 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final iconSize = widget.iconSize ?? size - padding * 2;
     final colors = MediaControlThemeColors.of(context);
     final hovered = !widget.disabled && _hovered;
+    final hoverBackground = colors.buttonActiveBackground;
+    final transparentHoverBackground = hoverBackground
+        .withValues(alpha: 0);
+    final transparentFavoriteHoverBackground = colors
+        .favoriteActiveHoverBackground
+        .withValues(alpha: 0);
     final color =
         widget.disabled
             ? widget.primary
@@ -76,12 +82,12 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             : widget.favorite
             ? hovered
                 ? colors.favoriteActiveHoverBackground
-                : Colors.transparent
+                : transparentFavoriteHoverBackground
             : widget.active
             ? colors.buttonActiveBackground
             : hovered
-            ? colors.buttonHoverBackground
-            : Colors.transparent;
+            ? hoverBackground
+            : transparentHoverBackground;
     final border =
         widget.primary
             ? Border.all(

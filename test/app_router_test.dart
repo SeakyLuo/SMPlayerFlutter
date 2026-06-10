@@ -126,6 +126,7 @@ void main() {
     expect(resolveRestoredPage('/recent'), '/recent');
     expect(resolveRestoredPage(' /local '), '/local');
     expect(resolveRestoredPage('/local?path=Sub/Deep'), '/local');
+    expect(resolveRestoredPage('/albums?album=Blue%20Hour'), '/albums');
     expect(resolveRestoredPage('/playlists/7'), '/songs');
     expect(resolveRestoredPage('/settings'), '/songs');
   });
@@ -642,7 +643,7 @@ void main() {
     await _pumpRouter(tester);
 
     final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/songs');
+    expect(uri.path, '/albums');
     expect(uri.queryParameters.containsKey('album'), isFalse);
   });
 
@@ -666,8 +667,32 @@ void main() {
     router.go('/albums?album=Blue%20Hour');
     await _pumpRouter(tester);
 
-    expect(router.routeInformationProvider.value.uri.path, '/songs');
-    expect(find.text('Blue Hour'), findsNothing);
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/albums');
+    expect(uri.queryParameters['album'], 'Blue Hour');
+  });
+
+  testWidgets('album query detail persists Electron-restorable albums page', (
+    tester,
+  ) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => albumLibraryData,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/albums?album=Blue%20Hour');
+    await _pumpRouter(tester);
+
+    expect(smPlayerGlobalSettingsSnapshot.lastPage, '/albums');
   });
 
   testWidgets('missing album query route renders not found detail state', (
@@ -1015,6 +1040,13 @@ void main() {
     await _pumpRouter(tester);
     expect(find.text('All Albums (7)'), findsOneWidget);
 
+    router.go('/albums?album=Album 1');
+    await _pumpRouter(tester);
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['album'],
+      'Album 1',
+    );
+
     await tester.tap(
       find.byKey(const ValueKey('MusicLibraryItem')).hitTestable(),
     );
@@ -1023,6 +1055,9 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('AlbumsItem')).hitTestable());
     await _pumpRouter(tester);
+    final albumsUri = router.routeInformationProvider.value.uri;
+    expect(albumsUri.path, '/albums');
+    expect(albumsUri.queryParameters.containsKey('album'), isFalse);
     expect(find.text('All Albums (7)'), findsOneWidget);
   });
 

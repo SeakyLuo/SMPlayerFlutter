@@ -41,10 +41,11 @@ extension _HeaderedPlaylistControlPortal on _HeaderedPlaylistControlState {
         }
         return;
       }
+      final portalTitle = _headerCollapsed ? widget.title : '';
       notifier.state = HeaderedPlaylistAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routeLocation: widget.routeLocation,
-        title: _headerCollapsed ? widget.title : '',
+        title: portalTitle,
         coverColor: coverColor,
         collapseProgress: collapseProgress,
         commandBarBuilder:

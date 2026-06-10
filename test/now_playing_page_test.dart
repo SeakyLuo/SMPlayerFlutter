@@ -3575,9 +3575,12 @@ void main() {
       find.byKey(const ValueKey('MediaControl.CompactModeButton')),
       findsNothing,
     );
+    final transparentHoverBackground = const Color(
+      0x1a0078d7,
+    ).withValues(alpha: 0);
     expect(
       buttonDecoration(const ValueKey('MediaControl.ShuffleButton')).color,
-      Colors.transparent,
+      transparentHoverBackground,
     );
     expect(
       buttonDecoration(const ValueKey('MediaControl.RepeatButton')).color,
@@ -3585,7 +3588,7 @@ void main() {
     );
     expect(
       buttonDecoration(const ValueKey('MediaControl.RepeatOneButton')).color,
-      Colors.transparent,
+      transparentHoverBackground,
     );
 
     await tester.tap(find.byKey(const ValueKey('MediaControl.RepeatButton')));
@@ -3594,7 +3597,7 @@ void main() {
     expect(mediaController.state.mode, PlaybackMode.once);
     expect(
       buttonDecoration(const ValueKey('MediaControl.RepeatButton')).color,
-      Colors.transparent,
+      transparentHoverBackground,
     );
   });
 
@@ -3665,7 +3668,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage primary and utility hover follow Electron cascade',
+    'NowPlayingFullPage primary and utility hover use selected-state color',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -3735,7 +3738,7 @@ void main() {
       }
 
       Future<void> verifyMoreHover(Color expectedHoverColor) async {
-        expect(moreDecoration().color, Colors.transparent);
+        expect(moreDecoration().color, expectedHoverColor.withValues(alpha: 0));
         final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
         await mouse.addPointer();
         await tester.pump();
@@ -3772,7 +3775,7 @@ void main() {
 
       await pumpFullPage(night: true);
       await verifyPrimaryHover();
-      await verifyMoreHover(const Color(0x2e0078d7));
+      await verifyMoreHover(const Color(0x380078d7));
     },
   );
 
@@ -3934,7 +3937,10 @@ void main() {
 
       expect(mediaController.state.isMuted, isFalse);
       expect(find.byTooltip('Mute'), findsOneWidget);
-      expect(volumeDecoration().color, Colors.transparent);
+      expect(
+        volumeDecoration().color,
+        const Color(0x1a0078d7).withValues(alpha: 0),
+      );
     },
   );
 
@@ -4585,7 +4591,10 @@ void main() {
           find.byKey(const ValueKey('MediaControl.FavoriteFilledIcon')),
           findsOneWidget,
         );
-        expect(favoriteDecoration().color, Colors.transparent);
+        expect(
+          favoriteDecoration().color,
+          expectedHoverColor.withValues(alpha: 0),
+        );
 
         final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
         await mouse.addPointer();

@@ -678,8 +678,11 @@ void main() {
     expect(tester.getSize(tile).height, 116);
     expect(
       tester.widget<AnimatedContainer>(tile).padding,
-      const EdgeInsets.fromLTRB(3, 3, 8, 3),
+      EdgeInsets.zero,
     );
+    final artwork = find.byKey(const ValueKey('RecentSong.Artwork.1'));
+    expect(tester.getTopLeft(artwork), tester.getTopLeft(tile));
+    expect(tester.getSize(artwork).height, tester.getSize(tile).height);
   });
 
   testWidgets(
@@ -1118,10 +1121,10 @@ void main() {
             )
             .first;
 
-    expect(tester.getSize(copyPadding).height, 88);
+    expect(tester.getSize(copyPadding).height, 92);
     expect(
       tester.getTopLeft(copyPadding).dy - tester.getTopLeft(firstTile).dy,
-      2,
+      0,
     );
   });
 
@@ -1147,7 +1150,7 @@ void main() {
               matching: find.byWidgetPredicate(
                 (widget) =>
                     widget is AnimatedContainer &&
-                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 2, 2),
+                    widget.padding == EdgeInsets.zero,
               ),
             )
             .first;
@@ -1158,14 +1161,14 @@ void main() {
               matching: find.byWidgetPredicate(
                 (widget) =>
                     widget is AnimatedContainer &&
-                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 2, 2),
+                    widget.padding == EdgeInsets.zero,
               ),
             )
             .first;
     final firstTileWidget = tester.widget<AnimatedContainer>(firstTile);
 
     expect(tester.getSize(firstTile).height, 78);
-    expect(firstTileWidget.padding, const EdgeInsets.fromLTRB(2, 2, 2, 2));
+    expect(firstTileWidget.padding, EdgeInsets.zero);
     expect(
       tester.getTopLeft(secondTile).dy - tester.getTopLeft(firstTile).dy,
       88,
@@ -1202,7 +1205,7 @@ void main() {
               matching: find.byWidgetPredicate(
                 (widget) =>
                     widget is AnimatedContainer &&
-                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 6, 2),
+                    widget.padding == EdgeInsets.zero,
               ),
             )
             .first;
@@ -1213,14 +1216,14 @@ void main() {
               matching: find.byWidgetPredicate(
                 (widget) =>
                     widget is AnimatedContainer &&
-                    widget.padding == const EdgeInsets.fromLTRB(2, 2, 6, 2),
+                    widget.padding == EdgeInsets.zero,
               ),
             )
             .first;
     final firstTileWidget = tester.widget<AnimatedContainer>(firstTile);
 
     expect(tester.getSize(firstTile).height, 92);
-    expect(firstTileWidget.padding, const EdgeInsets.fromLTRB(2, 2, 6, 2));
+    expect(firstTileWidget.padding, EdgeInsets.zero);
     expect(
       tester.getTopLeft(secondTile).dy - tester.getTopLeft(firstTile).dy,
       104,

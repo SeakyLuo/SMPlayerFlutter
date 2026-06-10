@@ -100,6 +100,22 @@ void main() {
     expect(find.text('所有专辑（1）'), findsNothing);
   });
 
+  testWidgets('album detail does not use albums list route title', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _WorkspaceAppBarTestApp(
+        currentPath: '/albums',
+        currentLocation: '/albums?album=Blue%20Hour',
+        textScaler: TextScaler.noScaling,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('所有专辑（1）'), findsNothing);
+    expect(find.text('所有专辑'), findsNothing);
+  });
+
   testWidgets('minimal music library quick jump lives in the app bar', (
     tester,
   ) async {

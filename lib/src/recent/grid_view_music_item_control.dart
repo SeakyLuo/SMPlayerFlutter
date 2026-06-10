@@ -104,6 +104,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                     clipBehavior: Clip.none,
                     children: [
                       ClipRRect(
+                        key: ValueKey('RecentSong.Artwork.${widget.song.id}'),
                         borderRadius: BorderRadius.circular(6),
                         child: SizedBox.square(
                           dimension: widget.metrics.artworkSize,

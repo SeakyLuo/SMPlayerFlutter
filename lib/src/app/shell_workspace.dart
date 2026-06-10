@@ -664,6 +664,12 @@ String? _synchronousWorkspaceAppBarTitle({
 }) {
   final uri = Uri.parse(location);
   final path = uri.path;
+  final isAlbumDetailRoute =
+      path == '/albums' && uri.queryParameters.containsKey('album');
+  if (isAlbumDetailRoute) {
+    return null;
+  }
+
   if (snapshot == null) {
     return switch (path) {
       '/songs' => i18n.t('library.allSongs'),

@@ -216,7 +216,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     _rememberRoute(
       widget.currentLocation ?? widget.currentPath ?? _currentPath,
     );
-    _persistCurrentPage(widget.currentPath ?? _currentPath);
+    _persistCurrentPage(
+      widget.currentLocation ?? widget.currentPath ?? _currentPath,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleInitialExternalInputs();
     });
@@ -233,7 +235,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     if (currentLocation != previousLocation) {
       _recordNavigationLocation(currentLocation);
       _rememberRoute(currentLocation);
-      _persistCurrentPage(currentPath);
+      _persistCurrentPage(currentLocation);
       if (currentPath != '/now-playing/full') {
         unawaited(_desktopFeatureService.setWindowFullScreen(false));
       }
@@ -549,11 +551,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
               );
             },
             onAddToPlaylist: (ref, song, playlistId) {
-              _addPlayerSongToPlaylist(
-                ref,
-                song,
-                playlistId,
-              );
+              _addPlayerSongToPlaylist(ref, song, playlistId);
             },
             onRevealPath: _revealPath,
             onNavigate: _navigateTo,

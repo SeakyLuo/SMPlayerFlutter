@@ -3671,7 +3671,10 @@ void main() {
       return buttonContainer.decoration! as BoxDecoration;
     }
 
-    expect(compactVolumeDecoration().color, Colors.transparent);
+    expect(
+      compactVolumeDecoration().color,
+      MediaControlThemeColors.light.buttonActiveBackground.withValues(alpha: 0),
+    );
 
     await tester.tap(
       find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
@@ -3916,6 +3919,113 @@ void main() {
       expect(favoriteToggled, isFalse);
     },
   );
+
+  testWidgets('PlayerVolumeMenuItem suppresses Material hover overlay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _mediaControlTestTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 240,
+            child: PlayerVolumeMenuItem(
+              label: 'Volume',
+              muted: false,
+              volumeValue: 50,
+              disabled: false,
+              onToggleMute: () {},
+              onVolumeChange: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final volumeMenuIconButton = tester.widget<IconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MediaControl.VolumeMenuItem')),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(
+      volumeMenuIconButton.style?.overlayColor?.resolve({
+        WidgetState.hovered,
+      }),
+      Colors.transparent,
+    );
+    expect(
+      volumeMenuIconButton.style?.overlayColor?.resolve({
+        WidgetState.pressed,
+      }),
+      Colors.transparent,
+    );
+  });
+
+  testWidgets('MediaControl hover background animates from transparent target color', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: Center(
+              child: MediaControlUtilityRows(
+                trackId: 1,
+                favorite: false,
+                disabled: false,
+                volumeValue: 50,
+                isMuted: false,
+                mode: PlaybackMode.once,
+                onVolumeChange: (_) {},
+                onToggleMute: () {},
+                onToggleShuffle: () {},
+                onToggleRepeat: () {},
+                onToggleRepeatOne: () {},
+                onToggleFavorite: () {},
+                condensed: true,
+                onMoreClick: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    BoxDecoration moreDecoration() {
+      return tester
+              .widget<AnimatedContainer>(
+                find
+                    .descendant(
+                      of: find.byKey(const ValueKey('MediaControl.MoreButton')),
+                      matching: find.byType(AnimatedContainer),
+                    )
+                    .first,
+              )
+              .decoration!
+          as BoxDecoration;
+    }
+
+    expect(
+      moreDecoration().color,
+      MediaControlThemeColors.light.buttonActiveBackground.withValues(alpha: 0),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    await mouse.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('MediaControl.MoreButton'))),
+    );
+    await tester.pump(const Duration(milliseconds: 140));
+
+    expect(
+      moreDecoration().color,
+      MediaControlThemeColors.light.buttonActiveBackground,
+    );
+    await mouse.removePointer();
+  });
 
   testWidgets('compact progress seek commits once on release like Electron', (
     tester,

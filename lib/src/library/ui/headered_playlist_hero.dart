@@ -110,6 +110,66 @@ class _HeaderHero extends StatelessWidget {
     final fixedWidthBackdrop =
         !compact && MediaQuery.sizeOf(context).width <= 900;
     final collapsedDesktop = !compact && collapseProgress >= 1.0;
+    final titleBlock = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        _HeaderHeroDragRegion(
+          windowDragCallbacks: windowDragCallbacks,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 420 : 860),
+            child: Text(
+              title,
+              maxLines: compact ? 2 : 3,
+              textAlign: compact ? TextAlign.center : TextAlign.start,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textStrong,
+                fontSize: titleSize,
+                height: compact ? 1.16 : 1.08,
+                fontWeight: FontWeight.w600,
+                fontVariations:
+                    compact
+                        ? const [FontVariation.weight(800)]
+                        : const [FontVariation.weight(650)],
+              ),
+            ),
+          ),
+        ),
+        if (!collapsedDesktop) ...[
+          SizedBox(height: infoMargin),
+          ClipRect(
+            child: Align(
+              alignment: compact ? Alignment.center : Alignment.centerLeft,
+              heightFactor: (1 - collapseProgress).clamp(0.0, 1.0),
+              child: Opacity(
+                opacity: (1 - collapseProgress).clamp(0.0, 1.0),
+                child: _HeaderHeroDragRegion(
+                  windowDragCallbacks: windowDragCallbacks,
+                  child: Text(
+                    info,
+                    maxLines: 1,
+                    textAlign: compact ? TextAlign.center : TextAlign.start,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: lerpDouble(17, 14, collapseProgress)!,
+                      fontWeight: FontWeight.w600,
+                      fontVariations: const [FontVariation.weight(650)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+    final commandBarContent = ClipRect(
+      child: SizedBox(width: double.infinity, child: commandBar),
+    );
+
     return SizedBox(
       height: heroHeight,
       child: Stack(
@@ -170,127 +230,47 @@ class _HeaderHero extends StatelessWidget {
                 Expanded(
                   child: Align(
                     alignment:
-                        collapsedDesktop
-                            ? Alignment.centerLeft
-                            : Alignment.center,
+                        compact ? Alignment.center : Alignment.centerLeft,
                     child: SizedBox(
-                      height: collapsedDesktop ? coverSize : null,
+                      height: compact ? null : coverSize,
+                      width: double.infinity,
                       child: Column(
                         mainAxisAlignment:
                             compact
                                 ? MainAxisAlignment.start
-                                : MainAxisAlignment.center,
+                                : MainAxisAlignment.spaceBetween,
                         crossAxisAlignment:
                             compact
                                 ? CrossAxisAlignment.center
                                 : CrossAxisAlignment.start,
                         children: [
-                          _HeaderHeroDragRegion(
-                            windowDragCallbacks: windowDragCallbacks,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: compact ? 420 : 860,
-                              ),
-                              child: Text(
-                                title,
-                                maxLines: compact ? 2 : 3,
-                                textAlign:
-                                    compact
-                                        ? TextAlign.center
-                                        : TextAlign.start,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.textStrong,
-                                  fontSize: titleSize,
-                                  height: compact ? 1.16 : 1.08,
-                                  fontWeight: FontWeight.w600,
-                                  fontVariations:
-                                      compact
-                                          ? const [FontVariation.weight(800)]
-                                          : const [FontVariation.weight(650)],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (!collapsedDesktop) ...[
-                            SizedBox(height: infoMargin),
-                            ClipRect(
-                              child: Align(
-                                alignment:
-                                    compact
-                                        ? Alignment.center
-                                        : Alignment.centerLeft,
-                                heightFactor: (1 - collapseProgress).clamp(
-                                  0.0,
-                                  1.0,
-                                ),
-                                child: Opacity(
-                                  opacity: (1 - collapseProgress).clamp(
-                                    0.0,
-                                    1.0,
-                                  ),
-                                  child: _HeaderHeroDragRegion(
-                                    windowDragCallbacks: windowDragCallbacks,
-                                    child: Text(
-                                      info,
-                                      maxLines: 1,
-                                      textAlign:
-                                          compact
-                                              ? TextAlign.center
-                                              : TextAlign.start,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: colors.textMuted,
-                                        fontSize:
-                                            lerpDouble(
-                                              17,
-                                              14,
-                                              collapseProgress,
-                                            )!,
-                                        fontWeight: FontWeight.w600,
-                                        fontVariations: const [
-                                          FontVariation.weight(650),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          titleBlock,
+                          if (compact && !collapsedDesktop)
                             SizedBox(height: commandMargin),
-                          ],
                           if (collapsedDesktop)
                             Expanded(
                               child: Align(
                                 alignment: Alignment.bottomLeft,
-                                child: ClipRect(
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    child: commandBar,
+                                child: commandBarContent,
+                              ),
+                            )
+                          else if (compact)
+                            Flexible(
+                              fit: FlexFit.loose,
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 520,
                                   ),
+                                  child: commandBarContent,
                                 ),
                               ),
                             )
                           else
-                            Flexible(
-                              fit: FlexFit.loose,
-                              child: Align(
-                                alignment:
-                                    compact
-                                        ? Alignment.center
-                                        : Alignment.centerLeft,
-                                child: ClipRect(
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: compact ? 520 : double.infinity,
-                                    ),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: commandBar,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            Align(
+                              alignment: Alignment.bottomLeft,
+                              child: commandBarContent,
                             ),
                         ],
                       ),
