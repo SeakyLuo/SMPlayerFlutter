@@ -211,8 +211,8 @@ class _RecentSongTileMetrics {
       return const _RecentSongTileMetrics(
         rowExtent: 88,
         tileExtent: 78,
-        artworkSize: 72,
-        padding: EdgeInsets.fromLTRB(2, 2, 2, 2),
+        artworkSize: 78,
+        padding: EdgeInsets.zero,
         copyGap: 10,
         copyLineGap: 3,
         copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
@@ -222,8 +222,8 @@ class _RecentSongTileMetrics {
       return const _RecentSongTileMetrics(
         rowExtent: 104,
         tileExtent: 92,
-        artworkSize: 84,
-        padding: EdgeInsets.fromLTRB(2, 2, 6, 2),
+        artworkSize: 92,
+        padding: EdgeInsets.zero,
         copyGap: 10,
         copyLineGap: 3,
         copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
@@ -233,8 +233,8 @@ class _RecentSongTileMetrics {
       return const _RecentSongTileMetrics(
         rowExtent: 136,
         tileExtent: 92,
-        artworkSize: 84,
-        padding: EdgeInsets.fromLTRB(2, 2, 6, 2),
+        artworkSize: 92,
+        padding: EdgeInsets.zero,
         copyGap: 10,
         copyLineGap: 3,
         copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
@@ -243,8 +243,8 @@ class _RecentSongTileMetrics {
     return const _RecentSongTileMetrics(
       rowExtent: 136,
       tileExtent: 116,
-      artworkSize: 110,
-      padding: EdgeInsets.fromLTRB(3, 3, 8, 3),
+      artworkSize: 116,
+      padding: EdgeInsets.zero,
       copyGap: 12,
       copyLineGap: 5,
       copyPadding: EdgeInsets.fromLTRB(0, 8, 0, 10),

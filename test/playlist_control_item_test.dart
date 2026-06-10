@@ -1055,6 +1055,53 @@ void main() {
         ),
         isEmpty,
       );
+
+      AnimatedOpacity hoverOpacity(Finder action) {
+        return tester.widget<AnimatedOpacity>(
+          find
+              .ancestor(of: action, matching: find.byType(AnimatedOpacity))
+              .first,
+        );
+      }
+
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.RemoveAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+        findsNothing,
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(PlaylistControlItem)),
+      );
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      final addTo = find.byKey(
+        const ValueKey('PlaylistControlItem.AddToAction'),
+      );
+      final playNext = find.byKey(
+        const ValueKey('PlaylistControlItem.PlayNextAction'),
+      );
+      final remove = find.byKey(
+        const ValueKey('PlaylistControlItem.RemoveAction'),
+      );
+      final more = find.byKey(const ValueKey('PlaylistControlItem.MoreAction'));
+      expect(hoverOpacity(addTo).opacity, 1);
+      expect(hoverOpacity(playNext).opacity, 1);
+      expect(hoverOpacity(remove).opacity, 1);
+      expect(hoverOpacity(more).opacity, 1);
     },
   );
 

@@ -239,10 +239,12 @@ class _HeaderedPlaylistControlState
       return;
     }
     final compact = MediaQuery.sizeOf(context).width <= 720;
+    final collapsedThreshold = compact ? 268.0 : 224.0;
+    final expandedThreshold = compact ? 232.0 : 186.0;
     final nextHeaderCollapsed =
         _headerCollapsed
-            ? nextScrollTop > (compact ? 76.0 : 186.0)
-            : nextScrollTop >= (compact ? 112.0 : 224.0);
+            ? nextScrollTop > expandedThreshold
+            : nextScrollTop >= collapsedThreshold;
     _updateState(() {
       _scrollTop = nextScrollTop;
       _headerCollapsed = nextHeaderCollapsed;

@@ -31,7 +31,9 @@ class AlbumGroup {
   final int duration;
 }
 
-const artistRowHeight = 64.0;
+const artistRowContentHeight = 64.0;
+const artistRowSpacing = 2.0;
+const artistRowHeight = artistRowContentHeight + artistRowSpacing;
 const artistOverscanRows = 10;
 const artistAlbumCardHeaderHeight = 112.0;
 const artistAlbumSongRowHeight = 48.0;

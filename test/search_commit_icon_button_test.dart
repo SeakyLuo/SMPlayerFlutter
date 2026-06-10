@@ -416,8 +416,16 @@ void main() {
 
     final textField = tester.widget<EditableText>(find.byType(EditableText));
     expect(textField.cursorHeight, isNull);
+    expect(textField.style.height, SearchTextInputMetrics.lineHeight);
+    expect(textField.strutStyle.fontSize, SearchTextInputMetrics.fontSize);
+    expect(textField.strutStyle.height, SearchTextInputMetrics.lineHeight);
+    expect(textField.strutStyle.forceStrutHeight, isTrue);
     final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.decoration?.isCollapsed, isTrue);
+    expect(field.decoration?.isDense, isTrue);
+    expect(
+      field.decoration?.contentPadding,
+      SearchTextInputMetrics.contentPaddingForHeight(40),
+    );
     expect(tester.getSize(find.byType(TextField)).height, 40);
   });
 }

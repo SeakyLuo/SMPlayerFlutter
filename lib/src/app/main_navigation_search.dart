@@ -168,29 +168,25 @@ class _MainNavigationViewSearchBoxState
                           textInputAction: TextInputAction.search,
                           textAlignVertical: TextAlignVertical.center,
                           style: TextStyle(
-                            fontSize: 14,
-                            height: 1,
+                            fontSize: SearchTextInputMetrics.fontSize,
+                            height: SearchTextInputMetrics.lineHeight,
                             color: colors.textStrong,
                           ),
-                          strutStyle: const StrutStyle(
-                            fontSize: 14,
-                            height: 1,
-                            forceStrutHeight: true,
-                          ),
+                          strutStyle: SearchTextInputMetrics.strutStyle,
                           cursorColor: colors.textStrong,
                           decoration: InputDecoration(
                             isDense: true,
                             hintText: widget.i18n.t('common.search'),
                             hintStyle: TextStyle(
-                              fontSize: 14,
-                              height: 1,
+                              fontSize: SearchTextInputMetrics.fontSize,
+                              height: SearchTextInputMetrics.lineHeight,
                               color: colors.searchPlaceholder,
                             ),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.only(
-                              top: 16,
-                              bottom: 10,
-                            ),
+                            contentPadding:
+                                SearchTextInputMetrics.contentPaddingForHeight(
+                                  40,
+                                ),
                           ),
                         ),
                       ),

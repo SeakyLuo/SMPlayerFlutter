@@ -219,7 +219,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final colors = widget.colors ?? _PlaylistControlItemColors.resolve(context);
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
-    final hoverActionsVisible = _hovered || _focused;
+    final hoverActionsVisible =
+        widget.selectionMode ? _hovered : _hovered || _focused;
+    final showActionSlot = !widget.selectionMode || hoverActionsVisible;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
     final rowBackgroundColor =
@@ -257,6 +259,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
             : 14.0;
     final dropPosition = widget.dropPosition;
     final content = InkWell(
+      key: const ValueKey('PlaylistControlItem.Row'),
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       hoverColor: Colors.transparent,
       focusColor: Colors.transparent,
@@ -351,7 +354,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     ),
                   ),
                 ),
-                if (!compact) ...[
+                if (showActionSlot && !compact) ...[
                   const SizedBox(width: 14),
                   ConstrainedBox(
                     constraints: const BoxConstraints(minWidth: 170),
@@ -383,7 +386,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       ),
                     ),
                   ),
-                ] else ...[
+                ] else if (showActionSlot) ...[
                   const SizedBox(width: 12),
                   _QueueActions(
                     favorite: widget.song.favorite,

@@ -21,9 +21,11 @@ import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     show
         ArtistGroup,
+        artistRowContentHeight,
         artistOverscanRows,
         artistQuickJumpKeys,
         artistRowHeight,
+        artistRowSpacing,
         buildAlbumGroups,
         buildArtistGroups,
         compareArtistText,
@@ -42,6 +44,13 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode;
+
+Finder _artistsMasterSearchTextField() {
+  return find.descendant(
+    of: find.byKey(const ValueKey('Artists.MasterPanel')),
+    matching: find.byType(TextField),
+  );
+}
 
 void main() {
   setUp(PageSelectionController.clearStoredStates);
@@ -264,8 +273,10 @@ void main() {
   });
 
   test('artist master overscan mirrors Electron row window', () {
+    expect(artistRowContentHeight, 64);
+    expect(artistRowSpacing, 2);
     expect(artistOverscanRows, 10);
-    expect(artistRowHeight * artistOverscanRows, 640);
+    expect(artistRowHeight * artistOverscanRows, 660);
   });
 
   testWidgets('ArtistsPage appbar search keeps Electron close behavior', (
@@ -449,8 +460,8 @@ void main() {
     expect(fieldDecoration.boxShadow?.single.spreadRadius, 3);
 
     final field = tester.widget<TextField>(find.byType(TextField).last);
-    expect(field.style?.color, const Color(0xf0f6f9fc));
-    expect(field.decoration?.hintStyle?.color, const Color(0x85dee7f2));
+    expect(field.style?.color, const Color(0xebffffff));
+    expect(field.decoration?.hintStyle?.color, const Color(0xadcbd5e1));
   });
 
   testWidgets('ArtistsPage compact detail writes Electron appbar title', (
@@ -1717,6 +1728,13 @@ void main() {
       Border.all(color: GlobalUI.selectedBorderColorDay),
     );
     expect(activeRowBoxDecoration.boxShadow, [GlobalUI.selectedShadowDay]);
+    final artistARow = find.byKey(const ValueKey('Artists.ArtistRow.Artist A'));
+    final artistBRow = find.byKey(const ValueKey('Artists.ArtistRow.Artist B'));
+    expect(tester.getSize(artistARow).height, artistRowContentHeight);
+    expect(
+      tester.getTopLeft(artistBRow).dy - tester.getTopLeft(artistARow).dy,
+      artistRowHeight,
+    );
     final rowInkWell = tester
         .widgetList<InkWell>(find.byType(InkWell))
         .firstWhere(
@@ -4382,7 +4400,7 @@ void main() {
     final artistRow = find.byKey(const ValueKey('Artists.ArtistRow.Artist A'));
     final rowTopBefore = tester.getTopLeft(artistRow).dy;
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(_artistsMasterSearchTextField());
     await tester.pumpAndSettle();
 
     expect(
@@ -4943,7 +4961,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(_artistsMasterSearchTextField());
     await tester.pumpAndSettle();
 
     expect(
@@ -4978,7 +4996,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(_artistsMasterSearchTextField());
     await tester.pumpAndSettle();
 
     expect(
@@ -5031,9 +5049,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(_artistsMasterSearchTextField());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Remove Artist A'));
+    await tester.tap(find.bySemanticsLabel('Remove Artist A'));
     await tester.pumpAndSettle();
 
     expect(repository.removedRecentSearchIds, [
@@ -5063,7 +5081,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(_artistsMasterSearchTextField());
     await tester.pumpAndSettle();
     await tester.tap(find.text('Clear'));
     await tester.pumpAndSettle();
@@ -5092,7 +5110,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(TextField));
+      await tester.tap(_artistsMasterSearchTextField());
       await tester.pumpAndSettle();
 
       expect(

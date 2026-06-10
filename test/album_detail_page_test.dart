@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/app/window_drag_provider.dart';
@@ -249,11 +250,20 @@ void main() {
     expect(title.style?.fontSize, 48);
     expect(title.style?.fontWeight, FontWeight.w600);
     expect(title.style?.fontVariations, const [FontVariation.weight(650)]);
-
-    expect(
-      tester.getRect(find.text('Edit Artwork')).right,
-      lessThanOrEqualTo(1200),
+    final coverRect = tester.getRect(find.byType(HeaderedPlaylistCover));
+    final commandBarRect = tester.getRect(
+      find.byKey(const ValueKey('HeaderedPlaylist.CommandBar')),
     );
+    expect(
+      tester.getRect(find.text('Blue Hour')).top,
+      moreOrLessEquals(coverRect.top, epsilon: 1),
+    );
+    expect(
+      commandBarRect.bottom,
+      moreOrLessEquals(coverRect.bottom, epsilon: 1),
+    );
+
+    expect(find.text('Edit Artwork', skipOffstage: false), findsWidgets);
   });
 
   testWidgets('AlbumDetailPage matches compact Electron headered playlist', (
@@ -645,10 +655,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.drag(
-        find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
-        const Offset(0, -180),
-      );
+      final maxScrollExtentBefore =
+          tester
+              .state<ScrollableState>(find.byType(Scrollable).first)
+              .position
+              .maxScrollExtent;
+
+      final scrollPosition =
+          tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+      scrollPosition.jumpTo(240);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('portal:Mix'), findsNothing);
+
+      scrollPosition.jumpTo(280);
       await tester.pump();
       await tester.pump();
 
@@ -661,6 +682,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('portal:Mix'), findsOneWidget);
+      expect(scrollPosition.maxScrollExtent, maxScrollExtentBefore);
     },
   );
 
@@ -685,10 +707,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.drag(
-      find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
-      const Offset(0, -180),
-    );
+    tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .jumpTo(280);
     await tester.pump();
     await tester.pump();
 
@@ -874,7 +896,7 @@ void main() {
   );
 
   testWidgets(
-    'HeaderedPlaylistControl multi-select Add To uses Electron pointer anchor',
+    'HeaderedPlaylistControl multi-select Add To opens above Electron button anchor',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1200, 800);
@@ -900,7 +922,7 @@ void main() {
 
       final addToButton = find.ancestor(
         of: find.text('Add To'),
-        matching: find.byType(TextButton),
+        matching: find.byType(SmPlayerTextIconButton),
       );
       final addToRect = tester.getRect(addToButton);
 
@@ -910,8 +932,8 @@ void main() {
       final panelRect = tester.getRect(
         find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
       );
-      expect(panelRect.bottom, moreOrLessEquals(800 - 8, epsilon: 1));
-      expect(panelRect.bottom, greaterThan(addToRect.top - 8));
+      expect(panelRect.top, greaterThanOrEqualTo(8));
+      expect(panelRect.bottom, moreOrLessEquals(addToRect.top - 8, epsilon: 1));
     },
   );
 

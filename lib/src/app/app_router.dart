@@ -415,6 +415,10 @@ class _SmPlayerRouteShell extends ConsumerWidget {
           context.go('/local');
           return;
         }
+        if (target == '/albums') {
+          navigationShell.goBranch(2, initialLocation: true);
+          return;
+        }
         if (target == '/playlists') {
           navigationShell.goBranch(7, initialLocation: true);
           return;

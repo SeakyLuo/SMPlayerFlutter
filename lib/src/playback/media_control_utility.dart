@@ -699,6 +699,7 @@ class _PlayerVolumeMenuItemState extends State<PlayerVolumeMenuItem> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(7),
                   ),
+                  overlayColor: Colors.transparent,
                 ),
                 color: MediaControlColors.textStrongFor(context),
                 disabledColor: MediaControlColors.textStrongFor(
