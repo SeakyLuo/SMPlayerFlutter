@@ -163,6 +163,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const ValueKey('CommandBar.MoreButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit Artwork'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextButton, 'Album Art'), findsNothing);
+      expect(find.text('Change'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+      expect(find.text('No Album Art'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.text('Preference Settings'));
       await tester.pumpAndSettle();
 
@@ -174,22 +188,12 @@ void main() {
       expect(find.text('Very High'), findsOneWidget);
 
       await tester.tap(find.text('High'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(repository.preferenceType, 'album');
       expect(repository.preferenceItemId, 'Blue Hour');
       expect(repository.preferenceName, 'Blue Hour - Artist A');
       expect(repository.preferenceLevel, 'high');
-
-      await tester.tap(find.text('Edit Artwork'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Album Art'), findsWidgets);
-      expect(find.text('Change'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
-      expect(find.text('Reset'), findsOneWidget);
-      expect(find.text('Delete'), findsOneWidget);
-      expect(find.text('No Album Art'), findsOneWidget);
     },
   );
 

@@ -23,12 +23,13 @@ bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
 
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
   final snapshot = await _readLibraryContentData(ref);
-  await ref.read(libraryRepositoryProvider).replaceNowPlaying([
-    ...snapshot.nowPlaying.songIds,
+  final nextSongIds = [
+    ...(ref.read(nowPlayingQueueOverrideProvider) ??
+        snapshot.nowPlaying.songIds),
     ...songIds,
-  ]);
-  ref.invalidate(libraryContentDataProvider);
-  ref.invalidate(recentPageDataProvider);
+  ];
+  ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
+  await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
 }
 
 Future<void> addSongsToNowPlayingWithUndo({
@@ -42,13 +43,12 @@ Future<void> addSongsToNowPlayingWithUndo({
   }
   final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  final insertedIndex = snapshot.nowPlaying.songIds.length;
-  await ref.read(libraryRepositoryProvider).replaceNowPlaying([
-    ...snapshot.nowPlaying.songIds,
-    ...songIds,
-  ]);
-  ref.invalidate(libraryContentDataProvider);
-  ref.invalidate(recentPageDataProvider);
+  final currentSongIds =
+      ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds;
+  final insertedIndex = currentSongIds.length;
+  final queueAfterAdd = [...currentSongIds, ...songIds];
+  ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueAfterAdd;
+  await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueAfterAdd);
   if (!context.mounted) {
     return;
   }
@@ -62,14 +62,16 @@ Future<void> addSongsToNowPlayingWithUndo({
       target: i18n.t('common.nowPlaying'),
     ),
     onUndo: () async {
-      final currentSnapshot =
-          await ref.read(libraryRepositoryProvider).getLibraryContentData();
-      final currentSongIds = currentSnapshot.nowPlaying.songIds;
-      final nextSongIds =
+      final currentSongIds =
+          ref.read(nowPlayingQueueOverrideProvider) ?? queueAfterAdd;
+      final restoredSongIds =
           currentSongIds.toList()
             ..removeRange(insertedIndex, insertedIndex + songIds.length);
-      await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-      ref.invalidate(libraryContentDataProvider);
+      ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+          restoredSongIds;
+      await ref
+          .read(libraryRepositoryProvider)
+          .replaceNowPlaying(restoredSongIds);
     },
   );
 }
@@ -92,7 +94,6 @@ Future<void> addSongsToPlaylist(
   await ref
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
-  ref.invalidate(libraryContentDataProvider);
 }
 
 Future<void> addSongsToPlaylistWithUndo({
@@ -118,7 +119,6 @@ Future<void> addSongsToPlaylistWithUndo({
       await ref
           .read(libraryRepositoryProvider)
           .addSongToPlaylist(playlistId, songIds.first);
-      ref.invalidate(libraryContentDataProvider);
     }
   } else {
     await addSongsToPlaylist(ref, playlistId, songIds);
@@ -142,7 +142,6 @@ Future<void> addSongsToPlaylistWithUndo({
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(libraryContentDataProvider);
       }
     },
   );
@@ -260,7 +259,6 @@ Future<void> createPlaylistWithSongs({
   }
 
   await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-  ref.invalidate(libraryContentDataProvider);
 }
 
 Future<void> requestDeleteSongFromDisk({

@@ -246,6 +246,45 @@ void main() {
     expect(repository.reorderedPlaylistIds, [8, 7]);
   });
 
+  testWidgets('PlaylistsPage drag reorder does not reload library data', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _CountingPlaylistReorderRepository();
+
+    await tester.pumpWidget(
+      _RepositoryBackedPlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.libraryContentLoadCount, 1);
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    final firstCard = cards.first;
+    final secondCard = cards.at(1);
+    final firstCenter = tester.getCenter(firstCard);
+    final secondRightCenter =
+        tester.getCenter(secondCard) + const Offset(80, 0);
+    await tester.dragFrom(firstCenter, secondRightCenter - firstCenter);
+    await tester.pump();
+
+    expect(repository.reorderedPlaylistIds, [8, 7]);
+    expect(repository.libraryContentLoadCount, 1);
+    expect(
+      tester.getTopLeft(find.text('Chill')).dx,
+      lessThan(tester.getTopLeft(find.text('Mix')).dx),
+    );
+  });
+
   testWidgets('PlaylistsPage keeps order when drag point misses target half', (
     tester,
   ) async {
@@ -458,7 +497,18 @@ void main() {
 
     expect(find.text('Mix'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Add To'));
+    final row = find.byKey(const ValueKey('HeaderedPlaylist.Row.1'));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(row));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    await tester.tap(
+      find.descendant(
+        of: row,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Now Playing'), findsOneWidget);
@@ -466,6 +516,172 @@ void main() {
     expect(find.text('New Playlist'), findsOneWidget);
     expect(find.text('Chill'), findsOneWidget);
     expect(find.text('Mix'), findsOneWidget);
+  });
+
+  testWidgets('PlaylistsPage renames detail playlist without reloading data', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _CountingPlaylistRenameRepository();
+
+    await tester.pumpWidget(
+      _RepositoryBackedPlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(selectedPlaylistId: 7),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.libraryContentLoadCount, 1);
+    expect(find.text('Mix'), findsOneWidget);
+
+    final commandBar = find.byKey(
+      const ValueKey('HeaderedPlaylist.CommandBar'),
+    );
+    await tester.tap(
+      find.descendant(of: commandBar, matching: find.byTooltip('More')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Road Trip');
+    await tester.tap(find.widgetWithText(TextButton, 'Rename').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.renamedPlaylistId, 7);
+    expect(repository.renamedPlaylistName, 'Road Trip');
+    expect(repository.libraryContentLoadCount, 1);
+    expect(find.text('Road Trip'), findsOneWidget);
+    expect(find.text('Mix'), findsNothing);
+  });
+
+  testWidgets('PlaylistsPage clears detail playlist without reloading data', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _CountingPlaylistMutationRepository();
+
+    await tester.pumpWidget(
+      _RepositoryBackedPlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(selectedPlaylistId: 7),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final initialLoadCount = repository.libraryContentLoadCount;
+    expect(find.text('Blue Song'), findsOneWidget);
+
+    final commandBar = find.byKey(
+      const ValueKey('HeaderedPlaylist.CommandBar'),
+    );
+    await tester.tap(
+      find.descendant(of: commandBar, matching: find.byTooltip('More')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Clear').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.removedSongsPlaylistId, 7);
+    expect(repository.removedSongIds, [1]);
+    expect(repository.libraryContentLoadCount, initialLoadCount);
+    expect(find.text('Blue Song'), findsNothing);
+  });
+
+  testWidgets('PlaylistsPage preference update does not reload library data', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _CountingPlaylistMutationRepository();
+
+    await tester.pumpWidget(
+      _RepositoryBackedPlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(selectedPlaylistId: 7),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Preference Settings'));
+    await tester.pumpAndSettle();
+    final loadCountBeforeUpdate = repository.libraryContentLoadCount;
+    await tester.tap(find.text('High'));
+    await tester.pumpAndSettle();
+
+    expect(repository.preferenceType, 'playlist');
+    expect(repository.preferenceItemId, '7');
+    expect(repository.preferenceLevel, 'high');
+    expect(repository.libraryContentLoadCount, loadCountBeforeUpdate);
+  });
+
+  testWidgets('PlaylistsPage menu duplicate and delete do not reload data', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _CountingPlaylistMutationRepository();
+
+    await tester.pumpWidget(
+      _RepositoryBackedPlaylistTestApp(
+        repository: repository,
+        child: const PlaylistsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final initialLoadCount = repository.libraryContentLoadCount;
+
+    await tester.tapAt(
+      tester.getCenter(find.text('Mix')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Duplicate').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.createdPlaylistName, 'Mix (1)');
+    expect(repository.createdPlaylistSongIds, [1]);
+    expect(find.text('Mix (1)'), findsOneWidget);
+    expect(repository.libraryContentLoadCount, initialLoadCount);
+
+    await tester.tapAt(
+      tester.getCenter(find.text('Chill')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Delete').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.deletedPlaylistId, 8);
+    expect(find.text('Chill'), findsNothing);
+    expect(repository.libraryContentLoadCount, initialLoadCount);
   });
 
   testWidgets('MyFavoritesPage writes Electron built-in preference', (
@@ -660,6 +876,17 @@ class _FakeLibraryRepository extends LibraryRepository {
   String? preferenceLevel;
   int? lastPlaylistId;
   List<int>? reorderedPlaylistIds;
+  int? renamedPlaylistId;
+  String? renamedPlaylistName;
+  String? createdPlaylistName;
+  List<int>? createdPlaylistSongIds;
+  int? deletedPlaylistId;
+  int? removedSongsPlaylistId;
+  List<int>? removedSongIds;
+  int? reorderedSongsPlaylistId;
+  List<int>? reorderedSongIds;
+  PlaylistSortCriterion? reorderedSongsSortCriterion;
+  List<int>? replacedNowPlayingSongIds;
   List<int> favoriteSongIds = [];
   bool? favoriteValue;
 
@@ -696,6 +923,60 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> reorderPlaylists(List<int> playlistIds) async {
     reorderedPlaylistIds = playlistIds;
   }
+
+  @override
+  Future<void> renamePlaylist(int playlistId, String name) async {
+    renamedPlaylistId = playlistId;
+    renamedPlaylistName = name;
+  }
+
+  @override
+  Future<LibraryPlaylist> createPlaylist(
+    String name, [
+    List<int> songIds = const [],
+  ]) async {
+    createdPlaylistName = name;
+    createdPlaylistSongIds = songIds.toList();
+    return LibraryPlaylist(
+      id: 90,
+      name: name,
+      priority: 3,
+      songCount: songIds.length,
+      songIds: songIds,
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    );
+  }
+
+  @override
+  Future<void> deletePlaylist(int playlistId) async {
+    deletedPlaylistId = playlistId;
+  }
+
+  @override
+  Future<void> removeSongsFromPlaylist(
+    int playlistId,
+    List<int> songIds,
+  ) async {
+    removedSongsPlaylistId = playlistId;
+    removedSongIds = songIds.toList();
+  }
+
+  @override
+  Future<void> reorderPlaylistSongs(
+    int playlistId,
+    List<int> songIds, [
+    PlaylistSortCriterion? sortCriterion,
+  ]) async {
+    reorderedSongsPlaylistId = playlistId;
+    reorderedSongIds = songIds.toList();
+    reorderedSongsSortCriterion = sortCriterion;
+  }
+
+  @override
+  Future<void> replaceNowPlaying(List<int> songIds) async {
+    replacedNowPlayingSongIds = songIds.toList();
+  }
 }
 
 class _DelayedFavoriteLibraryRepository extends _FakeLibraryRepository {
@@ -716,6 +997,36 @@ class _DelayedFavoriteLibraryRepository extends _FakeLibraryRepository {
 
   void completeFavoriteWrite() {
     _favoriteWriteCompleter.complete();
+  }
+}
+
+class _CountingPlaylistReorderRepository extends _FakeLibraryRepository {
+  int libraryContentLoadCount = 0;
+
+  @override
+  Future<LibraryContentData> getLibraryContentData() async {
+    libraryContentLoadCount += 1;
+    return _snapshot;
+  }
+}
+
+class _CountingPlaylistRenameRepository extends _FakeLibraryRepository {
+  int libraryContentLoadCount = 0;
+
+  @override
+  Future<LibraryContentData> getLibraryContentData() async {
+    libraryContentLoadCount += 1;
+    return _snapshot;
+  }
+}
+
+class _CountingPlaylistMutationRepository extends _FakeLibraryRepository {
+  int libraryContentLoadCount = 0;
+
+  @override
+  Future<LibraryContentData> getLibraryContentData() async {
+    libraryContentLoadCount += 1;
+    return _snapshot;
   }
 }
 
@@ -762,6 +1073,7 @@ const _i18n = SmPlayerI18n(
     'playlists.delete': 'Delete',
     'playlists.dragToSort': 'Drag to Sort',
     'playlists.dropHere': 'Drop Here',
+    'playlists.duplicate': 'Duplicate',
     'playlists.nameEmpty': 'Name cannot be empty.',
     'playlists.namePlaceholder': 'Playlist name',
     'playlists.nameSpecial': 'Invalid name.',

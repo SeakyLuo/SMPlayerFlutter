@@ -141,6 +141,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {
       return const LocalPageScaffold(child: SmPlayerLoadingState());
@@ -154,7 +155,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     return snapshotValue.when(
       loading: () => const LocalPageScaffold(child: SmPlayerLoadingState()),
       error: (_, _) => const LocalPageScaffold(child: SmPlayerLoadingState()),
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          const {},
+          songOverrides,
+        );
         return SmPlayerI18nScope(
           i18n: i18n,
           child: _buildPage(context, snapshot, i18n),
@@ -891,9 +897,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   onReveal: (path) {
                     unawaited(revealItemInFolder(path));
                   },
-                  onSaved: () {
-                    ref.invalidate(libraryContentDataProvider);
-                  },
+                  onSaved: () => notifyLyricsSaved(ref, dialog.song.id),
                   onClose: () {
                     setState(() {
                       _musicDialog = null;

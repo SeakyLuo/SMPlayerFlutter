@@ -6,8 +6,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     final firstSong = songs.first;
     _playbackQueueOverride = songIds;
     ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
     _mediaControlController.playTrack(
       mediaControlTrackForSong(firstSong, context.smPlayerI18n),
       durationSeconds: firstSong.duration.toDouble(),
@@ -98,7 +97,6 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     unawaited(
       ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
     );
-    ref.invalidate(libraryContentDataProvider);
     return _playQueueSong(snapshot, nextSongIds.first, 0);
   }
 
@@ -191,6 +189,5 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       durationSeconds: firstSong.duration.toDouble(),
       queueIndex: 0,
     );
-    ref.invalidate(libraryContentDataProvider);
   }
 }

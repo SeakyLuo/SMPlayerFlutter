@@ -124,7 +124,8 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   final HeaderedPlaylistTrackHandler onPlayTrack;
   final VoidCallback? onTogglePlayPause;
   final void Function(int playlistId, int songId) onAddSongToPlaylist;
-  final void Function(int playlistId, List<int> songIds)? onAddSongsToPlaylist;
+  final FutureOr<void> Function(int playlistId, List<int> songIds)?
+  onAddSongsToPlaylist;
   final HeaderedPlaylistSongsHandler? onRemoveSongs;
   final ValueChanged<String>? onRename;
   final VoidCallback? onDelete;
@@ -160,6 +161,7 @@ class _HeaderedPlaylistControlState
   var _scrollTop = 0.0;
   var _headerCollapsed = false;
   final _pendingFavoriteSongIds = <int>{};
+  final _localPlaylistOverrides = <int, LibraryPlaylist>{};
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final VoidCallback _clearAppBarPortalOwner;
@@ -233,6 +235,35 @@ class _HeaderedPlaylistControlState
     setState(fn);
   }
 
+  List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
+    if (_localPlaylistOverrides.isEmpty) {
+      return playlists;
+    }
+    var effectivePlaylists =
+        playlists
+            .map((playlist) => _localPlaylistOverrides[playlist.id] ?? playlist)
+            .toList();
+    final playlistIds =
+        effectivePlaylists.map((playlist) => playlist.id).toSet();
+    for (final playlist in _localPlaylistOverrides.values) {
+      if (playlistIds.contains(playlist.id)) {
+        continue;
+      }
+      effectivePlaylists = _insertCustomPlaylistFirst(
+        effectivePlaylists,
+        playlist,
+      );
+      playlistIds.add(playlist.id);
+    }
+    return effectivePlaylists;
+  }
+
+  void _patchLocalPlaylist(LibraryPlaylist playlist) {
+    _updateState(() {
+      _localPlaylistOverrides[playlist.id] = playlist;
+    });
+  }
+
   void _handleScroll() {
     final nextScrollTop = _scrollController.offset;
     if ((nextScrollTop - _scrollTop).abs() < 0.5) {
@@ -250,4 +281,14 @@ class _HeaderedPlaylistControlState
       _headerCollapsed = nextHeaderCollapsed;
     });
   }
+}
+
+List<LibraryPlaylist> _insertCustomPlaylistFirst(
+  List<LibraryPlaylist> playlists,
+  LibraryPlaylist playlist,
+) {
+  final index = playlists.indexWhere((item) => !item.isBuiltIn);
+  final nextPlaylists = playlists.toList();
+  nextPlaylists.insert(index == -1 ? nextPlaylists.length : index, playlist);
+  return nextPlaylists;
 }

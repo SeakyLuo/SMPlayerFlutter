@@ -165,6 +165,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
     final i18n =
         ref.watch(smPlayerI18nProvider).value ??
@@ -205,7 +206,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
       },
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          const {},
+          songOverrides,
+        );
         final normalizedQuery = query.toLowerCase();
         final searchFolderPath = _searchFolderPath(
           snapshot.rootPath,
@@ -741,7 +747,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           card.title,
           level,
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _undoSearchResultPreference(
@@ -758,7 +763,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           preferenceType,
           _searchResultPreferenceId(preferenceType, card),
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<String?> _getSongPreferenceLevel(LibrarySong song) {
@@ -771,14 +775,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addPreferenceItem('song', '${song.id}', song.title, level);
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _undoSongPreference(LibrarySong song) async {
     await ref
         .read(libraryRepositoryProvider)
         .removePreferenceItem('song', '${song.id}');
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _recordRecentSearch() {
@@ -880,7 +882,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
     }
     _playSongIds(shuffleSearchSongIds(card.songIds));
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playTrack(LibrarySong song, int index, List<int> songIds) {
@@ -891,8 +892,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: index,
         );
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
+    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
   }
 
   void _playSongIds(List<int> songIds) {
@@ -910,13 +911,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
+    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
   }
 
   void _playNext(LibrarySong song) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final queueSongIds =
+        (ref.read(nowPlayingQueueOverrideProvider) ??
+                snapshot.nowPlaying.songIds)
+            .toList();
     queueSongIds.remove(song.id);
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
@@ -924,13 +928,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       selectedQueueIndex == null ? 0 : selectedQueueIndex + 1,
       song.id,
     );
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryContentDataProvider);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _openMusicDialog(

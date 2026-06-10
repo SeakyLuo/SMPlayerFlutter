@@ -82,7 +82,6 @@ extension _LocalPageAddToActions on _LocalPageState {
     }
 
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<String?> _requestPlaylistName({

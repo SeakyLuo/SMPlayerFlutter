@@ -212,7 +212,6 @@ Future<void> showNowPlayingFullMoreMenu({
                     await ref
                         .read(libraryRepositoryProvider)
                         .removePreferenceItem('song', '${currentSong.id}');
-                    ref.invalidate(libraryContentDataProvider);
                   },
           onSetPreference: (level) {
             onSetSongPreference(currentSong.id, currentSong.title, level);
@@ -315,6 +314,7 @@ IconData _nonShufflePlaybackModeMenuIcon(PlaybackMode mode) {
     PlaybackMode.repeat => FluentIcons.arrow_repeat_all_20_regular,
     PlaybackMode.repeatOne => FluentIcons.arrow_repeat_1_20_regular,
     PlaybackMode.once => FluentIcons.music_note_2_20_regular,
-    PlaybackMode.shuffle => throw StateError('shuffle uses SmPlayerShuffleIcon'),
+    PlaybackMode.shuffle =>
+      throw StateError('shuffle uses SmPlayerShuffleIcon'),
   };
 }

@@ -584,7 +584,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   },
                   onReveal: _revealPath,
                   onSaved: () {
-                    ref.invalidate(libraryContentDataProvider);
+                    notifyLyricsSaved(ref, dialog.song.id);
                   },
                   onClose: () {
                     setState(() {
@@ -648,8 +648,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   void _replaceQueue(List<int> songIds) {
     ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
   }
 
   void _removeQueueIndex(
@@ -796,10 +795,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   unawaited(
                     ref
                         .read(libraryRepositoryProvider)
-                        .removePreferenceItem('song', '${song.id}')
-                        .then((_) {
-                          ref.invalidate(libraryContentDataProvider);
-                        }),
+                        .removePreferenceItem('song', '${song.id}'),
                   );
                 },
         onPlay: () {
@@ -860,7 +856,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryContentDataProvider);
         },
         onDelete: () {
           requestDeleteSongFromDisk(
@@ -1029,7 +1024,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(libraryContentDataProvider);
       },
     );
   }

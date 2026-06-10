@@ -74,6 +74,34 @@ class LibrarySong {
   final String dateAdded;
   final bool favorite;
   final String thumbnailPath;
+
+  LibrarySong copyWith({
+    String? title,
+    String? artist,
+    List<String>? artists,
+    String? album,
+    int? duration,
+    int? playCount,
+    int? lyricsOffsetMs,
+    String? dateAdded,
+    bool? favorite,
+    String? thumbnailPath,
+  }) {
+    return LibrarySong(
+      id: id,
+      path: path,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      artists: artists ?? this.artists,
+      album: album ?? this.album,
+      duration: duration ?? this.duration,
+      playCount: playCount ?? this.playCount,
+      lyricsOffsetMs: lyricsOffsetMs ?? this.lyricsOffsetMs,
+      dateAdded: dateAdded ?? this.dateAdded,
+      favorite: favorite ?? this.favorite,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+    );
+  }
 }
 
 class SongPropertiesSnapshot {
@@ -362,6 +390,24 @@ class LibraryPlaylist {
   final List<int> songIds;
   final PlaylistSortCriterion sortCriterion;
   final bool isBuiltIn;
+
+  LibraryPlaylist copyWith({
+    String? name,
+    int? priority,
+    int? songCount,
+    List<int>? songIds,
+    PlaylistSortCriterion? sortCriterion,
+  }) {
+    return LibraryPlaylist(
+      id: id,
+      name: name ?? this.name,
+      priority: priority ?? this.priority,
+      songCount: songCount ?? this.songCount,
+      songIds: songIds ?? this.songIds,
+      sortCriterion: sortCriterion ?? this.sortCriterion,
+      isBuiltIn: isBuiltIn,
+    );
+  }
 }
 
 class LibraryFolder {

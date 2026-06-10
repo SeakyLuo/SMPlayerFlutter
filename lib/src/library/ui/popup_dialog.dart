@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
@@ -498,9 +500,11 @@ class _PopupDialogMobileTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final leadingInset =
+        Platform.isMacOS ? SmPlayerShellMetrics.macOSTitlebarLeadingInset : 8.0;
     return Padding(
       key: const ValueKey('popup-dialog-mobile-titlebar'),
-      padding: const EdgeInsets.only(left: 8),
+      padding: EdgeInsets.only(left: leadingInset),
       child: Row(
         children: [
           _PopupDialogMobileBackButton(colors: colors, onClose: onClose),
@@ -1210,7 +1214,7 @@ class PopupDialogActionButton extends StatelessWidget {
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
-          height: 1.2,
+          height: 1,
         ).copyWith(fontFamily: fontFamily),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ).copyWith(
@@ -1225,6 +1229,11 @@ class PopupDialogActionButton extends StatelessWidget {
                   states.contains(WidgetState.pressed))) {
             return PopupDialogColors.destructiveHover;
           }
+          if (primary &&
+              (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.pressed))) {
+            return PopupDialogColors.accentStrong;
+          }
           return background;
         }),
         side: const WidgetStatePropertyAll(BorderSide.none),
@@ -1234,11 +1243,8 @@ class PopupDialogActionButton extends StatelessWidget {
           if (states.contains(WidgetState.disabled)) {
             return Colors.transparent;
           }
-          if (primaryDestructive) {
-            return Colors.transparent;
-          }
           if (primary) {
-            return Colors.white.withValues(alpha: 0.08);
+            return Colors.transparent;
           }
           return colors.accent.withValues(alpha: 0.10);
         }),
@@ -1265,7 +1271,11 @@ class PopupDialogActionButton extends StatelessWidget {
               fontFamily: fontFamily,
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              height: 1.2,
+              height: 1,
+            ),
+            textHeightBehavior: const TextHeightBehavior(
+              applyHeightToFirstAscent: false,
+              applyHeightToLastDescent: false,
             ),
           ),
         ],
@@ -1287,6 +1297,7 @@ class PopupDialogColors {
   static const buttonBorder = Color(0x9ebec8d6);
   static const activeButtonBorder = Color(0x610078d7);
   static const accent = Color(0xff0078d7);
+  static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x290078d7);
   static const text = Color(0xff5f625f);
   static const textStrong = Color(0xff1f252b);
@@ -1396,7 +1407,7 @@ class PopupDialogResolvedColors
       BoxShadow(color: Color(0x0f28374c), offset: Offset(0, 8), blurRadius: 18),
     ],
     accent: PopupDialogColors.accent,
-    accentStrong: PopupDialogColors.accent,
+    accentStrong: PopupDialogColors.accentStrong,
     text: PopupDialogColors.text,
     textStrong: PopupDialogColors.textStrong,
     textMuted: PopupDialogColors.textMuted,

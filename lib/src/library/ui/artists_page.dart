@@ -165,6 +165,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
     final mediaState = ref.watch(mediaControlControllerProvider).state;
 
     if (i18nValue.isLoading) {
@@ -250,7 +251,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               message: i18n.t('library.scanHelp'),
             ),
           ),
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          const {},
+          songOverrides,
+        );
         final artistGroups = buildArtistGroups(snapshot.songs, i18n);
         if (widget.targetArtistName != null) {
           final target = widget.targetArtistName!;
@@ -655,7 +661,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   unawaited(revealItemInFolder(path));
                 },
                 onSaved: () {
-                  ref.invalidate(libraryContentDataProvider);
+                  notifyLyricsSaved(ref, dialog.song.id);
                 },
                 onClose: () {
                   setState(() {

@@ -17,11 +17,10 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
       return;
     }
     final folders = _menuFolders(snapshot.folders);
+    final playlists = _effectivePlaylists(snapshot.playlists);
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
-            ? widget.playlists.firstWhere(
-              (playlist) => playlist.name == widget.title,
-            )
+            ? playlists.firstWhere((playlist) => playlist.name == widget.title)
             : null;
     final currentPlaylistName =
         widget.type == HeaderedPlaylistType.favorites
@@ -41,7 +40,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
         currentTrackId: widget.selectedTrackId,
         songPath: song.path,
         playlists:
-            snapshot.playlists
+            playlists
                 .where((playlist) => !playlist.isBuiltIn)
                 .map(
                   (playlist) => MultiSelectCommandBarPlaylist(
@@ -107,17 +106,15 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryContentDataProvider);
         },
         preferenceLevel: preferenceLevel,
         onUndoPreference:
             preferenceLevel == null
                 ? null
-                : () {
-                  ref
+                : () async {
+                  await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryContentDataProvider);
                 },
         onDelete: () {
           unawaited(

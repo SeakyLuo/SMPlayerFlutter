@@ -707,7 +707,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     setState(() {
       _lyricsRefreshRevision += 1;
     });
-    ref.invalidate(libraryContentDataProvider);
+    notifyLyricsSaved(ref, song.id);
   }
 
   List<MultiSelectCommandBarPlaylist> _customPlaylists(
@@ -975,8 +975,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   void _replaceQueue(List<int> songIds) {
     ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
+    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
   }
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
@@ -1007,7 +1006,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
     await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
@@ -1054,7 +1052,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addPreferenceItem('song', '$songId', title, level);
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<String?> _getSongPreferenceLevel(int songId) {
@@ -1067,7 +1064,6 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     await ref
         .read(libraryRepositoryProvider)
         .removePreferenceItem('song', '$songId');
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _deleteSongFromDisk(LibrarySong song) async {
