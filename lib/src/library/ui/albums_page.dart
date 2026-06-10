@@ -190,6 +190,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {
       return const _AlbumsPagePanel(child: SmPlayerLoadingState());
@@ -254,7 +255,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
               message: i18n.t('library.scanHelp'),
             ),
           ),
-      data: (snapshot) {
+      data: (rawSnapshot) {
+        final snapshot = applyLibraryFavoriteOverrides(
+          rawSnapshot,
+          const {},
+          songOverrides,
+        );
         if (_syncedAlbumsSort != snapshot.albumsSort) {
           _sortCriterion = snapshot.albumsSort;
           _syncedAlbumsSort = snapshot.albumsSort;
@@ -888,13 +894,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('album', album.name);
-                ref.invalidate(libraryContentDataProvider);
               },
       onSetPreference: (level) {
         ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('album', album.name, album.name, level);
-        ref.invalidate(libraryContentDataProvider);
       },
     );
   }
@@ -961,6 +965,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
     final i18n = context.smPlayerI18n;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
     await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
     ref
         .read(mediaControlControllerProvider)
@@ -969,7 +974,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
@@ -978,14 +982,15 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     }
 
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final insertedIndex = snapshot.nowPlaying.songIds.length;
+    final currentSongIds =
+        ref.read(nowPlayingQueueOverrideProvider) ??
+        snapshot.nowPlaying.songIds;
+    final insertedIndex = currentSongIds.length;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
-    await ref.read(libraryRepositoryProvider).replaceNowPlaying([
-      ...snapshot.nowPlaying.songIds,
-      ...songIds,
-    ]);
-    ref.invalidate(libraryContentDataProvider);
+    final queueAfterAdd = [...currentSongIds, ...songIds];
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueAfterAdd;
+    await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueAfterAdd);
     _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -998,21 +1003,17 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           }),
       () async {
         final currentSongIds =
-            ref
-                .read(libraryContentDataProvider)
-                .valueOrNull
-                ?.nowPlaying
-                .songIds ??
-            [...snapshot.nowPlaying.songIds, ...songIds];
-        final nextSongIds =
+            ref.read(nowPlayingQueueOverrideProvider) ?? queueAfterAdd;
+        final restoredSongIds =
             currentSongIds.toList()..removeRange(
               insertedIndex,
               min(insertedIndex + songIds.length, currentSongIds.length),
             );
         await ref
             .read(libraryRepositoryProvider)
-            .replaceNowPlaying(nextSongIds);
-        ref.invalidate(libraryContentDataProvider);
+            .replaceNowPlaying(restoredSongIds);
+        ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+            restoredSongIds;
       },
     );
   }
@@ -1034,7 +1035,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     await ref
         .read(libraryRepositoryProvider)
         .addSongsToPlaylist(playlistId, songIds);
-    ref.invalidate(libraryContentDataProvider);
     _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -1049,7 +1049,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
-        ref.invalidate(libraryContentDataProvider);
       },
     );
   }

@@ -112,8 +112,9 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     }
     final songsById = {for (final song in songs) song.id: song};
     final firstSong = songsById[songIds.first]!;
+    _playbackQueueOverride = songIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     await repository.replaceNowPlaying(songIds);
-    ref.invalidate(libraryContentDataProvider);
     _mediaControlController.playTrack(
       mediaControlTrackForSong(firstSong, i18n),
       durationSeconds: firstSong.duration.toDouble(),
@@ -132,10 +133,17 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
     final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
-    final before = snapshot?.nowPlaying.songIds ?? const <int>[];
+    final before =
+        ref.read(nowPlayingQueueOverrideProvider) ??
+        snapshot?.nowPlaying.songIds ??
+        const <int>[];
     final insertedIndex = before.length;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying([...before, song.id]);
-    ref.invalidate(libraryContentDataProvider);
+    final nextSongIds = [...before, song.id];
+    _playbackQueueOverride = nextSongIds;
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
+    );
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -143,18 +151,16 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
       }),
       () {
         final current =
-            ref
-                .read(libraryContentDataProvider)
-                .valueOrNull
-                ?.nowPlaying
-                .songIds ??
-            before;
-        ref
-            .read(libraryRepositoryProvider)
-            .replaceNowPlaying(
-              removePlaybackQueueRange(current, insertedIndex, 1),
-            );
-        ref.invalidate(libraryContentDataProvider);
+            ref.read(nowPlayingQueueOverrideProvider) ?? nextSongIds;
+        final restoredSongIds = removePlaybackQueueRange(
+          current,
+          insertedIndex,
+          1,
+        );
+        _playbackQueueOverride = restoredSongIds;
+        ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+            restoredSongIds;
+        ref.read(libraryRepositoryProvider).replaceNowPlaying(restoredSongIds);
       },
     );
   }
@@ -222,7 +228,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
     await _settingsController.saveViewState(lastPlaylistId: playlist.id);
-    ref.invalidate(libraryContentDataProvider);
+    patchLibraryPlaylistOverride(ref, playlist);
     if (!mounted) {
       return;
     }
@@ -239,13 +245,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     if (currentSnapshot == null) {
       return;
     }
-    await ref
+    final duplicate = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(
           getNextPlaylistName(playlist.name, currentSnapshot.playlists),
           playlist.songIds,
         );
-    ref.invalidate(libraryContentDataProvider);
+    patchLibraryPlaylistOverride(ref, duplicate);
   }
 
   Future<void> _renamePlaylistFromNavigation({
@@ -282,7 +288,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     }
 
     await ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name);
-    ref.invalidate(libraryContentDataProvider);
+    patchLibraryPlaylistOverride(ref, playlist.copyWith(name: name));
   }
 
   Future<void> _deletePlaylistFromNavigation({
@@ -297,12 +303,12 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
       return;
     }
     await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-    ref.invalidate(libraryContentDataProvider);
+    removeLibraryPlaylistOverride(ref, playlist.id);
     _showUndo(
       i18n.t('notification.playlistRemoved', {'name': playlist.name}),
       () async {
         await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
-        ref.invalidate(libraryContentDataProvider);
+        patchLibraryPlaylistOverride(ref, playlist);
       },
     );
   }

@@ -480,7 +480,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                     .read(libraryRepositoryProvider)
                     .reorderPlaylists(playlistIds),
               );
-              ref.invalidate(libraryContentDataProvider);
             },
             onPlaylistRandomPlay: (playlistId) {
               unawaited(_randomPlayPlaylist(ref, playlistId));

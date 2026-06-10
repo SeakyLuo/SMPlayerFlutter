@@ -70,8 +70,17 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
   }
 
   void _notifySaved() {
-    ref.invalidate(libraryContentDataProvider);
     widget.onSaved?.call();
+  }
+
+  LibrarySong _songWithProperties(SongPropertiesSnapshot properties) {
+    return widget.song.copyWith(
+      title: properties.title,
+      artist: properties.artist,
+      artists: properties.artists,
+      album: properties.album,
+      playCount: properties.playCount,
+    );
   }
 
   void _scrollLyricsToTop() {

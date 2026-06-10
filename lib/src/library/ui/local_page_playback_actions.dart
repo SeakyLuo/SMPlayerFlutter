@@ -61,7 +61,10 @@ extension _LocalPagePlaybackActions on _LocalPageState {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[trackId]!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
@@ -69,7 +72,6 @@ extension _LocalPagePlaybackActions on _LocalPageState {
           durationSeconds: song.duration.toDouble(),
           queueIndex: max(0, queueSongIds.indexOf(trackId)),
         );
-    ref.invalidate(libraryContentDataProvider);
     _updateLocalPageState(() {
       _selectedSongIds
         ..clear()
@@ -82,7 +84,10 @@ extension _LocalPagePlaybackActions on _LocalPageState {
 
   void _playNext(int songId) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final queueSongIds =
+        (ref.read(nowPlayingQueueOverrideProvider) ??
+                snapshot.nowPlaying.songIds)
+            .toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
     final insertIndex =
@@ -90,8 +95,10 @@ extension _LocalPagePlaybackActions on _LocalPageState {
             ? selectedQueueIndex + 1
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryContentDataProvider);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
   }
 
   void _jumpToSongKey(

@@ -72,6 +72,8 @@ class ShellOverlayHost extends ConsumerWidget {
                   onPlay: onTogglePlayPause,
                   onPlayTrack: (trackId, queueSongIds) {
                     final song = songsById[trackId]!;
+                    ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+                        queueSongIds;
                     ref
                         .read(libraryRepositoryProvider)
                         .replaceNowPlaying(queueSongIds);
@@ -80,7 +82,6 @@ class ShellOverlayHost extends ConsumerWidget {
                       durationSeconds: song.duration.toDouble(),
                       queueIndex: queueSongIds.indexOf(trackId),
                     );
-                    ref.invalidate(libraryContentDataProvider);
                   },
                   onReveal: onRevealPath,
                   onSaved: () {

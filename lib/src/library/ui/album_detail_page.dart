@@ -34,6 +34,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const _AlbumDetailPanel(child: SmPlayerLoadingState());
@@ -59,6 +60,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
           final snapshot = applyLibraryFavoriteOverrides(
             rawSnapshot,
             favoriteOverrides,
+            songOverrides,
           );
           final routeAlbumName = widget.albumName;
           final albumSongs =
@@ -135,16 +137,18 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 onTogglePlayPause:
                     ref.read(mediaControlControllerProvider).onTogglePlayPause,
                 onAddSongToPlaylist: (playlistId, songId) {
-                  ref
-                      .read(libraryRepositoryProvider)
-                      .addSongToPlaylist(playlistId, songId);
-                  ref.invalidate(libraryContentDataProvider);
+                  unawaited(
+                    ref
+                        .read(libraryRepositoryProvider)
+                        .addSongToPlaylist(playlistId, songId),
+                  );
                 },
                 onAddSongsToPlaylist: (playlistId, songIds) {
-                  ref
-                      .read(libraryRepositoryProvider)
-                      .addSongsToPlaylist(playlistId, songIds);
-                  ref.invalidate(libraryContentDataProvider);
+                  unawaited(
+                    ref
+                        .read(libraryRepositoryProvider)
+                        .addSongsToPlaylist(playlistId, songIds),
+                  );
                 },
                 onToggleFavorite: (songId, favorite) {
                   unawaited(setSongsFavorite(ref, [songId], favorite));
@@ -298,7 +302,9 @@ void _playTrack(
 }
 
 void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds = snapshot.nowPlaying.songIds.toList();
+  final queueSongIds =
+      (ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds)
+          .toList();
   final selectedQueueIndex =
       ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
   final insertIndex =
@@ -306,6 +312,8 @@ void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
           ? selectedQueueIndex + 1
           : queueSongIds.length;
   queueSongIds.insert(insertIndex, songId);
-  ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-  ref.invalidate(libraryContentDataProvider);
+  ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+  unawaited(
+    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  );
 }

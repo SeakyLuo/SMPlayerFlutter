@@ -198,6 +198,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
@@ -244,6 +245,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         final songs = applyFavoriteOverridesToSongs(
           snapshot.songs,
           favoriteOverrides,
+          songOverrides,
         );
         final sortedSongs = _sortSongs(songs, i18n);
         final mediaState = ref.watch(mediaControlControllerProvider).state;
@@ -573,7 +575,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                     unawaited(revealItemInFolder(path));
                                   },
                                   onSaved: () {
-                                    ref.invalidate(libraryContentDataProvider);
+                                    notifyLyricsSaved(ref, dialog.song.id);
                                   },
                                   onClose: () {
                                     setState(() {
@@ -865,7 +867,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(libraryContentDataProvider);
         },
         preferenceLevel: preferenceLevel,
         showSelect: false,
@@ -876,7 +877,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(libraryContentDataProvider);
                 },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -1092,7 +1092,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final firstSong = songsById[queueSongIds.first]!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
@@ -1100,14 +1103,16 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: firstSong.duration.toDouble(),
           queueIndex: 0,
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playTrackInQueue(int trackId, List<int> queueSongIds) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[trackId]!;
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
@@ -1115,12 +1120,14 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueSongIds.indexOf(trackId),
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _playNext(int songId) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final queueSongIds =
+        (ref.read(nowPlayingQueueOverrideProvider) ??
+                snapshot.nowPlaying.songIds)
+            .toList();
     final selectedQueueIndex =
         ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
     final insertIndex =
@@ -1128,8 +1135,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             ? selectedQueueIndex + 1
             : queueSongIds.length;
     queueSongIds.insert(insertIndex, songId);
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref.invalidate(libraryContentDataProvider);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
   }
 
   void _addNextAndPlay(int songId) {
@@ -1137,7 +1146,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final song = songsById[songId]!;
     final mediaState = ref.read(mediaControlControllerProvider).state;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final queueSongIds =
+        (ref.read(nowPlayingQueueOverrideProvider) ??
+                snapshot.nowPlaying.songIds)
+            .toList();
     var queueIndex = queueSongIds.indexOf(songId);
     if (queueIndex == -1) {
       final currentIndex =
@@ -1149,7 +1161,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       queueSongIds.insert(queueIndex, songId);
     }
 
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
     ref
         .read(mediaControlControllerProvider)
         .playTrack(
@@ -1157,7 +1172,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           durationSeconds: song.duration.toDouble(),
           queueIndex: queueIndex,
         );
-    ref.invalidate(libraryContentDataProvider);
   }
 
   void _jumpToKey(Map<String, int> quickJumpMap, String key, bool compact) {

@@ -143,10 +143,14 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       );
       _showUndoNotification(
         () async {
+          final onAddSongsToPlaylist = widget.onAddSongsToPlaylist;
+          if (onAddSongsToPlaylist != null) {
+            await onAddSongsToPlaylist(playlist.id, songIds);
+            return;
+          }
           await ref
               .read(libraryRepositoryProvider)
               .addSongsToPlaylist(playlist.id, songIds);
-          ref.invalidate(libraryContentDataProvider);
         },
         songsRemovedUndoMessage(
           i18n: i18n,
@@ -203,8 +207,10 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       return;
     }
 
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
-    ref.invalidate(libraryContentDataProvider);
+    final playlist = await ref
+        .read(libraryRepositoryProvider)
+        .createPlaylist(name, songIds);
+    _patchLocalPlaylist(playlist);
   }
 
   void _openMusicDialog(

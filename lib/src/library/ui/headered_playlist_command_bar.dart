@@ -251,11 +251,9 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
                 await ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem(preferenceType, preferenceItemId);
-                ref.invalidate(libraryContentDataProvider);
               },
       onSetPreference: (level) async {
         await widget.onSetPreferred!(level);
-        ref.invalidate(libraryContentDataProvider);
       },
     );
     showMenuFlyout(context, items: preferenceItem.submenu);

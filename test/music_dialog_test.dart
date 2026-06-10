@@ -6136,22 +6136,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final albumTabIcon = tester.widget<SvgIcon>(
+    expect(
       find.byKey(const ValueKey('MusicDialog.ElectronIcon.albums')),
+      findsNothing,
     );
-    expect(albumTabIcon.size, 16);
-    expect(albumTabIcon.svg, contains('stroke-width="1.35"'));
-    expect(albumTabIcon.svg, contains('<circle cx="12" cy="12" r="8"'));
-    final albumTab = tester.widget<TextButton>(
-      find.ancestor(
-        of: find.byKey(const ValueKey('MusicDialog.ElectronIcon.albums')),
-        matching: find.byType(TextButton),
-      ),
-    );
-    final albumTabShape =
-        albumTab.style?.shape?.resolve(const <WidgetState>{})
-            as RoundedRectangleBorder?;
-    expect(albumTabShape?.borderRadius, BorderRadius.circular(8));
+    expect(find.widgetWithText(TextButton, 'Album Art'), findsNothing);
 
     await tester.tap(find.widgetWithText(TextButton, 'Delete'));
     await tester.pumpAndSettle();

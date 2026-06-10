@@ -226,8 +226,10 @@ void _playSongIdsForArtistsPage(_ArtistsPageState state, List<int> songIds) {
         durationSeconds: firstSong.duration.toDouble(),
         queueIndex: 0,
       );
-  state.ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds);
-  state.ref.invalidate(libraryContentDataProvider);
+  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
+  unawaited(
+    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds),
+  );
 }
 
 void _playTrackInQueueForArtistsPage(
@@ -239,7 +241,9 @@ void _playTrackInQueueForArtistsPage(
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final song = songsById[songId]!;
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final currentSongIds = snapshot.nowPlaying.songIds;
+  final currentSongIds =
+      state.ref.read(nowPlayingQueueOverrideProvider) ??
+      snapshot.nowPlaying.songIds;
   final queueChanged =
       !_sameSongIdsForArtistsPage(queueSongIds, currentSongIds);
   final resolvedQueueSongIds =
@@ -250,6 +254,8 @@ void _playTrackInQueueForArtistsPage(
   state.ref
       .read(libraryRepositoryProvider)
       .replaceNowPlaying(resolvedQueueSongIds);
+  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+      resolvedQueueSongIds;
   state.ref
       .read(mediaControlControllerProvider)
       .playTrack(
@@ -257,7 +263,6 @@ void _playTrackInQueueForArtistsPage(
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueIndex,
       );
-  state.ref.invalidate(libraryContentDataProvider);
 }
 
 bool _sameSongIdsForArtistsPage(List<int> left, List<int> right) {
@@ -274,7 +279,10 @@ bool _sameSongIdsForArtistsPage(List<int> left, List<int> right) {
 
 void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final previousSongIds = snapshot.nowPlaying.songIds.toList();
+  final previousSongIds =
+      (state.ref.read(nowPlayingQueueOverrideProvider) ??
+              snapshot.nowPlaying.songIds)
+          .toList();
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
   final currentTrackId = mediaState.track.id;
   final currentQueueIndex = mediaState.selectedQueueIndex;
@@ -289,8 +297,10 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
               ? -1
               : previousSongIds.indexOf(currentTrackId));
   final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
-  state.ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-  state.ref.invalidate(libraryContentDataProvider);
+  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
+  unawaited(
+    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
+  );
   final songsById = {for (final song in snapshot.songs) song.id: song};
   showUndoableNotification(
     context: state.context,
@@ -302,7 +312,8 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
       await state.ref
           .read(libraryRepositoryProvider)
           .replaceNowPlaying(previousSongIds);
-      state.ref.invalidate(libraryContentDataProvider);
+      state.ref.read(nowPlayingQueueOverrideProvider.notifier).state =
+          previousSongIds;
     },
   );
 }
@@ -312,7 +323,10 @@ void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
   final songsById = {for (final song in snapshot.songs) song.id: song};
   final song = songsById[songId]!;
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final queueSongIds = snapshot.nowPlaying.songIds.toList();
+  final queueSongIds =
+      (state.ref.read(nowPlayingQueueOverrideProvider) ??
+              snapshot.nowPlaying.songIds)
+          .toList();
   var queueIndex = queueSongIds.indexOf(songId);
   if (queueIndex == -1) {
     final currentIndex =
@@ -324,7 +338,10 @@ void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
     queueSongIds.insert(queueIndex, songId);
   }
 
-  state.ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
+  unawaited(
+    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  );
   state.ref
       .read(mediaControlControllerProvider)
       .playTrack(
@@ -332,7 +349,6 @@ void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
         durationSeconds: song.duration.toDouble(),
         queueIndex: queueIndex,
       );
-  state.ref.invalidate(libraryContentDataProvider);
 }
 
 void _playShuffledSongIdsForArtistsPage(
@@ -512,13 +528,11 @@ MenuFlyoutItem _buildGroupPreferenceMenuItemForArtistsPage(
               await state.ref
                   .read(libraryRepositoryProvider)
                   .removePreferenceItem(preferenceType, label);
-              state.ref.invalidate(libraryContentDataProvider);
             },
     onSetPreference: (level) async {
       await state.ref
           .read(libraryRepositoryProvider)
           .addPreferenceItem(preferenceType, label, label, level);
-      state.ref.invalidate(libraryContentDataProvider);
     },
   );
 }
@@ -559,7 +573,6 @@ Future<void> _showSongContextMenuForArtistsPage(
                 await state.ref
                     .read(libraryRepositoryProvider)
                     .removePreferenceItem('song', '${song.id}');
-                state.ref.invalidate(libraryContentDataProvider);
               },
       onPlay: () {
         state._moveToMusicOrPlay(song.id);
@@ -584,7 +597,6 @@ Future<void> _showSongContextMenuForArtistsPage(
           song.title,
           [song.id],
         );
-        state.ref.invalidate(libraryContentDataProvider);
       },
       onAddToPlaylist: (playlistId) {
         addSongsToPlaylistWithUndo(
@@ -616,7 +628,6 @@ Future<void> _showSongContextMenuForArtistsPage(
         await state.ref
             .read(libraryRepositoryProvider)
             .addPreferenceItem('song', '${song.id}', song.title, level);
-        state.ref.invalidate(libraryContentDataProvider);
       },
       onDelete: () {
         requestDeleteSongFromDisk(
@@ -676,7 +687,6 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   await state.ref.read(libraryRepositoryProvider).createPlaylist(name, [
     song.id,
   ]);
-  state.ref.invalidate(libraryContentDataProvider);
 }
 
 void _showSongAddToMenuForArtistsPage(

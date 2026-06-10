@@ -34,6 +34,10 @@ class PlaylistsPage extends ConsumerStatefulWidget {
 
 class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   List<int>? _previewPlaylistIds;
+  List<int>? _committedPlaylistIds;
+  final _playlistOverrides = <int, LibraryPlaylist>{};
+  final _deletedPlaylistIds = <int>{};
+  List<int>? _nowPlayingSongIdsOverride;
   List<int>? _dragStartPlaylistIds;
   int? _draggingPlaylistId;
   var _playlistDragAccepted = false;
@@ -100,6 +104,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
+    final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
+    final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const SmPlayerLoadingState();
@@ -120,9 +127,14 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             ),
           ),
       data: (rawSnapshot) {
-        final snapshot = applyLibraryFavoriteOverrides(
-          rawSnapshot,
-          favoriteOverrides,
+        final snapshot = _applyLocalSnapshotOverrides(
+          applyLibraryFavoriteOverrides(
+            rawSnapshot,
+            favoriteOverrides,
+            songOverrides,
+            playlistOverrides,
+            deletedPlaylistIds,
+          ),
         );
         final selectedPlaylist =
             snapshot.playlists
@@ -195,11 +207,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         preferenceItemId:
             selectedPlaylist.isBuiltIn ? '6' : selectedPlaylist.id.toString(),
         onPlayTrack: (trackId, queueSongIds) {
-          _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
+          _playTrack(snapshot, i18n, trackId, queueSongIds);
         },
         onMoveToMusicOrPlay: (songId) {
           _playTrack(
-            ref,
             snapshot,
             i18n,
             songId,
@@ -207,30 +218,18 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           );
         },
         onPlayNext: (songId) {
-          _playNext(ref, snapshot, songId);
+          _playNext(snapshot, songId);
         },
         onTogglePlayPause:
             ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onAddSongToPlaylist: (playlistId, songId) {
           unawaited(
-            addSongsToPlaylistWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              playlistId: playlistId,
-              songIds: [songId],
-            ),
+            _addSongsToPlaylistWithoutReload(snapshot, playlistId, [songId]),
           );
         },
         onAddSongsToPlaylist: (playlistId, songIds) {
           unawaited(
-            addSongsToPlaylistWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              playlistId: playlistId,
-              songIds: songIds,
-            ),
+            _addSongsToPlaylistWithoutReload(snapshot, playlistId, songIds),
           );
         },
         onToggleFavorite: (songId, favorite) {
@@ -252,29 +251,37 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           await ref
               .read(libraryRepositoryProvider)
               .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
-          ref.invalidate(libraryContentDataProvider);
+          _patchLocalPlaylist(
+            _copyPlaylistWithSongIds(
+              selectedPlaylist,
+              selectedPlaylist.songIds
+                  .where((songId) => !songIds.contains(songId))
+                  .toList(),
+            ),
+          );
         },
         onRename: (name) {
-          ref
-              .read(libraryRepositoryProvider)
-              .renamePlaylist(selectedPlaylist.id, name);
-          ref.invalidate(libraryContentDataProvider);
+          _renamePlaylistWithoutReload(selectedPlaylist, name);
         },
-        onDelete: () {
-          ref
+        onDelete: () async {
+          await ref
               .read(libraryRepositoryProvider)
               .deletePlaylist(selectedPlaylist.id);
-          ref.invalidate(libraryContentDataProvider);
-          context.go('/playlists');
+          _removeLocalPlaylist(selectedPlaylist.id);
+          if (context.mounted) {
+            context.go('/playlists');
+          }
         },
-        onClear: () {
-          ref
+        onClear: () async {
+          await ref
               .read(libraryRepositoryProvider)
               .removeSongsFromPlaylist(
                 selectedPlaylist.id,
                 songs.map((song) => song.id).toList(),
               );
-          ref.invalidate(libraryContentDataProvider);
+          _patchLocalPlaylist(
+            _copyPlaylistWithSongIds(selectedPlaylist, const []),
+          );
         },
         onSetPreferred: (level) async {
           await ref
@@ -289,7 +296,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                     : selectedPlaylist.name,
                 level,
               );
-          ref.invalidate(libraryContentDataProvider);
         },
         onRecordPlay: () {
           ref
@@ -297,14 +303,22 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               .recordPlaylistPlayed(selectedPlaylist.id);
         },
         onSortSongs: (songIds, sortCriterion) {
-          ref
-              .read(libraryRepositoryProvider)
-              .reorderPlaylistSongs(
-                selectedPlaylist.id,
-                songIds,
-                sortCriterion,
-              );
-          ref.invalidate(libraryContentDataProvider);
+          unawaited(
+            ref
+                .read(libraryRepositoryProvider)
+                .reorderPlaylistSongs(
+                  selectedPlaylist.id,
+                  songIds,
+                  sortCriterion,
+                ),
+          );
+          _patchLocalPlaylist(
+            _copyPlaylistWithSongIds(
+              selectedPlaylist,
+              songIds,
+              sortCriterion: sortCriterion,
+            ),
+          );
         },
         onArtistClick: (artist) {
           context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
@@ -333,7 +347,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .toList();
     final customPlaylistIds =
         customPlaylists.map((playlist) => playlist.id).toList();
-    final orderedIds = _previewPlaylistIds ?? customPlaylistIds;
+    final orderedIds =
+        _previewPlaylistIds ??
+        _committedPlaylistIdsFor(customPlaylistIds) ??
+        customPlaylistIds;
     final playlistById = {
       for (final playlist in customPlaylists) playlist.id: playlist,
     };
@@ -583,7 +600,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                                       playlist.id,
                                                     );
                                                 _playTrack(
-                                                  ref,
                                                   snapshot,
                                                   i18n,
                                                   playlistSongs.first.id,
@@ -645,7 +661,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final playlist = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(name, songIds);
-    ref.invalidate(libraryContentDataProvider);
+    _addLocalPlaylist(playlist);
     if (context.mounted) {
       _persistLastPlaylist(playlist.id);
       context.go('/playlists/${playlist.id}');
@@ -682,11 +698,38 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       currentName: playlist.name,
     );
     if (name != null && name != playlist.name) {
-      await ref
-          .read(libraryRepositoryProvider)
-          .renamePlaylist(playlist.id, name);
-      ref.invalidate(libraryContentDataProvider);
+      _renamePlaylistWithoutReload(playlist, name);
     }
+  }
+
+  void _renamePlaylistWithoutReload(LibraryPlaylist playlist, String name) {
+    _patchLocalPlaylist(_copyPlaylistWithName(playlist, name));
+    unawaited(
+      ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name),
+    );
+  }
+
+  Future<void> _addSongsToPlaylistWithoutReload(
+    LibraryContentData snapshot,
+    int playlistId,
+    List<int> songIds,
+  ) async {
+    if (playlistId == snapshot.favoritePlaylistId) {
+      await setSongsFavorite(ref, songIds, true);
+      return;
+    }
+    await ref
+        .read(libraryRepositoryProvider)
+        .addSongsToPlaylist(playlistId, songIds);
+    final playlist = snapshot.playlists.firstWhere(
+      (playlist) => playlist.id == playlistId,
+    );
+    _patchLocalPlaylist(
+      _copyPlaylistWithSongIds(
+        playlist,
+        _addUniqueSongIds(playlist.songIds, songIds),
+      ),
+    );
   }
 
   Future<void> _deletePlaylist(
@@ -705,7 +748,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     );
     if (confirmed) {
       await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-      ref.invalidate(libraryContentDataProvider);
+      _removeLocalPlaylist(playlist.id);
     }
   }
 
@@ -752,13 +795,13 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     LibraryContentData snapshot,
     LibraryPlaylist playlist,
   ) async {
-    await ref
+    final duplicatedPlaylist = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(
           getNextPlaylistName(playlist.name, snapshot.playlists),
           playlist.songIds,
         );
-    ref.invalidate(libraryContentDataProvider);
+    _addLocalPlaylist(duplicatedPlaylist);
   }
 
   void _previewPlaylistMoveToPoint(
@@ -831,8 +874,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     if (nextPlaylistIds != null &&
         startPlaylistIds != null &&
         !_idsEqual(startPlaylistIds, nextPlaylistIds)) {
-      ref.read(libraryRepositoryProvider).reorderPlaylists(nextPlaylistIds);
-      ref.invalidate(libraryContentDataProvider);
+      _committedPlaylistIds = nextPlaylistIds;
+      unawaited(
+        ref.read(libraryRepositoryProvider).reorderPlaylists(nextPlaylistIds),
+      );
     }
     _clearPlaylistDrag();
   }
@@ -845,6 +890,117 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       _playlistDragAccepted = false;
       _playlistDragAnchorOffset = null;
     });
+  }
+
+  List<int>? _committedPlaylistIdsFor(List<int> currentPlaylistIds) {
+    final committedPlaylistIds = _committedPlaylistIds;
+    if (committedPlaylistIds == null) {
+      return null;
+    }
+    if (!_idsContainSameItems(committedPlaylistIds, currentPlaylistIds)) {
+      _committedPlaylistIds = null;
+      return null;
+    }
+    return committedPlaylistIds;
+  }
+
+  void _patchLocalPlaylist(LibraryPlaylist playlist) {
+    setState(() {
+      _deletedPlaylistIds.remove(playlist.id);
+      _playlistOverrides[playlist.id] = playlist;
+    });
+  }
+
+  void _addLocalPlaylist(LibraryPlaylist playlist) {
+    _patchLocalPlaylist(playlist);
+  }
+
+  void _removeLocalPlaylist(int playlistId) {
+    setState(() {
+      _deletedPlaylistIds.add(playlistId);
+      _playlistOverrides.remove(playlistId);
+      _committedPlaylistIds =
+          _committedPlaylistIds
+              ?.where(
+                (committedPlaylistId) => committedPlaylistId != playlistId,
+              )
+              .toList();
+    });
+  }
+
+  void _patchNowPlaying(List<int> songIds) {
+    final patchedSongIds = songIds.toList();
+    setState(() {
+      _nowPlayingSongIdsOverride = patchedSongIds;
+    });
+    ref.read(nowPlayingQueueOverrideProvider.notifier).state = patchedSongIds;
+  }
+
+  void _playTrack(
+    LibraryContentData snapshot,
+    SmPlayerI18n i18n,
+    int trackId,
+    List<int> queueSongIds,
+  ) {
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final song = songsById[trackId]!;
+    _patchNowPlaying(queueSongIds);
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
+    ref
+        .read(mediaControlControllerProvider)
+        .playTrack(
+          mediaControlTrackForSong(song, i18n),
+          durationSeconds: song.duration.toDouble(),
+          queueIndex: queueSongIds.indexOf(trackId),
+        );
+  }
+
+  void _playNext(LibraryContentData snapshot, int songId) {
+    final queueSongIds = snapshot.nowPlaying.songIds.toList();
+    final currentTrackId =
+        ref.read(mediaControlControllerProvider).state.track.id;
+    final currentIndex =
+        currentTrackId == null ? -1 : queueSongIds.indexOf(currentTrackId);
+    queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
+    _patchNowPlaying(queueSongIds);
+    unawaited(
+      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    );
+  }
+
+  LibraryContentData _applyLocalSnapshotOverrides(LibraryContentData snapshot) {
+    if (_playlistOverrides.isEmpty &&
+        _deletedPlaylistIds.isEmpty &&
+        _nowPlayingSongIdsOverride == null) {
+      return snapshot;
+    }
+    var playlists =
+        snapshot.playlists
+            .where((playlist) => !_deletedPlaylistIds.contains(playlist.id))
+            .map((playlist) => _playlistOverrides[playlist.id] ?? playlist)
+            .toList();
+    final playlistIds = playlists.map((playlist) => playlist.id).toSet();
+    for (final playlist in _playlistOverrides.values) {
+      if (playlistIds.contains(playlist.id) ||
+          _deletedPlaylistIds.contains(playlist.id)) {
+        continue;
+      }
+      playlists = _insertCustomPlaylistFirst(playlists, playlist);
+      playlistIds.add(playlist.id);
+    }
+    return _copySnapshotWithPlaylists(
+      snapshot,
+      playlists,
+      nowPlaying:
+          _nowPlayingSongIdsOverride == null
+              ? snapshot.nowPlaying
+              : _copyNowPlayingWithSongIds(
+                snapshot.nowPlaying,
+                _nowPlayingSongIdsOverride!,
+              ),
+    );
   }
 
   Rect _playlistDragRectFor(Offset pointerPosition) {
@@ -918,41 +1074,100 @@ Future<String?> _requestPlaylistName({
   );
 }
 
-void _playTrack(
-  WidgetRef ref,
-  LibraryContentData snapshot,
-  SmPlayerI18n i18n,
-  int trackId,
-  List<int> queueSongIds,
-) {
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  final song = songsById[trackId]!;
-  unawaited(
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
-  );
-  ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(song, i18n),
-        durationSeconds: song.duration.toDouble(),
-        queueIndex: queueSongIds.indexOf(trackId),
-      );
-}
-
-void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds = snapshot.nowPlaying.songIds.toList();
-  final currentTrackId =
-      ref.read(mediaControlControllerProvider).state.track.id;
-  final currentIndex =
-      currentTrackId == null ? -1 : queueSongIds.indexOf(currentTrackId);
-  queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
-  ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-  ref.invalidate(libraryContentDataProvider);
-}
-
 bool _idsEqual(List<int> left, List<int> right) {
   return left.length == right.length &&
       left.indexed.every((entry) => entry.$2 == right[entry.$1]);
+}
+
+bool _idsContainSameItems(List<int> left, List<int> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  final rightIds = right.toSet();
+  return left.every(rightIds.contains);
+}
+
+List<int> _addUniqueSongIds(List<int> currentSongIds, List<int> songIds) {
+  final nextSongIds = currentSongIds.toList();
+  for (final songId in songIds) {
+    if (!nextSongIds.contains(songId)) {
+      nextSongIds.add(songId);
+    }
+  }
+  return nextSongIds;
+}
+
+LibraryPlaylist _copyPlaylistWithName(LibraryPlaylist playlist, String name) {
+  return LibraryPlaylist(
+    id: playlist.id,
+    name: name,
+    priority: playlist.priority,
+    songCount: playlist.songCount,
+    songIds: playlist.songIds,
+    sortCriterion: playlist.sortCriterion,
+    isBuiltIn: playlist.isBuiltIn,
+  );
+}
+
+LibraryPlaylist _copyPlaylistWithSongIds(
+  LibraryPlaylist playlist,
+  List<int> songIds, {
+  PlaylistSortCriterion? sortCriterion,
+}) {
+  return LibraryPlaylist(
+    id: playlist.id,
+    name: playlist.name,
+    priority: playlist.priority,
+    songCount: songIds.length,
+    songIds: songIds,
+    sortCriterion: sortCriterion ?? playlist.sortCriterion,
+    isBuiltIn: playlist.isBuiltIn,
+  );
+}
+
+NowPlayingSnapshot _copyNowPlayingWithSongIds(
+  NowPlayingSnapshot snapshot,
+  List<int> songIds,
+) {
+  return NowPlayingSnapshot(playlistId: snapshot.playlistId, songIds: songIds);
+}
+
+List<LibraryPlaylist> _insertCustomPlaylistFirst(
+  List<LibraryPlaylist> playlists,
+  LibraryPlaylist playlist,
+) {
+  final index = playlists.indexWhere((item) => !item.isBuiltIn);
+  final nextPlaylists = playlists.toList();
+  nextPlaylists.insert(index == -1 ? nextPlaylists.length : index, playlist);
+  return nextPlaylists;
+}
+
+LibraryContentData _copySnapshotWithPlaylists(
+  LibraryContentData snapshot,
+  List<LibraryPlaylist> playlists, {
+  required NowPlayingSnapshot nowPlaying,
+}) {
+  return LibraryContentData(
+    songs: snapshot.songs,
+    recentSongs: snapshot.recentSongs,
+    recentPlaylists: snapshot.recentPlaylists,
+    recentAlbums: snapshot.recentAlbums,
+    recentArtists: snapshot.recentArtists,
+    recentSearches: snapshot.recentSearches,
+    playlists: playlists,
+    folders: snapshot.folders,
+    favoritePlaylistId: snapshot.favoritePlaylistId,
+    nowPlaying: nowPlaying,
+    hasLibrary: snapshot.hasLibrary,
+    sortCriterion: snapshot.sortCriterion,
+    albumsSort: snapshot.albumsSort,
+    showCount: snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        snapshot.hideMultiSelectCommandBarAfterOperation,
+    localViewMode: snapshot.localViewMode,
+    rootPath: snapshot.rootPath,
+    databasePath: snapshot.databasePath,
+  );
 }
 
 class _PlaylistDropPlaceholder extends StatelessWidget {

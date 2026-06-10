@@ -1,7 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -82,16 +81,7 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
           navLabel: i18n.t('song.albumArt'),
           ariaLabel: i18n.t('song.albumArt'),
           onClose: widget.onClose,
-          navChildren: [
-            PopupDialogTab(
-              label: i18n.t('song.albumArt'),
-              iconWidget: const _AlbumArtworkDialogAlbumsIcon(),
-              selected: true,
-              first: true,
-              last: true,
-              onPressed: () {},
-            ),
-          ],
+          navChildren: const [],
           afterNav:
               _statusMessage.isEmpty
                   ? null
@@ -306,27 +296,6 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
       _showDeleteConfirm = false;
       _statusMessage = context.smPlayerI18n.t('song.albumArtReset');
     });
-  }
-}
-
-class _AlbumArtworkDialogAlbumsIcon extends StatelessWidget {
-  const _AlbumArtworkDialogAlbumsIcon();
-
-  static const _svg =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>';
-
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        IconTheme.of(context).color ??
-        DefaultTextStyle.of(context).style.color ??
-        Colors.black;
-    return SvgIcon(
-      key: const ValueKey('MusicDialog.ElectronIcon.albums'),
-      svg: _svg,
-      size: 16,
-      color: color,
-    );
   }
 }
 

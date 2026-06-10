@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -156,7 +157,7 @@ void main() {
       tester.getTopLeft(
         find.byKey(const ValueKey('popup-dialog-mobile-back-button')),
       ),
-      const Offset(8, 0),
+      const Offset(SmPlayerShellMetrics.macOSTitlebarLeadingInset, 0),
     );
     expect(
       tester.getSize(
@@ -437,6 +438,75 @@ void main() {
     expect(messageText.style?.fontSize, 15);
     expect(messageText.style?.fontWeight, isNull);
     expect(messageText.style?.height, 1.55);
+  });
+
+  testWidgets('Popup text primary confirm hover uses Electron strong accent', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: Builder(
+          builder:
+              (context) => TextButton(
+                onPressed: () {
+                  showPopupTextDialog(
+                    context: context,
+                    title: 'Create New Playlist',
+                    initialValue: 'Playlist',
+                    confirmLabel: 'Create',
+                    i18n: context.smPlayerI18n,
+                  );
+                },
+                child: const Text('Open input'),
+              ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open input'));
+    await tester.pumpAndSettle();
+
+    final confirmButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Create'),
+    );
+    final confirmText = tester.widget<Text>(
+      find.descendant(
+        of: find.widgetWithText(TextButton, 'Create'),
+        matching: find.text('Create'),
+      ),
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      PopupDialogColors.accent,
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.hovered,
+      }),
+      PopupDialogColors.accentStrong,
+    );
+    expect(
+      confirmButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.pressed,
+      }),
+      PopupDialogColors.accentStrong,
+    );
+    expect(
+      confirmButton.style?.overlayColor?.resolve(const <WidgetState>{
+        WidgetState.hovered,
+      }),
+      Colors.transparent,
+    );
+    expect(confirmText.style?.height, 1);
+    expect(confirmText.textHeightBehavior?.applyHeightToFirstAscent, isFalse);
+    expect(confirmText.textHeightBehavior?.applyHeightToLastDescent, isFalse);
   });
 }
 

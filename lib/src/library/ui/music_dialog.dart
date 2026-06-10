@@ -787,6 +787,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         return;
       }
       _applyProperties(nextProperties);
+      patchLibrarySongOverride(ref, _songWithProperties(nextProperties));
       _notifySaved();
       _showMessage(i18n.t('song.propertiesUpdated'));
     } catch (_) {
@@ -817,6 +818,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     setState(() {
       _applyProperties(nextProperties);
     });
+    patchLibrarySongOverride(ref, _songWithProperties(nextProperties));
     _notifySaved();
   }
 
@@ -941,7 +943,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       if (!mounted) {
         return;
       }
-      ref.invalidate(libraryContentDataProvider);
       if (songId == widget.song.id) {
         _lyricsRawText = rawLyrics;
         _originalLyricsText = rawLyrics;

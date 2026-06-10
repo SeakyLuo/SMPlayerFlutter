@@ -163,11 +163,21 @@ class _ShellNavigationContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+    final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
+    final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
     final i18n =
         ref.watch(smPlayerI18nProvider).value ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
     final recentSearches =
         snapshot?.recentSearches ?? const <SearchHistoryEntry>[];
+    final playlists =
+        snapshot == null
+            ? const <LibraryPlaylist>[]
+            : applyLibraryPlaylistOverridesToPlaylists(
+              snapshot.playlists,
+              playlistOverrides,
+              deletedPlaylistIds,
+            );
     return MainNavigationView(
       isPaneOpen: layout.isNavigationPaneVisible,
       showTitlebar: layout.navigationMode != SmPlayerNavigationMode.minimal,
@@ -175,7 +185,7 @@ class _ShellNavigationContent extends ConsumerWidget {
       searchText: searchText,
       i18n: i18n,
       canGoBack: layout.canGoBack,
-      playlists: snapshot?.playlists ?? const [],
+      playlists: playlists,
       recentSearches: recentSearches,
       onPaneToggle: onPaneToggle,
       onGoBack: onGoBack,

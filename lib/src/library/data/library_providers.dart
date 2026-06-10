@@ -37,6 +37,21 @@ final libraryFavoriteOverridesProvider = StateProvider<Map<int, bool>>((ref) {
   return const {};
 });
 
+final librarySongOverridesProvider = StateProvider<Map<int, LibrarySong>>((
+  ref,
+) {
+  return const {};
+});
+
+final libraryPlaylistOverridesProvider =
+    StateProvider<Map<int, LibraryPlaylist>>((ref) {
+      return const {};
+    });
+
+final libraryDeletedPlaylistIdsProvider = StateProvider<Set<int>>((ref) {
+  return const {};
+});
+
 final nowPlayingQueueOverrideProvider = StateProvider<List<int>?>((ref) {
   return null;
 });
@@ -74,40 +89,73 @@ void patchLibraryFavoriteOverrides(
   };
 }
 
+void patchLibrarySongOverride(WidgetRef ref, LibrarySong song) {
+  final notifier = ref.read(librarySongOverridesProvider.notifier);
+  notifier.state = {...notifier.state, song.id: song};
+}
+
+void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
+  final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
+  final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
+  deletedNotifier.state = {...deletedNotifier.state}..remove(playlist.id);
+  overrideNotifier.state = {...overrideNotifier.state, playlist.id: playlist};
+}
+
+void removeLibraryPlaylistOverride(WidgetRef ref, int playlistId) {
+  final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
+  final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
+  overrideNotifier.state = {...overrideNotifier.state}..remove(playlistId);
+  deletedNotifier.state = {...deletedNotifier.state, playlistId};
+}
+
 LibraryContentData applyLibraryFavoriteOverrides(
   LibraryContentData snapshot,
-  Map<int, bool> favoriteOverrides,
-) {
-  if (favoriteOverrides.isEmpty) {
+  Map<int, bool> favoriteOverrides, [
+  Map<int, LibrarySong> songOverrides = const {},
+  Map<int, LibraryPlaylist> playlistOverrides = const {},
+  Set<int> deletedPlaylistIds = const {},
+]) {
+  if (favoriteOverrides.isEmpty &&
+      songOverrides.isEmpty &&
+      playlistOverrides.isEmpty &&
+      deletedPlaylistIds.isEmpty) {
     return snapshot;
   }
   final songs =
       snapshot.songs
-          .map((song) => _applyFavoriteOverrideToSong(song, favoriteOverrides))
+          .map(
+            (song) => _applyFavoriteOverrideToSong(
+              _applySongOverrideToSong(song, songOverrides),
+              favoriteOverrides,
+            ),
+          )
           .toList();
   final recentSongs =
       snapshot.recentSongs
           .map(
-            (song) =>
-                _applyFavoriteOverrideToRecentSong(song, favoriteOverrides),
+            (song) => _applyFavoriteOverrideToRecentSong(
+              _applySongOverrideToRecentSong(song, songOverrides),
+              favoriteOverrides,
+            ),
           )
           .toList();
   final favoritePlaylistSongIds = _patchedFavoritePlaylistSongIds(
     snapshot,
+    songs,
     favoriteOverrides,
   );
-  final playlists =
-      snapshot.playlists
-          .map(
-            (playlist) =>
-                playlist.id == snapshot.favoritePlaylistId
-                    ? _copyPlaylistWithSongIds(
-                      playlist,
-                      favoritePlaylistSongIds,
-                    )
-                    : playlist,
-          )
-          .toList();
+  final playlists = applyLibraryPlaylistOverridesToPlaylists(
+    snapshot.playlists
+        .map(
+          (playlist) =>
+              playlist.id == snapshot.favoritePlaylistId
+                  ? _copyPlaylistWithSongIds(playlist, favoritePlaylistSongIds)
+                  : playlist,
+        )
+        .toList(),
+    playlistOverrides,
+    deletedPlaylistIds,
+  );
   return LibraryContentData(
     songs: songs,
     recentSongs: recentSongs,
@@ -131,16 +179,79 @@ LibraryContentData applyLibraryFavoriteOverrides(
   );
 }
 
+List<LibraryPlaylist> applyLibraryPlaylistOverridesToPlaylists(
+  List<LibraryPlaylist> playlists,
+  Map<int, LibraryPlaylist> playlistOverrides,
+  Set<int> deletedPlaylistIds,
+) {
+  if (playlistOverrides.isEmpty && deletedPlaylistIds.isEmpty) {
+    return playlists;
+  }
+  var nextPlaylists =
+      playlists
+          .where((playlist) => !deletedPlaylistIds.contains(playlist.id))
+          .map((playlist) => playlistOverrides[playlist.id] ?? playlist)
+          .toList();
+  final playlistIds = nextPlaylists.map((playlist) => playlist.id).toSet();
+  for (final playlist in playlistOverrides.values) {
+    if (playlistIds.contains(playlist.id) ||
+        deletedPlaylistIds.contains(playlist.id)) {
+      continue;
+    }
+    nextPlaylists = _insertCustomPlaylistFirst(nextPlaylists, playlist);
+    playlistIds.add(playlist.id);
+  }
+  return nextPlaylists;
+}
+
 List<LibrarySong> applyFavoriteOverridesToSongs(
   List<LibrarySong> songs,
-  Map<int, bool> favoriteOverrides,
-) {
-  if (favoriteOverrides.isEmpty) {
+  Map<int, bool> favoriteOverrides, [
+  Map<int, LibrarySong> songOverrides = const {},
+]) {
+  if (favoriteOverrides.isEmpty && songOverrides.isEmpty) {
     return songs;
   }
   return songs
-      .map((song) => _applyFavoriteOverrideToSong(song, favoriteOverrides))
+      .map(
+        (song) => _applyFavoriteOverrideToSong(
+          _applySongOverrideToSong(song, songOverrides),
+          favoriteOverrides,
+        ),
+      )
       .toList();
+}
+
+LibrarySong _applySongOverrideToSong(
+  LibrarySong song,
+  Map<int, LibrarySong> songOverrides,
+) {
+  return songOverrides[song.id] ?? song;
+}
+
+RecentLibrarySong _applySongOverrideToRecentSong(
+  RecentLibrarySong song,
+  Map<int, LibrarySong> songOverrides,
+) {
+  final override = songOverrides[song.id];
+  if (override == null) {
+    return song;
+  }
+  return RecentLibrarySong(
+    id: override.id,
+    path: override.path,
+    title: override.title,
+    artist: override.artist,
+    artists: override.artists,
+    album: override.album,
+    duration: override.duration,
+    playCount: override.playCount,
+    lyricsOffsetMs: override.lyricsOffsetMs,
+    dateAdded: override.dateAdded,
+    favorite: override.favorite,
+    thumbnailPath: override.thumbnailPath,
+    playedAt: song.playedAt,
+  );
 }
 
 LibrarySong _applyFavoriteOverrideToSong(
@@ -194,17 +305,16 @@ RecentLibrarySong _applyFavoriteOverrideToRecentSong(
 
 List<int> _patchedFavoritePlaylistSongIds(
   LibraryContentData snapshot,
+  List<LibrarySong> songs,
   Map<int, bool> favoriteOverrides,
 ) {
-  final favoritePlaylist = snapshot.playlists
-      .where((playlist) => playlist.id == snapshot.favoritePlaylistId)
-      .firstOrNull;
+  final favoritePlaylist =
+      snapshot.playlists
+          .where((playlist) => playlist.id == snapshot.favoritePlaylistId)
+          .firstOrNull;
   final ids =
       favoritePlaylist?.songIds.toSet() ??
-      snapshot.songs
-          .where((song) => song.favorite)
-          .map((song) => song.id)
-          .toSet();
+      songs.where((song) => song.favorite).map((song) => song.id).toSet();
   for (final entry in favoriteOverrides.entries) {
     if (entry.value) {
       ids.add(entry.key);
@@ -228,4 +338,14 @@ LibraryPlaylist _copyPlaylistWithSongIds(
     sortCriterion: playlist.sortCriterion,
     isBuiltIn: playlist.isBuiltIn,
   );
+}
+
+List<LibraryPlaylist> _insertCustomPlaylistFirst(
+  List<LibraryPlaylist> playlists,
+  LibraryPlaylist playlist,
+) {
+  final index = playlists.indexWhere((item) => !item.isBuiltIn);
+  final nextPlaylists = playlists.toList();
+  nextPlaylists.insert(index == -1 ? nextPlaylists.length : index, playlist);
+  return nextPlaylists;
 }

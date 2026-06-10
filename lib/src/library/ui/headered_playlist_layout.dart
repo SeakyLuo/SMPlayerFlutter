@@ -24,8 +24,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           ),
         ) ??
         true;
+    final playlists = _effectivePlaylists(widget.playlists);
     final customPlaylists =
-        widget.playlists
+        playlists
             .where((playlist) => !playlist.isBuiltIn)
             .map(
               (playlist) => MultiSelectCommandBarPlaylist(
@@ -37,9 +38,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
             .toList();
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
-            ? widget.playlists.firstWhere(
-              (playlist) => playlist.name == widget.title,
-            )
+            ? playlists.firstWhere((playlist) => playlist.name == widget.title)
             : null;
     final currentPlaylistName =
         widget.type == HeaderedPlaylistType.favorites
@@ -257,7 +256,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
               onPlayTrack: widget.onPlayTrack,
               onReveal: _revealPath,
               onSaved: () {
-                ref.invalidate(libraryContentDataProvider);
+                notifyLyricsSaved(ref, dialog.song.id);
               },
               onClose: () {
                 _updateState(() {
