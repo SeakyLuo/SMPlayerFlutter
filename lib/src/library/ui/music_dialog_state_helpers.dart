@@ -18,6 +18,11 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
     return artists;
   }
 
+  int _parseElectronNumericField(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(digits) ?? 0;
+  }
+
   void _requestClose() {
     if (!_lyricsDirty) {
       widget.onClose();

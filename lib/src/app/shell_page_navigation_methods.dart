@@ -5,18 +5,20 @@ part of 'shell_page.dart';
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
     final restoredTarget =
-        target == '/playlists' || target == '/albums'
+        target == '/playlists' ||
+                target == '/albums' ||
+                target == '/now-playing'
             ? target
             : _routeMemory[target] ?? target;
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
-    if (targetPath == '/now-playing/full') {
+    if (targetPath == '/immersive-mode') {
       unawaited(
         _settingsController.saveDisplayModeState(
           lastDisplayMode: SmPlayerDisplayMode.immersive,
         ),
       );
-    } else if (currentPath == '/now-playing/full') {
+    } else if (currentPath == '/immersive-mode') {
       unawaited(
         _settingsController.saveDisplayModeState(
           lastDisplayMode: SmPlayerDisplayMode.normal,
@@ -25,7 +27,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
     setState(() {
       _currentPath = restoredTarget;
-      if (targetPath == '/now-playing/full') {
+      if (targetPath == '/immersive-mode') {
         _isWindowFullScreen = false;
       }
     });
@@ -94,18 +96,15 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
 
   void _enterMiniMode() {
     final currentPath = widget.currentPath ?? _currentPath;
-    final currentLocation = widget.currentLocation ?? currentPath;
     final exitTarget =
-        currentPath == '/now-playing/full'
-            ? nowPlayingFullReturnLocationFromLocation(currentLocation)
-            : nowPlayingRoutePath;
+        currentPath == '/immersive-mode' ? nowPlayingRoutePath : currentPath;
     setState(() {
       _isMiniMode = true;
-      if (currentPath == '/now-playing/full') {
+      if (currentPath == '/immersive-mode') {
         _currentPath = exitTarget;
       }
     });
-    if (currentPath == '/now-playing/full') {
+    if (currentPath == '/immersive-mode') {
       widget.onNavigate?.call(exitTarget);
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }

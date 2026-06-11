@@ -56,7 +56,9 @@ class _RecentSongGrid extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gridWidth = constraints.maxWidth - _recentSongGridRowRightPadding;
+        final minimal = constraints.maxWidth < _recentMinimalContentBreakpoint;
+        final rowRightPadding = minimal ? 0.0 : _recentSongGridRowRightPadding;
+        final gridWidth = constraints.maxWidth - rowRightPadding;
         final metrics = _RecentSongTileMetrics.forWidth(
           gridWidth,
           viewportWidth: MediaQuery.sizeOf(context).width,
@@ -66,6 +68,7 @@ class _RecentSongGrid extends StatelessWidget {
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
+          trailingEdgeOffset: minimal ? _recentMinimalPageHorizontalPadding : 0,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,
@@ -101,9 +104,7 @@ class _RecentSongGrid extends StatelessWidget {
                       ),
                     ),
                     SliverPadding(
-                      padding: const EdgeInsets.only(
-                        right: _recentSongGridRowRightPadding,
-                      ),
+                      padding: EdgeInsets.only(right: rowRightPadding),
                       sliver: SliverGrid.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,

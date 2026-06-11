@@ -396,6 +396,60 @@ void main() {
     },
   );
 
+  testWidgets('PlaylistControlItem artwork shadow follows Electron hover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: const Scaffold(
+            body: PlaylistControlItem(
+              song: _song,
+              current: false,
+              playing: false,
+              selected: false,
+              selectionMode: false,
+              onPlayTrack: _noop,
+              onTogglePlayPause: _noop,
+              onToggleSelection: _noop,
+              onOpenContextMenu: _noopPosition,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    BoxDecoration artworkDecoration() {
+      return tester
+              .widget<AnimatedContainer>(
+                find.byKey(const ValueKey('PlaylistControlItem.ArtworkShadow')),
+              )
+              .decoration!
+          as BoxDecoration;
+    }
+
+    expect(artworkDecoration().boxShadow, isEmpty);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+      location: tester.getCenter(find.byType(PlaylistControlItem)),
+    );
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    final shadow = artworkDecoration().boxShadow!.single;
+    expect(shadow.color.r, closeTo(32 / 255, 0.001));
+    expect(shadow.color.g, closeTo(45 / 255, 0.001));
+    expect(shadow.color.b, closeTo(63 / 255, 0.001));
+    expect(shadow.color.a, closeTo(0.24, 0.001));
+    expect(shadow.offset, const Offset(0, 8));
+    expect(shadow.blurRadius, 18);
+  });
+
   testWidgets('PlaylistControlItem keeps current paused wave static', (
     tester,
   ) async {
@@ -532,6 +586,46 @@ void main() {
       expect(tester.widget<Text>(find.text('3:47')).style?.fontSize, 14);
     },
   );
+
+  testWidgets('PlaylistControlItem compact duration keeps shared right inset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: const Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: PlaylistControlItem(
+                song: _threeFortySevenSong,
+                current: false,
+                playing: false,
+                selected: false,
+                selectionMode: false,
+                variant: PlaylistControlItemVariant.compact,
+                onPlayTrack: _noop,
+                onTogglePlayPause: _noop,
+                onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
+                onPlayNextClick: _noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final rowRect = tester.getRect(find.byType(PlaylistControlItem));
+    final durationRect = tester.getRect(
+      find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+    );
+
+    expect(rowRect.right - durationRect.right, 20);
+  });
 
   testWidgets(
     'PlaylistControlItem explicit narrow duration stays on one line',

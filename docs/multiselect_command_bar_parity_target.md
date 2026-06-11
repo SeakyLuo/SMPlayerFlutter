@@ -88,7 +88,7 @@ Electron is the only source of truth. Items without runtime screenshot or intera
   - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/library/ui/headered_playlist_layout.dart`
   - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/recent/recent_page.dart`
   - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/now_playing_page.dart`
-  - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/now_playing_full_page.dart`
+  - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/immersive_mode_page.dart`
 
 ## Acceptance Matrix
 

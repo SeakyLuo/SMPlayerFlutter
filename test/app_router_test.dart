@@ -17,7 +17,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -131,17 +131,56 @@ void main() {
     expect(resolveRestoredPage('/settings'), '/songs');
   });
 
-  test('now playing full route keeps the Electron overlay return location', () {
-    final route = nowPlayingFullRouteFrom('/albums?album=Blue Hour');
-    final uri = Uri.parse(route);
+  test('immersive mode route uses a stable path without return query', () {
+    final uri = Uri.parse(immersiveModeRoutePath);
 
-    expect(uri.path, '/now-playing/full');
-    expect(uri.queryParameters['from'], '/albums?album=Blue Hour');
-    expect(
-      nowPlayingFullReturnLocationFromLocation(route),
-      '/albums?album=Blue Hour',
-    );
+    expect(uri.path, '/immersive-mode');
+    expect(uri.queryParameters, isEmpty);
   });
+
+  testWidgets(
+    'now playing navigation tab opens root page after immersive mode',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1300, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final router = createSmPlayerRouter();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+            libraryContentDataProvider.overrideWith(
+              (ref) async => emptyLibraryData,
+            ),
+            shellNavigationDataProvider.overrideWith(
+              (ref) async => _shellNavigationData(emptyLibraryData),
+            ),
+          ],
+          child: _RouterTestApp(router: router, i18n: testI18n),
+        ),
+      );
+      await _pumpRouter(tester);
+
+      router.go('/immersive-mode');
+      await _pumpRouter(tester);
+      expect(router.routeInformationProvider.value.uri.path, '/immersive-mode');
+
+      router.go('/songs');
+      await _pumpRouter(tester);
+      expect(router.routeInformationProvider.value.uri.path, '/songs');
+
+      await tester.tap(
+        find.byKey(const ValueKey('NowPlayingItem')).hitTestable(),
+      );
+      await _pumpRouter(tester);
+
+      expect(router.routeInformationProvider.value.uri.path, '/now-playing');
+    },
+  );
 
   testWidgets('router restores the Electron last page on startup', (
     tester,

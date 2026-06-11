@@ -54,7 +54,7 @@ class _RecentPlayedFilterBar extends StatelessWidget {
   }
 }
 
-class _FilterButton extends StatelessWidget {
+class _FilterButton extends StatefulWidget {
   const _FilterButton({
     required this.visualKey,
     required this.active,
@@ -70,8 +70,24 @@ class _FilterButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  State<_FilterButton> createState() => _FilterButtonState();
+}
+
+class _FilterButtonState extends State<_FilterButton> {
+  var _hovered = false;
+  var _focused = false;
+  var _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = RecentThemeColors.of(context);
+    final hovered = !widget.active && (_hovered || _focused || _pressed);
+    final foreground =
+        widget.active
+            ? colors.playedFilterActiveText
+            : hovered
+            ? colors.appBarTabHoverText
+            : colors.playedFilterText;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
@@ -81,50 +97,71 @@ class _FilterButton extends StatelessWidget {
           widthFactor: 1,
           child: InkWell(
             borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
-            hoverColor: colors.playedFilterSurface.withValues(alpha: 0.72),
-            focusColor: colors.playedFilterSurface.withValues(alpha: 0.72),
-            highlightColor: colors.playedFilterSurface.withValues(alpha: 0.72),
-            onTap: onPressed,
+            hoverColor: Colors.transparent,
+            focusColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            onHover: (value) {
+              if (_hovered != value) {
+                setState(() {
+                  _hovered = value;
+                });
+              }
+            },
+            onFocusChange: (value) {
+              if (_focused != value) {
+                setState(() {
+                  _focused = value;
+                });
+              }
+            },
+            onHighlightChanged: (value) {
+              if (_pressed != value) {
+                setState(() {
+                  _pressed = value;
+                });
+              }
+            },
+            onTap: widget.onPressed,
             child: Container(
-              key: visualKey,
+              key: widget.visualKey,
               height: 36,
               constraints: const BoxConstraints(minWidth: 72),
               padding: const EdgeInsets.symmetric(horizontal: 18),
               decoration: BoxDecoration(
                 color:
-                    active
+                    widget.active
                         ? colors.playedFilterActiveSurface
+                        : hovered
+                        ? colors.appBarTabHoverSurface
                         : colors.playedFilterSurface,
                 border: Border.all(
                   color:
-                      active
+                      widget.active
                           ? colors.playedFilterActiveBorder
+                          : hovered
+                          ? colors.appBarTabHoverBorder
                           : colors.playedFilterBorder,
                 ),
                 borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
-                boxShadow: active ? colors.playedFilterActiveShadow : const [],
+                boxShadow:
+                    widget.active ? colors.playedFilterActiveShadow : const [],
               ),
               child: IconTheme(
-                data: IconThemeData(
-                  size: 18,
-                  color:
-                      active
-                          ? colors.playedFilterActiveText
-                          : colors.playedFilterText,
-                ),
+                data: IconThemeData(size: 18, color: foreground),
                 child: DefaultTextStyle.merge(
                   style: TextStyle(
-                    color:
-                        active
-                            ? colors.playedFilterActiveText
-                            : colors.playedFilterText,
+                    color: foreground,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [icon, const SizedBox(width: 8), Text(label)],
+                    children: [
+                      widget.icon,
+                      const SizedBox(width: 8),
+                      Text(widget.label),
+                    ],
                   ),
                 ),
               ),

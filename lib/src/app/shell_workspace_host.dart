@@ -25,11 +25,11 @@ class ShellWorkspaceHost extends StatelessWidget {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      left: layout.isNowPlayingFullRoute ? 0 : layout.shellSidebarWidth,
+      left: layout.isImmersiveModeRoute ? 0 : layout.shellSidebarWidth,
       top: layout.workspaceTop,
       right: 0,
       height:
-          layout.isNowPlayingFullRoute
+          layout.isImmersiveModeRoute
               ? MediaQuery.sizeOf(context).height
               : MediaQuery.sizeOf(context).height -
                   SmPlayerShellMetrics.playerHeight +
@@ -42,7 +42,7 @@ class ShellWorkspaceHost extends StatelessWidget {
         headerHeight: SmPlayerShellMetrics.workspaceHeaderHeight,
         showNavigationAppBar:
             layout.navigationMode == SmPlayerNavigationMode.minimal &&
-            !layout.isNowPlayingFullRoute,
+            !layout.isImmersiveModeRoute,
         navigationMenuLabel: navigationMenuLabel,
         onNavigationMenuPressed: onNavigationMenuPressed,
         navigationAppBarTopInset:

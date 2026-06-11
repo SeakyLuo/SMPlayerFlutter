@@ -22,38 +22,33 @@ import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_app_bar.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_control_panel.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_more_menu.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_multi_select_bar.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_scaffold.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_stage.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_queue.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_app_bar.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_control_panel.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_more_menu.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_multi_select_bar.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_scaffold.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_stage.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show NightMode;
 
 @visibleForTesting
-List<int> reorderNowPlayingFullQueueSongIds(
+List<int> reorderImmersiveModeQueueSongIds(
   List<int> queueSongIds,
   int oldIndex,
   int newIndex,
 ) {
-  return moveNowPlayingFullQueueSongIds(
-    queueSongIds,
-    oldIndex,
-    newIndex,
-    false,
-  );
+  return moveImmersiveModeQueueSongIds(queueSongIds, oldIndex, newIndex, false);
 }
 
 @visibleForTesting
-List<int> moveNowPlayingFullQueueSongIds(
+List<int> moveImmersiveModeQueueSongIds(
   List<int> queueSongIds,
   int draggedIndex,
   int targetIndex,
@@ -74,7 +69,7 @@ List<int> moveNowPlayingFullQueueSongIds(
 }
 
 @visibleForTesting
-List<int> playNextNowPlayingFullQueueSongIds(
+List<int> playNextImmersiveModeQueueSongIds(
   List<int> queueSongIds,
   int targetTrackId,
   int? currentTrackId,
@@ -166,14 +161,14 @@ List<int> _movePlaybackQueueSong(
   return nextSongIds;
 }
 
-class NowPlayingFullPage extends ConsumerStatefulWidget {
-  const NowPlayingFullPage({super.key});
+class ImmersiveModePage extends ConsumerStatefulWidget {
+  const ImmersiveModePage({super.key});
 
   @override
-  ConsumerState<NowPlayingFullPage> createState() => _NowPlayingFullPageState();
+  ConsumerState<ImmersiveModePage> createState() => _ImmersiveModePageState();
 }
 
-class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
+class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
   var _isPlaylistOpen = false;
@@ -218,7 +213,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     if (!mounted) {
       return;
     }
-    context.go(nowPlayingFullReturnLocation(context));
+    context.go(nowPlayingRoutePath);
   }
 
   void _raisePlayerBar() {
@@ -254,25 +249,25 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
     return snapshotValue.when(
       loading:
-          () => NowPlayingFullScaffold(
+          () => ImmersiveModeScaffold(
             coverColor: _coverColor,
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.loading'),
                 style: const TextStyle(
-                  color: NowPlayingFullColors.nightText,
+                  color: ImmersiveModeColors.nightText,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ),
       error:
-          (_, _) => NowPlayingFullScaffold(
+          (_, _) => ImmersiveModeScaffold(
             coverColor: _coverColor,
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.noActiveTrack'),
-                style: const TextStyle(color: NowPlayingFullColors.nightText),
+                style: const TextStyle(color: ImmersiveModeColors.nightText),
               ),
             ),
           ),
@@ -303,10 +298,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                   timeToMinute(settings.nightModeEndTime),
                 ));
         Widget buildQueuePopover(bool fullScreen) {
-          return NowPlayingFullQueuePopoverHost(
+          return ImmersiveModeQueuePopoverHost(
             open: _isPlaylistOpen,
             fullScreen: fullScreen,
-            child: NowPlayingFullPlaylist(
+            child: ImmersiveModePlaylist(
               open: _isPlaylistOpen,
               i18n: i18n,
               songs: queueSongs,
@@ -363,10 +358,10 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         }
 
         Widget buildQueueLayer(double viewportWidth) {
-          if (viewportWidth <= nowPlayingFullLayoutCompactBreakpoint) {
+          if (viewportWidth <= immersiveModeLayoutCompactBreakpoint) {
             return Positioned.fill(
               child: KeyedSubtree(
-                key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+                key: const ValueKey('ImmersiveMode.QueuePopoverHost'),
                 child: buildQueuePopover(true),
               ),
             );
@@ -377,7 +372,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             bottom: 132,
             width: min(viewportWidth * 0.4, 520),
             child: KeyedSubtree(
-              key: const ValueKey('NowPlayingFull.QueuePopoverHost'),
+              key: const ValueKey('ImmersiveMode.QueuePopoverHost'),
               child: buildQueuePopover(false),
             ),
           );
@@ -388,21 +383,21 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
             right: 0,
             bottom: 0,
             left: 0,
-            height: nowPlayingFullPlayerHeight,
+            height: immersiveModePlayerHeight,
             child: AnimatedOpacity(
-              key: const ValueKey('NowPlayingFull.PlayerBarOpacity'),
+              key: const ValueKey('ImmersiveMode.PlayerBarOpacity'),
               duration: const Duration(milliseconds: 180),
               curve: Curves.ease,
               opacity: _isPlayerBarRaised ? 1 : 0.24,
               child: AnimatedSlide(
-                key: const ValueKey('NowPlayingFull.PlayerBarSlide'),
+                key: const ValueKey('ImmersiveMode.PlayerBarSlide'),
                 duration: const Duration(milliseconds: 260),
                 curve: const Cubic(0.2, 0, 0, 1),
                 offset:
                     _isPlayerBarRaised
                         ? Offset.zero
-                        : const Offset(0, nowPlayingFullPlayerIdleSlideOffset),
-                child: NowPlayingFullControlPanel(
+                        : const Offset(0, immersiveModePlayerIdleSlideOffset),
+                child: ImmersiveModeControlPanel(
                   song: currentSong,
                   state: mediaControlState,
                   disabled: currentSong == null,
@@ -444,7 +439,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                         shellActions: shellActions,
                         isCompact:
                             viewportWidth <=
-                            nowPlayingFullImmersiveCompactBreakpoint,
+                            immersiveModeImmersiveCompactBreakpoint,
                       ),
                     );
                   },
@@ -454,7 +449,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
           );
         }
 
-        return NowPlayingFullScaffold(
+        return ImmersiveModeScaffold(
           artworkPath: displayArtworkPath,
           coverColor: _coverColor,
           night: immersiveNightActive,
@@ -474,38 +469,34 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                 final queueLayer = buildQueueLayer(viewportWidth);
                 final playerBarLayer = buildPlayerBarLayer(viewportWidth);
                 final compactPlayerBarUnderQueue =
-                    viewportWidth <= nowPlayingFullImmersiveCompactBreakpoint;
+                    viewportWidth <= immersiveModeImmersiveCompactBreakpoint;
                 return Stack(
                   children: [
                     Positioned.fill(
                       child: Padding(
-                        padding: nowPlayingFullContentPadding(viewportWidth),
+                        padding: immersiveModeContentPadding(viewportWidth),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             final compact =
                                 viewportWidth <=
-                                nowPlayingFullLayoutCompactBreakpoint;
-                            return NowPlayingFullStage(
+                                immersiveModeLayoutCompactBreakpoint;
+                            return ImmersiveModeStage(
                               song: currentSong,
                               artworkPath: displayArtworkPath,
                               mediaControlState: mediaControlState,
                               i18n: i18n,
                               refreshRevision: _lyricsRefreshRevision,
-                              onSeek:
+                              onSeekAndPlay:
                                   ref
                                       .read(mediaControlControllerProvider)
-                                      .onSeek,
-                              onTogglePlayPause:
-                                  ref
-                                      .read(mediaControlControllerProvider)
-                                      .onTogglePlayPause,
+                                      .onSeekAndPlay,
                               compact: compact,
                             );
                           },
                         ),
                       ),
                     ),
-                    NowPlayingFullAppBar(
+                    ImmersiveModeAppBar(
                       i18n: i18n,
                       playlistOpen: _isPlaylistOpen,
                       onClose: () {
@@ -525,7 +516,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     if (compactPlayerBarUnderQueue) playerBarLayer,
                     queueLayer,
                     if (!compactPlayerBarUnderQueue) playerBarLayer,
-                    NowPlayingFullMultiSelectCommandBar(
+                    ImmersiveModeMultiSelectCommandBar(
                       i18n: i18n,
                       songs: queueSongs,
                       songIds: queueSongIds,
@@ -556,9 +547,9 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
                     if (noticeText != null)
                       Positioned(
                         right: 76,
-                        bottom: nowPlayingFullPlayerHeight + 14,
+                        bottom: immersiveModePlayerHeight + 14,
                         left: 76,
-                        child: NowPlayingFullErrorBanner(message: noticeText),
+                        child: ImmersiveModeErrorBanner(message: noticeText),
                       ),
                     if (currentSong != null && _dialogMode != null)
                       MusicDialog(
@@ -735,7 +726,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
     required SmPlayerShellActions? shellActions,
     required bool isCompact,
   }) async {
-    await showNowPlayingFullMoreMenu(
+    await showImmersiveModeMoreMenu(
       context: context,
       ref: ref,
       buttonContext: buttonContext,
@@ -941,7 +932,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   void _playAlbum(LibrarySong currentSong, List<LibrarySong> songs) {
-    final targetAlbum = displayNowPlayingFullAlbum(
+    final targetAlbum = displayImmersiveModeAlbum(
       currentSong,
       context.smPlayerI18n,
     );
@@ -949,7 +940,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         songs
             .where(
               (song) =>
-                  displayNowPlayingFullAlbum(song, context.smPlayerI18n) ==
+                  displayImmersiveModeAlbum(song, context.smPlayerI18n) ==
                   targetAlbum,
             )
             .map((song) => song.id)
@@ -980,7 +971,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
     _replaceQueue(
-      reorderNowPlayingFullQueueSongIds(queueSongIds, oldIndex, newIndex),
+      reorderImmersiveModeQueueSongIds(queueSongIds, oldIndex, newIndex),
     );
   }
 
@@ -994,7 +985,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   void _playNext(List<int> queueSongIds, int queueIndex) {
     final mediaControlState = ref.read(mediaControlControllerProvider).state;
     _replaceQueue(
-      playNextNowPlayingFullQueueSongIds(
+      playNextImmersiveModeQueueSongIds(
         queueSongIds,
         queueSongIds[queueIndex],
         mediaControlState.track.id,
@@ -1076,7 +1067,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 
   Future<void> _hideSongFile(LibrarySong song, List<int> queueSongIds) async {
-    final removedEntries = nowPlayingFullQueueEntriesForSong(
+    final removedEntries = immersiveModeQueueEntriesForSong(
       queueSongIds,
       song.id,
     );
@@ -1099,7 +1090,7 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
         final snapshot =
             await ref.read(libraryRepositoryProvider).getLibraryContentData();
         _replaceQueue(
-          insertNowPlayingFullQueueEntries(
+          insertImmersiveModeQueueEntries(
             snapshot.nowPlaying.songIds,
             removedEntries,
           ),
@@ -1142,16 +1133,16 @@ class _NowPlayingFullPageState extends ConsumerState<NowPlayingFullPage> {
   }
 }
 
-String primaryNowPlayingFullArtist(LibrarySong song, SmPlayerI18n i18n) {
+String primaryImmersiveModeArtist(LibrarySong song, SmPlayerI18n i18n) {
   final artists = artists_model.getSongArtists(song);
   return artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
 }
 
-String displayNowPlayingFullAlbum(LibrarySong song, SmPlayerI18n i18n) {
+String displayImmersiveModeAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song_display.displayAlbum(song, i18n);
 }
 
 @visibleForTesting
-String formatNowPlayingFullLyricSeekTime(double seconds) {
+String formatImmersiveModeLyricSeekTime(double seconds) {
   return formatDuration(seconds);
 }

@@ -88,12 +88,22 @@ class _RecentTabButton extends StatelessWidget {
         style: _recentTextButtonStyle(
           foregroundColor:
               active ? colors.primaryTabActiveText : colors.primaryTabText,
+          hoverForegroundColor:
+              active ? colors.primaryTabActiveText : colors.appBarTabHoverText,
           backgroundColor:
               active
                   ? colors.primaryTabActiveSurface
                   : colors.primaryTabSurface,
+          hoverBackgroundColor:
+              active
+                  ? colors.primaryTabActiveSurface
+                  : colors.appBarTabHoverSurface,
           borderColor:
               active ? colors.primaryTabActiveBorder : colors.primaryTabBorder,
+          hoverBorderColor:
+              active
+                  ? colors.primaryTabActiveBorder
+                  : colors.appBarTabHoverBorder,
           minHeight: 38,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           radius: colors.primaryTabRadius,
@@ -119,8 +129,12 @@ class _RecentTabButton extends StatelessWidget {
       style: _recentTextButtonStyle(
         foregroundColor:
             active ? colors.primaryTabActiveText : colors.primaryTabText,
+        hoverForegroundColor:
+            active ? colors.primaryTabActiveText : colors.primaryTabText,
         backgroundColor: Colors.transparent,
+        hoverBackgroundColor: Colors.transparent,
         borderColor: Colors.transparent,
+        hoverBorderColor: Colors.transparent,
         minHeight: 54,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         radius: 0,
@@ -207,12 +221,32 @@ class _RecentTabContent extends StatelessWidget {
 
 ButtonStyle _recentTextButtonStyle({
   required Color foregroundColor,
+  required Color hoverForegroundColor,
   required Color backgroundColor,
+  required Color hoverBackgroundColor,
   required Color borderColor,
+  required Color hoverBorderColor,
   required double minHeight,
   required EdgeInsets padding,
   required double radius,
 }) {
+  Color resolveColor(Set<WidgetState> states, Color regular, Color hovered) {
+    return _recentButtonHovered(states) ? hovered : regular;
+  }
+
+  BorderSide resolveSide(Set<WidgetState> states) {
+    return BorderSide(
+      color: resolveColor(states, borderColor, hoverBorderColor),
+    );
+  }
+
+  RoundedRectangleBorder resolveShape(Set<WidgetState> states) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: resolveSide(states),
+    );
+  }
+
   return TextButton.styleFrom(
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     minimumSize: Size(0, minHeight),
@@ -230,13 +264,20 @@ ButtonStyle _recentTextButtonStyle({
     elevation: const WidgetStatePropertyAll(0),
     minimumSize: WidgetStatePropertyAll(Size(0, minHeight)),
     maximumSize: WidgetStatePropertyAll(Size(double.infinity, minHeight)),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    side: WidgetStatePropertyAll(BorderSide(color: borderColor)),
-    shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radius),
-        side: BorderSide(color: borderColor),
-      ),
+    foregroundColor: WidgetStateProperty.resolveWith(
+      (states) => resolveColor(states, foregroundColor, hoverForegroundColor),
     ),
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => resolveColor(states, backgroundColor, hoverBackgroundColor),
+    ),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    side: WidgetStateProperty.resolveWith(resolveSide),
+    shape: WidgetStateProperty.resolveWith(resolveShape),
   );
+}
+
+bool _recentButtonHovered(Set<WidgetState> states) {
+  return states.contains(WidgetState.hovered) ||
+      states.contains(WidgetState.focused) ||
+      states.contains(WidgetState.pressed);
 }

@@ -3949,83 +3949,84 @@ void main() {
       ),
     );
     expect(
-      volumeMenuIconButton.style?.overlayColor?.resolve({
-        WidgetState.hovered,
-      }),
+      volumeMenuIconButton.style?.overlayColor?.resolve({WidgetState.hovered}),
       Colors.transparent,
     );
     expect(
-      volumeMenuIconButton.style?.overlayColor?.resolve({
-        WidgetState.pressed,
-      }),
+      volumeMenuIconButton.style?.overlayColor?.resolve({WidgetState.pressed}),
       Colors.transparent,
     );
   });
 
-  testWidgets('MediaControl hover background animates from transparent target color', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      SmPlayerI18nScope(
-        i18n: i18n,
-        child: MaterialApp(
-          theme: _mediaControlTestTheme(),
-          home: Scaffold(
-            body: Center(
-              child: MediaControlUtilityRows(
-                trackId: 1,
-                favorite: false,
-                disabled: false,
-                volumeValue: 50,
-                isMuted: false,
-                mode: PlaybackMode.once,
-                onVolumeChange: (_) {},
-                onToggleMute: () {},
-                onToggleShuffle: () {},
-                onToggleRepeat: () {},
-                onToggleRepeatOne: () {},
-                onToggleFavorite: () {},
-                condensed: true,
-                onMoreClick: (_) {},
+  testWidgets(
+    'MediaControl hover background animates from transparent target color',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: Center(
+                child: MediaControlUtilityRows(
+                  trackId: 1,
+                  favorite: false,
+                  disabled: false,
+                  volumeValue: 50,
+                  isMuted: false,
+                  mode: PlaybackMode.once,
+                  onVolumeChange: (_) {},
+                  onToggleMute: () {},
+                  onToggleShuffle: () {},
+                  onToggleRepeat: () {},
+                  onToggleRepeatOne: () {},
+                  onToggleFavorite: () {},
+                  condensed: true,
+                  onMoreClick: (_) {},
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    BoxDecoration moreDecoration() {
-      return tester
-              .widget<AnimatedContainer>(
-                find
-                    .descendant(
-                      of: find.byKey(const ValueKey('MediaControl.MoreButton')),
-                      matching: find.byType(AnimatedContainer),
-                    )
-                    .first,
-              )
-              .decoration!
-          as BoxDecoration;
-    }
+      BoxDecoration moreDecoration() {
+        return tester
+                .widget<AnimatedContainer>(
+                  find
+                      .descendant(
+                        of: find.byKey(
+                          const ValueKey('MediaControl.MoreButton'),
+                        ),
+                        matching: find.byType(AnimatedContainer),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+      }
 
-    expect(
-      moreDecoration().color,
-      MediaControlThemeColors.light.buttonActiveBackground.withValues(alpha: 0),
-    );
+      expect(
+        moreDecoration().color,
+        MediaControlThemeColors.light.buttonActiveBackground.withValues(
+          alpha: 0,
+        ),
+      );
 
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer();
-    await mouse.moveTo(
-      tester.getCenter(find.byKey(const ValueKey('MediaControl.MoreButton'))),
-    );
-    await tester.pump(const Duration(milliseconds: 140));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('MediaControl.MoreButton'))),
+      );
+      await tester.pump(const Duration(milliseconds: 140));
 
-    expect(
-      moreDecoration().color,
-      MediaControlThemeColors.light.buttonActiveBackground,
-    );
-    await mouse.removePointer();
-  });
+      expect(
+        moreDecoration().color,
+        MediaControlThemeColors.light.buttonActiveBackground,
+      );
+      await mouse.removePointer();
+    },
+  );
 
   testWidgets('compact progress seek commits once on release like Electron', (
     tester,

@@ -1546,10 +1546,7 @@ void main() {
     final repository = _ValueListenableLibraryRepository(snapshot);
 
     await tester.pumpWidget(
-      _RepositoryBackedMusicLibraryTestApp(
-        i18n: i18n,
-        repository: repository,
-      ),
+      _RepositoryBackedMusicLibraryTestApp(i18n: i18n, repository: repository),
     );
     await tester.pumpAndSettle();
 

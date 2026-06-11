@@ -14,9 +14,9 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 
-Future<void> showNowPlayingFullMoreMenu({
+Future<void> showImmersiveModeMoreMenu({
   required BuildContext context,
   required WidgetRef ref,
   required BuildContext buttonContext,
@@ -65,30 +65,33 @@ Future<void> showNowPlayingFullMoreMenu({
           .map((songId) => songsById[songId])
           .whereType<LibrarySong>()
           .toList();
+  final activeSong =
+      mediaController.state.disabled || mediaController.state.track.id == null
+          ? null
+          : currentSong;
   final addToItem =
-      currentSong == null
+      activeSong == null
           ? null
           : buildAddToPlaylistMenuFlyoutItem(
             i18n: i18n,
-            songIds: [currentSong.id],
+            songIds: [activeSong.id],
             playlists: customPlaylists,
             includeNowPlaying: true,
-            includeFavorites: !isCompact && !currentSong.favorite,
-            defaultPlaylistName: currentSong.title,
+            includeFavorites: !isCompact && !activeSong.favorite,
+            defaultPlaylistName: activeSong.title,
             onAddToNowPlaying: () {
-              onAddSongToNowPlaying(currentSong);
+              onAddSongToNowPlaying(activeSong);
             },
             onToggleFavorite: () {
-              onToggleSongsFavorite([currentSong.id], true);
+              onToggleSongsFavorite([activeSong.id], true);
             },
             onCreatePlaylistWithName: (name) {
-              onCreatePlaylist(name, [currentSong.id]);
+              onCreatePlaylist(name, [activeSong.id]);
             },
             onAddToPlaylist: (playlistId) {
-              onAddSongsToPlaylist(playlistId, [currentSong.id]);
+              onAddSongsToPlaylist(playlistId, [activeSong.id]);
             },
           );
-  final buttonBox = buttonContext.findRenderObject() as RenderBox;
   List<MenuFlyoutItem> buildItems(String? preferenceLevel) {
     return [
       MenuFlyoutItem(
@@ -154,23 +157,23 @@ Future<void> showNowPlayingFullMoreMenu({
         MenuFlyoutItem(
           key: 'player-favorite',
           text:
-              currentSong?.favorite == true
+              activeSong?.favorite == true
                   ? i18n.t('player.unlike')
                   : i18n.t('player.like'),
           icon:
-              currentSong?.favorite == true
+              activeSong?.favorite == true
                   ? FluentIcons.heart_20_filled
                   : FluentIcons.heart_20_regular,
           iconColor:
-              currentSong?.favorite == true ? const Color(0xffd13438) : null,
-          disabled: currentSong == null,
+              activeSong?.favorite == true ? const Color(0xffd13438) : null,
+          disabled: activeSong == null,
           onPressed:
-              currentSong == null
+              activeSong == null
                   ? null
                   : () {
                     onToggleSongsFavorite([
-                      currentSong.id,
-                    ], !currentSong.favorite);
+                      activeSong.id,
+                    ], !activeSong.favorite);
                   },
         ),
       ],
@@ -196,7 +199,7 @@ Future<void> showNowPlayingFullMoreMenu({
         icon: FluentIcons.dismiss_20_regular,
         onPressed: onClearNowPlaying,
       ),
-      if (currentSong != null) ...[
+      if (activeSong != null) ...[
         if (addToItem != null) ...[
           const MenuFlyoutItem.separator(key: 'current-song-separator'),
           addToItem,
@@ -211,10 +214,10 @@ Future<void> showNowPlayingFullMoreMenu({
                   : () async {
                     await ref
                         .read(libraryRepositoryProvider)
-                        .removePreferenceItem('song', '${currentSong.id}');
+                        .removePreferenceItem('song', '${activeSong.id}');
                   },
           onSetPreference: (level) {
-            onSetSongPreference(currentSong.id, currentSong.title, level);
+            onSetSongPreference(activeSong.id, activeSong.title, level);
           },
         ),
         MenuFlyoutItem(
@@ -222,7 +225,7 @@ Future<void> showNowPlayingFullMoreMenu({
           text: i18n.t('detail.playArtist'),
           icon: FluentIcons.people_20_regular,
           onPressed: () {
-            onPlayArtist(currentSong, snapshot.songs);
+            onPlayArtist(activeSong, snapshot.songs);
           },
         ),
         MenuFlyoutItem(
@@ -230,7 +233,7 @@ Future<void> showNowPlayingFullMoreMenu({
           text: i18n.t('detail.playAlbum'),
           useAlbumIcon: true,
           onPressed: () {
-            onPlayAlbum(currentSong, snapshot.songs);
+            onPlayAlbum(activeSong, snapshot.songs);
           },
         ),
         MenuFlyoutItem(
@@ -270,11 +273,11 @@ Future<void> showNowPlayingFullMoreMenu({
 
   final itemsNotifier = ValueNotifier<List<MenuFlyoutItem>>(buildItems(null));
   var menuClosed = false;
-  if (currentSong != null) {
+  if (activeSong != null) {
     unawaited(
       ref
           .read(libraryRepositoryProvider)
-          .getPreferenceLevel('song', '${currentSong.id}')
+          .getPreferenceLevel('song', '${activeSong.id}')
           .then((preferenceLevel) {
             if (!menuClosed) {
               itemsNotifier.value = buildItems(preferenceLevel);
@@ -284,7 +287,7 @@ Future<void> showNowPlayingFullMoreMenu({
   }
   await showMenuFlyout(
     buttonContext,
-    position: buttonBox.localToGlobal(Offset.zero),
+    position: _menuFlyoutPositionAboveAnchor(buttonContext),
     avoidPlayerBar: false,
     items: itemsNotifier.value,
     itemsListenable: itemsNotifier,
@@ -317,4 +320,9 @@ IconData _nonShufflePlaybackModeMenuIcon(PlaybackMode mode) {
     PlaybackMode.shuffle =>
       throw StateError('shuffle uses SmPlayerShuffleIcon'),
   };
+}
+
+Offset _menuFlyoutPositionAboveAnchor(BuildContext context) {
+  final box = context.findRenderObject() as RenderBox;
+  return box.localToGlobal(const Offset(0, -8));
 }

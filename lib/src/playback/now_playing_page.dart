@@ -26,8 +26,8 @@ import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
@@ -252,11 +252,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     useFullscreenIcon: true,
                     disabled: currentSong == null,
                     onPressed: () {
-                      context.go(
-                        nowPlayingFullRouteFrom(
-                          GoRouterState.of(context).uri.toString(),
-                        ),
-                      );
+                      context.go(immersiveModeRoutePath);
                     },
                   ),
                   MenuFlyoutItem(
@@ -483,11 +479,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             label: i18n.t('nowPlaying.playMode'),
                             disabled: currentSong == null,
                             onPressed: () {
-                              context.go(
-                                nowPlayingFullRouteFrom(
-                                  GoRouterState.of(context).uri.toString(),
-                                ),
-                              );
+                              context.go(immersiveModeRoutePath);
                             },
                           ),
                           CommandBarButton(
@@ -1196,6 +1188,7 @@ class _NowPlayingPagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 720;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShellThemeColors.of(context).workspaceSolidSurface,
@@ -1204,7 +1197,10 @@ class _NowPlayingPagePanel extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            padding:
+                compact
+                    ? const EdgeInsets.fromLTRB(8, 0, 8, 0)
+                    : const EdgeInsets.fromLTRB(14, 12, 14, 24),
             child: SizedBox.expand(child: child),
           ),
           if (overlay != null) Positioned.fill(child: overlay!),

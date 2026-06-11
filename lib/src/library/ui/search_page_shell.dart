@@ -18,7 +18,7 @@ class _SearchPageSurface extends StatelessWidget {
 class _SearchResultToolbarDelegate extends SliverPersistentHeaderDelegate {
   const _SearchResultToolbarDelegate({required this.child});
 
-  static const _height = 50.0;
+  static const _height = 48.0;
 
   final Widget child;
 
@@ -45,7 +45,12 @@ class _SearchResultToolbarDelegate extends SliverPersistentHeaderDelegate {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        padding: const EdgeInsets.fromLTRB(
+          _searchPageHorizontalInset,
+          0,
+          _searchPageHorizontalInset,
+          8,
+        ),
         child: child,
       ),
     );
@@ -68,7 +73,12 @@ class _SearchLoadingState extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 52),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+        padding: const EdgeInsets.fromLTRB(
+          _searchPageHorizontalInset,
+          6,
+          _searchPageHorizontalInset,
+          22,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

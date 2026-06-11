@@ -51,7 +51,7 @@ responsive behavior.
 
 | Area | Source |
 | --- | --- |
-| Full page host and footer state | `lib/src/playback/now_playing_full_page.dart` |
+| Full page host and footer state | `lib/src/playback/immersive_mode_page.dart` |
 | Shared player frame | `lib/src/playback/media_control_frame.dart` |
 | Transport and progress | `lib/src/playback/media_control_surface.dart` |
 | Utility controls | `lib/src/playback/media_control_utility.dart` |
@@ -128,29 +128,29 @@ responsive behavior.
 ## Verification Commands
 
 ```sh
-dart analyze lib/src/playback/now_playing_full_page.dart lib/src/playback/media_control.dart test/now_playing_page_test.dart
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact footer reuses nav-minimal surface"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact footer matches Electron column geometry"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact footer keeps voice and More inside utility"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage nav-minimal footer keeps voice and More in 80px utility"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage mid-width footer uses compact utility like Electron"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage utility switches at Electron 1200px breakpoint"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage wide footer uses Electron 0.9fr side columns"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage keeps wide layout with compact menu at 780px"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage wide More matches Electron queue and current song items"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact More includes Electron utility substitutes"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact mode context menu opens like Electron"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact mode cycles in Electron order"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact mode menu checks current Electron item"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact mode long press opens Electron menu"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage wide mode row keeps Electron voice slot"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage compact More disables Favorite without current song"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage no active track disables full footer volume like Electron"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage Clear Now Playing exits fullscreen and clears queue"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage More pins player bar while menu is open"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage more view dialog pins player bar"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage favorite active style follows Electron day and night"
-flutter test --no-pub test/now_playing_page_test.dart --plain-name "NowPlayingFullPage primary and utility hover follow Electron cascade"
+dart analyze lib/src/playback/immersive_mode_page.dart lib/src/playback/media_control.dart test/now_playing_page_test.dart
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact footer reuses nav-minimal surface"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact footer matches Electron column geometry"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact footer keeps voice and More inside utility"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage nav-minimal footer keeps voice and More in 80px utility"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage mid-width footer uses compact utility like Electron"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage utility switches at Electron 1200px breakpoint"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage wide footer uses Electron 0.9fr side columns"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage keeps wide layout with compact menu at 780px"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage wide More matches Electron queue and current song items"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact More includes Electron utility substitutes"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact mode context menu opens like Electron"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact mode cycles in Electron order"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact mode menu checks current Electron item"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact mode long press opens Electron menu"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage wide mode row keeps Electron voice slot"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage compact More disables Favorite without current song"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage no active track disables full footer volume like Electron"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage Clear Now Playing exits fullscreen and clears queue"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage More pins player bar while menu is open"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage more view dialog pins player bar"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage favorite active style follows Electron day and night"
+flutter test --no-pub test/now_playing_page_test.dart --plain-name "ImmersiveModePage primary and utility hover follow Electron cascade"
 flutter test --no-pub test/media_control_widget_test.dart --plain-name "VolumeSlider keeps tooltip 650ms after drag release like Electron"
 flutter test --no-pub test/media_control_widget_test.dart --plain-name "compact playback mode button opens Electron-style long press menu"
 flutter test --no-pub test/macos_privacy_metadata_test.dart --plain-name "voice assistant availability follows Electron win32 gate"

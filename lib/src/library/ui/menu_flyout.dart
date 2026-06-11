@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -93,6 +94,10 @@ class MenuFlyoutItem {
 enum MenuFlyoutLayer { defaultLayer, dialog }
 
 final _openMenuFlyoutClosers = <VoidCallback>{};
+
+void closeOpenMenuFlyouts() {
+  _closeOpenMenuFlyouts();
+}
 
 void _closeOpenMenuFlyouts() {
   for (final close in _openMenuFlyoutClosers.toList()) {
@@ -215,6 +220,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   late List<_MenuFlyoutPanelState> _panels;
   final _focusNode = FocusNode(debugLabel: 'MenuFlyoutOverlay');
   ScrollPosition? _anchorScrollPosition;
+  var _globalPointerRouteAttached = false;
 
   @override
   void initState() {
@@ -230,6 +236,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       if (mounted) {
         _focusNode.requestFocus();
         _attachAnchorScrollListener();
+        _attachGlobalPointerRoute();
       }
     });
   }
@@ -253,6 +260,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _detachGlobalPointerRoute();
     _anchorScrollPosition?.removeListener(_requestPositionUpdate);
     _focusNode.dispose();
     super.dispose();
@@ -369,6 +377,93 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       return;
     }
     setState(() {});
+  }
+
+  void _attachGlobalPointerRoute() {
+    if (_globalPointerRouteAttached) {
+      return;
+    }
+    GestureBinding.instance.pointerRouter.addGlobalRoute(
+      _handleGlobalPointerEvent,
+    );
+    _globalPointerRouteAttached = true;
+  }
+
+  void _detachGlobalPointerRoute() {
+    if (!_globalPointerRouteAttached) {
+      return;
+    }
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(
+      _handleGlobalPointerEvent,
+    );
+    _globalPointerRouteAttached = false;
+  }
+
+  void _handleGlobalPointerEvent(PointerEvent event) {
+    if (event is! PointerDownEvent || !mounted) {
+      return;
+    }
+    if (_containsGlobalPosition(event.position)) {
+      return;
+    }
+    widget.onClose();
+  }
+
+  bool _containsGlobalPosition(Offset globalPosition) {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.attached) {
+      return false;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    final size = _viewConstrainedSize(context, renderObject.size);
+    final boundaryBottom = _boundaryBottom(size);
+    final panels = _resolvedPanels(context, size, boundaryBottom);
+    for (var index = 0; index < panels.length; index += 1) {
+      if (_panelHitRect(
+        context: context,
+        panel: panels[index],
+        depth: index,
+        size: size,
+        boundaryBottom: boundaryBottom,
+      ).contains(localPosition)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Size _viewConstrainedSize(BuildContext context, Size constraintSize) {
+    final view = View.of(context);
+    final viewSize = view.physicalSize / view.devicePixelRatio;
+    return Size(
+      math.min(constraintSize.width, viewSize.width),
+      math.min(constraintSize.height, viewSize.height),
+    );
+  }
+
+  Rect _panelHitRect({
+    required BuildContext context,
+    required _MenuFlyoutPanelState panel,
+    required int depth,
+    required Size size,
+    required double boundaryBottom,
+  }) {
+    final width = _menuFlyoutPanelWidth(
+      context,
+      panel.items,
+    ).clamp(0.0, size.width - _menuFlyoutMargin * 2);
+    final maxHeight = (boundaryBottom - panel.position.dy - _menuFlyoutMargin)
+        .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
+    final itemsContentHeight = _menuFlyoutItemsContentHeight(panel.items);
+    final scrollable =
+        (depth > 0 || widget.scrollRoot) && itemsContentHeight > maxHeight;
+    final height = scrollable ? maxHeight : _menuFlyoutItemsHeight(panel.items);
+    return Rect.fromLTWH(
+      panel.position.dx,
+      panel.position.dy,
+      width.toDouble(),
+      height.toDouble(),
+    );
   }
 
   List<_MenuFlyoutPanelState> _resolvedPanels(
@@ -577,6 +672,13 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
   @override
   Widget build(BuildContext context) {
     final colors = MenuFlyoutThemeColors.of(context);
+    final view = View.of(context);
+    final viewSize = view.physicalSize / view.devicePixelRatio;
+    final panelWidth =
+        _menuFlyoutPanelWidth(
+          context,
+          widget.state.items,
+        ).clamp(0.0, viewSize.width - _menuFlyoutMargin * 2).toDouble();
     final maxHeight = (widget.boundaryBottom -
             widget.state.position.dy -
             _menuFlyoutMargin)
@@ -640,7 +742,7 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
     return Positioned(
       left: widget.state.position.dx,
       top: widget.state.position.dy,
-      child: scrollable ? panel : IntrinsicWidth(child: panel),
+      child: SizedBox(width: panelWidth, child: panel),
     );
   }
 

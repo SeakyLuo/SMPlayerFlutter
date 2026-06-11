@@ -362,7 +362,12 @@ class LibraryPlaybackHistoryService {
       INSERT INTO RecentRecord (Type, ItemId, Time, State)
       VALUES (?, ?, ?, ?)
     ''',
-      [type, itemId, LibraryTimeCodec.nowUnixMillisecondsString(), _activeState],
+      [
+        type,
+        itemId,
+        LibraryTimeCodec.nowUnixMillisecondsString(),
+        _activeState,
+      ],
     );
   }
 

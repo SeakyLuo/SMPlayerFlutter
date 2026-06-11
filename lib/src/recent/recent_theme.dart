@@ -42,6 +42,9 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     required this.appBarTabActiveText,
     required this.appBarTabSurface,
     required this.appBarTabActiveSurface,
+    required this.appBarTabHoverText,
+    required this.appBarTabHoverSurface,
+    required this.appBarTabHoverBorder,
     required this.appBarTabBorder,
     required this.appBarTabActiveBorder,
     required this.appBarTabRadius,
@@ -68,6 +71,9 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
   final Color appBarTabActiveText;
   final Color appBarTabSurface;
   final Color appBarTabActiveSurface;
+  final Color appBarTabHoverText;
+  final Color appBarTabHoverSurface;
+  final Color appBarTabHoverBorder;
   final Color appBarTabBorder;
   final Color appBarTabActiveBorder;
   final double appBarTabRadius;
@@ -94,6 +100,9 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     appBarTabActiveText: _RecentColors.accentStrong,
     appBarTabSurface: _RecentColors.appBarTabSurface,
     appBarTabActiveSurface: _RecentColors.accentSoft,
+    appBarTabHoverText: _RecentColors.accentStrong,
+    appBarTabHoverSurface: GlobalUI.hoverBgColorDay,
+    appBarTabHoverBorder: GlobalUI.hoverBorderColorDay,
     appBarTabBorder: _RecentColors.appBarTabBorder,
     appBarTabActiveBorder: _RecentColors.appBarTabActiveBorder,
     appBarTabRadius: 10,
@@ -123,6 +132,9 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     appBarTabActiveText: _RecentColors.nightAccentText,
     appBarTabSurface: _RecentColors.nightControlSurface,
     appBarTabActiveSurface: _RecentColors.nightAppBarTabActiveSurface,
+    appBarTabHoverText: _RecentColors.nightAccentText,
+    appBarTabHoverSurface: GlobalUI.hoverBgColorNight,
+    appBarTabHoverBorder: GlobalUI.hoverBorderColorNight,
     appBarTabBorder: _RecentColors.nightBorder,
     appBarTabActiveBorder: _RecentColors.nightAppBarTabActiveBorder,
     appBarTabRadius: 999,
@@ -157,4 +169,3 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     return t < 0.5 || other is! RecentThemeColors ? this : other;
   }
 }
-

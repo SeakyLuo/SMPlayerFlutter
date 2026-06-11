@@ -202,14 +202,17 @@ void main() {
     },
   );
 
-  test('Release notes fallback uses English instead of exposing missing keys', () {
-    final notes = getReleaseNotes(i18n);
-    final latest = notes.first;
+  test(
+    'Release notes fallback uses English instead of exposing missing keys',
+    () {
+      final notes = getReleaseNotes(i18n);
+      final latest = notes.first;
 
-    expect(latest.version, '3.1.0');
-    expect(latest.items, contains('Try introducing liquid glass.'));
-    expect(latest.items, isNot(contains('releaseNotes.tryLiquidGlass')));
-  });
+      expect(latest.version, '3.1.0');
+      expect(latest.items, contains('Try introducing liquid glass.'));
+      expect(latest.items, isNot(contains('releaseNotes.tryLiquidGlass')));
+    },
+  );
 
   test('Release notes uses localized liquid glass text when present', () {
     final notes = getReleaseNotes(

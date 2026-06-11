@@ -7,10 +7,10 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
-class NowPlayingFullSongInfo extends StatelessWidget {
-  const NowPlayingFullSongInfo({
+class ImmersiveModeSongInfo extends StatelessWidget {
+  const ImmersiveModeSongInfo({
     super.key,
     required this.song,
     required this.artworkPath,
@@ -26,7 +26,7 @@ class NowPlayingFullSongInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = NowPlayingFullThemeColors.of(context);
+    final colors = ImmersiveModeThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
     final artworkRadius = compact ? 16.0 : 18.0;
     final artworkShadows =

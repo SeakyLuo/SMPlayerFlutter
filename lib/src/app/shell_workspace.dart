@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -408,10 +409,15 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
         isHeaderedPlaylist
             ? _immersiveAppBarForeground(context)
             : shellColors.headerText;
+    final effectiveActions =
+        _isEmptyWorkspaceAppBarActions(actions) ? null : actions;
     final topRow = SizedBox(
-      height: 40,
+      height: SmPlayerShellMetrics.navigationButtonSize,
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 14),
+        padding: const EdgeInsets.only(
+          left: SmPlayerShellMetrics.navigationPaneHorizontalPadding,
+          right: 14,
+        ),
         child: Row(
           children: [
             Tooltip(
@@ -434,11 +440,11 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                         : shellColors.headerText.withValues(alpha: 0.07),
                 onTap: onNavigationMenuPressed,
                 child: SizedBox(
-                  width: 40,
-                  height: 40,
+                  width: SmPlayerShellMetrics.navigationButtonSize,
+                  height: SmPlayerShellMetrics.navigationButtonSize,
                   child: Icon(
                     FluentIcons.line_horizontal_3_24_regular,
-                    size: 19,
+                    size: SmPlayerShellMetrics.navigationIconSize,
                     color: titleColor,
                   ),
                 ),
@@ -449,7 +455,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
               child:
                   titleContent != null
                       ? titleContent!
-                      : actions == null
+                      : effectiveActions == null
                       ? _WorkspaceNavigationAppBarTitle(
                         title: title,
                         color: titleColor,
@@ -474,7 +480,10 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                               ),
                               if (actionWidth > 0) ...[
                                 const SizedBox(width: titleActionGap),
-                                SizedBox(width: actionWidth, child: actions!),
+                                SizedBox(
+                                  width: actionWidth,
+                                  child: effectiveActions,
+                                ),
                               ],
                             ],
                           );
@@ -595,6 +604,10 @@ Color _immersiveAppBarForeground(BuildContext context) {
 Color _immersiveAppBarHover(BuildContext context) {
   final dark = Theme.of(context).brightness == Brightness.dark;
   return const Color(0xff0078d7).withValues(alpha: dark ? 0.18 : 0.12);
+}
+
+bool _isEmptyWorkspaceAppBarActions(Widget? actions) {
+  return actions is SizedBox && actions.width == 0 && actions.height == 0;
 }
 
 class _WorkspaceNavigationAppBarTitle extends StatelessWidget {
@@ -748,7 +761,7 @@ String _workspaceTitle({
     return '';
   }
 
-  if (path.startsWith('/now-playing/full')) {
+  if (path.startsWith('/immersive-mode')) {
     return '';
   }
 

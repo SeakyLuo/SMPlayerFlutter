@@ -24,8 +24,8 @@ import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_page.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
@@ -169,12 +169,12 @@ GoRouter createSmPlayerRouter({
                     ),
               ),
               GoRoute(
-                path: '/now-playing/full',
+                path: '/immersive-mode',
                 pageBuilder:
                     (context, state) => _smPlayerBranchPage(
                       state: state,
                       settingsController: settingsController,
-                      child: const NowPlayingFullPage(),
+                      child: const ImmersiveModePage(),
                     ),
               ),
             ],
@@ -402,7 +402,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         isAlbumDetailRoute ||
         isArtistDetailRoute ||
         isHiddenFoldersRoute ||
-        path == '/now-playing/full';
+        path == '/immersive-mode';
     final repository = ref.read(libraryRepositoryProvider);
 
     return SmPlayerShellPage(
@@ -421,6 +421,10 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         }
         if (target == '/playlists') {
           navigationShell.goBranch(7, initialLocation: true);
+          return;
+        }
+        if (target == '/now-playing') {
+          navigationShell.goBranch(5, initialLocation: true);
           return;
         }
         if (_branchRootIndex(target) case final branchIndex?) {
@@ -450,8 +454,8 @@ class _SmPlayerRouteShell extends ConsumerWidget {
           return;
         }
 
-        if (path == '/now-playing/full') {
-          context.go(nowPlayingFullReturnLocation(context));
+        if (path == immersiveModeRoutePath) {
+          context.go(nowPlayingRoutePath);
         }
       },
       onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {

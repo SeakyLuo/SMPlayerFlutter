@@ -290,10 +290,44 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 SizedBox.square(
                   dimension: 24,
                   child: IconButton(
+                    key: const ValueKey('LocalFolderCard.ListTreeToggle'),
                     tooltip: widget.folder.name,
                     padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 24,
+                      height: 24,
+                    ),
                     iconSize: 16,
                     visualDensity: VisualDensity.compact,
+                    style: ButtonStyle(
+                      backgroundColor: const WidgetStatePropertyAll(
+                        Colors.transparent,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith((
+                        states,
+                      ) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return colors.accentStrong;
+                        }
+                        return colors.textMuted;
+                      }),
+                      overlayColor: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return colors.accentSoft;
+                        }
+                        return Colors.transparent;
+                      }),
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      minimumSize: const WidgetStatePropertyAll(
+                        Size.square(24),
+                      ),
+                      fixedSize: const WidgetStatePropertyAll(Size.square(24)),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     onPressed: widget.onToggleTreeExpanded,
                     icon: Icon(
                       widget.treeExpanded == true
@@ -302,7 +336,6 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
               ],
               if (widget.multiSelect) ...[
                 _LocalCheckMark(selected: widget.selected),
@@ -883,6 +916,7 @@ class _FolderListIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const SizedBox.square(
+      key: ValueKey('LocalFolderCard.ListIconSlot'),
       dimension: 30,
       child: Center(child: _FolderTypeBadgeImage(iconSize: 22)),
     );

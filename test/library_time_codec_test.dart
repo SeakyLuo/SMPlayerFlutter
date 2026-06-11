@@ -15,7 +15,9 @@ void main() {
   });
 
   test('parseStoredDateTime parses ISO string', () {
-    final date = LibraryTimeCodec.parseStoredDateTime('2026-05-22T00:00:00.000Z');
+    final date = LibraryTimeCodec.parseStoredDateTime(
+      '2026-05-22T00:00:00.000Z',
+    );
 
     expect(date.toIso8601String(), '2026-05-22T00:00:00.000Z');
   });
@@ -26,5 +28,3 @@ void main() {
     expect(int.tryParse(raw), isNotNull);
   });
 }
-
-

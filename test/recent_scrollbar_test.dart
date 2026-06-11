@@ -41,7 +41,9 @@ void main() {
     await gesture.addPointer(location: tester.getCenter(find.byType(ListView)));
     await tester.pumpAndSettle();
 
+    expect(find.byType(Scrollbar), findsOneWidget);
     expect(_scrollbarThumbColor(tester), const Color(0x805b697a));
+    expect(_scrollbarCrossAxisMargin(tester), 0);
 
     await gesture.removePointer();
   });
@@ -89,4 +91,9 @@ void main() {
 Color? _scrollbarThumbColor(WidgetTester tester) {
   final theme = tester.widget<ScrollbarTheme>(find.byType(ScrollbarTheme));
   return theme.data.thumbColor?.resolve({});
+}
+
+double? _scrollbarCrossAxisMargin(WidgetTester tester) {
+  final theme = tester.widget<ScrollbarTheme>(find.byType(ScrollbarTheme));
+  return theme.data.crossAxisMargin;
 }

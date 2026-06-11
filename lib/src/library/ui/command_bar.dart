@@ -66,8 +66,9 @@ class _CommandBarState extends State<CommandBar> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final style = switch (widget.style) {
-      CommandBarStyleVariant.standard =>
-        _CommandBarStyleData.standard(compact: compact),
+      CommandBarStyleVariant.standard => _CommandBarStyleData.standard(
+        compact: compact,
+      ),
       CommandBarStyleVariant.appBar => _CommandBarStyleData.appBar(
         Theme.of(context).brightness,
       ),
@@ -359,7 +360,7 @@ class _CommandBarButtonState extends State<CommandBarButton> {
         activeSurface: widget.activeSurface,
         disabled: widget.disabled,
         showLabel: widget.showLabel,
-        tooltip: widget.label,
+        tooltip: widget.showLabel ? null : widget.label,
         minWidth: widget.minWidth ?? style.minWidth,
         maxWidth: widget.maxWidth ?? style.maxWidth,
         height: style.minHeight,

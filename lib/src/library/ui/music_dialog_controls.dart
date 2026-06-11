@@ -1084,6 +1084,7 @@ class _PropertyRow extends StatelessWidget {
 
 class _DialogField extends StatelessWidget {
   const _DialogField({
+    super.key,
     required this.controller,
     this.readOnly = false,
     this.contentPadding,

@@ -18,7 +18,7 @@ import 'package:smplayer_flutter/src/app/shell_frame.dart';
 import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_navigation_host.dart';
-import 'package:smplayer_flutter/src/app/shell_now_playing_full_sync_host.dart';
+import 'package:smplayer_flutter/src/app/shell_immersive_mode_sync_host.dart';
 import 'package:smplayer_flutter/src/app/shell_overlay_host.dart';
 import 'package:smplayer_flutter/src/app/shell_player_host.dart';
 import 'package:smplayer_flutter/src/app/shell_titlebar_host.dart';
@@ -45,7 +45,7 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_route.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -236,7 +236,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       _recordNavigationLocation(currentLocation);
       _rememberRoute(currentLocation);
       _persistCurrentPage(currentLocation);
-      if (currentPath != '/now-playing/full') {
+      if (currentPath != '/immersive-mode') {
         unawaited(_desktopFeatureService.setWindowFullScreen(false));
       }
     }
@@ -312,7 +312,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           ),
         ),
         headeredPlaylistScrollbarBottomProvider.overrideWithValue(
-          layout.isNowPlayingFullRoute
+          layout.isImmersiveModeRoute
               ? 10
               : SmPlayerShellMetrics.playerTopRadius + 10,
         ),
@@ -355,8 +355,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onNavigationMenuPressed: _toggleNavigationPane,
             child: widget.child ?? const SizedBox.shrink(),
           ),
-          ShellNowPlayingFullSyncHost(
-            visible: layout.isNowPlayingFullRoute,
+          ShellImmersiveModeSyncHost(
+            visible: layout.isImmersiveModeRoute,
             mediaControlController: _mediaControlController,
             resolvePlayerSong: _resolvePlayerSong,
             scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
@@ -499,7 +499,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onClose: _closeDesktopWindow,
           ),
           ShellNavigationPlayerBackdrop(
-            visible: !layout.isNowPlayingFullRoute,
+            visible: !layout.isImmersiveModeRoute,
             layout: layout,
             colors: shellColors,
           ),
@@ -526,7 +526,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onToggleFavorite: _togglePlayerFavorite,
             onQuickPlay: _quickPlayLibrary,
             onOpenNowPlaying: () {
-              _navigateTo(nowPlayingFullRouteFrom(layout.currentLocation));
+              _navigateTo(immersiveModeRoutePath);
             },
             onArtworkError: _refreshPlayerArtworkAfterError,
             onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,

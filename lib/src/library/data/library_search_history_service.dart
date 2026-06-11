@@ -170,14 +170,15 @@ class LibrarySearchHistoryService {
       FROM SearchHistory
       ORDER BY Id DESC
     ''');
-    final entries = rows.map((row) {
-      return SearchHistoryEntry(
-        id: row['id'] as int,
-        query: row['query'] as String,
-        type: _fromStoredSearchHistoryType(row['type'] as String),
-        searchedAt: row['searchedAt'] as String,
-      );
-    }).toList();
+    final entries =
+        rows.map((row) {
+          return SearchHistoryEntry(
+            id: row['id'] as int,
+            query: row['query'] as String,
+            type: _fromStoredSearchHistoryType(row['type'] as String),
+            searchedAt: row['searchedAt'] as String,
+          );
+        }).toList();
     entries.sort((left, right) {
       final timeCompare = LibraryTimeCodec.toSortMilliseconds(
         right.searchedAt,

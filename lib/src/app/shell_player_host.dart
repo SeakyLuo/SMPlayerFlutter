@@ -99,7 +99,7 @@ class ShellPlayerHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (layout.isNowPlayingFullRoute) {
+    if (layout.isImmersiveModeRoute) {
       return const SizedBox.shrink();
     }
     return Positioned(

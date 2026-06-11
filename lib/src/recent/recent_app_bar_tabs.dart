@@ -89,12 +89,22 @@ class _RecentAppBarTabButton extends StatelessWidget {
           style: _recentTextButtonStyle(
             foregroundColor:
                 active ? colors.appBarTabActiveText : colors.appBarTabText,
+            hoverForegroundColor:
+                active ? colors.appBarTabActiveText : colors.appBarTabHoverText,
             backgroundColor:
                 active
                     ? colors.appBarTabActiveSurface
                     : colors.appBarTabSurface,
+            hoverBackgroundColor:
+                active
+                    ? colors.appBarTabActiveSurface
+                    : colors.appBarTabHoverSurface,
             borderColor:
                 active ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
+            hoverBorderColor:
+                active
+                    ? colors.appBarTabActiveBorder
+                    : colors.appBarTabHoverBorder,
             minHeight: 34,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             radius: colors.appBarTabRadius,

@@ -66,64 +66,65 @@ void main() {
     expect(repository.favoriteWrites[1].favorite, isFalse);
   });
 
-  testWidgets('favorite undo action waits for library snapshot before writing', (
-    tester,
-  ) async {
-    final repository = _FavoriteAddRepository();
-    final snapshot = Completer<LibraryContentData>();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          libraryRepositoryProvider.overrideWithValue(repository),
-          libraryContentDataProvider.overrideWith((ref) => snapshot.future),
-        ],
-        child: SmPlayerI18nScope(
-          i18n: _i18n,
-          child: MaterialApp(
-            theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
-            home: Consumer(
-              builder: (context, ref, _) {
-                return Scaffold(
-                  body: TextButton(
-                    onPressed: () {
-                      unawaited(
-                        setSongsFavoriteWithUndo(
-                          context: context,
-                          ref: ref,
-                          i18n: _i18n,
-                          songIds: const [7],
-                          favorite: true,
-                        ),
-                      );
-                    },
-                    child: const Text('Favorite'),
-                  ),
-                );
-              },
+  testWidgets(
+    'favorite undo action waits for library snapshot before writing',
+    (tester) async {
+      final repository = _FavoriteAddRepository();
+      final snapshot = Completer<LibraryContentData>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(repository),
+            libraryContentDataProvider.overrideWith((ref) => snapshot.future),
+          ],
+          child: SmPlayerI18nScope(
+            i18n: _i18n,
+            child: MaterialApp(
+              theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
+              home: Consumer(
+                builder: (context, ref, _) {
+                  return Scaffold(
+                    body: TextButton(
+                      onPressed: () {
+                        unawaited(
+                          setSongsFavoriteWithUndo(
+                            context: context,
+                            ref: ref,
+                            i18n: _i18n,
+                            songIds: const [7],
+                            favorite: true,
+                          ),
+                        );
+                      },
+                      child: const Text('Favorite'),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.text('Favorite'));
-    await tester.pump();
-    expect(repository.favoriteWrites, isEmpty);
+      await tester.tap(find.text('Favorite'));
+      await tester.pump();
+      expect(repository.favoriteWrites, isEmpty);
 
-    snapshot.complete(_snapshot);
-    await tester.pumpAndSettle();
+      snapshot.complete(_snapshot);
+      await tester.pumpAndSettle();
 
-    expect(repository.favoriteWrites, hasLength(1));
-    expect(repository.favoriteWrites[0].songIds, [7]);
-    expect(repository.favoriteWrites[0].favorite, isTrue);
+      expect(repository.favoriteWrites, hasLength(1));
+      expect(repository.favoriteWrites[0].songIds, [7]);
+      expect(repository.favoriteWrites[0].favorite, isTrue);
 
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
 
-    expect(repository.favoriteWrites, hasLength(2));
-    expect(repository.favoriteWrites[1].songIds, [7]);
-    expect(repository.favoriteWrites[1].favorite, isFalse);
-  });
+      expect(repository.favoriteWrites, hasLength(2));
+      expect(repository.favoriteWrites[1].songIds, [7]);
+      expect(repository.favoriteWrites[1].favorite, isFalse);
+    },
+  );
 
   testWidgets('delete song from disk uses Electron pending undo flow', (
     tester,

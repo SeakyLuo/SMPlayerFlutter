@@ -224,11 +224,14 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final showActionSlot = !widget.selectionMode || hoverActionsVisible;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
+    final compactHovered = compactVariant && (_hovered || _focused);
     final rowBackgroundColor =
         multiSelectSelected || widget.selected
             ? colors.hover
+            : compactHovered
+            ? colors.hover
             : widget.current
-            ? colors.current
+            ? transparentHover
             : _hovered
             ? colors.hover
             : transparentHover;
@@ -243,7 +246,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
             ? EdgeInsets.fromLTRB(
               10,
               10,
-              widget.compactTrailingPadding ?? 12,
+              widget.compactTrailingPadding ?? 20,
               10,
             )
             : headeredPlaylist
@@ -441,29 +444,50 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 SizedBox(
                   key: const ValueKey('PlaylistControlItem.Duration'),
                   width: durationWidth,
-                  child: OverflowBox(
-                    alignment: Alignment.centerRight,
-                    minWidth: 0,
-                    maxWidth: max(durationWidth, 50),
-                    child: SizedBox(
-                      width: max(durationWidth, 50),
-                      child: Text(
-                        formatDuration(widget.song.duration.toDouble()),
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.visible,
-                        textAlign: TextAlign.end,
-                        style: TextStyle(
-                          color:
-                              widget.current
-                                  ? colors.currentForeground
-                                  : colors.textStrong,
-                          fontSize: compactVariant ? 14 : 13,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                  ),
+                  child:
+                      compactVariant
+                          ? Text(
+                            formatDuration(widget.song.duration.toDouble()),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color:
+                                  widget.current
+                                      ? colors.currentForeground
+                                      : colors.textStrong,
+                              fontSize: 14,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          )
+                          : OverflowBox(
+                            alignment: Alignment.centerRight,
+                            minWidth: 0,
+                            maxWidth: max(durationWidth, 50),
+                            child: SizedBox(
+                              width: max(durationWidth, 50),
+                              child: Text(
+                                formatDuration(widget.song.duration.toDouble()),
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.visible,
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  color:
+                                      widget.current
+                                          ? colors.currentForeground
+                                          : colors.textStrong,
+                                  fontSize: 13,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                 ),
               ],
             );
@@ -660,16 +684,31 @@ class _QueueArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final artworkShadowVisible = hovered || current;
+    final artworkShadow = BoxShadow(
+      color: const Color(0xff202d3f).withValues(alpha: 0.24),
+      offset: const Offset(0, 8),
+      blurRadius: 18,
+    );
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox.square(
-            dimension: 56,
-            child: ColoredBox(
-              color: colors.artworkBackground,
-              child: SongArtwork(artworkPath: song.thumbnailPath),
+        AnimatedContainer(
+          key: const ValueKey('PlaylistControlItem.ArtworkShadow'),
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.ease,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: artworkShadowVisible ? [artworkShadow] : const [],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox.square(
+              dimension: 56,
+              child: ColoredBox(
+                color: colors.artworkBackground,
+                child: SongArtwork(artworkPath: song.thumbnailPath),
+              ),
             ),
           ),
         ),

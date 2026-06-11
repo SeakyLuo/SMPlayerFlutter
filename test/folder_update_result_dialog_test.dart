@@ -271,37 +271,38 @@ void main() {
     expect(menuPosition, isNull);
   });
 
-  testWidgets('FolderUpdateResultDialog renders added file without song match', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _TestApp(
-        child: FolderUpdateResultDialog(
-          folder: createFolderNode('', '/Users/me/Music'),
-          result: const LocalFolderRefreshResult(
-            filesAdded: ['/Users/me/Music/Not In Snapshot.mp3'],
-            filesRemoved: [],
-            filesMoved: [],
-            artistSplitsApplied: [],
-            artistSplitSuggestions: [],
-            artistMergeSuggestions: [],
+  testWidgets(
+    'FolderUpdateResultDialog renders added file without song match',
+    (tester) async {
+      await tester.pumpWidget(
+        _TestApp(
+          child: FolderUpdateResultDialog(
+            folder: createFolderNode('', '/Users/me/Music'),
+            result: const LocalFolderRefreshResult(
+              filesAdded: ['/Users/me/Music/Not In Snapshot.mp3'],
+              filesRemoved: [],
+              filesMoved: [],
+              artistSplitsApplied: [],
+              artistSplitSuggestions: [],
+              artistMergeSuggestions: [],
+            ),
+            songs: _songs,
+            selectedTrackId: null,
+            isPlaying: false,
+            onPlay: (_) {},
+            onOpenSongMenu: (_, _) {},
+            onApplyArtistSplits: (_) {},
+            onDismissArtistSplitSuggestions: () {},
+            onClose: () {},
           ),
-          songs: _songs,
-          selectedTrackId: null,
-          isPlaying: false,
-          onPlay: (_) {},
-          onOpenSongMenu: (_, _) {},
-          onApplyArtistSplits: (_) {},
-          onDismissArtistSplitSuggestions: () {},
-          onClose: () {},
         ),
-      ),
-    );
+      );
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('Not In Snapshot'), findsOneWidget);
-    expect(find.byType(FolderUpdateResultArtwork), findsNothing);
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.text('Not In Snapshot'), findsOneWidget);
+      expect(find.byType(FolderUpdateResultArtwork), findsNothing);
+    },
+  );
 }
 
 double _playingBarHeight(WidgetTester tester, String keyPrefix, int index) {

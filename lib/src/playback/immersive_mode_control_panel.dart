@@ -9,11 +9,11 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
-class NowPlayingFullControlPanel extends ConsumerWidget {
-  const NowPlayingFullControlPanel({
+class ImmersiveModeControlPanel extends ConsumerWidget {
+  const ImmersiveModeControlPanel({
     super.key,
     required this.song,
     required this.state,
@@ -53,9 +53,9 @@ class NowPlayingFullControlPanel extends ConsumerWidget {
         final compact = constraints.maxWidth <= 520;
         final compactUtility = constraints.maxWidth <= 1200;
         final minimalUtility = constraints.maxWidth <= 800;
-        final playerPadding = nowPlayingFullPlayerPadding(constraints.maxWidth);
+        final playerPadding = immersiveModePlayerPadding(constraints.maxWidth);
         final horizontalPadding = playerPadding.horizontal;
-        final sideWidth = nowPlayingFullPlayerSideWidth(
+        final sideWidth = immersiveModePlayerSideWidth(
           constraints.maxWidth,
           contentWidth: constraints.maxWidth - horizontalPadding,
         );
@@ -63,16 +63,16 @@ class NowPlayingFullControlPanel extends ConsumerWidget {
         return MediaControlSurfaceBar(
           artworkPath: artworkPath,
           borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(nowPlayingFullPlayerTopRadius),
+            top: Radius.circular(immersiveModePlayerTopRadius),
           ),
           padding: playerPadding,
-          columnGap: nowPlayingFullPlayerColumnGap(constraints.maxWidth),
+          columnGap: immersiveModePlayerColumnGap(constraints.maxWidth),
           leadingWidth: sideWidth,
           utilityWidth: sideWidth,
           surfaceFlex: 1,
           leading: Align(
             alignment: Alignment.centerLeft,
-            child: NowPlayingFullExitButton(
+            child: ImmersiveModeExitButton(
               minimal: minimalUtility,
               tooltip: i18n.t('nowPlaying.exitImmersiveMode'),
               onPressed: onClose,
@@ -138,34 +138,34 @@ class NowPlayingFullControlPanel extends ConsumerWidget {
   }
 }
 
-EdgeInsets nowPlayingFullPlayerPadding(double viewportWidth) {
+EdgeInsets immersiveModePlayerPadding(double viewportWidth) {
   if (viewportWidth <= 520) {
     return const EdgeInsets.fromLTRB(12, 9, 12, 11);
   }
-  if (viewportWidth <= nowPlayingFullImmersiveCompactBreakpoint) {
+  if (viewportWidth <= immersiveModeImmersiveCompactBreakpoint) {
     return const EdgeInsets.fromLTRB(16, 8, 16, 10);
   }
   return const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
 }
 
-double nowPlayingFullPlayerColumnGap(double viewportWidth) {
+double immersiveModePlayerColumnGap(double viewportWidth) {
   if (viewportWidth <= 520) {
     return 8;
   }
-  if (viewportWidth <= nowPlayingFullImmersiveCompactBreakpoint) {
+  if (viewportWidth <= immersiveModeImmersiveCompactBreakpoint) {
     return 10;
   }
   return 0;
 }
 
-double nowPlayingFullPlayerSideWidth(
+double immersiveModePlayerSideWidth(
   double viewportWidth, {
   required double contentWidth,
 }) {
   if (viewportWidth <= 520) {
     return 68;
   }
-  if (viewportWidth <= nowPlayingFullImmersiveCompactBreakpoint) {
+  if (viewportWidth <= immersiveModeImmersiveCompactBreakpoint) {
     return 80;
   }
 
@@ -177,8 +177,8 @@ double nowPlayingFullPlayerSideWidth(
   return minSide + extra * 0.9 / 2.8;
 }
 
-class NowPlayingFullExitButton extends StatefulWidget {
-  const NowPlayingFullExitButton({
+class ImmersiveModeExitButton extends StatefulWidget {
+  const ImmersiveModeExitButton({
     super.key,
     required this.minimal,
     required this.tooltip,
@@ -190,17 +190,17 @@ class NowPlayingFullExitButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   @override
-  State<NowPlayingFullExitButton> createState() =>
-      NowPlayingFullExitButtonState();
+  State<ImmersiveModeExitButton> createState() =>
+      ImmersiveModeExitButtonState();
 }
 
-class NowPlayingFullExitButtonState extends State<NowPlayingFullExitButton> {
+class ImmersiveModeExitButtonState extends State<ImmersiveModeExitButton> {
   bool _hovered = false;
   bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    final colors = NowPlayingFullThemeColors.of(context);
+    final colors = ImmersiveModeThemeColors.of(context);
     final dark = colors.artworkShadowOpacity > 0.3;
     final active = _hovered || _focused;
     final size = widget.minimal ? 68.0 : 72.0;
@@ -243,7 +243,7 @@ class NowPlayingFullExitButtonState extends State<NowPlayingFullExitButton> {
         },
         onPressed: widget.onPressed,
         child: AnimatedContainer(
-          key: const ValueKey('NowPlayingFull.ExitArtworkShell'),
+          key: const ValueKey('ImmersiveMode.ExitArtworkShell'),
           duration: const Duration(milliseconds: 140),
           curve: Curves.ease,
           width: size,
@@ -287,14 +287,14 @@ class NowPlayingFullExitButtonState extends State<NowPlayingFullExitButton> {
             children: [
               if (dark)
                 const ColoredBox(
-                  key: ValueKey('NowPlayingFull.ExitAlbumSwatch'),
+                  key: ValueKey('ImmersiveMode.ExitAlbumSwatch'),
                   color: Colors.transparent,
                 ),
               if (dark)
                 BackdropFilter(
-                  key: const ValueKey('NowPlayingFull.ExitArtworkBackdrop'),
+                  key: const ValueKey('ImmersiveMode.ExitArtworkBackdrop'),
                   filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: NowPlayingFullExitOverlay(
+                  child: ImmersiveModeExitOverlay(
                     color: const Color(0x6b080c12),
                     iconColor: iconColor,
                     shadows: const [
@@ -307,7 +307,7 @@ class NowPlayingFullExitButtonState extends State<NowPlayingFullExitButton> {
                   ),
                 )
               else
-                NowPlayingFullExitOverlay(
+                ImmersiveModeExitOverlay(
                   color: Colors.transparent,
                   iconColor: iconColor,
                   shadows: const [],
@@ -320,8 +320,8 @@ class NowPlayingFullExitButtonState extends State<NowPlayingFullExitButton> {
   }
 }
 
-class NowPlayingFullExitOverlay extends StatelessWidget {
-  const NowPlayingFullExitOverlay({
+class ImmersiveModeExitOverlay extends StatelessWidget {
+  const ImmersiveModeExitOverlay({
     super.key,
     required this.color,
     required this.iconColor,
@@ -335,11 +335,11 @@ class NowPlayingFullExitOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      key: const ValueKey('NowPlayingFull.ExitArtworkOverlay'),
+      key: const ValueKey('ImmersiveMode.ExitArtworkOverlay'),
       decoration: BoxDecoration(color: color),
       child: Center(
         child: ExitFullscreenIcon(
-          key: const ValueKey('NowPlayingFull.ExitIcon'),
+          key: const ValueKey('ImmersiveMode.ExitIcon'),
           size: 36,
           color: iconColor,
           strokeWidth: 2,
@@ -350,8 +350,8 @@ class NowPlayingFullExitOverlay extends StatelessWidget {
   }
 }
 
-class NowPlayingFullErrorBanner extends StatelessWidget {
-  const NowPlayingFullErrorBanner({super.key, required this.message});
+class ImmersiveModeErrorBanner extends StatelessWidget {
+  const ImmersiveModeErrorBanner({super.key, required this.message});
 
   final String message;
 

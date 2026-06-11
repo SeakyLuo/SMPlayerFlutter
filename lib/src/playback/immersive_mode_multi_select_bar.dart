@@ -6,11 +6,11 @@ import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_queue.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
 
-class NowPlayingFullMultiSelectCommandBar extends StatelessWidget {
-  const NowPlayingFullMultiSelectCommandBar({
+class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
+  const ImmersiveModeMultiSelectCommandBar({
     super.key,
     required this.i18n,
     required this.songs,
@@ -72,7 +72,7 @@ class NowPlayingFullMultiSelectCommandBar extends StatelessWidget {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: nowPlayingFullPlayerHeight - 1,
+      bottom: immersiveModePlayerHeight - 1,
       height: 64,
       child: MultiSelectCommandBar(
         visible: selection.multiSelect,
@@ -131,7 +131,7 @@ class NowPlayingFullMultiSelectCommandBar extends StatelessWidget {
             ),
             onUndo:
                 () => onReplaceQueue(
-                  insertNowPlayingFullQueueSongs(
+                  insertImmersiveModeQueueSongs(
                     currentQueueSongIds(),
                     insertIndex,
                     removedSongIds,

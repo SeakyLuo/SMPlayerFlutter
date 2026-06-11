@@ -363,7 +363,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         lastDisplayMode:
             fullScreen
                 ? SmPlayerDisplayMode.fullScreen
-                : currentPath == '/now-playing/full'
+                : currentPath == '/immersive-mode'
                 ? SmPlayerDisplayMode.immersive
                 : SmPlayerDisplayMode.normal,
       ),
