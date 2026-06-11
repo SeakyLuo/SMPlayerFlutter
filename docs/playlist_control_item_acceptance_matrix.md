@@ -27,7 +27,7 @@ Flutter corresponding source:
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/playlist_control_item.dart`
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/playlist_control_item_overlays.dart`
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/now_playing_page.dart`
-- `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/now_playing_full_page.dart`
+- `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/playback/immersive_mode_page.dart`
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/library/ui/headered_playlist_layout.dart`
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/library/ui/search_page.dart`
 - `/Users/luohaitian/Desktop/Projects/SMPlayerFlutter/lib/src/library/ui/artists_detail.dart`

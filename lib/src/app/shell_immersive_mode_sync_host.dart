@@ -5,7 +5,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
-typedef ShellNowPlayingFullSync =
+typedef ShellImmersiveModeSync =
     void Function({
       required SmPlayerI18n i18n,
       required LibraryContentData? snapshot,
@@ -14,8 +14,8 @@ typedef ShellNowPlayingFullSync =
       required LibrarySong? currentSong,
     });
 
-class ShellNowPlayingFullSyncHost extends ConsumerWidget {
-  const ShellNowPlayingFullSyncHost({
+class ShellImmersiveModeSyncHost extends ConsumerWidget {
+  const ShellImmersiveModeSyncHost({
     super.key,
     required this.visible,
     required this.mediaControlController,
@@ -36,7 +36,7 @@ class ShellNowPlayingFullSyncHost extends ConsumerWidget {
   scheduleRestorePlaybackTrack;
   final void Function(LibrarySong? currentSong, WidgetRef ref)
   ensurePlayerArtworkResolved;
-  final ShellNowPlayingFullSync syncDesktopFeatures;
+  final ShellImmersiveModeSync syncDesktopFeatures;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

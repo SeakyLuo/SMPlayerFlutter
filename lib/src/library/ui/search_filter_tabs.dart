@@ -73,9 +73,9 @@ class _SearchFilterTabs extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 38),
+        constraints: const BoxConstraints(minHeight: 40),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(2, 4, 2, 8),
+          padding: const EdgeInsets.fromLTRB(0, 3, 0, 3),
           child: Row(
             children: [
               for (final tab in orderedTabs) ...[
@@ -88,7 +88,7 @@ class _SearchFilterTabs extends StatelessWidget {
                     onChanged(tab.key);
                   },
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
               ],
             ],
           ),
@@ -118,35 +118,40 @@ class _SearchFilterTab extends StatelessWidget {
     final colors = SearchPageThemeColors.of(context);
     final foreground =
         selected
-            ? Colors.white
+            ? colors.appBarTabActiveText
             : enabled
-            ? colors.textStrong
-            : colors.textStrong.withValues(alpha: 0.46);
+            ? colors.appBarTabText
+            : colors.appBarTabText.withValues(alpha: 0.46);
 
     return Opacity(
       opacity: enabled ? 1 : 0.46,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: enabled ? onPressed : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          constraints: const BoxConstraints(minHeight: 30),
-          padding: const EdgeInsets.symmetric(horizontal: 13),
-          decoration: BoxDecoration(
-            gradient:
+      child: SizedBox(
+        height: 34,
+        child: TextButton(
+          style: _searchFilterTabButtonStyle(
+            foregroundColor: foreground,
+            hoverForegroundColor:
                 selected
-                    ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xff2584dd), _SearchColors.accent],
-                    )
-                    : null,
-            color: selected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected ? Colors.transparent : colors.controlBorder,
-            ),
+                    ? colors.appBarTabActiveText
+                    : colors.appBarTabHoverText,
+            backgroundColor:
+                selected
+                    ? colors.appBarTabActiveSurface
+                    : colors.appBarTabSurface,
+            hoverBackgroundColor:
+                selected
+                    ? colors.appBarTabActiveSurface
+                    : colors.appBarTabHoverSurface,
+            borderColor:
+                selected
+                    ? colors.appBarTabActiveBorder
+                    : colors.appBarTabBorder,
+            hoverBorderColor:
+                selected
+                    ? colors.appBarTabActiveBorder
+                    : colors.appBarTabHoverBorder,
           ),
+          onPressed: enabled ? onPressed : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -155,7 +160,7 @@ class _SearchFilterTab extends StatelessWidget {
                 style: TextStyle(
                   color: foreground,
                   fontSize: 13,
-                  fontWeight: FontWeight.w400,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 7),
@@ -164,7 +169,7 @@ class _SearchFilterTab extends StatelessWidget {
                 style: TextStyle(
                   color: foreground,
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -173,4 +178,68 @@ class _SearchFilterTab extends StatelessWidget {
       ),
     );
   }
+}
+
+ButtonStyle _searchFilterTabButtonStyle({
+  required Color foregroundColor,
+  required Color hoverForegroundColor,
+  required Color backgroundColor,
+  required Color hoverBackgroundColor,
+  required Color borderColor,
+  required Color hoverBorderColor,
+}) {
+  const height = 34.0;
+  const radius = 10.0;
+  const padding = EdgeInsets.symmetric(horizontal: 12);
+
+  Color resolveColor(Set<WidgetState> states, Color regular, Color hovered) {
+    return _searchFilterTabHovered(states) ? hovered : regular;
+  }
+
+  BorderSide resolveSide(Set<WidgetState> states) {
+    return BorderSide(
+      color: resolveColor(states, borderColor, hoverBorderColor),
+    );
+  }
+
+  RoundedRectangleBorder resolveShape(Set<WidgetState> states) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: resolveSide(states),
+    );
+  }
+
+  return TextButton.styleFrom(
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: const Size(0, height),
+    maximumSize: const Size(double.infinity, height),
+    padding: padding,
+    foregroundColor: foregroundColor,
+    backgroundColor: backgroundColor,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(color: borderColor),
+    ),
+    shadowColor: Colors.transparent,
+  ).copyWith(
+    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    elevation: const WidgetStatePropertyAll(0),
+    minimumSize: const WidgetStatePropertyAll(Size(0, height)),
+    maximumSize: const WidgetStatePropertyAll(Size(double.infinity, height)),
+    foregroundColor: WidgetStateProperty.resolveWith(
+      (states) => resolveColor(states, foregroundColor, hoverForegroundColor),
+    ),
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => resolveColor(states, backgroundColor, hoverBackgroundColor),
+    ),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    side: WidgetStateProperty.resolveWith(resolveSide),
+    shape: WidgetStateProperty.resolveWith(resolveShape),
+  );
+}
+
+bool _searchFilterTabHovered(Set<WidgetState> states) {
+  return states.contains(WidgetState.hovered) ||
+      states.contains(WidgetState.focused) ||
+      states.contains(WidgetState.pressed);
 }

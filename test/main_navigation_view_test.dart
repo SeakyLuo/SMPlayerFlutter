@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/search_commit_icon_button.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -125,6 +126,64 @@ void main() {
       tester.getBottomLeft(find.byKey(const ValueKey('SettingsItem'))).dy,
       lessThanOrEqualTo(900),
     );
+  });
+
+  testWidgets('sidebar titlebar closes open MenuFlyout', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Stack(
+          children: [
+            SizedBox(
+              width: 320,
+              height: 900,
+              child: MainNavigationView(
+                isPaneOpen: true,
+                currentPath: '/songs',
+                searchText: '',
+                i18n: testI18n,
+                onPaneToggle: () {},
+                onSearchTextChanged: (_) {},
+                onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+                onSearchCleared: () {},
+                onItemInvoked: (_) {},
+              ),
+            ),
+            Positioned(
+              left: 420,
+              top: 80,
+              child: Builder(
+                builder: (context) {
+                  return TextButton(
+                    onPressed: () {
+                      showMenuFlyout(
+                        context,
+                        items: [
+                          MenuFlyoutItem(
+                            key: 'first',
+                            text: 'First',
+                            onPressed: () {},
+                          ),
+                        ],
+                      );
+                    },
+                    child: const Text('Open Flyout'),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open Flyout'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('MenuFlyout.GlassPanel')), findsOneWidget);
+
+    await tester.tapAt(const Offset(24, 20));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('MenuFlyout.GlassPanel')), findsNothing);
   });
 
   testWidgets('expanded sidebar item content does not move when selected', (

@@ -281,17 +281,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(firstChild, findsOneWidget);
 
-      final menuList = find
-          .descendant(
-            of: find.byKey(const ValueKey('MenuFlyoutPanel.0.18')),
-            matching: find.byType(Scrollable),
-          )
-          .first;
-      await tester.scrollUntilVisible(
-        lastChild,
-        180,
-        scrollable: menuList,
-      );
+      final menuList =
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('MenuFlyoutPanel.0.18')),
+                matching: find.byType(Scrollable),
+              )
+              .first;
+      await tester.scrollUntilVisible(lastChild, 180, scrollable: menuList);
       await tester.pumpAndSettle();
       expect(lastChild, findsOneWidget);
 

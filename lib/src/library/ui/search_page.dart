@@ -45,6 +45,8 @@ part 'search_result_cards.dart';
 part 'search_result_sections.dart';
 part 'search_theme.dart';
 
+const _searchPageHorizontalInset = 8.0;
+
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({
     super.key,
@@ -184,7 +186,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           child:
               query.isEmpty
                   ? Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+                    padding: const EdgeInsets.fromLTRB(
+                      _searchPageHorizontalInset,
+                      6,
+                      _searchPageHorizontalInset,
+                      22,
+                    ),
                     child: _SearchEmptyState(
                       message: i18n.t('search.enterKeyword'),
                     ),
@@ -201,7 +208,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         );
         return _SearchPageSurface(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+            padding: const EdgeInsets.fromLTRB(
+              _searchPageHorizontalInset,
+              6,
+              _searchPageHorizontalInset,
+              22,
+            ),
             child: _SearchEmptyState(message: i18n.t('search.noResult')),
           ),
         );
@@ -277,7 +289,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   slivers: [
                     if (query.isEmpty || !hasResults)
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(24, 6, 24, 22),
+                        padding: const EdgeInsets.fromLTRB(
+                          _searchPageHorizontalInset,
+                          6,
+                          _searchPageHorizontalInset,
+                          22,
+                        ),
                         sliver: SliverToBoxAdapter(
                           child: _SearchEmptyState(
                             message:
@@ -302,9 +319,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         ),
                       SliverPadding(
                         padding: EdgeInsets.fromLTRB(
-                          24,
+                          _searchPageHorizontalInset,
                           18,
-                          24,
+                          _searchPageHorizontalInset,
                           _selection.multiSelect
                               ? multiSelectCommandBarScrollSpacer
                               : 22,

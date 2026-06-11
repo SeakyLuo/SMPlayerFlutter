@@ -3,10 +3,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
-class NowPlayingFullScaffold extends StatelessWidget {
-  const NowPlayingFullScaffold({
+class ImmersiveModeScaffold extends StatelessWidget {
+  const ImmersiveModeScaffold({
     super.key,
     required this.child,
     required this.coverColor,
@@ -23,7 +23,7 @@ class NowPlayingFullScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final artworkFile =
         artworkPath == null || artworkPath!.isEmpty ? null : File(artworkPath!);
-    final colors = NowPlayingFullThemeColors.of(context, night: night);
+    final colors = ImmersiveModeThemeColors.of(context, night: night);
     final theme = Theme.of(context);
     final mediaControlColors = (night
             ? MediaControlThemeColors.dark
@@ -101,7 +101,7 @@ class NowPlayingFullScaffold extends StatelessWidget {
     final scopedTheme = theme.copyWith(
       extensions: [
         for (final extension in theme.extensions.values)
-          if (extension is! NowPlayingFullThemeColors &&
+          if (extension is! ImmersiveModeThemeColors &&
               extension is! MediaControlThemeColors)
             extension,
         colors,
@@ -133,25 +133,33 @@ class NowPlayingFullScaffold extends StatelessWidget {
           ),
         ),
         if (night)
-          const _NowPlayingFullNightArtworkShade()
+          const _ImmersiveModeNightArtworkShade()
         else
-          _NowPlayingFullDayBackdropTint(coverColor: coverColor),
-        if (!night) _NowPlayingFullDayCoverGlow(coverColor: coverColor),
+          _ImmersiveModeDayBackdropTint(coverColor: coverColor),
+        if (!night) _ImmersiveModeDayCoverGlow(coverColor: coverColor),
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(gradient: colors.backdropOverlay),
           ),
         ),
-        if (night) const _NowPlayingFullNightWarmOverlay(),
-        if (!night) _NowPlayingFullDayWashOverlay(coverColor: coverColor),
-        Theme(data: scopedTheme, child: child),
+        if (night) const _ImmersiveModeNightWarmOverlay(),
+        if (!night) _ImmersiveModeDayWashOverlay(coverColor: coverColor),
+        Theme(
+          data: scopedTheme,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: child,
+          ),
+        ),
       ],
     );
   }
 }
 
-class _NowPlayingFullDayBackdropTint extends StatelessWidget {
-  const _NowPlayingFullDayBackdropTint({required this.coverColor});
+class _ImmersiveModeDayBackdropTint extends StatelessWidget {
+  const _ImmersiveModeDayBackdropTint({required this.coverColor});
 
   final Color coverColor;
 
@@ -186,8 +194,8 @@ class _NowPlayingFullDayBackdropTint extends StatelessWidget {
   }
 }
 
-class _NowPlayingFullNightArtworkShade extends StatelessWidget {
-  const _NowPlayingFullNightArtworkShade();
+class _ImmersiveModeNightArtworkShade extends StatelessWidget {
+  const _ImmersiveModeNightArtworkShade();
 
   @override
   Widget build(BuildContext context) {
@@ -212,8 +220,8 @@ class _NowPlayingFullNightArtworkShade extends StatelessWidget {
   }
 }
 
-class _NowPlayingFullDayCoverGlow extends StatelessWidget {
-  const _NowPlayingFullDayCoverGlow({required this.coverColor});
+class _ImmersiveModeDayCoverGlow extends StatelessWidget {
+  const _ImmersiveModeDayCoverGlow({required this.coverColor});
 
   final Color coverColor;
 
@@ -266,8 +274,8 @@ class _NowPlayingFullDayCoverGlow extends StatelessWidget {
   }
 }
 
-class _NowPlayingFullDayWashOverlay extends StatelessWidget {
-  const _NowPlayingFullDayWashOverlay({required this.coverColor});
+class _ImmersiveModeDayWashOverlay extends StatelessWidget {
+  const _ImmersiveModeDayWashOverlay({required this.coverColor});
 
   final Color coverColor;
 
@@ -303,8 +311,8 @@ class _NowPlayingFullDayWashOverlay extends StatelessWidget {
   }
 }
 
-class _NowPlayingFullNightWarmOverlay extends StatelessWidget {
-  const _NowPlayingFullNightWarmOverlay();
+class _ImmersiveModeNightWarmOverlay extends StatelessWidget {
+  const _ImmersiveModeNightWarmOverlay();
 
   @override
   Widget build(BuildContext context) {

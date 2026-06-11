@@ -213,38 +213,41 @@ void main() {
     expect(controller.state.playbackStatus, PlaybackStatus.loading);
   });
 
-  test('MediaControlController final ready commit clears restored track loading', () {
-    final controller = MediaControlController();
+  test(
+    'MediaControlController final ready commit clears restored track loading',
+    () {
+      final controller = MediaControlController();
 
-    controller.playTrack(
-      const MediaControlTrack(
-        id: 2,
-        title: 'Restored',
-        artist: 'Artist',
-        artworkUrl: '',
-        isLoading: false,
-      ),
-      durationSeconds: 200,
-      queueIndex: 1,
-      progressSeconds: 42,
-      autoplay: false,
-    );
-    expect(controller.state.track.isLoading, isTrue);
-    expect(controller.state.playbackStatus, PlaybackStatus.loading);
+      controller.playTrack(
+        const MediaControlTrack(
+          id: 2,
+          title: 'Restored',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+        ),
+        durationSeconds: 200,
+        queueIndex: 1,
+        progressSeconds: 42,
+        autoplay: false,
+      );
+      expect(controller.state.track.isLoading, isTrue);
+      expect(controller.state.playbackStatus, PlaybackStatus.loading);
 
-    controller.setTrackLoading(false);
-    expect(controller.state.track.isLoading, isFalse);
-    expect(controller.state.playbackStatus, PlaybackStatus.ready);
+      controller.setTrackLoading(false);
+      expect(controller.state.track.isLoading, isFalse);
+      expect(controller.state.playbackStatus, PlaybackStatus.ready);
 
-    controller.setTrackLoading(true);
-    expect(controller.state.track.isLoading, isTrue);
-    expect(controller.state.playbackStatus, PlaybackStatus.loading);
+      controller.setTrackLoading(true);
+      expect(controller.state.track.isLoading, isTrue);
+      expect(controller.state.playbackStatus, PlaybackStatus.loading);
 
-    controller.setTrackLoading(false);
-    expect(controller.state.track.isLoading, isFalse);
-    expect(controller.state.playbackStatus, PlaybackStatus.ready);
-    expect(controller.state.isPlaying, isFalse);
-  });
+      controller.setTrackLoading(false);
+      expect(controller.state.track.isLoading, isFalse);
+      expect(controller.state.playbackStatus, PlaybackStatus.ready);
+      expect(controller.state.isPlaying, isFalse);
+    },
+  );
 
   test('MediaControlController updates playback runtime state', () {
     final persistedUpdates = <PlaybackSettingsUpdate>[];
@@ -328,6 +331,44 @@ void main() {
     expect(controller.state.isPlaying, isFalse);
     expect(controller.state.progressSeconds, 100);
     expect(persistedUpdates.last.musicProgress, 100);
+  });
+
+  test('MediaControlController seeks and resumes playback atomically', () {
+    final persistedUpdates = <PlaybackSettingsUpdate>[];
+    var notifications = 0;
+    final controller = MediaControlController(
+      const MediaControlState(
+        track: MediaControlTrack(
+          id: 1,
+          title: 'Song',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+        ),
+        disabled: false,
+        isPlaying: false,
+        playbackStatus: PlaybackStatus.paused,
+        volume: 50,
+        isMuted: false,
+        mode: PlaybackMode.once,
+        progressSeconds: 12,
+        durationSeconds: 100,
+        isProgressSeeking: false,
+      ),
+      persistedUpdates.add,
+    );
+    controller.addListener(() {
+      notifications += 1;
+    });
+
+    controller.onSeekAndPlay(140);
+
+    expect(notifications, 1);
+    expect(controller.state.progressSeconds, 100);
+    expect(controller.state.isPlaying, isTrue);
+    expect(controller.state.playbackStatus, PlaybackStatus.seeking);
+    expect(persistedUpdates, hasLength(1));
+    expect(persistedUpdates.single.musicProgress, 100);
   });
 
   test('MediaControlController accepts playback backend state updates', () {

@@ -100,13 +100,9 @@ void main() {
   );
 
   test('folder thumbnail candidates group raw album names like Electron', () {
-    final root =
-        createFolderNode('', '/music')..thumbnailDirectSongIds = [1, 2, 3];
-    final songsById = {
-      1: _song(1, ''),
-      2: _song(2, ' '),
-      3: _song(3, ''),
-    };
+    final root = createFolderNode('', '/music')
+      ..thumbnailDirectSongIds = [1, 2, 3];
+    final songsById = {1: _song(1, ''), 2: _song(2, ' '), 3: _song(3, '')};
 
     final groups = getOriginalFolderThumbnailCandidateGroups(root, {
       '': root,

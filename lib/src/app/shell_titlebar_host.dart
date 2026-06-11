@@ -52,7 +52,7 @@ class ShellTitlebarHost extends StatelessWidget {
             ),
           ),
         if (Platform.isWindows &&
-            !layout.isNowPlayingFullRoute &&
+            !layout.isImmersiveModeRoute &&
             layout.minimalTitlebarHeight == 0)
           Positioned(
             top: 0,
@@ -73,7 +73,7 @@ class ShellTitlebarHost extends StatelessWidget {
             ),
           ),
         if (Platform.isWindows &&
-            !layout.isNowPlayingFullRoute &&
+            !layout.isImmersiveModeRoute &&
             layout.minimalTitlebarHeight > 0)
           Positioned(
             top: 0,

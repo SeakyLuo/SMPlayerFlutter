@@ -106,6 +106,4 @@ List<_RecentTimeGroup<T>> _groupRecentItems<T>(
   return groups;
 }
 
-
 const _recentTimeGroupHeaderExtent = 36.0;
-

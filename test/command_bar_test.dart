@@ -744,6 +744,51 @@ void main() {
     },
   );
 
+  testWidgets(
+    'CommandBarButton with visible label does not show label tooltip',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommandBar(
+              children: [
+                CommandBarButton(
+                  icon: FluentIcons.checkmark_20_regular,
+                  label: 'Multi Select',
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(Tooltip), findsNothing);
+    },
+  );
+
+  testWidgets('CommandBarButton icon-only keeps label tooltip', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommandBar(
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.more_horizontal_24_regular,
+                label: 'More',
+                showLabel: false,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+    expect(tooltip.message, 'More');
+  });
+
   testWidgets('CommandBar icon-only buttons use night colors', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -936,6 +981,143 @@ void main() {
     );
     final decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.boxShadow, isNull);
+  });
+
+  testWidgets(
+    'SmPlayerTextIconButton omits implicit tooltip when label is visible',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmPlayerTextIconButton(
+              icon: FluentIcons.play_24_regular,
+              label: 'Play',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(Tooltip), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'SmPlayerTextIconButton keeps explicit tooltip when label is visible',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmPlayerTextIconButton(
+              icon: FluentIcons.play_24_regular,
+              label: 'Play',
+              tooltip: 'Start playback',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, 'Start playback');
+    },
+  );
+
+  testWidgets(
+    'SmPlayerTextIconButton keeps label tooltip for icon-only buttons',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmPlayerTextIconButton(
+              icon: FluentIcons.play_24_regular,
+              label: 'Play',
+              showLabel: false,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, 'Play');
+    },
+  );
+
+  testWidgets('SmPlayerTextIconButton respects tooltipEnabled false', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            tooltip: 'Start playback',
+            tooltipEnabled: false,
+            showLabel: false,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(Tooltip), findsNothing);
+  });
+
+  testWidgets('SmPlayerTextIconButton can render inside liquid glass', (
+    tester,
+  ) async {
+    const glassSettings = LiquidGlassSettings(
+      blur: 46,
+      thickness: 20,
+      refractiveIndex: 1.06,
+      saturation: 1.65,
+      chromaticAberration: 0,
+      lightIntensity: 0.1,
+      ambientStrength: 0.08,
+      glowIntensity: 0.04,
+      glassColor: Color(0x1cffffff),
+      standardOpacityMultiplier: 0.35,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            borderRadius: 12,
+            glassSettings: glassSettings,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final glass = tester.widget<GlassContainer>(
+      find.descendant(
+        of: find.byType(SmPlayerTextIconButton),
+        matching: find.byType(GlassContainer),
+      ),
+    );
+    expect(glass.settings, glassSettings);
+    expect(glass.quality, GlassQuality.minimal);
+    expect(glass.useOwnLayer, isTrue);
+    expect(glass.allowElevation, isFalse);
+    expect(glass.clipBehavior, Clip.hardEdge);
+    expect(glass.shape, isA<LiquidRoundedRectangle>());
+
+    final decoration = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(SmPlayerTextIconButton),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border != null);
+    expect(decoration.borderRadius, BorderRadius.circular(12));
   });
 
   testWidgets(
@@ -1502,6 +1684,106 @@ void main() {
     expect(panelRect.left, moreOrLessEquals(buttonRect.left, epsilon: 1));
     expect(panelRect.top, moreOrLessEquals(buttonRect.bottom + 4, epsilon: 1));
   });
+
+  testWidgets(
+    'MenuFlyout closes when titlebar outside nested overlay is tapped',
+    (tester) async {
+      late BuildContext rootContext;
+      var titlebarTapped = false;
+      OverlayEntry? titlebarEntry;
+      addTearDown(() {
+        final entry = titlebarEntry;
+        if (entry != null && entry.mounted) {
+          entry.remove();
+        }
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                rootContext = context;
+                return Row(
+                  children: [
+                    const SizedBox(width: 220),
+                    Expanded(
+                      child: Navigator(
+                        onGenerateRoute:
+                            (_) => MaterialPageRoute<void>(
+                              builder:
+                                  (context) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 48,
+                                      top: 136,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Builder(
+                                        builder: (context) {
+                                          return TextButton(
+                                            onPressed: () {
+                                              showMenuFlyout(
+                                                context,
+                                                items: [
+                                                  MenuFlyoutItem(
+                                                    key: 'nested',
+                                                    text: 'Nested Item',
+                                                    onPressed: () {},
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            child: const Text('Nested Open'),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Nested Open'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+        findsOneWidget,
+      );
+
+      titlebarEntry = OverlayEntry(
+        builder:
+            (_) => Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: 72,
+              child: GestureDetector(
+                key: const ValueKey('TestTitleBar'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  titlebarTapped = true;
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
+      );
+      Overlay.of(rootContext, rootOverlay: true).insert(titlebarEntry);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('TestTitleBar')));
+      await tester.pumpAndSettle();
+
+      expect(titlebarTapped, isTrue);
+      expect(find.byKey(const ValueKey('MenuFlyout.GlassPanel')), findsNothing);
+    },
+  );
 
   testWidgets('MenuFlyout explicit anchor uses nested overlay coordinates', (
     tester,

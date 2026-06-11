@@ -476,6 +476,22 @@ class MediaControlController extends ChangeNotifier {
     );
   }
 
+  void onSeekAndPlay(double seconds) {
+    final nextProgress = seconds.clamp(0, _state.durationSeconds).toDouble();
+    _setState(
+      _state.copyWith(
+        isPlaying: true,
+        progressSeconds: nextProgress,
+        playbackStatus: PlaybackStatus.seeking,
+        clearPlaybackNotice: true,
+      ),
+    );
+    notifyListeners();
+    _onPlaybackSettingsUpdate?.call(
+      PlaybackSettingsUpdate(musicProgress: nextProgress),
+    );
+  }
+
   void onBeginSeek() {
     _setState(
       _state.copyWith(

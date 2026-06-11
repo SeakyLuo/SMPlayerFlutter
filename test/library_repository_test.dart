@@ -44,25 +44,27 @@ void main() {
     }
   });
 
-  test('library initialization restores Electron My Favorites playlist', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'smplayer_favorites_migration_test_',
-    );
-    addTearDown(() async {
-      await directory.delete(recursive: true);
-    });
-    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('''
+  test(
+    'library initialization restores Electron My Favorites playlist',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer_favorites_migration_test_',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      final db = sqlite3.open(databaseFile.path);
+      try {
+        db.execute('''
         CREATE TABLE Settings (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           MyFavorites INTEGER DEFAULT 0,
           NowPlaying INTEGER DEFAULT 0
         )
       ''');
-      db.execute('INSERT INTO Settings (MyFavorites) VALUES (0)');
-      db.execute('''
+        db.execute('INSERT INTO Settings (MyFavorites) VALUES (0)');
+        db.execute('''
         CREATE TABLE Music (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           Path TEXT NOT NULL,
@@ -73,21 +75,21 @@ void main() {
           State INTEGER DEFAULT 1
         )
       ''');
-      db.execute(
-        '''
+        db.execute(
+          '''
         INSERT INTO Music (Id, Path, Name, State)
         VALUES (7, ?, 'Favorite Song', 1)
       ''',
-        ['${directory.path}/favorite.mp3'],
-      );
-      db.execute('''
+          ['${directory.path}/favorite.mp3'],
+        );
+        db.execute('''
         CREATE TABLE Playlist (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           Name TEXT NOT NULL,
           State INTEGER DEFAULT 1
         )
       ''');
-      db.execute('''
+        db.execute('''
         CREATE TABLE PlaylistItem (
           Id INTEGER PRIMARY KEY AUTOINCREMENT,
           PlaylistId INTEGER NOT NULL,
@@ -95,45 +97,44 @@ void main() {
           State INTEGER DEFAULT 1
         )
       ''');
-      db.execute(
-        'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (0, 7, 1)',
+        db.execute(
+          'INSERT INTO PlaylistItem (PlaylistId, ItemId, State) VALUES (0, 7, 1)',
+        );
+      } finally {
+        db.dispose();
+      }
+
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
       );
-    } finally {
-      db.dispose();
-    }
+      final snapshot = await repository.getLibraryContentData();
 
-    final repository = LibraryRepository(
-      databaseFileResolver: () async => databaseFile,
-    );
-    final snapshot = await repository.getLibraryContentData();
+      expect(snapshot.favoritePlaylistId, greaterThan(0));
+      expect(snapshot.songs.single.favorite, isTrue);
+      final favoritesPlaylist = snapshot.playlists.singleWhere(
+        (playlist) => playlist.id == snapshot.favoritePlaylistId,
+      );
+      expect(favoritesPlaylist.name, 'My Favorites');
+      expect(favoritesPlaylist.isBuiltIn, isTrue);
+      expect(favoritesPlaylist.songIds, [7]);
 
-    expect(snapshot.favoritePlaylistId, greaterThan(0));
-    expect(snapshot.songs.single.favorite, isTrue);
-    final favoritesPlaylist = snapshot.playlists.singleWhere(
-      (playlist) => playlist.id == snapshot.favoritePlaylistId,
-    );
-    expect(favoritesPlaylist.name, 'My Favorites');
-    expect(favoritesPlaylist.isBuiltIn, isTrue);
-    expect(favoritesPlaylist.songIds, [7]);
-
-    final verifyDb = sqlite3.open(databaseFile.path);
-    try {
-      final settings = verifyDb.select('SELECT MyFavorites FROM Settings');
-      final favoritePlaylistId = settings.single['MyFavorites'] as int;
-      expect(favoritePlaylistId, snapshot.favoritePlaylistId);
-      final itemRows = verifyDb.select(
-        '''
+      final verifyDb = sqlite3.open(databaseFile.path);
+      try {
+        final settings = verifyDb.select('SELECT MyFavorites FROM Settings');
+        final favoritePlaylistId = settings.single['MyFavorites'] as int;
+        expect(favoritePlaylistId, snapshot.favoritePlaylistId);
+        final itemRows = verifyDb.select('''
         SELECT PlaylistId, ItemId, State
         FROM PlaylistItem
         WHERE ItemId = 7
-      ''',
-      );
-      expect(itemRows.single['PlaylistId'], favoritePlaylistId);
-      expect(itemRows.single['State'], 1);
-    } finally {
-      verifyDb.dispose();
-    }
-  });
+      ''');
+        expect(itemRows.single['PlaylistId'], favoritePlaylistId);
+        expect(itemRows.single['State'], 1);
+      } finally {
+        verifyDb.dispose();
+      }
+    },
+  );
 
   test('setSongsFavorite writes to restored My Favorites playlist', () async {
     final directory = await Directory.systemTemp.createTemp(
@@ -198,8 +199,9 @@ void main() {
     final verifyDb = sqlite3.open(databaseFile.path);
     try {
       final favoritePlaylistId =
-          verifyDb.select('SELECT MyFavorites FROM Settings').single
-              ['MyFavorites']
+          verifyDb
+                  .select('SELECT MyFavorites FROM Settings')
+                  .single['MyFavorites']
               as int;
       expect(favoritePlaylistId, greaterThan(0));
       final zeroRows = verifyDb.select(

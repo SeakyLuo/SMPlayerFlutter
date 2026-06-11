@@ -899,6 +899,81 @@ void main() {
     expect(listShape.side.strokeAlign, BorderSide.strokeAlignOutside);
   });
 
+  testWidgets('Local folder list tree toggle keeps balanced spacing', (
+    tester,
+  ) async {
+    final folderIndex = buildFolderIndex(const [], [
+      const LibraryFolder(
+        id: 9001,
+        path: r'C:\Music\Root',
+        parentId: 0,
+        criterion: 0,
+      ),
+      const LibraryFolder(
+        id: 9002,
+        path: r'C:\Music\Root\Child',
+        parentId: 9001,
+        criterion: 0,
+      ),
+    ], r'C:\Music');
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: const [LocalPageColors.day]),
+          home: Scaffold(
+            body: SizedBox(
+              width: 560,
+              child: LocalFolderCard(
+                folder: folderIndex.nodes['Root']!,
+                selected: false,
+                multiSelect: false,
+                nodes: folderIndex.nodes,
+                songsById: folderIndex.songsById,
+                i18n: i18n,
+                variant: LocalFolderCardVariant.list,
+                treeExpanded: false,
+                treeExpandable: true,
+                onToggleTreeExpanded: () {},
+                onPlayFolder: (_) {},
+                onAddFolder: (_, _) {},
+                onRefreshFolder: (_) {},
+                onSearchFolder: (_) {},
+                onRevealFolder: (_) {},
+                onOpenFolder: (_) {},
+                onOpenFolderMenu: (_, _) {},
+                onToggleSelection: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final surfaceRect = tester.getRect(
+      find.byKey(const ValueKey('LocalFolderCard.ListDropSurface')),
+    );
+    final toggleRect = tester.getRect(
+      find.byKey(const ValueKey('LocalFolderCard.ListTreeToggle')),
+    );
+    final toggleButton = tester.widget<IconButton>(
+      find.byKey(const ValueKey('LocalFolderCard.ListTreeToggle')),
+    );
+    final toggleShape =
+        toggleButton.style?.shape?.resolve(<WidgetState>{})
+            as RoundedRectangleBorder?;
+    final iconSlotRect = tester.getRect(
+      find.byKey(const ValueKey('LocalFolderCard.ListIconSlot')),
+    );
+
+    expect(toggleRect.width, 24);
+    expect(toggleRect.height, 24);
+    expect(toggleShape?.borderRadius, BorderRadius.circular(999));
+    expect(toggleRect.left - surfaceRect.left, 8);
+    expect(iconSlotRect.left - toggleRect.right, 6);
+  });
+
   testWidgets('Local folder grid badge mirrors Electron floating icon style', (
     tester,
   ) async {

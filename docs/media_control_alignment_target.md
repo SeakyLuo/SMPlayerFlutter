@@ -26,7 +26,7 @@ This document is the acceptance target for aligning Flutter `MediaControl` to th
 | Player frame / artwork tint background | `lib/src/playback/media_control_frame.dart` |
 | Menu positioning primitive | `lib/src/library/ui/menu_flyout.dart` |
 | Shell call site | `lib/src/app/shell_page.dart` |
-| Full now-playing player reuse | `lib/src/playback/now_playing_full_page.dart` |
+| Full now-playing player reuse | `lib/src/playback/immersive_mode_page.dart` |
 | Targeted tests | `test/media_control_widget_test.dart`, `test/media_control_visual_verify_test.dart` |
 
 ## Acceptance Matrix

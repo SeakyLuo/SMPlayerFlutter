@@ -5,7 +5,7 @@ class ShellLayoutState {
   const ShellLayoutState({
     required this.currentPath,
     required this.currentLocation,
-    required this.isNowPlayingFullRoute,
+    required this.isImmersiveModeRoute,
     required this.navigationMode,
     required this.isNavigationPaneVisible,
     required this.canGoBack,
@@ -22,7 +22,7 @@ class ShellLayoutState {
 
   final String currentPath;
   final String currentLocation;
-  final bool isNowPlayingFullRoute;
+  final bool isImmersiveModeRoute;
   final SmPlayerNavigationMode navigationMode;
   final bool isNavigationPaneVisible;
   final bool canGoBack;
@@ -45,12 +45,12 @@ class ShellLayoutState {
     required bool canGoBack,
     required HeaderedPlaylistAppBarPortalEntry? rawHeaderedPlaylistAppBar,
   }) {
-    final isNowPlayingFullRoute = currentPath == '/now-playing/full';
+    final isImmersiveModeRoute = currentPath == '/immersive-mode';
     final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
       windowWidth,
     );
     final isNavigationPaneVisible =
-        isNowPlayingFullRoute
+        isImmersiveModeRoute
             ? false
             : navigationMode == SmPlayerNavigationMode.minimal
             ? minimalNavigationOpen
@@ -82,7 +82,7 @@ class ShellLayoutState {
             ? rawHeaderedPlaylistAppBar
             : null;
     final minimalTitlebarHeight =
-        !isNowPlayingFullRoute &&
+        !isImmersiveModeRoute &&
                 navigationMode == SmPlayerNavigationMode.minimal
             ? SmPlayerShellMetrics.minimalTitlebarHeight
             : 0.0;
@@ -97,7 +97,7 @@ class ShellLayoutState {
     return ShellLayoutState(
       currentPath: currentPath,
       currentLocation: currentLocation,
-      isNowPlayingFullRoute: isNowPlayingFullRoute,
+      isImmersiveModeRoute: isImmersiveModeRoute,
       navigationMode: navigationMode,
       isNavigationPaneVisible: isNavigationPaneVisible,
       canGoBack: canGoBack,

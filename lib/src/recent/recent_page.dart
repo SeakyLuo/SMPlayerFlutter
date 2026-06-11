@@ -60,6 +60,7 @@ enum RecentTab { added, played, searches }
 enum RecentPlayedFilter { songs, artists, albums, playlists }
 
 const _recentMinimalContentBreakpoint = 656.0;
+const _recentMinimalPageHorizontalPadding = 8.0;
 const _recentPlayedFilterRadius = 999.0;
 const _recentCollectionTileWidth = 180.0;
 const _recentCollectionTileHeight = 242.0;

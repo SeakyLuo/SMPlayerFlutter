@@ -176,11 +176,7 @@ void main() {
     });
 
     await tester.pumpWidget(
-      _RecentTestApp(
-        snapshot: _snapshot,
-        i18n: i18n,
-        repository: repository,
-      ),
+      _RecentTestApp(snapshot: _snapshot, i18n: i18n, repository: repository),
     );
     await tester.pumpAndSettle();
 
@@ -676,13 +672,14 @@ void main() {
     expect(boxDecoration.boxShadow, isNotEmpty);
     expect(boxDecoration.boxShadow!.single, GlobalUI.hoverShadowDay);
     expect(tester.getSize(tile).height, 116);
-    expect(
-      tester.widget<AnimatedContainer>(tile).padding,
-      EdgeInsets.zero,
-    );
+    expect(tester.widget<AnimatedContainer>(tile).padding, EdgeInsets.zero);
     final artwork = find.byKey(const ValueKey('RecentSong.Artwork.1'));
     expect(tester.getTopLeft(artwork), tester.getTopLeft(tile));
     expect(tester.getSize(artwork).height, tester.getSize(tile).height);
+    final artworkShell = tester.widget<SizedBox>(artwork);
+    final artworkShadow =
+        (artworkShell.child! as DecoratedBox).decoration as BoxDecoration;
+    expect(artworkShadow.boxShadow, isNotEmpty);
   });
 
   testWidgets(
@@ -1021,6 +1018,25 @@ void main() {
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
     expect(find.text('Clear History'), findsNothing);
     expect(tester.getSize(find.widgetWithText(TextButton, 'Added')).height, 34);
+    final playedTab = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Played'),
+    );
+    expect(
+      playedTab.style!.backgroundColor!.resolve({}),
+      const Color(0x80ffffff),
+    );
+    expect(
+      playedTab.style!.backgroundColor!.resolve({WidgetState.hovered}),
+      GlobalUI.hoverBgColorDay,
+    );
+    expect(
+      playedTab.style!.foregroundColor!.resolve({WidgetState.hovered}),
+      const Color(0xff0063b1),
+    );
+    final hoveredShape =
+        playedTab.style!.shape!.resolve({WidgetState.hovered})!
+            as RoundedRectangleBorder;
+    expect(hoveredShape.side.color, GlobalUI.hoverBorderColorDay);
 
     await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
@@ -1031,6 +1047,29 @@ void main() {
           .getSize(find.byKey(const ValueKey('Recent.FilterButton.songs')))
           .height,
       36,
+    );
+
+    final artistsFilter = find.byKey(
+      const ValueKey('Recent.FilterButton.artists'),
+    );
+    final regularDecoration =
+        tester.widget<Container>(artistsFilter).decoration as BoxDecoration;
+    expect(regularDecoration.color, const Color(0x80ffffff));
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(artistsFilter),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration =
+        tester.widget<Container>(artistsFilter).decoration as BoxDecoration;
+    expect(hoverDecoration.color, GlobalUI.hoverBgColorDay);
+    expect(
+      hoverDecoration.border,
+      Border.all(color: GlobalUI.hoverBorderColorDay),
     );
   });
 
@@ -1228,6 +1267,42 @@ void main() {
       tester.getTopLeft(secondTile).dy - tester.getTopLeft(firstTile).dy,
       104,
     );
+  });
+
+  testWidgets('RecentPage narrow scrollbar sticks to the right edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithThreeRecentAdded, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == EdgeInsets.zero,
+              ),
+            )
+            .first;
+    final tileRect = tester.getRect(firstTile);
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    final scrollbarRect = tester.getRect(scrollbar);
+
+    expect(tileRect.left, 8);
+    expect(500 - tileRect.right, 8);
+    expect(scrollbarRect.right, 500);
   });
 
   testWidgets('RecentPage song group header keeps Electron height', (

@@ -14,8 +14,8 @@ import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dar
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_model.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
 import 'package:smplayer_flutter/src/recent/recent_search_list.dart';
 import 'package:smplayer_flutter/src/settings/settings_colors.dart';
@@ -120,8 +120,8 @@ ThemeData buildSmPlayerTheme(
           ? MediaControlThemeColors.dark
           : MediaControlThemeColors.light,
       resolvedBrightness == Brightness.dark
-          ? NowPlayingFullThemeColors.dark
-          : NowPlayingFullThemeColors.light,
+          ? ImmersiveModeThemeColors.dark
+          : ImmersiveModeThemeColors.light,
       resolvedBrightness == Brightness.dark
           ? HeaderedPlaylistThemeColors.night
           : HeaderedPlaylistThemeColors.day,

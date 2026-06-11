@@ -91,8 +91,11 @@ class _MainNavigationViewItemButtonState
         widget.onTooltipDismissed?.call();
       },
       child: SizedBox(
-        width: widget.collapsed ? 40 : double.infinity,
-        height: 40,
+        width:
+            widget.collapsed
+                ? SmPlayerShellMetrics.navigationCollapsedButtonSize
+                : double.infinity,
+        height: SmPlayerShellMetrics.navigationButtonSize,
         child: Semantics(
           button: true,
           selected: widget.active,
@@ -128,8 +131,8 @@ class _MainNavigationViewItemButtonState
                   return Row(
                     children: [
                       SizedBox(
-                        width: 40,
-                        height: 40,
+                        width: SmPlayerShellMetrics.navigationButtonSize,
+                        height: SmPlayerShellMetrics.navigationButtonSize,
                         child: _MainNavigationItemIcon(
                           item: widget.item,
                           color: foreground,
@@ -215,8 +218,8 @@ class _NavigationIconButton extends StatefulWidget {
     required this.tooltip,
     required this.onPressed,
     this.collapsedContext = false,
-    this.size = 40,
-    this.iconSize = 20,
+    this.size = SmPlayerShellMetrics.navigationButtonSize,
+    this.iconSize = SmPlayerShellMetrics.navigationIconSize,
     this.borderRadius = 14,
     this.useMutedForeground = false,
     this.onTooltipRequested,
@@ -244,6 +247,10 @@ class _NavigationIconButtonState extends State<_NavigationIconButton> {
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
+    final size =
+        widget.collapsedContext
+            ? SmPlayerShellMetrics.navigationCollapsedButtonSize
+            : widget.size;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -263,8 +270,8 @@ class _NavigationIconButtonState extends State<_NavigationIconButton> {
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: widget.size,
-          height: widget.size,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             color:
                 _hovered

@@ -18,8 +18,8 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 List<int> _moveQueueSongIds(
@@ -51,8 +51,8 @@ String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song_display.displayAlbum(song, i18n);
 }
 
-class NowPlayingFullCurrentQueueAnchor extends StatefulWidget {
-  const NowPlayingFullCurrentQueueAnchor({
+class ImmersiveModeCurrentQueueAnchor extends StatefulWidget {
+  const ImmersiveModeCurrentQueueAnchor({
     super.key,
     required this.currentIndex,
     required this.child,
@@ -62,12 +62,12 @@ class NowPlayingFullCurrentQueueAnchor extends StatefulWidget {
   final Widget child;
 
   @override
-  State<NowPlayingFullCurrentQueueAnchor> createState() =>
-      NowPlayingFullCurrentQueueAnchorState();
+  State<ImmersiveModeCurrentQueueAnchor> createState() =>
+      ImmersiveModeCurrentQueueAnchorState();
 }
 
-class NowPlayingFullCurrentQueueAnchorState
-    extends State<NowPlayingFullCurrentQueueAnchor> {
+class ImmersiveModeCurrentQueueAnchorState
+    extends State<ImmersiveModeCurrentQueueAnchor> {
   @override
   void initState() {
     super.initState();
@@ -75,7 +75,7 @@ class NowPlayingFullCurrentQueueAnchorState
   }
 
   @override
-  void didUpdateWidget(NowPlayingFullCurrentQueueAnchor oldWidget) {
+  void didUpdateWidget(ImmersiveModeCurrentQueueAnchor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentIndex != widget.currentIndex) {
       _scrollIntoView();
@@ -100,8 +100,8 @@ class NowPlayingFullCurrentQueueAnchorState
   }
 }
 
-class NowPlayingFullQueuePopoverHost extends StatefulWidget {
-  const NowPlayingFullQueuePopoverHost({
+class ImmersiveModeQueuePopoverHost extends StatefulWidget {
+  const ImmersiveModeQueuePopoverHost({
     super.key,
     required this.open,
     required this.fullScreen,
@@ -113,12 +113,12 @@ class NowPlayingFullQueuePopoverHost extends StatefulWidget {
   final Widget child;
 
   @override
-  State<NowPlayingFullQueuePopoverHost> createState() =>
-      NowPlayingFullQueuePopoverHostState();
+  State<ImmersiveModeQueuePopoverHost> createState() =>
+      ImmersiveModeQueuePopoverHostState();
 }
 
-class NowPlayingFullQueuePopoverHostState
-    extends State<NowPlayingFullQueuePopoverHost> {
+class ImmersiveModeQueuePopoverHostState
+    extends State<ImmersiveModeQueuePopoverHost> {
   var _mountedForAnimation = false;
 
   @override
@@ -128,7 +128,7 @@ class NowPlayingFullQueuePopoverHostState
   }
 
   @override
-  void didUpdateWidget(NowPlayingFullQueuePopoverHost oldWidget) {
+  void didUpdateWidget(ImmersiveModeQueuePopoverHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.open && !_mountedForAnimation) {
       setState(() {
@@ -174,8 +174,8 @@ class NowPlayingFullQueuePopoverHostState
   }
 }
 
-class NowPlayingFullPlaylist extends StatefulWidget {
-  const NowPlayingFullPlaylist({
+class ImmersiveModePlaylist extends StatefulWidget {
+  const ImmersiveModePlaylist({
     super.key,
     required this.open,
     required this.i18n,
@@ -249,10 +249,10 @@ class NowPlayingFullPlaylist extends StatefulWidget {
   final Color coverColor;
 
   @override
-  State<NowPlayingFullPlaylist> createState() => NowPlayingFullPlaylistState();
+  State<ImmersiveModePlaylist> createState() => ImmersiveModePlaylistState();
 }
 
-class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
+class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   ({int queueIndex, PlaylistControlDropPosition position})? _dropIndicator;
   int? _draggedQueueIndex;
 
@@ -307,7 +307,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
   }
 
   @override
-  void didUpdateWidget(NowPlayingFullPlaylist oldWidget) {
+  void didUpdateWidget(ImmersiveModePlaylist oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.songs.length != widget.songs.length) {
       _pruneSelection();
@@ -355,7 +355,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
       }
       final position = scrollController.position;
       if (position.maxScrollExtent == position.minScrollExtent &&
-          songs.length * nowPlayingFullQueueRowHeight >
+          songs.length * immersiveModeQueueRowHeight >
               position.viewportDimension) {
         if (attempt < 3) {
           _scrollCurrentRowIntoView(attempt + 1);
@@ -365,8 +365,8 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
       final topPadding = _listPadding().top;
       final target =
           topPadding +
-          currentIndex * nowPlayingFullQueueRowHeight +
-          nowPlayingFullQueueRowHeight / 2 -
+          currentIndex * immersiveModeQueueRowHeight +
+          immersiveModeQueueRowHeight / 2 -
           position.viewportDimension / 2;
       scrollController.jumpTo(
         target
@@ -428,7 +428,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NowPlayingFullThemeColors.of(context);
+    final colors = ImmersiveModeThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
     final panelColor =
         night ? const Color(0xdb12100e) : const Color(0xd1ffffff);
@@ -497,7 +497,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
           child: GlassContainer(
-            key: const ValueKey('NowPlayingFull.QueuePanelGlass'),
+            key: const ValueKey('ImmersiveMode.QueuePanelGlass'),
             useOwnLayer: true,
             quality: GlassQuality.minimal,
             shape: LiquidRoundedRectangle(borderRadius: fullScreen ? 0 : 18),
@@ -519,11 +519,11 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
-                    key: const ValueKey('NowPlayingFull.QueuePanelBackground'),
+                    key: const ValueKey('ImmersiveMode.QueuePanelBackground'),
                     decoration: backgroundDecoration,
                   ),
                 ),
-                NowPlayingFullQueueEmptyState(loading: loading),
+                ImmersiveModeQueueEmptyState(loading: loading),
               ],
             ),
           ),
@@ -535,7 +535,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
         child: GlassContainer(
-          key: const ValueKey('NowPlayingFull.QueuePanelGlass'),
+          key: const ValueKey('ImmersiveMode.QueuePanelGlass'),
           useOwnLayer: true,
           quality: GlassQuality.minimal,
           shape: LiquidRoundedRectangle(borderRadius: fullScreen ? 0 : 18),
@@ -557,7 +557,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
             children: [
               Positioned.fill(
                 child: DecoratedBox(
-                  key: const ValueKey('NowPlayingFull.QueuePanelBackground'),
+                  key: const ValueKey('ImmersiveMode.QueuePanelBackground'),
                   decoration: backgroundDecoration,
                 ),
               ),
@@ -604,7 +604,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
                             ],
                           ),
                         ),
-                        NowPlayingFullQueueCloseButton(
+                        ImmersiveModeQueueCloseButton(
                           tooltip: i18n.t('common.close'),
                           onPressed: onClose,
                         ),
@@ -614,7 +614,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
                   Expanded(
                     child:
                         songs.isEmpty
-                            ? NowPlayingFullQueueEmptyState(loading: loading)
+                            ? ImmersiveModeQueueEmptyState(loading: loading)
                             : _buildQueueList(context),
                   ),
                 ],
@@ -628,7 +628,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
 
   Widget _buildQueueList(BuildContext context) {
     return ListView.builder(
-      key: const ValueKey('NowPlayingFull.QueueList'),
+      key: const ValueKey('ImmersiveMode.QueueList'),
       controller: scrollController,
       padding: _listPadding(),
       itemCount: songs.length,
@@ -651,6 +651,8 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
           selectionMode: selection.multiSelect,
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
+          collapseCompactPrimaryActions: true,
+          compactTrailingPadding: 20,
           playNextLabel: i18n.t('context.playNext'),
           removeLabel: i18n.t('nowPlaying.remove'),
           onPlayTrack: () {
@@ -672,7 +674,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
               }),
               onUndo:
                   () => onReplaceQueue(
-                    insertNowPlayingFullQueueSongs(
+                    insertImmersiveModeQueueSongs(
                       currentQueueSongIds(),
                       index,
                       [song.id],
@@ -702,7 +704,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
         );
         final anchoredItem =
             current
-                ? NowPlayingFullCurrentQueueAnchor(
+                ? ImmersiveModeCurrentQueueAnchor(
                   currentIndex: index,
                   child: item,
                 )
@@ -854,7 +856,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
             .map(
               (folder) => MenuFlyoutFolder(
                 id: folder.id,
-                name: displayNowPlayingFullFolderName(folder.path),
+                name: displayImmersiveModeFolderName(folder.path),
                 path: folder.path,
                 parentId: folder.parentId,
               ),
@@ -914,7 +916,7 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
             }),
             onUndo:
                 () => onReplaceQueue(
-                  insertNowPlayingFullQueueSongs(
+                  insertImmersiveModeQueueSongs(
                     currentQueueSongIds(),
                     queueIndex,
                     [song.id],
@@ -1001,8 +1003,8 @@ class NowPlayingFullPlaylistState extends State<NowPlayingFullPlaylist> {
   }
 }
 
-class NowPlayingFullQueueCloseButton extends StatelessWidget {
-  const NowPlayingFullQueueCloseButton({
+class ImmersiveModeQueueCloseButton extends StatelessWidget {
+  const ImmersiveModeQueueCloseButton({
     super.key,
     required this.tooltip,
     required this.onPressed,
@@ -1013,16 +1015,16 @@ class NowPlayingFullQueueCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NowPlayingFullThemeColors.of(context);
+    final colors = ImmersiveModeThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
     final glassColor =
         night ? const Color(0x1cffffff) : const Color(0x86ffffff);
     final foregroundColor =
-        night ? const Color(0xd6ffffff) : NowPlayingFullColors.dayText;
+        night ? const Color(0xd6ffffff) : ImmersiveModeColors.dayText;
     return Tooltip(
       message: tooltip,
       child: GlassContainer(
-        key: const ValueKey('NowPlayingFull.QueueCloseButton'),
+        key: const ValueKey('ImmersiveMode.QueueCloseButton'),
         width: 42,
         height: 42,
         useOwnLayer: true,
@@ -1064,13 +1066,13 @@ class NowPlayingFullQueueCloseButton extends StatelessWidget {
   }
 }
 
-String displayNowPlayingFullFolderName(String path) {
+String displayImmersiveModeFolderName(String path) {
   final normalized = path.replaceAll('\\', '/');
   final index = normalized.lastIndexOf('/');
   return index >= 0 ? normalized.substring(index + 1) : normalized;
 }
 
-List<({int index, int songId})> nowPlayingFullQueueEntriesForSong(
+List<({int index, int songId})> immersiveModeQueueEntriesForSong(
   List<int> queueSongIds,
   int songId,
 ) {
@@ -1080,7 +1082,7 @@ List<({int index, int songId})> nowPlayingFullQueueEntriesForSong(
   ];
 }
 
-List<int> insertNowPlayingFullQueueSongs(
+List<int> insertImmersiveModeQueueSongs(
   List<int> queueSongIds,
   int insertIndex,
   List<int> insertedSongIds,
@@ -1098,7 +1100,7 @@ List<int> insertNowPlayingFullQueueSongs(
   ];
 }
 
-List<int> insertNowPlayingFullQueueEntries(
+List<int> insertImmersiveModeQueueEntries(
   List<int> queueSongIds,
   List<({int index, int songId})> entries,
 ) {
@@ -1119,8 +1121,8 @@ List<int> insertNowPlayingFullQueueEntries(
   return nextQueueSongIds;
 }
 
-class NowPlayingFullQueueEmptyState extends StatelessWidget {
-  const NowPlayingFullQueueEmptyState({super.key, required this.loading});
+class ImmersiveModeQueueEmptyState extends StatelessWidget {
+  const ImmersiveModeQueueEmptyState({super.key, required this.loading});
 
   final bool loading;
 

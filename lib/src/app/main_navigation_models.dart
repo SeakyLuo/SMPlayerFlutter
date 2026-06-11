@@ -66,60 +66,66 @@ class _MainNavigationViewTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
-    return SizedBox(
-      height: 40,
-      width: double.infinity,
-      child:
-          collapsed
-              ? Center(
-                child:
-                    canGoBack
-                        ? _NavigationIconButton(
-                          key: const ValueKey('MainNavigationView.BackButton'),
-                          icon: FluentIcons.arrow_left_24_regular,
-                          tooltip: backLabel,
-                          onPressed: onGoBack ?? () {},
-                          collapsedContext: true,
-                          onTooltipRequested: onTooltipRequested,
-                          onTooltipDismissed: onTooltipDismissed,
-                        )
-                        : const SizedBox.shrink(),
-              )
-              : Row(
-                children: [
-                  if (titlebarLeadingInset > 0)
-                    SizedBox(width: titlebarLeadingInset),
-                  if (canGoBack) ...[
-                    _NavigationIconButton(
-                      key: const ValueKey('MainNavigationView.BackButton'),
-                      icon: FluentIcons.arrow_left_24_regular,
-                      tooltip: backLabel,
-                      onPressed: onGoBack ?? () {},
-                      onTooltipDismissed: onTooltipDismissed,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: _WindowDragRegion(
-                      onWindowDragStart: onWindowDragStart,
-                      onWindowDragEnd: onWindowDragEnd,
-                      child:
-                          hideAppName
-                              ? const SizedBox.expand()
-                              : Text(
-                                appName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.textStrong,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => closeOpenMenuFlyouts(),
+      child: SizedBox(
+        height: 40,
+        width: double.infinity,
+        child:
+            collapsed
+                ? Center(
+                  child:
+                      canGoBack
+                          ? _NavigationIconButton(
+                            key: const ValueKey(
+                              'MainNavigationView.BackButton',
+                            ),
+                            icon: FluentIcons.arrow_left_24_regular,
+                            tooltip: backLabel,
+                            onPressed: onGoBack ?? () {},
+                            collapsedContext: true,
+                            onTooltipRequested: onTooltipRequested,
+                            onTooltipDismissed: onTooltipDismissed,
+                          )
+                          : const SizedBox.shrink(),
+                )
+                : Row(
+                  children: [
+                    if (titlebarLeadingInset > 0)
+                      SizedBox(width: titlebarLeadingInset),
+                    if (canGoBack) ...[
+                      _NavigationIconButton(
+                        key: const ValueKey('MainNavigationView.BackButton'),
+                        icon: FluentIcons.arrow_left_24_regular,
+                        tooltip: backLabel,
+                        onPressed: onGoBack ?? () {},
+                        onTooltipDismissed: onTooltipDismissed,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: _WindowDragRegion(
+                        onWindowDragStart: onWindowDragStart,
+                        onWindowDragEnd: onWindowDragEnd,
+                        child:
+                            hideAppName
+                                ? const SizedBox.expand()
+                                : Text(
+                                  appName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: colors.textStrong,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+      ),
     );
   }
 }

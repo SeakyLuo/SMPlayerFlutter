@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -232,6 +233,78 @@ void main() {
 
     expect(find.text('Default'), findsWidgets);
     expect(find.text('Title'), findsOneWidget);
+  });
+
+  testWidgets('SearchPage narrow content hugs the scrollbar symmetrically', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 800);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        child: const SearchPage(query: 'song', activeType: 'songs'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sectionRect = tester.getRect(find.text('Songs 2'));
+    final sortButtonRect = tester.getRect(
+      find.ancestor(
+        of: find.text('Default').first,
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+
+    expect(sectionRect.left, 8);
+    expect(sortButtonRect.right, 752);
+  });
+
+  testWidgets('SearchPage filter tabs reuse recent secondary tab styling', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeLibraryRepository(),
+        child: const SearchPage(query: 'song', activeType: null),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final songsTabFinder = find.ancestor(
+      of: find.text('Songs').first,
+      matching: find.byType(TextButton),
+    );
+    final songsTab = tester.widget<TextButton>(songsTabFinder);
+    final shape = songsTab.style!.shape!.resolve({})! as RoundedRectangleBorder;
+    final hoveredShape =
+        songsTab.style!.shape!.resolve({WidgetState.hovered})!
+            as RoundedRectangleBorder;
+
+    expect(tester.getSize(songsTabFinder).height, 34);
+    expect(shape.borderRadius, BorderRadius.circular(10));
+    expect(
+      songsTab.style!.backgroundColor!.resolve({}),
+      const Color(0x80ffffff),
+    );
+    expect(
+      songsTab.style!.backgroundColor!.resolve({WidgetState.hovered}),
+      GlobalUI.hoverBgColorDay,
+    );
+    expect(
+      songsTab.style!.foregroundColor!.resolve({WidgetState.hovered}),
+      const Color(0xff0063b1),
+    );
+    expect(hoveredShape.side.color, GlobalUI.hoverBorderColorDay);
   });
 
   testWidgets('SearchPage song rows use Electron narrow queue columns', (

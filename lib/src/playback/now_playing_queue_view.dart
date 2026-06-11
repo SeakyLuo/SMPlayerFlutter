@@ -61,6 +61,7 @@ class NowPlayingQueueView extends StatelessWidget {
       );
     }
 
+    final compactQueueLayout = MediaQuery.sizeOf(context).width <= 720;
     final entries = [
       for (final entry in visibleEntries)
         _entryFor(
@@ -68,6 +69,7 @@ class NowPlayingQueueView extends StatelessWidget {
           song: entry.$2,
           selectedQueueIndex: selectedQueueIndex,
           i18n: i18n,
+          compactQueueLayout: compactQueueLayout,
         ),
     ];
     return Scrollbar(
@@ -79,7 +81,11 @@ class NowPlayingQueueView extends StatelessWidget {
           0,
           0,
           0,
-          selectionMode ? multiSelectCommandBarScrollSpacer : 18,
+          selectionMode
+              ? multiSelectCommandBarScrollSpacer
+              : compactQueueLayout
+              ? 2
+              : 18,
         ),
         onReorder: onReorderVisible,
       ),
@@ -91,6 +97,7 @@ class NowPlayingQueueView extends StatelessWidget {
     required LibrarySong song,
     required int? selectedQueueIndex,
     required SmPlayerI18n i18n,
+    required bool compactQueueLayout,
   }) {
     final current =
         selectedQueueIndex == null
@@ -104,6 +111,12 @@ class NowPlayingQueueView extends StatelessWidget {
       playing: current && isPlaying,
       selected: isSelected(queueIndex),
       selectionMode: selectionMode,
+      variant:
+          compactQueueLayout
+              ? PlaylistControlItemVariant.compact
+              : PlaylistControlItemVariant.standard,
+      collapseCompactPrimaryActions: compactQueueLayout,
+      compactTrailingPadding: compactQueueLayout ? 20 : null,
       favoriteLabel: i18n.t('common.favorite'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       removeLabel: i18n.t('nowPlaying.remove'),

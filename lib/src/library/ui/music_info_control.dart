@@ -84,6 +84,8 @@ class MusicInfoControl extends StatelessWidget {
               'title': titleController.text,
               'count': playCount.toString(),
             });
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
 
     return Column(
       children: [
@@ -125,11 +127,12 @@ class MusicInfoControl extends StatelessWidget {
         Expanded(
           child:
               loading || properties == null
-                  ? const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                  : SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(28, 6, 28, 44),
+                  ? const _SongDialogLoading()
+                  : _SongDialogScrollableBody(
+                    padding:
+                        mobile
+                            ? const EdgeInsets.fromLTRB(12, 0, 12, 28)
+                            : const EdgeInsets.fromLTRB(28, 6, 28, 44),
                     child: _MusicInfoPropertyList(
                       children: [
                         _PropertyRow(
@@ -224,12 +227,16 @@ class MusicInfoControl extends StatelessWidget {
                         _PropertyRow(
                           label: i18n.t('song.trackNumber'),
                           child: _DialogField(
+                            key: const ValueKey('TrackNumberTextBox'),
                             controller: trackNumberController,
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.year'),
-                          child: _DialogField(controller: yearController),
+                          child: _DialogField(
+                            key: const ValueKey('YearTextBox'),
+                            controller: yearController,
+                          ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.bitrate'),

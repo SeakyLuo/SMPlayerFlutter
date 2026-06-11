@@ -252,8 +252,8 @@ Current rerun after the shared AlbumArtEditorControl/AlbumArtworkDialog changes 
 | Search song menu | `flutter test test/search_page_test.dart --plain-name "SearchPage song view menu opens MusicDialog"` |
 | HeaderedPlaylist song menu | `flutter test test/album_detail_page_test.dart --plain-name "HeaderedPlaylistControl song view menu opens MusicDialog"` |
 | ShellOverlay player dialog | `flutter test test/shell_page_test.dart --plain-name "ShellOverlayHost opens MusicDialog from player dialog state"` |
-| NowPlaying more dialog | `flutter test test/now_playing_page_test.dart --plain-name "NowPlayingFullPage more view dialog pins player bar"` |
-| NowPlaying queue dialog | `flutter test test/now_playing_page_test.dart --plain-name "NowPlayingFullPage queue view opens dialog and closes panel"` |
+| NowPlaying more dialog | `flutter test test/now_playing_page_test.dart --plain-name "ImmersiveModePage more view dialog pins player bar"` |
+| NowPlaying queue dialog | `flutter test test/now_playing_page_test.dart --plain-name "ImmersiveModePage queue view opens dialog and closes panel"` |
 
 ## Current Continuation Evidence
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
@@ -19,6 +20,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.activeSurface = true,
     this.disabled = false,
     this.showLabel = true,
+    this.tooltipEnabled = true,
     this.tooltip,
     this.minWidth = 0,
     this.maxWidth,
@@ -31,6 +33,11 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.fontSize = 14,
     this.fontWeight = FontWeight.w600,
     this.fontVariations = const [FontVariation.weight(650)],
+    this.glassSettings,
+    this.glassQuality = GlassQuality.minimal,
+    this.glassUseOwnLayer = true,
+    this.glassAllowElevation = false,
+    this.glassClipBehavior = Clip.hardEdge,
   });
 
   final String label;
@@ -45,6 +52,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final bool activeSurface;
   final bool disabled;
   final bool showLabel;
+  final bool tooltipEnabled;
   final String? tooltip;
   final double minWidth;
   final double? maxWidth;
@@ -57,6 +65,11 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final double fontSize;
   final FontWeight fontWeight;
   final List<FontVariation> fontVariations;
+  final LiquidGlassSettings? glassSettings;
+  final GlassQuality glassQuality;
+  final bool glassUseOwnLayer;
+  final bool glassAllowElevation;
+  final Clip glassClipBehavior;
 
   @override
   State<SmPlayerTextIconButton> createState() => _SmPlayerTextIconButtonState();
@@ -167,7 +180,11 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                       child: trailingIconWidget,
                     )
                   else if (widget.trailingIcon case final trailingIcon?)
-                    Icon(trailingIcon, size: widget.iconSize, color: foreground),
+                    Icon(
+                      trailingIcon,
+                      size: widget.iconSize,
+                      color: foreground,
+                    ),
                 ],
               ],
             ],
@@ -175,6 +192,19 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         ),
       ),
     );
+    final glassSettings = widget.glassSettings;
+    final visualControl =
+        glassSettings == null
+            ? control
+            : GlassContainer(
+              useOwnLayer: widget.glassUseOwnLayer,
+              quality: widget.glassQuality,
+              shape: LiquidRoundedRectangle(borderRadius: widget.borderRadius),
+              settings: glassSettings,
+              clipBehavior: widget.glassClipBehavior,
+              allowElevation: widget.glassAllowElevation,
+              child: control,
+            );
     final button = Opacity(
       opacity: enabled ? 1 : widget.opacityWhenDisabled,
       child: FocusableActionDetector(
@@ -231,13 +261,19 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapUp: enabled ? (_) => widget.onPressed?.call() : null,
-              child: control,
+              child: visualControl,
             ),
           ),
         ),
       ),
     );
-    final tooltip = widget.tooltip ?? widget.label;
+    if (!widget.tooltipEnabled) {
+      return button;
+    }
+    final tooltip = widget.tooltip ?? (widget.showLabel ? null : widget.label);
+    if (tooltip == null) {
+      return button;
+    }
     return Tooltip(message: tooltip, child: button);
   }
 }

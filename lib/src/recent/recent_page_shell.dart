@@ -13,7 +13,12 @@ class _RecentPagePanel extends StatelessWidget {
         return Padding(
           padding:
               minimal
-                  ? const EdgeInsets.fromLTRB(8, 6, 8, 0)
+                  ? const EdgeInsets.fromLTRB(
+                    _recentMinimalPageHorizontalPadding,
+                    6,
+                    _recentMinimalPageHorizontalPadding,
+                    0,
+                  )
                   : const EdgeInsets.fromLTRB(24, 24, 18, 0),
           child: SizedBox.expand(child: child),
         );
@@ -64,4 +69,3 @@ class _RecentEmptyState extends StatelessWidget {
     return const SizedBox.shrink();
   }
 }
-

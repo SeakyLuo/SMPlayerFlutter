@@ -1728,7 +1728,7 @@ void main() {
     await tester.tap(find.text('First Song'));
     await tester.pump();
 
-    expect(navigations.single, startsWith('/now-playing/full'));
+    expect(navigations.single, startsWith('/immersive-mode'));
     expect(desktopService.windowFullScreen, isFalse);
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
@@ -1792,7 +1792,7 @@ void main() {
       await tester.tap(find.text('First Song'));
       await tester.pump();
 
-      expect(navigations.single, startsWith('/now-playing/full'));
+      expect(navigations.single, startsWith('/immersive-mode'));
       expect(desktopService.windowFullScreen, isFalse);
       expect(
         smPlayerGlobalSettingsSnapshot.lastDisplayMode,
@@ -1807,7 +1807,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(navigations.single, startsWith('/now-playing/full'));
+      expect(navigations.single, startsWith('/immersive-mode'));
       expect(
         smPlayerGlobalSettingsSnapshot.lastDisplayMode,
         SmPlayerDisplayMode.immersive,
@@ -1959,7 +1959,7 @@ void main() {
           repository: repository,
           desktopService: desktopService,
           initialDisplayMode: SmPlayerDisplayMode.immersive,
-          currentPath: '/now-playing/full',
+          currentPath: '/immersive-mode',
         ),
       );
       for (var pump = 0; pump < 8; pump += 1) {
@@ -2544,7 +2544,7 @@ void main() {
           child: MaterialApp(
             theme: buildSmPlayerTheme(const SettingsSnapshot.defaults()),
             home: SmPlayerShellPage(
-              currentPath: '/now-playing/full',
+              currentPath: '/immersive-mode',
               desktopFeatureService: desktopService,
               initialDisplayMode: SmPlayerDisplayMode.fullScreen,
               onNavigate: navigations.add,

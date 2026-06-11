@@ -103,18 +103,22 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      ClipRRect(
+                      SizedBox.square(
                         key: ValueKey('RecentSong.Artwork.${widget.song.id}'),
-                        borderRadius: BorderRadius.circular(6),
-                        child: SizedBox.square(
-                          dimension: widget.metrics.artworkSize,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: colors.artworkSurface,
-                              boxShadow:
-                                  active ? colors.artworkShadow : const [],
+                        dimension: widget.metrics.artworkSize,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: active ? colors.artworkShadow : const [],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: colors.artworkSurface,
+                              ),
+                              child: _RecentSongArtwork(song: widget.song),
                             ),
-                            child: _RecentSongArtwork(song: widget.song),
                           ),
                         ),
                       ),

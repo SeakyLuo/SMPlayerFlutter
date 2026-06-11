@@ -82,6 +82,39 @@ void main() {
     expect(find.text('正在播放（1）'), findsNothing);
   });
 
+  testWidgets('search app bar title uses space from empty portal actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 520);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const title = '“流星冰淇淋”的搜索结果';
+    await tester.pumpWidget(
+      const _WorkspaceAppBarTestApp(
+        currentPath: '/search',
+        currentLocation:
+            '/search?query=%E6%B5%81%E6%98%9F%E5%86%B0%E6%B7%87%E6%B7%8B',
+        portalRoutePath: '/search',
+        portalTitle: title,
+        portalContent: SizedBox.shrink(),
+        textScaler: TextScaler.noScaling,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titleRect = tester.getRect(find.text(title));
+    final menuRect = tester.getRect(
+      find.byKey(SmPlayerShellWorkspaceKeys.navigationMenuButton),
+    );
+
+    expect(titleRect.left, greaterThan(menuRect.right));
+    expect(titleRect.width, greaterThan(360));
+  });
+
   testWidgets('album detail ignores albums list app bar title portal', (
     tester,
   ) async {
@@ -428,6 +461,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
     this.textScaler = const TextScaler.linear(1.5),
     this.child = const SizedBox.shrink(),
     this.portalTitle,
+    this.portalContent,
     this.portalRoutePath = '/now-playing',
     this.portalRouteLocation,
     this.headeredPlaylistAppBar,
@@ -440,6 +474,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
   final TextScaler textScaler;
   final Widget child;
   final String? portalTitle;
+  final Widget? portalContent;
   final String portalRoutePath;
   final String? portalRouteLocation;
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
@@ -456,36 +491,38 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
             owner: Object(),
             routePath: portalRoutePath,
             routeLocation: portalRouteLocation,
-            content: const CommandBar(
-              style: CommandBarStyleVariant.appBar,
-              overflowLabel: '更多',
-              overflowItems: [
-                MenuFlyoutItem(
-                  key: 'locate',
-                  text: '当前音乐',
-                  icon: FluentIcons.music_note_2_20_regular,
+            content:
+                portalContent ??
+                const CommandBar(
+                  style: CommandBarStyleVariant.appBar,
+                  overflowLabel: '更多',
+                  overflowItems: [
+                    MenuFlyoutItem(
+                      key: 'locate',
+                      text: '当前音乐',
+                      icon: FluentIcons.music_note_2_20_regular,
+                    ),
+                    MenuFlyoutItem(
+                      key: 'clear',
+                      text: '清空全部',
+                      icon: FluentIcons.dismiss_20_regular,
+                    ),
+                  ],
+                  children: [
+                    CommandBarButton(
+                      icon: FluentIcons.play_20_regular,
+                      label: '快速播放',
+                      canOverflow: false,
+                      onPressed: null,
+                    ),
+                    CommandBarButton(
+                      icon: FluentIcons.arrow_shuffle_20_regular,
+                      label: '随机播放',
+                      canOverflow: false,
+                      onPressed: null,
+                    ),
+                  ],
                 ),
-                MenuFlyoutItem(
-                  key: 'clear',
-                  text: '清空全部',
-                  icon: FluentIcons.dismiss_20_regular,
-                ),
-              ],
-              children: [
-                CommandBarButton(
-                  icon: FluentIcons.play_20_regular,
-                  label: '快速播放',
-                  canOverflow: false,
-                  onPressed: null,
-                ),
-                CommandBarButton(
-                  icon: FluentIcons.arrow_shuffle_20_regular,
-                  label: '随机播放',
-                  canOverflow: false,
-                  onPressed: null,
-                ),
-              ],
-            ),
             title: portalTitle,
           ),
         ),

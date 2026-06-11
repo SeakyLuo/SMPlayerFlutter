@@ -6,13 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
-String formatNowPlayingFullLyricSeekTimeValue(double seconds) {
+String formatImmersiveModeLyricSeekTimeValue(double seconds) {
   final wholeSeconds = seconds.floor();
   final minutes = wholeSeconds ~/ 60;
   final remainingSeconds = wholeSeconds % 60;
@@ -90,16 +92,15 @@ List<_ImmersiveLyricsLine> _getImmersiveLyricsLines({
   ];
 }
 
-class NowPlayingFullLyrics extends ConsumerStatefulWidget {
-  const NowPlayingFullLyrics({
+class ImmersiveModeLyrics extends ConsumerStatefulWidget {
+  const ImmersiveModeLyrics({
     super.key,
     required this.song,
     required this.progressSeconds,
     required this.durationSeconds,
     required this.isPlaying,
     required this.i18n,
-    required this.onSeek,
-    required this.onTogglePlayPause,
+    required this.onSeekAndPlay,
     required this.refreshRevision,
     required this.compact,
     required this.midCompact,
@@ -111,19 +112,18 @@ class NowPlayingFullLyrics extends ConsumerStatefulWidget {
   final double durationSeconds;
   final bool isPlaying;
   final SmPlayerI18n i18n;
-  final ValueChanged<double> onSeek;
-  final VoidCallback onTogglePlayPause;
+  final ValueChanged<double> onSeekAndPlay;
   final int refreshRevision;
   final bool compact;
   final bool midCompact;
   final double? anchorOffset;
 
   @override
-  ConsumerState<NowPlayingFullLyrics> createState() =>
-      _NowPlayingFullLyricsState();
+  ConsumerState<ImmersiveModeLyrics> createState() =>
+      _ImmersiveModeLyricsState();
 }
 
-class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
+class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   final _scrollController = ScrollController();
   final _lineKeys = <int, GlobalKey>{};
   LyricsSnapshot? _lyrics;
@@ -144,7 +144,7 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
   }
 
   @override
-  void didUpdateWidget(covariant NowPlayingFullLyrics oldWidget) {
+  void didUpdateWidget(covariant ImmersiveModeLyrics oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.song?.id != widget.song?.id ||
         oldWidget.refreshRevision != widget.refreshRevision) {
@@ -405,10 +405,7 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
 
   void _seekToLine(_ImmersiveLyricsLine line) {
     _restoreTimer?.cancel();
-    widget.onSeek(line.seekSeconds);
-    if (!widget.isPlaying) {
-      widget.onTogglePlayPause();
-    }
+    widget.onSeekAndPlay(line.seekSeconds);
     setState(() {
       _previewing = false;
       _dragging = false;
@@ -446,10 +443,10 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
     return widget.midCompact ? 22.72 : 26.56;
   }
 
-  Color _lyricTextColor(NowPlayingFullThemeColors colors, bool active) {
+  Color _lyricTextColor(ImmersiveModeThemeColors colors, bool active) {
     final dark = colors.artworkShadowOpacity > 0.3;
     if (active) {
-      return dark ? const Color(0xf0ffffff) : NowPlayingFullColors.dayText;
+      return dark ? const Color(0xf0ffffff) : ImmersiveModeColors.dayText;
     }
     if (dark) {
       return widget.compact ? const Color(0x29ffffff) : const Color(0x33ffffff);
@@ -459,7 +456,14 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NowPlayingFullThemeColors.of(context);
+    final colors = ImmersiveModeThemeColors.of(context);
+    final topButtonColors = SmPlayerTextIconButtonColors.of(context).copyWith(
+      control: const Color(0x18ffffff),
+      controlHover: const Color(0x2effffff),
+      controlActive: const Color(0x36ffffff),
+      controlBorder: const Color(0x2effffff),
+      controlHoverBorder: const Color(0x52ffffff),
+    );
     final lines = _displayLines();
     final hasLyrics = lines.isNotEmpty;
     final displayLines =
@@ -486,7 +490,7 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
       _scrollActiveLineIntoView();
     }
     return Stack(
-      key: const ValueKey('NowPlayingFull.LyricsStage'),
+      key: const ValueKey('ImmersiveMode.LyricsStage'),
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
@@ -507,6 +511,7 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
                 },
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context).copyWith(
+                    scrollbars: false,
                     dragDevices: {
                       PointerDeviceKind.touch,
                       PointerDeviceKind.mouse,
@@ -538,13 +543,13 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
                     },
                     onVerticalDragCancel: _finishLyricsDrag,
                     child: SingleChildScrollView(
-                      key: const ValueKey('NowPlayingFull.LyricsList'),
+                      key: const ValueKey('ImmersiveMode.LyricsList'),
                       controller: _scrollController,
                       padding: EdgeInsets.fromLTRB(
                         0,
                         constraints.maxHeight / 2,
                         widget.compact ? 0 : 20,
-                        constraints.maxHeight / 2,
+                        widget.compact ? 0 : 32,
                       ),
                       child: Column(
                         children: [
@@ -658,15 +663,6 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
                         : 0.0;
                 final seekButtonIconSize = widget.compact ? 16.0 : 18.0;
                 final seekButtonGap = widget.compact ? 6.0 : 8.0;
-                final dark = colors.artworkShadowOpacity > 0.3;
-                final seekButtonForeground =
-                    dark
-                        ? const Color(0xebffffff)
-                        : NowPlayingFullColors.accentStrong;
-                final seekButtonBackground =
-                    dark ? const Color(0x1affffff) : const Color(0xb8ffffff);
-                final seekButtonBorder =
-                    dark ? const Color(0x29ffffff) : const Color(0x337e8b9a);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -675,42 +671,55 @@ class _NowPlayingFullLyricsState extends ConsumerState<NowPlayingFullLyrics> {
                       right: seekButtonRight,
                       child: FractionalTranslation(
                         translation: const Offset(0, -0.5),
-                        child: TextButton(
-                          key: const ValueKey('NowPlayingFull.LyricSeekButton'),
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(0, 34),
-                            padding: const EdgeInsets.fromLTRB(10, 0, 12, 0),
-                            foregroundColor: seekButtonForeground,
-                            backgroundColor: seekButtonBackground,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                              side: BorderSide(color: seekButtonBorder),
-                            ),
-                          ),
-                          onPressed: () {
-                            _seekToLine(previewLine);
+                        child: MouseRegion(
+                          opaque: true,
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) {
+                            _restoreTimer?.cancel();
                           },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SmPlayerPlayIcon(
+                          onExit: (_) {
+                            if (_previewing) {
+                              _scheduleLyricsRestore();
+                            }
+                          },
+                          child: SmPlayerTextIconButtonTheme(
+                            colors: topButtonColors,
+                            child: SmPlayerTextIconButton(
+                              key: const ValueKey(
+                                'ImmersiveMode.LyricSeekButton',
+                              ),
+                              label: formatImmersiveModeLyricSeekTimeValue(
+                                previewLine.seekSeconds,
+                              ),
+                              tooltipEnabled: false,
+                              borderRadius: 999,
+                              height: 44,
+                              horizontalPadding: 14,
+                              iconSize: seekButtonIconSize,
+                              iconGap: seekButtonGap,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              fontVariations: const [FontVariation.weight(750)],
+                              glassSettings:
+                                  immersiveModeTopButtonGlassSettings,
+                              onPressed: () {
+                                _seekToLine(previewLine);
+                              },
+                              iconWidget: SmPlayerPlayIcon(
                                 key: const ValueKey(
-                                  'NowPlayingFull.LyricSeekIcon',
+                                  'ImmersiveMode.LyricSeekIcon',
                                 ),
                                 size: seekButtonIconSize,
                               ),
-                              SizedBox(width: seekButtonGap),
-                              Text(
-                                formatNowPlayingFullLyricSeekTimeValue(
+                              child: Text(
+                                formatImmersiveModeLyricSeekTimeValue(
                                   previewLine.seekSeconds,
                                 ),
                                 style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight(750),
                                   fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),

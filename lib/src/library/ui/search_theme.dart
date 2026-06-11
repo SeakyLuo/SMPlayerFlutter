@@ -18,6 +18,15 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
     required this.emptyStateSurface,
     required this.emptyStateBorder,
     required this.resultToolbarGradient,
+    required this.appBarTabText,
+    required this.appBarTabActiveText,
+    required this.appBarTabSurface,
+    required this.appBarTabActiveSurface,
+    required this.appBarTabHoverText,
+    required this.appBarTabHoverSurface,
+    required this.appBarTabHoverBorder,
+    required this.appBarTabBorder,
+    required this.appBarTabActiveBorder,
   });
 
   final Color textStrong;
@@ -36,6 +45,15 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
   final Color emptyStateSurface;
   final Color emptyStateBorder;
   final List<Color> resultToolbarGradient;
+  final Color appBarTabText;
+  final Color appBarTabActiveText;
+  final Color appBarTabSurface;
+  final Color appBarTabActiveSurface;
+  final Color appBarTabHoverText;
+  final Color appBarTabHoverSurface;
+  final Color appBarTabHoverBorder;
+  final Color appBarTabBorder;
+  final Color appBarTabActiveBorder;
 
   static const light = SearchPageThemeColors(
     textStrong: _SearchColors.textStrong,
@@ -58,6 +76,15 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
       Color(0xe0fafcff),
       Color(0x00fafcff),
     ],
+    appBarTabText: _SearchColors.textStrong,
+    appBarTabActiveText: Color(0xff0063b1),
+    appBarTabSurface: Color(0x80ffffff),
+    appBarTabActiveSurface: SmPlayerInteractionColors.hoverSurface,
+    appBarTabHoverText: Color(0xff0063b1),
+    appBarTabHoverSurface: GlobalUI.hoverBgColorDay,
+    appBarTabHoverBorder: GlobalUI.hoverBorderColorDay,
+    appBarTabBorder: Color(0x24536379),
+    appBarTabActiveBorder: Color(0x380078d7),
   );
 
   static const dark = SearchPageThemeColors(
@@ -81,6 +108,15 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
       Color(0xe0101419),
       Color(0x00101419),
     ],
+    appBarTabText: Color(0xeff6f9fc),
+    appBarTabActiveText: Color(0xff5fb6ff),
+    appBarTabSurface: Color(0x0effffff),
+    appBarTabActiveSurface: Color(0x290078d7),
+    appBarTabHoverText: Color(0xff5fb6ff),
+    appBarTabHoverSurface: GlobalUI.hoverBgColorNight,
+    appBarTabHoverBorder: GlobalUI.hoverBorderColorNight,
+    appBarTabBorder: Color(0x1fd6e0ec),
+    appBarTabActiveBorder: Color(0x570078d7),
   );
 
   static SearchPageThemeColors of(BuildContext context) {

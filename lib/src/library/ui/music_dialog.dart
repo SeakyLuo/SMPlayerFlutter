@@ -753,8 +753,8 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       album: _albumController.text.trim(),
       albumArtist: _albumArtistController.text.trim(),
       publisher: _publisherController.text.trim(),
-      trackNumber: int.tryParse(_trackNumberController.text) ?? 0,
-      year: int.tryParse(_yearController.text) ?? 0,
+      trackNumber: _parseElectronNumericField(_trackNumberController.text),
+      year: _parseElectronNumericField(_yearController.text),
       playCount: int.tryParse(_playCountController.text) ?? 0,
     );
     if (!_isPropertiesModified(nextProperties, _originalProperties!)) {

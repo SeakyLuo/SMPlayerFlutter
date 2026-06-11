@@ -3843,16 +3843,6 @@ void main() {
     expect(find.text('History Query'), findsOneWidget);
     expect(find.text('Artist Query'), findsNothing);
 
-    await tester.tap(find.text('Clear'));
-    await tester.pump();
-    expect(repository.clearRecentSearchCount, 1);
-
-    await tester.tap(
-      find.byKey(const ValueKey('AlbumArtLibraryPicker.SearchHistoryRemove.7')),
-    );
-    await tester.pump();
-    expect(repository.removedRecentSearchIds, [7]);
-
     await tester.tap(
       find.byKey(const ValueKey('AlbumArtLibraryPicker.SearchHistorySelect.7')),
     );
@@ -3862,6 +3852,20 @@ void main() {
     expect(searchField.controller?.text, 'History Query');
     expect(repository.addedRecentSearchQuery, 'History Query');
     expect(repository.addedRecentSearchType, SearchHistoryType.sidebar);
+
+    await tester.tap(find.byType(TextField).last);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('AlbumArtLibraryPicker.SearchHistoryRemove.7')),
+    );
+    await tester.pump();
+    expect(repository.removedRecentSearchIds, [7]);
+
+    await tester.tap(find.byType(TextField).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear'));
+    await tester.pump();
+    expect(repository.clearRecentSearchCount, 1);
   });
 
   testWidgets(
@@ -6411,7 +6415,7 @@ void main() {
       final deleteRect = tester.getRect(
         find.widgetWithText(TextButton, 'Delete'),
       );
-      expect(changeArtworkRect.top, 98);
+      expect(changeArtworkRect.top, 58);
       expect(deleteRect.right, 625);
       final changeArtworkButton = tester.widget<TextButton>(
         find.widgetWithText(TextButton, 'Change Artwork'),
@@ -6424,7 +6428,7 @@ void main() {
         tester.getTopLeft(
           find.byKey(const ValueKey('MusicDialog.AlbumArtworkImageShell')),
         ),
-        const Offset(150, 303),
+        const Offset(150, 283),
       );
     },
   );

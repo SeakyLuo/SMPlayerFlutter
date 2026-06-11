@@ -46,4 +46,3 @@ class LibraryTimeCodec {
     return parseStoredDateTime(rawValue).millisecondsSinceEpoch;
   }
 }
-

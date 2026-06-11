@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -29,9 +30,8 @@ import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_constants.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_page.dart';
-import 'package:smplayer_flutter/src/playback/now_playing_full_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -206,9 +206,12 @@ void main() {
           widget is PlaylistControlItem &&
           widget.key == const ValueKey('now-playing-1-0'),
     );
+    final rowLeft = tester.getRect(firstRow).left;
     final rowRight = tester.getRect(firstRow).right;
 
+    expect(rowLeft, 14);
     expect(rowRight, commandBarRight);
+    expect(1012 - rowRight, 14);
     expect(
       find.descendant(
         of: firstRow,
@@ -242,6 +245,85 @@ void main() {
         ),
       ),
       findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('NowPlayingPage compact width mirrors Electron queue layout', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 760);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _NowPlayingTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final firstRow = find.byWidgetPredicate(
+      (widget) =>
+          widget is PlaylistControlItem &&
+          widget.key == const ValueKey('now-playing-1-0'),
+    );
+    final rowRect = tester.getRect(firstRow);
+    final durationRect = tester.getRect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+      ),
+    );
+    final list = tester.widget<ReorderableListView>(
+      find.byType(ReorderableListView),
+    );
+
+    expect(rowRect.left, 8);
+    expect(rowRect.right, 692);
+    expect(rowRect.height, 78);
+    expect(durationRect.right, 672);
+    expect(rowRect.right - durationRect.right, 20);
+    expect(list.padding, const EdgeInsets.fromLTRB(0, 0, 0, 2));
+    expect(
+      tester.widget<PlaylistControlItem>(firstRow).variant,
+      PlaylistControlItemVariant.compact,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.FavoriteAction'),
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -310,7 +392,8 @@ void main() {
       expect(surfaceRect.left, 0);
       expect(surfaceRect.right, 1400);
       expect(surfaceRect.width, 1400);
-      expect(surfaceRect.bottom, 900 - multiSelectCommandBarShellBottomInset);
+      expect(surfaceRect.height, 64 + multiSelectCommandBarShellBottomInset);
+      expect(surfaceRect.bottom, 900);
     },
   );
 
@@ -489,7 +572,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage shows immersive lyrics and Electron fallback',
+    'ImmersiveModePage shows immersive lyrics and Electron fallback',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -518,7 +601,7 @@ void main() {
       mediaController.syncPlaybackProgress(12, durationSeconds: 120);
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -539,7 +622,7 @@ void main() {
 
       expect(
         tester.getRect(
-          find.byKey(const ValueKey('NowPlayingFull.QueuePopoverHost')),
+          find.byKey(const ValueKey('ImmersiveMode.QueuePopoverHost')),
         ),
         const Rect.fromLTWH(856, 56, 520, 712),
       );
@@ -553,7 +636,7 @@ void main() {
       await closeHover.moveTo(tester.getCenter(find.byTooltip('Close')));
       await tester.pump();
       final queueCloseGlass = tester.widget<GlassContainer>(
-        find.byKey(const ValueKey('NowPlayingFull.QueueCloseButton')),
+        find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
       );
       expect(queueCloseGlass.width, 42);
       expect(queueCloseGlass.height, 42);
@@ -565,7 +648,7 @@ void main() {
       expect(queueCloseGlass.shape, isA<LiquidRoundedRectangle>());
       final queueCloseButton = tester.widget<TextButton>(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.QueueCloseButton')),
+          of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
           matching: find.byType(TextButton),
         ),
       );
@@ -584,20 +667,102 @@ void main() {
       final queueCount = tester.widget<Text>(find.text('1 songs'));
       expect(queueCount.style?.fontSize, 13);
       expect(queueCount.style?.fontWeight, FontWeight.w700);
-      final queueButton = tester.widget<TextButton>(
+      final queueButton = tester.widget<SmPlayerTextIconButton>(
         find.ancestor(
-          of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
-          matching: find.byType(TextButton),
+          of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+          matching: find.byType(SmPlayerTextIconButton),
         ),
       );
+      expect(queueButton.active, isTrue);
+      expect(queueButton.height, 40);
+      expect(queueButton.borderRadius, 12);
+      expect(queueButton.iconSize, 18);
+      expect(queueButton.fontSize, 14);
+      final queueButtonGlass = tester.widget<GlassContainer>(
+        find.descendant(
+          of: find.byWidget(queueButton),
+          matching: find.byType(GlassContainer),
+        ),
+      );
+      expect(queueButtonGlass.settings?.blur, 46);
+      expect(queueButtonGlass.shape, isA<LiquidRoundedRectangle>());
+    },
+  );
+
+  testWidgets(
+    'ImmersiveModePage lyric stage keeps compact height below desktop stage',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 760);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _ImmersiveModeTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
       expect(
-        queueButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-        const Color(0xdbffffff),
+        tester.getSize(find.byKey(const ValueKey('ImmersiveMode.LyricsStage'))),
+        const Size(382, 384),
+      );
+
+      tester.view.physicalSize = const Size(500, 760);
+      await tester.pumpWidget(
+        _ImmersiveModeTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      final compactLyricStageRect = tester.getRect(
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+      );
+      final compactPlayerFrameRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
+      );
+      final compactLyricsList = tester.widget<SingleChildScrollView>(
+        find.byKey(const ValueKey('ImmersiveMode.LyricsList')),
+      );
+      expect(compactLyricStageRect.width, 360);
+      expect(compactLyricStageRect.height, lessThan(320));
+      expect((compactLyricsList.padding! as EdgeInsets).bottom, 0);
+      expect(
+        compactLyricStageRect.bottom,
+        lessThanOrEqualTo(compactPlayerFrameRect.top),
       );
     },
   );
 
-  testWidgets('NowPlayingFullPage no active track labels match Electron', (
+  testWidgets('ImmersiveModePage no active track labels match Electron', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -608,7 +773,7 @@ void main() {
     });
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: _FakeNowPlayingRepository(_snapshot),
@@ -624,7 +789,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage no active track disables full footer volume like Electron',
+    'ImmersiveModePage no active track disables full footer volume like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -642,7 +807,7 @@ void main() {
       );
       final wideController = MediaControlController();
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -780,14 +945,27 @@ void main() {
       expect(wideController.state.mode, PlaybackMode.once);
       await tester.tap(find.byKey(const ValueKey('MediaControl.MoreButton')));
       await tester.pumpAndSettle();
+      final wideMoreMenu = find.byKey(const ValueKey('MenuFlyoutPanel.0.4'));
       expect(find.text('Quick Play'), findsOneWidget);
       expect(find.text('Shuffle'), findsOneWidget);
       expect(find.text('Save Playlist'), findsOneWidget);
       expect(find.text('Clear Now Playing'), findsOneWidget);
-      expect(find.text('Add To'), findsNothing);
-      expect(find.text('Play Artist'), findsNothing);
-      expect(find.text('Play Album'), findsNothing);
-      expect(find.text('View'), findsNothing);
+      expect(
+        find.descendant(of: wideMoreMenu, matching: find.text('Add To')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: wideMoreMenu, matching: find.text('Play Artist')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: wideMoreMenu, matching: find.text('Play Album')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: wideMoreMenu, matching: find.text('View')),
+        findsNothing,
+      );
       await tester.tapAt(const Offset(40, 40));
       await tester.pumpAndSettle();
 
@@ -836,7 +1014,7 @@ void main() {
       tester.view.physicalSize = const Size(1000, 760);
       final compactController = MediaControlController();
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -916,6 +1094,9 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('MediaControl.MoreButton')));
       await tester.pumpAndSettle();
+      final compactWideMoreMenu = find.byKey(
+        const ValueKey('MenuFlyoutPanel.0.4'),
+      );
       expect(find.text('Quick Play'), findsOneWidget);
       expect(find.text('Playback Mode: List'), findsNothing);
       expect(
@@ -925,16 +1106,34 @@ void main() {
       expect(find.text('Like'), findsNothing);
       expect(find.text('Save Playlist'), findsOneWidget);
       expect(find.text('Clear Now Playing'), findsOneWidget);
-      expect(find.text('Add To'), findsNothing);
-      expect(find.text('Play Artist'), findsNothing);
-      expect(find.text('Play Album'), findsNothing);
-      expect(find.text('View'), findsNothing);
+      expect(
+        find.descendant(of: compactWideMoreMenu, matching: find.text('Add To')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: compactWideMoreMenu,
+          matching: find.text('Play Artist'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: compactWideMoreMenu,
+          matching: find.text('Play Album'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: compactWideMoreMenu, matching: find.text('View')),
+        findsNothing,
+      );
       await tester.tapAt(const Offset(40, 40));
       await tester.pumpAndSettle();
 
       tester.view.physicalSize = const Size(760, 760);
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -945,6 +1144,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('MediaControl.MoreButton')));
       await tester.pumpAndSettle();
+      final compactMoreMenu = find.byKey(const ValueKey('MenuFlyoutPanel.0.7'));
       expect(find.text('Quick Play'), findsOneWidget);
       expect(find.text('Playback Mode: List'), findsOneWidget);
       expect(
@@ -962,15 +1162,30 @@ void main() {
       expect(find.text('Like'), findsOneWidget);
       expect(find.text('Save Playlist'), findsOneWidget);
       expect(find.text('Clear Now Playing'), findsOneWidget);
-      expect(find.text('Add To'), findsNothing);
-      expect(find.text('Play Artist'), findsNothing);
-      expect(find.text('Play Album'), findsNothing);
-      expect(find.text('View'), findsNothing);
+      expect(
+        find.descendant(of: compactMoreMenu, matching: find.text('Add To')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: compactMoreMenu,
+          matching: find.text('Play Artist'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: compactMoreMenu, matching: find.text('Play Album')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: compactMoreMenu, matching: find.text('View')),
+        findsNothing,
+      );
     },
   );
 
   testWidgets(
-    'NowPlayingFullPage disabled night buttons keep Electron full-page foreground',
+    'ImmersiveModePage disabled night buttons keep Electron full-page foreground',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -985,7 +1200,7 @@ void main() {
       });
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -1019,7 +1234,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage previous button has no Electron extra hold UI',
+    'ImmersiveModePage previous button has no Electron extra hold UI',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -1050,7 +1265,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _searchSnapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_searchSnapshot),
@@ -1071,7 +1286,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage scopes controls to immersive night mode', (
+  testWidgets('ImmersiveModePage scopes controls to immersive night mode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -1101,7 +1316,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: _FakeNowPlayingRepository(_snapshot),
@@ -1111,17 +1326,95 @@ void main() {
     );
     await tester.pump();
 
-    final queueButton = tester.widget<TextButton>(
+    final queueButton = tester.widget<SmPlayerTextIconButton>(
       find.ancestor(
-        of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
-        matching: find.byType(TextButton),
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        matching: find.byType(SmPlayerTextIconButton),
       ),
     );
 
+    expect(queueButton.active, isFalse);
+    expect(queueButton.height, 40);
+    expect(queueButton.borderRadius, 12);
+    expect(queueButton.glassSettings, immersiveModeTopButtonNightGlassSettings);
+    final queueButtonDecorations =
+        tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byWidget(queueButton),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .map((box) => box.decoration)
+            .whereType<BoxDecoration>()
+            .toList();
     expect(
-      queueButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      NowPlayingFullThemeColors.dark.topButtonBackground,
+      queueButtonDecorations.any(
+        (decoration) => decoration.color == const Color(0x14ffffff),
+      ),
+      isTrue,
     );
+    expect(
+      queueButtonDecorations.any(
+        (decoration) =>
+            decoration.border == Border.all(color: const Color(0x29ffffff)),
+      ),
+      isTrue,
+    );
+    expect(
+      tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byWidget(queueButton),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .length,
+      greaterThanOrEqualTo(1),
+    );
+    final queueButtonGlass = tester.widget<GlassContainer>(
+      find
+          .descendant(
+            of: find.byWidget(queueButton),
+            matching: find.byType(GlassContainer),
+          )
+          .first,
+    );
+    expect(queueButtonGlass.settings, immersiveModeTopButtonNightGlassSettings);
+    final queueButtonForeground =
+        tester
+            .widget<IconTheme>(
+              find
+                  .descendant(
+                    of: find.byWidget(queueButton),
+                    matching: find.byType(IconTheme),
+                  )
+                  .first,
+            )
+            .data
+            .color;
+    expect(queueButtonForeground, const Color(0xe0ffffff));
+    final queueButtonText = tester.widget<DefaultTextStyle>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+            matching: find.byType(DefaultTextStyle),
+          )
+          .first,
+    );
+    expect(queueButtonText.style.color, const Color(0xe0ffffff));
+    final queueButtonDecoration =
+        tester
+                .widgetList<DecoratedBox>(
+                  find.descendant(
+                    of: find.byWidget(queueButton),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .last
+                .decoration
+            as BoxDecoration;
+    expect(queueButtonDecoration.color, const Color(0x14ffffff));
     final nightPlayButton = tester.widget<AnimatedContainer>(
       find
           .descendant(
@@ -1171,7 +1464,7 @@ void main() {
             ),
           )
           .color,
-      const Color(0xdbffffff),
+      const Color(0xf0f6f9fc),
     );
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(
@@ -1190,7 +1483,7 @@ void main() {
     );
     expect(
       (hoveredMoreButton.decoration! as BoxDecoration).color,
-      const Color(0x2e0078d7),
+      const Color(0x380078d7),
     );
     expect(
       tester
@@ -1331,18 +1624,18 @@ void main() {
     expect(find.byType(PlaylistControlItem), findsWidgets);
 
     final queuePanelBackground = tester.widget<DecoratedBox>(
-      find.byKey(const ValueKey('NowPlayingFull.QueuePanelBackground')),
+      find.byKey(const ValueKey('ImmersiveMode.QueuePanelBackground')),
     );
     final queuePanelDecoration =
         queuePanelBackground.decoration as BoxDecoration;
     expect(queuePanelDecoration.color, const Color(0xdb12100e));
     expect(queuePanelDecoration.gradient, isA<LinearGradient>());
     expect(
-      find.byKey(const ValueKey('NowPlayingFull.QueuePanelGlass')),
+      find.byKey(const ValueKey('ImmersiveMode.QueuePanelGlass')),
       findsOneWidget,
     );
     final queuePanelGlass = tester.widget<GlassContainer>(
-      find.byKey(const ValueKey('NowPlayingFull.QueuePanelGlass')),
+      find.byKey(const ValueKey('ImmersiveMode.QueuePanelGlass')),
     );
     expect(queuePanelGlass.quality, GlassQuality.minimal);
     expect(queuePanelGlass.settings?.blur, 46);
@@ -1354,7 +1647,7 @@ void main() {
     );
   });
 
-  testWidgets('NowPlayingFullPage queue rows use Electron compact layout', (
+  testWidgets('ImmersiveModePage queue rows use Electron compact layout', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -1379,7 +1672,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _searchSnapshot,
         i18n: i18n,
         repository: repository,
@@ -1423,13 +1716,18 @@ void main() {
               )
               .dx -
           tester.getTopLeft(firstRow).dx,
-      78,
+      80,
     );
     expect(firstRowPlayNextAction, findsNothing);
     expect(tester.getSize(firstRowActions).width, 34);
     expect(tester.getSize(firstRowDuration).width, 20);
     expect(
       tester.getRect(firstRow).right - tester.getRect(firstRowDuration).right,
+      20,
+    );
+    expect(
+      tester.getRect(firstRowDuration).left -
+          tester.getRect(firstRowMoreAction).right,
       12,
     );
     expect(
@@ -1448,17 +1746,43 @@ void main() {
       );
     }
 
+    Color rowBackgroundFor(Finder row) {
+      final animatedRow =
+          find
+              .descendant(
+                of: find.descendant(
+                  of: row,
+                  matching: find.byKey(
+                    const ValueKey('PlaylistControlItem.Row'),
+                  ),
+                ),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first;
+      final decoration =
+          tester.widget<AnimatedContainer>(animatedRow).decoration
+              as BoxDecoration;
+      return decoration.color!;
+    }
+
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 0);
+    expect(rowBackgroundFor(firstRow), const Color(0x00eaf6ff));
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(firstRow));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    expect(rowBackgroundFor(firstRow), const Color(0xffeaf6ff));
     expect(firstRowPlayNextAction, findsNothing);
     expect(tester.getSize(firstRowActions).width, 34);
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 1);
     expect(tester.getSize(firstRowMoreAction), const Size.square(34));
+    expect(
+      tester.getRect(firstRowDuration).left -
+          tester.getRect(firstRowMoreAction).right,
+      12,
+    );
     expect(
       find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
       findsNothing,
@@ -1473,8 +1797,68 @@ void main() {
     );
   });
 
+  testWidgets('writes ImmersiveModePage queue hover screenshot', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1009, 678);
+    tester.view.devicePixelRatio = 1;
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+    );
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      resetSmPlayerGlobalSettingsSnapshot();
+    });
+    final repaintKey = GlobalKey();
+    final repository = _FakeNowPlayingRepository(_searchSnapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: repaintKey,
+        child: _ImmersiveModeTestApp(
+          snapshot: _searchSnapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    final firstRow = find.byType(PlaylistControlItem).first;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstRow));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await _writeNowPlayingBoundaryPng(
+      tester,
+      repaintKey,
+      'build/immersive_mode_queue_hover_verify.png',
+      pixelRatio: 2,
+    );
+  });
+
   testWidgets(
-    'NowPlayingFullPage omits playback load failure banner like Electron',
+    'ImmersiveModePage omits playback load failure banner like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -1500,7 +1884,7 @@ void main() {
       mediaController.setPlaybackLoadFailed();
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -1513,7 +1897,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage keeps full player surface out of loading', (
+  testWidgets('ImmersiveModePage keeps full player surface out of loading', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -1538,7 +1922,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -1622,7 +2006,7 @@ void main() {
       queueIndex: 0,
     );
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: _FakeNowPlayingRepository(_snapshot),
@@ -1693,7 +2077,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage progress seek commits on release like Electron',
+    'ImmersiveModePage progress seek commits on release like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -1717,7 +2101,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -1778,7 +2162,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(_snapshot),
@@ -1819,7 +2203,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage compact footer reuses nav-minimal surface', (
+  testWidgets('ImmersiveModePage compact footer reuses nav-minimal surface', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(500, 760);
@@ -1849,7 +2233,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -1905,41 +2289,41 @@ void main() {
     );
     expect(
       tester
-          .widget<Icon>(find.byKey(const ValueKey('NowPlayingFull.BackIcon')))
+          .widget<Icon>(find.byKey(const ValueKey('ImmersiveMode.BackIcon')))
           .size,
-      16,
+      isNull,
     );
     expect(
       tester
-          .widget<Icon>(find.byKey(const ValueKey('NowPlayingFull.QueueIcon')))
+          .widget<Icon>(find.byKey(const ValueKey('ImmersiveMode.QueueIcon')))
           .size,
-      16,
+      isNull,
     );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('NowPlayingFull.QueueLabel')))
-          .style
-          ?.fontSize,
-      13,
+    final compactTopQueueButton = tester.widget<SmPlayerTextIconButton>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
     );
+    expect(compactTopQueueButton.fontSize, 14);
     BoxDecoration exitDecoration() =>
         tester
                 .widget<AnimatedContainer>(
-                  find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+                  find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
                 )
                 .decoration!
             as BoxDecoration;
 
     expect(
       tester.getSize(
-        find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+        find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
       ),
       const Size(68, 68),
     );
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
-        matching: find.byKey(const ValueKey('NowPlayingFull.ExitAlbumSwatch')),
+        of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
+        matching: find.byKey(const ValueKey('ImmersiveMode.ExitAlbumSwatch')),
       ),
       findsNothing,
     );
@@ -1949,16 +2333,16 @@ void main() {
     expect(exitDecoration().boxShadow, isNull);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+        of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         matching: find.byKey(
-          const ValueKey('NowPlayingFull.ExitArtworkBackdrop'),
+          const ValueKey('ImmersiveMode.ExitArtworkBackdrop'),
         ),
       ),
       findsNothing,
     );
     expect(
       tester.widget<ExitFullscreenIcon>(
-        find.byKey(const ValueKey('NowPlayingFull.ExitIcon')),
+        find.byKey(const ValueKey('ImmersiveMode.ExitIcon')),
       ),
       isA<ExitFullscreenIcon>()
           .having((icon) => icon.size, 'size', 36)
@@ -1972,7 +2356,7 @@ void main() {
     await tester.pump();
     await exitHover.moveTo(
       tester.getCenter(
-        find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+        find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
       ),
     );
     await tester.pumpAndSettle();
@@ -2024,26 +2408,26 @@ void main() {
     expect(inactiveLyricStyle.height, 1.44);
 
     final queueButtonFinder = find.ancestor(
-      of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
-      matching: find.byType(TextButton),
+      of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+      matching: find.byType(SmPlayerTextIconButton),
     );
     await tester.tap(queueButtonFinder);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     final compactQueueList = tester.widget<ListView>(
-      find.byKey(const ValueKey('NowPlayingFull.QueueList')),
+      find.byKey(const ValueKey('ImmersiveMode.QueueList')),
     );
     expect(compactQueueList.padding, const EdgeInsets.fromLTRB(10, 0, 0, 2));
     expect(
       tester
-              .getRect(find.byKey(const ValueKey('NowPlayingFull.QueueList')))
+              .getRect(find.byKey(const ValueKey('ImmersiveMode.QueueList')))
               .right -
           tester.getRect(find.byType(PlaylistControlItem).first).right,
       10,
     );
   });
 
-  testWidgets('writes NowPlayingFullPage top liquid glass buttons screenshot', (
+  testWidgets('writes ImmersiveModePage top text icon buttons screenshot', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(956, 1520);
@@ -2075,7 +2459,7 @@ void main() {
     await tester.pumpWidget(
       RepaintBoundary(
         key: repaintKey,
-        child: _NowPlayingFullTestApp(
+        child: _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2087,29 +2471,61 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.byKey(const ValueKey('NowPlayingFull.BackIcon')),
+      find.byKey(const ValueKey('ImmersiveMode.BackIcon')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
+      find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
       findsOneWidget,
     );
+    final backButton = tester.widget<SmPlayerTextIconButton>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('ImmersiveMode.BackIcon')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(backButton.showLabel, isFalse);
+    expect(backButton.tooltipEnabled, isFalse);
+    expect(backButton.height, 40);
+    expect(backButton.borderRadius, 12);
+    expect(find.byTooltip('Back'), findsNothing);
     final backButtonGlass = tester.widget<GlassContainer>(
-      find.byKey(const ValueKey('NowPlayingFull.TopButtonGlass.Back')),
+      find.descendant(
+        of: find.byWidget(backButton),
+        matching: find.byType(GlassContainer),
+      ),
     );
     expect(backButtonGlass.quality, GlassQuality.minimal);
-    expect(backButtonGlass.settings?.blur, 46);
-    expect(backButtonGlass.settings?.saturation, 1.65);
-    expect(backButtonGlass.settings?.standardOpacityMultiplier, 0.35);
+    expect(backButtonGlass.settings, immersiveModeTopButtonNightGlassSettings);
+    final queueButton = tester.widget<SmPlayerTextIconButton>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(queueButton.showLabel, isTrue);
+    expect(queueButton.tooltipEnabled, isFalse);
+    expect(queueButton.height, 40);
+    expect(queueButton.iconSize, 18);
+    expect(queueButton.borderRadius, 12);
+    expect(find.byTooltip('Now Playing'), findsNothing);
+    final queueButtonGlass = tester.widget<GlassContainer>(
+      find.descendant(
+        of: find.byWidget(queueButton),
+        matching: find.byType(GlassContainer),
+      ),
+    );
+    expect(queueButtonGlass.quality, GlassQuality.minimal);
+    expect(queueButtonGlass.settings, immersiveModeTopButtonNightGlassSettings);
     await _writeNowPlayingBoundaryPng(
       tester,
       repaintKey,
-      'build/now_playing_full_top_glass_buttons_verify.png',
+      'build/immersive_mode_top_text_icon_buttons_verify.png',
       pixelRatio: 2,
     );
   });
 
-  testWidgets('writes NowPlayingFullPage MediaControl footer screenshot', (
+  testWidgets('writes ImmersiveModePage MediaControl footer screenshot', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 760);
@@ -2143,7 +2559,7 @@ void main() {
     await tester.pumpWidget(
       RepaintBoundary(
         key: repaintKey,
-        child: _NowPlayingFullTestApp(
+        child: _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2162,13 +2578,13 @@ void main() {
     await _writeNowPlayingBoundaryPng(
       tester,
       repaintKey,
-      'build/now_playing_full_media_control_footer_verify.png',
+      'build/immersive_mode_media_control_footer_verify.png',
       pixelRatio: 2,
     );
   });
 
   testWidgets(
-    'NowPlayingFullPage compact footer matches Electron column geometry',
+    'ImmersiveModePage compact footer matches Electron column geometry',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -2197,7 +2613,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2207,7 +2623,7 @@ void main() {
       await tester.pump();
 
       final exitRect = tester.getRect(
-        find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+        find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
       );
       final playRect = tester.getRect(
         find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
@@ -2282,7 +2698,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage compact footer keeps voice and More inside utility',
+    'ImmersiveModePage compact footer keeps voice and More inside utility',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -2312,7 +2728,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2365,7 +2781,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage nav-minimal footer keeps voice and More in 80px utility',
+    'ImmersiveModePage nav-minimal footer keeps voice and More in 80px utility',
     (tester) async {
       tester.view.physicalSize = const Size(800, 760);
       tester.view.devicePixelRatio = 1;
@@ -2394,7 +2810,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2437,7 +2853,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage switches compact columns at Electron 520px breakpoint',
+    'ImmersiveModePage switches compact columns at Electron 520px breakpoint',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
@@ -2468,7 +2884,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: _snapshot,
             i18n: i18n,
             repository: repository,
@@ -2481,7 +2897,7 @@ void main() {
       await pumpAtWidth(520);
       expect(
         tester.getRect(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
         const Rect.fromLTWH(12, 651, 68, 68),
       );
@@ -2514,7 +2930,7 @@ void main() {
       await pumpAtWidth(521);
       expect(
         tester.getRect(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
         const Rect.fromLTWH(16, 651, 68, 68),
       );
@@ -2547,7 +2963,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage mid-width footer uses compact utility like Electron',
+    'ImmersiveModePage mid-width footer uses compact utility like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1000, 760);
       tester.view.devicePixelRatio = 1;
@@ -2576,7 +2992,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2658,13 +3074,13 @@ void main() {
       );
       expect(
         tester.getSize(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
         const Size(72, 72),
       );
       expect(
         tester.widget<ExitFullscreenIcon>(
-          find.byKey(const ValueKey('NowPlayingFull.ExitIcon')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitIcon')),
         ),
         isA<ExitFullscreenIcon>()
             .having((icon) => icon.size, 'size', 36)
@@ -2759,7 +3175,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage compact volume popover overlays from Electron anchor',
+    'ImmersiveModePage compact volume popover overlays from Electron anchor',
     (tester) async {
       tester.view.physicalSize = const Size(1000, 760);
       tester.view.devicePixelRatio = 1;
@@ -2788,7 +3204,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -2981,7 +3397,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage utility switches at Electron 1200px breakpoint',
+    'ImmersiveModePage utility switches at Electron 1200px breakpoint',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
@@ -3012,7 +3428,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: _snapshot,
             i18n: i18n,
             repository: repository,
@@ -3149,7 +3565,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage switches nav-minimal layout at Electron 800px breakpoint',
+    'ImmersiveModePage switches nav-minimal layout at Electron 800px breakpoint',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
@@ -3180,7 +3596,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: _snapshot,
             i18n: i18n,
             repository: repository,
@@ -3388,7 +3804,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage keeps nav-minimal columns across Electron 721px lower bound',
+    'ImmersiveModePage keeps nav-minimal columns across Electron 721px lower bound',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
@@ -3419,7 +3835,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: _snapshot,
             i18n: i18n,
             repository: repository,
@@ -3440,7 +3856,7 @@ void main() {
       );
       expect(
         tester.getRect(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
         const Rect.fromLTWH(16, 651, 68, 68),
       );
@@ -3492,7 +3908,7 @@ void main() {
       );
       expect(
         tester.getRect(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
         const Rect.fromLTWH(16, 651, 68, 68),
       );
@@ -3519,7 +3935,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage wide mode row keeps Electron active state', (
+  testWidgets('ImmersiveModePage wide mode row keeps Electron active state', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -3550,7 +3966,7 @@ void main() {
     mediaController.onToggleRepeat();
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -3602,7 +4018,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage night utility active state follows Electron cascade',
+    'ImmersiveModePage night utility active state follows Electron cascade',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -3632,7 +4048,7 @@ void main() {
       mediaController.onToggleRepeat();
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -3668,7 +4084,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage primary and utility hover use selected-state color',
+    'ImmersiveModePage primary and utility hover use selected-state color',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -3700,7 +4116,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: _snapshot,
             i18n: i18n,
             repository: repository,
@@ -3779,7 +4195,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage wide mode row keeps Electron voice slot', (
+  testWidgets('ImmersiveModePage wide mode row keeps Electron voice slot', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -3810,7 +4226,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -3861,7 +4277,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage wide mute keeps Electron active volume button',
+    'ImmersiveModePage wide mute keeps Electron active volume button',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -3891,7 +4307,7 @@ void main() {
       mediaController.onToggleMute();
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -3945,7 +4361,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage wide footer uses Electron 0.9fr side columns',
+    'ImmersiveModePage wide footer uses Electron 0.9fr side columns',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -3974,7 +4390,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -3986,7 +4402,7 @@ void main() {
       final playerBarPosition = tester.widget<Positioned>(
         find
             .ancestor(
-              of: find.byKey(const ValueKey('NowPlayingFull.PlayerBarOpacity')),
+              of: find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
               matching: find.byType(Positioned),
             )
             .first,
@@ -3996,13 +4412,13 @@ void main() {
       expect(playerBarPosition.bottom, 0);
       expect(playerBarPosition.height, 120);
       final playerBarOpacity = tester.widget<AnimatedOpacity>(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarOpacity')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
       );
       expect(playerBarOpacity.opacity, 1);
       expect(playerBarOpacity.duration, const Duration(milliseconds: 180));
       expect(playerBarOpacity.curve, Curves.ease);
       final playerBarSlide = tester.widget<AnimatedSlide>(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarSlide')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarSlide')),
       );
       expect(playerBarSlide.offset, Offset.zero);
       expect(playerBarSlide.duration, const Duration(milliseconds: 260));
@@ -4385,7 +4801,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage night footer uses Electron full-page frame colors',
+    'ImmersiveModePage night footer uses Electron full-page frame colors',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -4414,7 +4830,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -4525,7 +4941,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage favorite active style follows Electron day and night',
+    'ImmersiveModePage favorite active style follows Electron day and night',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -4561,7 +4977,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _NowPlayingFullTestApp(
+          _ImmersiveModeTestApp(
             snapshot: favoriteSnapshot,
             i18n: i18n,
             repository: repository,
@@ -4619,7 +5035,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage night exit overlay stays visible on hover like Electron',
+    'ImmersiveModePage night exit overlay stays visible on hover like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -4647,7 +5063,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -4661,30 +5077,28 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
-          matching: find.byKey(
-            const ValueKey('NowPlayingFull.ExitAlbumSwatch'),
-          ),
+          of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
+          matching: find.byKey(const ValueKey('ImmersiveMode.ExitAlbumSwatch')),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
           matching: find.byType(SongArtwork),
         ),
         findsNothing,
       );
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
           matching: find.text('Blue Song'),
         ),
         findsNothing,
       );
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
           matching: find.text('Artist A'),
         ),
         findsNothing,
@@ -4693,7 +5107,7 @@ void main() {
           tester
                   .widget<AnimatedContainer>(
                     find.byKey(
-                      const ValueKey('NowPlayingFull.ExitArtworkShell'),
+                      const ValueKey('ImmersiveMode.ExitArtworkShell'),
                     ),
                   )
                   .decoration!
@@ -4702,21 +5116,21 @@ void main() {
           tester
                   .widget<DecoratedBox>(
                     find.byKey(
-                      const ValueKey('NowPlayingFull.ExitArtworkOverlay'),
+                      const ValueKey('ImmersiveMode.ExitArtworkOverlay'),
                     ),
                   )
                   .decoration
               as BoxDecoration;
       AnimatedContainer exitShell() => tester.widget<AnimatedContainer>(
-        find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+        find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
       );
 
       expect(exitOverlayDecoration().color, const Color(0x6b080c12));
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          of: find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
           matching: find.byKey(
-            const ValueKey('NowPlayingFull.ExitArtworkBackdrop'),
+            const ValueKey('ImmersiveMode.ExitArtworkBackdrop'),
           ),
         ),
         findsOneWidget,
@@ -4744,7 +5158,7 @@ void main() {
       expect(exitShell().curve, Curves.ease);
       expect(
         tester.widget<ExitFullscreenIcon>(
-          find.byKey(const ValueKey('NowPlayingFull.ExitIcon')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitIcon')),
         ),
         isA<ExitFullscreenIcon>()
             .having((icon) => icon.shadows, 'shadows', const [
@@ -4765,7 +5179,7 @@ void main() {
       await tester.pump();
       await exitHover.moveTo(
         tester.getCenter(
-          find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+          find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
         ),
       );
       await tester.pumpAndSettle();
@@ -4786,7 +5200,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage keeps wide layout with compact menu at 780px',
+    'ImmersiveModePage keeps wide layout with compact menu at 780px',
     (tester) async {
       tester.view.physicalSize = const Size(780, 760);
       tester.view.devicePixelRatio = 1;
@@ -4815,7 +5229,7 @@ void main() {
       mediaController.syncPlaybackProgress(12, durationSeconds: 120);
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -4829,14 +5243,12 @@ void main() {
           .singleWhere((widget) => widget.style?.fontSize == 24.8);
       expect(wideTitle.style?.height, 1.16);
       expect(
-        find.byKey(const ValueKey('NowPlayingFull.BackIcon')),
+        find.byKey(const ValueKey('ImmersiveMode.BackIcon')),
         findsNothing,
       );
       expect(
         tester
-            .widget<Icon>(
-              find.byKey(const ValueKey('NowPlayingFull.QueueIcon')),
-            )
+            .widget<Icon>(find.byKey(const ValueKey('ImmersiveMode.QueueIcon')))
             .size,
         18,
       );
@@ -4882,7 +5294,7 @@ void main() {
       expect(
         tester
             .getRect(
-              find.byKey(const ValueKey('NowPlayingFull.ExitArtworkShell')),
+              find.byKey(const ValueKey('ImmersiveMode.ExitArtworkShell')),
             )
             .top,
         651,
@@ -5003,34 +5415,30 @@ void main() {
       );
       expect(frameInsetHighlight.color, const Color(0xc7ffffff));
       final queueButtonFinder = find.ancestor(
-        of: find.byKey(const ValueKey('NowPlayingFull.QueueLabel')),
-        matching: find.byType(TextButton),
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        matching: find.byType(SmPlayerTextIconButton),
       );
-      TextButton queueButton() => tester.widget<TextButton>(queueButtonFinder);
-      final inactiveQueueShape =
-          queueButton().style?.shape?.resolve(<WidgetState>{})
-              as RoundedRectangleBorder?;
-      expect(inactiveQueueShape?.side.color, const Color(0x337e8b9a));
+      SmPlayerTextIconButton queueButton() =>
+          tester.widget<SmPlayerTextIconButton>(queueButtonFinder);
+      expect(queueButton().borderRadius, 12);
+      expect(queueButton().active, isFalse);
 
       await tester.tap(queueButtonFinder);
       await tester.pump();
-      expect(
-        queueButton().style?.foregroundColor?.resolve(<WidgetState>{}),
-        const Color(0xff0063b1),
-      );
+      expect(queueButton().active, isTrue);
       await tester.tap(find.byTooltip('Close'));
       await tester.pump();
 
       await tester.drag(
-        find.byKey(const ValueKey('NowPlayingFull.LyricsStage')),
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
         const Offset(0, -90),
       );
       await tester.pump();
       final lyricStageRect = tester.getRect(
-        find.byKey(const ValueKey('NowPlayingFull.LyricsStage')),
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
       );
       final seekButtonRect = tester.getRect(
-        find.byKey(const ValueKey('NowPlayingFull.LyricSeekButton')),
+        find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
       );
       expect(
         seekButtonRect.center.dy,
@@ -5050,7 +5458,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage night compact footer follows Electron nav-minimal cascade',
+    'ImmersiveModePage night compact footer follows Electron nav-minimal cascade',
     (tester) async {
       tester.view.physicalSize = const Size(780, 760);
       tester.view.devicePixelRatio = 1;
@@ -5078,7 +5486,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -5166,7 +5574,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage favorite button updates current song', (
+  testWidgets('ImmersiveModePage favorite button updates current song', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -5191,7 +5599,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -5208,7 +5616,7 @@ void main() {
     expect(mediaController.state.track.favorite, isTrue);
   });
 
-  testWidgets('NowPlayingFullPage more menu opens before preference refresh', (
+  testWidgets('ImmersiveModePage more menu opens before preference refresh', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -5233,7 +5641,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -5269,8 +5677,52 @@ void main() {
     );
   });
 
+  testWidgets('ImmersiveModePage compact More menu opens above footer button', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    final moreButton = find.byKey(const ValueKey('MediaControl.MoreButton'));
+    await tester.tap(moreButton);
+    await tester.pumpAndSettle();
+
+    final moreRect = tester.getRect(moreButton);
+    final panelRect = tester.getRect(
+      find.byKey(const ValueKey('MenuFlyout.GlassPanel')),
+    );
+    expect(panelRect.bottom, moreOrLessEquals(moreRect.top - 8, epsilon: 1));
+  });
+
   testWidgets(
-    'NowPlayingFullPage wide More matches Electron queue and current song items',
+    'ImmersiveModePage wide More matches Electron queue and current song items',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -5294,7 +5746,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -5358,7 +5810,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage More Play Artist and Album replace queue', (
+  testWidgets('ImmersiveModePage More Play Artist and Album replace queue', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -5433,7 +5885,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -5484,7 +5936,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage Add To Now Playing undo removes inserted range',
+    'ImmersiveModePage Add To Now Playing undo removes inserted range',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -5529,7 +5981,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: repository,
@@ -5555,7 +6007,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage More disables Random Play when queue and library are empty',
+    'ImmersiveModePage More disables Random Play when queue and library are empty',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -5574,7 +6026,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: emptySnapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(emptySnapshot),
@@ -5614,7 +6066,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage compact More includes Electron utility substitutes',
+    'ImmersiveModePage compact More includes Electron utility substitutes',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -5638,7 +6090,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -5756,7 +6208,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage compact mode context menu opens like Electron',
+    'ImmersiveModePage compact mode context menu opens like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -5780,7 +6232,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -5810,7 +6262,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage compact mode cycles in Electron order', (
+  testWidgets('ImmersiveModePage compact mode cycles in Electron order', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(500, 760);
@@ -5835,7 +6287,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -5863,7 +6315,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage compact mode menu checks current Electron item',
+    'ImmersiveModePage compact mode menu checks current Electron item',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -5887,7 +6339,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -5931,74 +6383,70 @@ void main() {
     },
   );
 
-  testWidgets(
-    'NowPlayingFullPage compact mode long press opens Electron menu',
-    (tester) async {
-      tester.view.physicalSize = const Size(500, 760);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      final repository = _FakeNowPlayingRepository(_snapshot);
-      final mediaController = MediaControlController();
-      mediaController.playTrack(
-        const MediaControlTrack(
-          id: 1,
-          title: 'Blue Song',
-          artist: 'Artist A',
-          artworkUrl: '',
-          isLoading: false,
-          favorite: false,
-        ),
-        durationSeconds: 120,
-        queueIndex: 0,
-      );
+  testWidgets('ImmersiveModePage compact mode long press opens Electron menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(500, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
 
-      await tester.pumpWidget(
-        _NowPlayingFullTestApp(
-          snapshot: _snapshot,
-          i18n: i18n,
-          repository: repository,
-          mediaController: mediaController,
-        ),
-      );
-      await tester.pump();
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
 
-      final modeButton = find.byKey(
-        const ValueKey('MediaControl.CompactModeButton'),
-      );
-      final modeTooltip = find.byTooltip('Playback Mode: List').last;
-      final modeHoldAction = tester.widget<HoldReleaseAction>(
-        find.ancestor(
-          of: modeTooltip,
-          matching: find.byType(HoldReleaseAction),
-        ),
-      );
-      expect(modeHoldAction.holdDuration, const Duration(milliseconds: 520));
-      expect(modeHoldAction.triggerHoldOnReady, isTrue);
+    final modeButton = find.byKey(
+      const ValueKey('MediaControl.CompactModeButton'),
+    );
+    final modeTooltip = find.byTooltip('Playback Mode: List').last;
+    final modeHoldAction = tester.widget<HoldReleaseAction>(
+      find.ancestor(of: modeTooltip, matching: find.byType(HoldReleaseAction)),
+    );
+    expect(modeHoldAction.holdDuration, const Duration(milliseconds: 520));
+    expect(modeHoldAction.triggerHoldOnReady, isTrue);
 
-      final modeHold = await tester.startGesture(
-        tester.getCenter(modeButton),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Shuffle'), findsNothing);
-      expect(mediaController.state.mode, PlaybackMode.once);
-      await tester.pump(const Duration(milliseconds: 120));
-      await modeHold.up();
-      await tester.pumpAndSettle();
+    final modeHold = await tester.startGesture(
+      tester.getCenter(modeButton),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Shuffle'), findsNothing);
+    expect(mediaController.state.mode, PlaybackMode.once);
+    await tester.pump(const Duration(milliseconds: 120));
+    await modeHold.up();
+    await tester.pumpAndSettle();
 
-      expect(mediaController.state.mode, PlaybackMode.once);
-      expect(find.text('List'), findsOneWidget);
-      expect(find.text('Shuffle'), findsOneWidget);
-      expect(find.text('Repeat'), findsOneWidget);
-      expect(find.text('Repeat One'), findsOneWidget);
-    },
-  );
+    expect(mediaController.state.mode, PlaybackMode.once);
+    expect(find.text('List'), findsOneWidget);
+    expect(find.text('Shuffle'), findsOneWidget);
+    expect(find.text('Repeat'), findsOneWidget);
+    expect(find.text('Repeat One'), findsOneWidget);
+  });
 
   testWidgets(
-    'NowPlayingFullPage compact More disables Favorite without current song',
+    'ImmersiveModePage compact More disables Favorite without current song',
     (tester) async {
       tester.view.physicalSize = const Size(500, 760);
       tester.view.devicePixelRatio = 1;
@@ -6009,7 +6457,7 @@ void main() {
       final repository = _FakeNowPlayingRepository(_snapshot);
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -6044,7 +6492,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage Clear Now Playing exits fullscreen and clears queue',
+    'ImmersiveModePage Clear Now Playing exits fullscreen and clears queue',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6069,7 +6517,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -6095,7 +6543,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage exit button follows Electron close action', (
+  testWidgets('ImmersiveModePage exit button follows Electron close action', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6121,7 +6569,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -6144,12 +6592,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(exitCalls, 1);
-    expect(find.byType(NowPlayingFullPage), findsNothing);
+    expect(find.byType(ImmersiveModePage), findsNothing);
     expect(find.byTooltip('Exit immersive mode'), findsNothing);
   });
 
   testWidgets(
-    'NowPlayingFullPage queue context menu opens before preference refresh',
+    'ImmersiveModePage queue context menu opens before preference refresh',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6174,7 +6622,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -6203,7 +6651,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage queue context Add To keeps Now Playing playlist target',
+    'ImmersiveModePage queue context Add To keeps Now Playing playlist target',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6239,7 +6687,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: _FakeNowPlayingRepository(snapshot),
@@ -6269,7 +6717,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage more view dialog pins player bar', (
+  testWidgets('ImmersiveModePage more view dialog pins player bar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6294,7 +6742,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: _FakeNowPlayingRepository(_snapshot),
@@ -6336,7 +6784,7 @@ void main() {
     expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
   });
 
-  testWidgets('NowPlayingFullPage queue view opens dialog and closes panel', (
+  testWidgets('ImmersiveModePage queue view opens dialog and closes panel', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6362,7 +6810,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -6392,7 +6840,7 @@ void main() {
     expect(find.text('View'), findsNothing);
   });
 
-  testWidgets('NowPlayingFullPage multi-select play preserves queue order', (
+  testWidgets('ImmersiveModePage multi-select play preserves queue order', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6418,7 +6866,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _searchSnapshot,
         i18n: i18n,
         repository: repository,
@@ -6452,7 +6900,7 @@ void main() {
     expect(mediaController.state.selectedQueueIndex, 0);
   });
 
-  testWidgets('NowPlayingFullPage context Select resets selection to row', (
+  testWidgets('ImmersiveModePage context Select resets selection to row', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6479,7 +6927,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _searchSnapshot,
         i18n: i18n,
         repository: repository,
@@ -6516,7 +6964,7 @@ void main() {
     expect(find.text('2 selected'), findsNothing);
   });
 
-  testWidgets('NowPlayingFullPage current queue row tap keeps playing', (
+  testWidgets('ImmersiveModePage current queue row tap keeps playing', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6541,7 +6989,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _searchSnapshot,
         i18n: i18n,
         repository: repository,
@@ -6565,7 +7013,7 @@ void main() {
     expect(mediaController.state.isPlaying, isTrue);
   });
 
-  testWidgets('NowPlayingFullPage multi-select remove clears selection', (
+  testWidgets('ImmersiveModePage multi-select remove clears selection', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(2200, 900);
@@ -6593,7 +7041,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -6623,7 +7071,7 @@ void main() {
     );
     expect(commandBarRect.left, 0);
     expect(commandBarRect.width, 2200);
-    expect(commandBarRect.bottom, 900 - nowPlayingFullPlayerHeight + 1);
+    expect(commandBarRect.bottom, 900 - immersiveModePlayerHeight + 1);
 
     await tester.tap(find.text('Remove').last);
     await tester.pumpAndSettle();
@@ -6641,7 +7089,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage multi-select favorites respects hide preference',
+    'ImmersiveModePage multi-select favorites respects hide preference',
     (tester) async {
       tester.view.physicalSize = const Size(2200, 900);
       tester.view.devicePixelRatio = 1;
@@ -6668,7 +7116,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: repository,
@@ -6704,7 +7152,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage multi-select playlist Add To respects hide preference',
+    'ImmersiveModePage multi-select playlist Add To respects hide preference',
     (tester) async {
       tester.view.physicalSize = const Size(2200, 900);
       tester.view.devicePixelRatio = 1;
@@ -6731,7 +7179,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: repository,
@@ -6767,7 +7215,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage queue panel does not raise or pin player bar',
+    'ImmersiveModePage queue panel does not raise or pin player bar',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6791,7 +7239,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -6826,10 +7274,10 @@ void main() {
       }
 
       final queueLayer = positionedLayerOf(
-        find.byKey(const ValueKey('NowPlayingFull.QueuePopoverHost')),
+        find.byKey(const ValueKey('ImmersiveMode.QueuePopoverHost')),
       );
       final playerBarLayer = positionedLayerOf(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarOpacity')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
       );
       expect(queueLayer.parent, same(playerBarLayer.parent));
       final stack = queueLayer.parent! as RenderStack;
@@ -6839,12 +7287,12 @@ void main() {
       );
       expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
       final playerBarOpacity = tester.widget<AnimatedOpacity>(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarOpacity')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
       );
       expect(playerBarOpacity.duration, const Duration(milliseconds: 180));
       expect(playerBarOpacity.curve, Curves.ease);
       final playerBarSlide = tester.widget<AnimatedSlide>(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarSlide')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarSlide')),
       );
       expect(playerBarSlide.duration, const Duration(milliseconds: 260));
       expect(playerBarSlide.curve, const Cubic(0.2, 0, 0, 1));
@@ -6858,7 +7306,7 @@ void main() {
   );
 
   testWidgets(
-    'NowPlayingFullPage compact queue follows Electron z-index above footer',
+    'ImmersiveModePage compact queue follows Electron z-index above footer',
     (tester) async {
       tester.view.physicalSize = const Size(780, 760);
       tester.view.devicePixelRatio = 1;
@@ -6882,7 +7330,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _snapshot,
           i18n: i18n,
           repository: repository,
@@ -6915,10 +7363,10 @@ void main() {
       }
 
       final queueLayer = positionedLayerOf(
-        find.byKey(const ValueKey('NowPlayingFull.QueuePopoverHost')),
+        find.byKey(const ValueKey('ImmersiveMode.QueuePopoverHost')),
       );
       final playerBarLayer = positionedLayerOf(
-        find.byKey(const ValueKey('NowPlayingFull.PlayerBarOpacity')),
+        find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
       );
       expect(queueLayer.parent, same(playerBarLayer.parent));
       final stack = queueLayer.parent! as RenderStack;
@@ -6929,7 +7377,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage More pins player bar while menu is open', (
+  testWidgets('ImmersiveModePage More pins player bar while menu is open', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -6954,7 +7402,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: _FakeNowPlayingRepository(_snapshot),
@@ -6989,62 +7437,61 @@ void main() {
     expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
   });
 
+  testWidgets('ImmersiveModePage keeps player bar raised while pointer stays', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+      autoplay: false,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(-10, -10));
+    await tester.pump();
+    await gesture.moveTo(const Offset(100, 100));
+    await tester.pump();
+    await gesture.moveTo(const Offset(120, 120));
+    await tester.pump();
+    expect(_hasPlayerBarOpacity(tester, 1), isTrue);
+
+    await tester.pump(const Duration(seconds: 6));
+    expect(_hasPlayerBarOpacity(tester, 1), isTrue);
+
+    await gesture.removePointer();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets(
-    'NowPlayingFullPage keeps player bar raised while pointer stays',
-    (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      final mediaController = MediaControlController();
-      mediaController.playTrack(
-        const MediaControlTrack(
-          id: 1,
-          title: 'Blue Song',
-          artist: 'Artist A',
-          artworkUrl: '',
-          isLoading: false,
-          favorite: false,
-        ),
-        durationSeconds: 120,
-        queueIndex: 0,
-        autoplay: false,
-      );
-
-      await tester.pumpWidget(
-        _NowPlayingFullTestApp(
-          snapshot: _snapshot,
-          i18n: i18n,
-          repository: _FakeNowPlayingRepository(_snapshot),
-          mediaController: mediaController,
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pump(const Duration(milliseconds: 260));
-      expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
-
-      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await gesture.addPointer(location: const Offset(-10, -10));
-      await tester.pump();
-      await gesture.moveTo(const Offset(100, 100));
-      await tester.pump();
-      await gesture.moveTo(const Offset(120, 120));
-      await tester.pump();
-      expect(_hasPlayerBarOpacity(tester, 1), isTrue);
-
-      await tester.pump(const Duration(seconds: 6));
-      expect(_hasPlayerBarOpacity(tester, 1), isTrue);
-
-      await gesture.removePointer();
-      await tester.pump(const Duration(seconds: 5));
-    },
-  );
-
-  testWidgets(
-    'NowPlayingFullPage empty queue panel omits header like Electron',
+    'ImmersiveModePage empty queue panel omits header like Electron',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -7073,7 +7520,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: repository,
@@ -7090,7 +7537,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage empty loading queue shows compact loading', (
+  testWidgets('ImmersiveModePage empty loading queue shows compact loading', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7120,7 +7567,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -7138,7 +7585,7 @@ void main() {
     expect(loading.compact, isTrue);
   });
 
-  testWidgets('NowPlayingFullPage queue rows reuse default artwork fallback', (
+  testWidgets('ImmersiveModePage queue rows reuse default artwork fallback', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7163,7 +7610,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -7189,7 +7636,7 @@ void main() {
   });
 
   testWidgets(
-    'NowPlayingFullPage displays current track instead of selected queue index',
+    'ImmersiveModePage displays current track instead of selected queue index',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -7213,7 +7660,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: _searchSnapshot,
           i18n: i18n,
           repository: repository,
@@ -7239,7 +7686,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage falls back to playback track like Electron', (
+  testWidgets('ImmersiveModePage falls back to playback track like Electron', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7264,7 +7711,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -7283,7 +7730,7 @@ void main() {
     expect(find.text('No active track'), findsNothing);
   });
 
-  testWidgets('NowPlayingFullPage opens queue centered on current row', (
+  testWidgets('ImmersiveModePage opens queue centered on current row', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7333,7 +7780,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: snapshot,
         i18n: i18n,
         repository: repository,
@@ -7347,7 +7794,7 @@ void main() {
     await tester.pump();
 
     final queueLists = tester.widgetList<ListView>(
-      find.byKey(const ValueKey('NowPlayingFull.QueueList')),
+      find.byKey(const ValueKey('ImmersiveMode.QueueList')),
     );
     expect(
       queueLists.any((list) => (list.controller?.offset ?? 0) > 1500),
@@ -7357,18 +7804,25 @@ void main() {
       find.byKey(const ValueKey('now-playing-full-row-31-30')),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byType(ImmersiveModePage),
+        matching: find.byType(RawScrollbar),
+      ),
+      findsNothing,
+    );
   });
 
-  test('NowPlayingFullPage reorders queue downward like Electron', () {
-    expect(reorderNowPlayingFullQueueSongIds(const [1, 2, 3], 0, 2), [2, 1, 3]);
-    expect(reorderNowPlayingFullQueueSongIds(const [1, 2, 3], 2, 0), [3, 1, 2]);
-    expect(moveNowPlayingFullQueueSongIds(const [1, 2, 3, 4], 0, 2, true), [
+  test('ImmersiveModePage reorders queue downward like Electron', () {
+    expect(reorderImmersiveModeQueueSongIds(const [1, 2, 3], 0, 2), [2, 1, 3]);
+    expect(reorderImmersiveModeQueueSongIds(const [1, 2, 3], 2, 0), [3, 1, 2]);
+    expect(moveImmersiveModeQueueSongIds(const [1, 2, 3, 4], 0, 2, true), [
       2,
       3,
       1,
       4,
     ]);
-    expect(moveNowPlayingFullQueueSongIds(const [1, 2, 3, 4], 3, 1, false), [
+    expect(moveImmersiveModeQueueSongIds(const [1, 2, 3, 4], 3, 1, false), [
       1,
       4,
       2,
@@ -7376,42 +7830,42 @@ void main() {
     ]);
   });
 
-  test('NowPlayingFullPage play next queue matches Electron helper', () {
-    expect(playNextNowPlayingFullQueueSongIds(const [1, 2, 3], 9, 2, -1, 1), [
+  test('ImmersiveModePage play next queue matches Electron helper', () {
+    expect(playNextImmersiveModeQueueSongIds(const [1, 2, 3], 9, 2, -1, 1), [
       1,
       2,
       9,
       3,
     ]);
-    expect(playNextNowPlayingFullQueueSongIds(const [1, 2, 3, 4], 2, 4, 1, 3), [
+    expect(playNextImmersiveModeQueueSongIds(const [1, 2, 3, 4], 2, 4, 1, 3), [
       1,
       3,
       4,
       2,
     ]);
-    expect(playNextNowPlayingFullQueueSongIds(const [1, 2, 3, 4], 4, 2, 3, 1), [
+    expect(playNextImmersiveModeQueueSongIds(const [1, 2, 3, 4], 4, 2, 3, 1), [
       1,
       2,
       4,
       3,
     ]);
     expect(
-      playNextNowPlayingFullQueueSongIds(const [1, 2, 3, 4], 1, 3, 0, null),
+      playNextImmersiveModeQueueSongIds(const [1, 2, 3, 4], 1, 3, 0, null),
       [2, 3, 1, 4],
     );
-    expect(playNextNowPlayingFullQueueSongIds(const [1, 2, 3], 2, 2, 1, 1), [
+    expect(playNextImmersiveModeQueueSongIds(const [1, 2, 3], 2, 2, 1, 1), [
       1,
       3,
       2,
     ]);
   });
 
-  test('NowPlayingFullPage lyric seek time matches Electron formatter', () {
-    expect(formatNowPlayingFullLyricSeekTime(65), '1:05');
-    expect(formatNowPlayingFullLyricSeekTime(3661), '1:01:01');
+  test('ImmersiveModePage lyric seek time matches Electron formatter', () {
+    expect(formatImmersiveModeLyricSeekTime(65), '1:05');
+    expect(formatImmersiveModeLyricSeekTime(3661), '1:01:01');
   });
 
-  testWidgets('NowPlayingFullPage scrolls to active lyric after loading', (
+  testWidgets('ImmersiveModePage scrolls to active lyric after loading', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7437,7 +7891,7 @@ void main() {
     mediaController.syncPlaybackProgress(72, durationSeconds: 120);
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -7450,14 +7904,22 @@ void main() {
     await tester.pumpAndSettle();
 
     final lyricsList = tester.widget<SingleChildScrollView>(
-      find.byKey(const ValueKey('NowPlayingFull.LyricsList')),
+      find.byKey(const ValueKey('ImmersiveMode.LyricsList')),
     );
+    expect((lyricsList.padding! as EdgeInsets).bottom, 32);
     expect(find.text('Lyric line 8'), findsOneWidget);
     expect(lyricsList.controller?.offset, greaterThan(180));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+        matching: find.byType(RawScrollbar),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets(
-    'NowPlayingFullPage plain lyrics stay on first line without duration',
+    'ImmersiveModePage plain lyrics stay on first line without duration',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -7499,7 +7961,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _NowPlayingFullTestApp(
+        _ImmersiveModeTestApp(
           snapshot: snapshot,
           i18n: i18n,
           repository: repository,
@@ -7528,7 +7990,7 @@ void main() {
     },
   );
 
-  testWidgets('NowPlayingFullPage lyric rows do not seek on tap', (
+  testWidgets('ImmersiveModePage lyric rows do not seek on tap', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -7558,7 +8020,7 @@ void main() {
     mediaController.syncPlaybackProgress(12, durationSeconds: 120);
 
     await tester.pumpWidget(
-      _NowPlayingFullTestApp(
+      _ImmersiveModeTestApp(
         snapshot: _snapshot,
         i18n: i18n,
         repository: repository,
@@ -7568,29 +8030,89 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.drag(find.text('Current lyric'), const Offset(0, -90));
+    await tester.drag(
+      find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+      const Offset(0, -90),
+    );
     await tester.pump();
 
-    final seekButton = tester.widget<TextButton>(
-      find.byKey(const ValueKey('NowPlayingFull.LyricSeekButton')),
+    final seekButton = tester.widget<SmPlayerTextIconButton>(
+      find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
     );
+    expect(seekButton.borderRadius, 999);
+    expect(seekButton.height, 44);
+    expect(seekButton.horizontalPadding, 14);
+    expect(seekButton.tooltipEnabled, isFalse);
+    expect(seekButton.glassSettings, immersiveModeTopButtonGlassSettings);
+    expect(find.byTooltip('0:00'), findsNothing);
     expect(
-      seekButton.style?.foregroundColor?.resolve(<WidgetState>{}),
-      const Color(0xff0063b1),
+      tester
+          .getSize(find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')))
+          .height,
+      greaterThanOrEqualTo(44),
     );
-    expect(
-      seekButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      const Color(0xb8ffffff),
+    final seekButtonGlass = tester.widget<GlassContainer>(
+      find
+          .descendant(
+            of: find.byWidget(seekButton),
+            matching: find.byType(GlassContainer),
+          )
+          .first,
     );
-    final seekButtonShape =
-        seekButton.style?.shape?.resolve(<WidgetState>{})
-            as RoundedRectangleBorder?;
-    expect(seekButtonShape?.side.color, const Color(0x337e8b9a));
+    expect(seekButtonGlass.useOwnLayer, isTrue);
+    expect(seekButtonGlass.quality, GlassQuality.minimal);
+    expect(seekButtonGlass.shape, isA<LiquidRoundedRectangle>());
+    expect(seekButtonGlass.settings?.blur, 46);
+    expect(seekButtonGlass.settings?.thickness, 24);
+    expect(seekButtonGlass.settings?.refractiveIndex, 1.06);
+    expect(seekButtonGlass.settings?.saturation, 1.9);
+    expect(seekButtonGlass.settings?.lightIntensity, 0.16);
+    expect(seekButtonGlass.settings?.ambientStrength, 0.12);
+    expect(seekButtonGlass.settings?.glowIntensity, 0.1);
+    expect(seekButtonGlass.settings?.glassColor, const Color(0x52ffffff));
+    expect(seekButtonGlass.settings?.standardOpacityMultiplier, 0.5);
 
+    final seekButtonRect = tester.getRect(
+      find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
+    );
+    final seekButtonEdgePoint = Offset(
+      seekButtonRect.center.dx,
+      seekButtonRect.top + 4,
+    );
+    final seekButtonHover = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+    );
+    await seekButtonHover.addPointer();
+    await seekButtonHover.moveTo(seekButtonEdgePoint);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(
+      find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
+      findsOneWidget,
+    );
+
+    mediaController.setPlaybackActive(false);
+    await tester.pump();
     await tester.tap(find.text('Opening lyric'));
     await tester.pump();
 
     expect(mediaController.state.progressSeconds, 12);
+    expect(mediaController.state.isPlaying, isFalse);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
+        matching: find.text('0:00'),
+      ),
+      findsWidgets,
+    );
+
+    await tester.tapAt(seekButtonEdgePoint);
+    await tester.pump();
+    await seekButtonHover.removePointer();
+
+    expect(mediaController.state.progressSeconds, 0);
+    expect(mediaController.state.isPlaying, isTrue);
+    expect(mediaController.state.playbackStatus, PlaybackStatus.seeking);
   });
 }
 
@@ -7628,8 +8150,8 @@ class _NowPlayingTestApp extends StatelessWidget {
   }
 }
 
-class _NowPlayingFullTestApp extends StatelessWidget {
-  const _NowPlayingFullTestApp({
+class _ImmersiveModeTestApp extends StatelessWidget {
+  const _ImmersiveModeTestApp({
     required this.snapshot,
     required this.i18n,
     required this.repository,
@@ -7654,13 +8176,13 @@ class _NowPlayingFullTestApp extends StatelessWidget {
             ? MaterialApp.router(
               theme: buildSmPlayerTheme(themeSettings),
               routerConfig: GoRouter(
-                initialLocation: '/now-playing/full?from=/now-playing',
+                initialLocation: '/immersive-mode',
                 routes: [
                   GoRoute(
-                    path: '/now-playing/full',
+                    path: '/immersive-mode',
                     builder:
                         (context, state) =>
-                            const Scaffold(body: NowPlayingFullPage()),
+                            const Scaffold(body: ImmersiveModePage()),
                   ),
                   GoRoute(
                     path: '/now-playing',
@@ -7673,7 +8195,7 @@ class _NowPlayingFullTestApp extends StatelessWidget {
             )
             : MaterialApp(
               theme: buildSmPlayerTheme(themeSettings),
-              home: const Scaffold(body: NowPlayingFullPage()),
+              home: const Scaffold(body: ImmersiveModePage()),
             );
     return ProviderScope(
       overrides: [

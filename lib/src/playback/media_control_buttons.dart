@@ -53,8 +53,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final colors = MediaControlThemeColors.of(context);
     final hovered = !widget.disabled && _hovered;
     final hoverBackground = colors.buttonActiveBackground;
-    final transparentHoverBackground = hoverBackground
-        .withValues(alpha: 0);
+    final transparentHoverBackground = hoverBackground.withValues(alpha: 0);
     final transparentFavoriteHoverBackground = colors
         .favoriteActiveHoverBackground
         .withValues(alpha: 0);
