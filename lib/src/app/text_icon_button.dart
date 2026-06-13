@@ -26,6 +26,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.maxWidth,
     this.height = 40,
     this.horizontalPadding = 14,
+    this.verticalPadding = 0,
     this.iconSize = 18,
     this.iconGap = 8,
     this.opacityWhenDisabled = 0.52,
@@ -58,6 +59,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final double? maxWidth;
   final double height;
   final double horizontalPadding;
+  final double verticalPadding;
   final double iconSize;
   final double iconGap;
   final double opacityWhenDisabled;
@@ -122,6 +124,7 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: widget.showLabel ? widget.horizontalPadding : 0,
+            vertical: widget.verticalPadding,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -164,6 +167,7 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                       fontWeight: widget.fontWeight,
                       fontVariations: widget.fontVariations,
                       height: 1,
+                      decoration: TextDecoration.none,
                     ),
                     child: widget.child ?? Text(widget.label),
                   ),

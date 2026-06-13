@@ -5,10 +5,15 @@ import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.d
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 
 class GridArtworkAction {
-  const GridArtworkAction({required this.title, required this.onPressed});
+  const GridArtworkAction({
+    required this.title,
+    required this.onPressed,
+    this.icon = const SmPlayerPlayIcon(size: 20, color: Colors.white),
+  });
 
   final String title;
   final VoidCallback? onPressed;
+  final Widget icon;
 }
 
 class GridArtworkCardContent extends StatelessWidget {
@@ -100,10 +105,7 @@ class GridArtworkCardContent extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 5),
                       child: ArtworkFloatingActionButton(
                         tooltip: action.title,
-                        icon: const SmPlayerPlayIcon(
-                          size: 20,
-                          color: Colors.white,
-                        ),
+                        icon: action.icon,
                         onPressed: action.onPressed,
                       ),
                     ),

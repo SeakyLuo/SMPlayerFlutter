@@ -387,10 +387,10 @@ class _InlineSelectSettingRowState<T>
     final nextOpenUpward =
         spaceBelow < desiredHeight && spaceAbove > spaceBelow;
     final availableSpace = nextOpenUpward ? spaceAbove : spaceBelow;
-    final nextMaxHeight =
-        availableSpace >= desiredHeight - 56.0
-            ? desiredHeight
-            : math.max(120.0, availableSpace);
+    final nextMaxHeight = math.min(
+      desiredHeight,
+      math.max(120.0, availableSpace),
+    );
     setState(() {
       _openUpward = nextOpenUpward;
       _dropdownMaxHeight = nextMaxHeight;

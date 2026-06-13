@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -246,4 +249,49 @@ void main() {
       expect(runtimeSettings.mode, PlaybackMode.repeat);
     },
   );
+
+  test('SettingsController serializes display mode persistence', () async {
+    final repository = _DisplayModeRepository();
+    final controller = SettingsController(
+      const SettingsSnapshot.defaults(),
+      repository,
+    );
+
+    final enterImmersive = controller.saveDisplayModeState(
+      lastDisplayMode: SmPlayerDisplayMode.immersive,
+    );
+    final exitImmersive = controller.saveDisplayModeState(
+      lastDisplayMode: SmPlayerDisplayMode.normal,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.savedDisplayModes, [SmPlayerDisplayMode.immersive]);
+
+    repository.completeFirstSave();
+    await Future.wait([enterImmersive, exitImmersive]);
+
+    expect(repository.savedDisplayModes, [
+      SmPlayerDisplayMode.immersive,
+      SmPlayerDisplayMode.normal,
+    ]);
+  });
+}
+
+class _DisplayModeRepository extends LibraryRepository {
+  final savedDisplayModes = <SmPlayerDisplayMode>[];
+  final _firstSaveCompleter = Completer<void>();
+
+  @override
+  Future<void> saveDisplayModeState({
+    required SmPlayerDisplayMode lastDisplayMode,
+  }) async {
+    savedDisplayModes.add(lastDisplayMode);
+    if (savedDisplayModes.length == 1) {
+      await _firstSaveCompleter.future;
+    }
+  }
+
+  void completeFirstSave() {
+    _firstSaveCompleter.complete();
+  }
 }

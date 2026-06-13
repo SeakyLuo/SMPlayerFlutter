@@ -445,6 +445,13 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
           home: SettingsPage(
             onLoadSystemFonts: () async => const [],
             initialSnapshot: const SettingsSnapshot.defaults().copyWith(
@@ -644,6 +651,13 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
             home: SettingsPage(
               onLoadSystemFonts: () async => const [],
               onUpdateSettings: (update) {
@@ -663,6 +677,51 @@ void main() {
       expect(lastUpdate?.showNotifications, isTrue);
     },
   );
+
+  testWidgets('SettingsPage night mode dropdown stays within viewport', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(620, 560);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: SettingsPage(
+            onLoadSystemFonts: () async => const [],
+            initialSnapshot: const SettingsSnapshot.defaults().copyWith(
+              nightMode: NightMode.auto,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('夜间模式'));
+    await tester.pump();
+    await tester.tap(find.text('自定义').last);
+    await tester.pumpAndSettle();
+
+    final systemOption = find.text('跟随系统').last;
+    expect(systemOption, findsOneWidget);
+    expect(tester.getTopLeft(systemOption).dy, greaterThanOrEqualTo(0));
+    expect(
+      tester.getBottomLeft(systemOption).dy,
+      lessThan(tester.getTopLeft(find.text('自定义').last).dy),
+    );
+  });
 
   testWidgets(
     'SettingsPage picks a real library root instead of fallback path',

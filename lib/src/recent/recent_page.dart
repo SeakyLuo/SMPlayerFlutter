@@ -17,6 +17,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_artwork_card_content.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_view_holder.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';

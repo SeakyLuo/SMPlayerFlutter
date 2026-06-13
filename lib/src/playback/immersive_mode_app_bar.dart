@@ -4,6 +4,7 @@ import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_top_button_style.dart';
 
 class ImmersiveModeAppBar extends StatelessWidget {
   const ImmersiveModeAppBar({
@@ -22,32 +23,13 @@ class ImmersiveModeAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final immersiveColors = ImmersiveModeThemeColors.of(context);
-    final night =
-        immersiveColors.pageBackground ==
-        ImmersiveModeThemeColors.dark.pageBackground;
-    final topButtonColors =
-        night
-            ? SmPlayerTextIconButtonColors.of(context).copyWith(
-              commandText: const Color(0xe0ffffff),
-              commandTextHover: Colors.white,
-              accentStrong: Colors.white,
-              control: const Color(0x14ffffff),
-              controlHover: const Color(0x24ffffff),
-              controlActive: const Color(0x24ffffff),
-              controlBorder: const Color(0x29ffffff),
-              controlHoverBorder: const Color(0x29ffffff),
-            )
-            : SmPlayerTextIconButtonColors.of(context).copyWith(
-              control: const Color(0x18ffffff),
-              controlHover: const Color(0x2effffff),
-              controlActive: const Color(0x36ffffff),
-              controlBorder: const Color(0x2effffff),
-              controlHoverBorder: const Color(0x52ffffff),
-            );
-    final glassSettings =
-        night
-            ? immersiveModeTopButtonNightGlassSettings
-            : immersiveModeTopButtonGlassSettings;
+    final topButtonColors = immersiveModeTopButtonColors(
+      context,
+      immersiveColors,
+    );
+    final glassSettings = immersiveModeTopButtonGlassSettingsFor(
+      immersiveColors,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =

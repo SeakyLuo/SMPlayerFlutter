@@ -8,7 +8,7 @@ class MediaControlColors {
   static const textStrong = Color(0xff1f252b);
   static const textMuted = Color(0xff5f625f);
   static const nightText = Color(0xfff8fafc);
-  static const nightMuted = Color(0xffcbd5e1);
+  static const nightMuted = Color(0xadcbd5e1);
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentHover = SmPlayerInteractionColors.hoverSurface;

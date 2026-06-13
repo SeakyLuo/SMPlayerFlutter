@@ -22,6 +22,8 @@ class _MainNavigationViewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment:
+          collapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       spacing: 8,
       children:
           items.map((item) {
@@ -64,6 +66,7 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
     required this.i18n,
     required this.playlists,
     required this.expanded,
+    required this.showChildren,
     required this.onItemInvoked,
     required this.onToggleExpanded,
     required this.onCreatePlaylist,
@@ -87,6 +90,7 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
   final SmPlayerI18n i18n;
   final List<LibraryPlaylist> playlists;
   final bool expanded;
+  final bool showChildren;
   final ValueChanged<String> onItemInvoked;
   final VoidCallback onToggleExpanded;
   final VoidCallback? onCreatePlaylist;
@@ -166,6 +170,7 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
                 currentPath,
               ),
               expanded: expanded,
+              showActions: showChildren,
               i18n: i18n,
               onOpen: () {
                 onItemInvoked(_MainNavigationViewState._playlistsItem.target);
@@ -173,7 +178,7 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
               onCreatePlaylist: onCreatePlaylist,
               onToggleExpanded: onToggleExpanded,
             ),
-            if (expanded)
+            if (expanded && showChildren)
               if (constraints.hasBoundedHeight)
                 Flexible(
                   fit: FlexFit.loose,
@@ -197,6 +202,7 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
   const _MainNavigationPlaylistHeading({
     required this.active,
     required this.expanded,
+    required this.showActions,
     required this.i18n,
     required this.onOpen,
     required this.onCreatePlaylist,
@@ -205,6 +211,7 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
 
   final bool active;
   final bool expanded;
+  final bool showActions;
   final SmPlayerI18n i18n;
   final VoidCallback onOpen;
   final VoidCallback? onCreatePlaylist;
@@ -224,39 +231,43 @@ class _MainNavigationPlaylistHeading extends StatelessWidget {
             onPressed: onOpen,
           ),
         ),
-        const SizedBox(width: 6),
-        _NavigationIconButton(
-          key: const ValueKey('MainNavigationView.CreatePlaylistButton'),
-          icon: FluentIcons.add_24_regular,
-          tooltip: i18n.t('playlists.createNew'),
-          size: 34,
-          iconSize: 16,
-          borderRadius: 10,
-          useMutedForeground: true,
-          onPressed: () {
-            onCreatePlaylist?.call();
-            if (!expanded) {
-              onToggleExpanded();
-            }
-          },
-        ),
-        const SizedBox(width: 6),
-        _NavigationIconButton(
-          key: const ValueKey('MainNavigationView.TogglePlaylistSectionButton'),
-          icon:
-              expanded
-                  ? FluentIcons.chevron_up_24_regular
-                  : FluentIcons.chevron_down_24_regular,
-          tooltip:
-              expanded
-                  ? i18n.t('sidebar.collapseNavigation')
-                  : i18n.t('sidebar.expandNavigation'),
-          size: 34,
-          iconSize: 16,
-          borderRadius: 10,
-          useMutedForeground: true,
-          onPressed: onToggleExpanded,
-        ),
+        if (showActions) ...[
+          const SizedBox(width: 6),
+          _NavigationIconButton(
+            key: const ValueKey('MainNavigationView.CreatePlaylistButton'),
+            icon: FluentIcons.add_24_regular,
+            tooltip: i18n.t('playlists.createNew'),
+            size: 34,
+            iconSize: 16,
+            borderRadius: 10,
+            useMutedForeground: true,
+            onPressed: () {
+              onCreatePlaylist?.call();
+              if (!expanded) {
+                onToggleExpanded();
+              }
+            },
+          ),
+          const SizedBox(width: 6),
+          _NavigationIconButton(
+            key: const ValueKey(
+              'MainNavigationView.TogglePlaylistSectionButton',
+            ),
+            icon:
+                expanded
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.chevron_down_24_regular,
+            tooltip:
+                expanded
+                    ? i18n.t('sidebar.collapseNavigation')
+                    : i18n.t('sidebar.expandNavigation'),
+            size: 34,
+            iconSize: 16,
+            borderRadius: 10,
+            useMutedForeground: true,
+            onPressed: onToggleExpanded,
+          ),
+        ],
       ],
     );
   }
@@ -383,7 +394,9 @@ class _MainNavigationPlaylistItemButtonState
                   decoration: BoxDecoration(
                     color:
                         highlighted ? colors.accentHover : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(
+                      SmPlayerShellMetrics.navigationButtonRadius,
+                    ),
                     border: _dropIndicatorBorder(widget.dropPosition),
                   ),
                   child: Row(
@@ -496,7 +509,9 @@ class _MainNavigationPlaylistItemButtonState
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: colors.dropdownSurface,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(
+                    SmPlayerShellMetrics.navigationButtonRadius,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: colors.dropdownShadow,

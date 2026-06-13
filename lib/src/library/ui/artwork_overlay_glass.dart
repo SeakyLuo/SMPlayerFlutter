@@ -8,13 +8,13 @@ const artworkOverlayGlowRadiusFactor = 0.62;
 
 const artworkOverlayGlassSettings = LiquidGlassSettings(
   glassColor: artworkOverlayGlassColor,
-  thickness: 24,
-  blur: 54,
+  thickness: 10,
+  blur: 10,
   chromaticAberration: 0,
-  lightIntensity: 0.24,
+  lightIntensity: 0.2,
   ambientStrength: 0.16,
   refractiveIndex: 1.1,
-  saturation: 1.72,
-  glowIntensity: 0.22,
+  saturation: 2,
+  glowIntensity: 0.3,
   standardOpacityMultiplier: artworkOverlayGlassOpacityMultiplier,
 );

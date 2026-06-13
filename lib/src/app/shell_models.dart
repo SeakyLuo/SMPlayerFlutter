@@ -13,16 +13,21 @@ class SmPlayerShellMetrics {
   static const playerHeight = 120.0;
   static const playerTopRadius = 18.0;
   static const sidebarWidth = 320.0;
-  static const collapsedSidebarWidth = 64.0;
+  static const collapsedSidebarWidth = 78.0;
   static const navigationPaneHorizontalPadding = 8.0;
   static const navigationButtonSize = 40.0;
   static const navigationIconSize = 20.0;
-  static const navigationCollapsedButtonSize = 44.0;
+  static const navigationButtonRadius = 10.0;
+  static const navigationCollapsedButtonSize = navigationButtonSize;
+  static const mainWindowMinimumWidth = 506.0;
+  static const mainWindowMinimumHeight = 698.0;
   static const minimalTitlebarHeight = 32.0;
   static const macOSTitlebarLeadingInset = 78.0;
   static const workspaceHeaderHeight = 92.0;
   static const navigationMinimalBreakpoint = 720.0;
   static const navigationOverlayBreakpoint = 1200.0;
+  static const navigationPlaylistChildrenCollapseHeight =
+      mainWindowMinimumHeight - playerHeight;
 
   static SmPlayerNavigationMode navigationModeForWidth(double width) {
     if (width < navigationMinimalBreakpoint) {

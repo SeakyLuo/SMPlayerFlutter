@@ -14,6 +14,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/grid_artwork_card_content.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -59,6 +60,7 @@ void main() {
       'context.seeMusicInfo': 'See Music Info',
       'context.select': 'Select',
       'context.view': 'View',
+      'detail.playAlbum': 'Play Album',
       'nowPlaying.randomPlay': 'Shuffle',
       'notification.hiddenStorageItem': 'Hidden "{name}"',
       'notification.operationDone': 'Operation done',
@@ -532,6 +534,52 @@ void main() {
     expect(find.text('2024.12'), findsOneWidget);
   });
 
+  testWidgets('RecentPage played albums reuse playlist card content style', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentAlbums, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Albums'));
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('RecentAlbum.Card')).first;
+    expect(find.byType(GridArtworkCardContent), findsWidgets);
+    expect(find.byKey(const ValueKey('AlbumTile.Container')), findsNothing);
+    expect(tester.getSize(card).width, 180);
+
+    final container = tester.widget<AnimatedContainer>(card);
+    expect(container.constraints!.minHeight, 232);
+    expect(container.padding, const EdgeInsets.all(10));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(card));
+    await tester.pump();
+
+    final hovered = tester.widget<AnimatedContainer>(card);
+    final decoration = hovered.decoration! as BoxDecoration;
+    final foregroundDecoration = hovered.foregroundDecoration! as BoxDecoration;
+    expect(decoration.color, GlobalUI.hoverBgColorDay);
+    expect(
+      foregroundDecoration.border!.top.color,
+      GlobalUI.hoverBorderColorDay,
+    );
+    expect(find.byTooltip('Play Album'), findsOneWidget);
+    expect(find.byTooltip('Add To'), findsOneWidget);
+  });
+
   testWidgets('RecentPage refreshes after collection play is recorded', (
     tester,
   ) async {
@@ -680,6 +728,37 @@ void main() {
     final artworkShadow =
         (artworkShell.child! as DecoratedBox).decoration as BoxDecoration;
     expect(artworkShadow.boxShadow, isNotEmpty);
+  });
+
+  testWidgets('RecentPage narrow song tiles use the smallest layout', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentPlayed, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    final tile =
+        find
+            .ancestor(
+              of: find.text('Blue Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final artwork = find.byKey(const ValueKey('RecentSong.Artwork.1'));
+
+    expect(tester.getSize(tile).height, 78);
+    expect(tester.getSize(artwork), const Size(78, 78));
   });
 
   testWidgets(

@@ -1856,14 +1856,17 @@ void main() {
     final lyrics = tester.widget<Text>(
       find.byKey(const ValueKey('MediaControl.CurrentLyricsLine')),
     );
-    expect(
-      lyrics.style?.color,
-      MediaControlColors.accent.withValues(alpha: 0.94),
-    );
+    expect(lyrics.style?.color, MediaControlColors.textMuted);
     expect(lyrics.style?.fontWeight, FontWeight.w500);
     expect(lyrics.style?.fontVariations, const [FontVariation.weight(560)]);
-    expect(find.byType(AnimatedSwitcher), findsOneWidget);
-    expect(find.byType(SlideTransition), findsWidgets);
+    expect(find.byType(AnimatedSwitcher), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('MediaControl.CurrentLyricsContainer')),
+        matching: find.byType(FractionalTranslation),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

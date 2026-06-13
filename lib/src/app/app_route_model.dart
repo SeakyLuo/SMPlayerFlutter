@@ -3,7 +3,6 @@ const restorableRoutes = {
   '/artists',
   '/albums',
   '/now-playing',
-  '/immersive-mode',
   '/recent',
   '/local',
   '/playlists',

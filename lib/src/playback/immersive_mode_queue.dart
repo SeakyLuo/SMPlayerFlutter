@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -49,6 +50,58 @@ String _primaryArtist(LibrarySong song, SmPlayerI18n i18n) {
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song_display.displayAlbum(song, i18n);
+}
+
+class _ImmersiveModeQueuePanelStyle {
+  const _ImmersiveModeQueuePanelStyle({
+    required this.color,
+    required this.borderColor,
+    required this.shadowColor,
+    required this.isNight,
+  });
+
+  final Color color;
+  final Color borderColor;
+  final Color shadowColor;
+  final bool isNight;
+
+  static const day = _ImmersiveModeQueuePanelStyle(
+    color: Color(0xd1ffffff),
+    borderColor: Color(0xc2ccd5e0),
+    shadowColor: Color(0x2e445870),
+    isNight: false,
+  );
+
+  static const nightMode = _ImmersiveModeQueuePanelStyle(
+    color: Color(0xdb12100e),
+    borderColor: Color(0x2effffff),
+    shadowColor: Color(0x61000000),
+    isNight: true,
+  );
+
+  static _ImmersiveModeQueuePanelStyle forNight(bool night) {
+    return switch (night) {
+      true => _ImmersiveModeQueuePanelStyle.nightMode,
+      false => day,
+    };
+  }
+
+  Gradient gradientFor(Color coverColor) {
+    return switch (isNight) {
+      true => const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0x70775b20), Color(0x2e14120e), Colors.transparent],
+        stops: [0, 0.38, 0.64],
+      ),
+      false => RadialGradient(
+        center: const Alignment(-0.6, -0.56),
+        radius: 0.84,
+        colors: [coverColor.withValues(alpha: 0.24), Colors.transparent],
+        stops: const [0, 1],
+      ),
+    };
+  }
 }
 
 class ImmersiveModeCurrentQueueAnchor extends StatefulWidget {
@@ -430,66 +483,24 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   Widget build(BuildContext context) {
     final colors = ImmersiveModeThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
-    final panelColor =
-        night ? const Color(0xdb12100e) : const Color(0xd1ffffff);
-    final borderColor =
-        night ? const Color(0x2effffff) : const Color(0xc2ccd5e0);
+    final panelStyle = _ImmersiveModeQueuePanelStyle.forNight(night);
+    final panelGradient = panelStyle.gradientFor(coverColor);
     final decoration = BoxDecoration(
-      color: panelColor,
-      gradient:
-          night
-              ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0x70775b20),
-                  Color(0x2e14120e),
-                  Colors.transparent,
-                ],
-                stops: [0, 0.38, 0.64],
-              )
-              : RadialGradient(
-                center: const Alignment(-0.6, -0.56),
-                radius: 0.84,
-                colors: [
-                  coverColor.withValues(alpha: 0.24),
-                  Colors.transparent,
-                ],
-                stops: const [0, 1],
-              ),
+      color: panelStyle.color,
+      gradient: panelGradient,
       borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
-      border: Border.all(color: borderColor),
+      border: Border.all(color: panelStyle.borderColor),
       boxShadow: [
         BoxShadow(
-          color: night ? const Color(0x61000000) : const Color(0x2e445870),
+          color: panelStyle.shadowColor,
           blurRadius: 76,
           offset: const Offset(0, 28),
         ),
       ],
     );
     final backgroundDecoration = BoxDecoration(
-      color: panelColor,
-      gradient:
-          night
-              ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0x70775b20),
-                  Color(0x2e14120e),
-                  Colors.transparent,
-                ],
-                stops: [0, 0.38, 0.64],
-              )
-              : RadialGradient(
-                center: const Alignment(-0.6, -0.56),
-                radius: 0.84,
-                colors: [
-                  coverColor.withValues(alpha: 0.24),
-                  Colors.transparent,
-                ],
-                stops: const [0, 1],
-              ),
+      color: panelStyle.color,
+      gradient: panelGradient,
     );
     if (songs.isEmpty) {
       return DecoratedBox(
@@ -510,7 +521,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
               lightIntensity: 0.1,
               ambientStrength: 0.08,
               glowIntensity: 0.04,
-              glassColor: panelColor,
+              glassColor: panelStyle.color,
               standardOpacityMultiplier: 0.35,
             ),
             clipBehavior: Clip.hardEdge,
@@ -548,7 +559,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
             lightIntensity: 0.1,
             ambientStrength: 0.08,
             glowIntensity: 0.04,
-            glassColor: panelColor,
+            glassColor: panelStyle.color,
             standardOpacityMultiplier: 0.35,
           ),
           clipBehavior: Clip.hardEdge,
@@ -627,153 +638,162 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   }
 
   Widget _buildQueueList(BuildContext context) {
-    return ListView.builder(
-      key: const ValueKey('ImmersiveMode.QueueList'),
+    return Scrollbar(
+      key: const ValueKey('ImmersiveMode.QueueScrollbar'),
       controller: scrollController,
-      padding: _listPadding(),
-      itemCount: songs.length,
-      itemBuilder: (context, index) {
-        final song = songs[index];
-        final current =
-            mediaControlState.selectedQueueIndex == null
-                ? song.id == mediaControlState.track.id
-                : index == mediaControlState.selectedQueueIndex;
-        final dropPosition =
-            _dropIndicator?.queueIndex == index
-                ? _dropIndicator?.position
-                : null;
-        final item = PlaylistControlItem(
-          key: ValueKey('now-playing-full-row-${song.id}-$index'),
-          song: song,
-          current: current,
-          playing: current && mediaControlState.isPlaying,
-          selected: selection.isSelected(index),
-          selectionMode: selection.multiSelect,
-          dropPosition: dropPosition,
-          variant: PlaylistControlItemVariant.compact,
-          collapseCompactPrimaryActions: true,
-          compactTrailingPadding: 20,
-          playNextLabel: i18n.t('context.playNext'),
-          removeLabel: i18n.t('nowPlaying.remove'),
-          onPlayTrack: () {
-            onPlayTrack(song, songIds, index);
-          },
-          onTogglePlayPause: onTogglePlayPause,
-          onToggleSelection: () {
-            selection.toggle(index);
-            onSelectionChanged();
-          },
-          onRemoveFromListClick: () {
-            onRemove(songIds, index);
-            showUndoableNotification(
-              context: context,
-              i18n: i18n,
-              message: i18n.t('notification.removedFrom', {
-                'title': song.title,
-                'target': i18n.t('common.nowPlaying'),
-              }),
-              onUndo:
-                  () => onReplaceQueue(
-                    insertImmersiveModeQueueSongs(
-                      currentQueueSongIds(),
-                      index,
-                      [song.id],
+      child: ListView.builder(
+        key: const ValueKey('ImmersiveMode.QueueList'),
+        controller: scrollController,
+        padding: _listPadding(),
+        itemCount: songs.length,
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          final current =
+              mediaControlState.selectedQueueIndex == null
+                  ? song.id == mediaControlState.track.id
+                  : index == mediaControlState.selectedQueueIndex;
+          final dropPosition =
+              _dropIndicator?.queueIndex == index
+                  ? _dropIndicator?.position
+                  : null;
+          final item = PlaylistControlItem(
+            key: ValueKey('now-playing-full-row-${song.id}-$index'),
+            song: song,
+            current: current,
+            playing: current && mediaControlState.isPlaying,
+            selected: selection.isSelected(index),
+            selectionMode: selection.multiSelect,
+            dropPosition: dropPosition,
+            variant: PlaylistControlItemVariant.compact,
+            collapseCompactPrimaryActions: true,
+            compactTrailingPadding: 20,
+            playNextLabel: i18n.t('context.playNext'),
+            removeLabel: i18n.t('nowPlaying.remove'),
+            onPlayTrack: () {
+              onPlayTrack(song, songIds, index);
+            },
+            onTogglePlayPause: onTogglePlayPause,
+            onToggleSelection: () {
+              selection.toggle(index);
+              onSelectionChanged();
+            },
+            onRemoveFromListClick: () {
+              onRemove(songIds, index);
+              showUndoableNotification(
+                context: context,
+                i18n: i18n,
+                message: i18n.t('notification.removedFrom', {
+                  'title': song.title,
+                  'target': i18n.t('common.nowPlaying'),
+                }),
+                onUndo:
+                    () => onReplaceQueue(
+                      insertImmersiveModeQueueSongs(
+                        currentQueueSongIds(),
+                        index,
+                        [song.id],
+                      ),
                     ),
-                  ),
-            );
-          },
-          onToggleFavoriteClick: () {
-            onToggleFavorite([song.id], !song.favorite);
-          },
-          onAddToPlaylistClick: (buttonContext) {
-            _showAddToPlaylistMenu(buttonContext, song);
-          },
-          onSeeAlbum: () {
-            context.go(
-              '/albums?album=${Uri.encodeComponent(_displayAlbum(song, i18n))}',
-            );
-            onClose();
-          },
-          onSeeArtist: (artist) {
-            context.go('/artists?artist=${Uri.encodeComponent(artist)}');
-            onClose();
-          },
-          onOpenContextMenu: (position) {
-            _showQueueContextMenu(context, position, song, index);
-          },
-        );
-        final anchoredItem =
-            current
-                ? ImmersiveModeCurrentQueueAnchor(
-                  currentIndex: index,
-                  child: item,
-                )
-                : item;
-        final rowItem =
-            fullScreen
-                ? Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: anchoredItem,
-                )
-                : anchoredItem;
-        return DragTarget<int>(
-          key: ValueKey('now-playing-full-target-${song.id}-$index'),
-          onMove: (details) {
-            final position = _dropPositionFor(context, details.offset);
-            setState(() {
-              _dropIndicator = (queueIndex: index, position: position);
-            });
-          },
-          onLeave: (_) {
-            if (_dropIndicator?.queueIndex == index) {
+              );
+            },
+            onToggleFavoriteClick: () {
+              onToggleFavorite([song.id], !song.favorite);
+            },
+            onAddToPlaylistClick: (buttonContext) {
+              _showAddToPlaylistMenu(buttonContext, song);
+            },
+            onSeeAlbum: () {
+              context.go(
+                '/albums?album=${Uri.encodeComponent(_displayAlbum(song, i18n))}',
+              );
+              onClose();
+            },
+            onSeeArtist: (artist) {
+              context.go('/artists?artist=${Uri.encodeComponent(artist)}');
+              onClose();
+            },
+            onOpenContextMenu: (position) {
+              _showQueueContextMenu(context, position, song, index);
+            },
+          );
+          final anchoredItem =
+              current
+                  ? ImmersiveModeCurrentQueueAnchor(
+                    currentIndex: index,
+                    child: item,
+                  )
+                  : item;
+          final rowItem =
+              fullScreen
+                  ? Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: anchoredItem,
+                  )
+                  : anchoredItem;
+          return DragTarget<int>(
+            key: ValueKey('now-playing-full-target-${song.id}-$index'),
+            onMove: (details) {
+              final position = _dropPositionFor(context, details.offset);
               setState(() {
-                _dropIndicator = null;
+                _dropIndicator = (queueIndex: index, position: position);
               });
-            }
-          },
-          onAcceptWithDetails: (details) {
-            final draggedIndex = _draggedQueueIndex ?? details.data;
-            final position =
-                _dropIndicator?.queueIndex == index
-                    ? _dropIndicator!.position
-                    : _dropPositionFor(context, details.offset);
-            _clearQueueDrop();
-            _moveQueueSongToDropTarget(songIds, draggedIndex, index, position);
-          },
-          builder: (context, _, _) {
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                return Draggable<int>(
-                  data: index,
-                  axis: Axis.vertical,
-                  affinity: Axis.vertical,
-                  feedback: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Opacity(opacity: 0.92, child: rowItem),
+            },
+            onLeave: (_) {
+              if (_dropIndicator?.queueIndex == index) {
+                setState(() {
+                  _dropIndicator = null;
+                });
+              }
+            },
+            onAcceptWithDetails: (details) {
+              final draggedIndex = _draggedQueueIndex ?? details.data;
+              final position =
+                  _dropIndicator?.queueIndex == index
+                      ? _dropIndicator!.position
+                      : _dropPositionFor(context, details.offset);
+              _clearQueueDrop();
+              _moveQueueSongToDropTarget(
+                songIds,
+                draggedIndex,
+                index,
+                position,
+              );
+            },
+            builder: (context, _, _) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return Draggable<int>(
+                    data: index,
+                    axis: Axis.vertical,
+                    affinity: Axis.vertical,
+                    feedback: SizedBox(
+                      width: constraints.maxWidth,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Opacity(opacity: 0.92, child: rowItem),
+                      ),
                     ),
-                  ),
-                  childWhenDragging: Opacity(opacity: 0.42, child: rowItem),
-                  onDragStarted: () {
-                    setState(() {
-                      _draggedQueueIndex = index;
-                      _dropIndicator = null;
-                    });
-                  },
-                  onDraggableCanceled: (_, _) {
-                    _clearQueueDrop();
-                  },
-                  onDragEnd: (_) {
-                    _clearQueueDrop();
-                  },
-                  child: rowItem,
-                );
-              },
-            );
-          },
-        );
-      },
+                    childWhenDragging: Opacity(opacity: 0.42, child: rowItem),
+                    onDragStarted: () {
+                      setState(() {
+                        _draggedQueueIndex = index;
+                        _dropIndicator = null;
+                      });
+                    },
+                    onDraggableCanceled: (_, _) {
+                      _clearQueueDrop();
+                    },
+                    onDragEnd: (_) {
+                      _clearQueueDrop();
+                    },
+                    child: rowItem,
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -877,6 +897,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         playlists: playlists,
         folders: menuFolders,
         showRemove: true,
+        showSeeArtistsAndSeeAlbum: false,
         showAlbumArt: false,
         keepViewActionsOpen: false,
         preferenceLevel: preferenceLevel,
@@ -1015,52 +1036,15 @@ class ImmersiveModeQueueCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = ImmersiveModeThemeColors.of(context);
-    final night = colors.artworkShadowOpacity > 0.3;
-    final glassColor =
-        night ? const Color(0x1cffffff) : const Color(0x86ffffff);
-    final foregroundColor =
-        night ? const Color(0xd6ffffff) : ImmersiveModeColors.dayText;
-    return Tooltip(
-      message: tooltip,
-      child: GlassContainer(
-        key: const ValueKey('ImmersiveMode.QueueCloseButton'),
-        width: 42,
-        height: 42,
-        useOwnLayer: true,
-        quality: GlassQuality.minimal,
-        shape: const LiquidRoundedRectangle(borderRadius: 10),
-        settings: LiquidGlassSettings(
-          blur: 46,
-          thickness: 20,
-          refractiveIndex: 1.06,
-          saturation: 1.65,
-          chromaticAberration: 0,
-          lightIntensity: 0.1,
-          ambientStrength: 0.08,
-          glowIntensity: 0.04,
-          glassColor: glassColor,
-          standardOpacityMultiplier: night ? 0.35 : 0.28,
-        ),
-        clipBehavior: Clip.hardEdge,
-        allowElevation: false,
-        child: TextButton(
-          style: TextButton.styleFrom(
-            fixedSize: const Size.square(42),
-            minimumSize: const Size.square(42),
-            maximumSize: const Size.square(42),
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: foregroundColor,
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          onPressed: onPressed,
-          child: const Icon(FluentIcons.dismiss_20_regular, size: 18),
-        ),
+    return SmPlayerTextIconButton(
+      key: const ValueKey('ImmersiveMode.QueueCloseButton'),
+      tooltip: tooltip,
+      label: tooltip,
+      showLabel: false,
+      onPressed: onPressed,
+      iconWidget: const Icon(
+        FluentIcons.dismiss_20_regular,
+        key: ValueKey('ImmersiveMode.QueueCloseIcon'),
       ),
     );
   }

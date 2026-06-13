@@ -213,6 +213,11 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     if (!mounted) {
       return;
     }
+    final navigate = shellActions?.onNavigate;
+    if (navigate != null) {
+      navigate(nowPlayingRoutePath);
+      return;
+    }
     context.go(nowPlayingRoutePath);
   }
 
@@ -540,6 +545,16 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
                       onAddToPlaylist: _addSongsToPlaylist,
                       onPlay: _playQueueSongIds,
                       onReplaceQueue: _replaceQueue,
+                      onRemoveSelectedQueueIndexes: (
+                        selectedIndexes,
+                        nextSongIds,
+                      ) {
+                        _removeSelectedQueueIndexes(
+                          queueSongIds,
+                          selectedIndexes,
+                          nextSongIds,
+                        );
+                      },
                       onSelectionChanged: () {
                         setState(() {});
                       },
@@ -976,10 +991,99 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   }
 
   void _removeQueueIndex(List<int> queueSongIds, int queueIndex) {
-    _replaceQueue([
+    final nextQueueSongIds = [
       for (var index = 0; index < queueSongIds.length; index += 1)
         if (index != queueIndex) queueSongIds[index],
-    ]);
+    ];
+    _replaceQueue(nextQueueSongIds);
+    _playNextQueueSongAfterRemovingCurrent(
+      queueSongIds,
+      nextQueueSongIds,
+      {queueIndex},
+      queueIndex,
+      queueSongIds[queueIndex],
+    );
+  }
+
+  void _playNextQueueSongAfterRemovingCurrent(
+    List<int> before,
+    List<int> nextQueueSongIds,
+    Set<int> removedIndexes,
+    int removedQueueIndex,
+    int removedSongId,
+  ) {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    final removedCurrent =
+        mediaState.selectedQueueIndex == null
+            ? removedSongId == mediaState.track.id
+            : removedQueueIndex == mediaState.selectedQueueIndex;
+    if (!removedCurrent || nextQueueSongIds.isEmpty) {
+      return;
+    }
+
+    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
+      before.length,
+      removedIndexes,
+      removedQueueIndex,
+      nextQueueSongIds.length,
+    );
+    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
+  }
+
+  void _removeSelectedQueueIndexes(
+    List<int> queueSongIds,
+    List<int> selectedIndexes,
+    List<int> nextQueueSongIds,
+  ) {
+    final selectedIndexSet = selectedIndexes.toSet();
+    _replaceQueue(nextQueueSongIds);
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    final currentQueueIndex =
+        mediaState.selectedQueueIndex ??
+        queueSongIds.indexWhere((songId) => songId == mediaState.track.id);
+    if (!selectedIndexSet.contains(currentQueueIndex) ||
+        nextQueueSongIds.isEmpty) {
+      return;
+    }
+
+    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
+      queueSongIds.length,
+      selectedIndexSet,
+      currentQueueIndex,
+      nextQueueSongIds.length,
+    );
+    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
+  }
+
+  int _nextQueueIndexAfterRemovingCurrent(
+    int originalQueueLength,
+    Set<int> removedIndexes,
+    int removedCurrentIndex,
+    int nextQueueLength,
+  ) {
+    var nextQueueIndex = 0;
+    for (var index = 0; index < originalQueueLength; index += 1) {
+      if (index == removedCurrentIndex) {
+        break;
+      }
+      if (!removedIndexes.contains(index)) {
+        nextQueueIndex += 1;
+      }
+    }
+    return nextQueueIndex < nextQueueLength ? nextQueueIndex : 0;
+  }
+
+  void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
+    final songs = ref.read(libraryContentDataProvider).value!.songs;
+    final songsById = {for (final song in songs) song.id: song};
+    final nextSong = songsById[queueSongIds[queueIndex]]!;
+    ref
+        .read(mediaControlControllerProvider)
+        .playTrack(
+          mediaControlTrackForSong(nextSong, context.smPlayerI18n),
+          durationSeconds: nextSong.duration.toDouble(),
+          queueIndex: queueIndex,
+        );
   }
 
   void _playNext(List<int> queueSongIds, int queueIndex) {

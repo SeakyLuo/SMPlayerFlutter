@@ -163,16 +163,19 @@ class _CompactImmersiveModeStage extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final pageWidth = MediaQuery.sizeOf(context).width;
-        final artworkSize = min(pageWidth * 0.58, 250.0);
+        final artworkSize = _compactArtworkSize(
+          width: pageWidth,
+          height: constraints.maxHeight,
+        );
         return Align(
           alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: SizedBox(
-              height: constraints.maxHeight,
-              child: Column(
-                children: [
-                  SizedBox(
+          child: SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                Center(
+                  child: SizedBox(
                     width: artworkSize,
                     child: ImmersiveModeSongInfo(
                       song: song,
@@ -181,23 +184,23 @@ class _CompactImmersiveModeStage extends StatelessWidget {
                       compact: true,
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: ImmersiveModeLyrics(
-                      song: song,
-                      progressSeconds: mediaControlState.progressSeconds,
-                      durationSeconds: mediaControlState.durationSeconds,
-                      isPlaying: mediaControlState.isPlaying,
-                      i18n: i18n,
-                      onSeekAndPlay: onSeekAndPlay,
-                      refreshRevision: refreshRevision,
-                      compact: true,
-                      midCompact: false,
-                      anchorOffset: null,
-                    ),
+                ),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: ImmersiveModeLyrics(
+                    song: song,
+                    progressSeconds: mediaControlState.progressSeconds,
+                    durationSeconds: mediaControlState.durationSeconds,
+                    isPlaying: mediaControlState.isPlaying,
+                    i18n: i18n,
+                    onSeekAndPlay: onSeekAndPlay,
+                    refreshRevision: refreshRevision,
+                    compact: true,
+                    midCompact: false,
+                    anchorOffset: null,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -214,9 +217,20 @@ double _electronLyricStageHeightForWidth(double width) {
   return _electronArtworkSizeForWidth(width) + 132;
 }
 
+double _compactArtworkSize({required double width, required double height}) {
+  const compactTextReserve = 197.0;
+  const stageGap = 18.0;
+  const minLyricsHeight = 30.0;
+  const minArtworkSize = 96.0;
+  final widthBasedSize = min(width * 0.58, 250.0);
+  final heightBasedSize =
+      height - compactTextReserve - stageGap - minLyricsHeight;
+  return min(widthBasedSize, max(minArtworkSize, heightBasedSize));
+}
+
 EdgeInsets immersiveModeContentPadding(double width) {
   if (width <= immersiveModeLayoutCompactBreakpoint) {
-    return const EdgeInsets.fromLTRB(18, 88, 18, 172);
+    return const EdgeInsets.fromLTRB(18, 88, 18, 128);
   }
   if (width <= 1100) {
     return const EdgeInsets.fromLTRB(28, 72, 28, 128);

@@ -11,8 +11,8 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_top_button_style.dart';
 
 String formatImmersiveModeLyricSeekTimeValue(double seconds) {
   final wholeSeconds = seconds.floor();
@@ -457,13 +457,8 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   @override
   Widget build(BuildContext context) {
     final colors = ImmersiveModeThemeColors.of(context);
-    final topButtonColors = SmPlayerTextIconButtonColors.of(context).copyWith(
-      control: const Color(0x18ffffff),
-      controlHover: const Color(0x2effffff),
-      controlActive: const Color(0x36ffffff),
-      controlBorder: const Color(0x2effffff),
-      controlHoverBorder: const Color(0x52ffffff),
-    );
+    final topButtonColors = immersiveModeLyricSeekButtonColors(context, colors);
+    final glassSettings = immersiveModeTopButtonGlassSettingsFor(colors);
     final lines = _displayLines();
     final hasLyrics = lines.isNotEmpty;
     final displayLines =
@@ -489,247 +484,276 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
       _scrollActiveAfterBuild = false;
       _scrollActiveLineIntoView();
     }
-    return Stack(
-      key: const ValueKey('ImmersiveMode.LyricsStage'),
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final lyricsScroll = MouseRegion(
-              cursor:
-                  _dragging
-                      ? SystemMouseCursors.grabbing
-                      : SystemMouseCursors.grab,
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        _previewFromWheel();
-                      }
-                    });
-                  }
-                },
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(
-                    scrollbars: false,
-                    dragDevices: {
-                      PointerDeviceKind.touch,
-                      PointerDeviceKind.mouse,
-                      PointerDeviceKind.trackpad,
-                      PointerDeviceKind.stylus,
-                      PointerDeviceKind.invertedStylus,
-                    },
-                  ),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onVerticalDragStart: (_) {
-                      _beginLyricsDrag();
-                    },
-                    onVerticalDragUpdate: (details) {
-                      _lyricsDragPendingDeltaY += details.delta.dy;
-                      if (!_lyricsDragMoved &&
-                          _lyricsDragPendingDeltaY.abs() < 3) {
-                        return;
-                      }
-                      final dragDelta =
-                          _lyricsDragMoved
-                              ? details.delta.dy
-                              : _lyricsDragPendingDeltaY;
-                      _lyricsDragMoved = true;
-                      _scrollLyricsBy(dragDelta * -1, scheduleRestore: false);
-                    },
-                    onVerticalDragEnd: (_) {
-                      _finishLyricsDrag();
-                    },
-                    onVerticalDragCancel: _finishLyricsDrag,
-                    child: SingleChildScrollView(
-                      key: const ValueKey('ImmersiveMode.LyricsList'),
-                      controller: _scrollController,
-                      padding: EdgeInsets.fromLTRB(
-                        0,
-                        constraints.maxHeight / 2,
-                        widget.compact ? 0 : 20,
-                        widget.compact ? 0 : 32,
-                      ),
-                      child: Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < displayLines.length;
-                            index += 1
-                          ) ...[
-                            Builder(
-                              builder: (context) {
-                                final line = displayLines[index];
-                                if (hasLyrics) {
-                                  _lineKeys[index] =
-                                      _lineKeys[index] ?? GlobalKey();
-                                }
-                                final active = line.active;
-                                return ConstrainedBox(
-                                  key: hasLyrics ? _lineKeys[index] : null,
-                                  constraints: BoxConstraints(
-                                    minHeight: _lyricMinHeight(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final visualStageWidth =
+            widget.compact
+                ? min(360.0, constraints.maxWidth)
+                : constraints.maxWidth;
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final seekButtonRight =
+            widget.compact
+                ? (constraints.maxWidth - viewportWidth) / 2 + 10
+                : 0.0;
+        final seekButtonIconSize = widget.compact ? 16.0 : 18.0;
+        final seekButtonGap = widget.compact ? 6.0 : 8.0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: visualStageWidth,
+                height: constraints.maxHeight,
+                child: Stack(
+                  key: const ValueKey('ImmersiveMode.LyricsStage'),
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, stageConstraints) {
+                        final lyricsScroll = MouseRegion(
+                          cursor:
+                              _dragging
+                                  ? SystemMouseCursors.grabbing
+                                  : SystemMouseCursors.grab,
+                          child: Listener(
+                            onPointerSignal: (event) {
+                              if (event is PointerScrollEvent) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (mounted) {
+                                    _previewFromWheel();
+                                  }
+                                });
+                              }
+                            },
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(
+                                context,
+                              ).copyWith(
+                                scrollbars: false,
+                                dragDevices: {
+                                  PointerDeviceKind.touch,
+                                  PointerDeviceKind.mouse,
+                                  PointerDeviceKind.trackpad,
+                                  PointerDeviceKind.stylus,
+                                  PointerDeviceKind.invertedStylus,
+                                },
+                              ),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onVerticalDragStart: (_) {
+                                  _beginLyricsDrag();
+                                },
+                                onVerticalDragUpdate: (details) {
+                                  _lyricsDragPendingDeltaY += details.delta.dy;
+                                  if (!_lyricsDragMoved &&
+                                      _lyricsDragPendingDeltaY.abs() < 3) {
+                                    return;
+                                  }
+                                  final dragDelta =
+                                      _lyricsDragMoved
+                                          ? details.delta.dy
+                                          : _lyricsDragPendingDeltaY;
+                                  _lyricsDragMoved = true;
+                                  _scrollLyricsBy(
+                                    dragDelta * -1,
+                                    scheduleRestore: false,
+                                  );
+                                },
+                                onVerticalDragEnd: (_) {
+                                  _finishLyricsDrag();
+                                },
+                                onVerticalDragCancel: _finishLyricsDrag,
+                                child: SingleChildScrollView(
+                                  key: const ValueKey(
+                                    'ImmersiveMode.LyricsList',
                                   ),
-                                  child: Center(
-                                    child: AnimatedDefaultTextStyle(
-                                      duration: const Duration(
-                                        milliseconds: 180,
-                                      ),
-                                      curve: Curves.easeOutCubic,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: _lyricTextColor(colors, active),
-                                        fontSize:
-                                            active
-                                                ? _activeLyricFontSize()
-                                                : _lyricFontSize(),
-                                        fontWeight:
-                                            widget.compact && active
-                                                ? const FontWeight(760)
-                                                : const FontWeight(620),
-                                        height:
-                                            widget.compact
-                                                ? (active ? 1.34 : 1.44)
-                                                : 1.35,
-                                      ),
-                                      child: AnimatedScale(
-                                        duration: const Duration(
-                                          milliseconds: 180,
-                                        ),
-                                        curve: Curves.easeOutCubic,
-                                        scale:
-                                            active && !widget.compact
-                                                ? 1.02
-                                                : 1,
-                                        child: Text(
-                                          line.text,
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    ),
+                                  controller: _scrollController,
+                                  padding: EdgeInsets.fromLTRB(
+                                    0,
+                                    stageConstraints.maxHeight / 2,
+                                    widget.compact ? 0 : 20,
+                                    widget.compact ? 0 : 32,
                                   ),
-                                );
-                              },
+                                  child: Column(
+                                    children: [
+                                      for (
+                                        var index = 0;
+                                        index < displayLines.length;
+                                        index += 1
+                                      ) ...[
+                                        Builder(
+                                          builder: (context) {
+                                            final line = displayLines[index];
+                                            if (hasLyrics) {
+                                              _lineKeys[index] =
+                                                  _lineKeys[index] ??
+                                                  GlobalKey();
+                                            }
+                                            final active = line.active;
+                                            return ConstrainedBox(
+                                              key:
+                                                  hasLyrics
+                                                      ? _lineKeys[index]
+                                                      : null,
+                                              constraints: BoxConstraints(
+                                                minHeight: _lyricMinHeight(),
+                                              ),
+                                              child: Center(
+                                                child: AnimatedDefaultTextStyle(
+                                                  duration: const Duration(
+                                                    milliseconds: 180,
+                                                  ),
+                                                  curve: Curves.easeOutCubic,
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: _lyricTextColor(
+                                                      colors,
+                                                      active,
+                                                    ),
+                                                    fontSize:
+                                                        active
+                                                            ? _activeLyricFontSize()
+                                                            : _lyricFontSize(),
+                                                    fontWeight:
+                                                        widget.compact && active
+                                                            ? const FontWeight(
+                                                              760,
+                                                            )
+                                                            : const FontWeight(
+                                                              620,
+                                                            ),
+                                                    height:
+                                                        widget.compact
+                                                            ? (active
+                                                                ? 1.34
+                                                                : 1.44)
+                                                            : 1.35,
+                                                  ),
+                                                  child: AnimatedScale(
+                                                    duration: const Duration(
+                                                      milliseconds: 180,
+                                                    ),
+                                                    curve: Curves.easeOutCubic,
+                                                    scale:
+                                                        active &&
+                                                                !widget.compact
+                                                            ? 1.02
+                                                            : 1,
+                                                    child: Text(
+                                                      line.text,
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        if (index < displayLines.length - 1)
+                                          SizedBox(height: _lyricGap()),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                            if (index < displayLines.length - 1)
-                              SizedBox(height: _lyricGap()),
-                          ],
-                        ],
+                          ),
+                        );
+                        return NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            if (notification is ScrollUpdateNotification &&
+                                notification.dragDetails != null) {
+                              _previewFromScroll(scheduleRestore: !_dragging);
+                            }
+                            return false;
+                          },
+                          child:
+                              widget.compact
+                                  ? lyricsScroll
+                                  : ShaderMask(
+                                    shaderCallback:
+                                        (rect) => const LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black,
+                                            Colors.black,
+                                            Colors.transparent,
+                                          ],
+                                          stops: [0, 0.17, 0.83, 1],
+                                        ).createShader(rect),
+                                    blendMode: BlendMode.dstIn,
+                                    child: lyricsScroll,
+                                  ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (previewLine != null)
+              Positioned(
+                top: _anchorOffset(constraints.maxHeight),
+                right: seekButtonRight,
+                child: FractionalTranslation(
+                  translation: const Offset(0, -0.5),
+                  child: MouseRegion(
+                    opaque: true,
+                    cursor: SystemMouseCursors.click,
+                    onEnter: (_) {
+                      _restoreTimer?.cancel();
+                    },
+                    onExit: (_) {
+                      if (_previewing) {
+                        _scheduleLyricsRestore();
+                      }
+                    },
+                    child: SmPlayerTextIconButtonTheme(
+                      colors: topButtonColors,
+                      child: SmPlayerTextIconButton(
+                        key: const ValueKey('ImmersiveMode.LyricSeekButton'),
+                        label: formatImmersiveModeLyricSeekTimeValue(
+                          previewLine.seekSeconds,
+                        ),
+                        tooltipEnabled: false,
+                        borderRadius: 999,
+                        height: 34,
+                        horizontalPadding: 12,
+                        verticalPadding: 0,
+                        iconSize: seekButtonIconSize,
+                        iconGap: seekButtonGap,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        fontVariations: const [FontVariation.weight(750)],
+                        glassSettings: glassSettings,
+                        onPressed: () {
+                          _seekToLine(previewLine);
+                        },
+                        iconWidget: SmPlayerPlayIcon(
+                          key: const ValueKey('ImmersiveMode.LyricSeekIcon'),
+                          size: seekButtonIconSize,
+                        ),
+                        child: Text(
+                          formatImmersiveModeLyricSeekTimeValue(
+                            previewLine.seekSeconds,
+                          ),
+                          style: const TextStyle(
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            );
-            return NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollUpdateNotification &&
-                    notification.dragDetails != null) {
-                  _previewFromScroll(scheduleRestore: !_dragging);
-                }
-                return false;
-              },
-              child:
-                  widget.compact
-                      ? lyricsScroll
-                      : ShaderMask(
-                        shaderCallback:
-                            (rect) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black,
-                                Colors.black,
-                                Colors.transparent,
-                              ],
-                              stops: [0, 0.17, 0.83, 1],
-                            ).createShader(rect),
-                        blendMode: BlendMode.dstIn,
-                        child: lyricsScroll,
-                      ),
-            );
-          },
-        ),
-        if (previewLine != null)
-          Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final viewportWidth = MediaQuery.sizeOf(context).width;
-                final seekButtonRight =
-                    widget.compact
-                        ? (constraints.maxWidth - viewportWidth) / 2 + 10
-                        : 0.0;
-                final seekButtonIconSize = widget.compact ? 16.0 : 18.0;
-                final seekButtonGap = widget.compact ? 6.0 : 8.0;
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      top: _anchorOffset(constraints.maxHeight),
-                      right: seekButtonRight,
-                      child: FractionalTranslation(
-                        translation: const Offset(0, -0.5),
-                        child: MouseRegion(
-                          opaque: true,
-                          cursor: SystemMouseCursors.click,
-                          onEnter: (_) {
-                            _restoreTimer?.cancel();
-                          },
-                          onExit: (_) {
-                            if (_previewing) {
-                              _scheduleLyricsRestore();
-                            }
-                          },
-                          child: SmPlayerTextIconButtonTheme(
-                            colors: topButtonColors,
-                            child: SmPlayerTextIconButton(
-                              key: const ValueKey(
-                                'ImmersiveMode.LyricSeekButton',
-                              ),
-                              label: formatImmersiveModeLyricSeekTimeValue(
-                                previewLine.seekSeconds,
-                              ),
-                              tooltipEnabled: false,
-                              borderRadius: 999,
-                              height: 44,
-                              horizontalPadding: 14,
-                              iconSize: seekButtonIconSize,
-                              iconGap: seekButtonGap,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              fontVariations: const [FontVariation.weight(750)],
-                              glassSettings:
-                                  immersiveModeTopButtonGlassSettings,
-                              onPressed: () {
-                                _seekToLine(previewLine);
-                              },
-                              iconWidget: SmPlayerPlayIcon(
-                                key: const ValueKey(
-                                  'ImmersiveMode.LyricSeekIcon',
-                                ),
-                                size: seekButtonIconSize,
-                              ),
-                              child: Text(
-                                formatImmersiveModeLyricSeekTimeValue(
-                                  previewLine.seekSeconds,
-                                ),
-                                style: const TextStyle(
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

@@ -218,9 +218,7 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                                 _PlayerTrackLyrics(
                                   line: lyricsText,
                                   compact: widget.compact,
-                                  color: MediaControlColors.accent.withValues(
-                                    alpha: 0.94,
-                                  ),
+                                  color: textMuted,
                                 ),
                               ],
                             ],
@@ -256,21 +254,18 @@ class _PlayerTrackLyrics extends StatelessWidget {
       key: const ValueKey('MediaControl.CurrentLyricsContainer'),
       height: 17,
       child: ClipRect(
-        child: AnimatedSwitcher(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey(line),
+          tween: Tween<double>(begin: 1, end: 0),
           duration: const Duration(milliseconds: 240),
-          switchInCurve: const Cubic(0.22, 1, 0.36, 1),
-          switchOutCurve: Curves.easeOutCubic,
-          transitionBuilder: (child, animation) {
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 1),
-                end: Offset.zero,
-              ).animate(animation),
+          curve: const Cubic(0.22, 1, 0.36, 1),
+          builder: (context, offsetY, child) {
+            return FractionalTranslation(
+              translation: Offset(0, offsetY),
               child: child,
             );
           },
           child: Align(
-            key: ValueKey(line),
             alignment: Alignment.centerLeft,
             child: Text(
               line,

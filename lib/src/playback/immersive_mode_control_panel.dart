@@ -60,80 +60,150 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
           contentWidth: constraints.maxWidth - horizontalPadding,
         );
         final transportDisabled = disabled || song?.id == null;
-        return MediaControlSurfaceBar(
-          artworkPath: artworkPath,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(immersiveModePlayerTopRadius),
-          ),
-          padding: playerPadding,
-          columnGap: immersiveModePlayerColumnGap(constraints.maxWidth),
-          leadingWidth: sideWidth,
-          utilityWidth: sideWidth,
-          surfaceFlex: 1,
-          leading: Align(
-            alignment: Alignment.centerLeft,
-            child: ImmersiveModeExitButton(
-              minimal: minimalUtility,
-              tooltip: i18n.t('nowPlaying.exitImmersiveMode'),
-              onPressed: onClose,
+        final sliderColors = _ImmersiveModeSliderColors.forNight(night);
+        return _NormalMediaControlTheme(
+          night: night,
+          child: MediaControlSurfaceBar(
+            artworkPath: artworkPath,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(immersiveModePlayerTopRadius),
             ),
+            padding: playerPadding,
+            columnGap: immersiveModePlayerColumnGap(constraints.maxWidth),
+            leadingWidth: sideWidth,
+            utilityWidth: sideWidth,
+            surfaceFlex: 1,
+            leading: Align(
+              alignment: Alignment.centerLeft,
+              child: ImmersiveModeExitButton(
+                minimal: minimalUtility,
+                tooltip: i18n.t('nowPlaying.exitImmersiveMode'),
+                onPressed: onClose,
+              ),
+            ),
+            trackId: song?.id,
+            isLoading: false,
+            favorite: song?.favorite ?? state.track.favorite,
+            disabled: transportDisabled,
+            isPlaying: state.isPlaying,
+            volume: state.volume,
+            isMuted: state.isMuted,
+            mode: state.mode,
+            progressSeconds: state.progressSeconds,
+            durationSeconds: resolvePlayerDurationSeconds(
+              state.durationSeconds,
+              song,
+            ),
+            previousButtonRestartsTrack: false,
+            onTogglePlayPause: onTogglePlayPause,
+            onPrevious: onPrevious,
+            onNext: onNext,
+            onSeek: controller.onSeek,
+            onBeginSeek: controller.onBeginSeek,
+            onEndSeek: controller.onEndSeek,
+            onVolumeChange: controller.onVolumeChange,
+            onToggleMute: controller.onToggleMute,
+            onToggleShuffle: onToggleShuffle,
+            onToggleRepeat: controller.onToggleRepeat,
+            onToggleRepeatOne: controller.onToggleRepeatOne,
+            onToggleFavorite: onToggleFavorite ?? controller.onToggleFavorite,
+            onOpenVoiceAssistant: onOpenVoiceAssistant,
+            condensed: compact,
+            navMinimal: minimalUtility,
+            utilityCondensed: compactUtility,
+            utilityMinimal: minimalUtility,
+            sliderActiveColor: sliderColors.progressActive,
+            sliderInactiveColor: sliderColors.progressInactive,
+            sliderThumbColor: Colors.white,
+            sliderThumbShadow: sliderColors.progressThumbShadow,
+            sliderOverlayColor: Colors.transparent,
+            volumeSliderActiveColor: sliderColors.volumeActive,
+            volumeSliderInactiveColor: sliderColors.volumeInactive,
+            volumeSliderThumbColor: MediaControlColors.accent,
+            volumeSliderThumbShadow: const BoxShadow(
+              color: Color(0x47000000),
+              offset: Offset(0, 1),
+              blurRadius: 4,
+            ),
+            volumeSliderOverlayColor: Colors.transparent,
+            preserveWideBackground: true,
+            onMoreClick: onMoreClick,
           ),
-          trackId: song?.id,
-          isLoading: false,
-          favorite: song?.favorite ?? state.track.favorite,
-          disabled: transportDisabled,
-          isPlaying: state.isPlaying,
-          volume: state.volume,
-          isMuted: state.isMuted,
-          mode: state.mode,
-          progressSeconds: state.progressSeconds,
-          durationSeconds: resolvePlayerDurationSeconds(
-            state.durationSeconds,
-            song,
-          ),
-          previousButtonRestartsTrack: false,
-          onTogglePlayPause: onTogglePlayPause,
-          onPrevious: onPrevious,
-          onNext: onNext,
-          onSeek: controller.onSeek,
-          onBeginSeek: controller.onBeginSeek,
-          onEndSeek: controller.onEndSeek,
-          onVolumeChange: controller.onVolumeChange,
-          onToggleMute: controller.onToggleMute,
-          onToggleShuffle: onToggleShuffle,
-          onToggleRepeat: controller.onToggleRepeat,
-          onToggleRepeatOne: controller.onToggleRepeatOne,
-          onToggleFavorite: onToggleFavorite ?? controller.onToggleFavorite,
-          onOpenVoiceAssistant: onOpenVoiceAssistant,
-          condensed: compact,
-          navMinimal: minimalUtility,
-          utilityCondensed: compactUtility,
-          utilityMinimal: minimalUtility,
-          sliderActiveColor:
-              night ? const Color(0xdbffffff) : const Color(0xc25b697a),
-          sliderInactiveColor:
-              night ? const Color(0x33ffffff) : const Color(0x2e5b697a),
-          sliderThumbColor: Colors.white,
-          sliderThumbShadow: BoxShadow(
-            color: night ? const Color(0x61000000) : const Color(0x52445870),
-            offset: const Offset(0, 1),
-            blurRadius: 8,
-          ),
-          sliderOverlayColor: Colors.transparent,
-          volumeSliderActiveColor:
-              night ? const Color(0xf20078d7) : const Color(0xeb0078d7),
-          volumeSliderInactiveColor:
-              night ? const Color(0x2ecbd5e1) : const Color(0x2e323e4e),
-          volumeSliderThumbColor: MediaControlColors.accent,
-          volumeSliderThumbShadow: const BoxShadow(
-            color: Color(0x47000000),
-            offset: Offset(0, 1),
-            blurRadius: 4,
-          ),
-          volumeSliderOverlayColor: Colors.transparent,
-          onMoreClick: onMoreClick,
         );
       },
+    );
+  }
+}
+
+class _ImmersiveModeSliderColors {
+  const _ImmersiveModeSliderColors({
+    required this.progressActive,
+    required this.progressInactive,
+    required this.progressThumbShadow,
+    required this.volumeActive,
+    required this.volumeInactive,
+  });
+
+  final Color progressActive;
+  final Color progressInactive;
+  final BoxShadow progressThumbShadow;
+  final Color volumeActive;
+  final Color volumeInactive;
+
+  static const day = _ImmersiveModeSliderColors(
+    progressActive: Color(0xc25b697a),
+    progressInactive: Color(0x2e5b697a),
+    progressThumbShadow: BoxShadow(
+      color: Color(0x52445870),
+      offset: Offset(0, 1),
+      blurRadius: 8,
+    ),
+    volumeActive: Color(0xeb0078d7),
+    volumeInactive: Color(0x2e323e4e),
+  );
+
+  static const night = _ImmersiveModeSliderColors(
+    progressActive: Color(0xdbffffff),
+    progressInactive: Color(0x33ffffff),
+    progressThumbShadow: BoxShadow(
+      color: Color(0x61000000),
+      offset: Offset(0, 1),
+      blurRadius: 8,
+    ),
+    volumeActive: Color(0xf20078d7),
+    volumeInactive: Color(0x2ecbd5e1),
+  );
+
+  static _ImmersiveModeSliderColors forNight(bool night) {
+    return switch (night) {
+      true => _ImmersiveModeSliderColors.night,
+      false => day,
+    };
+  }
+}
+
+class _NormalMediaControlTheme extends StatelessWidget {
+  const _NormalMediaControlTheme({required this.night, required this.child});
+
+  final bool night;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final normalColors = switch (night) {
+      true => MediaControlThemeColors.dark,
+      false => MediaControlThemeColors.light,
+    };
+    return Theme(
+      data: theme.copyWith(
+        extensions: [
+          for (final extension in theme.extensions.values)
+            if (extension is! MediaControlThemeColors) extension,
+          normalColors,
+        ],
+      ),
+      child: child,
     );
   }
 }

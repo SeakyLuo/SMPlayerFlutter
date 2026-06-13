@@ -37,7 +37,11 @@ void main() {
         ],
       );
 
-      expect(bounds, const Rect.fromLTWH(2600, 0, 506, 720));
+      expect(bounds, const Rect.fromLTWH(2600, 0, 506, 698));
     },
   );
+
+  test('main window minimum height reaches the playlist collapse boundary', () {
+    expect(mainWindowMinimumSize, const Size(506, 698));
+  });
 }

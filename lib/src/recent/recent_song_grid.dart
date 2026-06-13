@@ -208,7 +208,7 @@ class _RecentSongTileMetrics {
     double width, {
     required double viewportWidth,
   }) {
-    if (viewportWidth <= 520) {
+    if (viewportWidth <= 520 || width < _recentMinimalContentBreakpoint) {
       return const _RecentSongTileMetrics(
         rowExtent: 88,
         tileExtent: 78,
@@ -222,17 +222,6 @@ class _RecentSongTileMetrics {
     if (width <= 520) {
       return const _RecentSongTileMetrics(
         rowExtent: 104,
-        tileExtent: 92,
-        artworkSize: 92,
-        padding: EdgeInsets.zero,
-        copyGap: 10,
-        copyLineGap: 3,
-        copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
-      );
-    }
-    if (width < _recentMinimalContentBreakpoint) {
-      return const _RecentSongTileMetrics(
-        rowExtent: 136,
         tileExtent: 92,
         artworkSize: 92,
         padding: EdgeInsets.zero,

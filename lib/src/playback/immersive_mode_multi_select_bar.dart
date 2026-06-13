@@ -24,6 +24,7 @@ class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
     required this.onAddToPlaylist,
     required this.onPlay,
     required this.onReplaceQueue,
+    required this.onRemoveSelectedQueueIndexes,
     required this.onSelectionChanged,
   });
 
@@ -41,6 +42,8 @@ class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
   onAddToPlaylist;
   final ValueChanged<List<int>> onPlay;
   final ValueChanged<List<int>> onReplaceQueue;
+  final void Function(List<int> selectedIndexes, List<int> nextSongIds)
+  onRemoveSelectedQueueIndexes;
   final VoidCallback onSelectionChanged;
 
   @override
@@ -119,7 +122,7 @@ class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
             for (var index = 0; index < songIds.length; index += 1)
               if (!selectedIndexes.contains(index)) songIds[index],
           ];
-          onReplaceQueue(nextSongIds);
+          onRemoveSelectedQueueIndexes(selectedIndexes, nextSongIds);
           showUndoableNotification(
             context: context,
             i18n: i18n,

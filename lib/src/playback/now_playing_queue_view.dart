@@ -111,6 +111,7 @@ class NowPlayingQueueView extends StatelessWidget {
       playing: current && isPlaying,
       selected: isSelected(queueIndex),
       selectionMode: selectionMode,
+      showAlbum: true,
       variant:
           compactQueueLayout
               ? PlaylistControlItemVariant.compact

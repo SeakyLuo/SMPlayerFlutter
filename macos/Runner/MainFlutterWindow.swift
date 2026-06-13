@@ -7,7 +7,7 @@ import WebKit
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
   private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
-  private static let mainWindowMinimumSize = NSSize(width: 506, height: 840)
+  private static let mainWindowMinimumSize = NSSize(width: 506, height: 698)
   private static let functionPlaybackHotKeySignature: OSType = 0x534D504C
   private static let systemDefinedCGEventTypeRawValue: UInt32 = 14
 

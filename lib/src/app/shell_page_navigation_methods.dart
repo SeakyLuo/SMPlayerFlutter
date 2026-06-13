@@ -145,7 +145,15 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   }
 
   void _closeDesktopWindow() {
-    unawaited(_desktopFeatureService.closeWindow());
+    unawaited(_closeDesktopWindowAfterPersistingDisplayMode());
+  }
+
+  Future<void> _closeDesktopWindowAfterPersistingDisplayMode() async {
+    await Future.wait([
+      _settingsController.waitForPendingDisplayModeState(),
+      _settingsController.waitForPendingViewState(),
+    ]);
+    await _desktopFeatureService.closeWindow();
   }
 
   void _goBack() {

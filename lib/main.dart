@@ -51,15 +51,12 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
     const repository = LibraryRepository();
     final settingsSnapshot = await repository.initializeSettingsSnapshot();
     final settingsController = SettingsController(settingsSnapshot, repository);
-    final restoredLocation = resolveRestoredPage(
-      settingsController.snapshot.lastPage,
-    );
+    final settings = settingsController.snapshot;
+    final restoredLocation = resolveRestoredPage(settings.lastPage);
     final initialLocation =
-        settingsController.snapshot.lastDisplayMode ==
-                SmPlayerDisplayMode.immersive
+        settings.lastDisplayMode == SmPlayerDisplayMode.immersive
             ? immersiveModeRoutePath
             : restoredLocation;
-    final settings = settingsController.snapshot;
     if (!mounted) {
       settingsController.dispose();
       return;
