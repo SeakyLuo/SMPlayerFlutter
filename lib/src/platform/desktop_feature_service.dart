@@ -36,4 +36,4 @@ const _desktopFeatureChannel = MethodChannel(
   'smplayer_flutter/desktop_features',
 );
 const _miniModeWindowSize = Size(360, 360);
-const _defaultWindowMinimumSize = Size(506, 840);
+const _defaultWindowMinimumSize = mainWindowMinimumSize;

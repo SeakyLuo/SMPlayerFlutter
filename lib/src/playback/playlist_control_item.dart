@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -127,30 +126,9 @@ class PlaylistControlItem extends StatefulWidget {
 }
 
 class _PlaylistControlItemState extends State<PlaylistControlItem> {
-  final _focusNode = FocusNode(debugLabel: 'PlaylistControlItem');
   var _hovered = false;
-  var _focused = false;
   var _swipeOffset = 0.0;
   PointerDeviceKind? _pointerKind;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_handleFocusChange);
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _handleFocusChange() {
-    setState(() {
-      _focused = _focusNode.hasFocus;
-    });
-  }
 
   void _resetSwipe() {
     setState(() {
@@ -167,12 +145,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       _resetSwipe();
       return;
     }
-    widget.onPlayTrack();
-  }
-
-  void _activateRowFromKeyboard() {
-    if (widget.selectionMode) {
-      widget.onToggleSelection();
+    if (widget.current) {
+      widget.onTogglePlayPause();
       return;
     }
     widget.onPlayTrack();
@@ -219,20 +193,15 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final colors = widget.colors ?? _PlaylistControlItemColors.resolve(context);
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
-    final hoverActionsVisible =
-        widget.selectionMode ? _hovered : _hovered || _focused;
+    final hoverActionsVisible = _hovered;
     final showActionSlot = !widget.selectionMode || hoverActionsVisible;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
-    final compactHovered = compactVariant && (_hovered || _focused);
+    final rowHovered = _hovered;
     final rowBackgroundColor =
         multiSelectSelected || widget.selected
             ? colors.hover
-            : compactHovered
-            ? colors.hover
-            : widget.current
-            ? transparentHover
-            : _hovered
+            : rowHovered
             ? colors.hover
             : transparentHover;
     final rowHeight =
@@ -349,7 +318,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     child: _QueueCopy(
                       song: widget.song,
                       current: widget.current,
-                      showAlbum: widget.showAlbum,
+                      showAlbum: widget.showAlbum && compact,
                       compactVariant: compactVariant,
                       onSeeAlbum: widget.onSeeAlbum,
                       onSeeArtist: widget.onSeeArtist,
@@ -426,6 +395,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       borderRadius: BorderRadius.circular(4),
                       onTap: widget.onSeeAlbum,
                       child: Text(
+                        key: const ValueKey('PlaylistControlItem.AlbumColumn'),
                         displayAlbum(widget.song, i18n),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -509,7 +479,6 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       child: Listener(
         onPointerDown: (event) {
           _pointerKind = event.kind;
-          _focusNode.requestFocus();
         },
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
@@ -587,23 +556,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     );
     return Semantics(
       button: true,
-      child: FocusableActionDetector(
-        focusNode: _focusNode,
-        mouseCursor: SystemMouseCursors.click,
-        shortcuts: const {
-          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-        },
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              _activateRowFromKeyboard();
-              return null;
-            },
-          ),
-        },
-        child: row,
-      ),
+      child: MouseRegion(cursor: SystemMouseCursors.click, child: row),
     );
   }
 }
@@ -684,7 +637,7 @@ class _QueueArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artworkShadowVisible = hovered || current;
+    final artworkShadowVisible = hovered;
     final artworkShadow = BoxShadow(
       color: const Color(0xff202d3f).withValues(alpha: 0.24),
       offset: const Offset(0, 8),
@@ -874,6 +827,7 @@ class _QueueMetadata extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             onTap: onSeeAlbum,
             child: Text(
+              key: const ValueKey('PlaylistControlItem.InlineAlbum'),
               displayAlbum(song, i18n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1106,7 +1060,10 @@ class _QueueActions extends StatelessWidget {
               ],
     );
     if (!compactVariant) {
-      return actions;
+      return KeyedSubtree(
+        key: const ValueKey('PlaylistControlItem.Actions'),
+        child: actions,
+      );
     }
     final expandedWidth =
         showCompactPrimaryActions

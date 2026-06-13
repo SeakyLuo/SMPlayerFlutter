@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -246,7 +245,7 @@ void main() {
     },
   );
 
-  testWidgets('PlaylistControlItem activates with keyboard like Electron', (
+  testWidgets('PlaylistControlItem activates non-current row with click', (
     tester,
   ) async {
     var playCount = 0;
@@ -282,11 +281,52 @@ void main() {
 
     await tester.tap(find.byType(PlaylistControlItem));
     await tester.pump();
-    playCount = 0;
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
 
     expect(playCount, 1);
+  });
+
+  testWidgets('PlaylistControlItem current row toggles from click', (
+    tester,
+  ) async {
+    var playCount = 0;
+    var toggleCount = 0;
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: PlaylistControlItem(
+                song: _song,
+                current: true,
+                playing: true,
+                selected: false,
+                selectionMode: false,
+                onPlayTrack: () {
+                  playCount += 1;
+                },
+                onTogglePlayPause: () {
+                  toggleCount += 1;
+                },
+                onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
+                onPlayNextClick: _noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(PlaylistControlItem));
+    await tester.pump();
+
+    expect(playCount, 0);
+    expect(toggleCount, 1);
   });
 
   testWidgets(
@@ -396,7 +436,7 @@ void main() {
     },
   );
 
-  testWidgets('PlaylistControlItem artwork shadow follows Electron hover', (
+  testWidgets('PlaylistControlItem artwork shadow follows hover only', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -409,7 +449,7 @@ void main() {
           home: const Scaffold(
             body: PlaylistControlItem(
               song: _song,
-              current: false,
+              current: true,
               playing: false,
               selected: false,
               selectionMode: false,
@@ -1272,7 +1312,7 @@ void main() {
   });
 
   testWidgets(
-    'PlaylistControlItem current row keeps Electron current background on hover handoff',
+    'PlaylistControlItem current row uses hover background only while hovered',
     (tester) async {
       const secondSong = LibrarySong(
         id: 2,
@@ -1343,7 +1383,10 @@ void main() {
             as BoxDecoration;
       }
 
-      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+      expect(
+        rowDecorationAt(0).color,
+        GlobalUI.hoverBgColorDay.withValues(alpha: 0),
+      );
       expect(
         rowDecorationAt(1).color,
         GlobalUI.hoverBgColorDay.withValues(alpha: 0),
@@ -1353,14 +1396,139 @@ void main() {
       await mouse.addPointer(location: tester.getCenter(rows.first));
       addTearDown(mouse.removePointer);
       await tester.pump();
-      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+      expect(rowDecorationAt(0).color, GlobalUI.hoverBgColorDay);
 
       await mouse.moveTo(tester.getCenter(rows.at(1)));
       await tester.pump();
-      expect(rowDecorationAt(0).color, const Color(0x1f0078d7));
+      expect(
+        rowDecorationAt(0).color,
+        GlobalUI.hoverBgColorDay.withValues(alpha: 0),
+      );
       expect(rowDecorationAt(1).color, GlobalUI.hoverBgColorDay);
     },
   );
+
+  testWidgets(
+    'PlaylistControlItem clicked focus does not keep row highlighted',
+    (tester) async {
+      var playCount = 0;
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayTrack: () {
+                    playCount += 1;
+                  },
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(PlaylistControlItem));
+      await tester.pump();
+
+      final rowContainer = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.byType(PlaylistControlItem),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      expect(playCount, 1);
+      expect(
+        (rowContainer.decoration! as BoxDecoration).color,
+        GlobalUI.hoverBgColorDay.withValues(alpha: 0),
+      );
+    },
+  );
+
+  testWidgets('PlaylistControlItem clicked focus does not keep hover actions', (
+    tester,
+  ) async {
+    var playCount = 0;
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 720,
+              child: PlaylistControlItem(
+                song: _song,
+                current: false,
+                playing: false,
+                selected: false,
+                selectionMode: false,
+                addToPlaylistLabel: 'Add',
+                playNextLabel: 'Play Next',
+                removeLabel: 'Remove',
+                moreLabel: 'More',
+                onAddToPlaylistClick: _noopContext,
+                onOpenContextMenu: _noopPosition,
+                onPlayTrack: () {
+                  playCount += 1;
+                },
+                onTogglePlayPause: _noop,
+                onToggleSelection: _noop,
+                onPlayNextClick: _noop,
+                onRemoveFromListClick: _noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    AnimatedOpacity hoverOpacity(Finder action) {
+      return tester.widget<AnimatedOpacity>(
+        find.ancestor(of: action, matching: find.byType(AnimatedOpacity)).first,
+      );
+    }
+
+    final addTo = find.byKey(const ValueKey('PlaylistControlItem.AddToAction'));
+    final playNext = find.byKey(
+      const ValueKey('PlaylistControlItem.PlayNextAction'),
+    );
+    final remove = find.byKey(
+      const ValueKey('PlaylistControlItem.RemoveAction'),
+    );
+    final more = find.byKey(const ValueKey('PlaylistControlItem.MoreAction'));
+
+    expect(hoverOpacity(addTo).opacity, 0);
+    expect(hoverOpacity(playNext).opacity, 0);
+    expect(hoverOpacity(remove).opacity, 0);
+    expect(hoverOpacity(more).opacity, 0);
+
+    await tester.tap(find.byType(PlaylistControlItem));
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(playCount, 1);
+    expect(hoverOpacity(addTo).opacity, 0);
+    expect(hoverOpacity(playNext).opacity, 0);
+    expect(hoverOpacity(remove).opacity, 0);
+    expect(hoverOpacity(more).opacity, 0);
+  });
 
   testWidgets(
     'PlaylistControlItem row hover uses only Electron background layer',
@@ -1531,6 +1699,71 @@ void main() {
 
     expect(find.text(' • '), findsOneWidget);
     expect(find.text(' - '), findsNothing);
+  });
+
+  testWidgets('PlaylistControlItem wide row keeps Electron album column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1300, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: const Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: PlaylistControlItem(
+                song: _song,
+                current: false,
+                playing: false,
+                selected: false,
+                selectionMode: false,
+                showAlbum: true,
+                onPlayTrack: _noop,
+                onTogglePlayPause: _noop,
+                onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
+                onAddToPlaylistClick: _noopContext,
+                onPlayNextClick: _noop,
+                onRemoveFromListClick: _noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final row = find.byType(PlaylistControlItem);
+    final actions = find.descendant(
+      of: row,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.Actions')),
+    );
+    final albumColumn = find.descendant(
+      of: row,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.AlbumColumn')),
+    );
+
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+      ),
+      findsNothing,
+    );
+    expect(albumColumn, findsOneWidget);
+    expect(
+      tester.getRect(albumColumn).left,
+      greaterThan(tester.getRect(actions).right),
+    );
   });
 
   testWidgets(

@@ -127,6 +127,7 @@ void main() {
     expect(resolveRestoredPage(' /local '), '/local');
     expect(resolveRestoredPage('/local?path=Sub/Deep'), '/local');
     expect(resolveRestoredPage('/albums?album=Blue%20Hour'), '/albums');
+    expect(resolveRestoredPage('/immersive-mode'), '/songs');
     expect(resolveRestoredPage('/playlists/7'), '/songs');
     expect(resolveRestoredPage('/settings'), '/songs');
   });

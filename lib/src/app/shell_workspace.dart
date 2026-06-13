@@ -4,6 +4,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/navigation_icon_button.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
@@ -404,6 +406,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shellColors = ShellThemeColors.of(context);
+    final navigationColors = MainNavigationViewColors.of(context);
     final isHeaderedPlaylist = headeredPlaylistAppBar != null;
     final titleColor =
         isHeaderedPlaylist
@@ -420,35 +423,16 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Tooltip(
-              message: navigationMenuLabel,
-              waitDuration: const Duration(milliseconds: 450),
-              child: InkWell(
-                key: SmPlayerShellWorkspaceKeys.navigationMenuButton,
-                borderRadius: BorderRadius.circular(10),
-                hoverColor:
-                    isHeaderedPlaylist
-                        ? _immersiveAppBarHover(context)
-                        : shellColors.headerText.withValues(alpha: 0.07),
-                focusColor:
-                    isHeaderedPlaylist
-                        ? _immersiveAppBarHover(context)
-                        : shellColors.headerText.withValues(alpha: 0.07),
-                highlightColor:
-                    isHeaderedPlaylist
-                        ? _immersiveAppBarHover(context)
-                        : shellColors.headerText.withValues(alpha: 0.07),
-                onTap: onNavigationMenuPressed,
-                child: SizedBox(
-                  width: SmPlayerShellMetrics.navigationButtonSize,
-                  height: SmPlayerShellMetrics.navigationButtonSize,
-                  child: Icon(
-                    FluentIcons.line_horizontal_3_24_regular,
-                    size: SmPlayerShellMetrics.navigationIconSize,
-                    color: titleColor,
-                  ),
-                ),
-              ),
+            SmPlayerNavigationIconButton(
+              key: SmPlayerShellWorkspaceKeys.navigationMenuButton,
+              icon: FluentIcons.line_horizontal_3_24_regular,
+              tooltip: navigationMenuLabel,
+              onPressed: onNavigationMenuPressed,
+              foreground: navigationColors.textStrong,
+              mutedForeground: navigationColors.textMuted,
+              hoverForeground: navigationColors.highlightText,
+              hoverColor: navigationColors.iconButtonHover,
+              collapsedHoverColor: navigationColors.collapsedHover,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -599,11 +583,6 @@ Color _immersiveAppBarForeground(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark
       ? const Color(0xfff6f9fc)
       : const Color(0xff111827);
-}
-
-Color _immersiveAppBarHover(BuildContext context) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  return const Color(0xff0078d7).withValues(alpha: dark ? 0.18 : 0.12);
 }
 
 bool _isEmptyWorkspaceAppBarActions(Widget? actions) {

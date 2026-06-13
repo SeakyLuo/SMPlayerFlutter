@@ -9,8 +9,10 @@ class SmPlayerShellActions {
   const SmPlayerShellActions({
     required this.onOpenVoiceAssistant,
     required this.onExitWindowFullScreen,
+    this.onNavigate,
   });
 
   final VoidCallback? onOpenVoiceAssistant;
   final Future<void> Function()? onExitWindowFullScreen;
+  final ValueChanged<String>? onNavigate;
 }

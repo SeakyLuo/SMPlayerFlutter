@@ -5,6 +5,110 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
+MediaControlThemeColors immersiveMediaControlColors({required bool night}) {
+  return switch (night) {
+    true => _immersiveNightMediaControlColors,
+    false => _immersiveDayMediaControlColors,
+  };
+}
+
+final _immersiveDayMediaControlColors = MediaControlThemeColors.light.copyWith(
+  textMuted: MediaControlColors.textMuted,
+  primaryButtonBorder: Colors.transparent,
+  primaryButtonHover: MediaControlColors.accentStrong,
+  disabledPrimaryButtonSurface: MediaControlColors.accent,
+  primaryButtonShadow: const BoxShadow(
+    color: MediaControlColors.accentShadow,
+    offset: Offset(0, 12),
+    blurRadius: 26,
+  ),
+  buttonForeground: MediaControlColors.textStrong,
+  buttonHoverForeground: MediaControlColors.accentStrong,
+  buttonHoverBackground: const Color(0x1a0078d7),
+  buttonActiveBackground: const Color(0x1a0078d7),
+  favoriteActiveHoverBackground: const Color(0x1a0078d7),
+  volumeTooltipBackground: const Color(0xe014181e),
+  volumeTooltipForeground: Colors.white,
+  volumeTooltipBorder: const Color(0x2effffff),
+  volumeTooltipShadow: const BoxShadow(
+    color: Color(0x57000000),
+    offset: Offset(0, 10),
+    blurRadius: 24,
+  ),
+  playerBorder: const Color(0xb8ccd5e0),
+  compactPlayerBorder: const Color(0xb8ccd5e0),
+  playerShadow: const Color(0x24445870),
+  compactPlayerShadow: const Color(0x24445870),
+  wideShadowOffsetY: -18,
+  wideShadowBlur: 56,
+  compactShadowOffsetY: -18,
+  compactShadowBlur: 56,
+  glassBlur: 18,
+  glassSaturation: 1.4,
+  compactGlassBlur: 18,
+  compactGlassSaturation: 1.4,
+  coverWashAlpha: 0.24,
+  compactCoverWashAlpha: 0.24,
+  wideSurface: const Color(0xc7ffffff),
+  compactSurface: const Color(0xc7ffffff),
+  compactWashEnd: Colors.transparent,
+  compactWashStop: 0.42,
+  coverWashMode: MediaControlCoverWashMode.radial,
+  coverWashAlignment: const Alignment(-0.6, -0.56),
+  coverWashRadius: 0.42,
+  wideHighlightStops: null,
+  wideInsetHighlight: const Color(0xc7ffffff),
+  compactInsetHighlight: const Color(0xc7ffffff),
+);
+
+final _immersiveNightMediaControlColors = MediaControlThemeColors.dark.copyWith(
+  textMuted: const Color(0xa8ffffff),
+  primaryButtonBorder: const Color(0x6b0078d7),
+  primaryButtonHover: MediaControlColors.accentStrong,
+  disabledPrimaryButtonSurface: MediaControlColors.accent,
+  primaryButtonShadow: const BoxShadow(
+    color: Color(0x52000000),
+    offset: Offset(0, 12),
+    blurRadius: 26,
+  ),
+  buttonForeground: const Color(0xf0f6f9fc),
+  buttonHoverForeground: Colors.white,
+  buttonHoverBackground: const Color(0x2e0078d7),
+  buttonActiveBackground: const Color(0x380078d7),
+  favoriteActiveHoverBackground: const Color(0x38ffffff),
+  volumeTooltipBackground: const Color(0xe014181e),
+  volumeTooltipForeground: Colors.white,
+  volumeTooltipBorder: const Color(0x2effffff),
+  volumeTooltipShadow: const BoxShadow(
+    color: Color(0x57000000),
+    offset: Offset(0, 10),
+    blurRadius: 24,
+  ),
+  playerBorder: const Color(0x1fd6e0ec),
+  compactPlayerBorder: const Color(0x1fd6e0ec),
+  playerShadow: const Color(0x57000000),
+  compactPlayerShadow: const Color(0x57000000),
+  wideShadowOffsetY: -18,
+  wideShadowBlur: 48,
+  compactShadowOffsetY: -12,
+  compactShadowBlur: 36,
+  glassBlur: 28,
+  glassSaturation: 1,
+  compactGlassBlur: 28,
+  compactGlassSaturation: 1.45,
+  coverWashAlpha: 0.22,
+  compactCoverWashAlpha: 0.2,
+  wideSurface: const Color(0xe611161c),
+  compactSurface: const Color(0xeb101419),
+  compactWashEnd: const Color(0xc711161c),
+  compactWashStop: 0.56,
+  compactBaseGradient: const [Color(0xe01d232b), Color(0xe0101419)],
+  wideHighlightGradient: const [Color(0x0effffff), Color(0x1f0078d7)],
+  wideHighlightStops: null,
+  wideInsetHighlight: const Color(0x0cffffff),
+  compactInsetHighlight: const Color(0x0cffffff),
+);
+
 class ImmersiveModeScaffold extends StatelessWidget {
   const ImmersiveModeScaffold({
     super.key,
@@ -25,79 +129,7 @@ class ImmersiveModeScaffold extends StatelessWidget {
         artworkPath == null || artworkPath!.isEmpty ? null : File(artworkPath!);
     final colors = ImmersiveModeThemeColors.of(context, night: night);
     final theme = Theme.of(context);
-    final mediaControlColors = (night
-            ? MediaControlThemeColors.dark
-            : MediaControlThemeColors.light)
-        .copyWith(
-          textMuted:
-              night ? const Color(0xa8ffffff) : MediaControlColors.textMuted,
-          primaryButtonBorder:
-              night ? const Color(0x6b0078d7) : Colors.transparent,
-          primaryButtonHover: MediaControlColors.accentStrong,
-          disabledPrimaryButtonSurface: MediaControlColors.accent,
-          primaryButtonShadow: BoxShadow(
-            color:
-                night
-                    ? const Color(0x52000000)
-                    : MediaControlColors.accentShadow,
-            offset: const Offset(0, 12),
-            blurRadius: 26,
-          ),
-          buttonForeground:
-              night ? const Color(0xf0f6f9fc) : MediaControlColors.textStrong,
-          buttonHoverForeground:
-              night ? Colors.white : MediaControlColors.accentStrong,
-          buttonHoverBackground:
-              night ? const Color(0x2e0078d7) : const Color(0x1a0078d7),
-          buttonActiveBackground:
-              night ? const Color(0x380078d7) : const Color(0x1a0078d7),
-          favoriteActiveHoverBackground:
-              night ? const Color(0x38ffffff) : const Color(0x1a0078d7),
-          volumeTooltipBackground: const Color(0xe014181e),
-          volumeTooltipForeground: Colors.white,
-          volumeTooltipBorder: const Color(0x2effffff),
-          volumeTooltipShadow: const BoxShadow(
-            color: Color(0x57000000),
-            offset: Offset(0, 10),
-            blurRadius: 24,
-          ),
-          playerBorder:
-              night ? const Color(0x1fd6e0ec) : const Color(0xb8ccd5e0),
-          compactPlayerBorder:
-              night ? const Color(0x1fd6e0ec) : const Color(0xb8ccd5e0),
-          playerShadow:
-              night ? const Color(0x57000000) : const Color(0x24445870),
-          compactPlayerShadow:
-              night ? const Color(0x57000000) : const Color(0x24445870),
-          wideShadowOffsetY: -18,
-          wideShadowBlur: night ? 48 : 56,
-          compactShadowOffsetY: night ? -12 : -18,
-          compactShadowBlur: night ? 36 : 56,
-          glassBlur: night ? 28 : 18,
-          glassSaturation: night ? 1 : 1.4,
-          compactGlassBlur: night ? 28 : 18,
-          compactGlassSaturation: night ? 1.45 : 1.4,
-          coverWashAlpha: night ? 0.22 : 0.24,
-          compactCoverWashAlpha: night ? 0.2 : 0.24,
-          wideSurface:
-              night ? const Color(0xe611161c) : const Color(0xc7ffffff),
-          compactSurface:
-              night ? const Color(0xeb101419) : const Color(0xc7ffffff),
-          compactWashEnd: night ? const Color(0xc711161c) : Colors.transparent,
-          compactWashStop: night ? 0.56 : 0.42,
-          compactBaseGradient:
-              night ? const [Color(0xe01d232b), Color(0xe0101419)] : null,
-          coverWashMode: night ? null : MediaControlCoverWashMode.radial,
-          coverWashAlignment: night ? null : const Alignment(-0.6, -0.56),
-          coverWashRadius: night ? null : 0.42,
-          wideHighlightGradient:
-              night ? const [Color(0x0effffff), Color(0x1f0078d7)] : null,
-          wideHighlightStops: null,
-          wideInsetHighlight:
-              night ? const Color(0x0cffffff) : const Color(0xc7ffffff),
-          compactInsetHighlight:
-              night ? const Color(0x0cffffff) : const Color(0xc7ffffff),
-        );
+    final mediaControlColors = immersiveMediaControlColors(night: night);
     final scopedTheme = theme.copyWith(
       extensions: [
         for (final extension in theme.extensions.values)

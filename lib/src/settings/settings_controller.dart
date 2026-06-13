@@ -24,6 +24,8 @@ class SettingsController extends ChangeNotifier {
 
   SettingsSnapshot _snapshot;
   Future<void> _playbackSettingsWriteQueue = Future.value();
+  Future<void> _viewStateWriteQueue = Future.value();
+  Future<void> _displayModeStateWriteQueue = Future.value();
 
   SettingsSnapshot get snapshot => _snapshot;
 
@@ -76,11 +78,22 @@ class SettingsController extends ChangeNotifier {
       lastPlaylistId: lastPlaylistId,
     );
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
+    final snapshot = _snapshot;
     notifyListeners();
-    await repository?.saveViewState(
-      lastPage: lastPage,
-      lastPlaylistId: lastPlaylistId,
-    );
+    _viewStateWriteQueue = _viewStateWriteQueue
+        .catchError((_) {})
+        .then(
+          (_) => _persistViewState(
+            lastPage: lastPage == null ? null : snapshot.lastPage,
+            lastPlaylistId:
+                lastPlaylistId == null ? null : snapshot.lastPlaylistId,
+          ),
+        );
+    await _viewStateWriteQueue;
+  }
+
+  Future<void> waitForPendingViewState() async {
+    await _viewStateWriteQueue;
   }
 
   Future<void> saveDisplayModeState({
@@ -88,8 +101,16 @@ class SettingsController extends ChangeNotifier {
   }) async {
     _snapshot = _snapshot.copyWith(lastDisplayMode: lastDisplayMode);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
+    final snapshot = _snapshot;
     notifyListeners();
-    await repository?.saveDisplayModeState(lastDisplayMode: lastDisplayMode);
+    _displayModeStateWriteQueue = _displayModeStateWriteQueue
+        .catchError((_) {})
+        .then((_) => _persistDisplayModeState(snapshot.lastDisplayMode));
+    await _displayModeStateWriteQueue;
+  }
+
+  Future<void> waitForPendingDisplayModeState() async {
+    await _displayModeStateWriteQueue;
   }
 
   Future<void> _persistPlaybackSettings(
@@ -98,5 +119,21 @@ class SettingsController extends ChangeNotifier {
   ) async {
     setSmPlayerGlobalSettingsSnapshot(snapshot);
     await repository?.savePlaybackSettings(update);
+  }
+
+  Future<void> _persistViewState({
+    required String? lastPage,
+    required int? lastPlaylistId,
+  }) async {
+    await repository?.saveViewState(
+      lastPage: lastPage,
+      lastPlaylistId: lastPlaylistId,
+    );
+  }
+
+  Future<void> _persistDisplayModeState(
+    SmPlayerDisplayMode lastDisplayMode,
+  ) async {
+    await repository?.saveDisplayModeState(lastDisplayMode: lastDisplayMode);
   }
 }

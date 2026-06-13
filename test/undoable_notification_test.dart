@@ -239,6 +239,15 @@ void main() {
     expect(undoButton.borderRadius, 10);
     expect(undoButton.fontWeight, FontWeight.w700);
     expect(undoButton.fontVariations, const [FontVariation.weight(720)]);
+    final undoLabelStyle = tester.widget<DefaultTextStyle>(
+      find
+          .ancestor(
+            of: find.text('Undo'),
+            matching: find.byType(DefaultTextStyle),
+          )
+          .first,
+    );
+    expect(undoLabelStyle.style.decoration, TextDecoration.none);
 
     final decoratedBox =
         tester

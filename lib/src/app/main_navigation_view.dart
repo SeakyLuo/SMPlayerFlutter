@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/navigation_icon_button.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -320,6 +321,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   _MainNavigationPlaylistSection _buildPlaylistSection({
     required bool collapsed,
     required List<LibraryPlaylist> customPlaylists,
+    bool showPlaylistChildren = true,
   }) {
     return _MainNavigationPlaylistSection(
       collapsed: collapsed,
@@ -327,6 +329,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       i18n: widget.i18n,
       playlists: customPlaylists,
       expanded: _isPlaylistNavExpanded,
+      showChildren: showPlaylistChildren,
       onItemInvoked: _invokeNavigationItem,
       onToggleExpanded: () {
         setState(() {
@@ -420,10 +423,12 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                       !contentCollapsed &&
                       _isSearchHistoryOpen &&
                       visibleRecentSearches.isNotEmpty;
-                  final playlistSection = _buildPlaylistSection(
-                    collapsed: contentCollapsed,
-                    customPlaylists: customPlaylists,
-                  );
+                  final showPlaylistChildren =
+                      !contentCollapsed &&
+                      constraints.maxHeight >
+                          SmPlayerShellMetrics
+                                  .navigationPlaylistChildrenCollapseHeight +
+                              1;
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -444,7 +449,9 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                       ? _desktopTitlebarButtonInset
                                       : 0,
                               canGoBack:
-                                  defaultTargetPlatform == TargetPlatform.macOS
+                                  contentCollapsed &&
+                                          defaultTargetPlatform ==
+                                              TargetPlatform.macOS
                                       ? false
                                       : widget.canGoBack,
                               backLabel: widget.i18n.t('sidebar.back'),
@@ -551,6 +558,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                   ),
                                   const _MainNavigationViewSeparator(),
                                 ];
+                                final playlistSection = _buildPlaylistSection(
+                                  collapsed: contentCollapsed,
+                                  customPlaylists: customPlaylists,
+                                  showPlaylistChildren: showPlaylistChildren,
+                                );
                                 if (constraints.maxHeight < 440) {
                                   return ListView(
                                     padding: EdgeInsets.zero,

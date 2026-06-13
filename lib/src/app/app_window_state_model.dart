@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 
-const mainWindowMinimumSize = Size(506, 840);
+const mainWindowMinimumSize = Size(
+  SmPlayerShellMetrics.mainWindowMinimumWidth,
+  SmPlayerShellMetrics.mainWindowMinimumHeight,
+);
 const defaultMainWindowPreferredSize = Size(1460, 940);
 
 Rect? parseMainWindowBounds(String rawBounds) {

@@ -29,30 +29,10 @@ class ImmersiveModeSongInfo extends StatelessWidget {
     final colors = ImmersiveModeThemeColors.of(context);
     final night = colors.artworkShadowOpacity > 0.3;
     final artworkRadius = compact ? 16.0 : 18.0;
-    final artworkShadows =
-        compact
-            ? [
-              BoxShadow(
-                color:
-                    night ? const Color(0x52000000) : const Color(0x47665870),
-                blurRadius: 88,
-                offset: const Offset(0, 34),
-              ),
-              BoxShadow(
-                color:
-                    night ? const Color(0x2e000000) : const Color(0x29665870),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
-              ),
-            ]
-            : [
-              BoxShadow(
-                color:
-                    night ? const Color(0x61000000) : const Color(0x38665870),
-                blurRadius: night ? 86 : 76,
-                offset: const Offset(0, 28),
-              ),
-            ];
+    final artworkShadows = _immersiveArtworkShadows(
+      compact: compact,
+      night: night,
+    );
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -137,4 +117,50 @@ class ImmersiveModeSongInfo extends StatelessWidget {
       ],
     );
   }
+}
+
+List<BoxShadow> _immersiveArtworkShadows({
+  required bool compact,
+  required bool night,
+}) {
+  return switch ((compact, night)) {
+    (true, true) => const [
+      BoxShadow(
+        color: Color(0x52000000),
+        blurRadius: 88,
+        offset: Offset(0, 34),
+      ),
+      BoxShadow(
+        color: Color(0x2e000000),
+        blurRadius: 26,
+        offset: Offset(0, 12),
+      ),
+    ],
+    (true, false) => const [
+      BoxShadow(
+        color: Color(0x47665870),
+        blurRadius: 88,
+        offset: Offset(0, 34),
+      ),
+      BoxShadow(
+        color: Color(0x29665870),
+        blurRadius: 26,
+        offset: Offset(0, 12),
+      ),
+    ],
+    (false, true) => const [
+      BoxShadow(
+        color: Color(0x61000000),
+        blurRadius: 86,
+        offset: Offset(0, 28),
+      ),
+    ],
+    (false, false) => const [
+      BoxShadow(
+        color: Color(0x38665870),
+        blurRadius: 76,
+        offset: Offset(0, 28),
+      ),
+    ],
+  };
 }

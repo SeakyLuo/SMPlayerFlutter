@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
+import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -49,6 +50,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   MusicDialogEntry? _songDialog;
+
+  void _openImmersiveMode(SmPlayerShellActions? shellActions) {
+    final navigate = shellActions?.onNavigate;
+    if (navigate != null) {
+      navigate(immersiveModeRoutePath);
+      return;
+    }
+    context.go(immersiveModeRoutePath);
+  }
 
   @override
   void initState() {
@@ -113,6 +123,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
         const <RecentLibrarySong>[];
     final mediaControlState = ref.watch(mediaControlControllerProvider).state;
+    final shellActions = ref.watch(smPlayerShellActionsProvider);
     final i18n = context.smPlayerI18n;
 
     return snapshotValue.when(
@@ -252,7 +263,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     useFullscreenIcon: true,
                     disabled: currentSong == null,
                     onPressed: () {
-                      context.go(immersiveModeRoutePath);
+                      _openImmersiveMode(shellActions);
                     },
                   ),
                   MenuFlyoutItem(
@@ -479,7 +490,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             label: i18n.t('nowPlaying.playMode'),
                             disabled: currentSong == null,
                             onPressed: () {
-                              context.go(immersiveModeRoutePath);
+                              _openImmersiveMode(shellActions);
                             },
                           ),
                           CommandBarButton(
@@ -649,10 +660,17 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     LibrarySong song,
   ) {
     final before = queueSongIds.toList();
-    _replaceQueue([
+    final nextQueueSongIds = [
       for (var index = 0; index < queueSongIds.length; index += 1)
         if (index != queueIndex) queueSongIds[index],
-    ]);
+    ];
+    _replaceQueue(nextQueueSongIds);
+    _playNextQueueSongAfterRemovingCurrent(
+      queueSongIds,
+      nextQueueSongIds,
+      queueIndex,
+      song,
+    );
     _showUndo(
       context.smPlayerI18n.t('notification.removedFrom', {
         'title': song.title,
@@ -660,6 +678,84 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       }),
       () => _replaceQueue(before),
     );
+  }
+
+  void _playNextQueueSongAfterRemovingCurrent(
+    List<int> before,
+    List<int> nextQueueSongIds,
+    int removedQueueIndex,
+    LibrarySong removedSong,
+  ) {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    final removedCurrent =
+        mediaState.selectedQueueIndex == null
+            ? removedSong.id == mediaState.track.id
+            : removedQueueIndex == mediaState.selectedQueueIndex;
+    if (!removedCurrent || nextQueueSongIds.isEmpty) {
+      return;
+    }
+
+    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
+      before.length,
+      {removedQueueIndex},
+      removedQueueIndex,
+      nextQueueSongIds.length,
+    );
+    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
+  }
+
+  void _playNextQueueSongAfterRemovingSelectedIndexes(
+    List<int> queueSongIds,
+    List<int> nextQueueSongIds,
+    Set<int> selectedIndexes,
+  ) {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    final currentQueueIndex =
+        mediaState.selectedQueueIndex ??
+        queueSongIds.indexWhere((songId) => songId == mediaState.track.id);
+    if (!selectedIndexes.contains(currentQueueIndex) ||
+        nextQueueSongIds.isEmpty) {
+      return;
+    }
+
+    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
+      queueSongIds.length,
+      selectedIndexes,
+      currentQueueIndex,
+      nextQueueSongIds.length,
+    );
+    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
+  }
+
+  int _nextQueueIndexAfterRemovingCurrent(
+    int originalQueueLength,
+    Set<int> removedIndexes,
+    int removedCurrentIndex,
+    int nextQueueLength,
+  ) {
+    var nextQueueIndex = 0;
+    for (var index = 0; index < originalQueueLength; index += 1) {
+      if (index == removedCurrentIndex) {
+        break;
+      }
+      if (!removedIndexes.contains(index)) {
+        nextQueueIndex += 1;
+      }
+    }
+    return nextQueueIndex < nextQueueLength ? nextQueueIndex : 0;
+  }
+
+  void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
+    final songs = ref.read(libraryContentDataProvider).value!.songs;
+    final songsById = {for (final song in songs) song.id: song};
+    final nextSong = songsById[queueSongIds[queueIndex]]!;
+    ref
+        .read(mediaControlControllerProvider)
+        .playTrack(
+          mediaControlTrackForSong(nextSong, context.smPlayerI18n),
+          durationSeconds: nextSong.duration.toDouble(),
+          queueIndex: queueIndex,
+        );
   }
 
   void _playNext(List<int> queueSongIds, int queueIndex) {
@@ -725,10 +821,17 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     Map<int, LibrarySong> songsById,
   ) {
     final before = queueSongIds.toList();
-    _replaceQueue([
+    final selectedIndexSet = selectedIndexes.toSet();
+    final nextQueueSongIds = [
       for (var index = 0; index < queueSongIds.length; index += 1)
-        if (!selectedIndexes.contains(index)) queueSongIds[index],
-    ]);
+        if (!selectedIndexSet.contains(index)) queueSongIds[index],
+    ];
+    _replaceQueue(nextQueueSongIds);
+    _playNextQueueSongAfterRemovingSelectedIndexes(
+      queueSongIds,
+      nextQueueSongIds,
+      selectedIndexSet,
+    );
     final i18n = context.smPlayerI18n;
     _showUndo(
       selectedSongIds.length == 1

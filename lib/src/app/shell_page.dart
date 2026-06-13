@@ -337,6 +337,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 });
               }
             },
+            onNavigate: _navigateTo,
           ),
         ),
       ],
@@ -602,7 +603,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
 
   bool _handlePlaybackShortcutKey(KeyEvent event) {
     if (event is! KeyDownEvent ||
-        _isPlaybackShortcutEditableFocus(FocusManager.instance.primaryFocus)) {
+        _shouldIgnorePlaybackShortcutFocus(
+          FocusManager.instance.primaryFocus,
+        )) {
       return false;
     }
 

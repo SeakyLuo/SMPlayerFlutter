@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
+import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
+import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_overlay_host.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
@@ -18,6 +20,7 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode, NightMode, SettingsSnapshot, SmPlayerDisplayMode;
@@ -934,6 +937,39 @@ void main() {
     expect(tester.getTopLeft(find.byKey(SmPlayerShellKeys.workspace)).dx, 0);
   });
 
+  testWidgets('minimal AppBar menu hover matches sidebar toggle hover', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(600, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pump();
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    await mouse.moveTo(
+      tester.getCenter(find.byKey(SmPlayerShellKeys.minimalMenuButton)),
+    );
+    await tester.pump();
+
+    final appBarHover = tester.widget<AnimatedContainer>(
+      find.descendant(
+        of: find.byKey(SmPlayerShellKeys.minimalMenuButton),
+        matching: find.byType(AnimatedContainer),
+      ),
+    );
+    expect(
+      (appBarHover.decoration! as BoxDecoration).color,
+      MainNavigationViewColors.iconButtonHover,
+    );
+    expect(
+      (appBarHover.decoration! as BoxDecoration).borderRadius,
+      BorderRadius.circular(SmPlayerShellMetrics.navigationButtonRadius),
+    );
+
+    await mouse.removePointer();
+  });
+
   testWidgets('minimal workspace reserves Electron player height', (
     tester,
   ) async {
@@ -1815,6 +1851,41 @@ void main() {
     },
   );
 
+  testWidgets('shell navigation resets display mode after leaving immersive', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 700));
+    final navigations = <String>[];
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        onNavigate: navigations.add,
+        child: const _ShellDisplayModeNavigationProbe(),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('enter-immersive')));
+    await tester.pump();
+    final lastPageBeforeExit = smPlayerGlobalSettingsSnapshot.lastPage;
+
+    expect(navigations.last, immersiveModeRoutePath);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.immersive,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('exit-immersive')));
+    await tester.pump();
+
+    expect(navigations.last, nowPlayingRoutePath);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.normal,
+    );
+    expect(smPlayerGlobalSettingsSnapshot.lastPage, lastPageBeforeExit);
+  });
+
   testWidgets('bottom player More fullscreen toggles native fullscreen only', (
     tester,
   ) async {
@@ -2674,6 +2745,33 @@ class _ShellPageTestApp extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ShellDisplayModeNavigationProbe extends ConsumerWidget {
+  const _ShellDisplayModeNavigationProbe();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actions = ref.watch(smPlayerShellActionsProvider);
+    return Column(
+      children: [
+        TextButton(
+          key: const ValueKey('enter-immersive'),
+          onPressed: () {
+            actions?.onNavigate?.call(immersiveModeRoutePath);
+          },
+          child: const Text('Enter immersive'),
+        ),
+        TextButton(
+          key: const ValueKey('exit-immersive'),
+          onPressed: () {
+            actions?.onNavigate?.call(nowPlayingRoutePath);
+          },
+          child: const Text('Exit immersive'),
+        ),
+      ],
     );
   }
 }

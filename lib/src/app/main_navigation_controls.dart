@@ -106,7 +106,9 @@ class _MainNavigationViewItemButtonState
             child: Container(
               decoration: BoxDecoration(
                 color: background,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(
+                  SmPlayerShellMetrics.navigationButtonRadius,
+                ),
                 border:
                     widget.collapsed
                         ? null
@@ -124,6 +126,7 @@ class _MainNavigationViewItemButtonState
                       child: _MainNavigationItemIcon(
                         item: widget.item,
                         color: foreground,
+                        size: 21,
                       ),
                     );
                   }
@@ -136,6 +139,7 @@ class _MainNavigationViewItemButtonState
                         child: _MainNavigationItemIcon(
                           item: widget.item,
                           color: foreground,
+                          size: 21,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -175,10 +179,15 @@ class _MainNavigationViewItemButtonState
 }
 
 class _MainNavigationItemIcon extends StatelessWidget {
-  const _MainNavigationItemIcon({required this.item, required this.color});
+  const _MainNavigationItemIcon({
+    required this.item,
+    required this.color,
+    required this.size,
+  });
 
   final MainNavigationViewItem item;
   final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +197,7 @@ class _MainNavigationItemIcon extends StatelessWidget {
           offset: const Offset(0, -1),
           child: SmPlayerAlbumIcon(
             key: const ValueKey('MainNavigationView.AlbumsConcentricIcon'),
-            size: 21,
+            size: size,
             color: color,
           ),
         ),
@@ -198,12 +207,12 @@ class _MainNavigationItemIcon extends StatelessWidget {
       return Center(
         child: SmPlayerPlaylistIcon(
           key: const ValueKey('MainNavigationView.PlaylistsMusicListIcon'),
-          size: 21,
+          size: size,
           color: color,
         ),
       );
     }
-    return Icon(_navigationItemIcon(item), size: 21, color: color);
+    return Icon(_navigationItemIcon(item), size: size, color: color);
   }
 }
 
@@ -220,7 +229,7 @@ class _NavigationIconButton extends StatefulWidget {
     this.collapsedContext = false,
     this.size = SmPlayerShellMetrics.navigationButtonSize,
     this.iconSize = SmPlayerShellMetrics.navigationIconSize,
-    this.borderRadius = 14,
+    this.borderRadius = SmPlayerShellMetrics.navigationButtonRadius,
     this.useMutedForeground = false,
     this.onTooltipRequested,
     this.onTooltipDismissed,
@@ -242,67 +251,26 @@ class _NavigationIconButton extends StatefulWidget {
 }
 
 class _NavigationIconButtonState extends State<_NavigationIconButton> {
-  var _hovered = false;
-
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
-    final size =
-        widget.collapsedContext
-            ? SmPlayerShellMetrics.navigationCollapsedButtonSize
-            : widget.size;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
-        _requestTooltip();
-      },
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-        });
-        widget.onTooltipDismissed?.call();
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color:
-                _hovered
-                    ? widget.collapsedContext
-                        ? colors.collapsedHover
-                        : colors.iconButtonHover
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-          ),
-          child: Icon(
-            widget.icon,
-            size: widget.iconSize,
-            color:
-                _hovered
-                    ? colors.highlightText
-                    : widget.useMutedForeground
-                    ? colors.textMuted
-                    : colors.textStrong,
-          ),
-        ),
-      ),
+    return SmPlayerNavigationIconButton(
+      icon: widget.icon,
+      tooltip: widget.tooltip,
+      onPressed: widget.onPressed,
+      foreground: colors.textStrong,
+      mutedForeground: colors.textMuted,
+      hoverForeground: colors.highlightText,
+      hoverColor: colors.iconButtonHover,
+      collapsedHoverColor: colors.collapsedHover,
+      collapsedContext: widget.collapsedContext,
+      size: widget.size,
+      iconSize: widget.iconSize,
+      borderRadius: widget.borderRadius,
+      useMutedForeground: widget.useMutedForeground,
+      onTooltipRequested: widget.onTooltipRequested,
+      onTooltipDismissed: widget.onTooltipDismissed,
     );
-  }
-
-  void _requestTooltip() {
-    final callback = widget.onTooltipRequested;
-    final box = context.findRenderObject() as RenderBox?;
-    if (callback == null || box == null) {
-      return;
-    }
-    callback(widget.tooltip, box.localToGlobal(Offset.zero) & box.size);
   }
 }
 

@@ -81,30 +81,20 @@ class _RecentAlbumGrid extends StatelessWidget {
       onTimelineLabelChange: onTimelineLabelChange,
       itemBuilder: (context, album) {
         final key = 'albums:${album.name}';
-        final albumTile = AlbumTileData(
-          name: album.name,
-          artist: _displayAlbumArtist(album.songs, context.smPlayerI18n),
-          songs: album.songs,
-          duration: album.songs.fold<int>(
-            0,
-            (duration, song) => duration + song.duration,
-          ),
-          artworkSong: getAlbumArtworkSong(album.songs),
+        return _RecentAlbumCard(
+          album: album,
           subtitle: formatRecentDateTime(album.playedAt),
-        );
-        return AlbumTile(
-          album: albumTile,
           selected: selectedKeys.contains(key),
-          multiSelect: multiSelect,
-          onOpenAlbum: () {
+          selectionMode: multiSelect,
+          onOpen: () {
             if (multiSelect) {
               onToggleSelection(key);
             } else {
               onOpen(album.name);
             }
           },
-          onPlayAlbum: () => onPlay(album),
-          onAddAlbum: (position) {
+          onPlay: () => onPlay(album),
+          onAdd: (position) {
             onOpenContextMenu(position, album);
           },
           onToggleSelection: () {
@@ -117,6 +107,189 @@ class _RecentAlbumGrid extends StatelessWidget {
       },
     );
   }
+}
+
+class _RecentAlbumCard extends StatefulWidget {
+  const _RecentAlbumCard({
+    required this.album,
+    required this.subtitle,
+    required this.selected,
+    required this.selectionMode,
+    required this.onOpen,
+    required this.onPlay,
+    required this.onAdd,
+    required this.onToggleSelection,
+    required this.onOpenContextMenu,
+  });
+
+  final RecentAlbumView album;
+  final String subtitle;
+  final bool selected;
+  final bool selectionMode;
+  final VoidCallback onOpen;
+  final VoidCallback onPlay;
+  final ValueChanged<Offset> onAdd;
+  final VoidCallback onToggleSelection;
+  final ValueChanged<Offset> onOpenContextMenu;
+
+  @override
+  State<_RecentAlbumCard> createState() => _RecentAlbumCardState();
+}
+
+class _RecentAlbumCardState extends State<_RecentAlbumCard> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final colors = _RecentCollectionCardColors.forBrightness(brightness);
+    final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
+    final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
+      brightness,
+    );
+    final active = _hovered;
+    final firstArtworkSong = getAlbumArtworkSong(widget.album.songs);
+    final artworkUrls =
+        firstArtworkSong.thumbnailPath.isEmpty
+            ? const <String>[]
+            : [firstArtworkSong.thumbnailPath];
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: GestureDetector(
+          onTap: widget.onOpen,
+          onSecondaryTapDown: (details) {
+            widget.onOpenContextMenu(details.globalPosition);
+          },
+          child: AnimatedContainer(
+            key: const ValueKey('RecentAlbum.Card'),
+            duration: const Duration(milliseconds: 120),
+            width: gridViewHolderWidth,
+            constraints: const BoxConstraints(minHeight: gridViewHolderHeight),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  widget.selected
+                      ? selectedStyle.background
+                      : active
+                      ? hoverStyle.background
+                      : hoverStyle.transparentBackground,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow:
+                  widget.selected || active
+                      ? [
+                        BoxShadow(
+                          color:
+                              widget.selected
+                                  ? selectedStyle.shadow.color
+                                  : hoverStyle.shadow.color,
+                          blurRadius:
+                              widget.selected
+                                  ? selectedStyle.shadow.blurRadius
+                                  : hoverStyle.shadow.blurRadius,
+                          offset:
+                              widget.selected
+                                  ? selectedStyle.shadow.offset
+                                  : hoverStyle.shadow.offset,
+                        ),
+                      ]
+                      : null,
+            ),
+            foregroundDecoration:
+                widget.selected || active
+                    ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color:
+                            widget.selected
+                                ? selectedStyle.border
+                                : hoverStyle.border,
+                      ),
+                    )
+                    : null,
+            child: GridArtworkCardContent(
+              title: widget.album.name,
+              subtitle: widget.subtitle,
+              artworkUrls: artworkUrls,
+              fallback: const DefaultAlbumArtwork(),
+              selectedMark:
+                  widget.selectionMode || widget.selected
+                      ? GridViewSelectionMark(selected: widget.selected)
+                      : null,
+              showActions: !widget.selectionMode && _hovered,
+              textStrongColor:
+                  widget.selected
+                      ? selectedStyle.foreground
+                      : colors.textStrong,
+              textMutedColor:
+                  widget.selected ? selectedStyle.muted : colors.textMuted,
+              artworkKey: const ValueKey('RecentAlbum.ArtworkSurface'),
+              actions: [
+                GridArtworkAction(
+                  title: context.smPlayerI18n.t('detail.playAlbum'),
+                  onPressed: widget.onPlay,
+                ),
+                GridArtworkAction(
+                  title: context.smPlayerI18n.t('context.addToPlaylist'),
+                  icon: const Icon(
+                    FluentIcons.add_20_regular,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    final box = context.findRenderObject() as RenderBox;
+                    widget.onAdd(
+                      box.localToGlobal(
+                        Offset(
+                          gridViewHolderWidth / 2,
+                          gridViewHolderHeight / 2,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentCollectionCardColors {
+  const _RecentCollectionCardColors({
+    required this.textStrong,
+    required this.textMuted,
+  });
+
+  final Color textStrong;
+  final Color textMuted;
+
+  static _RecentCollectionCardColors forBrightness(Brightness brightness) {
+    return brightness == Brightness.dark ? dark : light;
+  }
+
+  static const light = _RecentCollectionCardColors(
+    textStrong: Color(0xff1f252b),
+    textMuted: Color(0xff5f625f),
+  );
+
+  static const dark = _RecentCollectionCardColors(
+    textStrong: Color(0xf0f6f9fc),
+    textMuted: Color(0xadcbd5e1),
+  );
 }
 
 class _RecentArtistList extends StatelessWidget {
@@ -259,13 +432,12 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
                       sliver: SliverGrid.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: _recentCollectionTileWidth,
-                              mainAxisExtent: _recentCollectionTileHeight,
-                              crossAxisSpacing: _recentCollectionColumnGap,
-                              mainAxisSpacing: _recentCollectionRowGap,
-                            ),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          mainAxisExtent: _recentCollectionTileHeight,
+                          crossAxisSpacing: _recentCollectionColumnGap,
+                          mainAxisSpacing: _recentCollectionRowGap,
+                        ),
                         itemCount: group.items.length,
                         itemBuilder:
                             (context, index) =>
@@ -427,14 +599,4 @@ int _recentArtistColumnCount(double width) {
 
 String _displayAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return displayAlbum(song, i18n);
-}
-
-String _displayAlbumArtist(List<LibrarySong> songs, SmPlayerI18n i18n) {
-  final artists =
-      songs
-          .expand((song) => getSongArtists(song, i18n))
-          .where((artist) => artist.isNotEmpty)
-          .toSet()
-          .toList();
-  return artists.length == 1 ? artists.first : i18n.t('common.artistUnknown');
 }

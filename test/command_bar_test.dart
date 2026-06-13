@@ -2925,6 +2925,43 @@ void main() {
     expect(items.map((item) => item.key), isNot(contains('view')));
   });
 
+  test('MusicMenuFlyout can hide artist and album View actions', () {
+    final items = buildMusicMenuFlyoutItems(
+      i18n: i18n,
+      songId: 1,
+      isFavorite: false,
+      isCurrentTrack: false,
+      isPlaying: true,
+      currentTrackId: 2,
+      playlists: const [],
+      showSeeArtistsAndSeeAlbum: false,
+      onPlay: () {},
+      onPause: () {},
+      onPlayNext: () {},
+      onAddToNowPlaying: () {},
+      onCreatePlaylist: () {},
+      onAddToPlaylist: (_) {},
+      onRemove: () {},
+      onSelect: () {},
+      onToggleFavorite: () {},
+      onSetPreference: (_) {},
+      onSeeArtist: () {},
+      onSeeAlbum: () {},
+      onSeeMusicInfo: () {},
+      onSeeLyrics: () {},
+      onSeeAlbumArt: () {},
+      onSeeLocal: () {},
+    );
+
+    final viewItem = items.singleWhere((item) => item.key == 'view');
+    expect(viewItem.submenu.map((item) => item.key), [
+      'see-music-info',
+      'see-lyrics',
+      'see-album-art',
+      'see-local',
+    ]);
+  });
+
   test(
     'songsRemovedUndoMessage mirrors Electron single and count messages',
     () {

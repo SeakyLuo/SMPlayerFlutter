@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -9,6 +10,7 @@ import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/app/shell_widgets.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -126,6 +128,136 @@ void main() {
       tester.getBottomLeft(find.byKey(const ValueKey('SettingsItem'))).dy,
       lessThanOrEqualTo(900),
     );
+  });
+
+  testWidgets('collapsed active navigation item uses CommandBar more radius', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: SmPlayerShellMetrics.collapsedSidebarWidth,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: false,
+            currentPath: '/songs',
+            searchText: '',
+            i18n: testI18n,
+            onPaneToggle: _noop,
+            onSearchTextChanged: _ignoreString,
+            onSearchCommitted: _ignoreSearchCommit,
+            onSearchCleared: _noop,
+            onItemInvoked: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    final activeItem = find.byKey(const ValueKey('MusicLibraryItem'));
+    final activeBackground = tester.widget<Container>(
+      find.descendant(of: activeItem, matching: find.byType(Container)).first,
+    );
+    expect(
+      (activeBackground.decoration! as BoxDecoration).borderRadius,
+      BorderRadius.circular(SmPlayerShellMetrics.navigationButtonRadius),
+    );
+  });
+
+  testWidgets('collapsed navigation item keeps 40px button centered in rail', (
+    tester,
+  ) async {
+    Widget buildNavigation({required bool open}) {
+      return MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: open ? 320 : SmPlayerShellMetrics.collapsedSidebarWidth,
+            height: 900,
+            child: MainNavigationView(
+              isPaneOpen: open,
+              currentPath: '/songs',
+              searchText: '',
+              i18n: testI18n,
+              onPaneToggle: _noop,
+              onSearchTextChanged: _ignoreString,
+              onSearchCommitted: _ignoreSearchCommit,
+              onSearchCleared: _noop,
+              onItemInvoked: _ignoreString,
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildNavigation(open: true));
+    final libraryItem = find.byKey(const ValueKey('MusicLibraryItem'));
+    final expandedItemSize = tester.getSize(libraryItem);
+
+    await tester.pumpWidget(buildNavigation(open: false));
+    await tester.pumpAndSettle();
+
+    final toggleRect = tester.getRect(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    final searchRect = tester.getRect(
+      find.byKey(const ValueKey('MainNavigationView.SearchButton')),
+    );
+    final collapsedItemRect = tester.getRect(libraryItem);
+    for (final rect in [toggleRect, searchRect, collapsedItemRect]) {
+      expect(
+        rect.size,
+        const Size(
+          SmPlayerShellMetrics.navigationButtonSize,
+          SmPlayerShellMetrics.navigationButtonSize,
+        ),
+      );
+      expect(rect.center.dx, SmPlayerShellMetrics.collapsedSidebarWidth / 2);
+    }
+    expect(SmPlayerShellMetrics.collapsedSidebarWidth, 78);
+    expect({
+      toggleRect.center.dx,
+      searchRect.center.dx,
+      collapsedItemRect.center.dx,
+    }, hasLength(1));
+    expect(
+      tester
+          .widget<Icon>(
+            find
+                .descendant(
+                  of: find.byKey(
+                    const ValueKey('MainNavigationView.TogglePaneButton'),
+                  ),
+                  matching: find.byType(Icon),
+                )
+                .first,
+          )
+          .size,
+      SmPlayerShellMetrics.navigationIconSize,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find
+                .descendant(
+                  of: find.byKey(
+                    const ValueKey('MainNavigationView.SearchButton'),
+                  ),
+                  matching: find.byType(Icon),
+                )
+                .first,
+          )
+          .size,
+      SmPlayerShellMetrics.navigationIconSize,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(of: libraryItem, matching: find.byType(Icon)).first,
+          )
+          .size,
+      21,
+    );
+    expect(expandedItemSize.height, SmPlayerShellMetrics.navigationButtonSize);
   });
 
   testWidgets('sidebar titlebar closes open MenuFlyout', (tester) async {
@@ -386,9 +518,85 @@ void main() {
     expect(backCount, 1);
   });
 
+  testWidgets('macOS wide sidebar keeps the navigation back button', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    var backCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 320,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            currentPath: '/albums',
+            searchText: '',
+            i18n: testI18n,
+            canGoBack: true,
+            onPaneToggle: _noop,
+            onGoBack: () {
+              backCount += 1;
+            },
+            onSearchTextChanged: _ignoreString,
+            onSearchCommitted: _ignoreSearchCommit,
+            onSearchCleared: _noop,
+            onItemInvoked: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+
+    expect(backCount, 1);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('macOS collapsed sidebar keeps titlebar clear', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: SmPlayerShellMetrics.collapsedSidebarWidth,
+          height: 900,
+          child: MainNavigationView(
+            isPaneOpen: false,
+            currentPath: '/albums',
+            searchText: '',
+            i18n: testI18n,
+            canGoBack: true,
+            onPaneToggle: _noop,
+            onSearchTextChanged: _ignoreString,
+            onSearchCommitted: _ignoreSearchCommit,
+            onSearchCleared: _noop,
+            onItemInvoked: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+      findsNothing,
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('playlist route expands sidebar playlist group like Electron', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(420, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox(
@@ -424,6 +632,13 @@ void main() {
   });
 
   testWidgets('sidebar playlist group is expanded by default', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(420, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox(
@@ -1231,7 +1446,7 @@ void main() {
     );
     expect(playlistRect.top - headingRect.bottom, 0);
     expect(playlistRect.height, 48);
-    final randomIconFinder = find.byIcon(FluentIcons.arrow_shuffle_20_regular);
+    final randomIconFinder = find.byType(ShuffleIcon);
     expect(randomIconFinder, findsOneWidget);
     expect(
       tester
@@ -1317,6 +1532,87 @@ void main() {
     await tester.tap(find.byTooltip('随机播放'));
     expect(randomPlaylistId, 7);
   });
+
+  testWidgets(
+    'sidebar hides playlist actions and children at minimum app height',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(
+        420,
+        SmPlayerShellMetrics.navigationPlaylistChildrenCollapseHeight,
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 320,
+            height:
+                SmPlayerShellMetrics.mainWindowMinimumHeight -
+                SmPlayerShellMetrics.playerHeight,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: SmPlayerShellMetrics.minimalTitlebarHeight,
+              ),
+              child: MainNavigationView(
+                isPaneOpen: true,
+                showTitlebar: false,
+                currentPath: '/playlists',
+                searchText: '',
+                i18n: testI18n,
+                playlists: const [
+                  LibraryPlaylist(
+                    id: 7,
+                    name: 'Road Mix',
+                    priority: 1,
+                    songCount: 2,
+                    songIds: [1, 2],
+                    sortCriterion: PlaylistSortCriterion.title,
+                    isBuiltIn: false,
+                  ),
+                ],
+                onPaneToggle: () {},
+                onSearchTextChanged: (_) {},
+                onSearchCommitted: (_, [__ = SearchHistoryType.sidebar]) {},
+                onSearchCleared: () {},
+                onItemInvoked: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('MainNavigationView.PlaylistsHeadingItem')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('PlaylistItem.7')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('MainNavigationView.CreatePlaylistButton')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const ValueKey('MainNavigationView.TogglePlaylistSectionButton'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('MainNavigationView.PlaylistScroll')),
+        findsNothing,
+      );
+      final playlistRect = tester.getRect(
+        find.byKey(const ValueKey('MainNavigationView.PlaylistsHeadingItem')),
+      );
+      final settingsRect = tester.getRect(
+        find.byKey(const ValueKey('SettingsItem')),
+      );
+      expect(settingsRect.top - playlistRect.bottom, 8);
+    },
+  );
 
   testWidgets('sidebar playlist item exposes Electron context menu actions', (
     tester,

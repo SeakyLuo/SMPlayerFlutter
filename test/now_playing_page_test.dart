@@ -201,11 +201,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final commandBarRight = tester.getRect(find.byType(CommandBar)).right;
-    final firstRow = find.byWidgetPredicate(
-      (widget) =>
-          widget is PlaylistControlItem &&
-          widget.key == const ValueKey('now-playing-1-0'),
-    );
+    final firstRow = find.byType(PlaylistControlItem).first;
     final rowLeft = tester.getRect(firstRow).left;
     final rowRight = tester.getRect(firstRow).right;
 
@@ -332,6 +328,68 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('NowPlayingPage remove current queue item plays next song', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1012, 760);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_searchSnapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _NowPlayingTestApp(
+        snapshot: _searchSnapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    final firstRow = find.byWidgetPredicate(
+      (widget) =>
+          widget is PlaylistControlItem &&
+          widget.key == const ValueKey('now-playing-1-0'),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstRow));
+    addTearDown(mouse.removePointer);
+    await tester.pump(const Duration(milliseconds: 160));
+
+    await tester.tap(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(repository.snapshot.nowPlaying.songIds, [2]);
+    expect(mediaController.state.track.id, 2);
+    expect(mediaController.state.selectedQueueIndex, 0);
+    expect(mediaController.state.isPlaying, isTrue);
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('NowPlayingPage queue row favorite toggles like Electron', (
@@ -628,37 +686,27 @@ void main() {
       );
       expect(find.text('Now Playing'), findsWidgets);
       expect(find.text('1 songs'), findsOneWidget);
-      expect(tester.getSize(find.byTooltip('Close')), const Size(42, 42));
+      expect(tester.getSize(find.byTooltip('Close')), const Size(40, 40));
       final closeHover = await tester.createGesture(
         kind: PointerDeviceKind.mouse,
       );
       await closeHover.addPointer();
       await closeHover.moveTo(tester.getCenter(find.byTooltip('Close')));
       await tester.pump();
-      final queueCloseGlass = tester.widget<GlassContainer>(
+      final queueCloseButton = tester.widget<SmPlayerTextIconButton>(
         find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
       );
-      expect(queueCloseGlass.width, 42);
-      expect(queueCloseGlass.height, 42);
-      expect(queueCloseGlass.useOwnLayer, isTrue);
-      expect(queueCloseGlass.quality, GlassQuality.minimal);
-      expect(queueCloseGlass.settings?.blur, 46);
-      expect(queueCloseGlass.settings?.saturation, 1.65);
-      expect(queueCloseGlass.settings?.standardOpacityMultiplier, 0.28);
-      expect(queueCloseGlass.shape, isA<LiquidRoundedRectangle>());
-      final queueCloseButton = tester.widget<TextButton>(
+      expect(queueCloseButton.showLabel, isFalse);
+      expect(queueCloseButton.tooltipEnabled, isTrue);
+      expect(queueCloseButton.height, 40);
+      expect(queueCloseButton.borderRadius, 8);
+      expect(queueCloseButton.iconSize, 18);
+      expect(
         find.descendant(
           of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
-          matching: find.byType(TextButton),
+          matching: find.byType(GlassContainer),
         ),
-      );
-      expect(
-        queueCloseButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-        Colors.transparent,
-      );
-      expect(
-        queueCloseButton.style?.foregroundColor?.resolve(<WidgetState>{}),
-        const Color(0xff101828),
+        findsNothing,
       );
       final queueTitle = tester
           .widgetList<Text>(find.text('Now Playing'))
@@ -758,6 +806,67 @@ void main() {
       expect(
         compactLyricStageRect.bottom,
         lessThanOrEqualTo(compactPlayerFrameRect.top),
+      );
+      expect(
+        compactPlayerFrameRect.top - compactLyricStageRect.bottom,
+        lessThanOrEqualTo(12),
+      );
+    },
+  );
+
+  testWidgets(
+    'ImmersiveModePage compact stage does not overflow short windows',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 600);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _FakeNowPlayingRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _ImmersiveModeTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final compactLyricStageRect = tester.getRect(
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+      );
+      final compactPlayerFrameRect = tester.getRect(
+        find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
+      );
+      expect(compactLyricStageRect.height, greaterThan(0));
+      expect(
+        compactLyricStageRect.bottom,
+        lessThanOrEqualTo(compactPlayerFrameRect.top),
+      );
+      expect(
+        compactPlayerFrameRect.top - compactLyricStageRect.bottom,
+        lessThanOrEqualTo(12),
       );
     },
   );
@@ -1326,11 +1435,12 @@ void main() {
     );
     await tester.pump();
 
+    final queueButtonFinder = find.ancestor(
+      of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+      matching: find.byType(SmPlayerTextIconButton),
+    );
     final queueButton = tester.widget<SmPlayerTextIconButton>(
-      find.ancestor(
-        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
-        matching: find.byType(SmPlayerTextIconButton),
-      ),
+      queueButtonFinder,
     );
 
     expect(queueButton.active, isFalse);
@@ -1341,7 +1451,7 @@ void main() {
         tester
             .widgetList<DecoratedBox>(
               find.descendant(
-                of: find.byWidget(queueButton),
+                of: queueButtonFinder,
                 matching: find.byType(DecoratedBox),
               ),
             )
@@ -1365,7 +1475,7 @@ void main() {
       tester
           .widgetList<DecoratedBox>(
             find.descendant(
-              of: find.byWidget(queueButton),
+              of: queueButtonFinder,
               matching: find.byType(DecoratedBox),
             ),
           )
@@ -1375,7 +1485,7 @@ void main() {
     final queueButtonGlass = tester.widget<GlassContainer>(
       find
           .descendant(
-            of: find.byWidget(queueButton),
+            of: queueButtonFinder,
             matching: find.byType(GlassContainer),
           )
           .first,
@@ -1386,7 +1496,7 @@ void main() {
             .widget<IconTheme>(
               find
                   .descendant(
-                    of: find.byWidget(queueButton),
+                    of: queueButtonFinder,
                     matching: find.byType(IconTheme),
                   )
                   .first,
@@ -1407,7 +1517,7 @@ void main() {
         tester
                 .widgetList<DecoratedBox>(
                   find.descendant(
-                    of: find.byWidget(queueButton),
+                    of: queueButtonFinder,
                     matching: find.byType(DecoratedBox),
                   ),
                 )
@@ -1645,6 +1755,73 @@ void main() {
       tester.widget<Text>(find.text('1 songs')).style?.color,
       const Color(0xb8ffffff),
     );
+  });
+
+  testWidgets('ImmersiveModePage top buttons hover blue in night mode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(956, 1520);
+    tester.view.devicePixelRatio = 2;
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
+    );
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      resetSmPlayerGlobalSettingsSnapshot();
+    });
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _FakeNowPlayingRepository(_snapshot),
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    final backButtonFinder = find.ancestor(
+      of: find.byKey(const ValueKey('ImmersiveMode.BackIcon')),
+      matching: find.byType(SmPlayerTextIconButton),
+    );
+    final queueButtonFinder = find.ancestor(
+      of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+      matching: find.byType(SmPlayerTextIconButton),
+    );
+
+    bool hasHoverBlue(Finder button) {
+      return tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: button, matching: find.byType(DecoratedBox)),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .any((decoration) => decoration.color == const Color(0x290078d7));
+    }
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(backButtonFinder));
+    await tester.pump();
+    expect(hasHoverBlue(backButtonFinder), isTrue);
+
+    await mouse.moveTo(tester.getCenter(queueButtonFinder));
+    await tester.pump();
+    expect(hasHoverBlue(queueButtonFinder), isTrue);
+    await mouse.removePointer();
   });
 
   testWidgets('ImmersiveModePage queue rows use Electron compact layout', (
@@ -3649,7 +3826,10 @@ void main() {
       final compactFrameBorder =
           (compactFrameBorderDecoration.decoration as BoxDecoration).border!
               as Border;
-      expect(compactFrameBorder.top.color, const Color(0xb8ccd5e0));
+      expect(
+        compactFrameBorder.top.color,
+        MediaControlColors.compactPlayerBorder,
+      );
       expect(compactFrameBorder.right, BorderSide.none);
       expect(compactFrameBorder.bottom, BorderSide.none);
       expect(compactFrameBorder.left, BorderSide.none);
@@ -3660,9 +3840,9 @@ void main() {
         (compactFrameShadowDecoration.decoration as BoxDecoration).boxShadow,
         const [
           BoxShadow(
-            color: Color(0x24445870),
-            offset: Offset(0, -18),
-            blurRadius: 56,
+            color: MediaControlColors.compactPlayerShadow,
+            offset: Offset(0, -12),
+            blurRadius: 36,
           ),
         ],
       );
@@ -3671,15 +3851,11 @@ void main() {
       );
       final compactFrameBackground =
           compactFrameBackgroundDecoration.decoration as BoxDecoration;
-      expect(compactFrameBackground.color, const Color(0xc7ffffff));
-      final compactFrameGradient =
-          compactFrameBackground.gradient! as RadialGradient;
-      expect(compactFrameGradient.center, const Alignment(-0.6, -0.56));
-      expect(compactFrameGradient.radius, 0.42);
-      expect(compactFrameGradient.colors, const [
-        Color.fromRGBO(91, 135, 182, 0.24),
-        Colors.transparent,
-      ]);
+      expect(
+        compactFrameBackground.color,
+        MediaControlColors.playerSurfaceSolid,
+      );
+      expect(compactFrameBackground.gradient, isNull);
       expect(
         tester
             .getRect(
@@ -3775,7 +3951,7 @@ void main() {
       final wideFrameBorder =
           (wideFrameBorderDecoration.decoration as BoxDecoration).border!
               as Border;
-      expect(wideFrameBorder.top.color, const Color(0xb8ccd5e0));
+      expect(wideFrameBorder.top.color, MediaControlColors.playerBorder);
       expect(wideFrameBorder.right, wideFrameBorder.top);
       expect(wideFrameBorder.bottom, wideFrameBorder.top);
       expect(wideFrameBorder.left, wideFrameBorder.top);
@@ -3786,9 +3962,9 @@ void main() {
         (wideFrameShadowDecoration.decoration as BoxDecoration).boxShadow,
         const [
           BoxShadow(
-            color: Color(0x24445870),
-            offset: Offset(0, -18),
-            blurRadius: 56,
+            color: MediaControlColors.playerShadow,
+            offset: Offset(0, 18),
+            blurRadius: 48,
           ),
         ],
       );
@@ -4574,7 +4750,7 @@ void main() {
       expect(frameGlass.settings?.blur, 46);
       expect(frameGlass.settings?.saturation, 1.65);
       expect(frameBorder.top, isNot(BorderSide.none));
-      expect(frameBorder.top.color, const Color(0xb8ccd5e0));
+      expect(frameBorder.top.color, MediaControlColors.playerBorder);
       expect(frameBorder.right, frameBorder.top);
       expect(frameBorder.bottom, frameBorder.top);
       expect(frameBorder.left, frameBorder.top);
@@ -4585,9 +4761,9 @@ void main() {
         (frameShadowDecoration.decoration as BoxDecoration).boxShadow,
         const [
           BoxShadow(
-            color: Color(0x24445870),
-            offset: Offset(0, -18),
-            blurRadius: 56,
+            color: MediaControlColors.playerShadow,
+            offset: Offset(0, 18),
+            blurRadius: 48,
           ),
         ],
       );
@@ -4596,19 +4772,12 @@ void main() {
       );
       final frameBackground =
           frameBackgroundDecoration.decoration as BoxDecoration;
-      expect(frameBackground.color, const Color(0xc7ffffff));
-      final frameBackgroundGradient =
-          frameBackground.gradient! as RadialGradient;
-      expect(frameBackgroundGradient.center, const Alignment(-0.6, -0.56));
-      expect(frameBackgroundGradient.radius, 0.42);
-      expect(frameBackgroundGradient.colors, const [
-        Color.fromRGBO(91, 135, 182, 0.24),
-        Colors.transparent,
-      ]);
+      expect(frameBackground.color, MediaControlColors.playerSurfaceSolid);
+      expect(frameBackground.gradient, isNull);
       final frameInsetHighlight = tester.widget<ColoredBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameInsetHighlight')),
       );
-      expect(frameInsetHighlight.color, const Color(0xc7ffffff));
+      expect(frameInsetHighlight.color, Colors.transparent);
       final playButton = tester.widget<AnimatedContainer>(
         find
             .descendant(
@@ -4618,12 +4787,15 @@ void main() {
             .first,
       );
       final playDecoration = playButton.decoration! as BoxDecoration;
-      expect(playDecoration.border, Border.all(color: Colors.transparent));
+      expect(
+        playDecoration.border,
+        Border.all(color: MediaControlColors.accentBorder),
+      );
       expect(playDecoration.boxShadow, const [
         BoxShadow(
           color: MediaControlColors.accentShadow,
           offset: Offset(0, 12),
-          blurRadius: 26,
+          blurRadius: 24,
         ),
       ]);
       expect(
@@ -4674,7 +4846,7 @@ void main() {
       );
       expect(
         (hoveredMoreButton.decoration! as BoxDecoration).color,
-        const Color(0x1a0078d7),
+        const Color(0x240078d7),
       );
       expect(
         tester
@@ -4763,16 +4935,16 @@ void main() {
       );
       expect(volumeTooltipRect.bottom, hoveredVolumeSliderRect.top - 8);
       final volumeTooltipDecoration = volumeTooltip.decoration as BoxDecoration;
-      expect(volumeTooltipDecoration.color, const Color(0xe014181e));
+      expect(volumeTooltipDecoration.color, const Color(0xf5ffffff));
       expect(
         volumeTooltipDecoration.border,
-        Border.all(color: const Color(0x2effffff)),
+        Border.all(color: const Color(0x1a323e4e)),
       );
       expect(volumeTooltipDecoration.boxShadow, const [
         BoxShadow(
-          color: Color(0x57000000),
-          offset: Offset(0, 10),
-          blurRadius: 24,
+          color: Color(0x2e2a384e),
+          offset: Offset(0, 8),
+          blurRadius: 18,
         ),
       ]);
       expect(
@@ -4785,15 +4957,15 @@ void main() {
             )
             .style
             ?.color,
-        Colors.white,
+        MediaControlColors.textStrong,
       );
       final volumeTooltipArrow = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('VolumeSlider.TooltipArrow')),
       );
       final volumeTooltipArrowBorder =
           (volumeTooltipArrow.decoration as BoxDecoration).border! as Border;
-      expect(volumeTooltipArrowBorder.right.color, const Color(0x2effffff));
-      expect(volumeTooltipArrowBorder.bottom.color, const Color(0x2effffff));
+      expect(volumeTooltipArrowBorder.right.color, const Color(0x1a323e4e));
+      expect(volumeTooltipArrowBorder.bottom.color, const Color(0x1a323e4e));
       expect(volumeTooltipArrowBorder.top, BorderSide.none);
       expect(volumeTooltipArrowBorder.left, BorderSide.none);
       await volumeMouse.removePointer();
@@ -4858,7 +5030,7 @@ void main() {
       );
       final frameBorder =
           (frameBorderDecoration.decoration as BoxDecoration).border! as Border;
-      expect(frameBorder.top.color, const Color(0x1fd6e0ec));
+      expect(frameBorder.top.color, MediaControlColors.nightPlayerBorder);
       expect(frameBorder.right, frameBorder.top);
       expect(frameBorder.bottom, frameBorder.top);
       expect(frameBorder.left, frameBorder.top);
@@ -4883,7 +5055,7 @@ void main() {
       final frameInsetHighlight = tester.widget<ColoredBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameInsetHighlight')),
       );
-      expect(frameInsetHighlight.color, const Color(0x0cffffff));
+      expect(frameInsetHighlight.color, Colors.transparent);
       final frameBackground =
           frameBackgroundDecoration.decoration as BoxDecoration;
       expect(frameBackground.color, const Color(0xe611161c));
@@ -5212,7 +5384,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
         resetSmPlayerGlobalSettingsSnapshot();
       });
-      final repository = _FakeNowPlayingRepository(_snapshot);
+      final repository = _LongLyricsRepository(_snapshot);
       final mediaController = MediaControlController();
       mediaController.playTrack(
         const MediaControlTrack(
@@ -5248,7 +5420,15 @@ void main() {
       );
       expect(
         tester
-            .widget<Icon>(find.byKey(const ValueKey('ImmersiveMode.QueueIcon')))
+            .widget<IconTheme>(
+              find
+                  .ancestor(
+                    of: find.byKey(const ValueKey('ImmersiveMode.QueueIcon')),
+                    matching: find.byType(IconTheme),
+                  )
+                  .first,
+            )
+            .data
             .size,
         18,
       );
@@ -5379,7 +5559,7 @@ void main() {
       );
       final frameBorder =
           (frameBorderDecoration.decoration as BoxDecoration).border! as Border;
-      expect(frameBorder.top.color, const Color(0xb8ccd5e0));
+      expect(frameBorder.top.color, MediaControlColors.compactPlayerBorder);
       expect(frameBorder.right, BorderSide.none);
       expect(frameBorder.bottom, BorderSide.none);
       expect(frameBorder.left, BorderSide.none);
@@ -5390,9 +5570,9 @@ void main() {
         (frameShadowDecoration.decoration as BoxDecoration).boxShadow,
         const [
           BoxShadow(
-            color: Color(0x24445870),
-            offset: Offset(0, -18),
-            blurRadius: 56,
+            color: MediaControlColors.compactPlayerShadow,
+            offset: Offset(0, -12),
+            blurRadius: 36,
           ),
         ],
       );
@@ -5401,19 +5581,12 @@ void main() {
       );
       final frameBackground =
           frameBackgroundDecoration.decoration as BoxDecoration;
-      expect(frameBackground.color, const Color(0xc7ffffff));
-      final frameBackgroundGradient =
-          frameBackground.gradient! as RadialGradient;
-      expect(frameBackgroundGradient.center, const Alignment(-0.6, -0.56));
-      expect(frameBackgroundGradient.radius, 0.42);
-      expect(frameBackgroundGradient.colors, const [
-        Color.fromRGBO(91, 135, 182, 0.24),
-        Colors.transparent,
-      ]);
+      expect(frameBackground.color, MediaControlColors.playerSurfaceSolid);
+      expect(frameBackground.gradient, isNull);
       final frameInsetHighlight = tester.widget<ColoredBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameInsetHighlight')),
       );
-      expect(frameInsetHighlight.color, const Color(0xc7ffffff));
+      expect(frameInsetHighlight.color, Colors.transparent);
       final queueButtonFinder = find.ancestor(
         of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
         matching: find.byType(SmPlayerTextIconButton),
@@ -5514,7 +5687,7 @@ void main() {
       );
       final frameBorder =
           (frameBorderDecoration.decoration as BoxDecoration).border! as Border;
-      expect(frameBorder.top.color, const Color(0x1fd6e0ec));
+      expect(frameBorder.top.color, MediaControlColors.nightPlayerBorder);
       expect(frameBorder.right, BorderSide.none);
       expect(frameBorder.bottom, BorderSide.none);
       expect(frameBorder.left, BorderSide.none);
@@ -5538,39 +5711,21 @@ void main() {
       );
       final frameBackground =
           frameBackgroundDecoration.decoration as BoxDecoration;
-      expect(frameBackground.color, const Color(0xeb101419));
-
-      final compactBaseGradientDecoration = tester.widget<DecoratedBox>(
+      expect(frameBackground.color, MediaControlColors.nightPlayerSurface);
+      expect(frameBackground.gradient, isNull);
+      expect(
         find.byKey(const ValueKey('MediaControl.PlayerCompactBaseGradient')),
+        findsNothing,
       );
-      final compactBaseGradient =
-          (compactBaseGradientDecoration.decoration as BoxDecoration).gradient!
-              as LinearGradient;
-      expect(compactBaseGradient.begin, Alignment.topCenter);
-      expect(compactBaseGradient.end, Alignment.bottomCenter);
-      expect(compactBaseGradient.colors, const [
-        Color(0xe01d232b),
-        Color(0xe0101419),
-      ]);
-
-      final compactCoverGradientDecoration = tester.widget<DecoratedBox>(
+      expect(
         find.byKey(const ValueKey('MediaControl.PlayerCompactCoverGradient')),
+        findsNothing,
       );
-      final compactCoverGradient =
-          (compactCoverGradientDecoration.decoration as BoxDecoration).gradient!
-              as LinearGradient;
-      expect(compactCoverGradient.begin, Alignment.topLeft);
-      expect(compactCoverGradient.end, Alignment.bottomRight);
-      expect(compactCoverGradient.colors, const [
-        Color.fromRGBO(91, 135, 182, 0.2),
-        Color(0xc711161c),
-      ]);
-      expect(compactCoverGradient.stops, const [0, 0.56]);
 
       final frameInsetHighlight = tester.widget<ColoredBox>(
         find.byKey(const ValueKey('MediaControl.PlayerFrameInsetHighlight')),
       );
-      expect(frameInsetHighlight.color, const Color(0x0cffffff));
+      expect(frameInsetHighlight.color, Colors.transparent);
     },
   );
 
@@ -7077,6 +7232,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.snapshot.nowPlaying.songIds, [2]);
+    expect(mediaController.state.track.id, 2);
+    expect(mediaController.state.selectedQueueIndex, 0);
+    expect(mediaController.state.isPlaying, isTrue);
     expect(
       find.descendant(
         of: find.byType(PlaylistControlItem),
@@ -7807,10 +7965,14 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(ImmersiveModePage),
-        matching: find.byType(RawScrollbar),
+        matching: find.byKey(const ValueKey('ImmersiveMode.QueueScrollbar')),
       ),
-      findsNothing,
+      findsOneWidget,
     );
+    final queueScrollbar = tester.widget<Scrollbar>(
+      find.byKey(const ValueKey('ImmersiveMode.QueueScrollbar')),
+    );
+    expect(queueScrollbar.thumbVisibility, isNull);
   });
 
   test('ImmersiveModePage reorders queue downward like Electron', () {
@@ -8003,7 +8165,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
       resetSmPlayerGlobalSettingsSnapshot();
     });
-    final repository = _FakeNowPlayingRepository(_snapshot);
+    final repository = _LongLyricsRepository(_snapshot);
     final mediaController = MediaControlController();
     mediaController.playTrack(
       const MediaControlTrack(
@@ -8040,16 +8202,17 @@ void main() {
       find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
     );
     expect(seekButton.borderRadius, 999);
-    expect(seekButton.height, 44);
-    expect(seekButton.horizontalPadding, 14);
+    expect(seekButton.height, 34);
+    expect(seekButton.horizontalPadding, 12);
+    expect(seekButton.verticalPadding, 0);
     expect(seekButton.tooltipEnabled, isFalse);
     expect(seekButton.glassSettings, immersiveModeTopButtonGlassSettings);
-    expect(find.byTooltip('0:00'), findsNothing);
+    expect(find.byTooltip(seekButton.label), findsNothing);
     expect(
       tester
           .getSize(find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')))
           .height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(34),
     );
     final seekButtonGlass = tester.widget<GlassContainer>(
       find
@@ -8085,6 +8248,22 @@ void main() {
     await seekButtonHover.addPointer();
     await seekButtonHover.moveTo(seekButtonEdgePoint);
     await tester.pump();
+    final hoveredSeekButtonDecoration =
+        tester
+                .widgetList<DecoratedBox>(
+                  find.descendant(
+                    of: find.byWidget(seekButton),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .last
+                .decoration
+            as BoxDecoration;
+    expect(hoveredSeekButtonDecoration.color, const Color(0x1a0078d7));
+    expect(
+      hoveredSeekButtonDecoration.border,
+      Border.all(color: const Color(0x2e768499)),
+    );
     await tester.pump(const Duration(seconds: 6));
     expect(
       find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
@@ -8093,7 +8272,7 @@ void main() {
 
     mediaController.setPlaybackActive(false);
     await tester.pump();
-    await tester.tap(find.text('Opening lyric'));
+    await tester.tap(find.text('Lyric line 2'));
     await tester.pump();
 
     expect(mediaController.state.progressSeconds, 12);
@@ -8101,18 +8280,204 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
-        matching: find.text('0:00'),
+        matching: find.text(seekButton.label),
       ),
       findsWidgets,
     );
 
+    final seekSeconds = _durationTextToSeconds(seekButton.label);
     await tester.tapAt(seekButtonEdgePoint);
     await tester.pump();
     await seekButtonHover.removePointer();
 
-    expect(mediaController.state.progressSeconds, 0);
+    expect(mediaController.state.progressSeconds, seekSeconds);
     expect(mediaController.state.isPlaying, isTrue);
     expect(mediaController.state.playbackStatus, PlaybackStatus.seeking);
+  });
+
+  testWidgets(
+    'ImmersiveModePage compact lyric seek hover covers Electron overflow area',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 760);
+      tester.view.devicePixelRatio = 1;
+      setSmPlayerGlobalSettingsSnapshot(
+        const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
+      );
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        resetSmPlayerGlobalSettingsSnapshot();
+      });
+      final repository = _LongLyricsRepository(_snapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+      mediaController.syncPlaybackProgress(12, durationSeconds: 120);
+
+      await tester.pumpWidget(
+        _ImmersiveModeTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.drag(
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+        const Offset(0, -90),
+      );
+      await tester.pump();
+
+      final lyricStageRect = tester.getRect(
+        find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+      );
+      final seekButtonRect = tester.getRect(
+        find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
+      );
+      expect(lyricStageRect.width, 360);
+      expect(seekButtonRect.right, greaterThan(lyricStageRect.right));
+      final overflowHoverPoint = Offset(
+        lyricStageRect.right + 8,
+        seekButtonRect.center.dy,
+      );
+      expect(overflowHoverPoint.dx, lessThan(seekButtonRect.right));
+      final seekButtonHover = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await seekButtonHover.addPointer();
+      await seekButtonHover.moveTo(overflowHoverPoint);
+      await tester.pump();
+
+      final hoveredSeekButtonDecoration =
+          tester
+                  .widgetList<DecoratedBox>(
+                    find.descendant(
+                      of: find.byKey(
+                        const ValueKey('ImmersiveMode.LyricSeekButton'),
+                      ),
+                      matching: find.byType(DecoratedBox),
+                    ),
+                  )
+                  .last
+                  .decoration
+              as BoxDecoration;
+      expect(hoveredSeekButtonDecoration.color, const Color(0x1a0078d7));
+      expect(
+        hoveredSeekButtonDecoration.border,
+        Border.all(color: const Color(0x2e768499)),
+      );
+      await seekButtonHover.removePointer();
+    },
+  );
+
+  testWidgets('ImmersiveModePage lyric seek uses top button night style', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
+    );
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      resetSmPlayerGlobalSettingsSnapshot();
+    });
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+    mediaController.syncPlaybackProgress(12, durationSeconds: 120);
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: _LongLyricsRepository(_snapshot),
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.drag(
+      find.byKey(const ValueKey('ImmersiveMode.LyricsStage')),
+      const Offset(0, -90),
+    );
+    await tester.pump();
+
+    final seekButton = tester.widget<SmPlayerTextIconButton>(
+      find.byKey(const ValueKey('ImmersiveMode.LyricSeekButton')),
+    );
+    expect(seekButton.borderRadius, 999);
+    expect(seekButton.height, 34);
+    expect(seekButton.verticalPadding, 0);
+    expect(seekButton.glassSettings, immersiveModeTopButtonNightGlassSettings);
+    final queueButton = tester.widget<SmPlayerTextIconButton>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    final queueButtonDecoration =
+        tester
+                .widgetList<DecoratedBox>(
+                  find.descendant(
+                    of: find.byWidget(queueButton),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .last
+                .decoration
+            as BoxDecoration;
+    final seekButtonDecoration =
+        tester
+                .widgetList<DecoratedBox>(
+                  find.descendant(
+                    of: find.byWidget(seekButton),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .last
+                .decoration
+            as BoxDecoration;
+    expect(seekButtonDecoration.color, queueButtonDecoration.color);
+    expect(seekButtonDecoration.border, queueButtonDecoration.border);
+    final seekButtonForeground =
+        tester
+            .widget<IconTheme>(
+              find
+                  .descendant(
+                    of: find.byWidget(seekButton),
+                    matching: find.byType(IconTheme),
+                  )
+                  .first,
+            )
+            .data
+            .color;
+    expect(seekButtonForeground, const Color(0xe0ffffff));
   });
 }
 
@@ -8121,12 +8486,14 @@ class _NowPlayingTestApp extends StatelessWidget {
     required this.snapshot,
     required this.i18n,
     this.repository,
+    this.mediaController,
     this.searchQuery = '',
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final _FakeNowPlayingRepository? repository;
+  final MediaControlController? mediaController;
   final String searchQuery;
 
   @override
@@ -8138,6 +8505,10 @@ class _NowPlayingTestApp extends StatelessWidget {
           libraryContentDataProvider.overrideWith((ref) async => snapshot)
         else
           libraryRepositoryProvider.overrideWithValue(repository!),
+        if (mediaController != null)
+          mediaControlControllerProvider.overrideWith(
+            (ref) => mediaController!,
+          ),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -8207,6 +8578,11 @@ class _ImmersiveModeTestApp extends StatelessWidget {
       child: SmPlayerI18nScope(i18n: i18n, child: app),
     );
   }
+}
+
+double _durationTextToSeconds(String text) {
+  final parts = text.split(':');
+  return double.parse(parts[0]) * 60 + double.parse(parts[1]);
 }
 
 Future<void> _writeNowPlayingBoundaryPng(

@@ -1,7 +1,7 @@
 part of 'shell_page.dart';
 
 extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
-  bool _isPlaybackShortcutEditableFocus(FocusNode? focus) {
+  bool _shouldIgnorePlaybackShortcutFocus(FocusNode? focus) {
     final context = focus?.context;
     if (context == null) {
       return false;
