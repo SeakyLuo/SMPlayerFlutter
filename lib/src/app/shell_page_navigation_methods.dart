@@ -12,28 +12,32 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
             : _routeMemory[target] ?? target;
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
-    if (targetPath == '/immersive-mode') {
-      unawaited(
-        _settingsController.saveDisplayModeState(
-          lastDisplayMode: SmPlayerDisplayMode.immersive,
-        ),
-      );
-    } else if (currentPath == '/immersive-mode') {
-      unawaited(
-        _settingsController.saveDisplayModeState(
-          lastDisplayMode: SmPlayerDisplayMode.normal,
-        ),
-      );
-    }
+    final isImmersiveTransition =
+        currentPath == '/immersive-mode' || targetPath == '/immersive-mode';
     setState(() {
       _currentPath = restoredTarget;
-      if (targetPath == '/immersive-mode') {
-        _isWindowFullScreen = false;
-      }
     });
+    _recordNavigationLocation(restoredTarget);
+    _rememberRoute(restoredTarget);
+    _persistCurrentPage(restoredTarget);
     _closeNavigationOverlay();
     widget.onNavigate?.call(restoredTarget);
-    unawaited(_desktopFeatureService.setWindowFullScreen(false));
+    if (!isImmersiveTransition) {
+      unawaited(_desktopFeatureService.setWindowFullScreen(false));
+    }
+  }
+
+  void _exitImmersiveMode() {
+    _closeNavigationOverlay();
+    final targetLocation = _previousLocationBeforeImmersiveMode();
+    if (targetLocation == null) {
+      return;
+    }
+    setState(() {
+      _currentPath = _pathFromLocation(targetLocation);
+    });
+    _recordNavigationLocation(targetLocation);
+    widget.onNavigate?.call(targetLocation);
   }
 
   void _rememberRoute(String path) {
@@ -70,6 +74,16 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
 
   String _pathFromLocation(String location) {
     return Uri.parse(location).path;
+  }
+
+  String? _previousLocationBeforeImmersiveMode() {
+    for (var index = _navigationHistory.length - 1; index >= 0; index -= 1) {
+      final location = _navigationHistory[index];
+      if (_pathFromLocation(location) != '/immersive-mode') {
+        return location;
+      }
+    }
+    return null;
   }
 
   String? _routeSection(String path) {

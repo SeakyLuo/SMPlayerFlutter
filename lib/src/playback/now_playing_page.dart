@@ -325,6 +325,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           selectedCount: selectedVisibleSongIds.length,
           playlists: customPlaylists,
           addToSongIds: selectedVisibleSongIds,
+          nowPlayingSongIds: queueSongIds,
           includeFavoritesInAddTo: selectedVisibleSongIds.any(
             (songId) => !songsById[songId]!.favorite,
           ),
@@ -650,8 +651,46 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   void _replaceQueue(List<int> songIds) {
+    final snapshot = ref.read(libraryContentDataProvider).value;
+    final queueOverride = ref.read(nowPlayingQueueOverrideProvider);
+    final currentSongIds = queueOverride ?? snapshot?.nowPlaying.songIds;
+    if (currentSongIds != null && _sameSongIds(currentSongIds, songIds)) {
+      return;
+    }
+    if (currentSongIds != null) {
+      _syncSelectedQueueIndexForQueueChange(currentSongIds, songIds);
+    }
     ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+  }
+
+  void _syncSelectedQueueIndexForQueueChange(
+    List<int> currentSongIds,
+    List<int> nextSongIds,
+  ) {
+    final mediaController = ref.read(mediaControlControllerProvider);
+    final mediaState = mediaController.state;
+    final trackId = mediaState.track.id;
+    if (trackId == null) {
+      return;
+    }
+    final currentIndex =
+        mediaState.selectedQueueIndex ??
+        currentSongIds.indexWhere((songId) => songId == trackId);
+    if (currentIndex < 0 || currentIndex >= currentSongIds.length) {
+      final nextIndex = nextSongIds.indexWhere((songId) => songId == trackId);
+      mediaController.setSelectedQueueIndex(nextIndex > -1 ? nextIndex : null);
+      return;
+    }
+    final nextIndex = _matchingQueueIndexByOccurrence(
+      trackId,
+      currentSongIds,
+      currentIndex,
+      nextSongIds,
+    );
+    if (mediaState.selectedQueueIndex != nextIndex) {
+      mediaController.setSelectedQueueIndex(nextIndex);
+    }
   }
 
   void _removeQueueIndex(
@@ -664,13 +703,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       for (var index = 0; index < queueSongIds.length; index += 1)
         if (index != queueIndex) queueSongIds[index],
     ];
-    _replaceQueue(nextQueueSongIds);
-    _playNextQueueSongAfterRemovingCurrent(
+    final nextPlayingQueueIndex = _nextQueueIndexAfterRemovingCurrentPlaying(
       queueSongIds,
+      {queueIndex},
       nextQueueSongIds,
-      queueIndex,
-      song,
     );
+    _replaceQueue(nextQueueSongIds);
+    if (nextPlayingQueueIndex != null) {
+      _playQueueSongAt(nextQueueSongIds, nextPlayingQueueIndex);
+    }
     _showUndo(
       context.smPlayerI18n.t('notification.removedFrom', {
         'title': song.title,
@@ -680,69 +721,44 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     );
   }
 
-  void _playNextQueueSongAfterRemovingCurrent(
-    List<int> before,
-    List<int> nextQueueSongIds,
-    int removedQueueIndex,
-    LibrarySong removedSong,
-  ) {
-    final mediaState = ref.read(mediaControlControllerProvider).state;
-    final removedCurrent =
-        mediaState.selectedQueueIndex == null
-            ? removedSong.id == mediaState.track.id
-            : removedQueueIndex == mediaState.selectedQueueIndex;
-    if (!removedCurrent || nextQueueSongIds.isEmpty) {
-      return;
-    }
-
-    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
-      before.length,
-      {removedQueueIndex},
-      removedQueueIndex,
-      nextQueueSongIds.length,
-    );
-    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
-  }
-
-  void _playNextQueueSongAfterRemovingSelectedIndexes(
+  int? _nextQueueIndexAfterRemovingCurrentPlaying(
     List<int> queueSongIds,
-    List<int> nextQueueSongIds,
-    Set<int> selectedIndexes,
-  ) {
-    final mediaState = ref.read(mediaControlControllerProvider).state;
-    final currentQueueIndex =
-        mediaState.selectedQueueIndex ??
-        queueSongIds.indexWhere((songId) => songId == mediaState.track.id);
-    if (!selectedIndexes.contains(currentQueueIndex) ||
-        nextQueueSongIds.isEmpty) {
-      return;
-    }
-
-    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
-      queueSongIds.length,
-      selectedIndexes,
-      currentQueueIndex,
-      nextQueueSongIds.length,
-    );
-    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
-  }
-
-  int _nextQueueIndexAfterRemovingCurrent(
-    int originalQueueLength,
     Set<int> removedIndexes,
-    int removedCurrentIndex,
-    int nextQueueLength,
+    List<int> nextQueueSongIds,
   ) {
+    final currentQueueIndex = _currentPlayingQueueIndex(queueSongIds);
+    if (currentQueueIndex == null ||
+        !removedIndexes.contains(currentQueueIndex) ||
+        nextQueueSongIds.isEmpty) {
+      return null;
+    }
     var nextQueueIndex = 0;
-    for (var index = 0; index < originalQueueLength; index += 1) {
-      if (index == removedCurrentIndex) {
-        break;
-      }
+    for (var index = 0; index < currentQueueIndex; index += 1) {
       if (!removedIndexes.contains(index)) {
         nextQueueIndex += 1;
       }
     }
-    return nextQueueIndex < nextQueueLength ? nextQueueIndex : 0;
+    return nextQueueIndex < nextQueueSongIds.length ? nextQueueIndex : 0;
+  }
+
+  int? _currentPlayingQueueIndex(List<int> queueSongIds) {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    if (!mediaState.isPlaying) {
+      return null;
+    }
+    final trackId = mediaState.track.id;
+    if (trackId == null) {
+      return null;
+    }
+    final queueIndex = mediaState.selectedQueueIndex;
+    if (queueIndex != null &&
+        queueIndex >= 0 &&
+        queueIndex < queueSongIds.length &&
+        queueSongIds[queueIndex] == trackId) {
+      return queueIndex;
+    }
+    final trackIndex = queueSongIds.indexOf(trackId);
+    return trackIndex == -1 ? null : trackIndex;
   }
 
   void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
@@ -756,19 +772,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           durationSeconds: nextSong.duration.toDouble(),
           queueIndex: queueIndex,
         );
-  }
-
-  void _playNext(List<int> queueSongIds, int queueIndex) {
-    final nextSongIds = queueSongIds.toList();
-    final songId = nextSongIds.removeAt(queueIndex);
-    nextSongIds.insert(
-      ref.read(mediaControlControllerProvider).state.selectedQueueIndex == null
-          ? 0
-          : ref.read(mediaControlControllerProvider).state.selectedQueueIndex! +
-              1,
-      songId,
-    );
-    _replaceQueue(nextSongIds);
   }
 
   void _moveQueueSongItem(List<int> queueSongIds, int oldIndex, int newIndex) {
@@ -826,12 +829,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       for (var index = 0; index < queueSongIds.length; index += 1)
         if (!selectedIndexSet.contains(index)) queueSongIds[index],
     ];
-    _replaceQueue(nextQueueSongIds);
-    _playNextQueueSongAfterRemovingSelectedIndexes(
+    final nextPlayingQueueIndex = _nextQueueIndexAfterRemovingCurrentPlaying(
       queueSongIds,
-      nextQueueSongIds,
       selectedIndexSet,
+      nextQueueSongIds,
     );
+    _replaceQueue(nextQueueSongIds);
+    if (nextPlayingQueueIndex != null) {
+      _playQueueSongAt(nextQueueSongIds, nextPlayingQueueIndex);
+    }
     final i18n = context.smPlayerI18n;
     _showUndo(
       selectedSongIds.length == 1
@@ -876,6 +882,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
         currentTrackId: currentTrackId,
+        nowPlayingSongIds: queueSongIds,
         currentPlaylistName: i18n.t('common.nowPlaying'),
         songPath: song.path,
         playlists: playlists,
@@ -897,9 +904,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           _playQueueTrack(song, queueSongIds, queueIndex);
         },
         onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
-        onPlayNext: () {
-          _playNext(queueSongIds, queueIndex);
-        },
+        onPlayNext: null,
         onAddToNowPlaying: () {
           final before = queueSongIds.toList();
           _replaceQueue([...queueSongIds, song.id]);
@@ -1203,9 +1208,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         ref.invalidate(libraryContentDataProvider);
         final snapshot =
             await ref.read(libraryRepositoryProvider).getLibraryContentData();
-        _replaceQueue(
-          _insertQueueEntries(snapshot.nowPlaying.songIds, removedEntries),
-        );
+        final currentQueueSongIds =
+            ref.read(nowPlayingQueueOverrideProvider) ??
+            snapshot.nowPlaying.songIds;
+        _replaceQueue(_insertQueueEntries(currentQueueSongIds, removedEntries));
       },
     );
   }
@@ -1249,6 +1255,46 @@ bool _matchesSearch(LibrarySong song, String searchQuery) {
   }
 
   return searchableSongText(song).toLowerCase().contains(normalizedSearchQuery);
+}
+
+bool _sameSongIds(List<int> left, List<int> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int? _matchingQueueIndexByOccurrence(
+  int trackId,
+  List<int> currentSongIds,
+  int currentIndex,
+  List<int> nextSongIds,
+) {
+  var occurrence = 0;
+  for (var index = 0; index <= currentIndex; index += 1) {
+    if (currentSongIds[index] == trackId) {
+      occurrence += 1;
+    }
+  }
+  if (occurrence == 0) {
+    return null;
+  }
+  var nextOccurrence = 0;
+  for (var index = 0; index < nextSongIds.length; index += 1) {
+    if (nextSongIds[index] != trackId) {
+      continue;
+    }
+    nextOccurrence += 1;
+    if (nextOccurrence == occurrence) {
+      return index;
+    }
+  }
+  return null;
 }
 
 String _displayPathName(String path) {

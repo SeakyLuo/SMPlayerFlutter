@@ -21,6 +21,18 @@ void main() {
     );
 
     for (final path in [
+      'macos/Runner/en.lproj/InfoPlist.strings',
+      'macos/Runner/zh-Hans.lproj/InfoPlist.strings',
+      'macos/Runner/zh-Hant.lproj/InfoPlist.strings',
+    ]) {
+      expect(_readPlistValue(path, 'NSMicrophoneUsageDescription'), isNotEmpty);
+      expect(
+        _readPlistValue(path, 'NSSpeechRecognitionUsageDescription'),
+        isNotEmpty,
+      );
+    }
+
+    for (final path in [
       'macos/Runner/DebugProfile.entitlements',
       'macos/Runner/Release.entitlements',
     ]) {
@@ -60,6 +72,7 @@ void main() {
     expect(patchScript.existsSync(), isTrue);
     final patchScriptText = patchScript.readAsStringSync();
     expect(patchScriptText, contains(r'scan_root "$TARGET_BUILD_DIR"'));
+    expect(patchScriptText, contains('InfoPlist.strings'));
     expect(patchScriptText, contains('NSSpeechRecognitionUsageDescription'));
   });
 

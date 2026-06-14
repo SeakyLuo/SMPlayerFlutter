@@ -7,7 +7,6 @@ import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
@@ -43,7 +42,6 @@ Future<void> showImmersiveModeMoreMenu({
   required void Function(LibrarySong song, List<LibrarySong> songs)
   onPlayArtist,
   required void Function(LibrarySong song, List<LibrarySong> songs) onPlayAlbum,
-  required VoidCallback onClearNowPlaying,
   required ValueChanged<bool> onMenuOpenChanged,
   required VoidCallback onSchedulePlayerBarHide,
   required bool Function() hasDialogOpen,
@@ -76,7 +74,11 @@ Future<void> showImmersiveModeMoreMenu({
             i18n: i18n,
             songIds: [activeSong.id],
             playlists: customPlaylists,
-            includeNowPlaying: true,
+            includeNowPlaying: shouldShowNowPlayingAddToTarget(
+              songIds: [activeSong.id],
+              nowPlayingSongIds: queueSongIds,
+              isNowPlayingContext: false,
+            ),
             includeFavorites: !isCompact && !activeSong.favorite,
             defaultPlaylistName: activeSong.title,
             onAddToNowPlaying: () {
@@ -177,28 +179,6 @@ Future<void> showImmersiveModeMoreMenu({
                   },
         ),
       ],
-      MenuFlyoutItem(
-        key: 'save-playlist',
-        text: i18n.t('nowPlaying.savePlaylist'),
-        icon: FluentIcons.add_20_regular,
-        onPressedWithContext: (menuContext) async {
-          final name = await requestPlaylistName(
-            context: menuContext,
-            i18n: i18n,
-            playlists: snapshot.playlists,
-            defaultName: getDefaultNewPlaylistName(i18n, snapshot.playlists),
-          );
-          if (name != null) {
-            await onCreatePlaylist(name, queueSongIds);
-          }
-        },
-      ),
-      MenuFlyoutItem(
-        key: 'clear-now-playing',
-        text: i18n.t('nowPlaying.clearNowPlaying'),
-        icon: FluentIcons.dismiss_20_regular,
-        onPressed: onClearNowPlaying,
-      ),
       if (activeSong != null) ...[
         if (addToItem != null) ...[
           const MenuFlyoutItem.separator(key: 'current-song-separator'),
@@ -223,7 +203,7 @@ Future<void> showImmersiveModeMoreMenu({
         MenuFlyoutItem(
           key: 'play-artist',
           text: i18n.t('detail.playArtist'),
-          icon: FluentIcons.people_20_regular,
+          icon: FluentIcons.people_24_regular,
           onPressed: () {
             onPlayArtist(activeSong, snapshot.songs);
           },

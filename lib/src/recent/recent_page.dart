@@ -444,6 +444,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                     showPlay: _activeTab != RecentTab.searches,
                     showAddTo: _activeTab != RecentTab.searches,
                     addToSongIds: selectedOperationSongIds,
+                    nowPlayingSongIds: snapshot.nowPlaying.songIds,
                     includeNowPlayingInAddTo: true,
                     includeFavoritesInAddTo: hasNotFavoriteSongs(
                       selectedOperationSongIds,

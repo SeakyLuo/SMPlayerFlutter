@@ -276,6 +276,19 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     : constraints.maxWidth <= 800);
             final compactNarrow =
                 compactVariant && constraints.maxWidth <= 1120;
+            final actionCompactLayout =
+                compactVariant || (headeredPlaylist && compact);
+            final actionCompactCollapsed =
+                widget.collapseCompactPrimaryActions ||
+                (compactVariant &&
+                    !widget.showCompactPrimaryActions &&
+                    compactNarrow) ||
+                (headeredPlaylist && compact);
+            final hideFavoriteForCompact =
+                compact &&
+                (compactVariant
+                    ? constraints.maxWidth <= 800
+                    : constraints.maxWidth <= 720);
             final durationWidth =
                 compactVariant
                     ? widget.compactDurationWidth ??
@@ -339,10 +352,12 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         addToPlaylistLabel: widget.addToPlaylistLabel,
                         favoriteLabel: widget.favoriteLabel,
                         moreLabel: widget.moreLabel,
-                        compactVariant: compactVariant,
+                        compactVariant: actionCompactLayout,
                         showHoverActions: hoverActionsVisible,
                         onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                        showFavoriteAction: widget.showFavoriteAction,
+                        showFavoriteAction:
+                            widget.showFavoriteAction &&
+                            !hideFavoriteForCompact,
                         favoriteAsHoverAction: widget.favoriteAsHoverAction,
                         favoriteLoading: widget.favoriteLoading,
                         favoriteHoverVisible: hoverActionsVisible,
@@ -368,10 +383,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     addToPlaylistLabel: widget.addToPlaylistLabel,
                     favoriteLabel: widget.favoriteLabel,
                     moreLabel: widget.moreLabel,
-                    compactVariant: compactVariant,
+                    compactVariant: actionCompactLayout,
                     showHoverActions: hoverActionsVisible,
                     onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                    showFavoriteAction: widget.showFavoriteAction,
+                    showFavoriteAction:
+                        widget.showFavoriteAction && !hideFavoriteForCompact,
                     favoriteAsHoverAction: widget.favoriteAsHoverAction,
                     favoriteLoading: widget.favoriteLoading,
                     favoriteHoverVisible: hoverActionsVisible,
@@ -381,9 +397,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     onOpenContextMenu: widget.onOpenContextMenu,
                     colors: colors,
                     customColors: widget.colors != null,
-                    compactCollapsed:
-                        widget.collapseCompactPrimaryActions ||
-                        (!widget.showCompactPrimaryActions && compactNarrow),
+                    compactCollapsed: actionCompactCollapsed,
                     showCompactPrimaryActions: widget.showCompactPrimaryActions,
                   ),
                 ],
@@ -902,6 +916,7 @@ class _QueueActions extends StatelessWidget {
     final actionSize = compactVariant ? 34.0 : 32.0;
     final actionRadius = compactVariant ? 8.0 : 10.0;
     final showPrimaryActions = !compactVariant || showCompactPrimaryActions;
+    final compactEssentialActionsOnly = compactVariant && compactCollapsed;
     Widget hoverAction(Widget child, {bool? visible}) {
       final actionVisible = visible ?? showHoverActions;
       return IgnorePointer(
@@ -917,6 +932,7 @@ class _QueueActions extends StatelessWidget {
     final actionChildren = [
       if (showFavoriteAction &&
           showPrimaryActions &&
+          !compactEssentialActionsOnly &&
           onToggleFavoriteClick != null)
         if (favoriteAsHoverAction)
           hoverAction(
@@ -973,7 +989,9 @@ class _QueueActions extends StatelessWidget {
             radius: actionRadius,
             onPressed: favoriteLoading ? null : onToggleFavoriteClick,
           ),
-      if (showPrimaryActions && onAddToPlaylistClick != null)
+      if (showPrimaryActions &&
+          !compactEssentialActionsOnly &&
+          onAddToPlaylistClick != null)
         Builder(
           builder:
               (buttonContext) => hoverAction(
@@ -1066,28 +1084,14 @@ class _QueueActions extends StatelessWidget {
       );
     }
     final expandedWidth =
-        showCompactPrimaryActions
-            ? 136.0
-            : compactCollapsed
+        compactCollapsed
             ? onPlayNextClick == null
                 ? 34.0
                 : 68.0
+            : showCompactPrimaryActions
+            ? 136.0
             : 76.0;
     final collapsedWidth = compactCollapsed ? 34.0 : expandedWidth;
-    if (compactCollapsed && showCompactPrimaryActions) {
-      return SizedBox(
-        key: const ValueKey('PlaylistControlItem.Actions'),
-        width: expandedWidth,
-        child: ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.centerLeft,
-            minWidth: expandedWidth,
-            maxWidth: expandedWidth,
-            child: actions,
-          ),
-        ),
-      );
-    }
     final actionsWidth = showHoverActions ? expandedWidth : collapsedWidth;
     return Transform.translate(
       offset: const Offset(0, 0.5),

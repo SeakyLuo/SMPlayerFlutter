@@ -114,10 +114,7 @@ Future<void> showMenuFlyout(
   bool scrollRoot = false,
   MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
 }) {
-  final overlay = Overlay.of(
-    context,
-    rootOverlay: layer == MenuFlyoutLayer.dialog,
-  );
+  final overlay = Overlay.of(context, rootOverlay: true);
   final overlayBox = overlay.context.findRenderObject() as RenderBox;
   final resolvedPosition =
       position == null

@@ -684,6 +684,32 @@ void main() {
     expect(repository.libraryContentLoadCount, initialLoadCount);
   });
 
+  testWidgets(
+    'PlaylistsPage compact HeaderedPlaylist has no playlist vertical padding',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(700, 760);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _PlaylistTestApp(child: const PlaylistsPage(selectedPlaylistId: 7)),
+      );
+      await tester.pumpAndSettle();
+
+      final playlistPadding = tester.widget<SliverPadding>(
+        find.byKey(const ValueKey('HeaderedPlaylist.PlaylistPadding')),
+      );
+
+      expect(
+        playlistPadding.padding,
+        const EdgeInsets.symmetric(horizontal: 0),
+      );
+    },
+  );
+
   testWidgets('MyFavoritesPage writes Electron built-in preference', (
     tester,
   ) async {

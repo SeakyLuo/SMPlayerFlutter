@@ -33,6 +33,7 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -330,7 +331,148 @@ void main() {
     );
   });
 
-  testWidgets('NowPlayingPage remove current queue item plays next song', (
+  testWidgets(
+    'NowPlayingPage remove paused current queue item does not play next song',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1012, 760);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_searchSnapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+        autoplay: false,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingTestApp(
+          snapshot: _searchSnapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      final firstRow = find.byWidgetPredicate(
+        (widget) =>
+            widget is PlaylistControlItem &&
+            widget.key == const ValueKey('now-playing-1-0'),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(firstRow));
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      await tester.tap(
+        find.descendant(
+          of: firstRow,
+          matching: find.byKey(
+            const ValueKey('PlaylistControlItem.RemoveAction'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [2]);
+      expect(mediaController.state.track.id, 1);
+      expect(mediaController.state.selectedQueueIndex, isNull);
+      expect(mediaController.state.isPlaying, isFalse);
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [1, 2]);
+      expect(mediaController.state.track.id, 1);
+      expect(mediaController.state.selectedQueueIndex, 0);
+      expect(mediaController.state.isPlaying, isFalse);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'NowPlayingPage remove current playing queue item plays next song',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1012, 760);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_searchSnapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _NowPlayingTestApp(
+          snapshot: _searchSnapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      final firstRow = find.byWidgetPredicate(
+        (widget) =>
+            widget is PlaylistControlItem &&
+            widget.key == const ValueKey('now-playing-1-0'),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(firstRow));
+      addTearDown(mouse.removePointer);
+      await tester.pump(const Duration(milliseconds: 160));
+
+      await tester.tap(
+        find.descendant(
+          of: firstRow,
+          matching: find.byKey(
+            const ValueKey('PlaylistControlItem.RemoveAction'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [2]);
+      expect(mediaController.state.track.id, 2);
+      expect(mediaController.state.selectedQueueIndex, 0);
+      expect(mediaController.state.isPlaying, isTrue);
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [1, 2]);
+      expect(mediaController.state.track.id, 2);
+      expect(mediaController.state.selectedQueueIndex, 1);
+      expect(mediaController.state.isPlaying, isTrue);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets('NowPlayingPage queue song click keeps scroll position', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -339,12 +481,39 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final repository = _FakeNowPlayingRepository(_searchSnapshot);
+    final songs = List.generate(
+      30,
+      (index) => LibrarySong(
+        id: index + 1,
+        path:
+            r'C:\Music\queue-'
+            '${index + 1}.mp3',
+        title: 'Queue Song ${index + 1}',
+        artist: 'Artist A',
+        artists: const ['Artist A'],
+        album: 'Queue Album',
+        duration: 120 + index,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+    );
+    final snapshot = _snapshotWithSongs(
+      _snapshot,
+      songs,
+      nowPlaying: NowPlayingSnapshot(
+        playlistId: 0,
+        songIds: [for (final song in songs) song.id],
+      ),
+    );
+    final repository = _FakeNowPlayingRepository(snapshot);
     final mediaController = MediaControlController();
     mediaController.playTrack(
       const MediaControlTrack(
         id: 1,
-        title: 'Blue Song',
+        title: 'Queue Song 1',
         artist: 'Artist A',
         artworkUrl: '',
         isLoading: false,
@@ -356,40 +525,35 @@ void main() {
 
     await tester.pumpWidget(
       _NowPlayingTestApp(
-        snapshot: _searchSnapshot,
+        snapshot: snapshot,
         i18n: i18n,
         repository: repository,
         mediaController: mediaController,
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 160));
 
-    final firstRow = find.byWidgetPredicate(
-      (widget) =>
-          widget is PlaylistControlItem &&
-          widget.key == const ValueKey('now-playing-1-0'),
+    final scrollable = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(NowPlayingQueueView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: tester.getCenter(firstRow));
-    addTearDown(mouse.removePointer);
-    await tester.pump(const Duration(milliseconds: 160));
+    scrollable.position.jumpTo(560);
+    await tester.pump();
+    final beforeOffset = scrollable.position.pixels;
 
-    await tester.tap(
-      find.descendant(
-        of: firstRow,
-        matching: find.byKey(
-          const ValueKey('PlaylistControlItem.RemoveAction'),
-        ),
-      ),
-    );
+    await tester.tap(find.text('Queue Song 10'));
     await tester.pump();
 
-    expect(repository.snapshot.nowPlaying.songIds, [2]);
-    expect(mediaController.state.track.id, 2);
-    expect(mediaController.state.selectedQueueIndex, 0);
-    expect(mediaController.state.isPlaying, isTrue);
-    await tester.pump(const Duration(seconds: 5));
+    expect(mediaController.state.track.id, 10);
+    expect(mediaController.state.selectedQueueIndex, 9);
+    expect(scrollable.position.pixels, beforeOffset);
+    await tester.pump();
+    expect(scrollable.position.pixels, beforeOffset);
+    expect(repository.replaceNowPlayingCount, 0);
   });
 
   testWidgets('NowPlayingPage queue row favorite toggles like Electron', (
@@ -428,7 +592,7 @@ void main() {
     'NowPlayingPage multi-select bar overlays outside panel padding',
     (tester) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.physicalSize = const Size(1400, 1300);
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
@@ -472,22 +636,28 @@ void main() {
     expect(find.byKey(const ValueKey('now-playing-1-0')), findsNothing);
   });
 
-  testWidgets(
-    'NowPlayingPage queue menu omits Add To in current compact menu',
-    (tester) async {
-      await tester.pumpWidget(
-        _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
-      );
-      await tester.pumpAndSettle();
+  testWidgets('NowPlayingPage queue menu keeps Add To but omits Play Next', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(
+      _NowPlayingTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Blue Song'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Add To'), findsNothing);
-      expect(find.text('Mix'), findsNothing);
-      expect(find.text('Built in'), findsNothing);
-    },
-  );
+    expect(find.text('Add To'), findsWidgets);
+    expect(find.text('Play Next'), findsNothing);
+    expect(find.text('Mix'), findsNothing);
+    expect(find.text('Built in'), findsNothing);
+  });
 
   testWidgets('NowPlayingPage Add To favorites updates repository with undo', (
     tester,
@@ -701,6 +871,21 @@ void main() {
       expect(queueCloseButton.height, 40);
       expect(queueCloseButton.borderRadius, 8);
       expect(queueCloseButton.iconSize, 18);
+      final queueCloseIcon = find.descendant(
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
+        matching: find.byType(Icon),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
+          matching: find.byIcon(FluentIcons.chevron_right_20_regular),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<Icon>(queueCloseIcon).icon,
+        FluentIcons.chevron_right_20_regular,
+      );
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
@@ -1057,8 +1242,8 @@ void main() {
       final wideMoreMenu = find.byKey(const ValueKey('MenuFlyoutPanel.0.4'));
       expect(find.text('Quick Play'), findsOneWidget);
       expect(find.text('Shuffle'), findsOneWidget);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
       expect(
         find.descendant(of: wideMoreMenu, matching: find.text('Add To')),
         findsNothing,
@@ -1213,8 +1398,8 @@ void main() {
         findsNothing,
       );
       expect(find.text('Like'), findsNothing);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
       expect(
         find.descendant(of: compactWideMoreMenu, matching: find.text('Add To')),
         findsNothing,
@@ -1269,8 +1454,8 @@ void main() {
       expect(moreVolumeSlider.value, compactController.state.volume);
       expect(moreVolumeSlider.onChanged, isNotNull);
       expect(find.text('Like'), findsOneWidget);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
       expect(
         find.descendant(of: compactMoreMenu, matching: find.text('Add To')),
         findsNothing,
@@ -1862,7 +2047,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
 
-    final firstRow = find.byType(PlaylistControlItem).first;
+    final firstRow = find.byKey(const ValueKey('now-playing-full-row-1-0'));
     final firstRowPlayNextAction = find.descendant(
       of: firstRow,
       matching: find.byKey(
@@ -1944,22 +2129,6 @@ void main() {
 
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 0);
     expect(rowBackgroundFor(firstRow), const Color(0x00eaf6ff));
-
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: tester.getCenter(firstRow));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(rowBackgroundFor(firstRow), const Color(0xffeaf6ff));
-    expect(firstRowPlayNextAction, findsNothing);
-    expect(tester.getSize(firstRowActions).width, 34);
-    expect(hoverOpacityFor(firstRowMoreAction).opacity, 1);
-    expect(tester.getSize(firstRowMoreAction), const Size.square(34));
-    expect(
-      tester.getRect(firstRowDuration).left -
-          tester.getRect(firstRowMoreAction).right,
-      12,
-    );
     expect(
       find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
       findsNothing,
@@ -2020,7 +2189,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
 
-    final firstRow = find.byType(PlaylistControlItem).first;
+    final firstRow = find.byKey(const ValueKey('now-playing-full-row-1-0'));
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(firstRow));
     await tester.pump();
@@ -5374,7 +5543,7 @@ void main() {
   testWidgets(
     'ImmersiveModePage keeps wide layout with compact menu at 780px',
     (tester) async {
-      tester.view.physicalSize = const Size(780, 760);
+      tester.view.physicalSize = const Size(760, 760);
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
         const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.never),
@@ -5633,7 +5802,7 @@ void main() {
   testWidgets(
     'ImmersiveModePage night compact footer follows Electron nav-minimal cascade',
     (tester) async {
-      tester.view.physicalSize = const Size(780, 760);
+      tester.view.physicalSize = const Size(760, 760);
       tester.view.devicePixelRatio = 1;
       setSmPlayerGlobalSettingsSnapshot(
         const SettingsSnapshot.defaults().copyWith(nightMode: NightMode.onMode),
@@ -5924,9 +6093,9 @@ void main() {
           )
           .any((semantics) => semantics.properties.enabled == true);
       expect(shuffleEnabled, isTrue);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
-      expect(find.text('Add To'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
+      expect(find.byKey(const ValueKey('add-to')), findsOneWidget);
       expect(find.text('Play Artist'), findsOneWidget);
       expect(find.text('Play Album'), findsOneWidget);
       expect(find.text('View'), findsOneWidget);
@@ -5952,18 +6121,61 @@ void main() {
       expect(find.text('Music Library'), findsOneWidget);
       expect(find.text('Artist'), findsOneWidget);
       expect(find.text('Album'), findsOneWidget);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
 
-      await tester.tap(find.text('Add To'));
+      await tester.tap(find.byKey(const ValueKey('add-to')));
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const ValueKey('add-to-now-playing')), findsNothing);
       expect(find.text('My Favorites'), findsOneWidget);
       expect(find.text('New Playlist'), findsOneWidget);
       expect(find.text('Mix'), findsOneWidget);
       expect(find.text('Built in'), findsNothing);
     },
   );
+
+  testWidgets('ImmersiveModePage More Play Artist uses sidebar artist icon', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Play Artist'), findsOneWidget);
+    expect(find.byIcon(FluentIcons.people_24_regular), findsOneWidget);
+    expect(find.byIcon(FluentIcons.people_20_regular), findsNothing);
+  });
 
   testWidgets('ImmersiveModePage More Play Artist and Album replace queue', (
     tester,
@@ -6117,6 +6329,20 @@ void main() {
             favorite: false,
             thumbnailPath: '',
           ),
+          const LibrarySong(
+            id: 3,
+            path: r'C:\Music\green.mp3',
+            title: 'Green Song',
+            artist: 'Artist C',
+            artists: ['Artist C'],
+            album: 'Green Hour',
+            duration: 140,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '2026-05-22T00:00:00',
+            favorite: false,
+            thumbnailPath: '',
+          ),
         ],
         nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: [1, 2, 1]),
       );
@@ -6124,15 +6350,15 @@ void main() {
       final mediaController = MediaControlController();
       mediaController.playTrack(
         const MediaControlTrack(
-          id: 1,
-          title: 'Blue Song',
-          artist: 'Artist A',
+          id: 3,
+          title: 'Green Song',
+          artist: 'Artist C',
           artworkUrl: '',
           isLoading: false,
           favorite: false,
         ),
-        durationSeconds: 120,
-        queueIndex: 0,
+        durationSeconds: 140,
+        queueIndex: null,
       );
 
       await tester.pumpWidget(
@@ -6147,12 +6373,12 @@ void main() {
 
       await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add To'));
+      await tester.tap(find.byKey(const ValueKey('add-to')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Now Playing').last);
+      await tester.tap(find.byKey(const ValueKey('add-to-now-playing')));
       await tester.pumpAndSettle();
 
-      expect(repository.snapshot.nowPlaying.songIds, [1, 2, 1, 1]);
+      expect(repository.snapshot.nowPlaying.songIds, [1, 2, 1, 3]);
 
       await tester.tap(find.text('Undo'));
       await tester.pumpAndSettle();
@@ -6278,8 +6504,8 @@ void main() {
       );
       expect(find.text('Like'), findsOneWidget);
       expect(find.text('Add To'), findsOneWidget);
-      expect(find.text('Save Playlist'), findsOneWidget);
-      expect(find.text('Clear Now Playing'), findsOneWidget);
+      expect(find.text('Save Playlist'), findsNothing);
+      expect(find.text('Clear Now Playing'), findsNothing);
 
       SmPlayerVolumeIconKind volumeMenuIcon() {
         return tester
@@ -6647,7 +6873,7 @@ void main() {
   );
 
   testWidgets(
-    'ImmersiveModePage Clear Now Playing exits fullscreen and clears queue',
+    'ImmersiveModePage Clear Now Playing keeps fullscreen and clears queue',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6688,13 +6914,23 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byTooltip('More'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Clear Now Playing'));
+      await tester.tap(find.byKey(const ValueKey('ImmersiveMode.QueueLabel')));
+      await tester.pump(const Duration(milliseconds: 320));
+      expect(
+        find.byKey(const ValueKey('ImmersiveMode.QueueSavePlaylistButton')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('ImmersiveMode.QueueClearNowPlayingButton')),
+      );
       await tester.pump();
 
-      expect(exitCalls, 1);
+      expect(exitCalls, 0);
       expect(repository.snapshot.nowPlaying.songIds, isEmpty);
+      expect(
+        find.byKey(const ValueKey('ImmersiveMode.QueueLabel')),
+        findsOneWidget,
+      );
     },
   );
 
@@ -6746,9 +6982,10 @@ void main() {
     await tester.tap(find.byTooltip('Exit immersive mode'));
     await tester.pumpAndSettle();
 
-    expect(exitCalls, 1);
+    expect(exitCalls, 0);
     expect(find.byType(ImmersiveModePage), findsNothing);
     expect(find.byTooltip('Exit immersive mode'), findsNothing);
+    expect(find.text('Previous Page'), findsOneWidget);
   });
 
   testWidgets(
@@ -6798,7 +7035,8 @@ void main() {
 
       expect(repository.preferenceRequested, isTrue);
       expect(find.text('Play'), findsOneWidget);
-      expect(find.text('Add To'), findsOneWidget);
+      expect(find.text('Play Next'), findsNothing);
+      expect(find.text('Add To'), findsWidgets);
 
       repository.completePreference(null);
       await tester.pumpAndSettle();
@@ -6806,7 +7044,7 @@ void main() {
   );
 
   testWidgets(
-    'ImmersiveModePage queue context Add To keeps Now Playing playlist target',
+    'ImmersiveModePage queue context Add To omits builtin Now Playing target',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -6865,6 +7103,7 @@ void main() {
       await tester.tap(find.text('Add To'));
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const ValueKey('add-to-now-playing')), findsNothing);
       expect(
         find.text('Now Playing').evaluate().length,
         nowPlayingTextCountBeforeMenu + 1,
@@ -6936,7 +7175,7 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 260));
 
-    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+    expect(_hasPlayerBarOpacity(tester, 0), isTrue);
   });
 
   testWidgets('ImmersiveModePage queue view opens dialog and closes panel', (
@@ -7226,15 +7465,15 @@ void main() {
     );
     expect(commandBarRect.left, 0);
     expect(commandBarRect.width, 2200);
-    expect(commandBarRect.bottom, 900 - immersiveModePlayerHeight + 1);
+    expect(commandBarRect.bottom, 900);
 
     await tester.tap(find.text('Remove').last);
     await tester.pumpAndSettle();
 
     expect(repository.snapshot.nowPlaying.songIds, [2]);
-    expect(mediaController.state.track.id, 2);
-    expect(mediaController.state.selectedQueueIndex, 0);
-    expect(mediaController.state.isPlaying, isTrue);
+    expect(mediaController.state.track.id, 1);
+    expect(mediaController.state.selectedQueueIndex, isNull);
+    expect(mediaController.state.isPlaying, isFalse);
     expect(
       find.descendant(
         of: find.byType(PlaylistControlItem),
@@ -7245,6 +7484,69 @@ void main() {
     expect(find.text('1 selected'), findsNothing);
     await tester.pump(const Duration(seconds: 5));
   });
+
+  testWidgets(
+    'ImmersiveModePage current playing remove undo does not duplicate song',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeNowPlayingRepository(_searchSnapshot);
+      final mediaController = MediaControlController();
+      mediaController.playTrack(
+        const MediaControlTrack(
+          id: 1,
+          title: 'Blue Song',
+          artist: 'Artist A',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
+        ),
+        durationSeconds: 120,
+        queueIndex: 0,
+      );
+
+      await tester.pumpWidget(
+        _ImmersiveModeTestApp(
+          snapshot: _searchSnapshot,
+          i18n: i18n,
+          repository: repository,
+          mediaController: mediaController,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Now Playing').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      final blueRow = find.descendant(
+        of: find.byType(PlaylistControlItem),
+        matching: find.text('Blue Song'),
+      );
+
+      await tester.tap(blueRow.first, buttons: kSecondaryMouseButton);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      await tester.tap(find.text('Remove').last);
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [2]);
+      expect(mediaController.state.track.id, 2);
+      expect(mediaController.state.selectedQueueIndex, 0);
+      expect(mediaController.state.isPlaying, isTrue);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(repository.snapshot.nowPlaying.songIds, [1, 2]);
+      expect(mediaController.state.track.id, 2);
+      expect(mediaController.state.selectedQueueIndex, 1);
+      expect(mediaController.state.isPlaying, isTrue);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
 
   testWidgets(
     'ImmersiveModePage multi-select favorites respects hide preference',
@@ -7443,7 +7745,7 @@ void main() {
         stackPaintIndex(stack, playerBarLayer),
         greaterThan(stackPaintIndex(stack, queueLayer)),
       );
-      expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+      expect(_hasPlayerBarOpacity(tester, 0), isTrue);
       final playerBarOpacity = tester.widget<AnimatedOpacity>(
         find.byKey(const ValueKey('ImmersiveMode.PlayerBarOpacity')),
       );
@@ -7454,14 +7756,72 @@ void main() {
       );
       expect(playerBarSlide.duration, const Duration(milliseconds: 260));
       expect(playerBarSlide.curve, const Cubic(0.2, 0, 0, 1));
-      expect(playerBarSlide.offset, const Offset(0, 110 / 120));
+      expect(playerBarSlide.offset, const Offset(0, 1));
       final idleFrameRect = tester.getRect(
         find.byKey(const ValueKey('MediaControl.PlayerFrameBorder')),
       );
-      expect(idleFrameRect.top, 890);
-      expect(idleFrameRect.bottom, 1010);
+      expect(idleFrameRect.top, 900);
+      expect(idleFrameRect.bottom, 1020);
     },
   );
+
+  testWidgets('ImmersiveModePage queue panel animates in from hidden offset', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeNowPlayingRepository(_snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 1,
+        title: 'Blue Song',
+        artist: 'Artist A',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 0,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump();
+
+    AnimatedSlide queueSlide() {
+      return tester.widget<AnimatedSlide>(
+        find.byKey(const ValueKey('ImmersiveMode.QueuePopoverSlide')),
+      );
+    }
+
+    AnimatedOpacity queueOpacity() {
+      return tester.widget<AnimatedOpacity>(
+        find.byKey(const ValueKey('ImmersiveMode.QueuePopoverOpacity')),
+      );
+    }
+
+    expect(queueSlide().offset, const Offset(1.08, 0));
+    expect(queueOpacity().opacity, 0);
+
+    await tester.pump();
+
+    expect(queueSlide().offset, Offset.zero);
+    expect(queueOpacity().opacity, 1);
+  });
 
   testWidgets(
     'ImmersiveModePage compact queue follows Electron z-index above footer',
@@ -7499,6 +7859,14 @@ void main() {
 
       await tester.tap(find.text('Now Playing').first);
       await tester.pump(const Duration(milliseconds: 300));
+      final queueCloseIcon = find.descendant(
+        of: find.byKey(const ValueKey('ImmersiveMode.QueueCloseButton')),
+        matching: find.byType(Icon),
+      );
+      expect(
+        tester.widget<Icon>(queueCloseIcon).icon,
+        FluentIcons.chevron_down_20_regular,
+      );
 
       RenderBox positionedLayerOf(Finder finder) {
         return tester.renderObject<RenderBox>(
@@ -7592,7 +7960,7 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 260));
 
-    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+    expect(_hasPlayerBarOpacity(tester, 0), isTrue);
   });
 
   testWidgets('ImmersiveModePage keeps player bar raised while pointer stays', (
@@ -7630,7 +7998,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 260));
-    expect(_hasPlayerBarOpacity(tester, 0.24), isTrue);
+    expect(_hasPlayerBarOpacity(tester, 0), isTrue);
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: const Offset(-10, -10));
@@ -7973,6 +8341,97 @@ void main() {
       find.byKey(const ValueKey('ImmersiveMode.QueueScrollbar')),
     );
     expect(queueScrollbar.thumbVisibility, isNull);
+  });
+
+  testWidgets('ImmersiveModePage queue song click keeps scroll position', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final songs = List.generate(
+      40,
+      (index) => LibrarySong(
+        id: index + 1,
+        path: r'C:\Music\song.mp3',
+        title: 'Queue Song ${index + 1}',
+        artist: 'Artist',
+        artists: const ['Artist'],
+        album: 'Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+    );
+    final snapshot = _snapshotWithSongs(
+      _snapshot,
+      songs,
+      nowPlaying: NowPlayingSnapshot(
+        playlistId: 0,
+        songIds: songs.map((song) => song.id).toList(),
+      ),
+    );
+    final repository = _FakeNowPlayingRepository(snapshot);
+    final mediaController = MediaControlController();
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 31,
+        title: 'Queue Song 31',
+        artist: 'Artist',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 30,
+    );
+
+    await tester.pumpWidget(
+      _ImmersiveModeTestApp(
+        snapshot: snapshot,
+        i18n: i18n,
+        repository: repository,
+        mediaController: mediaController,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Now Playing').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    final queueList = tester.widget<ListView>(
+      find.byKey(const ValueKey('ImmersiveMode.QueueList')),
+    );
+    final controller = queueList.controller!;
+    controller.jumpTo(780);
+    await tester.pump();
+    final beforeOffset = controller.offset;
+
+    mediaController.playTrack(
+      const MediaControlTrack(
+        id: 19,
+        title: 'Queue Song 19',
+        artist: 'Artist',
+        artworkUrl: '',
+        isLoading: false,
+        favorite: false,
+      ),
+      durationSeconds: 120,
+      queueIndex: 18,
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(mediaController.state.track.id, 19);
+    expect(mediaController.state.selectedQueueIndex, 18);
+    expect(controller.offset, beforeOffset);
   });
 
   test('ImmersiveModePage reorders queue downward like Electron', () {
@@ -8542,27 +9001,35 @@ class _ImmersiveModeTestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    GoRouter? router;
     final app =
         useRouter
             ? MaterialApp.router(
               theme: buildSmPlayerTheme(themeSettings),
-              routerConfig: GoRouter(
-                initialLocation: '/immersive-mode',
-                routes: [
-                  GoRoute(
-                    path: '/immersive-mode',
-                    builder:
-                        (context, state) =>
-                            const Scaffold(body: ImmersiveModePage()),
+              routerConfig:
+                  router = GoRouter(
+                    initialLocation: '/immersive-mode',
+                    routes: [
+                      GoRoute(
+                        path: '/immersive-mode',
+                        builder:
+                            (context, state) =>
+                                const Scaffold(body: ImmersiveModePage()),
+                      ),
+                      GoRoute(
+                        path: '/now-playing',
+                        builder:
+                            (context, state) =>
+                                const Scaffold(body: SizedBox.shrink()),
+                      ),
+                      GoRoute(
+                        path: '/previous',
+                        builder:
+                            (context, state) =>
+                                const Scaffold(body: Text('Previous Page')),
+                      ),
+                    ],
                   ),
-                  GoRoute(
-                    path: '/now-playing',
-                    builder:
-                        (context, state) =>
-                            const Scaffold(body: SizedBox.shrink()),
-                  ),
-                ],
-              ),
             )
             : MaterialApp(
               theme: buildSmPlayerTheme(themeSettings),
@@ -8573,7 +9040,22 @@ class _ImmersiveModeTestApp extends StatelessWidget {
         smPlayerI18nProvider.overrideWith((ref) async => i18n),
         libraryRepositoryProvider.overrideWithValue(repository),
         mediaControlControllerProvider.overrideWith((ref) => mediaController),
-        smPlayerShellActionsProvider.overrideWithValue(shellActions),
+        smPlayerShellActionsProvider.overrideWithValue(
+          shellActions == null
+              ? null
+              : SmPlayerShellActions(
+                onOpenVoiceAssistant: shellActions!.onOpenVoiceAssistant,
+                onExitWindowFullScreen: shellActions!.onExitWindowFullScreen,
+                onExitImmersiveMode:
+                    shellActions!.onExitImmersiveMode ??
+                    (router == null
+                        ? null
+                        : () {
+                          router!.go('/previous');
+                        }),
+                onNavigate: shellActions!.onNavigate,
+              ),
+        ),
       ],
       child: SmPlayerI18nScope(i18n: i18n, child: app),
     );
@@ -8612,6 +9094,7 @@ class _FakeNowPlayingRepository extends LibraryRepository {
   int? hiddenSongId;
   int? movedSongId;
   String? movedFolderPath;
+  var replaceNowPlayingCount = 0;
 
   @override
   Future<LibraryContentData> getLibraryContentData() async => snapshot;
@@ -8700,6 +9183,7 @@ class _FakeNowPlayingRepository extends LibraryRepository {
 
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
+    replaceNowPlayingCount += 1;
     snapshot = _snapshotWithSongs(
       snapshot,
       snapshot.songs,

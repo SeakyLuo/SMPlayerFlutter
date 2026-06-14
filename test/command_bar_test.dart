@@ -1864,6 +1864,82 @@ void main() {
     expect(panelRect.bottom, moreOrLessEquals(buttonRect.top - 8, epsilon: 1));
   });
 
+  testWidgets('MenuFlyout renders above the player bar layer', (tester) async {
+    tester.view.physicalSize = const Size(320, 260);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    var menuPressed = false;
+    var playerTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              Navigator(
+                onGenerateRoute:
+                    (_) => MaterialPageRoute<void>(
+                      builder:
+                          (context) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Builder(
+                              builder: (context) {
+                                return TextButton(
+                                  onPressed: () {
+                                    showMenuFlyout(
+                                      context,
+                                      position: const Offset(40, 150),
+                                      avoidPlayerBar: false,
+                                      items: [
+                                        MenuFlyoutItem(
+                                          key: 'over-player',
+                                          text: 'Over Player',
+                                          onPressed: () {
+                                            menuPressed = true;
+                                          },
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                  child: const Text('Nested Open'),
+                                );
+                              },
+                            ),
+                          ),
+                    ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 120,
+                child: GestureDetector(
+                  key: const ValueKey('TestMediaControl'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    playerTapped = true;
+                  },
+                  child: const ColoredBox(color: Color(0xff123042)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Nested Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Over Player'));
+    await tester.pumpAndSettle();
+
+    expect(menuPressed, isTrue);
+    expect(playerTapped, isFalse);
+  });
+
   testWidgets('MenuFlyout closes on Escape like Electron flyouts', (
     tester,
   ) async {
@@ -2153,6 +2229,7 @@ void main() {
                               isFavorite: false,
                               isCurrentTrack: false,
                               isPlaying: false,
+                              nowPlayingSongIds: const [],
                               playlists: const [],
                               showSelect: false,
                               showPreference: false,
@@ -2811,6 +2888,7 @@ void main() {
       isFavorite: false,
       isCurrentTrack: false,
       isPlaying: true,
+      nowPlayingSongIds: const [],
       currentTrackId: 2,
       playlists: const [
         MultiSelectCommandBarPlaylist(
@@ -2894,6 +2972,43 @@ void main() {
     );
   });
 
+  test(
+    'MusicMenuFlyout hides Now Playing target when song is already queued',
+    () {
+      final items = buildMusicMenuFlyoutItems(
+        i18n: i18n,
+        songId: 1,
+        isFavorite: false,
+        isCurrentTrack: false,
+        isPlaying: true,
+        nowPlayingSongIds: const [1],
+        playlists: const [],
+        onPlay: () {},
+        onPause: () {},
+        onPlayNext: () {},
+        onAddToNowPlaying: () {},
+        onCreatePlaylist: () {},
+        onAddToPlaylist: (_) {},
+        onRemove: () {},
+        onSelect: () {},
+        onToggleFavorite: () {},
+        onSetPreference: (_) {},
+        onSeeArtist: () {},
+        onSeeAlbum: () {},
+        onSeeMusicInfo: () {},
+        onSeeLyrics: () {},
+        onSeeAlbumArt: () {},
+        onSeeLocal: () {},
+      );
+
+      final addToItem = items.singleWhere((item) => item.key == 'add-to');
+      expect(
+        addToItem.submenu.map((item) => item.key),
+        isNot(contains('add-to-now-playing')),
+      );
+    },
+  );
+
   test('MusicMenuFlyout hides View when music properties are disabled', () {
     final items = buildMusicMenuFlyoutItems(
       i18n: i18n,
@@ -2901,6 +3016,7 @@ void main() {
       isFavorite: false,
       isCurrentTrack: false,
       isPlaying: true,
+      nowPlayingSongIds: const [],
       currentTrackId: 2,
       playlists: const [],
       showMusicProperties: false,
@@ -2925,16 +3041,17 @@ void main() {
     expect(items.map((item) => item.key), isNot(contains('view')));
   });
 
-  test('MusicMenuFlyout can hide artist and album View actions', () {
+  test('MusicMenuFlyout can hide album View action only', () {
     final items = buildMusicMenuFlyoutItems(
       i18n: i18n,
       songId: 1,
       isFavorite: false,
       isCurrentTrack: false,
       isPlaying: true,
+      nowPlayingSongIds: const [],
       currentTrackId: 2,
       playlists: const [],
-      showSeeArtistsAndSeeAlbum: false,
+      showSeeAlbum: false,
       onPlay: () {},
       onPause: () {},
       onPlayNext: () {},
@@ -2955,6 +3072,7 @@ void main() {
 
     final viewItem = items.singleWhere((item) => item.key == 'view');
     expect(viewItem.submenu.map((item) => item.key), [
+      'see-artist',
       'see-music-info',
       'see-lyrics',
       'see-album-art',

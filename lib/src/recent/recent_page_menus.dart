@@ -32,6 +32,7 @@ extension _RecentPageMenus on _RecentPageState {
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
         currentTrackId: currentTrackId,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
         songPath: song.path,
         playlists: playlists,
         preferenceLevel: preferenceLevel,
@@ -181,7 +182,12 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: i18n,
       songIds: songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: songIds,
+        nowPlayingSongIds:
+            ref.read(recentPageDataProvider).value!.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: hasNotFavoriteSongs(songIds, songsById),
       onAddToNowPlaying: () {
         addSongsToNowPlayingWithUndo(
@@ -234,6 +240,7 @@ extension _RecentPageMenus on _RecentPageState {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = context.smPlayerI18n;
+    final snapshot = ref.read(recentPageDataProvider).value!;
     final songIds = artist.songs.map((song) => song.id).toList();
     final favoriteSongIds =
         artist.songs
@@ -250,7 +257,11 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: i18n,
       songIds: songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: songIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: favoriteSongIds.isNotEmpty,
       onAddToNowPlaying: () {
         addSongsToNowPlayingWithUndo(
@@ -273,7 +284,6 @@ extension _RecentPageMenus on _RecentPageState {
                 );
               },
       onCreatePlaylist: () async {
-        final snapshot = ref.read(recentPageDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,

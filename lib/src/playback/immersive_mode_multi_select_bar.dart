@@ -6,7 +6,6 @@ import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
 
 class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
@@ -75,13 +74,14 @@ class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: immersiveModePlayerHeight - 1,
+      bottom: 0,
       height: 64,
       child: MultiSelectCommandBar(
         visible: selection.multiSelect,
         selectedCount: selection.selectedItems.length,
         playlists: playlists,
         addToSongIds: selectedSongIds(),
+        nowPlayingSongIds: songIds,
         defaultPlaylistName: defaultNewPlaylistName,
         currentPlaylistName: i18n.t('common.nowPlaying'),
         includeFavoritesInAddTo: selectedSongsHaveUnfavorited(),

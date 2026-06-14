@@ -327,16 +327,29 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   );
 }
 
+bool shouldShowNowPlayingAddToTarget({
+  required List<int> songIds,
+  required List<int> nowPlayingSongIds,
+  required bool isNowPlayingContext,
+}) {
+  if (isNowPlayingContext) {
+    return false;
+  }
+  final nowPlayingSongIdSet = nowPlayingSongIds.toSet();
+  return songIds.any((songId) => !nowPlayingSongIdSet.contains(songId));
+}
+
 List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required SmPlayerI18n i18n,
   required int songId,
   required bool isFavorite,
   required bool isCurrentTrack,
   required bool isPlaying,
+  required List<int> nowPlayingSongIds,
   required List<MultiSelectCommandBarPlaylist> playlists,
   required VoidCallback onPlay,
   required VoidCallback onPause,
-  required VoidCallback onPlayNext,
+  VoidCallback? onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
   VoidCallback? onRequestCreatePlaylist,
@@ -366,6 +379,8 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool showRemove = false,
   String? removeLabel,
   bool showSeeArtistsAndSeeAlbum = true,
+  bool? showSeeArtist,
+  bool? showSeeAlbum,
   bool showMusicProperties = true,
   bool showSelect = true,
   bool showDelete = true,
@@ -392,7 +407,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       ),
   ];
 
-  if (currentTrackId != null && !isCurrentTrack) {
+  if (currentTrackId != null && !isCurrentTrack && onPlayNext != null) {
     items.add(
       MenuFlyoutItem(
         key: 'play-next',
@@ -409,7 +424,11 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     playlists: playlists,
     currentPlaylistName: currentPlaylistName,
     excludePlaylistName: excludePlaylistName ?? currentPlaylistName,
-    includeNowPlaying: currentPlaylistName != i18n.t('common.nowPlaying'),
+    includeNowPlaying: shouldShowNowPlayingAddToTarget(
+      songIds: [songId],
+      nowPlayingSongIds: nowPlayingSongIds,
+      isNowPlayingContext: currentPlaylistName == i18n.t('common.nowPlaying'),
+    ),
     includeFavorites:
         currentPlaylistName != i18n.t('common.myFavorites') && !isFavorite,
     defaultPlaylistName: defaultPlaylistName,
@@ -494,21 +513,25 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
 
   final viewItems = <MenuFlyoutItem>[];
   if (showMusicProperties) {
-    if (showSeeArtistsAndSeeAlbum) {
-      viewItems.addAll([
+    if (showSeeArtist ?? showSeeArtistsAndSeeAlbum) {
+      viewItems.add(
         MenuFlyoutItem(
           key: 'see-artist',
           text: i18n.t('context.seeArtist'),
           icon: FluentIcons.people_20_regular,
           onPressed: onSeeArtist,
         ),
+      );
+    }
+    if (showSeeAlbum ?? showSeeArtistsAndSeeAlbum) {
+      viewItems.add(
         MenuFlyoutItem(
           key: 'see-album',
           text: i18n.t('context.seeAlbum'),
           useAlbumIcon: true,
           onPressed: onSeeAlbum,
         ),
-      ]);
+      );
     }
     viewItems.addAll([
       MenuFlyoutItem(

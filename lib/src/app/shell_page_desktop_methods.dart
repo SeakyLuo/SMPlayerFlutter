@@ -351,7 +351,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   void _setDesktopWindowFullScreen(bool fullScreen) {
-    final currentPath = widget.currentPath ?? _currentPath;
     if (_isWindowFullScreen == fullScreen) {
       return;
     }
@@ -363,8 +362,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         lastDisplayMode:
             fullScreen
                 ? SmPlayerDisplayMode.fullScreen
-                : currentPath == '/immersive-mode'
-                ? SmPlayerDisplayMode.immersive
                 : SmPlayerDisplayMode.normal,
       ),
     );

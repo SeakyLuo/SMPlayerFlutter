@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     as artists_model;
+import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
@@ -20,6 +21,7 @@ import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
@@ -104,55 +106,6 @@ class _ImmersiveModeQueuePanelStyle {
   }
 }
 
-class ImmersiveModeCurrentQueueAnchor extends StatefulWidget {
-  const ImmersiveModeCurrentQueueAnchor({
-    super.key,
-    required this.currentIndex,
-    required this.child,
-  });
-
-  final int currentIndex;
-  final Widget child;
-
-  @override
-  State<ImmersiveModeCurrentQueueAnchor> createState() =>
-      ImmersiveModeCurrentQueueAnchorState();
-}
-
-class ImmersiveModeCurrentQueueAnchorState
-    extends State<ImmersiveModeCurrentQueueAnchor> {
-  @override
-  void initState() {
-    super.initState();
-    _scrollIntoView();
-  }
-
-  @override
-  void didUpdateWidget(ImmersiveModeCurrentQueueAnchor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex) {
-      _scrollIntoView();
-    }
-  }
-
-  void _scrollIntoView() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Scrollable.ensureVisible(
-          context,
-          alignment: 0.5,
-          duration: Duration.zero,
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
-}
-
 class ImmersiveModeQueuePopoverHost extends StatefulWidget {
   const ImmersiveModeQueuePopoverHost({
     super.key,
@@ -173,11 +126,13 @@ class ImmersiveModeQueuePopoverHost extends StatefulWidget {
 class ImmersiveModeQueuePopoverHostState
     extends State<ImmersiveModeQueuePopoverHost> {
   var _mountedForAnimation = false;
+  var _visibleForAnimation = false;
 
   @override
   void initState() {
     super.initState();
     _mountedForAnimation = widget.open;
+    _visibleForAnimation = widget.open;
   }
 
   @override
@@ -186,6 +141,20 @@ class ImmersiveModeQueuePopoverHostState
     if (widget.open && !_mountedForAnimation) {
       setState(() {
         _mountedForAnimation = true;
+        _visibleForAnimation = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.open) {
+          setState(() {
+            _visibleForAnimation = true;
+          });
+        }
+      });
+      return;
+    }
+    if (widget.open != oldWidget.open) {
+      setState(() {
+        _visibleForAnimation = widget.open;
       });
     }
   }
@@ -201,13 +170,15 @@ class ImmersiveModeQueuePopoverHostState
       child: ExcludeSemantics(
         excluding: !widget.open,
         child: AnimatedOpacity(
+          key: const ValueKey('ImmersiveMode.QueuePopoverOpacity'),
           duration: const Duration(milliseconds: 180),
-          opacity: widget.open ? 1 : 0,
+          opacity: _visibleForAnimation ? 1 : 0,
           child: AnimatedSlide(
+            key: const ValueKey('ImmersiveMode.QueuePopoverSlide'),
             duration: const Duration(milliseconds: 260),
             curve: const Cubic(0.22, 1, 0.36, 1),
             offset:
-                widget.open
+                _visibleForAnimation
                     ? Offset.zero
                     : widget.fullScreen
                     ? const Offset(0, 1)
@@ -239,6 +210,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.selection,
     required this.scrollController,
     required this.playlists,
+    required this.playlistSnapshots,
     required this.folders,
     required this.onClose,
     required this.onReorder,
@@ -253,6 +225,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onAddToPlaylist,
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
+    required this.onClearNowPlaying,
     required this.onAddToNowPlaying,
     required this.onGetPreferenceLevel,
     required this.onUndoPreference,
@@ -275,6 +248,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final PageSelectionController<int> selection;
   final ScrollController scrollController;
   final List<MultiSelectCommandBarPlaylist> playlists;
+  final List<LibraryPlaylist> playlistSnapshots;
   final List<LibraryFolder> folders;
   final VoidCallback onClose;
   final void Function(List<int>, int, int) onReorder;
@@ -289,6 +263,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final Future<void> Function(int, List<int>) onAddToPlaylist;
   final Future<void> Function(List<int>, bool) onToggleFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
+  final VoidCallback onClearNowPlaying;
   final ValueChanged<LibrarySong> onAddToNowPlaying;
   final Future<String?> Function(int) onGetPreferenceLevel;
   final Future<void> Function(int) onUndoPreference;
@@ -317,6 +292,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   PageSelectionController<int> get selection => widget.selection;
   ScrollController get scrollController => widget.scrollController;
   List<MultiSelectCommandBarPlaylist> get playlists => widget.playlists;
+  List<LibraryPlaylist> get playlistSnapshots => widget.playlistSnapshots;
   List<LibraryFolder> get folders => widget.folders;
   VoidCallback get onClose => widget.onClose;
   void Function(List<int>, int, int) get onReorder => widget.onReorder;
@@ -335,6 +311,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       widget.onToggleFavorite;
   Future<void> Function(String, List<int>) get onCreatePlaylist =>
       widget.onCreatePlaylist;
+  VoidCallback get onClearNowPlaying => widget.onClearNowPlaying;
   ValueChanged<LibrarySong> get onAddToNowPlaying => widget.onAddToNowPlaying;
   Future<String?> Function(int) get onGetPreferenceLevel =>
       widget.onGetPreferenceLevel;
@@ -356,7 +333,9 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   void initState() {
     super.initState();
     _pruneSelection();
-    _scrollCurrentRowIntoView();
+    if (widget.open) {
+      _scrollCurrentRowIntoView();
+    }
   }
 
   @override
@@ -365,13 +344,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
     if (oldWidget.songs.length != widget.songs.length) {
       _pruneSelection();
     }
-    if ((widget.open && !oldWidget.open) ||
-        (widget.open &&
-            (oldWidget.mediaControlState.selectedQueueIndex !=
-                    widget.mediaControlState.selectedQueueIndex ||
-                oldWidget.mediaControlState.track.id !=
-                    widget.mediaControlState.track.id ||
-                oldWidget.songs.length != widget.songs.length))) {
+    if (widget.open && !oldWidget.open) {
       _scrollCurrentRowIntoView();
     }
   }
@@ -477,6 +450,18 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       _dropIndicator = null;
       _draggedQueueIndex = null;
     });
+  }
+
+  Future<void> _saveQueueAsPlaylist(BuildContext context) async {
+    final name = await requestPlaylistName(
+      context: context,
+      i18n: i18n,
+      playlists: playlistSnapshots,
+      defaultName: getDefaultNewPlaylistName(i18n, playlistSnapshots),
+    );
+    if (name != null) {
+      await onCreatePlaylist(name, songIds);
+    }
   }
 
   @override
@@ -615,7 +600,28 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                             ],
                           ),
                         ),
+                        ImmersiveModeQueueHeaderActionButton(
+                          key: const ValueKey(
+                            'ImmersiveMode.QueueSavePlaylistButton',
+                          ),
+                          tooltip: i18n.t('nowPlaying.savePlaylist'),
+                          icon: FluentIcons.add_20_regular,
+                          onPressed: () {
+                            unawaited(_saveQueueAsPlaylist(context));
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ImmersiveModeQueueHeaderActionButton(
+                          key: const ValueKey(
+                            'ImmersiveMode.QueueClearNowPlayingButton',
+                          ),
+                          tooltip: i18n.t('nowPlaying.clearNowPlaying'),
+                          icon: FluentIcons.dismiss_20_regular,
+                          onPressed: onClearNowPlaying,
+                        ),
+                        const SizedBox(width: 8),
                         ImmersiveModeQueueCloseButton(
+                          fullScreen: fullScreen,
                           tooltip: i18n.t('common.close'),
                           onPressed: onClose,
                         ),
@@ -716,20 +722,13 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
               _showQueueContextMenu(context, position, song, index);
             },
           );
-          final anchoredItem =
-              current
-                  ? ImmersiveModeCurrentQueueAnchor(
-                    currentIndex: index,
-                    child: item,
-                  )
-                  : item;
           final rowItem =
               fullScreen
                   ? Padding(
                     padding: const EdgeInsets.only(right: 10),
-                    child: anchoredItem,
+                    child: item,
                   )
-                  : anchoredItem;
+                  : item;
           return DragTarget<int>(
             key: ValueKey('now-playing-full-target-${song.id}-$index'),
             onMove: (details) {
@@ -890,6 +889,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaControlState.isPlaying,
         currentTrackId: currentTrackId,
+        nowPlayingSongIds: songIds,
         currentPlaylistName: i18n.t('common.nowPlaying'),
         excludePlaylistName: '',
         defaultPlaylistName: song.title,
@@ -897,8 +897,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         playlists: playlists,
         folders: menuFolders,
         showRemove: true,
-        showSeeArtistsAndSeeAlbum: false,
-        showAlbumArt: false,
+        showSeeAlbum: false,
         keepViewActionsOpen: false,
         preferenceLevel: preferenceLevel,
         onUndoPreference:
@@ -911,9 +910,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           onPlayTrack(song, songIds, queueIndex);
         },
         onPause: onTogglePlayPause,
-        onPlayNext: () {
-          onPlayNext(songIds, queueIndex);
-        },
+        onPlayNext: null,
         onAddToNowPlaying: () {
           onAddToNowPlaying(song);
         },
@@ -1024,28 +1021,53 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   }
 }
 
-class ImmersiveModeQueueCloseButton extends StatelessWidget {
-  const ImmersiveModeQueueCloseButton({
+class ImmersiveModeQueueHeaderActionButton extends StatelessWidget {
+  const ImmersiveModeQueueHeaderActionButton({
     super.key,
     required this.tooltip,
+    required this.icon,
     required this.onPressed,
   });
 
   final String tooltip;
+  final IconData icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return SmPlayerTextIconButton(
-      key: const ValueKey('ImmersiveMode.QueueCloseButton'),
       tooltip: tooltip,
       label: tooltip,
       showLabel: false,
       onPressed: onPressed,
-      iconWidget: const Icon(
-        FluentIcons.dismiss_20_regular,
-        key: ValueKey('ImmersiveMode.QueueCloseIcon'),
-      ),
+      iconWidget: Icon(icon),
+    );
+  }
+}
+
+class ImmersiveModeQueueCloseButton extends StatelessWidget {
+  const ImmersiveModeQueueCloseButton({
+    super.key,
+    required this.fullScreen,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final bool fullScreen;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width <= 800;
+    return ImmersiveModeQueueHeaderActionButton(
+      key: const ValueKey('ImmersiveMode.QueueCloseButton'),
+      tooltip: tooltip,
+      icon:
+          fullScreen || narrow
+              ? FluentIcons.chevron_down_20_regular
+              : FluentIcons.chevron_right_20_regular,
+      onPressed: onPressed,
     );
   }
 }

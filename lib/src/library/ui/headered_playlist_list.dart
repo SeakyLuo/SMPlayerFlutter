@@ -52,9 +52,10 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
                 ),
               ),
             SliverPadding(
+              key: const ValueKey('HeaderedPlaylist.PlaylistPadding'),
               padding: EdgeInsets.symmetric(
                 horizontal: compact ? 0 : 10,
-                vertical: compact ? 2 : 0,
+                vertical: 0,
               ),
               sliver: PlaylistControlSliver(
                 entries: entries,

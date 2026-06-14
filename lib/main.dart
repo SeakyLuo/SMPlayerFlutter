@@ -15,7 +15,6 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:screen_retriever/screen_retriever.dart' as screen;
@@ -52,11 +51,7 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
     final settingsSnapshot = await repository.initializeSettingsSnapshot();
     final settingsController = SettingsController(settingsSnapshot, repository);
     final settings = settingsController.snapshot;
-    final restoredLocation = resolveRestoredPage(settings.lastPage);
-    final initialLocation =
-        settings.lastDisplayMode == SmPlayerDisplayMode.immersive
-            ? immersiveModeRoutePath
-            : restoredLocation;
+    final initialLocation = resolveRestoredPage(settings.lastPage);
     if (!mounted) {
       settingsController.dispose();
       return;

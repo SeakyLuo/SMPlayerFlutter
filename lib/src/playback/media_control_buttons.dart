@@ -431,31 +431,22 @@ class _SkipTransportIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
+    final scale = size.shortestSide / 20;
     final paint =
         Paint()
           ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.55 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
+          ..style = PaintingStyle.fill;
 
     canvas.save();
+    final dx = (size.width - size.shortestSide) / 2;
+    final dy = (size.height - size.shortestSide) / 2;
+    canvas.translate(dx, dy);
     if (reverse) {
-      canvas.translate(size.width, 0);
+      canvas.translate(size.shortestSide, 0);
       canvas.scale(-1, 1);
     }
-    final path = _roundedTransportPolygon([
-      Offset(7.25 * scale, 5.5 * scale),
-      Offset(16.25 * scale, 12 * scale),
-      Offset(7.25 * scale, 18.5 * scale),
-    ], 1.5 * scale);
-    canvas.drawPath(path, paint);
-    canvas.drawLine(
-      Offset(18 * scale, 5.75 * scale),
-      Offset(18 * scale, 18.25 * scale),
-      paint,
-    );
+    canvas.scale(scale);
+    canvas.drawPath(_nextRegularPath(), paint);
     canvas.restore();
   }
 
@@ -463,6 +454,30 @@ class _SkipTransportIconPainter extends CustomPainter {
   bool shouldRepaint(covariant _SkipTransportIconPainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.reverse != reverse;
   }
+}
+
+Path _nextRegularPath() {
+  return Path()
+    ..fillType = PathFillType.evenOdd
+    ..addRRect(
+      RRect.fromLTRBR(16, 3, 17, 17, const Radius.circular(0.5)),
+    )
+    ..moveTo(3, 4.25)
+    ..cubicTo(3, 3.25, 4.12, 2.65, 4.95, 3.21)
+    ..lineTo(13.45, 8.92)
+    ..cubicTo(14.18, 9.42, 14.18, 10.49, 13.45, 10.99)
+    ..lineTo(4.95, 16.79)
+    ..cubicTo(4.12, 17.35, 3, 16.75, 3, 15.75)
+    ..lineTo(3, 4.25)
+    ..close()
+    ..moveTo(4.39, 4.05)
+    ..cubicTo(4.22, 3.93, 4, 4.05, 4, 4.25)
+    ..lineTo(4, 15.75)
+    ..cubicTo(4, 15.95, 4.23, 16.07, 4.4, 15.95)
+    ..lineTo(12.89, 10.17)
+    ..cubicTo(13.04, 10.07, 13.04, 9.85, 12.89, 9.75)
+    ..lineTo(4.39, 4.05)
+    ..close();
 }
 
 Path _roundedTransportPolygon(List<Offset> points, double radius) {

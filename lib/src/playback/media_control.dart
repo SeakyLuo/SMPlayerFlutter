@@ -86,6 +86,7 @@ class MediaControl extends StatelessWidget {
     required this.onEnterMiniMode,
     this.onOpenVoiceAssistant,
     this.currentSong,
+    this.nowPlayingSongIds = const [],
     this.playlists = const [],
     this.playbackNoticeKey,
     this.currentLyricsLine,
@@ -107,6 +108,7 @@ class MediaControl extends StatelessWidget {
 
   final MediaControlTrack track;
   final LibrarySong? currentSong;
+  final List<int> nowPlayingSongIds;
   final List<LibraryPlaylist> playlists;
   final bool disabled;
   final bool isPlaying;
@@ -214,6 +216,7 @@ class MediaControl extends StatelessWidget {
                 playbackNoticeKey: playbackNoticeKey,
                 currentLyricsLine: currentLyricsLine,
                 currentSong: currentSong,
+                nowPlayingSongIds: nowPlayingSongIds,
                 onArtworkError: onArtworkError,
                 playlists: playlists,
                 preferenceLevel: preferenceLevel,
@@ -314,6 +317,7 @@ class MediaControl extends StatelessWidget {
         onEnterMiniMode: onEnterMiniMode,
         isCompact: false,
         currentSong: currentSong,
+        nowPlayingSongIds: nowPlayingSongIds,
         playlists: playlists,
         preferenceLevel: resolvedPreferenceLevel,
         onAddToNowPlaying: onAddToNowPlaying,

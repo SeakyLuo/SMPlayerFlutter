@@ -404,7 +404,11 @@ Future<void> _showGroupContextMenuForArtistsPage(
     i18n: i18n,
     songIds: songIds,
     playlists: customPlaylists,
-    includeNowPlaying: true,
+    includeNowPlaying: shouldShowNowPlayingAddToTarget(
+      songIds: songIds,
+      nowPlayingSongIds: snapshot.nowPlaying.songIds,
+      isNowPlayingContext: false,
+    ),
     includeFavorites: notFavoriteIds.isNotEmpty,
     onAddToNowPlaying: () {
       addSongsToNowPlayingWithUndo(
@@ -545,6 +549,7 @@ Future<void> _showSongContextMenuForArtistsPage(
   List<MultiSelectCommandBarPlaylist> playlists,
 ) async {
   final i18n = state.context.smPlayerI18n;
+  final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
   final currentTrackId = mediaState.track.id;
   final preferenceLevel = await state.ref
@@ -563,6 +568,7 @@ Future<void> _showSongContextMenuForArtistsPage(
       isCurrentTrack: song.id == currentTrackId,
       isPlaying: mediaState.isPlaying,
       currentTrackId: currentTrackId,
+      nowPlayingSongIds: snapshot.nowPlaying.songIds,
       songPath: song.path,
       playlists: playlists,
       preferenceLevel: preferenceLevel,
@@ -712,7 +718,11 @@ void _showSongAddToMenuForArtistsPage(
     i18n: i18n,
     songIds: [song.id],
     playlists: playlists,
-    includeNowPlaying: true,
+    includeNowPlaying: shouldShowNowPlayingAddToTarget(
+      songIds: [song.id],
+      nowPlayingSongIds: snapshot.nowPlaying.songIds,
+      isNowPlayingContext: false,
+    ),
     includeFavorites: !song.favorite,
     onAddToNowPlaying: () {
       addSongsToNowPlayingWithUndo(

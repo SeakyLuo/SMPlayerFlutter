@@ -43,7 +43,11 @@ extension _LocalPageAddToActions on _LocalPageState {
       i18n: i18n,
       songIds: songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: songIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: _hasNotFavoriteSongs(songIds, songsById),
       onAddToNowPlaying: () {
         _addSongsToNowPlaying(songIds);
