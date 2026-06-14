@@ -1768,12 +1768,12 @@ void main() {
     expect(desktopService.windowFullScreen, isFalse);
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-      SmPlayerDisplayMode.immersive,
+      SmPlayerDisplayMode.normal,
     );
   });
 
   testWidgets(
-    'bottom player song info exits native fullscreen before immersive now playing',
+    'bottom player song info keeps native fullscreen for immersive now playing',
     (tester) async {
       _setViewSize(tester, const Size(1300, 700));
       setSmPlayerGlobalSettingsSnapshot(
@@ -1782,6 +1782,7 @@ void main() {
           musicProgress: 0,
           autoPlay: false,
           saveMusicProgress: true,
+          lastDisplayMode: SmPlayerDisplayMode.fullScreen,
         ),
       );
       final navigations = <String>[];
@@ -1829,10 +1830,10 @@ void main() {
       await tester.pump();
 
       expect(navigations.single, startsWith('/immersive-mode'));
-      expect(desktopService.windowFullScreen, isFalse);
+      expect(desktopService.windowFullScreen, isTrue);
       expect(
         smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-        SmPlayerDisplayMode.immersive,
+        SmPlayerDisplayMode.fullScreen,
       );
 
       desktopService.emit(
@@ -1846,12 +1847,12 @@ void main() {
       expect(navigations.single, startsWith('/immersive-mode'));
       expect(
         smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-        SmPlayerDisplayMode.immersive,
+        SmPlayerDisplayMode.normal,
       );
     },
   );
 
-  testWidgets('shell navigation resets display mode after leaving immersive', (
+  testWidgets('shell navigation does not persist immersive display mode', (
     tester,
   ) async {
     _setViewSize(tester, const Size(1300, 700));
@@ -1872,13 +1873,13 @@ void main() {
     expect(navigations.last, immersiveModeRoutePath);
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-      SmPlayerDisplayMode.immersive,
+      SmPlayerDisplayMode.normal,
     );
 
     await tester.tap(find.byKey(const ValueKey('exit-immersive')));
     await tester.pump();
 
-    expect(navigations.last, nowPlayingRoutePath);
+    expect(navigations.last, '/songs');
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
       SmPlayerDisplayMode.normal,
@@ -2637,7 +2638,7 @@ void main() {
     expect(navigations, isEmpty);
     expect(
       smPlayerGlobalSettingsSnapshot.lastDisplayMode,
-      SmPlayerDisplayMode.immersive,
+      SmPlayerDisplayMode.normal,
     );
   });
 
@@ -2767,7 +2768,7 @@ class _ShellDisplayModeNavigationProbe extends ConsumerWidget {
         TextButton(
           key: const ValueKey('exit-immersive'),
           onPressed: () {
-            actions?.onNavigate?.call(nowPlayingRoutePath);
+            actions?.onExitImmersiveMode?.call();
           },
           child: const Text('Exit immersive'),
         ),

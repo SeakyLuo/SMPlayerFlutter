@@ -688,6 +688,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 showPlay: selectedQueueSongIds.isNotEmpty,
                 showAddTo: selectedQueueSongIds.isNotEmpty,
                 addToSongIds: selectedQueueSongIds,
+                nowPlayingSongIds: snapshot.nowPlaying.songIds,
                 includeNowPlayingInAddTo: true,
                 includeFavoritesInAddTo: _hasNotFavoriteSongs(
                   selectedQueueSongIds,

@@ -337,6 +337,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 mediaControlState: mediaControlState,
                                 selection: _selection,
                                 playlists: _customPlaylists(snapshot.playlists),
+                                nowPlayingSongIds: snapshot.nowPlaying.songIds,
                                 songsById: {
                                   for (final song in snapshot.songs)
                                     song.id: song,
@@ -444,6 +445,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   playlists: _customPlaylists(snapshot.playlists),
                   showAddTo: true,
                   addToSongIds: selectedSongIds,
+                  nowPlayingSongIds: snapshot.nowPlaying.songIds,
                   includeNowPlayingInAddTo: true,
                   includeFavoritesInAddTo: hasNotFavoriteSongs(
                     selectedSongIds,

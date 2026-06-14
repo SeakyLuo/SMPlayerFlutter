@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -28,7 +27,6 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_control_panel.dart'
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_more_menu.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_multi_select_bar.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_scaffold.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_stage.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
@@ -208,17 +206,8 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     super.dispose();
   }
 
-  Future<void> _closeFullPage(SmPlayerShellActions? shellActions) async {
-    await shellActions?.onExitWindowFullScreen?.call();
-    if (!mounted) {
-      return;
-    }
-    final navigate = shellActions?.onNavigate;
-    if (navigate != null) {
-      navigate(nowPlayingRoutePath);
-      return;
-    }
-    context.go(nowPlayingRoutePath);
+  void _exitImmersiveMode(SmPlayerShellActions? shellActions) {
+    shellActions?.onExitImmersiveMode?.call();
   }
 
   void _raisePlayerBar() {
@@ -316,6 +305,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
               selection: _selection,
               scrollController: _queueController,
               playlists: customPlaylists,
+              playlistSnapshots: snapshot.playlists,
               folders: snapshot.folders,
               onClose: () {
                 setState(() {
@@ -325,12 +315,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
               onReorder: _moveQueueSong,
               onReplaceQueue: _replaceQueue,
               currentQueueSongIds: () {
-                return ref
-                        .read(libraryContentDataProvider)
-                        .valueOrNull
-                        ?.nowPlaying
-                        .songIds ??
-                    queueSongIds;
+                return _currentQueueSongIds(queueSongIds);
               },
               onPlaySongs: _playQueueSongIds,
               onPlayTrack: _playQueueTrack,
@@ -345,6 +330,9 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
               onAddToPlaylist: _addSongsToPlaylist,
               onToggleFavorite: _toggleSongsFavorite,
               onCreatePlaylist: _createPlaylist,
+              onClearNowPlaying: () {
+                _replaceQueue(const []);
+              },
               onAddToNowPlaying: (song) {
                 _addSongToNowPlaying(song, queueSongIds);
               },
@@ -393,7 +381,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
               key: const ValueKey('ImmersiveMode.PlayerBarOpacity'),
               duration: const Duration(milliseconds: 180),
               curve: Curves.ease,
-              opacity: _isPlayerBarRaised ? 1 : 0.24,
+              opacity: _isPlayerBarRaised ? 1 : 0,
               child: AnimatedSlide(
                 key: const ValueKey('ImmersiveMode.PlayerBarSlide'),
                 duration: const Duration(milliseconds: 260),
@@ -430,7 +418,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
                           },
                   onOpenVoiceAssistant: shellActions?.onOpenVoiceAssistant,
                   onClose: () {
-                    unawaited(_closeFullPage(shellActions));
+                    _exitImmersiveMode(shellActions);
                   },
                   onMoreClick: (buttonContext) {
                     unawaited(
@@ -505,7 +493,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
                       i18n: i18n,
                       playlistOpen: _isPlaylistOpen,
                       onClose: () {
-                        unawaited(_closeFullPage(shellActions));
+                        _exitImmersiveMode(shellActions);
                       },
                       onTogglePlaylist: () {
                         final dialogWasOpen = _dialogMode != null;
@@ -534,12 +522,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
                           snapshot.hideMultiSelectCommandBarAfterOperation,
                       selection: _selection,
                       currentQueueSongIds: () {
-                        return ref
-                                .read(libraryContentDataProvider)
-                                .valueOrNull
-                                ?.nowPlaying
-                                .songIds ??
-                            queueSongIds;
+                        return _currentQueueSongIds(queueSongIds);
                       },
                       onToggleFavorite: _toggleSongsFavorite,
                       onAddToPlaylist: _addSongsToPlaylist,
@@ -767,10 +750,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       onOpenMusicDialog: _openMusicDialog,
       onPlayArtist: _playArtist,
       onPlayAlbum: _playAlbum,
-      onClearNowPlaying: () {
-        unawaited(_closeFullPage(shellActions));
-        _replaceQueue(const []);
-      },
       onMenuOpenChanged: (open) {
         setState(() {
           _isMoreMenuOpen = open;
@@ -980,8 +959,53 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   }
 
   void _replaceQueue(List<int> songIds) {
+    final snapshot = ref.read(libraryContentDataProvider).value;
+    final queueOverride = ref.read(nowPlayingQueueOverrideProvider);
+    final currentSongIds = queueOverride ?? snapshot?.nowPlaying.songIds;
+    if (currentSongIds != null &&
+        _sameImmersiveModeSongIds(currentSongIds, songIds)) {
+      return;
+    }
+    if (currentSongIds != null) {
+      _syncSelectedQueueIndexForQueueChange(currentSongIds, songIds);
+    }
     ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
     unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+  }
+
+  List<int> _currentQueueSongIds(List<int> fallback) {
+    return ref.read(nowPlayingQueueOverrideProvider) ??
+        ref.read(libraryContentDataProvider).valueOrNull?.nowPlaying.songIds ??
+        fallback;
+  }
+
+  void _syncSelectedQueueIndexForQueueChange(
+    List<int> currentSongIds,
+    List<int> nextSongIds,
+  ) {
+    final mediaController = ref.read(mediaControlControllerProvider);
+    final mediaState = mediaController.state;
+    final trackId = mediaState.track.id;
+    if (trackId == null) {
+      return;
+    }
+    final currentIndex =
+        mediaState.selectedQueueIndex ??
+        currentSongIds.indexWhere((songId) => songId == trackId);
+    if (currentIndex < 0 || currentIndex >= currentSongIds.length) {
+      final nextIndex = nextSongIds.indexWhere((songId) => songId == trackId);
+      mediaController.setSelectedQueueIndex(nextIndex > -1 ? nextIndex : null);
+      return;
+    }
+    final nextIndex = _matchingImmersiveModeQueueIndexByOccurrence(
+      trackId,
+      currentSongIds,
+      currentIndex,
+      nextSongIds,
+    );
+    if (mediaState.selectedQueueIndex != nextIndex) {
+      mediaController.setSelectedQueueIndex(nextIndex);
+    }
   }
 
   void _moveQueueSong(List<int> queueSongIds, int oldIndex, int newIndex) {
@@ -995,39 +1019,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       for (var index = 0; index < queueSongIds.length; index += 1)
         if (index != queueIndex) queueSongIds[index],
     ];
-    _replaceQueue(nextQueueSongIds);
-    _playNextQueueSongAfterRemovingCurrent(
+    final nextPlayingQueueIndex = _nextQueueIndexAfterRemovingCurrentPlaying(
       queueSongIds,
-      nextQueueSongIds,
       {queueIndex},
-      queueIndex,
-      queueSongIds[queueIndex],
+      nextQueueSongIds,
     );
-  }
-
-  void _playNextQueueSongAfterRemovingCurrent(
-    List<int> before,
-    List<int> nextQueueSongIds,
-    Set<int> removedIndexes,
-    int removedQueueIndex,
-    int removedSongId,
-  ) {
-    final mediaState = ref.read(mediaControlControllerProvider).state;
-    final removedCurrent =
-        mediaState.selectedQueueIndex == null
-            ? removedSongId == mediaState.track.id
-            : removedQueueIndex == mediaState.selectedQueueIndex;
-    if (!removedCurrent || nextQueueSongIds.isEmpty) {
-      return;
+    _replaceQueue(nextQueueSongIds);
+    if (nextPlayingQueueIndex != null) {
+      _playQueueSongAt(nextQueueSongIds, nextPlayingQueueIndex);
     }
-
-    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
-      before.length,
-      removedIndexes,
-      removedQueueIndex,
-      nextQueueSongIds.length,
-    );
-    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
   }
 
   void _removeSelectedQueueIndexes(
@@ -1035,42 +1035,55 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     List<int> selectedIndexes,
     List<int> nextQueueSongIds,
   ) {
-    final selectedIndexSet = selectedIndexes.toSet();
-    _replaceQueue(nextQueueSongIds);
-    final mediaState = ref.read(mediaControlControllerProvider).state;
-    final currentQueueIndex =
-        mediaState.selectedQueueIndex ??
-        queueSongIds.indexWhere((songId) => songId == mediaState.track.id);
-    if (!selectedIndexSet.contains(currentQueueIndex) ||
-        nextQueueSongIds.isEmpty) {
-      return;
-    }
-
-    final nextQueueIndex = _nextQueueIndexAfterRemovingCurrent(
-      queueSongIds.length,
-      selectedIndexSet,
-      currentQueueIndex,
-      nextQueueSongIds.length,
+    final nextPlayingQueueIndex = _nextQueueIndexAfterRemovingCurrentPlaying(
+      queueSongIds,
+      selectedIndexes.toSet(),
+      nextQueueSongIds,
     );
-    _playQueueSongAt(nextQueueSongIds, nextQueueIndex);
+    _replaceQueue(nextQueueSongIds);
+    if (nextPlayingQueueIndex != null) {
+      _playQueueSongAt(nextQueueSongIds, nextPlayingQueueIndex);
+    }
   }
 
-  int _nextQueueIndexAfterRemovingCurrent(
-    int originalQueueLength,
+  int? _nextQueueIndexAfterRemovingCurrentPlaying(
+    List<int> queueSongIds,
     Set<int> removedIndexes,
-    int removedCurrentIndex,
-    int nextQueueLength,
+    List<int> nextQueueSongIds,
   ) {
+    final currentQueueIndex = _currentPlayingQueueIndex(queueSongIds);
+    if (currentQueueIndex == null ||
+        !removedIndexes.contains(currentQueueIndex) ||
+        nextQueueSongIds.isEmpty) {
+      return null;
+    }
     var nextQueueIndex = 0;
-    for (var index = 0; index < originalQueueLength; index += 1) {
-      if (index == removedCurrentIndex) {
-        break;
-      }
+    for (var index = 0; index < currentQueueIndex; index += 1) {
       if (!removedIndexes.contains(index)) {
         nextQueueIndex += 1;
       }
     }
-    return nextQueueIndex < nextQueueLength ? nextQueueIndex : 0;
+    return nextQueueIndex < nextQueueSongIds.length ? nextQueueIndex : 0;
+  }
+
+  int? _currentPlayingQueueIndex(List<int> queueSongIds) {
+    final mediaState = ref.read(mediaControlControllerProvider).state;
+    if (!mediaState.isPlaying) {
+      return null;
+    }
+    final trackId = mediaState.track.id;
+    if (trackId == null) {
+      return null;
+    }
+    final queueIndex = mediaState.selectedQueueIndex;
+    if (queueIndex != null &&
+        queueIndex >= 0 &&
+        queueIndex < queueSongIds.length &&
+        queueSongIds[queueIndex] == trackId) {
+      return queueIndex;
+    }
+    final trackIndex = queueSongIds.indexOf(trackId);
+    return trackIndex == -1 ? null : trackIndex;
   }
 
   void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
@@ -1193,11 +1206,11 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
         ref.invalidate(libraryContentDataProvider);
         final snapshot =
             await ref.read(libraryRepositoryProvider).getLibraryContentData();
+        final currentQueueSongIds =
+            ref.read(nowPlayingQueueOverrideProvider) ??
+            snapshot.nowPlaying.songIds;
         _replaceQueue(
-          insertImmersiveModeQueueEntries(
-            snapshot.nowPlaying.songIds,
-            removedEntries,
-          ),
+          insertImmersiveModeQueueEntries(currentQueueSongIds, removedEntries),
         );
       },
     );
@@ -1244,6 +1257,46 @@ String primaryImmersiveModeArtist(LibrarySong song, SmPlayerI18n i18n) {
 
 String displayImmersiveModeAlbum(LibrarySong song, SmPlayerI18n i18n) {
   return song_display.displayAlbum(song, i18n);
+}
+
+bool _sameImmersiveModeSongIds(List<int> left, List<int> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int? _matchingImmersiveModeQueueIndexByOccurrence(
+  int trackId,
+  List<int> currentSongIds,
+  int currentIndex,
+  List<int> nextSongIds,
+) {
+  var occurrence = 0;
+  for (var index = 0; index <= currentIndex; index += 1) {
+    if (currentSongIds[index] == trackId) {
+      occurrence += 1;
+    }
+  }
+  if (occurrence == 0) {
+    return null;
+  }
+  var nextOccurrence = 0;
+  for (var index = 0; index < nextSongIds.length; index += 1) {
+    if (nextSongIds[index] != trackId) {
+      continue;
+    }
+    nextOccurrence += 1;
+    if (nextOccurrence == occurrence) {
+      return index;
+    }
+  }
+  return null;
 }
 
 @visibleForTesting

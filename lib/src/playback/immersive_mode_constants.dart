@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 const immersiveModePlayerHeight = 120.0;
-const immersiveModePlayerIdleVisibleHeight = 10.0;
+const immersiveModePlayerIdleVisibleHeight = 0.0;
 const immersiveModePlayerIdleSlideOffset =
     (immersiveModePlayerHeight - immersiveModePlayerIdleVisibleHeight) /
     immersiveModePlayerHeight;

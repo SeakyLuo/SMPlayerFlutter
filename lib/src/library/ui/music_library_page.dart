@@ -800,6 +800,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
         currentTrackId: currentTrackId,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
         songPath: song.path,
         playlists: playlists,
         onPlay: () {
@@ -946,12 +947,17 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final selectedSongIds = selectedSongs.map((song) => song.id).toList();
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: selectedSongIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: selectedSongIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: selectedSongs.any((song) => !song.favorite),
       onAddToNowPlaying: () {
         addSongsToNowPlaying(ref, selectedSongIds);
@@ -971,7 +977,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(libraryContentDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -1016,7 +1021,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       i18n: i18n,
       songIds: [song.id],
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: [song.id],
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: !song.favorite,
       defaultPlaylistName: getNextPlaylistName(song.title, snapshot.playlists),
       onAddToNowPlaying: () {

@@ -567,6 +567,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               selectedCount: selectedVisibleSongIds.length,
               playlists: customPlaylists,
               addToSongIds: selectedVisibleSongIds,
+              nowPlayingSongIds: snapshot.nowPlaying.songIds,
               includeNowPlayingInAddTo: true,
               includeFavoritesInAddTo: hasNotFavoriteSongs(
                 selectedVisibleSongIds,

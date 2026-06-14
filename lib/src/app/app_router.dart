@@ -455,7 +455,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         }
 
         if (path == immersiveModeRoutePath) {
-          context.go(nowPlayingRoutePath);
+          return;
         }
       },
       onSearchCommit: (query, [type = SearchHistoryType.sidebar]) {

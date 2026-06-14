@@ -337,6 +337,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 });
               }
             },
+            onExitImmersiveMode: _exitImmersiveMode,
             onNavigate: _navigateTo,
           ),
         ),

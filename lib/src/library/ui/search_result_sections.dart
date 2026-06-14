@@ -50,6 +50,7 @@ class _SearchResultSection extends StatelessWidget {
     required this.mediaControlState,
     required this.selection,
     required this.playlists,
+    required this.nowPlayingSongIds,
     required this.songsById,
     required this.folderNodes,
     required this.allPlaylists,
@@ -91,6 +92,7 @@ class _SearchResultSection extends StatelessWidget {
   final MediaControlState mediaControlState;
   final PageSelectionController<String> selection;
   final List<MultiSelectCommandBarPlaylist> playlists;
+  final List<int> nowPlayingSongIds;
   final Map<int, LibrarySong> songsById;
   final Map<String, FolderNode> folderNodes;
   final List<LibraryPlaylist> allPlaylists;
@@ -480,6 +482,7 @@ class _SearchResultSection extends StatelessWidget {
         onPlayNext: () {
           onPlayNext(song);
         },
+        nowPlayingSongIds: nowPlayingSongIds,
         onAddToNowPlaying: () {
           unawaited(onAddSongsToNowPlaying([song.id]));
         },
@@ -552,7 +555,11 @@ class _SearchResultSection extends StatelessWidget {
       i18n: i18n,
       songIds: card.songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: card.songIds,
+        nowPlayingSongIds: nowPlayingSongIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: favoriteSongIds.isNotEmpty,
       onAddToNowPlaying: () {
         onAddSongsToNowPlaying(card.songIds);
@@ -640,7 +647,11 @@ class _SearchResultSection extends StatelessWidget {
       i18n: i18n,
       songIds: card.songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: card.songIds,
+        nowPlayingSongIds: nowPlayingSongIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: favoriteSongIds.isNotEmpty,
       onAddToNowPlaying: () {
         onAddSongsToNowPlaying(card.songIds);

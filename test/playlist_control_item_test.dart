@@ -372,9 +372,15 @@ void main() {
         find.byKey(const ValueKey('PlaylistControlItem.Playing.Backdrop')),
       );
       expect(waveGlass.settings?.glassColor, artworkOverlayGlassColor);
-      expect(waveGlass.settings?.blur, 54);
-      expect(waveGlass.settings?.saturation, 1.72);
-      expect(waveGlass.settings?.glowIntensity, 0.22);
+      expect(waveGlass.settings?.blur, artworkOverlayGlassSettings.blur);
+      expect(
+        waveGlass.settings?.saturation,
+        artworkOverlayGlassSettings.saturation,
+      );
+      expect(
+        waveGlass.settings?.glowIntensity,
+        artworkOverlayGlassSettings.glowIntensity,
+      );
       expect(
         waveGlass.settings?.standardOpacityMultiplier,
         artworkOverlayGlassOpacityMultiplier,
@@ -891,6 +897,115 @@ void main() {
     },
   );
 
+  testWidgets(
+    'PlaylistControlItem headered narrow actions collapse like Electron',
+    (tester) async {
+      const longTitleSong = LibrarySong(
+        id: 200,
+        path: 'long-title.mp3',
+        title: 'Distinctive Compact Headered Playlist Control Item Title',
+        artist: 'Artist',
+        artists: ['Artist'],
+        album: 'Album',
+        duration: 180,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '',
+        favorite: false,
+        thumbnailPath: '',
+      );
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 1100,
+                child: PlaylistControlItem(
+                  song: longTitleSong,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  showAlbum: true,
+                  variant: PlaylistControlItemVariant.headeredPlaylist,
+                  favoriteLabel: 'Favorite',
+                  addToPlaylistLabel: 'Add',
+                  playNextLabel: 'Play Next',
+                  removeLabel: 'Remove',
+                  moreLabel: 'More',
+                  onToggleFavoriteClick: _noop,
+                  onAddToPlaylistClick: _noopContext,
+                  onPlayNextClick: _noop,
+                  onRemoveFromListClick: _noop,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Actions')))
+            .width,
+        34,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.FavoriteAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.RemoveAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+        findsOneWidget,
+      );
+
+      final titleWidthBefore =
+          tester
+              .getSize(find.byKey(const ValueKey('PlaylistControlItem.Title')))
+              .width;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(PlaylistControlItem)),
+      );
+      addTearDown(mouse.removePointer);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Actions')))
+            .width,
+        68,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Title')))
+            .width,
+        lessThan(titleWidthBefore),
+      );
+    },
+  );
+
   testWidgets('PlaylistControlItem compact actions follow Electron width', (
     tester,
   ) async {
@@ -1030,6 +1145,135 @@ void main() {
             .width,
         34,
       );
+    },
+  );
+
+  testWidgets('PlaylistControlItem narrow row hides favorite like Electron', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: const Scaffold(
+            body: SizedBox(
+              width: 720,
+              child: PlaylistControlItem(
+                song: _song,
+                current: false,
+                playing: false,
+                selected: false,
+                selectionMode: false,
+                favoriteLabel: 'Favorite',
+                addToPlaylistLabel: 'Add',
+                moreLabel: 'More',
+                onToggleFavoriteClick: _noop,
+                onAddToPlaylistClick: _noopContext,
+                onOpenContextMenu: _noopPosition,
+                onPlayTrack: _noop,
+                onTogglePlayPause: _noop,
+                onToggleSelection: _noop,
+                onPlayNextClick: _noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('PlaylistControlItem.FavoriteAction')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'PlaylistControlItem narrow compact primary actions hide favorite and collapse',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 720,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: false,
+                  playing: false,
+                  selected: false,
+                  selectionMode: false,
+                  variant: PlaylistControlItemVariant.compact,
+                  showCompactPrimaryActions: true,
+                  collapseCompactPrimaryActions: true,
+                  favoriteLabel: 'Favorite',
+                  addToPlaylistLabel: 'Add',
+                  moreLabel: 'More',
+                  onToggleFavoriteClick: _noop,
+                  onAddToPlaylistClick: _noopContext,
+                  onOpenContextMenu: _noopPosition,
+                  onPlayTrack: _noop,
+                  onTogglePlayPause: _noop,
+                  onToggleSelection: _noop,
+                  onPlayNextClick: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.FavoriteAction')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Actions')))
+            .width,
+        34,
+      );
+
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+        findsOneWidget,
+      );
+
+      final playNext = find.byKey(
+        const ValueKey('PlaylistControlItem.PlayNextAction'),
+      );
+      final playNextOpacity = tester.widget<AnimatedOpacity>(
+        find
+            .ancestor(of: playNext, matching: find.byType(AnimatedOpacity))
+            .first,
+      );
+      expect(playNextOpacity.opacity, 0);
     },
   );
 
@@ -1291,7 +1535,7 @@ void main() {
           .last,
     );
 
-    expect(rowDecoration.color, const Color(0x2e0078d7));
+    expect(rowDecoration.color, const Color(0x000078d7));
     expect(title.style?.color, const Color(0xff459de2));
     expect(artist.style?.color, const Color(0xc276b5dc));
     expect(actionIconTheme.data.color, const Color(0xadcbd5e1));
@@ -1308,7 +1552,7 @@ void main() {
                 .widget<AnimatedContainer>(find.byType(AnimatedContainer).first)
                 .decoration!
             as BoxDecoration;
-    expect(hoveredDecoration.color, const Color(0x2e0078d7));
+    expect(hoveredDecoration.color, const Color(0x290078d7));
   });
 
   testWidgets(

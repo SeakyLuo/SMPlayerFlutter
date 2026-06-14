@@ -76,7 +76,11 @@ extension _LocalPageContextMenus on _LocalPageState {
       i18n: i18n,
       songIds: folder.subtreeSongIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: folder.subtreeSongIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
       onAddToNowPlaying: () {
         _addSongsToNowPlaying(folder.subtreeSongIds);
@@ -208,7 +212,11 @@ extension _LocalPageContextMenus on _LocalPageState {
       i18n: i18n,
       songIds: folder.subtreeSongIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: folder.subtreeSongIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
       onAddToNowPlaying: () {
         _addSongsToNowPlaying(folder.subtreeSongIds);
@@ -305,6 +313,7 @@ extension _LocalPageContextMenus on _LocalPageState {
         isFavorite: song.favorite,
         isCurrentTrack: mediaState.track.id == song.id,
         isPlaying: mediaState.isPlaying,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
         playlists: playlists,
         folders: buildLocalMenuFolders(snapshot.folders),
         songPath: song.path,

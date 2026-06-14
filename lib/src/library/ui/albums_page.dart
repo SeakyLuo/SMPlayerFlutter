@@ -545,6 +545,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                     selectedCount: selectedAlbums.length,
                     playlists: customPlaylists,
                     addToSongIds: selectedSongIds,
+                    nowPlayingSongIds: snapshot.nowPlaying.songIds,
                     includeNowPlayingInAddTo: true,
                     includeFavoritesInAddTo: hasNotFavoriteSongs(
                       selectedSongIds,
@@ -789,6 +790,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
     final i18n = context.smPlayerI18n;
+    final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
         .read(libraryRepositoryProvider)
         .getPreferenceLevel('album', album.name);
@@ -799,7 +801,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       i18n: i18n,
       songIds: album.songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: album.songIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: album.songs.any((song) => !song.favorite),
       onAddToNowPlaying: () {
         _addSongsToNowPlayingWithUndo(album.songIds);
@@ -817,7 +823,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
               }
               : null,
       onCreatePlaylist: () async {
-        final snapshot = ref.read(libraryContentDataProvider).value!;
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
@@ -914,7 +919,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       i18n: i18n,
       songIds: album.songIds,
       playlists: playlists,
-      includeNowPlaying: true,
+      includeNowPlaying: shouldShowNowPlayingAddToTarget(
+        songIds: album.songIds,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        isNowPlayingContext: false,
+      ),
       includeFavorites: album.songs.any((song) => !song.favorite),
       onAddToNowPlaying: () {
         _addSongsToNowPlayingWithUndo(album.songIds);

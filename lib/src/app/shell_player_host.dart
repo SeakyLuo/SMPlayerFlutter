@@ -165,6 +165,7 @@ class ShellPlayerHost extends StatelessWidget {
                 return MediaControl(
                   track: mediaControlState.track,
                   currentSong: currentSong,
+                  nowPlayingSongIds: snapshot?.nowPlaying.songIds ?? const [],
                   playlists: snapshot?.playlists ?? const [],
                   disabled: isPlaybackQueueEmpty(snapshot),
                   isPlaying: mediaControlState.isPlaying,

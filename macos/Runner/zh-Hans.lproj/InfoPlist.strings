@@ -1,2 +1,4 @@
 "CFBundleName" = "简音播放器";
 "CFBundleDisplayName" = "简音播放器";
+"NSMicrophoneUsageDescription" = "简音播放器会使用麦克风接收语音助手命令。";
+"NSSpeechRecognitionUsageDescription" = "简音播放器会使用语音识别执行语音助手命令。";

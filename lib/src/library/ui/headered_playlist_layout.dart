@@ -36,6 +36,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
               ),
             )
             .toList();
+    final nowPlayingSongIds =
+        ref.read(nowPlayingQueueOverrideProvider) ??
+        ref.read(libraryContentDataProvider).valueOrNull!.nowPlaying.songIds;
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
             ? playlists.firstWhere((playlist) => playlist.name == widget.title)
@@ -123,6 +126,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                         i18n: i18n,
                         song: visibleSongs[index],
                         queueSongIds: queueSongIds,
+                        nowPlayingSongIds: nowPlayingSongIds,
                         index: index,
                         customPlaylists: customPlaylists,
                         currentPlaylistName: currentPlaylistName,
@@ -144,6 +148,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
             selectedCount: _effectiveSelectedSongIds(queueSongIds).length,
             playlists: customPlaylists,
             addToSongIds: _effectiveSelectedSongIds(queueSongIds),
+            nowPlayingSongIds: nowPlayingSongIds,
             includeNowPlayingInAddTo: true,
             includeFavoritesInAddTo:
                 widget.type != HeaderedPlaylistType.favorites,
@@ -274,6 +279,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
     required SmPlayerI18n i18n,
     required LibrarySong song,
     required List<int> queueSongIds,
+    required List<int> nowPlayingSongIds,
     required int index,
     required List<MultiSelectCommandBarPlaylist> customPlaylists,
     required String currentPlaylistName,
@@ -327,7 +333,12 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           playlists: customPlaylists,
           currentPlaylistName: currentPlaylistName,
           excludePlaylistName: currentSavedPlaylist?.name,
-          includeNowPlaying: true,
+          includeNowPlaying: shouldShowNowPlayingAddToTarget(
+            songIds: [song.id],
+            nowPlayingSongIds: nowPlayingSongIds,
+            isNowPlayingContext:
+                currentPlaylistName == i18n.t('common.nowPlaying'),
+          ),
           includeFavorites: widget.type != HeaderedPlaylistType.favorites,
           onAddToNowPlaying: () {
             _addSongsToNowPlaying([song.id]);

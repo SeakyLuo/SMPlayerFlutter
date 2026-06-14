@@ -65,6 +65,7 @@ class MultiSelectCommandBar extends StatelessWidget {
     this.showAddTo = true,
     this.onPlay,
     this.addToSongIds = const [],
+    this.nowPlayingSongIds = const [],
     this.defaultPlaylistName,
     this.includeNowPlayingInAddTo = false,
     this.includeFavoritesInAddTo = false,
@@ -92,6 +93,7 @@ class MultiSelectCommandBar extends StatelessWidget {
   final bool showAddTo;
   final VoidCallback? onPlay;
   final List<int> addToSongIds;
+  final List<int> nowPlayingSongIds;
   final String? defaultPlaylistName;
   final bool includeNowPlayingInAddTo;
   final bool includeFavoritesInAddTo;
@@ -240,7 +242,9 @@ class MultiSelectCommandBar extends StatelessWidget {
                             ? 12.0
                             : 18.0;
                     final hasAddToTargets = _hasAddToTargets(
+                      i18n: i18n,
                       songIds: addToSongIds,
+                      nowPlayingSongIds: nowPlayingSongIds,
                       playlists: playlists,
                       includeNowPlaying: includeNowPlayingInAddTo,
                       includeFavorites: includeFavoritesInAddTo,
@@ -285,6 +289,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                           compactPhone: compactPhone,
                           style: style,
                           songIds: addToSongIds,
+                          nowPlayingSongIds: nowPlayingSongIds,
                           defaultPlaylistName: defaultPlaylistName,
                           playlists: playlists,
                           includeNowPlaying: includeNowPlayingInAddTo,
@@ -612,7 +617,9 @@ class MultiSelectCommandBar extends StatelessWidget {
 enum MultiSelectCommandBarAddToMenuPosition { aboveButton, pointer }
 
 bool _hasAddToTargets({
+  required SmPlayerI18n i18n,
   required List<int> songIds,
+  required List<int> nowPlayingSongIds,
   required List<MultiSelectCommandBarPlaylist> playlists,
   required bool includeNowPlaying,
   required bool includeFavorites,
@@ -623,7 +630,13 @@ bool _hasAddToTargets({
   required VoidCallback? onCreatePlaylist,
   required ValueChanged<int>? onAddToPlaylist,
 }) {
-  if (includeNowPlaying && onAddToNowPlaying != null) {
+  if (includeNowPlaying &&
+      onAddToNowPlaying != null &&
+      shouldShowNowPlayingAddToTarget(
+        songIds: songIds,
+        nowPlayingSongIds: nowPlayingSongIds,
+        isNowPlayingContext: currentPlaylistName == i18n.t('common.nowPlaying'),
+      )) {
     return true;
   }
   if (includeFavorites && onToggleFavorite != null) {
@@ -818,6 +831,7 @@ class _MultiSelectAddToAction extends StatefulWidget {
     required this.compactPhone,
     required this.style,
     required this.songIds,
+    required this.nowPlayingSongIds,
     required this.defaultPlaylistName,
     required this.playlists,
     required this.includeNowPlaying,
@@ -837,6 +851,7 @@ class _MultiSelectAddToAction extends StatefulWidget {
   final bool compactPhone;
   final _MultiSelectCommandBarStyle style;
   final List<int> songIds;
+  final List<int> nowPlayingSongIds;
   final String? defaultPlaylistName;
   final List<MultiSelectCommandBarPlaylist> playlists;
   final bool includeNowPlaying;
@@ -892,7 +907,15 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
                 defaultPlaylistName: widget.defaultPlaylistName,
                 currentPlaylistName: widget.currentPlaylistName,
                 excludePlaylistName: widget.excludePlaylistName,
-                includeNowPlaying: widget.includeNowPlaying,
+                includeNowPlaying:
+                    widget.includeNowPlaying &&
+                    shouldShowNowPlayingAddToTarget(
+                      songIds: menuSongIds,
+                      nowPlayingSongIds: widget.nowPlayingSongIds,
+                      isNowPlayingContext:
+                          widget.currentPlaylistName ==
+                          i18n.t('common.nowPlaying'),
+                    ),
                 includeFavorites: widget.includeFavorites,
                 onAddToNowPlaying:
                     widget.onAddToNowPlaying == null

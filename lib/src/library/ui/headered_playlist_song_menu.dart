@@ -38,6 +38,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
         isCurrentTrack: widget.selectedTrackId == song.id,
         isPlaying: widget.isPlaying,
         currentTrackId: widget.selectedTrackId,
+        nowPlayingSongIds: snapshot.nowPlaying.songIds,
         songPath: song.path,
         playlists:
             playlists

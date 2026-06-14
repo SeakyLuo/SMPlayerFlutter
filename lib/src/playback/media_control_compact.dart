@@ -34,6 +34,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     this.playbackNoticeKey,
     this.currentLyricsLine,
     this.currentSong,
+    this.nowPlayingSongIds = const [],
     this.onArtworkError,
     this.playlists = const [],
     this.preferenceLevel,
@@ -83,6 +84,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final String? playbackNoticeKey;
   final String? currentLyricsLine;
   final LibrarySong? currentSong;
+  final List<int> nowPlayingSongIds;
   final VoidCallback? onArtworkError;
   final List<LibraryPlaylist> playlists;
   final String? preferenceLevel;
@@ -125,7 +127,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
           icon: _previousIcon,
           buttonSize: 36,
           padding: 6,
-          iconSize: 24,
+          iconSize: 21,
           disabled: disabled,
           onPressed: onPrevious,
           onLongPress: previousButtonRestartsTrack ? onForcePrevious : null,
@@ -150,7 +152,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
           icon: _nextIcon,
           buttonSize: 36,
           padding: 6,
-          iconSize: 24,
+          iconSize: 21,
           disabled: disabled,
           onPressed: onNext,
         ),
@@ -256,6 +258,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                     isWindowFullScreen: isWindowFullScreen,
                     onEnterMiniMode: onEnterMiniMode,
                     currentSong: currentSong,
+                    nowPlayingSongIds: nowPlayingSongIds,
                     playlists: playlists,
                     preferenceLevel: preferenceLevel,
                     onResolvePreferenceLevel: onResolvePreferenceLevel,
@@ -339,6 +342,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required bool isWindowFullScreen,
     required VoidCallback onEnterMiniMode,
     LibrarySong? currentSong,
+    List<int> nowPlayingSongIds = const [],
     List<LibraryPlaylist> playlists = const [],
     String? preferenceLevel,
     FutureOr<String?> Function()? onResolvePreferenceLevel,
@@ -378,6 +382,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
         onEnterMiniMode: onEnterMiniMode,
         isCompact: true,
         currentSong: currentSong,
+        nowPlayingSongIds: nowPlayingSongIds,
         playlists: playlists,
         preferenceLevel: resolvedPreferenceLevel,
         onAddToNowPlaying: onAddToNowPlaying,

@@ -29,6 +29,14 @@ patch_plist() {
   esac
 }
 
+patch_strings() {
+  strings="$1"
+  /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$strings" >/dev/null 2>&1 ||
+    /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string $MICROPHONE_USAGE" "$strings"
+  /usr/libexec/PlistBuddy -c "Print :NSSpeechRecognitionUsageDescription" "$strings" >/dev/null 2>&1 ||
+    /usr/libexec/PlistBuddy -c "Add :NSSpeechRecognitionUsageDescription string $SPEECH_USAGE" "$strings"
+}
+
 scan_root() {
   root="$1"
   [ -d "$root" ] || return 0
@@ -44,6 +52,13 @@ scan_root() {
   scan_root "$APP_DIR"
 } | sort -u | while IFS= read -r plist; do
   patch_plist "$plist"
+done
+
+{
+  find "$TARGET_BUILD_DIR" -name InfoPlist.strings -path "*.lproj/*" -print 2>/dev/null
+  find "$APP_DIR" -name InfoPlist.strings -path "*.lproj/*" -print 2>/dev/null
+} | sort -u | while IFS= read -r strings; do
+  patch_strings "$strings"
 done
 
 if [ "${CODE_SIGNING_ALLOWED:-YES}" != "NO" ]; then

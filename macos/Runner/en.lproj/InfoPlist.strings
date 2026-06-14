@@ -1,2 +1,4 @@
 "CFBundleName" = "Simple Melody Player";
 "CFBundleDisplayName" = "Simple Melody Player";
+"NSMicrophoneUsageDescription" = "Simple Melody Player uses the microphone for voice assistant commands.";
+"NSSpeechRecognitionUsageDescription" = "Simple Melody Player uses speech recognition to run voice assistant commands.";

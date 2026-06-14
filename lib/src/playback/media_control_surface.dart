@@ -312,7 +312,7 @@ class MediaControlButtons extends StatelessWidget {
                 icon: _previousIcon,
                 buttonSize: 36,
                 padding: 6,
-                iconSize: 24,
+                iconSize: 21,
                 disabled: disabled,
                 onPressed: onPrevious,
                 onLongPress:
@@ -348,7 +348,7 @@ class MediaControlButtons extends StatelessWidget {
                 icon: _nextIcon,
                 buttonSize: 36,
                 padding: 6,
-                iconSize: 24,
+                iconSize: 21,
                 disabled: disabled,
                 onPressed: onNext,
               ),
