@@ -967,6 +967,36 @@ void main() {
     );
   });
 
+  testWidgets('AlbumsPage sort flyout separates reverse from sort criteria', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(i18n.t('albums.sort.default')).first);
+    await tester.pumpAndSettle();
+
+    final reverseTop = tester.getTopLeft(
+      find.byKey(const ValueKey('albums-sort-reverse')),
+    );
+    final separatorTop = tester.getTopLeft(
+      find.byKey(const ValueKey('albums-sort-separator')),
+    );
+    final defaultTop = tester.getTopLeft(
+      find.byKey(const ValueKey('albums-sort-default')),
+    );
+
+    expect(separatorTop.dy, greaterThan(reverseTop.dy));
+    expect(separatorTop.dy, lessThan(defaultTop.dy));
+  });
+
   testWidgets('AlbumsPage quick jump keeps clicked key active on same row', (
     tester,
   ) async {

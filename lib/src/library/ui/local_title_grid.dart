@@ -367,6 +367,7 @@ class _FolderChainListViewState extends State<FolderChainListView> {
               key: 'FolderChain.Child.${child.path}',
               text: child.name,
               checked: child.isHighlighted,
+              tooltip: child.name,
               onPressed: () => widget.onOpenFolder(child.path),
               onSecondaryTapDown:
                   widget.onOpenFolderMenu == null
@@ -453,46 +454,51 @@ class _FolderChainItemState extends State<_FolderChainItem> {
     final active = _hovered || widget.isOpen;
     final segment = Builder(
       builder: (segmentContext) {
-        final pathButton = Listener(
-          key: ValueKey('FolderChain.Path.${widget.item.path}'),
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (event) {
-            if (event.buttons == kSecondaryMouseButton) {
-              widget.onOpenFolderMenu?.call(widget.item.path, event.position);
-            }
-          },
-          child: GestureDetector(
+        final pathButton = Tooltip(
+          message: widget.item.name,
+          child: Listener(
+            key: ValueKey('FolderChain.Path.${widget.item.path}'),
             behavior: HitTestBehavior.opaque,
-            onTap:
-                widget.item.isCurrentItem
-                    ? () {
-                      if (!widget.shouldIgnoreTap()) {
-                        widget.onCurrentFolderClick();
+            onPointerDown: (event) {
+              if (event.buttons == kSecondaryMouseButton) {
+                widget.onOpenFolderMenu?.call(widget.item.path, event.position);
+              }
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap:
+                  widget.item.isCurrentItem
+                      ? () {
+                        if (!widget.shouldIgnoreTap()) {
+                          widget.onCurrentFolderClick();
+                        }
                       }
-                    }
-                    : () {
-                      if (!widget.shouldIgnoreTap()) {
-                        widget.onOpenFolder(widget.item.path);
-                      }
-                    },
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: widget.compact ? 36 : 32),
-              child: Padding(
-                padding:
-                    widget.compact
-                        ? const EdgeInsets.symmetric(horizontal: 6)
-                        : const EdgeInsets.fromLTRB(10, 0, 8, 0),
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Text(
-                    widget.item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textStrong,
-                      fontSize: widget.compact ? 14 : 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1,
+                      : () {
+                        if (!widget.shouldIgnoreTap()) {
+                          widget.onOpenFolder(widget.item.path);
+                        }
+                      },
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: widget.compact ? 36 : 32,
+                ),
+                child: Padding(
+                  padding:
+                      widget.compact
+                          ? const EdgeInsets.symmetric(horizontal: 6)
+                          : const EdgeInsets.fromLTRB(10, 0, 8, 0),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: Text(
+                      widget.item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textStrong,
+                        fontSize: widget.compact ? 14 : 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
                     ),
                   ),
                 ),

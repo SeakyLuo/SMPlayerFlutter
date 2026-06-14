@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/app_interaction_colors.dart';
 import '../../app/smplayer_vector_icons.dart';
@@ -7,6 +8,7 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/playlist_control_item.dart';
 import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
+import 'artists_page_model.dart' show displayAlbum, getSongArtists;
 import 'artwork_floating_action_button.dart';
 import 'local_folder_model.dart';
 import 'local_view_shared.dart';
@@ -273,12 +275,36 @@ class LocalSongGridItem extends StatefulWidget {
 }
 
 class LocalSongGridItemState extends State<LocalSongGridItem> {
+  var _suppressNextCardTap = false;
+
+  void _suppressCardTapForLink() {
+    _suppressNextCardTap = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _suppressNextCardTap = false;
+    });
+  }
+
+  void _handleCardTap() {
+    if (_suppressNextCardTap) {
+      _suppressNextCardTap = false;
+      return;
+    }
+    if (widget.multiSelect) {
+      widget.onToggleSelection();
+      return;
+    }
+    widget.onPlay();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = LocalGridSongCardColors.of(context);
     final localColors = LocalPageColors.of(context);
     final subtitle =
         widget.detailLabel ?? getLocalDisplayArtists(widget.song, widget.i18n);
+    final artistsLabel = getLocalDisplayArtists(widget.song, widget.i18n);
+    final albumLabel = displayAlbum(widget.song, widget.i18n);
+    final foregroundColor = localColors.textMuted;
     return LocalHoverRegion(
       builder: (context, hovered, focused) {
         final actionsVisible = !widget.multiSelect && (hovered || focused);
@@ -292,8 +318,7 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
             hoverColor: Colors.transparent,
             focusColor: Colors.transparent,
             splashFactory: NoSplash.splashFactory,
-            onTap:
-                widget.multiSelect ? widget.onToggleSelection : widget.onPlay,
+            onTap: _handleCardTap,
             child: Container(
               width: 180,
               constraints: const BoxConstraints(minHeight: 232),
@@ -431,18 +456,15 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color:
-                          widget.current
-                              ? localColors.accentStrong
-                              : localColors.textMuted,
-                      fontSize: 12,
-                      height: 1.35,
-                    ),
+                  _LocalGridSongSubtitle(
+                    song: widget.song,
+                    text: subtitle,
+                    artistsLabel: artistsLabel,
+                    albumLabel: albumLabel,
+                    color: foregroundColor,
+                    hoverColor: localColors.accentStrong,
+                    onLinkPointerDown: _suppressCardTapForLink,
+                    i18n: widget.i18n,
                   ),
                 ],
               ),
@@ -452,6 +474,148 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
       },
     );
   }
+}
+
+class _LocalGridSongSubtitle extends StatelessWidget {
+  const _LocalGridSongSubtitle({
+    required this.song,
+    required this.text,
+    required this.artistsLabel,
+    required this.albumLabel,
+    required this.color,
+    required this.hoverColor,
+    required this.onLinkPointerDown,
+    required this.i18n,
+  });
+
+  final LibrarySong song;
+  final String text;
+  final String artistsLabel;
+  final String albumLabel;
+  final Color color;
+  final Color hoverColor;
+  final VoidCallback onLinkPointerDown;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = TextStyle(color: color, fontSize: 12, height: 1.35);
+    final albumDetail = text == '$artistsLabel · $albumLabel';
+    final artist = _primaryLocalArtist(song, i18n);
+    if (!albumDetail) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: _LocalGridSongArtistLink(
+          text: text,
+          artist: artist,
+          style: textStyle,
+          hoverColor: hoverColor,
+          onPointerDown: onLinkPointerDown,
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        Flexible(
+          child: _LocalGridSongArtistLink(
+            text: artistsLabel,
+            artist: artist,
+            style: textStyle,
+            hoverColor: hoverColor,
+            onPointerDown: onLinkPointerDown,
+          ),
+        ),
+        Text(' · ', style: textStyle),
+        Flexible(
+          child: Text(
+            albumLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textStyle,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LocalGridSongArtistLink extends StatefulWidget {
+  const _LocalGridSongArtistLink({
+    required this.text,
+    required this.artist,
+    required this.style,
+    required this.hoverColor,
+    required this.onPointerDown,
+  });
+
+  final String text;
+  final String artist;
+  final TextStyle style;
+  final Color hoverColor;
+  final VoidCallback onPointerDown;
+
+  @override
+  State<_LocalGridSongArtistLink> createState() =>
+      _LocalGridSongArtistLinkState();
+}
+
+class _LocalGridSongArtistLinkState extends State<_LocalGridSongArtistLink> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      key: const ValueKey('LocalGridSong.ArtistLink'),
+      opaque: false,
+      hitTestBehavior: HitTestBehavior.opaque,
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onHover: (_) {
+        if (!_hovered) {
+          setState(() {
+            _hovered = true;
+          });
+        }
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) {
+          widget.onPointerDown();
+        },
+        onPointerUp: (_) {
+          context.go(
+            '/artists?artist=${Uri.encodeQueryComponent(widget.artist)}',
+          );
+        },
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: Text(
+            widget.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: widget.style.copyWith(
+              color: _hovered ? widget.hoverColor : widget.style.color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _primaryLocalArtist(LibrarySong song, SmPlayerI18n i18n) {
+  final artists = getSongArtists(song);
+  return artists.isEmpty ? i18n.t('common.artistUnknown') : artists.first;
 }
 
 class CompactLocalSongRow extends StatelessWidget {
@@ -511,6 +675,14 @@ class CompactLocalSongRow extends StatelessWidget {
       onToggleFavoriteClick: onToggleFavorite,
       onAddToPlaylistClick: (buttonContext) {
         invokeAtButtonBottom(buttonContext, onAddSong);
+      },
+      onSeeArtist: (artist) {
+        context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+      },
+      onSeeAlbum: () {
+        context.go(
+          '/albums?album=${Uri.encodeQueryComponent(displayAlbum(song, i18n))}',
+        );
       },
       onOpenContextMenu: onOpenMenu,
     );

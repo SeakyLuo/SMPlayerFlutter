@@ -3,12 +3,14 @@ part of 'artists_page.dart';
 class _ArtistQuickJump extends StatelessWidget {
   const _ArtistQuickJump({
     required this.activeKey,
+    required this.keys,
     required this.enabledKeys,
     required this.i18n,
     required this.onJump,
   });
 
   final String activeKey;
+  final List<String> keys;
   final Set<String> enabledKeys;
   final SmPlayerI18n i18n;
   final ValueChanged<String> onJump;
@@ -20,7 +22,7 @@ class _ArtistQuickJump extends StatelessWidget {
       width: 22,
       child: Column(
         children:
-            artistQuickJumpKeys.map((key) {
+            keys.map((key) {
               final enabled = enabledKeys.contains(key);
               final active = activeKey == key;
               return Expanded(
@@ -92,13 +94,18 @@ class _ArtistQuickJump extends StatelessWidget {
                                     onJump(key);
                                   }
                                   : null,
-                          child: Text(
-                            key,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              height: 1,
-                              fontWeight: FontWeight.w600,
-                              fontVariations: [FontVariation.weight(650)],
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              key,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                height: 1,
+                                fontWeight: FontWeight.w600,
+                                fontVariations: [FontVariation.weight(650)],
+                              ),
                             ),
                           ),
                         ),

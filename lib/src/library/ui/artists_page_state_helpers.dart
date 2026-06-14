@@ -1,5 +1,19 @@
 part of 'artists_page.dart';
 
+double _artistsPageWorkspaceWidth(BuildContext context) {
+  final windowWidth = MediaQuery.sizeOf(context).width;
+  final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
+    windowWidth,
+  );
+  return navigationMode == SmPlayerNavigationMode.minimal
+      ? windowWidth
+      : windowWidth - SmPlayerShellMetrics.collapsedSidebarWidth;
+}
+
+bool _isArtistsPageCompactWorkspace(BuildContext context) {
+  return _artistsPageWorkspaceWidth(context) <= 720;
+}
+
 void _clearArtistsAppBarPortalOwner(_ArtistsPageState state) {
   clearWorkspaceAppBarPortalOwnerAfterDispose(
     state._appBarPortalNotifier,
@@ -18,7 +32,7 @@ void _syncArtistsAppBarPortal(
   Widget? bottomContent,
 }) {
   final signature =
-      '$showPortal:$routePath:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
+      '$showPortal:$routePath:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }
@@ -112,7 +126,7 @@ void _openArtistDetailForArtistsPage(
     state._selectedArtistName = artistName;
     state._selection.cancel();
   });
-  if (MediaQuery.sizeOf(state.context).width <= 720) {
+  if (_isArtistsPageCompactWorkspace(state.context)) {
     state._pendingOpenedArtistRoute = artistName;
     state.context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
   }
@@ -165,6 +179,39 @@ void _scrollToArtistForArtistsPage(_ArtistsPageState state, String artistName) {
   );
 }
 
+void _locateArtistForArtistsPage(_ArtistsPageState state, String artistName) {
+  void triggerHighlight() {
+    // ignore: invalid_use_of_protected_member
+    state.setState(() {
+      state._locatedArtistName = artistName;
+      state._locateArtistPulse += 1;
+    });
+  }
+
+  final currentUri = GoRouterState.of(state.context).uri;
+  final shouldOpenArtistList =
+      currentUri.path != '/artists' ||
+      currentUri.queryParameters.containsKey('artist');
+  if (!shouldOpenArtistList) {
+    triggerHighlight();
+    state._scrollToArtist(artistName);
+    return;
+  }
+
+  // ignore: invalid_use_of_protected_member
+  state.setState(() {
+    state._selectedArtistName = '';
+    state._selection.cancel();
+  });
+  state.context.go('/artists');
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (state.mounted) {
+      triggerHighlight();
+      state._scrollToArtist(artistName);
+    }
+  });
+}
+
 void _handleArtistListScrollForArtistsPage(_ArtistsPageState state) {
   if (state._artistListController.positions.length != 1) {
     return;
@@ -186,6 +233,7 @@ void _handleArtistListScrollForArtistsPage(_ArtistsPageState state) {
 String _getActiveArtistQuickJumpKeyForArtistsPage(
   _ArtistsPageState state,
   List<ArtistGroup> visibleArtists,
+  ArtistSortCriterion sortCriterion,
 ) {
   if (visibleArtists.isEmpty) {
     return '';
@@ -198,7 +246,10 @@ String _getActiveArtistQuickJumpKeyForArtistsPage(
     visibleArtists.length - 1,
     max(0, (state._artistScrollTop / artistRowHeight).floor()),
   );
-  return getArtistQuickJumpBucket(visibleArtists[activeIndex].name);
+  return getArtistQuickJumpBucketForSort(
+    visibleArtists[activeIndex],
+    sortCriterion,
+  );
 }
 
 void _playSongIdsForArtistsPage(_ArtistsPageState state, List<int> songIds) {
@@ -485,7 +536,7 @@ Future<void> _showGroupContextMenuForArtistsPage(
           text: i18n.t('artists.locateArtist'),
           icon: FluentIcons.apps_list_detail_20_regular,
           onPressed: () {
-            state._scrollToArtist(label);
+            state._locateArtist(label);
           },
         ),
       if (type == _ArtistGroupMenuType.album)

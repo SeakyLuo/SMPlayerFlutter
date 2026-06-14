@@ -10,8 +10,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/app_interaction_colors.dart';
+import '../../app/auto_hide_scrollbar_visibility.dart';
 import '../../app/loading_state.dart';
 import '../../app/input_dialog.dart';
+import '../../app/shell_models.dart';
 import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
@@ -109,9 +111,13 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   var _artistSearchFocused = false;
   var _appBarSearchOpen = false;
   var _selectedArtistName = '';
+  var _artistSortCriterion = ArtistSortCriterion.name;
+  var _reverseArtistDisplayOrder = false;
   String? _appliedTargetArtistName;
   String? _pendingOpenedArtistRoute;
   String? _notifiedMissingTargetArtistName;
+  String? _locatedArtistName;
+  var _locateArtistPulse = 0;
   var _artistScrollTop = 0.0;
   String? _artistQuickJumpPinnedKey;
   var _artistQuickJumpJumping = false;
@@ -208,6 +214,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           content: _ArtistsAppBarSearchActions(
             searchOpen: _appBarSearchOpen,
             artistSearch: _artistSearch,
+            sortCriterion: _artistSortCriterion,
             i18n: i18n,
             searchFocused: _artistSearchFocused,
             searchSuggestions: const [],
@@ -239,6 +246,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             onSelectSearchSuggestion: _selectArtistSearchQuery,
             onRemoveRecentSearch: _removeArtistRecentSearch,
             onClearRecentSearches: _clearArtistRecentSearches,
+            onChangeArtistSort: _changeArtistSort,
           ),
           compactTitle: i18n.t('library.allArtists'),
           searchSuggestionCount: 0,
@@ -280,9 +288,17 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           songOverrides,
         );
         final artistGroups = buildArtistGroups(snapshot.songs, i18n);
+        final sortedArtistGroups = sortArtists(
+          artistGroups,
+          _artistSortCriterion,
+        );
+        final visibleArtists =
+            _reverseArtistDisplayOrder
+                ? sortedArtistGroups.reversed.toList()
+                : sortedArtistGroups;
         if (widget.targetArtistName != null) {
           final target = widget.targetArtistName!;
-          final targetIndex = artistGroups.indexWhere(
+          final targetIndex = visibleArtists.indexWhere(
             (artist) => artist.name == target,
           );
           if (targetIndex >= 0 && _appliedTargetArtistName != target) {
@@ -326,18 +342,24 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           }
         }
 
-        final visibleArtists = artistGroups;
         final targetArtistName = widget.targetArtistName;
         final targetArtistAvailable =
             targetArtistName != null &&
             visibleArtists.any((artist) => artist.name == targetArtistName);
+        final compactLayout = _isArtistsPageCompactWorkspace(context);
+        final targetArtist =
+            targetArtistAvailable
+                ? visibleArtists.firstWhere(
+                  (artist) => artist.name == targetArtistName,
+                )
+                : null;
         if (!targetArtistAvailable &&
             !visibleArtists.any(
               (artist) => artist.name == _selectedArtistName,
             )) {
           _selection.cancel();
           _selectedArtistName =
-              MediaQuery.sizeOf(context).width <= 720 || visibleArtists.isEmpty
+              compactLayout || visibleArtists.isEmpty
                   ? ''
                   : visibleArtists.first.name;
         }
@@ -361,19 +383,21 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 ? matchingSelectedArtists.first
                 : (visibleArtists.isEmpty ? null : visibleArtists.first);
         final compactSelectedArtist =
-            matchingSelectedArtists.isNotEmpty
-                ? matchingSelectedArtists.first
-                : null;
-        final compactAppBarArtist =
-            compactSelectedArtist ??
-            (targetArtistAvailable
-                ? visibleArtists.firstWhere(
-                  (artist) => artist.name == targetArtistName,
-                )
-                : null);
-        final artistQuickJumpMap = buildArtistQuickJumpMap(visibleArtists);
+            compactLayout && targetArtist != null
+                ? targetArtist
+                : (matchingSelectedArtists.isNotEmpty
+                    ? matchingSelectedArtists.first
+                    : null);
+        final artistQuickJumpKeys = artistQuickJumpKeysForSort(
+          _artistSortCriterion,
+        );
+        final artistQuickJumpMap = buildArtistQuickJumpMap(
+          visibleArtists,
+          _artistSortCriterion,
+        );
         final activeArtistQuickJumpKey = _getActiveArtistQuickJumpKey(
           visibleArtists,
+          _artistSortCriterion,
         );
 
         final selectedArtistForSelection =
@@ -401,37 +425,36 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 )
                 .toList();
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
-        final compactLayout = MediaQuery.sizeOf(context).width <= 720;
         final compactAppBarTitle =
             compactLayout
-                ? compactAppBarArtist?.name ??
+                ? compactSelectedArtist?.name ??
                     _allArtistsTitle(snapshot, artistGroups, i18n)
                 : _allArtistsTitle(snapshot, artistGroups, i18n);
         final compactAppBarDetailControls =
-            useWorkspaceAppBar && compactLayout && compactAppBarArtist != null
+            useWorkspaceAppBar && compactLayout && compactSelectedArtist != null
                 ? DecoratedBox(
                   key: const ValueKey('Artists.DetailHeader.AppBarShadow'),
                   decoration: _ArtistsColors.compactDetailHeaderDecoration(
                     Theme.of(context).brightness,
                   ),
                   child: _ArtistDetailCompactCommandRow(
-                    artist: compactAppBarArtist,
+                    artist: compactSelectedArtist,
                     i18n: i18n,
                     workspaceAppBarBottom: true,
                     onPlaySongs: () {
                       _playShuffledSongIds(
-                        compactAppBarArtist.songs
+                        compactSelectedArtist.songs
                             .map((song) => song.id)
                             .toList(),
-                        artistName: compactAppBarArtist.name,
+                        artistName: compactSelectedArtist.name,
                       );
                     },
                     onOpenArtistMenu: (position) {
                       _showGroupContextMenu(
                         position: position,
                         type: _ArtistGroupMenuType.artist,
-                        label: compactAppBarArtist.name,
-                        songs: compactAppBarArtist.songs,
+                        label: compactSelectedArtist.name,
+                        songs: compactSelectedArtist.songs,
                         showLocateArtist: true,
                       );
                     },
@@ -444,6 +467,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           content: _ArtistsAppBarSearchActions(
             searchOpen: _appBarSearchOpen,
             artistSearch: _artistSearch,
+            sortCriterion: _artistSortCriterion,
             i18n: i18n,
             searchFocused: _artistSearchFocused,
             searchSuggestions: artistSearchSuggestions,
@@ -485,6 +509,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             },
             onRemoveRecentSearch: _removeArtistRecentSearch,
             onClearRecentSearches: _clearArtistRecentSearches,
+            onChangeArtistSort: _changeArtistSort,
           ),
           compactTitle: compactAppBarTitle,
           searchSuggestionCount: artistSearchSuggestions.length,
@@ -504,8 +529,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     compactSelectedArtist: compactSelectedArtist,
                     wideSelectedArtist: wideSelectedArtist,
                     visibleArtists: visibleArtists,
+                    sortCriterion: _artistSortCriterion,
+                    artistQuickJumpKeys: artistQuickJumpKeys,
                     artistQuickJumpMap: artistQuickJumpMap,
                     activeArtistQuickJumpKey: activeArtistQuickJumpKey,
+                    locatedArtistName: _locatedArtistName,
+                    locateArtistPulse: _locateArtistPulse,
                     artistListController: _artistListController,
                     artistDetailController: _artistDetailController,
                     multiSelect: _selection.multiSelect,
@@ -529,6 +558,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onSelectSearchSuggestion: _selectArtistSearchQuery,
                     onRemoveRecentSearch: _removeArtistRecentSearch,
                     onClearRecentSearches: _clearArtistRecentSearches,
+                    onChangeArtistSort: _changeArtistSort,
                     onOpenArtistDetail: _openArtistDetail,
                     onPlayArtist: (artist) {
                       _playShuffledSongIds(

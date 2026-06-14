@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -208,6 +209,77 @@ void main() {
     expect(find.text('Root Song'), findsOneWidget);
     expect(find.text('Artist A'), findsOneWidget);
     expect(find.text('Artist A · Root Album'), findsNothing);
+  });
+
+  testWidgets('Local grid song artist opens artist route', (tester) async {
+    var playTrackCount = 0;
+    final router = GoRouter(
+      initialLocation: '/local',
+      routes: [
+        GoRoute(
+          path: '/local',
+          builder:
+              (context, state) => Scaffold(
+                body: _localGridContent(
+                  i18n,
+                  onPlayTrack: (_, _) {
+                    playTrackCount += 1;
+                  },
+                ),
+              ),
+        ),
+        GoRoute(
+          path: '/artists',
+          builder:
+              (context, state) =>
+                  Scaffold(body: Text(state.uri.queryParameters['artist']!)),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp.router(
+          theme: ThemeData(
+            extensions: const [
+              DefaultAlbumArtworkThemeColors.light,
+              LocalPageColors.day,
+            ],
+          ),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final artistLink = find.byKey(const ValueKey('LocalGridSong.ArtistLink'));
+    Text artistText() => tester.widget<Text>(
+      find.descendant(of: artistLink, matching: find.byType(Text)),
+    );
+
+    expect(artistText().style?.color, const Color(0xff5b697a));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    addTearDown(mouse.removePointer);
+    final artistCenter = tester.getCenter(artistLink);
+    await mouse.moveTo(artistCenter);
+    await tester.pump();
+    await mouse.moveTo(artistCenter + const Offset(1, 0));
+    await tester.pump();
+
+    expect(artistText().style?.color, const Color(0xff0063b1));
+
+    await tester.tap(artistLink);
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/artists');
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['artist'],
+      'Artist A',
+    );
+    expect(playTrackCount, 0);
   });
 
   testWidgets('Local grid current song shows Electron playing wave', (
@@ -1387,6 +1459,7 @@ Widget _localGridContent(
   bool showSongQuickJump = false,
   bool reserveSongQuickJumpSpace = false,
   Set<int> selectedSongIds = const {},
+  void Function(int trackId, List<int> queueSongIds)? onPlayTrack,
 }) {
   final songs = [
     for (var index = 0; index < songCount; index += 1)
@@ -1448,7 +1521,7 @@ Widget _localGridContent(
           required songIds,
           required targetFolderPath,
         }) {},
-    onPlayTrack: (_, _) {},
+    onPlayTrack: onPlayTrack ?? (_, _) {},
     onTogglePlayPause: () {},
     onToggleSongSelection: (_) {},
     onPlayNext: (_) {},

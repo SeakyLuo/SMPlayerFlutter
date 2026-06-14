@@ -580,6 +580,36 @@ void main() {
     expect(find.byTooltip('Add To'), findsOneWidget);
   });
 
+  testWidgets(
+    'RecentPage played playlists hide selection mark outside select',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _RecentTestApp(snapshot: _snapshotWithRecentPlaylists, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Played'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Playlists'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mix'), findsOneWidget);
+      expect(find.byType(GridViewSelectionMark), findsNothing);
+
+      await tester.tap(find.text('Multi Select'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GridViewSelectionMark), findsOneWidget);
+    },
+  );
+
   testWidgets('RecentPage refreshes after collection play is recorded', (
     tester,
   ) async {
@@ -877,6 +907,82 @@ void main() {
       expect(find.text('View'), findsOneWidget);
     },
   );
+
+  testWidgets('RecentPage song artist line opens artist without playing', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _FakeLibraryRepository();
+    final router = GoRouter(
+      initialLocation: '/recent',
+      routes: [
+        GoRoute(
+          path: '/recent',
+          builder: (_, _) => const Scaffold(body: RecentPage()),
+        ),
+        GoRoute(
+          path: '/artists',
+          builder:
+              (_, state) =>
+                  Text('artist:${state.uri.queryParameters['artist']}'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _RecentRouterTestApp(
+        router: router,
+        snapshot: _snapshotWithRecentPlayed,
+        i18n: i18n,
+        repository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+
+    final tile =
+        find
+            .ancestor(
+              of: find.text('Blue Song'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+    final artistLine = find.descendant(
+      of: tile,
+      matching: find.byKey(const ValueKey('RecentSong.ArtistLine')),
+    );
+    Text artistText() => tester.widget<Text>(
+      find.descendant(of: artistLine, matching: find.byType(Text)),
+    );
+
+    expect(artistLine, findsOneWidget);
+    expect(artistText().style?.color, const Color(0xff5b697a));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    addTearDown(mouse.removePointer);
+    final artistCenter = tester.getCenter(artistLine);
+    await mouse.moveTo(artistCenter);
+    await tester.pump();
+    await mouse.moveTo(artistCenter + const Offset(1, 0));
+    await tester.pump();
+
+    expect(artistText().style?.color, const Color(0xff0063b1));
+
+    await tester.tap(artistLine);
+    await tester.pumpAndSettle();
+
+    expect(find.text('artist:Artist A'), findsOneWidget);
+    expect(repository.replacedNowPlaying, isEmpty);
+  });
 
   testWidgets('RecentPage song hover narrows artist line before actions', (
     tester,
@@ -1597,11 +1703,13 @@ class _RecentRouterTestApp extends StatelessWidget {
     required this.router,
     required this.snapshot,
     required this.i18n,
+    this.repository,
   });
 
   final GoRouter router;
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
+  final LibraryRepository? repository;
 
   @override
   Widget build(BuildContext context) {
@@ -1612,6 +1720,9 @@ class _RecentRouterTestApp extends StatelessWidget {
           (ref) async => _recentPageData(snapshot),
         ),
         libraryContentDataProvider.overrideWith((ref) async => snapshot),
+        libraryRepositoryProvider.overrideWithValue(
+          repository ?? _FakeLibraryRepository(),
+        ),
       ],
       child: SmPlayerI18nScope(
         i18n: i18n,
@@ -1917,6 +2028,52 @@ const _snapshotWithRecentPlayed = LibraryContentData(
   ],
   recentSearches: [],
   playlists: [],
+  favoritePlaylistId: 0,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+const _snapshotWithRecentPlaylists = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\blue.mp3',
+      title: 'Blue Song',
+      artist: 'Artist A',
+      artists: ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentPlaylists: [
+    RecentPlaylistPlayback(
+      id: 1,
+      playlistId: 10,
+      playedAt: '2026-05-20T00:00:00',
+    ),
+  ],
+  recentSearches: [],
+  playlists: [
+    LibraryPlaylist(
+      id: 10,
+      name: 'Mix',
+      priority: 1,
+      songCount: 1,
+      songIds: [1],
+      sortCriterion: PlaylistSortCriterion.title,
+      isBuiltIn: false,
+    ),
+  ],
   favoritePlaylistId: 0,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
   hasLibrary: true,

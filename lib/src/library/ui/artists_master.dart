@@ -4,9 +4,13 @@ class _ArtistsMaster extends StatelessWidget {
   const _ArtistsMaster({
     required this.artistSearch,
     required this.visibleArtists,
+    required this.sortCriterion,
+    required this.artistQuickJumpKeys,
     required this.selectedArtistName,
     required this.artistQuickJumpMap,
     required this.activeArtistQuickJumpKey,
+    required this.locatedArtistName,
+    required this.locateArtistPulse,
     required this.scrollController,
     required this.i18n,
     required this.showSearch,
@@ -19,6 +23,7 @@ class _ArtistsMaster extends StatelessWidget {
     required this.onSelectSearchSuggestion,
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
+    required this.onChangeArtistSort,
     required this.onOpenArtistDetail,
     required this.onPlayArtist,
     required this.onOpenArtistMenu,
@@ -27,9 +32,13 @@ class _ArtistsMaster extends StatelessWidget {
 
   final String artistSearch;
   final List<ArtistGroup> visibleArtists;
+  final ArtistSortCriterion sortCriterion;
+  final List<String> artistQuickJumpKeys;
   final String selectedArtistName;
   final Map<String, int> artistQuickJumpMap;
   final String activeArtistQuickJumpKey;
+  final String? locatedArtistName;
+  final int locateArtistPulse;
   final ScrollController scrollController;
   final SmPlayerI18n i18n;
   final bool showSearch;
@@ -42,6 +51,7 @@ class _ArtistsMaster extends StatelessWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
+  final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
   final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
@@ -84,18 +94,30 @@ class _ArtistsMaster extends StatelessWidget {
           child: Column(
             children: [
               if (showSearch) ...[
-                _ArtistsSearchBox(
-                  artistSearch: artistSearch,
-                  i18n: i18n,
-                  searchFocused: searchFocused,
-                  searchSuggestions: searchSuggestions,
-                  searchHistoryEntries: searchHistoryEntries,
-                  onChanged: onSearchChanged,
-                  onFocusChanged: onSearchFocusChanged,
-                  onSubmitted: onSearchSubmitted,
-                  onSelectSearchSuggestion: onSelectSearchSuggestion,
-                  onRemoveRecentSearch: onRemoveRecentSearch,
-                  onClearRecentSearches: onClearRecentSearches,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ArtistsSearchBox(
+                        artistSearch: artistSearch,
+                        i18n: i18n,
+                        searchFocused: searchFocused,
+                        searchSuggestions: searchSuggestions,
+                        searchHistoryEntries: searchHistoryEntries,
+                        onChanged: onSearchChanged,
+                        onFocusChanged: onSearchFocusChanged,
+                        onSubmitted: onSearchSubmitted,
+                        onSelectSearchSuggestion: onSelectSearchSuggestion,
+                        onRemoveRecentSearch: onRemoveRecentSearch,
+                        onClearRecentSearches: onClearRecentSearches,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _ArtistsSortButton(
+                      i18n: i18n,
+                      sortCriterion: sortCriterion,
+                      onChangeArtistSort: onChangeArtistSort,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
               ],
@@ -107,6 +129,7 @@ class _ArtistsMaster extends StatelessWidget {
                       children: [
                         _ArtistQuickJump(
                           activeKey: activeArtistQuickJumpKey,
+                          keys: artistQuickJumpKeys,
                           enabledKeys: artistQuickJumpMap.keys.toSet(),
                           i18n: i18n,
                           onJump: (key) {
@@ -138,6 +161,9 @@ class _ArtistsMaster extends StatelessWidget {
                                       artist: artist,
                                       active: artist.name == selectedArtistName,
                                       i18n: i18n,
+                                      locateHighlighted:
+                                          artist.name == locatedArtistName,
+                                      locatePulse: locateArtistPulse,
                                       onPressed: () {
                                         onOpenArtistDetail(artist.name);
                                       },
@@ -174,6 +200,37 @@ class _ArtistsMaster extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ArtistsSortButton extends StatelessWidget {
+  const _ArtistsSortButton({
+    required this.i18n,
+    required this.sortCriterion,
+    required this.onChangeArtistSort,
+  });
+
+  final SmPlayerI18n i18n;
+  final ArtistSortCriterion sortCriterion;
+  final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
+
+  @override
+  Widget build(BuildContext context) {
+    final sortItems = artistSortMenuItems(
+      i18n,
+      sortCriterion,
+      onChangeArtistSort,
+    );
+    return CommandBarButton(
+      key: const ValueKey('Artists.SortButton'),
+      icon: FluentIcons.arrow_sort_24_regular,
+      label: artistSortLabel(i18n, sortCriterion),
+      showLabel: false,
+      canOverflow: false,
+      onPressedWithContext: (buttonContext) {
+        showMenuFlyout(buttonContext, items: sortItems);
+      },
     );
   }
 }

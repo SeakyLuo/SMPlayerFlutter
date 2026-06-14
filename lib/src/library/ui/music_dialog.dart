@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 // ignore: unused_import
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:smplayer_flutter/src/app/auto_hide_scrollbar_visibility.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';

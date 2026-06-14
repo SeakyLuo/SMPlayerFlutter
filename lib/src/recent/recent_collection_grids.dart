@@ -35,9 +35,10 @@ class _RecentPlaylistGrid extends StatelessWidget {
           selected: selectedKeys.contains(key),
           selectionMode: multiSelect,
           showDragHandle: false,
-          selectedMark: GridViewSelectionMark(
-            selected: selectedKeys.contains(key),
-          ),
+          selectedMark:
+              multiSelect || selectedKeys.contains(key)
+                  ? GridViewSelectionMark(selected: selectedKeys.contains(key))
+                  : null,
           onOpen: () {
             if (multiSelect) {
               onToggleSelection(key);

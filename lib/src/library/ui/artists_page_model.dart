@@ -1,8 +1,11 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:lpinyin/lpinyin.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_time_codec.dart';
 import '../data/library_models.dart';
+import 'menu_flyout.dart';
 import 'song_display_helpers.dart' as song_display;
 
 part 'artist_group.dart';
@@ -49,6 +52,31 @@ const artistQuickJumpKeys = [
   'Y',
   'Z',
 ];
+const artistCountQuickJumpKeys = [
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  '14',
+  '15',
+  '16',
+  '17',
+  '18',
+  '19',
+  '20',
+  '20+',
+];
+
+enum ArtistSortCriterion { name, songCount, albumCount, reverse }
 
 List<ArtistGroup> buildArtistGroups(
   List<LibrarySong> songs,
@@ -109,6 +137,99 @@ List<ArtistGroup> buildArtistGroups(
 
   artists.sort((left, right) => compareArtistText(left.name, right.name));
   return artists;
+}
+
+List<ArtistGroup> sortArtists(
+  List<ArtistGroup> artists,
+  ArtistSortCriterion criterion,
+) {
+  final sorted = artists.toList();
+  switch (criterion) {
+    case ArtistSortCriterion.name:
+      sorted.sort((left, right) => compareArtistText(left.name, right.name));
+      return sorted;
+    case ArtistSortCriterion.songCount:
+      sorted.sort((left, right) {
+        final countCompare = right.songs.length.compareTo(left.songs.length);
+        return countCompare != 0
+            ? countCompare
+            : compareArtistText(left.name, right.name);
+      });
+      return sorted;
+    case ArtistSortCriterion.albumCount:
+      sorted.sort((left, right) {
+        final countCompare = right.albumCount.compareTo(left.albumCount);
+        return countCompare != 0
+            ? countCompare
+            : compareArtistText(left.name, right.name);
+      });
+      return sorted;
+    case ArtistSortCriterion.reverse:
+      return sorted.reversed.toList();
+  }
+}
+
+String artistSortLabel(SmPlayerI18n i18n, ArtistSortCriterion criterion) {
+  switch (criterion) {
+    case ArtistSortCriterion.name:
+      return i18n.t('artists.sort.name');
+    case ArtistSortCriterion.songCount:
+      return i18n.t('artists.sort.songCount');
+    case ArtistSortCriterion.albumCount:
+      return i18n.t('artists.sort.albumCount');
+    case ArtistSortCriterion.reverse:
+      return i18n.t('local.sortReverseList');
+  }
+}
+
+List<MenuFlyoutItem> artistSortMenuItems(
+  SmPlayerI18n i18n,
+  ArtistSortCriterion sortCriterion,
+  ValueChanged<ArtistSortCriterion> onChangeArtistSort,
+) {
+  return [
+    MenuFlyoutItem(
+      key: 'artists-sort-reverse',
+      text: i18n.t('local.sortReverseList'),
+      onPressed: () {
+        onChangeArtistSort(ArtistSortCriterion.reverse);
+      },
+    ),
+    const MenuFlyoutItem.separator(key: 'artists-sort-separator'),
+    MenuFlyoutItem(
+      key: 'artists-sort-name',
+      text: artistSortLabel(i18n, ArtistSortCriterion.name),
+      icon:
+          sortCriterion == ArtistSortCriterion.name
+              ? FluentIcons.checkmark_20_regular
+              : null,
+      onPressed: () {
+        onChangeArtistSort(ArtistSortCriterion.name);
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'artists-sort-song-count',
+      text: artistSortLabel(i18n, ArtistSortCriterion.songCount),
+      icon:
+          sortCriterion == ArtistSortCriterion.songCount
+              ? FluentIcons.checkmark_20_regular
+              : null,
+      onPressed: () {
+        onChangeArtistSort(ArtistSortCriterion.songCount);
+      },
+    ),
+    MenuFlyoutItem(
+      key: 'artists-sort-album-count',
+      text: artistSortLabel(i18n, ArtistSortCriterion.albumCount),
+      icon:
+          sortCriterion == ArtistSortCriterion.albumCount
+              ? FluentIcons.checkmark_20_regular
+              : null,
+      onPressed: () {
+        onChangeArtistSort(ArtistSortCriterion.albumCount);
+      },
+    ),
+  ];
 }
 
 DateTime _parseSongDateAdded(String rawValue) {
@@ -224,15 +345,48 @@ List<ArtistGroup> searchArtists(List<ArtistGroup> artists, String query) {
   return scored.map((result) => result.artist).toList();
 }
 
-Map<String, int> buildArtistQuickJumpMap(List<ArtistGroup> artists) {
+List<String> artistQuickJumpKeysForSort(ArtistSortCriterion sortCriterion) {
+  switch (sortCriterion) {
+    case ArtistSortCriterion.songCount:
+    case ArtistSortCriterion.albumCount:
+      return artistCountQuickJumpKeys;
+    case ArtistSortCriterion.name:
+    case ArtistSortCriterion.reverse:
+      return artistQuickJumpKeys;
+  }
+}
+
+Map<String, int> buildArtistQuickJumpMap(
+  List<ArtistGroup> artists, [
+  ArtistSortCriterion sortCriterion = ArtistSortCriterion.name,
+]) {
   final indexes = <String, int>{};
   for (var index = 0; index < artists.length; index += 1) {
     indexes.putIfAbsent(
-      getArtistQuickJumpBucket(artists[index].name),
+      getArtistQuickJumpBucketForSort(artists[index], sortCriterion),
       () => index,
     );
   }
   return indexes;
+}
+
+String getArtistQuickJumpBucketForSort(
+  ArtistGroup artist,
+  ArtistSortCriterion sortCriterion,
+) {
+  switch (sortCriterion) {
+    case ArtistSortCriterion.songCount:
+      return getArtistCountQuickJumpBucket(artist.songs.length);
+    case ArtistSortCriterion.albumCount:
+      return getArtistCountQuickJumpBucket(artist.albumCount);
+    case ArtistSortCriterion.name:
+    case ArtistSortCriterion.reverse:
+      return getArtistQuickJumpBucket(artist.name);
+  }
+}
+
+String getArtistCountQuickJumpBucket(int count) {
+  return count > 20 ? '20+' : '$count';
 }
 
 String getArtistQuickJumpBucket(String artistName) {

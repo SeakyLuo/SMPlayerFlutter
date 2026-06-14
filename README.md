@@ -1,65 +1,28 @@
-# Simple Melody Player Flutter
+# Simple Melody Player
 
-Flutter migration workspace for Simple Melody Player. This project starts as a cross-platform shell only: no product UI has been ported yet.
+A local music player that manages local music files.
 
-## Targets
+# Privacy Policy
+This app will not collect any personal information. It only reads and manages music files on your computer.
 
-- Windows and macOS desktop app for local library management, local playback, and the built-in personal connection service.
-- Android and iOS app for pairing with a desktop device and directly streaming music from it.
-- Optional web target only if a browser remote becomes useful later.
+This app also requires connection to the Internet to search lyrics upon users' request.
 
-## Baseline Dependencies
+# License
+This project is source-available for learning, personal use, and non-commercial forks.
 
-- App structure: `flutter_riverpod`, `go_router`.
-- Local storage: `drift`, `sqlite3_flutter_libs`, `path`, `path_provider`.
-- Desktop personal service: `shelf`, `shelf_router`, Dart `dart:io` sockets.
-- Pairing and identity: `qr_flutter`, `mobile_scanner`, `crypto`, `uuid`, `device_info_plus`, `package_info_plus`.
-- Playback: `just_audio`, `audio_service`.
-- Connectivity and files: `connectivity_plus`, `file_picker`, `http`, `url_launcher`.
-- Desktop integration: `window_manager`, `tray_manager`.
+You may fork, modify, and redistribute this project for non-commercial purposes, but you may not sell it, publish it as a paid product, monetize it, or use it in any commercial product or service without explicit permission from the author.
 
-## Migrated Reference Assets
+# MIGHT DO
+1. Lock-Screen wall paper like Groove.
+2. Album properties.
 
-The remaining shared assets are kept in the runtime locations used by the Flutter app and its tooling.
+## TODO
+1. support for ai agent
+2. remote play
+3. allow music artist and album in immersive mode
+4. Search multiple lyrics choose one. Lyrics priority in notification.
+5. Search in lyrics.
+6. Batch edit music info.
 
-- `assets/locales`: shared JSON locale dictionaries used as the source for Flutter localization.
-- `tooling/i18n`: original i18n audit/check scripts.
-- `storelisting`: existing Microsoft Store listing CSV and screenshots.
-- `assets/branding`: existing app icon and branding images registered as Flutter assets.
-- `docs`: migration notes copied from the Electron project.
-
-The locale files are shared JSON inputs for a later Dart/ARB localization pass. They are not yet wired into Flutter localization.
-
-## Architecture Direction
-
-Keep the music library, database, pairing, connection diagnostics, and streaming protocol independent from Flutter screens. Desktop and mobile should call the same core services where possible.
-
-Planned source layout:
-
-- `lib/src/app`: app bootstrap, routing, top-level providers.
-- `lib/src/library`: music scan, metadata, artwork, lyrics, playlists.
-- `lib/src/playback`: local playback and remote stream playback.
-- `lib/src/remote`: pairing, authorization, HTTP APIs, streaming, connectivity checks.
-- `lib/src/storage`: Drift database and local file paths.
-- `lib/src/platform`: desktop/mobile integration such as tray, windows, background audio, file pickers, and desktop lyrics.
-- `lib/src/shared`: DTOs, constants, formatting, protocol models.
-
-## Desktop Lyrics
-
-Flutter can support desktop lyrics on desktop platforms, but it is not a built-in one-line feature. The likely implementation is a separate always-on-top transparent window using `window_manager`, plus platform-specific work where needed for click-through, taskbar behavior, screen placement, and global hotkeys.
-
-Mobile platforms should not reuse the desktop lyrics model directly.
-
-## Remote Playback Scope
-
-This app will not rely on an official cloud service. A desktop device can run its own local connection service. A paired mobile device can connect and stream from it when the desktop device is reachable.
-
-Out-of-home access can be attempted with reachable IPv6, UPnP/NAT-PMP, port forwarding, DDNS, or user-managed VPN tools. Without a reachable route, the mobile app should show a clear connection failure instead of implying cloud availability.
-
-## Useful Commands
-
-```powershell
-flutter pub get
-flutter analyze
-flutter run -d windows
-```
+## FIXME
+1. 最小高度宽屏和窄屏下不对

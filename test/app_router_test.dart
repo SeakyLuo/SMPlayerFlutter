@@ -657,7 +657,7 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/songs');
   });
 
-  testWidgets('sidebar back returns album detail query to albums', (
+  testWidgets('sidebar back returns album detail to previous route', (
     tester,
   ) async {
     final router = createSmPlayerRouter();
@@ -682,9 +682,7 @@ void main() {
     );
     await _pumpRouter(tester);
 
-    final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/albums');
-    expect(uri.queryParameters.containsKey('album'), isFalse);
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
   });
 
   testWidgets('album query route opens Electron-style album detail', (
@@ -698,6 +696,9 @@ void main() {
           smPlayerI18nProvider.overrideWith((ref) async => testI18n),
           libraryContentDataProvider.overrideWith(
             (ref) async => albumLibraryData,
+          ),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(albumLibraryData),
           ),
         ],
         child: _RouterTestApp(router: router, i18n: testI18n),
@@ -760,7 +761,7 @@ void main() {
     expect(find.text('collection.albumNotFoundCopy'), findsNothing);
   });
 
-  testWidgets('compact titlebar back returns artist detail query to artists', (
+  testWidgets('compact titlebar back returns artist detail to previous route', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -792,9 +793,158 @@ void main() {
     );
     await _pumpRouter(tester);
 
-    final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/artists');
-    expect(uri.queryParameters.containsKey('artist'), isFalse);
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
+  });
+
+  testWidgets('compact artist detail opened from list returns to artist list', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => albumLibraryData,
+          ),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(albumLibraryData),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/artists');
+    await _pumpRouter(tester);
+    expect(router.routeInformationProvider.value.uri.path, '/artists');
+
+    await tester.tap(find.text('Artist A').first);
+    await _pumpRouter(tester);
+
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['artist'],
+      'Artist A',
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+    await _pumpRouter(tester);
+
+    final artistListUri = router.routeInformationProvider.value.uri;
+    expect(artistListUri.path, '/artists');
+    expect(artistListUri.queryParameters.containsKey('artist'), isFalse);
+    expect(find.text('Artist A'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
+  });
+
+  testWidgets('compact current artist tab returns detail to artist list', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => albumLibraryData,
+          ),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(albumLibraryData),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/artists?artist=Artist%20A');
+    await _pumpRouter(tester);
+
+    await tester.tap(find.byKey(const ValueKey('ArtistsItem')).hitTestable());
+    await _pumpRouter(tester);
+
+    final artistsUri = router.routeInformationProvider.value.uri;
+    expect(artistsUri.path, '/artists');
+    expect(artistsUri.queryParameters.containsKey('artist'), isFalse);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
+  });
+
+  testWidgets('compact current albums tab returns detail to album list', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+          shellNavigationDataProvider.overrideWith(
+            (ref) async => _shellNavigationData(emptyLibraryData),
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/albums?album=Blue');
+    await _pumpRouter(tester);
+
+    await tester.tap(find.byKey(const ValueKey('AlbumsItem')).hitTestable());
+    await _pumpRouter(tester);
+
+    final albumsUri = router.routeInformationProvider.value.uri;
+    expect(albumsUri.path, '/albums');
+    expect(albumsUri.queryParameters.containsKey('album'), isFalse);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+    await _pumpRouter(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/songs');
   });
 
   testWidgets('wide artist detail keeps master list without route back', (
@@ -889,6 +1039,38 @@ void main() {
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/local');
     expect(uri.queryParameters['path'], 'Jazz/Blue');
+  });
+
+  testWidgets('local titlebar back returns to previous page', (tester) async {
+    final router = createSmPlayerRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+
+    router.go('/recent');
+    await _pumpRouter(tester);
+    router.go('/local?path=Jazz');
+    await _pumpRouter(tester);
+    router.go('/local?path=Jazz%2FBlue');
+    await _pumpRouter(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.BackButton')),
+    );
+    await _pumpRouter(tester);
+
+    var uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/recent');
+    expect(uri.queryParameters.containsKey('path'), isFalse);
   });
 
   testWidgets('sidebar local exits hidden folders route like Electron', (

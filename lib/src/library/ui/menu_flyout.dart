@@ -29,6 +29,7 @@ class MenuFlyoutItem {
     this.useExitFullscreenIcon = false,
     this.disabled = false,
     this.checked = false,
+    this.tooltip,
     this.submenu = const [],
     this.onPressed,
     this.onPressedWithContext,
@@ -54,6 +55,7 @@ class MenuFlyoutItem {
       useExitFullscreenIcon = false,
       disabled = false,
       checked = false,
+      tooltip = null,
       submenu = const [],
       onPressed = null,
       onPressedWithContext = null,
@@ -79,6 +81,7 @@ class MenuFlyoutItem {
   final bool useExitFullscreenIcon;
   final bool disabled;
   final bool checked;
+  final String? tooltip;
   final List<MenuFlyoutItem> submenu;
   final FutureOr<void> Function()? onPressed;
   final FutureOr<void> Function(BuildContext context)? onPressedWithContext;
@@ -178,7 +181,7 @@ Future<void> showMenuFlyout(
 
 const _menuFlyoutMargin = 8.0;
 const _menuFlyoutWidth = 206.0;
-const _menuFlyoutMaxWidth = 280.0;
+const _menuFlyoutMaxWidth = 640.0;
 const _menuFlyoutPadding = 6.0;
 const _menuFlyoutBorderWidth = 1.0;
 const _menuFlyoutItemHeight = 34.0;
@@ -686,6 +689,9 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
     final scrollable =
         (widget.depth > 0 || widget.scrollRoot) &&
         itemsContentHeight > maxHeight;
+    final showLeadingIconSpace = widget.state.items.any(
+      _menuFlyoutItemHasLeadingIcon,
+    );
     final itemWidgets = [
       for (var index = 0; index < widget.state.items.length; index += 1)
         _MenuFlyoutItemWidget(
@@ -693,6 +699,7 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
           item: widget.state.items[index],
           itemIndex: index,
           depth: widget.depth,
+          showLeadingIconSpace: showLeadingIconSpace,
           activeItemIndexListenable: _activeItemIndex,
           anchorContext: widget.anchorContext,
           positionContext: widget.positionContext,
@@ -838,6 +845,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
     required this.item,
     required this.itemIndex,
     required this.depth,
+    required this.showLeadingIconSpace,
     required this.activeItemIndexListenable,
     required this.anchorContext,
     required this.positionContext,
@@ -851,6 +859,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
   final MenuFlyoutItem item;
   final int itemIndex;
   final int depth;
+  final bool showLeadingIconSpace;
   final ValueListenable<int?> activeItemIndexListenable;
   final BuildContext anchorContext;
   final BuildContext positionContext;
@@ -1008,140 +1017,13 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
             ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 20,
-                  child:
-                      item.icon == FluentIcons.play_20_regular
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: SmPlayerPlayIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.useAlbumIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: SmPlayerAlbumIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.usePlaylistIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: SmPlayerPlaylistIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.usePlayNextIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: SmPlayerPlayNextIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.useShuffleIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: ShuffleIcon(
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.useFullscreenIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: SmPlayerFullscreenIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.useExitFullscreenIcon
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: ExitFullscreenIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                              ),
-                            ),
-                          )
-                          : item.iconWidget != null
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: IconTheme(
-                                data: IconThemeData(
-                                  color:
-                                      item.disabled
-                                          ? foreground
-                                          : item.iconColor ?? foreground,
-                                ),
-                                child: item.iconWidget!,
-                              ),
-                            ),
-                          )
-                          : item.icon == null
-                          ? null
-                          : isMultiSelectIcon(item.icon!)
-                          ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: UniformMultiSelectIcon(
-                                size: 18,
-                                color:
-                                    item.disabled
-                                        ? foreground
-                                        : item.iconColor ?? foreground,
-                                strokeWidth: 1.35,
-                              ),
-                            ),
-                          )
-                          : Icon(
-                            item.icon,
-                            size: 18,
-                            color:
-                                item.disabled
-                                    ? foreground
-                                    : item.iconColor ?? foreground,
-                          ),
-                ),
-                const SizedBox(width: 10),
+                if (widget.showLeadingIconSpace) ...[
+                  SizedBox(
+                    width: 20,
+                    child: _buildLeadingIcon(item, foreground),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     _busy ? item.pendingText ?? item.text : item.text,
@@ -1154,24 +1036,30 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                     ),
                   ),
                 ),
-                if (item.checked)
+                if (item.checked) ...[
+                  const SizedBox(width: 10),
                   Icon(
                     FluentIcons.checkmark_20_regular,
                     size: 16,
                     color: colors.checked,
-                  )
-                else if (hasSubmenu)
+                  ),
+                ] else if (hasSubmenu) ...[
+                  const SizedBox(width: 10),
                   Icon(
                     FluentIcons.chevron_right_20_regular,
                     size: 16,
                     color: foreground,
                   ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+    if (item.tooltip != null) {
+      itemContent = Tooltip(message: item.tooltip!, child: itemContent);
+    }
     if (item.onAcceptDrop == null) {
       return itemContent;
     }
@@ -1186,6 +1074,90 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
       },
       builder: (context, candidateData, rejectedData) => itemContent,
     );
+  }
+
+  Widget? _buildLeadingIcon(MenuFlyoutItem item, Color foreground) {
+    final color = item.disabled ? foreground : item.iconColor ?? foreground;
+    if (item.icon == FluentIcons.play_20_regular) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: SmPlayerPlayIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.useAlbumIcon) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: SmPlayerAlbumIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.usePlaylistIcon) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: SmPlayerPlaylistIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.usePlayNextIcon) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: SmPlayerPlayNextIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.useShuffleIcon) {
+      return Center(
+        child: SizedBox.square(dimension: 18, child: ShuffleIcon(color: color)),
+      );
+    }
+    if (item.useFullscreenIcon) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: SmPlayerFullscreenIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.useExitFullscreenIcon) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: ExitFullscreenIcon(size: 18, color: color),
+        ),
+      );
+    }
+    if (item.iconWidget != null) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: IconTheme(
+            data: IconThemeData(color: color),
+            child: item.iconWidget!,
+          ),
+        ),
+      );
+    }
+    if (item.icon == null) {
+      return null;
+    }
+    if (isMultiSelectIcon(item.icon!)) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: UniformMultiSelectIcon(
+            size: 18,
+            color: color,
+            strokeWidth: 1.35,
+          ),
+        ),
+      );
+    }
+    return Icon(item.icon, size: 18, color: color);
   }
 
   void _openSubmenu(MenuFlyoutItem item) {
@@ -1218,6 +1190,7 @@ double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
 double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
   final textDirection = Directionality.of(context);
   final textScaler = MediaQuery.textScalerOf(context);
+  final hasLeadingIconSpace = items.any(_menuFlyoutItemHasLeadingIcon);
   var width = _menuFlyoutWidth;
   for (final item in items) {
     if (item.separator || item.content != null) {
@@ -1232,18 +1205,30 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout();
-    final trailingWidth =
-        item.checked || item.submenu.isNotEmpty && !item.disabled ? 16.0 : 0.0;
+    final hasTrailingIcon =
+        item.checked || item.submenu.isNotEmpty && !item.disabled;
+    final leadingWidth = hasLeadingIconSpace ? 30.0 : 0.0;
+    final trailingWidth = hasTrailingIcon ? 26.0 : 0.0;
     final itemWidth =
         (_menuFlyoutPadding + _menuFlyoutBorderWidth) * 2 +
         20 +
-        10 +
-        20 +
+        leadingWidth +
         painter.width +
         trailingWidth;
     width = math.max(width, itemWidth);
   }
   return width.clamp(_menuFlyoutWidth, _menuFlyoutMaxWidth).toDouble();
+}
+
+bool _menuFlyoutItemHasLeadingIcon(MenuFlyoutItem item) {
+  return item.icon != null ||
+      item.iconWidget != null ||
+      item.useAlbumIcon ||
+      item.usePlaylistIcon ||
+      item.usePlayNextIcon ||
+      item.useShuffleIcon ||
+      item.useFullscreenIcon ||
+      item.useExitFullscreenIcon;
 }
 
 double _menuFlyoutItemsContentHeight(List<MenuFlyoutItem> items) {

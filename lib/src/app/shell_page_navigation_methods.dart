@@ -4,12 +4,16 @@ part of 'shell_page.dart';
 
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
+    final compactCurrentDetailRootTarget = _compactCurrentDetailRootTarget(
+      target,
+    );
     final restoredTarget =
-        target == '/playlists' ||
+        compactCurrentDetailRootTarget ??
+        (target == '/playlists' ||
                 target == '/albums' ||
                 target == '/now-playing'
             ? target
-            : _routeMemory[target] ?? target;
+            : _routeMemory[target] ?? target);
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
     final isImmersiveTransition =
@@ -17,7 +21,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     setState(() {
       _currentPath = restoredTarget;
     });
-    _recordNavigationLocation(restoredTarget);
+    if (compactCurrentDetailRootTarget == null) {
+      _recordNavigationLocation(restoredTarget);
+    } else {
+      _replaceCurrentNavigationLocation(restoredTarget);
+    }
     _rememberRoute(restoredTarget);
     _persistCurrentPage(restoredTarget);
     _closeNavigationOverlay();
@@ -25,6 +33,39 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     if (!isImmersiveTransition) {
       unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
+  }
+
+  String? _compactCurrentDetailRootTarget(String target) {
+    if (!_isCompactWorkspaceForCurrentWindow()) {
+      return null;
+    }
+
+    final currentLocation =
+        widget.currentLocation ?? widget.currentPath ?? _currentPath;
+    final currentUri = Uri.parse(currentLocation);
+    if (target == '/artists' &&
+        currentUri.path == '/artists' &&
+        currentUri.queryParameters.containsKey('artist')) {
+      return '/artists';
+    }
+    if (target == '/albums' &&
+        currentUri.path == '/albums' &&
+        currentUri.queryParameters.containsKey('album')) {
+      return '/albums';
+    }
+    return null;
+  }
+
+  bool _isCompactWorkspaceForCurrentWindow() {
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
+      windowWidth,
+    );
+    final workspaceWidth =
+        navigationMode == SmPlayerNavigationMode.minimal
+            ? windowWidth
+            : windowWidth - SmPlayerShellMetrics.collapsedSidebarWidth;
+    return workspaceWidth <= 720;
   }
 
   void _exitImmersiveMode() {
@@ -70,6 +111,19 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
 
     _navigationHistory.add(location);
+  }
+
+  void _replaceCurrentNavigationLocation(String location) {
+    if (_navigationHistory.isEmpty) {
+      _navigationHistory.add(location);
+      return;
+    }
+
+    _navigationHistory[_navigationHistory.length - 1] = location;
+    if (_navigationHistory.length > 1 &&
+        _navigationHistory[_navigationHistory.length - 2] == location) {
+      _navigationHistory.removeLast();
+    }
   }
 
   String _pathFromLocation(String location) {
@@ -180,25 +234,6 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       return;
     }
     _closeNavigationOverlay();
-    final currentLocation =
-        widget.currentLocation ?? widget.currentPath ?? _currentPath;
-    final currentUri = Uri.parse(currentLocation);
-    final isAlbumDetailRoute =
-        currentUri.path == '/albums' &&
-        currentUri.queryParameters.containsKey('album');
-    if (isAlbumDetailRoute && widget.onGoBack != null) {
-      _navigationHistory.clear();
-      widget.onGoBack!.call();
-      return;
-    }
-    final isArtistDetailRoute =
-        currentUri.path == '/artists' &&
-        currentUri.queryParameters.containsKey('artist');
-    if (isArtistDetailRoute && widget.canGoBack && widget.onGoBack != null) {
-      _navigationHistory.clear();
-      widget.onGoBack!.call();
-      return;
-    }
     if (_navigationHistory.length > 1) {
       final targetLocation = _navigationHistory[_navigationHistory.length - 2];
       setState(() {

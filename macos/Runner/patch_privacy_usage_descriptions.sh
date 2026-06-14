@@ -61,10 +61,6 @@ done
   patch_strings "$strings"
 done
 
-if [ -d "$APP_DIR" ]; then
-  touch "$APP_DIR"
-fi
-
 if [ "${CODE_SIGNING_ALLOWED:-YES}" != "NO" ]; then
   SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:-}"
   [ -n "$SIGN_IDENTITY" ] || SIGN_IDENTITY="-"
@@ -72,7 +68,4 @@ if [ "${CODE_SIGNING_ALLOWED:-YES}" != "NO" ]; then
     [ -d "$bundle" ] || continue
     codesign --force --sign "$SIGN_IDENTITY" --timestamp=none --preserve-metadata=identifier,entitlements,flags,runtime "$bundle"
   done
-  if [ -d "$APP_DIR" ]; then
-    codesign --force --sign "$SIGN_IDENTITY" --timestamp=none --preserve-metadata=identifier,entitlements,flags,runtime "$APP_DIR"
-  fi
 fi

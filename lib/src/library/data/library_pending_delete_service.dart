@@ -70,7 +70,7 @@ class LibraryPendingDeleteService {
   ) async {
     final records = await readRecords(file);
     final record = findSongDeleteRecord(records, deleteId);
-    await trashPath(record.songPath);
+    await _trashPathIfExists(record.songPath, trashPath);
     await writeRecords(
       file,
       records.where((item) => item.id != deleteId).toList(),
@@ -97,10 +97,21 @@ class LibraryPendingDeleteService {
     }
 
     final records = await readRecords(file);
+    final committedRecordIds = <String>{};
     for (final record in records) {
-      await _trashRecord(record, trashPath);
+      try {
+        await _trashRecord(record, trashPath);
+        committedRecordIds.add(record.id);
+      } on Object {
+        // Keep failed records so the next launch can retry moving them to trash.
+      }
     }
-    await writeRecords(file, const []);
+    await writeRecords(
+      file,
+      records
+          .where((record) => !committedRecordIds.contains(record.id))
+          .toList(),
+    );
   }
 
   Future<void> _trashRecord(
@@ -108,14 +119,25 @@ class LibraryPendingDeleteService {
     TrashPath trashPath,
   ) async {
     if (record is PendingSongDeleteRecord) {
-      await trashPath(record.songPath);
+      await _trashPathIfExists(record.songPath, trashPath);
       return;
     }
 
     final localItemsRecord = record as PendingLocalItemsDeleteRecord;
     for (final targetPath in localItemsRecord.targetPaths) {
-      await trashPath(targetPath);
+      await _trashPathIfExists(targetPath, trashPath);
     }
+  }
+
+  Future<void> _trashPathIfExists(
+    String targetPath,
+    TrashPath trashPath,
+  ) async {
+    final type = FileSystemEntity.typeSync(targetPath);
+    if (type == FileSystemEntityType.notFound) {
+      return;
+    }
+    await trashPath(targetPath);
   }
 }
 

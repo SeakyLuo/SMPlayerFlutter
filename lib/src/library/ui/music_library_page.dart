@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/app_interaction_colors.dart';
+import '../../app/auto_hide_scrollbar_visibility.dart';
 import '../../app/loading_state.dart';
 import '../../app/smplayer_vector_icons.dart';
 import '../../app/undoable_notification.dart';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/auto_hide_scrollbar_visibility.dart';
 
 const recentScrollbarThickness = 5.0;
 const recentScrollbarHoverThickness = 7.0;
@@ -17,11 +18,10 @@ class RecentScrollbar extends StatefulWidget {
   State<RecentScrollbar> createState() => _RecentScrollbarState();
 }
 
-class _RecentScrollbarState extends State<RecentScrollbar> {
+class _RecentScrollbarState extends State<RecentScrollbar>
+    with AutoHideScrollbarVisibility {
   late final ScrollController _controller;
-  var _hovered = false;
   var _focused = false;
-  var _scrolling = false;
   var _canScroll = false;
 
   @override
@@ -44,6 +44,9 @@ class _RecentScrollbarState extends State<RecentScrollbar> {
 
   void _handleScroll() {
     _syncCanScroll();
+    if (_controller.hasClients && _controller.position.maxScrollExtent > 1) {
+      showAutoHideScrollbar();
+    }
   }
 
   void _syncCanScroll() {
@@ -59,22 +62,9 @@ class _RecentScrollbarState extends State<RecentScrollbar> {
     }
   }
 
-  void _setHovered(bool hovered) {
-    if (_hovered == hovered) {
-      return;
-    }
-
-    setState(() {
-      _hovered = hovered;
-    });
-    if (hovered) {
-      _syncCanScroll();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final visible = _canScroll && (_hovered || _focused || _scrolling);
+    final visible = _canScroll && (autoHideScrollbarVisible || _focused);
     final scrollableChild = ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: widget.builder(_controller),
@@ -94,10 +84,11 @@ class _RecentScrollbarState extends State<RecentScrollbar> {
     );
     return MouseRegion(
       onEnter: (_) {
-        _setHovered(true);
+        _syncCanScroll();
+        setAutoHideScrollbarHovered(true);
       },
       onExit: (_) {
-        _setHovered(false);
+        setAutoHideScrollbarHovered(false);
       },
       child: Focus(
         onFocusChange: (focused) {
@@ -118,13 +109,9 @@ class _RecentScrollbarState extends State<RecentScrollbar> {
               });
             }
             if (notification is ScrollStartNotification) {
-              setState(() {
-                _scrolling = true;
-              });
+              showAutoHideScrollbar();
             } else if (notification is ScrollEndNotification) {
-              setState(() {
-                _scrolling = false;
-              });
+              scheduleAutoHideScrollbar();
             }
             return false;
           },

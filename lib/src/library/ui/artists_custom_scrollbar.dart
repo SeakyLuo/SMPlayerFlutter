@@ -19,9 +19,29 @@ class _ArtistsCustomScrollbar extends StatefulWidget {
       _ArtistsCustomScrollbarState();
 }
 
-class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar> {
-  var _hovered = false;
-  var _dragging = false;
+class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar>
+    with AutoHideScrollbarVisibility {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void didUpdateWidget(_ArtistsCustomScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller.removeListener(showAutoHideScrollbar);
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(showAutoHideScrollbar);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +78,7 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar> {
               final thumbTop =
                   (position.pixels / maxScrollTop) *
                   max(0.0, trackHeight - thumbHeight);
-              final expanded = _hovered || _dragging;
+              final expanded = autoHideScrollbarExpanded;
               final brightness = Theme.of(context).brightness;
               final thumbColor =
                   expanded
@@ -67,23 +87,16 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar> {
 
               return MouseRegion(
                 onEnter: (_) {
-                  setState(() {
-                    _hovered = true;
-                  });
+                  setAutoHideScrollbarHovered(true);
                 },
                 onExit: (_) {
-                  if (_dragging) {
-                    return;
-                  }
-                  setState(() {
-                    _hovered = false;
-                  });
+                  setAutoHideScrollbarHovered(false);
                 },
                 child: Stack(
                   children: [
                     const Positioned.fill(child: SizedBox.expand()),
                     AnimatedOpacity(
-                      opacity: expanded ? 1 : 0,
+                      opacity: autoHideScrollbarVisible ? 1 : 0,
                       duration: const Duration(milliseconds: 140),
                       curve: Curves.easeOut,
                       child: Stack(
@@ -96,9 +109,7 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar> {
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onVerticalDragStart: (_) {
-                                setState(() {
-                                  _dragging = true;
-                                });
+                                beginAutoHideScrollbarDrag();
                               },
                               onVerticalDragUpdate: (details) {
                                 final trackRange = max(
@@ -116,16 +127,10 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar> {
                                 );
                               },
                               onVerticalDragEnd: (_) {
-                                setState(() {
-                                  _dragging = false;
-                                  _hovered = false;
-                                });
+                                endAutoHideScrollbarDrag();
                               },
                               onVerticalDragCancel: () {
-                                setState(() {
-                                  _dragging = false;
-                                  _hovered = false;
-                                });
+                                endAutoHideScrollbarDrag();
                               },
                               child: DecoratedBox(
                                 key: widget.thumbKey,

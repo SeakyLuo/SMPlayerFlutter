@@ -4,6 +4,7 @@ class _ArtistsAppBarSearchActions extends StatefulWidget {
   const _ArtistsAppBarSearchActions({
     required this.searchOpen,
     required this.artistSearch,
+    required this.sortCriterion,
     required this.i18n,
     required this.searchFocused,
     required this.searchSuggestions,
@@ -17,10 +18,12 @@ class _ArtistsAppBarSearchActions extends StatefulWidget {
     required this.onSelectSearchSuggestion,
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
+    required this.onChangeArtistSort,
   });
 
   final bool searchOpen;
   final String artistSearch;
+  final ArtistSortCriterion sortCriterion;
   final SmPlayerI18n i18n;
   final bool searchFocused;
   final List<String> searchSuggestions;
@@ -34,6 +37,7 @@ class _ArtistsAppBarSearchActions extends StatefulWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
+  final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
 
   @override
   State<_ArtistsAppBarSearchActions> createState() =>
@@ -89,6 +93,23 @@ class _ArtistsAppBarSearchActionsState
             showLabel: false,
             canOverflow: false,
             onPressed: widget.onOpenSearch,
+          ),
+          CommandBarButton(
+            key: const ValueKey('Artists.AppBar.Sort'),
+            icon: FluentIcons.arrow_sort_20_regular,
+            label: artistSortLabel(widget.i18n, widget.sortCriterion),
+            showLabel: false,
+            canOverflow: false,
+            onPressedWithContext: (context) {
+              showMenuFlyout(
+                context,
+                items: artistSortMenuItems(
+                  widget.i18n,
+                  widget.sortCriterion,
+                  widget.onChangeArtistSort,
+                ),
+              );
+            },
           ),
         ],
       );

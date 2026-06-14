@@ -22,16 +22,21 @@ import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     show
         ArtistGroup,
+        ArtistSortCriterion,
+        artistCountQuickJumpKeys,
         artistRowContentHeight,
         artistOverscanRows,
         artistQuickJumpKeys,
+        artistQuickJumpKeysForSort,
         artistRowHeight,
         artistRowSpacing,
         buildAlbumGroups,
+        buildArtistQuickJumpMap,
         buildArtistGroups,
         compareArtistText,
         formatDuration,
         getArtistAlbumVirtualWindow,
+        getArtistCountQuickJumpBucket,
         getArtistQuickJumpBucket,
         searchArtists;
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
@@ -65,6 +70,9 @@ void main() {
       'artists.locateArtist': 'Locate Artist',
       'artists.searchArtistsPlaceholder': 'Search artists',
       'artists.selectArtist': 'Select an artist',
+      'artists.sort.albumCount': 'Album Count',
+      'artists.sort.name': 'Name',
+      'artists.sort.songCount': 'Song Count',
       'albums.addSelectedTo': 'Add To',
       'albums.clearSelection': 'Clear Selection',
       'albums.playSelected': 'Play Selected',
@@ -88,6 +96,7 @@ void main() {
       'common.myFavorites': 'My Favorites',
       'common.nowPlaying': 'Now Playing',
       'common.search': 'Search',
+      'local.sortReverseList': 'Reverse List',
       'common.undo': 'Undo',
       'context.addToPlaylist': 'Add To',
       'context.deleteFromDisk': 'Delete From Disk',
@@ -140,6 +149,16 @@ void main() {
       'song.noAlbumArt': 'No Album Art',
     },
   );
+  final zhCnI18n = SmPlayerI18n(
+    locale: 'zh-CN',
+    messages: {
+      ...i18n.messages,
+      'artists.sort.albumCount': '专辑数量',
+      'artists.sort.name': '名称',
+      'artists.sort.songCount': '歌曲数量',
+      'local.sortReverseList': '倒序排列',
+    },
+  );
 
   test('artist quick jump folds latin accents like Electron', () {
     expect(getArtistQuickJumpBucket('\u00c9clair'), 'E');
@@ -157,6 +176,52 @@ void main() {
     expect(getArtistQuickJumpBucket('\u738b\u83f2'), 'W');
     expect(getArtistQuickJumpBucket('\u5468\u6770\u4f26'), 'Z');
     expect(getArtistQuickJumpBucket('\u957f\u6c5f'), 'Z');
+  });
+
+  test('artist count quick jump uses 1 through 20 and 20+', () {
+    expect(
+      artistQuickJumpKeysForSort(ArtistSortCriterion.name),
+      artistQuickJumpKeys,
+    );
+    expect(
+      artistQuickJumpKeysForSort(ArtistSortCriterion.songCount),
+      artistCountQuickJumpKeys,
+    );
+    expect(
+      artistQuickJumpKeysForSort(ArtistSortCriterion.albumCount),
+      artistCountQuickJumpKeys,
+    );
+    expect(artistCountQuickJumpKeys.first, '1');
+    expect(artistCountQuickJumpKeys[19], '20');
+    expect(artistCountQuickJumpKeys.last, '20+');
+    expect(getArtistCountQuickJumpBucket(20), '20');
+    expect(getArtistCountQuickJumpBucket(21), '20+');
+
+    final artists = [
+      ArtistGroup(
+        name: 'Overflow',
+        songs: _countSongs(21),
+        albumCount: 21,
+        artworkSongId: 1,
+      ),
+      ArtistGroup(
+        name: 'Twenty',
+        songs: _countSongs(20),
+        albumCount: 20,
+        artworkSongId: 1,
+      ),
+      ArtistGroup(
+        name: 'One',
+        songs: _countSongs(1),
+        albumCount: 1,
+        artworkSongId: 1,
+      ),
+    ];
+    expect(buildArtistQuickJumpMap(artists, ArtistSortCriterion.songCount), {
+      '20+': 0,
+      '20': 1,
+      '1': 2,
+    });
   });
 
   test('compareArtistText sorts Chinese names by pinyin bucket', () {
@@ -582,6 +647,35 @@ void main() {
 
     expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
     expect(find.text('APPBAR_BOTTOM:true'), findsOneWidget);
+  });
+
+  testWidgets('ArtistsPage compact appbar title follows artist route target', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsAppBarPortalTestApp(
+        snapshot: _twoArtistSnapshot,
+        i18n: i18n,
+        initialLocation: '/artists?artist=Artist%20A',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Artists.ArtistRow.Artist B')));
+    await tester.pumpAndSettle();
+
+    tester.view.physicalSize = const Size(640, 800);
+    await tester.pumpAndSettle();
+
+    expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
+    expect(find.text('APPBAR_TITLE:Artist B'), findsNothing);
   });
 
   testWidgets(
@@ -2052,6 +2146,28 @@ void main() {
     );
   });
 
+  testWidgets('ArtistsPage artist row name has tooltip', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _twoArtistSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('Artists.ArtistRow.Artist B')),
+        matching: find.byTooltip('Artist B'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('ArtistsPage artist row context menu mirrors Electron scope', (
     tester,
   ) async {
@@ -3170,6 +3286,183 @@ void main() {
     );
     expect(find.text('Blue Song'), findsOneWidget);
     expect(find.text('Green Song'), findsNothing);
+  });
+
+  testWidgets('ArtistsPage sort menu orders artists by counts and reverse', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _artistSortSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Alpha')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Beta')))
+            .dy,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('artists-sort-song-count')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Beta')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Alpha')))
+            .dy,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('artists-sort-album-count')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Gamma')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Beta')))
+            .dy,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('artists-sort-reverse')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Alpha')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('Artists.ArtistRow.Gamma')))
+            .dy,
+      ),
+    );
+  });
+
+  testWidgets('ArtistsPage sort menu renders localized labels', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _artistSortSnapshot, i18n: zhCnI18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('倒序排列'), findsOneWidget);
+    expect(find.text('名称'), findsOneWidget);
+    expect(find.text('歌曲数量'), findsOneWidget);
+    expect(find.text('专辑数量'), findsOneWidget);
+    expect(find.text('artists.sort.songCount'), findsNothing);
+    expect(find.text('artists.sort.albumCount'), findsNothing);
+  });
+
+  testWidgets('ArtistsPage count sort swaps quick jump to count keys', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _artistCountQuickJumpSnapshot(), i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('Artists.QuickJump.A')), findsWidgets);
+    expect(find.byKey(const ValueKey('Artists.QuickJump.20+')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('artists-sort-song-count')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('Artists.QuickJump.A')), findsNothing);
+    for (final key in artistCountQuickJumpKeys) {
+      expect(find.byKey(ValueKey('Artists.QuickJump.$key')), findsOneWidget);
+    }
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const ValueKey('Artists.QuickJump.20+')),
+          )
+          .enabled,
+      isTrue,
+    );
+    final overflowQuickJumpText = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('Artists.QuickJump.20+')),
+        matching: find.text('20+'),
+      ),
+    );
+    expect(overflowQuickJumpText.maxLines, 1);
+    expect(overflowQuickJumpText.softWrap, isFalse);
+    expect(
+      find.ancestor(of: find.text('20+'), matching: find.byType(FittedBox)),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const ValueKey('Artists.QuickJump.20')),
+          )
+          .enabled,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const ValueKey('Artists.QuickJump.2')))
+          .enabled,
+      isFalse,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('Artists.SortButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('artists-sort-album-count')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('Artists.QuickJump.A')), findsNothing);
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const ValueKey('Artists.QuickJump.20+')),
+          )
+          .enabled,
+      isTrue,
+    );
   });
 
   testWidgets(
@@ -4878,7 +5171,7 @@ void main() {
     expect(find.text('See Album'), findsNothing);
   });
 
-  testWidgets('ArtistsPage Locate Artist scrolls master list like Electron', (
+  testWidgets('ArtistsPage Locate Artist exits detail and scrolls list', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -4920,6 +5213,112 @@ void main() {
       findsOneWidget,
     );
     expect(position.pixels, greaterThan(0));
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/artists');
+    expect(uri.queryParameters.containsKey('artist'), isFalse);
+  });
+
+  testWidgets(
+    'ArtistsPage compact Locate Artist exits detail and locates row',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final router = _createArtistsRouter();
+
+      await tester.pumpWidget(
+        _ArtistsRouterTestApp(
+          snapshot: _manyArtistsSnapshot(),
+          i18n: i18n,
+          router: router,
+          repository: _FakeLibraryRepository(),
+        ),
+      );
+      router.go('/artists?artist=Beta%20Target');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('Artists.DetailHeader.More')), findsOne);
+      expect(
+        find.byKey(const ValueKey('Artists.ArtistRow.Beta Target')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('Artists.DetailHeader.More')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Locate Artist'));
+      await tester.pumpAndSettle();
+
+      final uri = router.routeInformationProvider.value.uri;
+      expect(uri.path, '/artists');
+      expect(uri.queryParameters.containsKey('artist'), isFalse);
+      expect(
+        find.byKey(const ValueKey('Artists.ArtistRow.Beta Target')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('ArtistsPage compact Locate Artist highlights visible row', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final router = _createArtistsRouter();
+
+    await tester.pumpWidget(
+      _ArtistsRouterTestApp(
+        snapshot: _twoArtistSnapshot,
+        i18n: i18n,
+        router: router,
+        repository: _FakeLibraryRepository(),
+      ),
+    );
+    router.go('/artists?artist=Artist%20B');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('Artists.DetailHeader.More')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Locate Artist'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final uri = router.routeInformationProvider.value.uri;
+    expect(uri.path, '/artists');
+    expect(uri.queryParameters.containsKey('artist'), isFalse);
+    expect(
+      find.byKey(const ValueKey('Artists.ArtistRow.Artist B')),
+      findsOneWidget,
+    );
+    final highlightedDecoration =
+        tester
+                .widget<Container>(
+                  find.byKey(
+                    const ValueKey('Artists.ArtistRow.Decoration.Artist B'),
+                  ),
+                )
+                .decoration!
+            as BoxDecoration;
+    expect(highlightedDecoration.color, isNotNull);
+    expect(highlightedDecoration.color, isNot(Colors.transparent));
+
+    await tester.pumpAndSettle();
+    final fadedDecoration =
+        tester
+                .widget<Container>(
+                  find.byKey(
+                    const ValueKey('Artists.ArtistRow.Decoration.Artist B'),
+                  ),
+                )
+                .decoration!
+            as BoxDecoration;
+    expect(fadedDecoration.color, Colors.transparent);
   });
 
   testWidgets('ArtistsPage legacy artist route redirects like Electron', (
@@ -6419,6 +6818,109 @@ const _twoArtistSnapshot = LibraryContentData(
   databasePath: '',
 );
 
+const _artistSortSnapshot = LibraryContentData(
+  songs: [
+    LibrarySong(
+      id: 1,
+      path: r'C:\Music\alpha.mp3',
+      title: 'Alpha Song',
+      artist: 'Alpha',
+      artists: ['Alpha'],
+      album: 'Alpha Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 2,
+      path: r'C:\Music\beta-1.mp3',
+      title: 'Beta Song 1',
+      artist: 'Beta',
+      artists: ['Beta'],
+      album: 'Beta Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-21T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 3,
+      path: r'C:\Music\beta-2.mp3',
+      title: 'Beta Song 2',
+      artist: 'Beta',
+      artists: ['Beta'],
+      album: 'Beta Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-22T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 4,
+      path: r'C:\Music\beta-3.mp3',
+      title: 'Beta Song 3',
+      artist: 'Beta',
+      artists: ['Beta'],
+      album: 'Beta Album',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-23T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 5,
+      path: r'C:\Music\gamma-1.mp3',
+      title: 'Gamma Song 1',
+      artist: 'Gamma',
+      artists: ['Gamma'],
+      album: 'Gamma Album A',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-24T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+    LibrarySong(
+      id: 6,
+      path: r'C:\Music\gamma-2.mp3',
+      title: 'Gamma Song 2',
+      artist: 'Gamma',
+      artists: ['Gamma'],
+      album: 'Gamma Album B',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-25T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    ),
+  ],
+  recentSongs: [],
+  recentPlaylists: [],
+  recentAlbums: [],
+  recentArtists: [],
+  recentSearches: [],
+  playlists: [],
+  favoritePlaylistId: 3,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
 const _multiArtistSongSnapshot = LibraryContentData(
   songs: [
     LibrarySong(
@@ -7152,6 +7654,74 @@ const _unknownAlbumSnapshot = LibraryContentData(
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
 );
+
+List<LibrarySong> _countSongs(int count) {
+  return [
+    for (var index = 0; index < count; index += 1)
+      LibrarySong(
+        id: index + 1,
+        path: r'C:\Music\count.mp3',
+        title: 'Song ${index + 1}',
+        artist: 'Count Artist',
+        artists: const ['Count Artist'],
+        album: 'Count Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+  ];
+}
+
+LibraryContentData _artistCountQuickJumpSnapshot() {
+  return LibraryContentData(
+    songs: [
+      ..._artistSongsForCountJump('One', 1, 1),
+      ..._artistSongsForCountJump('Twenty', 20, 100),
+      ..._artistSongsForCountJump('Overflow', 21, 200),
+    ],
+    recentSongs: const [],
+    recentPlaylists: const [],
+    recentAlbums: const [],
+    recentArtists: const [],
+    recentSearches: const [],
+    playlists: const [],
+    favoritePlaylistId: 0,
+    nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    hasLibrary: true,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    showCount: true,
+    hideMultiSelectCommandBarAfterOperation: true,
+    databasePath: '',
+  );
+}
+
+List<LibrarySong> _artistSongsForCountJump(
+  String artist,
+  int count,
+  int startId,
+) {
+  return [
+    for (var index = 0; index < count; index += 1)
+      LibrarySong(
+        id: startId + index,
+        path: r'C:\Music\count-jump.mp3',
+        title: '$artist Song ${index + 1}',
+        artist: artist,
+        artists: [artist],
+        album: '$artist Album ${index + 1}',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+  ];
+}
 
 LibraryContentData _manyArtistsSnapshot() {
   return LibraryContentData(

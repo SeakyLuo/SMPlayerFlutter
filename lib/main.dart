@@ -213,10 +213,18 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
         widget.settingsController.snapshot.preferredLanguage;
     if (_lastPreferredLanguage != preferredLanguage) {
       _lastPreferredLanguage = preferredLanguage;
+      evictSmPlayerLocaleAssets();
       ref.invalidate(smPlayerI18nProvider);
     }
     setState(() {});
     _scheduleNightModeTimer();
+  }
+
+  @override
+  void reassemble() {
+    evictSmPlayerLocaleAssets();
+    ref.invalidate(smPlayerI18nProvider);
+    super.reassemble();
   }
 
   void _scheduleNightModeTimer() {

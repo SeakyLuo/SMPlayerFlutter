@@ -265,6 +265,12 @@ class _SearchResultSection extends StatelessWidget {
               onPlayNext(songs[index]);
             },
             onRemoveFromListClick: () {},
+            onSeeArtist: (artist) {
+              onOpenArtist(artist);
+            },
+            onSeeAlbum: () {
+              onOpenAlbum(song_display.displayAlbum(songs[index], i18n));
+            },
             onOpenContextMenu: (position) {
               _showSongContextMenu(
                 context,
