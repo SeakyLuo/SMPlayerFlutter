@@ -181,12 +181,13 @@ Future<void> showMenuFlyout(
 
 const _menuFlyoutMargin = 8.0;
 const _menuFlyoutWidth = 206.0;
-const _menuFlyoutMaxWidth = 640.0;
+const _menuFlyoutMaxWidth = 480.0;
 const _menuFlyoutPadding = 6.0;
 const _menuFlyoutBorderWidth = 1.0;
 const _menuFlyoutItemHeight = 34.0;
 const _menuFlyoutSeparatorHeight = 13.0;
 const _menuFlyoutPlayerBarHeight = 120.0;
+const _menuFlyoutTextWidthSlack = 56.0;
 
 class _MenuFlyoutOverlay extends StatefulWidget {
   const _MenuFlyoutOverlay({
@@ -1214,7 +1215,8 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
         20 +
         leadingWidth +
         painter.width +
-        trailingWidth;
+        trailingWidth +
+        _menuFlyoutTextWidthSlack;
     width = math.max(width, itemWidth);
   }
   return width.clamp(_menuFlyoutWidth, _menuFlyoutMaxWidth).toDouble();
