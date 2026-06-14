@@ -164,6 +164,7 @@ List<MenuFlyoutItem> _albumSortMenuItems(
         onChangeAlbumSort(AlbumSortCriterion.reverse);
       },
     ),
+    const MenuFlyoutItem.separator(key: 'albums-sort-separator'),
     MenuFlyoutItem(
       key: 'albums-sort-default',
       text: i18n.t('albums.sort.default'),

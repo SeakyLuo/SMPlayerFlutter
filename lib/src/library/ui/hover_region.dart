@@ -22,6 +22,7 @@ class _LocalHoverRegionState extends State<LocalHoverRegion> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
+      opaque: false,
       cursor: widget.cursor,
       onEnter: (_) {
         setState(() {

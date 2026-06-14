@@ -233,7 +233,12 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     final previousLocation =
         oldWidget.currentLocation ?? oldWidget.currentPath ?? _currentPath;
     if (currentLocation != previousLocation) {
-      _recordNavigationLocation(currentLocation);
+      if (_routeSection(_pathFromLocation(currentLocation)) == '/local' &&
+          _routeSection(_pathFromLocation(previousLocation)) == '/local') {
+        _replaceCurrentNavigationLocation(currentLocation);
+      } else {
+        _recordNavigationLocation(currentLocation);
+      }
       _rememberRoute(currentLocation);
       _persistCurrentPage(currentLocation);
       if (currentPath != '/immersive-mode') {

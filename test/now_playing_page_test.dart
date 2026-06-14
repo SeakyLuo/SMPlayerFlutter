@@ -320,7 +320,7 @@ void main() {
           const ValueKey('PlaylistControlItem.RemoveAction'),
         ),
       ),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.descendant(
@@ -2058,6 +2058,10 @@ void main() {
       of: firstRow,
       matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
     );
+    final firstRowRemoveAction = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.RemoveAction')),
+    );
     final firstRowActions = find.descendant(
       of: firstRow,
       matching: find.byKey(const ValueKey('PlaylistControlItem.Actions')),
@@ -2128,14 +2132,20 @@ void main() {
     }
 
     expect(hoverOpacityFor(firstRowMoreAction).opacity, 0);
+    expect(hoverOpacityFor(firstRowRemoveAction).opacity, 0);
     expect(rowBackgroundFor(firstRow), const Color(0x00eaf6ff));
     expect(
       find.byKey(const ValueKey('PlaylistControlItem.AddToAction')),
       findsNothing,
     );
     expect(
-      find.byKey(const ValueKey('PlaylistControlItem.RemoveAction')),
-      findsNothing,
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('PlaylistControlItem.FavoriteAction')),

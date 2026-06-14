@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/auto_hide_scrollbar_visibility.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
@@ -148,7 +149,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
 class _HeaderedPlaylistControlState
     extends ConsumerState<HeaderedPlaylistControl> {
   late PageSelectionController<int> _selection;
-  final _scrollController = ScrollController();
+  final _scrollController = ScrollController(keepScrollOffset: false);
   List<int>? _orderedSongIds;
   PlaylistSortCriterion? _selectedSortCriterion;
   MusicDialogEntry? _musicDialog;

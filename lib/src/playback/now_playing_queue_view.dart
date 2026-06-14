@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control.dart';
 
 class NowPlayingQueueView extends StatelessWidget {
@@ -24,6 +25,8 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onOpenAddToPlaylist,
     required this.onRemoveQueueIndex,
+    required this.onOpenArtist,
+    required this.onOpenAlbum,
     required this.onOpenContextMenu,
   });
 
@@ -45,6 +48,8 @@ class NowPlayingQueueView extends StatelessWidget {
   final void Function(BuildContext buttonContext, LibrarySong song)
   onOpenAddToPlaylist;
   final void Function(int queueIndex, LibrarySong song) onRemoveQueueIndex;
+  final ValueChanged<String> onOpenArtist;
+  final ValueChanged<String> onOpenAlbum;
   final void Function(Offset position, LibrarySong song, int queueIndex)
   onOpenContextMenu;
 
@@ -137,6 +142,10 @@ class NowPlayingQueueView extends StatelessWidget {
       },
       onRemoveFromListClick: () {
         onRemoveQueueIndex(queueIndex, song);
+      },
+      onSeeArtist: onOpenArtist,
+      onSeeAlbum: () {
+        onOpenAlbum(displayAlbum(song, i18n));
       },
       onOpenContextMenu: (position) {
         onOpenContextMenu(position, song, queueIndex);

@@ -898,7 +898,7 @@ void main() {
   );
 
   testWidgets(
-    'PlaylistControlItem headered narrow actions collapse like Electron',
+    'PlaylistControlItem headered narrow hover hides duration experimentally',
     (tester) async {
       const longTitleSong = LibrarySong(
         id: 200,
@@ -968,7 +968,7 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('PlaylistControlItem.RemoveAction')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey('PlaylistControlItem.PlayNextAction')),
@@ -978,11 +978,31 @@ void main() {
         find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+        findsOneWidget,
+      );
+      final playNext = find.byKey(
+        const ValueKey('PlaylistControlItem.PlayNextAction'),
+      );
 
-      final titleWidthBefore =
-          tester
-              .getSize(find.byKey(const ValueKey('PlaylistControlItem.Title')))
-              .width;
+      AnimatedSlide hoverSlideFor(Finder action) {
+        return tester.widget<AnimatedSlide>(
+          find.ancestor(of: action, matching: find.byType(AnimatedSlide)).first,
+        );
+      }
+
+      AnimatedOpacity hoverOpacityFor(Finder action) {
+        return tester.widget<AnimatedOpacity>(
+          find
+              .ancestor(of: action, matching: find.byType(AnimatedOpacity))
+              .first,
+        );
+      }
+
+      expect(hoverSlideFor(playNext).offset, const Offset(0.36, 0));
+      expect(hoverOpacityFor(playNext).opacity, 0);
+
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(
         location: tester.getCenter(find.byType(PlaylistControlItem)),
@@ -995,14 +1015,28 @@ void main() {
         tester
             .getSize(find.byKey(const ValueKey('PlaylistControlItem.Actions')))
             .width,
-        68,
+        102,
       );
+      expect(hoverSlideFor(playNext).offset, Offset.zero);
+      expect(hoverOpacityFor(playNext).opacity, 1);
       expect(
-        tester
-            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Title')))
-            .width,
-        lessThan(titleWidthBefore),
+        find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+        findsNothing,
       );
+      final rowRect = tester.getRect(
+        find.byKey(const ValueKey('PlaylistControlItem.Row')),
+      );
+      final actionsRect = tester.getRect(
+        find.byKey(const ValueKey('PlaylistControlItem.Actions')),
+      );
+      expect(rowRect.right - actionsRect.right, lessThanOrEqualTo(8));
+
+      await mouse.moveTo(rowRect.bottomRight + const Offset(24, 24));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(hoverSlideFor(playNext).offset, const Offset(0.36, 0));
+      expect(hoverOpacityFor(playNext).opacity, 0);
     },
   );
 
@@ -1092,6 +1126,14 @@ void main() {
         ),
       ),
     );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+      location: tester.getCenter(find.byType(PlaylistControlItem)),
+    );
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
 
     final actionsRect = tester.getRect(
       find.byKey(const ValueKey('PlaylistControlItem.Actions')),
@@ -1941,9 +1983,174 @@ void main() {
       ),
     );
 
-    expect(find.text(' • '), findsOneWidget);
+    expect(find.text(' · '), findsOneWidget);
+    expect(find.text(' • '), findsNothing);
     expect(find.text(' - '), findsNothing);
   });
+
+  testWidgets('PlaylistControlItem metadata artist and album open routes', (
+    tester,
+  ) async {
+    String? openedArtist;
+    var openedAlbum = false;
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              child: PlaylistControlItem(
+                song: _song,
+                current: false,
+                playing: false,
+                selected: false,
+                selectionMode: false,
+                onPlayTrack: _noop,
+                onTogglePlayPause: _noop,
+                onToggleSelection: _noop,
+                onOpenContextMenu: _noopPosition,
+                onSeeArtist: (artist) {
+                  openedArtist = artist;
+                },
+                onSeeAlbum: () {
+                  openedAlbum = true;
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Text artistText() => tester.widget<Text>(find.text('Artist'));
+    Text albumText() => tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+        matching: find.byType(Text),
+      ),
+    );
+
+    expect(artistText().style?.color, const Color(0xff5b697a));
+    expect(albumText().style?.color, const Color(0xff5b697a));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('Artist')));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    expect(artistText().style?.color, const Color(0xff0063b1));
+
+    await tester.tap(find.text('Artist'));
+    await tester.pump();
+    expect(openedArtist, 'Artist');
+
+    await mouse.moveTo(
+      tester.getCenter(
+        find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+      ),
+    );
+    await tester.pump();
+    expect(albumText().style?.color, const Color(0xff0063b1));
+
+    await tester.tap(
+      find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+    );
+    await tester.pump();
+    expect(openedAlbum, isTrue);
+  });
+
+  testWidgets(
+    'PlaylistControlItem current metadata stays blue and link tap does not play',
+    (tester) async {
+      String? openedArtist;
+      var openedAlbum = false;
+      var playTrackCount = 0;
+      var togglePlayPauseCount = 0;
+
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: _i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: const [DefaultAlbumArtworkThemeColors.light],
+            ),
+            home: Scaffold(
+              body: SizedBox(
+                width: 500,
+                child: PlaylistControlItem(
+                  song: _song,
+                  current: true,
+                  playing: true,
+                  selected: false,
+                  selectionMode: false,
+                  onPlayTrack: () {
+                    playTrackCount += 1;
+                  },
+                  onTogglePlayPause: () {
+                    togglePlayPauseCount += 1;
+                  },
+                  onToggleSelection: _noop,
+                  onOpenContextMenu: _noopPosition,
+                  onSeeArtist: (artist) {
+                    openedArtist = artist;
+                  },
+                  onSeeAlbum: () {
+                    openedAlbum = true;
+                  },
+                  colors: _currentMetadataColors,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Text artistText() => tester.widget<Text>(find.text('Artist'));
+      Text albumText() => tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+          matching: find.byType(Text),
+        ),
+      );
+
+      expect(artistText().style?.color, const Color(0xff3377aa));
+      expect(albumText().style?.color, const Color(0xff3377aa));
+      expect(
+        tester
+            .widget<MouseRegion>(
+              find
+                  .ancestor(
+                    of: find.text('Artist'),
+                    matching: find.byType(MouseRegion),
+                  )
+                  .first,
+            )
+            .cursor,
+        SystemMouseCursors.click,
+      );
+
+      await tester.tap(find.text('Artist'));
+      await tester.pump();
+
+      expect(openedArtist, 'Artist');
+      expect(playTrackCount, 0);
+      expect(togglePlayPauseCount, 0);
+
+      await tester.tap(
+        find.byKey(const ValueKey('PlaylistControlItem.InlineAlbum')),
+      );
+      await tester.pump();
+
+      expect(openedAlbum, isTrue);
+      expect(playTrackCount, 0);
+      expect(togglePlayPauseCount, 0);
+    },
+  );
 
   testWidgets('PlaylistControlItem wide row keeps Electron album column', (
     tester,
@@ -2079,6 +2286,20 @@ const _i18n = SmPlayerI18n(
     'player.more': 'More',
     'player.pause': 'Pause',
   },
+);
+
+const _currentMetadataColors = PlaylistControlItemColors(
+  border: Color(0x00000000),
+  hover: Color(0x11000000),
+  hoverBorder: Color(0x00000000),
+  current: Color(0x22000000),
+  currentForeground: Color(0xff00aa00),
+  currentMuted: Color(0xff3377aa),
+  textStrong: Color(0xff111111),
+  textMuted: Color(0xff777777),
+  artworkBackground: Color(0x00000000),
+  actionForeground: Color(0xff555555),
+  actionHover: Color(0x11000000),
 );
 
 const _song = LibrarySong(

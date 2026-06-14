@@ -48,6 +48,29 @@ class _GridViewMusicItemControl extends StatefulWidget {
 
 class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
   var _hovered = false;
+  var _suppressNextTileTap = false;
+
+  void _suppressTileTapForLink() {
+    _suppressNextTileTap = true;
+  }
+
+  void _releaseTileTapSuppression() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _suppressNextTileTap = false;
+    });
+  }
+
+  void _handleTileTap() {
+    if (_suppressNextTileTap) {
+      _suppressNextTileTap = false;
+      return;
+    }
+    if (widget.multiSelect) {
+      widget.onToggleSelection();
+      return;
+    }
+    widget.onPlayTrack();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +100,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
         onSecondaryTapDown: (details) {
           widget.onOpenContextMenu(details.globalPosition);
         },
-        onTap:
-            widget.multiSelect ? widget.onToggleSelection : widget.onPlayTrack,
+        onTap: _handleTileTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.ease,
@@ -222,18 +244,12 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                                         ? _recentSongArtistLineHoverReserveWidth
                                         : 0,
                               ),
-                              child: Text(
-                                key: const ValueKey('RecentSong.ArtistLine'),
-                                displayArtists(
-                                  widget.song,
-                                  context.smPlayerI18n,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: artistColor,
-                                  fontSize: 13,
-                                ),
+                              child: _RecentSongArtistLink(
+                                song: widget.song,
+                                foregroundColor: artistColor,
+                                hoverColor: colors.currentText,
+                                onPointerDown: _suppressTileTapForLink,
+                                onPointerUp: _releaseTileTapSuppression,
                               ),
                             ),
                             if (widget.detailLabel.isNotEmpty) ...[
@@ -295,6 +311,80 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentSongArtistLink extends StatefulWidget {
+  const _RecentSongArtistLink({
+    required this.song,
+    required this.foregroundColor,
+    required this.hoverColor,
+    required this.onPointerDown,
+    required this.onPointerUp,
+  });
+
+  final LibrarySong song;
+  final Color foregroundColor;
+  final Color hoverColor;
+  final VoidCallback onPointerDown;
+  final VoidCallback onPointerUp;
+
+  @override
+  State<_RecentSongArtistLink> createState() => _RecentSongArtistLinkState();
+}
+
+class _RecentSongArtistLinkState extends State<_RecentSongArtistLink> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final artist = displayArtists(widget.song, i18n);
+    return MouseRegion(
+      key: const ValueKey('RecentSong.ArtistLine'),
+      opaque: false,
+      hitTestBehavior: HitTestBehavior.opaque,
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onHover: (_) {
+        if (!_hovered) {
+          setState(() {
+            _hovered = true;
+          });
+        }
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) {
+          widget.onPointerDown();
+        },
+        onPointerUp: (_) {
+          context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
+          widget.onPointerUp();
+        },
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: Text(
+            artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _hovered ? widget.hoverColor : widget.foregroundColor,
+              fontSize: 13,
+            ),
           ),
         ),
       ),

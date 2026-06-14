@@ -243,7 +243,7 @@ class _LibraryPalette {
     textMuted: Color(0xadcbd5e1),
     headerText: Color(0xadcbd5e1),
     disabled: Color(0x3dcbd5e1),
-    routeText: Color(0xff459de2),
+    routeText: Color(0xadcbd5e1),
   );
 
   static _LibraryPalette of(BuildContext context) {

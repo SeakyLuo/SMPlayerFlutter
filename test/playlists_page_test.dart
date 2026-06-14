@@ -736,13 +736,54 @@ void main() {
       final playlistPadding = tester.widget<SliverPadding>(
         find.byKey(const ValueKey('HeaderedPlaylist.PlaylistPadding')),
       );
+      final scrollView = tester.widget<CustomScrollView>(
+        find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+      );
 
       expect(
         playlistPadding.padding,
         const EdgeInsets.symmetric(horizontal: 0),
       );
+      expect(scrollView.controller!.keepScrollOffset, isFalse);
     },
   );
+
+  testWidgets('HeaderedPlaylist scrollbar hides after scrolling stops', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 760);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(
+        snapshot: _longPlaylistSnapshot(),
+        child: const PlaylistsPage(selectedPlaylistId: 7),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final opacityFinder = find.descendant(
+      of: find.byKey(const ValueKey('HeaderedPlaylist.Scrollbar')),
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0);
+
+    final scrollView = tester.widget<CustomScrollView>(
+      find.byKey(const ValueKey('HeaderedPlaylist.ScrollView')),
+    );
+    scrollView.controller!.jumpTo(180);
+    await tester.pump();
+
+    expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
+
+    await tester.pump(const Duration(milliseconds: 701));
+
+    expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0);
+  });
 
   testWidgets('MyFavoritesPage writes Electron built-in preference', (
     tester,
@@ -1216,6 +1257,56 @@ const _snapshot = LibraryContentData(
   favoritePlaylistId: 3,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
 );
+
+LibraryContentData _longPlaylistSnapshot() {
+  final songs = List.generate(24, (index) {
+    final id = index + 1;
+    return LibrarySong(
+      id: id,
+      path: r'C:\Music\song.mp3',
+      title: 'Song $id',
+      artist: 'Artist A',
+      artists: const ['Artist A'],
+      album: 'Blue Hour',
+      duration: 120,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: '2026-05-20T00:00:00',
+      favorite: false,
+      thumbnailPath: '',
+    );
+  });
+  final songIds = songs.map((song) => song.id).toList();
+  return LibraryContentData(
+    songs: songs,
+    hasLibrary: true,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    databasePath: r'C:\Music\library.db',
+    playlists: [
+      LibraryPlaylist(
+        id: 3,
+        name: 'My Favorites',
+        priority: 0,
+        songCount: 0,
+        songIds: const [],
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: true,
+      ),
+      LibraryPlaylist(
+        id: 7,
+        name: 'Mix',
+        priority: 1,
+        songCount: songs.length,
+        songIds: songIds,
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: false,
+      ),
+    ],
+    favoritePlaylistId: 3,
+    nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+  );
+}
 
 const _favoritesSnapshot = LibraryContentData(
   songs: [

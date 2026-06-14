@@ -53,6 +53,8 @@ void main() {
                   onToggleFavorite: (_) {},
                   onOpenAddToPlaylist: (_, _) {},
                   onRemoveQueueIndex: (_, _) {},
+                  onOpenArtist: (_) {},
+                  onOpenAlbum: (_) {},
                   onOpenContextMenu: (_, _, _) {},
                 ),
               ),
@@ -86,6 +88,72 @@ void main() {
         '/tmp/smplayer_now_playing_queue_wide_album_column_verify.png',
       ).writeAsBytes(bytes!.buffer.asUint8List());
     });
+  });
+
+  testWidgets('NowPlayingQueueView row artist and album open detail routes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1300, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    String? openedArtist;
+    String? openedAlbum;
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              height: 300,
+              child: NowPlayingQueueView(
+                queueSongs: const [_song],
+                visibleEntries: const [(0, _song)],
+                searchQuery: '',
+                scrollController: controller,
+                selectedQueueIndex: null,
+                selectedTrackId: _song.id,
+                isPlaying: false,
+                selectionMode: false,
+                isSelected: (_) => false,
+                onReorderVisible: (_, _) {},
+                onPlayQueueTrack: (_, _) {},
+                onTogglePlayPause: () {},
+                onToggleQueueSelection: (_) {},
+                onToggleFavorite: (_) {},
+                onOpenAddToPlaylist: (_, _) {},
+                onRemoveQueueIndex: (_, _) {},
+                onOpenArtist: (artist) {
+                  openedArtist = artist;
+                },
+                onOpenAlbum: (album) {
+                  openedAlbum = album;
+                },
+                onOpenContextMenu: (_, _, _) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Artist'));
+    await tester.pump();
+    expect(openedArtist, 'Artist');
+
+    await tester.tap(
+      find.byKey(const ValueKey('PlaylistControlItem.AlbumColumn')),
+    );
+    await tester.pump();
+    expect(openedAlbum, 'Album');
   });
 }
 

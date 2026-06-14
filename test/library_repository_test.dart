@@ -1369,6 +1369,47 @@ void main() {
     expect(pendingFile.readAsStringSync().trim(), '[]');
   });
 
+  test('pending local item delete commit skips missing target paths', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-trash-missing-local-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final root = Directory('${directory.path}/Root')..createSync();
+    final existingSong = File('${root.path}/Existing.mp3')
+      ..writeAsBytesSync(const []);
+    final missingSong = File('${root.path}/Missing.mp3')
+      ..writeAsBytesSync(const []);
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    final pendingFile = File('${directory.path}/pending-song-deletes.json');
+    _createPendingDeleteDatabaseForSongs(databaseFile, [
+      existingSong.path,
+      missingSong.path,
+    ]);
+    final trashedPaths = <String>[];
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+      pendingDeleteFileResolver: () async => pendingFile,
+      trashPath: (path) async {
+        trashedPaths.add(path);
+        await File(path).delete();
+      },
+    );
+
+    final pendingDelete = await repository.beginDeleteLocalItems(const [
+      1,
+      2,
+    ], const []);
+    await missingSong.delete();
+    await repository.commitDeleteLocalItems(pendingDelete.id);
+
+    expect(trashedPaths, [existingSong.path]);
+    expect(existingSong.existsSync(), isFalse);
+    expect(missingSong.existsSync(), isFalse);
+    expect(pendingFile.readAsStringSync().trim(), '[]');
+  });
+
   test('scanAllMusicLibrary rebuilds Electron root scan graph', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-root-scan-',
@@ -2992,6 +3033,16 @@ void _createPendingDeleteDatabase(
   String songPath, {
   String? folderPath,
 }) {
+  _createPendingDeleteDatabaseForSongs(databaseFile, [
+    songPath,
+  ], folderPath: folderPath);
+}
+
+void _createPendingDeleteDatabaseForSongs(
+  File databaseFile,
+  List<String> songPaths, {
+  String? folderPath,
+}) {
   final db = sqlite3.open(databaseFile.path);
   try {
     db.execute('''
@@ -3066,19 +3117,21 @@ void _createPendingDeleteDatabase(
         folderPath,
       ]);
     }
-    db.execute(
-      '''
+    for (final songPath in songPaths) {
+      db.execute(
+        '''
       INSERT INTO Music (
         Path, Name, Artist, Album, ThumbnailPath, Duration,
         PlayCount, DateAdded, LyricsOffsetMs, State
       )
       VALUES (?, 'Song', '', '', '', 0, 0, '', 0, 1)
     ''',
-      [songPath],
-    );
-    db.execute('INSERT INTO File (Path, FileId, State) VALUES (?, 1, 1)', [
-      songPath,
-    ]);
+        [songPath],
+      );
+      db.execute('INSERT INTO File (Path, FileId, State) VALUES (?, 1, 1)', [
+        songPath,
+      ]);
+    }
   } finally {
     db.dispose();
   }

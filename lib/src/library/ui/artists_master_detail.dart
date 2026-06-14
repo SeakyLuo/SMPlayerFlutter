@@ -7,8 +7,12 @@ class _ArtistsMasterDetail extends StatelessWidget {
     required this.compactSelectedArtist,
     required this.wideSelectedArtist,
     required this.visibleArtists,
+    required this.sortCriterion,
+    required this.artistQuickJumpKeys,
     required this.artistQuickJumpMap,
     required this.activeArtistQuickJumpKey,
+    required this.locatedArtistName,
+    required this.locateArtistPulse,
     required this.artistListController,
     required this.artistDetailController,
     required this.multiSelect,
@@ -28,6 +32,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
     required this.onSelectSearchSuggestion,
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
+    required this.onChangeArtistSort,
     required this.onOpenArtistDetail,
     required this.onPlayArtist,
     required this.onOpenArtistMenu,
@@ -49,8 +54,12 @@ class _ArtistsMasterDetail extends StatelessWidget {
   final ArtistGroup? compactSelectedArtist;
   final ArtistGroup? wideSelectedArtist;
   final List<ArtistGroup> visibleArtists;
+  final ArtistSortCriterion sortCriterion;
+  final List<String> artistQuickJumpKeys;
   final Map<String, int> artistQuickJumpMap;
   final String activeArtistQuickJumpKey;
+  final String? locatedArtistName;
+  final int locateArtistPulse;
   final ScrollController artistListController;
   final ScrollController artistDetailController;
   final bool multiSelect;
@@ -70,6 +79,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
+  final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
   final void Function({required Offset position, required ArtistGroup artist})
@@ -106,8 +116,12 @@ class _ArtistsMasterDetail extends StatelessWidget {
         artistSearch: artistSearch,
         selectedArtist: compactSelectedArtist,
         visibleArtists: visibleArtists,
+        sortCriterion: sortCriterion,
+        artistQuickJumpKeys: artistQuickJumpKeys,
         artistQuickJumpMap: artistQuickJumpMap,
         activeArtistQuickJumpKey: activeArtistQuickJumpKey,
+        locatedArtistName: locatedArtistName,
+        locateArtistPulse: locateArtistPulse,
         scrollController: artistListController,
         detailScrollController: artistDetailController,
         multiSelect: multiSelect,
@@ -123,6 +137,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
         onSelectSearchSuggestion: onSelectSearchSuggestion,
         onRemoveRecentSearch: onRemoveRecentSearch,
         onClearRecentSearches: onClearRecentSearches,
+        onChangeArtistSort: onChangeArtistSort,
         onOpenArtistDetail: onOpenArtistDetail,
         onPlayArtist: onPlayArtist,
         onOpenArtistMenu: (position, artist) {
@@ -161,9 +176,13 @@ class _ArtistsMasterDetail extends StatelessWidget {
         _ArtistsMaster(
           artistSearch: artistSearch,
           visibleArtists: visibleArtists,
+          sortCriterion: sortCriterion,
+          artistQuickJumpKeys: artistQuickJumpKeys,
           selectedArtistName: wideSelectedArtist?.name ?? '',
           artistQuickJumpMap: artistQuickJumpMap,
           activeArtistQuickJumpKey: activeArtistQuickJumpKey,
+          locatedArtistName: locatedArtistName,
+          locateArtistPulse: locateArtistPulse,
           scrollController: artistListController,
           i18n: i18n,
           showSearch: showSearch,
@@ -176,6 +195,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
           onSelectSearchSuggestion: onSelectSearchSuggestion,
           onRemoveRecentSearch: onRemoveRecentSearch,
           onClearRecentSearches: onClearRecentSearches,
+          onChangeArtistSort: onChangeArtistSort,
           onOpenArtistDetail: onOpenArtistDetail,
           onPlayArtist: onPlayArtist,
           onOpenArtistMenu: (position, artist) {

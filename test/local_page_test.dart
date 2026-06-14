@@ -3006,6 +3006,135 @@ void main() {
     expect(openedFolder, 'Sub');
   });
 
+  testWidgets('FolderChainListView checks current child without icon gap', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _localPageTestTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              child: FolderChainListView(
+                songs: _snapshot.songs,
+                folders: _snapshot.folders,
+                i18n: i18n,
+                rootPath: _snapshot.rootPath,
+                currentRelativePath: 'Sub',
+                onOpenFolder: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Sub'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
+    await tester.pumpAndSettle();
+
+    final currentChild = find.byKey(const ValueKey('FolderChain.Child.Sub'));
+    expect(currentChild, findsOneWidget);
+    expect(find.byTooltip('Sub'), findsNWidgets(2));
+    expect(
+      find.descendant(
+        of: currentChild,
+        matching: find.byIcon(FluentIcons.checkmark_20_regular),
+      ),
+      findsOneWidget,
+    );
+    final textLeft = tester.getTopLeft(
+      find.descendant(of: currentChild, matching: find.text('Sub')).last,
+    );
+    final itemLeft = tester.getTopLeft(currentChild);
+    expect(textLeft.dx - itemLeft.dx, lessThan(24));
+    expect(
+      tester
+          .getCenter(
+            find
+                .descendant(
+                  of: currentChild,
+                  matching: find.byIcon(FluentIcons.checkmark_20_regular),
+                )
+                .first,
+          )
+          .dx,
+      greaterThan(tester.getCenter(find.text('Sub').last).dx),
+    );
+  });
+
+  testWidgets('FolderChainListView sizes child flyout to folder names', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    const folderName = 'Take me to your summer vacation playlist';
+    const folderPath = r'C:\Music\Take me to your summer vacation playlist';
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _localPageTestTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 700,
+              child: FolderChainListView(
+                songs: [
+                  ..._snapshot.songs,
+                  LibrarySong(
+                    id: 3,
+                    path:
+                        r'C:\Music\Take me to your summer vacation playlist\song.mp3',
+                    title: 'Long Folder Song',
+                    artist: 'Artist C',
+                    artists: ['Artist C'],
+                    album: 'Long Folder Album',
+                    duration: 90,
+                    playCount: 0,
+                    lyricsOffsetMs: 0,
+                    dateAdded: '2026-05-20T00:00:00',
+                    favorite: false,
+                    thumbnailPath: '',
+                  ),
+                ],
+                folders: [
+                  ..._snapshot.folders,
+                  LibraryFolder(
+                    id: 90,
+                    path: folderPath,
+                    parentId: 0,
+                    criterion: 0,
+                  ),
+                ],
+                i18n: i18n,
+                rootPath: _snapshot.rootPath,
+                currentRelativePath: folderName,
+                onOpenFolder: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('FolderChain.Dropdown.')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getSize(find.byKey(ValueKey('FolderChain.Child.$folderName')))
+          .width,
+      greaterThan(300),
+    );
+  });
+
   testWidgets('FolderChainListView opens Electron context menu callback', (
     tester,
   ) async {

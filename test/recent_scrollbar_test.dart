@@ -86,6 +86,48 @@ void main() {
 
     await gesture.removePointer();
   });
+
+  testWidgets('RecentScrollbar hides shortly after scrolling stops', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 240);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 160,
+            child: RecentScrollbar(
+              builder:
+                  (controller) => ListView.builder(
+                    controller: controller,
+                    itemExtent: 40,
+                    itemCount: 20,
+                    itemBuilder: (context, index) => Text('Item $index'),
+                  ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_scrollbarThumbColor(tester), Colors.transparent);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -80));
+    await tester.pump();
+
+    expect(_scrollbarThumbColor(tester), const Color(0x805b697a));
+
+    await tester.pump(const Duration(milliseconds: 701));
+
+    expect(_scrollbarThumbColor(tester), Colors.transparent);
+  });
 }
 
 Color? _scrollbarThumbColor(WidgetTester tester) {

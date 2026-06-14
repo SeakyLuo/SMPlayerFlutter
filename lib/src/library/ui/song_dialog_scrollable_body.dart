@@ -69,21 +69,31 @@ class _SongDialogScrollbarHost extends StatefulWidget {
       _SongDialogScrollbarHostState();
 }
 
-class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
-  var _hovered = false;
-  var _dragging = false;
+class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost>
+    with AutoHideScrollbarVisibility {
   var _refreshScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    widget.controller.addListener(showAutoHideScrollbar);
     _scheduleLayoutRefresh();
   }
 
   @override
   void didUpdateWidget(covariant _SongDialogScrollbarHost oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(showAutoHideScrollbar);
+      widget.controller.addListener(showAutoHideScrollbar);
+    }
     _scheduleLayoutRefresh();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(showAutoHideScrollbar);
+    super.dispose();
   }
 
   void _scheduleLayoutRefresh() {
@@ -104,17 +114,10 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
+        setAutoHideScrollbarHovered(true);
       },
       onExit: (_) {
-        if (_dragging) {
-          return;
-        }
-        setState(() {
-          _hovered = false;
-        });
+        setAutoHideScrollbarHovered(false);
       },
       child: Stack(
         key: widget.frameKey,
@@ -151,7 +154,7 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
                     final thumbTop =
                         (position.pixels / maxScrollTop) *
                         math.max(0.0, trackHeight - thumbHeight);
-                    final expanded = _hovered || _dragging;
+                    final expanded = autoHideScrollbarExpanded;
                     final brightness = Theme.of(context).brightness;
                     final thumbColor =
                         expanded
@@ -159,7 +162,7 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
                             : _songDialogScrollbarThumb(brightness);
 
                     return AnimatedOpacity(
-                      opacity: expanded ? 1 : 0,
+                      opacity: autoHideScrollbarVisible ? 1 : 0,
                       duration: const Duration(milliseconds: 140),
                       curve: Curves.easeOut,
                       child: Stack(
@@ -179,9 +182,7 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onVerticalDragStart: (_) {
-                                setState(() {
-                                  _dragging = true;
-                                });
+                                beginAutoHideScrollbarDrag();
                               },
                               onVerticalDragUpdate: (details) {
                                 final trackRange = math.max(
@@ -199,16 +200,10 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost> {
                                 );
                               },
                               onVerticalDragEnd: (_) {
-                                setState(() {
-                                  _dragging = false;
-                                  _hovered = false;
-                                });
+                                endAutoHideScrollbarDrag();
                               },
                               onVerticalDragCancel: () {
-                                setState(() {
-                                  _dragging = false;
-                                  _hovered = false;
-                                });
+                                endAutoHideScrollbarDrag();
                               },
                               child: DecoratedBox(
                                 decoration: BoxDecoration(

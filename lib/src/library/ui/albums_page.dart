@@ -482,7 +482,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                             Expanded(
                               child: Scrollbar(
                                 controller: _albumGridScrollController,
-                                thumbVisibility: true,
                                 child: GridView.builder(
                                   controller: _albumGridScrollController,
                                   scrollCacheExtent: ScrollCacheExtent.pixels(

@@ -29,6 +29,13 @@ const smPlayerSupportedLocaleNames = {
 final smPlayerSupportedLocales =
     smPlayerSupportedLocaleNames.map(smPlayerLocaleFromName).toList();
 
+void evictSmPlayerLocaleAssets({AssetBundle? bundle}) {
+  final assetBundle = bundle ?? rootBundle;
+  for (final locale in smPlayerSupportedLocaleNames) {
+    assetBundle.evict(_localeAssetPath(locale));
+  }
+}
+
 final smPlayerI18nProvider = FutureProvider<SmPlayerI18n>((ref) async {
   final platformLocale = PlatformDispatcher.instance.locale;
   final locale = resolveSmPlayerPreferredLocale(
@@ -165,7 +172,9 @@ String _normalizeLocale(Locale locale) {
 }
 
 Future<Map<String, String>> _loadLocaleMessages(String locale) async {
-  final raw = await rootBundle.loadString('locales/$locale.json');
+  final raw = await rootBundle.loadString(_localeAssetPath(locale));
   final decoded = jsonDecode(raw) as Map<String, dynamic>;
   return decoded.map((key, value) => MapEntry(key, value as String));
 }
+
+String _localeAssetPath(String locale) => 'locales/$locale.json';

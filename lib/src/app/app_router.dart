@@ -397,10 +397,20 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
         path == '/artists' && uri.queryParameters.containsKey('artist');
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
+      windowWidth,
+    );
+    final workspaceWidth =
+        navigationMode == SmPlayerNavigationMode.minimal
+            ? windowWidth
+            : windowWidth - SmPlayerShellMetrics.collapsedSidebarWidth;
     final isCompactArtistDetailRoute =
         isArtistDetailRoute &&
-        MediaQuery.sizeOf(context).width <=
-            SmPlayerShellMetrics.navigationMinimalBreakpoint;
+        workspaceWidth <= SmPlayerShellMetrics.navigationMinimalBreakpoint;
+    final isCompactAlbumDetailRoute =
+        isAlbumDetailRoute &&
+        workspaceWidth <= SmPlayerShellMetrics.navigationMinimalBreakpoint;
     final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
         isPlaylistDetailRoute ||
@@ -416,6 +426,14 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       canGoBack: canGoBack,
       settingsRepository: repository,
       onNavigate: (target) {
+        if (target == '/artists' && isCompactArtistDetailRoute) {
+          context.go('/artists');
+          return;
+        }
+        if (target == '/albums' && isCompactAlbumDetailRoute) {
+          context.go('/albums');
+          return;
+        }
         if (target == '/local' && isHiddenFoldersRoute) {
           context.go('/local');
           return;

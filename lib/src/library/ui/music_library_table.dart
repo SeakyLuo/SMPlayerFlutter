@@ -140,10 +140,31 @@ class _MusicLibraryTableScrollbar extends StatefulWidget {
 }
 
 class _MusicLibraryTableScrollbarState
-    extends State<_MusicLibraryTableScrollbar> {
-  var _hovered = false;
-  var _dragging = false;
+    extends State<_MusicLibraryTableScrollbar>
+    with AutoHideScrollbarVisibility {
   var _dimensionRefreshPending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void didUpdateWidget(_MusicLibraryTableScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller.removeListener(showAutoHideScrollbar);
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(showAutoHideScrollbar);
+    super.dispose();
+  }
 
   void _refreshAfterDimensions() {
     if (_dimensionRefreshPending) {
@@ -162,7 +183,7 @@ class _MusicLibraryTableScrollbarState
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final thumbColor =
-        _hovered || _dragging
+        autoHideScrollbarExpanded
             ? _musicLibraryScrollbarThumbHover(brightness)
             : _musicLibraryScrollbarThumb(brightness);
     return LayoutBuilder(
@@ -196,70 +217,66 @@ class _MusicLibraryTableScrollbarState
             final thumbTop =
                 (position.pixels / maxScrollExtent) *
                 max(0.0, trackHeight - thumbHeight);
-            final expanded = _hovered || _dragging;
+            final expanded = autoHideScrollbarExpanded;
 
             return MouseRegion(
               onEnter: (_) {
-                setState(() {
-                  _hovered = true;
-                });
+                setAutoHideScrollbarHovered(true);
               },
               onExit: (_) {
-                if (_dragging) {
-                  return;
-                }
-                setState(() {
-                  _hovered = false;
-                });
+                setAutoHideScrollbarHovered(false);
               },
               child: Stack(
                 children: [
-                  Positioned(
-                    top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
-                    right: expanded ? 1.5 : 2.5,
-                    width: expanded ? 7 : 5,
-                    height: thumbHeight,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragStart: (_) {
-                        setState(() {
-                          _dragging = true;
-                        });
-                      },
-                      onVerticalDragUpdate: (details) {
-                        final trackDistance = max(
-                          1.0,
-                          trackHeight - thumbHeight,
-                        );
-                        final scrollDelta =
-                            details.delta.dy *
-                            (maxScrollExtent / trackDistance);
-                        widget.controller.jumpTo(
-                          (position.pixels + scrollDelta).clamp(
-                            0.0,
-                            maxScrollExtent,
+                  AnimatedOpacity(
+                    opacity: autoHideScrollbarVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 140),
+                    curve: Curves.easeOut,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
+                          right: expanded ? 1.5 : 2.5,
+                          width: expanded ? 7 : 5,
+                          height: thumbHeight,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onVerticalDragStart: (_) {
+                              beginAutoHideScrollbarDrag();
+                            },
+                            onVerticalDragUpdate: (details) {
+                              final trackDistance = max(
+                                1.0,
+                                trackHeight - thumbHeight,
+                              );
+                              final scrollDelta =
+                                  details.delta.dy *
+                                  (maxScrollExtent / trackDistance);
+                              widget.controller.jumpTo(
+                                (position.pixels + scrollDelta).clamp(
+                                  0.0,
+                                  maxScrollExtent,
+                                ),
+                              );
+                            },
+                            onVerticalDragEnd: (_) {
+                              endAutoHideScrollbarDrag();
+                            },
+                            onVerticalDragCancel: () {
+                              endAutoHideScrollbarDrag();
+                            },
+                            child: DecoratedBox(
+                              key: const ValueKey(
+                                'MusicLibrary.ScrollbarThumb',
+                              ),
+                              decoration: BoxDecoration(
+                                color: thumbColor,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
                           ),
-                        );
-                      },
-                      onVerticalDragEnd: (_) {
-                        setState(() {
-                          _dragging = false;
-                          _hovered = false;
-                        });
-                      },
-                      onVerticalDragCancel: () {
-                        setState(() {
-                          _dragging = false;
-                          _hovered = false;
-                        });
-                      },
-                      child: DecoratedBox(
-                        key: const ValueKey('MusicLibrary.ScrollbarThumb'),
-                        decoration: BoxDecoration(
-                          color: thumbColor,
-                          borderRadius: BorderRadius.circular(999),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
@@ -585,10 +602,18 @@ class _WideSongRowState extends State<_WideSongRow> {
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
     return MouseRegion(
+      opaque: false,
       onEnter: (_) {
         setState(() {
           _hovered = true;
         });
+      },
+      onHover: (_) {
+        if (!_hovered) {
+          setState(() {
+            _hovered = true;
+          });
+        }
       },
       onExit: (_) {
         setState(() {
@@ -867,7 +892,7 @@ class _RouteTextCell extends StatelessWidget {
   }
 }
 
-class _InlineRouteText extends StatelessWidget {
+class _InlineRouteText extends StatefulWidget {
   const _InlineRouteText({
     super.key,
     required this.text,
@@ -880,23 +905,50 @@ class _InlineRouteText extends StatelessWidget {
   final bool current;
 
   @override
+  State<_InlineRouteText> createState() => _InlineRouteTextState();
+}
+
+class _InlineRouteTextState extends State<_InlineRouteText> {
+  var _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
       child: Listener(
         behavior: HitTestBehavior.opaque,
-        onPointerUp: (_) {
-          onTap();
+        onPointerHover: (_) {
+          if (!_hovered) {
+            setState(() {
+              _hovered = true;
+            });
+          }
         },
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: current ? colors.currentMuted : colors.routeText,
-            fontSize: 14,
-            height: 1.35,
+        onPointerUp: (_) {
+          widget.onTap();
+        },
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: Text(
+            widget.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _hovered ? colors.accentStrong : colors.routeText,
+              fontSize: 14,
+              height: 1.35,
+            ),
           ),
         ),
       ),

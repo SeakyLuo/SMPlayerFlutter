@@ -260,6 +260,7 @@ class _CompactSongRowState extends State<_CompactSongRow> {
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
     return MouseRegion(
+      opaque: false,
       onEnter: (_) {
         setState(() {
           _hovered = true;
@@ -326,33 +327,62 @@ class _CompactSongRowState extends State<_CompactSongRow> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: _InlineRouteText(
-                        text: _displayArtists(widget.song, widget.i18n),
-                        current: widget.current,
-                        onTap: () {
-                          final artists = getSongArtists(widget.song);
-                          final artist =
-                              artists.isEmpty
-                                  ? widget.i18n.t('common.artistUnknown')
-                                  : artists.first;
-                          context.go(
-                            '/artists?artist=${Uri.encodeQueryComponent(artist)}',
-                          );
-                        },
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: _InlineRouteText(
+                            text: _displayArtists(widget.song, widget.i18n),
+                            current: widget.current,
+                            onTap: () {
+                              final artists = getSongArtists(widget.song);
+                              final artist =
+                                  artists.isEmpty
+                                      ? widget.i18n.t('common.artistUnknown')
+                                      : artists.first;
+                              context.go(
+                                '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                              );
+                            },
+                          ),
+                        ),
+                        Text(
+                          ' · ',
+                          style: TextStyle(
+                            color:
+                                widget.current
+                                    ? colors.currentMuted
+                                    : colors.textMuted,
+                            fontSize: 14,
+                            height: 1.35,
+                          ),
+                        ),
+                        Flexible(
+                          child: _InlineRouteText(
+                            text: _displayAlbum(widget.song, widget.i18n),
+                            current: widget.current,
+                            onTap: () {
+                              context.go(
+                                '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: _InlineRouteText(
-                        text: _displayAlbum(widget.song, widget.i18n),
-                        current: widget.current,
-                        onTap: () {
-                          context.go(
-                            '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
-                          );
-                        },
+                    Text(
+                      _compactSongDetailText(widget.song, widget.i18n),
+                      key: ValueKey(
+                        'MusicLibrary.CompactDetails.${widget.song.id}',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            widget.current
+                                ? colors.currentMuted
+                                : colors.textMuted,
+                        fontSize: 12,
+                        height: 1.25,
                       ),
                     ),
                   ],
@@ -368,18 +398,24 @@ class _CompactSongRowState extends State<_CompactSongRow> {
                 onOpenContextMenu: widget.onOpenContextMenu,
                 compact: true,
               ),
-              SizedBox(
-                width: 42,
-                child: Text(
-                  _formatDuration(widget.song.duration),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color:
-                        widget.current ? colors.currentMuted : colors.textMuted,
-                    fontSize: 12,
+              if (!_hovered)
+                SizedBox(
+                  key: ValueKey(
+                    'MusicLibrary.CompactDuration.${widget.song.id}',
+                  ),
+                  width: 42,
+                  child: Text(
+                    _formatDuration(widget.song.duration),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color:
+                          widget.current
+                              ? colors.currentMuted
+                              : colors.textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -486,6 +522,11 @@ class _MusicLibraryRowActions extends StatelessWidget {
       ),
     );
   }
+}
+
+String _compactSongDetailText(LibrarySong song, SmPlayerI18n i18n) {
+  return '${_formatDateTime(song.dateAdded)}'
+      ' · ${i18n.t('common.playCount')} ${song.playCount}';
 }
 
 class _MusicLibraryRowActionButton extends StatefulWidget {

@@ -549,6 +549,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       onRemoveQueueIndex: (queueIndex, song) {
                         _removeQueueIndex(queueSongIds, queueIndex, song);
                       },
+                      onOpenArtist: (artist) {
+                        context.go(
+                          '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                        );
+                      },
+                      onOpenAlbum: (album) {
+                        context.go(
+                          '/albums?album=${Uri.encodeQueryComponent(album)}',
+                        );
+                      },
                       onOpenContextMenu: (position, song, queueIndex) {
                         unawaited(
                           _showQueueContextMenu(

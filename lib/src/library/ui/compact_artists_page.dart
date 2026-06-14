@@ -5,8 +5,12 @@ class _CompactArtistsPage extends StatelessWidget {
     required this.artistSearch,
     required this.selectedArtist,
     required this.visibleArtists,
+    required this.sortCriterion,
+    required this.artistQuickJumpKeys,
     required this.artistQuickJumpMap,
     required this.activeArtistQuickJumpKey,
+    required this.locatedArtistName,
+    required this.locateArtistPulse,
     required this.scrollController,
     required this.detailScrollController,
     required this.multiSelect,
@@ -22,6 +26,7 @@ class _CompactArtistsPage extends StatelessWidget {
     required this.onSelectSearchSuggestion,
     required this.onRemoveRecentSearch,
     required this.onClearRecentSearches,
+    required this.onChangeArtistSort,
     required this.onOpenArtistDetail,
     required this.onPlayArtist,
     required this.onOpenArtistMenu,
@@ -43,8 +48,12 @@ class _CompactArtistsPage extends StatelessWidget {
   final String artistSearch;
   final ArtistGroup? selectedArtist;
   final List<ArtistGroup> visibleArtists;
+  final ArtistSortCriterion sortCriterion;
+  final List<String> artistQuickJumpKeys;
   final Map<String, int> artistQuickJumpMap;
   final String activeArtistQuickJumpKey;
+  final String? locatedArtistName;
+  final int locateArtistPulse;
   final ScrollController scrollController;
   final ScrollController detailScrollController;
   final bool multiSelect;
@@ -60,6 +69,7 @@ class _CompactArtistsPage extends StatelessWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
+  final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
   final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
@@ -128,18 +138,30 @@ class _CompactArtistsPage extends StatelessWidget {
     return Column(
       children: [
         if (showSearch)
-          _ArtistsSearchBox(
-            artistSearch: artistSearch,
-            i18n: i18n,
-            searchFocused: searchFocused,
-            searchSuggestions: searchSuggestions,
-            searchHistoryEntries: searchHistoryEntries,
-            onChanged: onSearchChanged,
-            onFocusChanged: onSearchFocusChanged,
-            onSubmitted: onSearchSubmitted,
-            onSelectSearchSuggestion: onSelectSearchSuggestion,
-            onRemoveRecentSearch: onRemoveRecentSearch,
-            onClearRecentSearches: onClearRecentSearches,
+          Row(
+            children: [
+              Expanded(
+                child: _ArtistsSearchBox(
+                  artistSearch: artistSearch,
+                  i18n: i18n,
+                  searchFocused: searchFocused,
+                  searchSuggestions: searchSuggestions,
+                  searchHistoryEntries: searchHistoryEntries,
+                  onChanged: onSearchChanged,
+                  onFocusChanged: onSearchFocusChanged,
+                  onSubmitted: onSearchSubmitted,
+                  onSelectSearchSuggestion: onSelectSearchSuggestion,
+                  onRemoveRecentSearch: onRemoveRecentSearch,
+                  onClearRecentSearches: onClearRecentSearches,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _ArtistsSortButton(
+                i18n: i18n,
+                sortCriterion: sortCriterion,
+                onChangeArtistSort: onChangeArtistSort,
+              ),
+            ],
           ),
         Expanded(
           child: Padding(
@@ -168,6 +190,7 @@ class _CompactArtistsPage extends StatelessWidget {
                               ),
                       child: _ArtistQuickJump(
                         activeKey: activeArtistQuickJumpKey,
+                        keys: artistQuickJumpKeys,
                         enabledKeys: artistQuickJumpMap.keys.toSet(),
                         i18n: i18n,
                         onJump: (key) {
@@ -211,6 +234,9 @@ class _CompactArtistsPage extends StatelessWidget {
                                     artist: artist,
                                     active: false,
                                     i18n: i18n,
+                                    locateHighlighted:
+                                        artist.name == locatedArtistName,
+                                    locatePulse: locateArtistPulse,
                                     compactNavMinimal: navMinimal,
                                     onPressed: () {
                                       onOpenArtistDetail(artist.name);

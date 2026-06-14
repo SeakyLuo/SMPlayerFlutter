@@ -172,9 +172,29 @@ class _HeaderedPlaylistScrollbar extends StatefulWidget {
       _HeaderedPlaylistScrollbarState();
 }
 
-class _HeaderedPlaylistScrollbarState
-    extends State<_HeaderedPlaylistScrollbar> {
-  var _hovered = false;
+class _HeaderedPlaylistScrollbarState extends State<_HeaderedPlaylistScrollbar>
+    with AutoHideScrollbarVisibility {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleScroll);
+  }
+
+  @override
+  void didUpdateWidget(_HeaderedPlaylistScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller.removeListener(_handleScroll);
+    widget.controller.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleScroll);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,32 +243,33 @@ class _HeaderedPlaylistScrollbarState
                   (position.pixels / maxScrollExtent) *
                   (scrollbarHeight - thumbHeight);
               final thumbColor =
-                  _hovered ? colors.scrollbarThumbHover : colors.scrollbarThumb;
+                  autoHideScrollbarExpanded
+                      ? colors.scrollbarThumbHover
+                      : colors.scrollbarThumb;
 
               return AnimatedOpacity(
-                opacity: 1,
+                opacity: autoHideScrollbarVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 140),
                 curve: Curves.easeOut,
                 child: MouseRegion(
                   onEnter: (_) {
-                    setState(() {
-                      _hovered = true;
-                    });
+                    setAutoHideScrollbarHovered(true);
                   },
                   onExit: (_) {
-                    setState(() {
-                      _hovered = false;
-                    });
+                    setAutoHideScrollbarHovered(false);
                   },
                   child: Stack(
                     children: [
                       Positioned(
                         top: thumbTop.clamp(0.0, scrollbarHeight - thumbHeight),
                         right: 2,
-                        width: _hovered ? 6 : 4,
+                        width: autoHideScrollbarExpanded ? 6 : 4,
                         height: thumbHeight,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
+                          onVerticalDragStart: (_) {
+                            beginAutoHideScrollbarDrag();
+                          },
                           onVerticalDragUpdate: (details) {
                             final trackDistance = scrollbarHeight - thumbHeight;
                             final scrollDelta =
@@ -260,6 +281,12 @@ class _HeaderedPlaylistScrollbarState
                                 maxScrollExtent,
                               ),
                             );
+                          },
+                          onVerticalDragEnd: (_) {
+                            endAutoHideScrollbarDrag();
+                          },
+                          onVerticalDragCancel: () {
+                            endAutoHideScrollbarDrag();
                           },
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -278,5 +305,12 @@ class _HeaderedPlaylistScrollbarState
         },
       ),
     );
+  }
+
+  void _handleScroll() {
+    if (!mounted) {
+      return;
+    }
+    showAutoHideScrollbar();
   }
 }

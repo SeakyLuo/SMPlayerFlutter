@@ -77,6 +77,7 @@ class _ArtistsLoadingMaster extends StatelessWidget {
                   children: [
                     _ArtistQuickJump(
                       activeKey: '',
+                      keys: artistQuickJumpKeys,
                       enabledKeys: const {},
                       i18n: i18n,
                       onJump: (_) {},

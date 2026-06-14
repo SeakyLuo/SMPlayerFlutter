@@ -1,6 +1,21 @@
 part of 'artists_page.dart';
 
 extension _ArtistsPageActions on _ArtistsPageState {
+  void _changeArtistSort(ArtistSortCriterion criterion) {
+    _updateArtistsPageState(() {
+      if (criterion == ArtistSortCriterion.reverse) {
+        _reverseArtistDisplayOrder = !_reverseArtistDisplayOrder;
+      } else {
+        _reverseArtistDisplayOrder = false;
+        _artistSortCriterion = criterion;
+      }
+      _artistQuickJumpPinnedKey = null;
+    });
+    if (_artistListController.hasClients) {
+      _artistListController.jumpTo(0);
+    }
+  }
+
   void _recordLoadingArtistSearch() {
     _recordLoadingArtistSearchForArtistsPage(this);
   }
@@ -54,12 +69,23 @@ extension _ArtistsPageActions on _ArtistsPageState {
     _scrollToArtistForArtistsPage(this, artistName);
   }
 
+  void _locateArtist(String artistName) {
+    _locateArtistForArtistsPage(this, artistName);
+  }
+
   void _handleArtistListScroll() {
     _handleArtistListScrollForArtistsPage(this);
   }
 
-  String _getActiveArtistQuickJumpKey(List<ArtistGroup> visibleArtists) {
-    return _getActiveArtistQuickJumpKeyForArtistsPage(this, visibleArtists);
+  String _getActiveArtistQuickJumpKey(
+    List<ArtistGroup> visibleArtists,
+    ArtistSortCriterion sortCriterion,
+  ) {
+    return _getActiveArtistQuickJumpKeyForArtistsPage(
+      this,
+      visibleArtists,
+      sortCriterion,
+    );
   }
 
   void _toggleSongSelection(int songId) {
