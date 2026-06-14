@@ -46,10 +46,6 @@ extension _ArtistsPageActions on _ArtistsPageState {
     _clearArtistRecentSearchesForArtistsPage(this);
   }
 
-  void _returnToArtistList() {
-    _returnToArtistListForArtistsPage(this);
-  }
-
   void _jumpToArtistKey(Map<String, int> artistQuickJumpMap, String key) {
     _jumpToArtistKeyForArtistsPage(this, artistQuickJumpMap, key);
   }

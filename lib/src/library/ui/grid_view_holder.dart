@@ -187,6 +187,11 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                   showActions:
                       !widget.selectionMode && !widget.sorting && _hovered,
                   artworkKey: widget.artworkKey,
+                  artworkShadow: BoxShadow(
+                    color: colors.artworkShadow,
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
                   textStrongColor:
                       widget.selected
                           ? selectedStyle.foreground
@@ -370,6 +375,7 @@ class _GridViewHolderColors {
     required this.dragShadow,
     required this.textStrong,
     required this.textMuted,
+    required this.artworkShadow,
   });
 
   final Color hoverSurface;
@@ -380,6 +386,7 @@ class _GridViewHolderColors {
   final Color dragShadow;
   final Color textStrong;
   final Color textMuted;
+  final Color artworkShadow;
 
   static _GridViewHolderColors forBrightness(Brightness brightness) {
     return brightness == Brightness.dark ? dark : light;
@@ -394,6 +401,7 @@ class _GridViewHolderColors {
     dragShadow: Color(0x3d1e2a3a),
     textStrong: Color(0xff1f252b),
     textMuted: Color(0xff5f625f),
+    artworkShadow: Color(0x21202d3f),
   );
 
   static const dark = _GridViewHolderColors(
@@ -405,5 +413,6 @@ class _GridViewHolderColors {
     dragShadow: Color(0x66000000),
     textStrong: Color(0xf0f6f9fc),
     textMuted: Color(0xadcbd5e1),
+    artworkShadow: Color(0x4d000000),
   );
 }

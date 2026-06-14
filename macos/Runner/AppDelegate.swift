@@ -97,8 +97,28 @@ final class SmPlayerExternalFileAccessStore {
   }
 }
 
+private enum SmPlayerPrivacyUsageDescriptions {
+  private static let microphone =
+    "Simple Melody Player uses the microphone for voice assistant commands."
+  private static let speechRecognition =
+    "Simple Melody Player uses speech recognition to run voice assistant commands."
+
+  static func install() {
+    let infoDictionary = unsafeBitCast(
+      CFBundleGetInfoDictionary(CFBundleGetMainBundle()),
+      to: NSMutableDictionary.self)
+    infoDictionary["NSMicrophoneUsageDescription"] = microphone
+    infoDictionary["NSSpeechRecognitionUsageDescription"] = speechRecognition
+  }
+}
+
 @main
 class AppDelegate: FlutterAppDelegate {
+  override init() {
+    SmPlayerPrivacyUsageDescriptions.install()
+    super.init()
+  }
+
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return false
   }

@@ -44,10 +44,10 @@ class CommandBarColors {
   static const multiSelectNightShadow = Color(0x52000000);
   static const appBarForeground = Color(0xff111827);
   static const appBarForegroundDark = Color(0xfff6f9fc);
-  static const appBarHoverForeground = Color(0xff0f172a);
+  static const appBarHoverForeground = accentStrong;
   static const appBarHoverForegroundDark = Color(0xff459de2);
-  static const appBarHover = Color(0x0f0c1623);
-  static const appBarPressed = Color(0x1a111827);
+  static const appBarHover = Color(0x1f0078d7);
+  static const appBarPressed = Color(0x290078d7);
   static const appBarHoverDark = Color(0x290078d7);
   static const appBarPressedDark = Color(0x3d0078d7);
 }

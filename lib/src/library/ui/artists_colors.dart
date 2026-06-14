@@ -22,7 +22,7 @@ class _ArtistsColors {
   static Color albumShadow(Brightness brightness) {
     return brightness == Brightness.dark
         ? const Color(0x33000000)
-        : const Color(0x14685870);
+        : const Color(0x14445870);
   }
 
   static Color panelBorder(Brightness brightness) {
@@ -96,10 +96,32 @@ class _ArtistsColors {
 
   static BoxDecoration compactDetailHeaderDecoration(Brightness brightness) {
     if (brightness == Brightness.dark) {
-      return const BoxDecoration(color: Color(0xff0f1319));
+      return const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xf70f1319), Color(0xe00f1319)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x29000000),
+            offset: Offset(0, 12),
+            blurRadius: 24,
+          ),
+        ],
+      );
     }
 
-    return const BoxDecoration(color: Color(0xfff8fbfe));
+    return const BoxDecoration(
+      color: Color(0xfff8fbfe),
+      boxShadow: [
+        BoxShadow(
+          color: Color(0x0a445870),
+          offset: Offset(0, 12),
+          blurRadius: 24,
+        ),
+      ],
+    );
   }
 
   static Color textStrongFor(Brightness brightness) {

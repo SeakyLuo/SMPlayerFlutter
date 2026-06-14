@@ -428,6 +428,53 @@ void main() {
     );
     expect(tester.getSize(find.byType(TextField)).height, 40);
   });
+
+  testWidgets('PageSearchField appbar input applies visual text centering', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 260,
+            child: PageSearchField(
+              value: '',
+              hintText: 'Search',
+              focused: false,
+              height: 36,
+              appBar: true,
+              onChanged: (_) {},
+              onFocusChanged: (_) {},
+              onSubmitted: () {},
+              onClear: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final textField = tester.widget<EditableText>(find.byType(EditableText));
+    expect(
+      textField.style.height,
+      SearchTextInputMetrics.appBarLineHeightForHeight(36),
+    );
+    expect(
+      textField.strutStyle.height,
+      SearchTextInputMetrics.appBarLineHeightForHeight(36),
+    );
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.decoration?.contentPadding, EdgeInsets.zero);
+    expect(field.cursorHeight, SearchTextInputMetrics.appBarCursorHeight);
+    expect(tester.getSize(find.byType(TextField)).height, 36);
+    final textOffset = tester.widget<Transform>(
+      find.byKey(const ValueKey('PageSearchField.AppBarTextOffset')),
+    );
+    expect(textOffset.transformHitTests, isFalse);
+    expect(
+      textOffset.transform.getTranslation().y,
+      SearchTextInputMetrics.appBarTextVisualOffset,
+    );
+  });
 }
 
 BoxDecoration _fieldDecoration(WidgetTester tester) {

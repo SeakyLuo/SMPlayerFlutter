@@ -75,7 +75,14 @@ class _CommandBarState extends State<CommandBar> {
       CommandBarStyleVariant.headeredPlaylist =>
         _CommandBarStyleData.headeredPlaylist(compact: compact),
     };
+    final shrinkWrapAppBarActions =
+        widget.style == CommandBarStyleVariant.appBar &&
+        widget.content == null &&
+        widget.primaryAlignment == CommandBarPrimaryAlignment.end;
     _scheduleMeasure();
+    if (shrinkWrapAppBarActions) {
+      return _buildShrinkWrappedAppBarActions(style);
+    }
     final contentWidget =
         widget.content == null
             ? null
@@ -128,6 +135,21 @@ class _CommandBarState extends State<CommandBar> {
                           _toMenuFlyoutItem(entry.$2, entry.$1),
                         ...widget.overflowItems,
                       ];
+                      final toolbarWidth =
+                          shrinkWrapAppBarActions
+                              ? _commandBarVisibleWidth(
+                                context: context,
+                                children: widget.children,
+                                overflowedIndexes: {
+                                  for (final entry
+                                      in overflow.overflowedChildren)
+                                    entry.$1,
+                                },
+                                measuredItemWidths: _itemWidths,
+                                includeMoreButton: overflowMenuItems.isNotEmpty,
+                                measuredMoreWidth: _measuredMoreWidth,
+                              ).clamp(0.0, maxWidth).toDouble()
+                              : maxWidth;
                       final measurementLayer = Positioned(
                         left: -100000,
                         top: 0,
@@ -232,7 +254,7 @@ class _CommandBarState extends State<CommandBar> {
                               );
 
                       return SizedBox(
-                        width: maxWidth,
+                        width: toolbarWidth,
                         height: style.visibleRowHeight,
                         child: Stack(
                           clipBehavior: Clip.none,
@@ -249,6 +271,142 @@ class _CommandBarState extends State<CommandBar> {
       ),
     );
     return toolbar;
+  }
+
+  Widget _buildShrinkWrappedAppBarActions(_CommandBarStyleData style) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: style.toolbarMinHeight),
+      child: Padding(
+        padding: style.toolbarPadding,
+        child: _CommandBarStyleScope(
+          data: style,
+          child: _CommandBarTextIconTheme(
+            enabled: true,
+            style: style,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final maxWidth =
+                    constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                        ? constraints.maxWidth
+                        : MediaQuery.sizeOf(context).width;
+                final overflow = _resolveCommandBarOverflow(
+                  context: context,
+                  maxWidth: maxWidth,
+                  dynamicOverflow: widget.dynamicOverflow,
+                  overflowReserve: widget.overflowReserve,
+                  overflowItems: widget.overflowItems,
+                  children: widget.children,
+                  measuredItemWidths: _itemWidths,
+                  measuredMoreWidth: _measuredMoreWidth,
+                );
+                final overflowMenuItems = [
+                  for (final entry in overflow.overflowedChildren)
+                    _toMenuFlyoutItem(entry.$2, entry.$1),
+                  ...widget.overflowItems,
+                ];
+                final toolbarWidth =
+                    _commandBarVisibleWidth(
+                      context: context,
+                      children: widget.children,
+                      overflowedIndexes: {
+                        for (final entry in overflow.overflowedChildren)
+                          entry.$1,
+                      },
+                      measuredItemWidths: _itemWidths,
+                      includeMoreButton: overflowMenuItems.isNotEmpty,
+                      measuredMoreWidth: _measuredMoreWidth,
+                    ).clamp(0.0, maxWidth).toDouble();
+                final measurementLayer = Positioned(
+                  left: -100000,
+                  top: 0,
+                  height: style.visibleRowHeight,
+                  child: Offstage(
+                    child: SizedBox(
+                      height: style.visibleRowHeight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (
+                            var index = 0;
+                            index < widget.children.length;
+                            index += 1
+                          )
+                            KeyedSubtree(
+                              key: _itemKeys[index],
+                              child: widget.children[index],
+                            ),
+                          KeyedSubtree(
+                            key: _moreKey,
+                            child: CommandBarButton(
+                              iconWidget: const SmPlayerMoreHorizontalIcon(),
+                              label: widget.overflowLabel ?? 'More',
+                              showLabel: false,
+                              canOverflow: false,
+                              onPressed: () {},
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+
+                Widget moreButton() {
+                  return _CommandBarMoreButton(
+                    label: widget.overflowLabel ?? 'More',
+                    items: overflowMenuItems,
+                  );
+                }
+
+                Widget visibleRow({required bool includeMore}) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final child in overflow.visibleChildren) child,
+                      if (includeMore && overflowMenuItems.isNotEmpty)
+                        moreButton(),
+                    ],
+                  );
+                }
+
+                return SizedBox(
+                  width: toolbarWidth,
+                  height: style.visibleRowHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      measurementLayer,
+                      Row(
+                        mainAxisSize: MainAxisSize.max,
+                        mainAxisAlignment: style.primaryAlignment,
+                        children: [
+                          Expanded(
+                            child: ClipRect(
+                              child: Align(
+                                alignment: style.visibleAlignment,
+                                child: OverflowBox(
+                                  minWidth: 0,
+                                  maxWidth: double.infinity,
+                                  minHeight: 0,
+                                  maxHeight: style.visibleRowHeight,
+                                  alignment: style.visibleAlignment,
+                                  child: visibleRow(includeMore: false),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (overflowMenuItems.isNotEmpty) moreButton(),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<GlobalKey> _newItemKeys(int length) {
@@ -480,6 +638,31 @@ _CommandBarOverflowResult _resolveCommandBarOverflow({
           (index, children[index] as CommandBarButton),
     ],
   );
+}
+
+double _commandBarVisibleWidth({
+  required BuildContext context,
+  required List<Widget> children,
+  required Set<int> overflowedIndexes,
+  required List<double> measuredItemWidths,
+  required bool includeMoreButton,
+  required double? measuredMoreWidth,
+}) {
+  final style = _CommandBarStyleScope.of(context);
+  var width = 0.0;
+  for (var index = 0; index < children.length; index += 1) {
+    if (overflowedIndexes.contains(index)) {
+      continue;
+    }
+    width +=
+        measuredItemWidths.length > index && measuredItemWidths[index] > 0
+            ? measuredItemWidths[index]
+            : _estimateCommandBarItemWidth(context, children[index]);
+  }
+  if (includeMoreButton) {
+    width += measuredMoreWidth ?? style.iconOnlyOuterWidth;
+  }
+  return width;
 }
 
 MenuFlyoutItem _toMenuFlyoutItem(CommandBarButton button, int overflowIndex) {

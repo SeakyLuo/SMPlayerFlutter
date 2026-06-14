@@ -1852,6 +1852,40 @@ void main() {
     },
   );
 
+  testWidgets('shell exits native fullscreen on Escape', (tester) async {
+    _setViewSize(tester, const Size(1300, 700));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastDisplayMode: SmPlayerDisplayMode.fullScreen,
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        desktopService: desktopService,
+        initialDisplayMode: SmPlayerDisplayMode.fullScreen,
+      ),
+    );
+    for (var pump = 0; pump < 8; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(desktopService.windowFullScreen, isTrue);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.fullScreen,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+
+    expect(desktopService.windowFullScreen, isFalse);
+    expect(
+      smPlayerGlobalSettingsSnapshot.lastDisplayMode,
+      SmPlayerDisplayMode.normal,
+    );
+  });
+
   testWidgets('shell navigation does not persist immersive display mode', (
     tester,
   ) async {

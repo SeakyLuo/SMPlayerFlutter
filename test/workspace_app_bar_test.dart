@@ -43,6 +43,32 @@ void main() {
     expect(find.text('所有歌曲（1）'), findsOneWidget);
   });
 
+  testWidgets('minimal workspace app bar keeps Electron shadowless surface', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(430, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const _WorkspaceAppBarTestApp(
+        currentPath: '/songs',
+        textScaler: TextScaler.noScaling,
+      ),
+    );
+
+    final surface = find.byKey(
+      const ValueKey('WorkspaceNavigationAppBar.Surface'),
+    );
+    final surfaceMaterial = tester.widget<Material>(surface);
+
+    expect(surfaceMaterial.color, ShellColors.nightWorkspaceSurface);
+    expect(surfaceMaterial.elevation, 0);
+  });
+
   testWidgets('minimal now-playing app bar keeps the full title visible', (
     tester,
   ) async {
@@ -114,6 +140,114 @@ void main() {
     expect(titleRect.left, greaterThan(menuRect.right));
     expect(titleRect.width, greaterThan(360));
   });
+
+  testWidgets(
+    'workspace app bar title keeps Electron flex space before actions',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 360);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const title = 'distinctivecomdistinctivecomdistinctivecom';
+      await tester.pumpWidget(
+        const _WorkspaceAppBarTestApp(
+          currentPath: '/artists',
+          portalRoutePath: '/artists',
+          portalTitle: title,
+          portalContent: CommandBar(
+            style: CommandBarStyleVariant.appBar,
+            overflowLabel: '更多',
+            children: [
+              CommandBarButton(
+                key: ValueKey('WorkspaceAppBar.SearchAction'),
+                icon: FluentIcons.search_20_regular,
+                label: '搜索',
+                showLabel: false,
+                canOverflow: false,
+                onPressed: null,
+              ),
+            ],
+          ),
+          textScaler: TextScaler.noScaling,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final titleRect = tester.getRect(find.text(title));
+      final titleWidget = tester.widget<Text>(find.text(title));
+      final actionRect = tester.getRect(
+        find.byKey(const ValueKey('WorkspaceAppBar.SearchAction')),
+      );
+
+      expect(titleWidget.textScaler, TextScaler.noScaling);
+      expect(titleRect.width, greaterThan(240));
+      expect(actionRect.width, 40);
+      expect(titleRect.right, lessThanOrEqualTo(actionRect.left - 12));
+    },
+  );
+
+  testWidgets(
+    'workspace app bar bottom aligns ArtistDetail back with menu column',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 360);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        const _WorkspaceAppBarTestApp(
+          currentPath: '/artists',
+          portalRoutePath: '/artists',
+          portalTitle: 'Artist A',
+          portalContent: CommandBar(
+            style: CommandBarStyleVariant.appBar,
+            overflowLabel: '更多',
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.search_20_regular,
+                label: '搜索',
+                showLabel: false,
+                canOverflow: false,
+                onPressed: null,
+              ),
+            ],
+          ),
+          portalBottomContent: SizedBox(
+            height: 40,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(0, 0, 4, 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    key: ValueKey('Artists.DetailHeader.Back'),
+                    width: 32,
+                    height: 32,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          textScaler: TextScaler.noScaling,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final menuRect = tester.getRect(
+        find.byKey(SmPlayerShellWorkspaceKeys.navigationMenuButton),
+      );
+      final backRect = tester.getRect(
+        find.byKey(const ValueKey('Artists.DetailHeader.Back')),
+      );
+
+      expect(backRect.left, menuRect.left);
+      expect(backRect.size, const Size(32, 32));
+    },
+  );
 
   testWidgets('album detail ignores albums list app bar title portal', (
     tester,
@@ -462,6 +596,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
     this.child = const SizedBox.shrink(),
     this.portalTitle,
     this.portalContent,
+    this.portalBottomContent,
     this.portalRoutePath = '/now-playing',
     this.portalRouteLocation,
     this.headeredPlaylistAppBar,
@@ -475,6 +610,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
   final Widget child;
   final String? portalTitle;
   final Widget? portalContent;
+  final Widget? portalBottomContent;
   final String portalRoutePath;
   final String? portalRouteLocation;
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
@@ -524,6 +660,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
                   ],
                 ),
             title: portalTitle,
+            bottomContent: portalBottomContent,
           ),
         ),
         if (headeredPlaylistAppBar != null)
@@ -535,6 +672,7 @@ class _WorkspaceAppBarTestApp extends ConsumerWidget {
         i18n: _i18n,
         child: MaterialApp(
           theme: ThemeData(
+            brightness: Brightness.dark,
             extensions: const [
               ShellThemeColors.dark,
               DefaultAlbumArtworkThemeColors.dark,

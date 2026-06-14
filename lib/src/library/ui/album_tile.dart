@@ -118,10 +118,7 @@ class _AlbumTileState extends State<AlbumTile> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AlbumArtControl(
-                    album: widget.album,
-                    selected: widget.selected || _hovered,
-                  ),
+                  AlbumArtControl(album: widget.album),
                   const SizedBox(height: 12),
                   Text(
                     widget.album.name,
@@ -209,23 +206,16 @@ class _AlbumTileState extends State<AlbumTile> {
 }
 
 class AlbumArtControl extends StatelessWidget {
-  const AlbumArtControl({
-    super.key,
-    required this.album,
-    this.dimension = 160,
-    this.selected = false,
-  });
+  const AlbumArtControl({super.key, required this.album, this.dimension = 160});
 
   final AlbumTileData album;
   final double dimension;
-  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final firstSong = album.artworkSong ?? getAlbumArtworkSong(album.songs);
     final brightness = Theme.of(context).brightness;
     final colors = _AlbumTileColors.forBrightness(brightness);
-    final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
     final radius = BorderRadius.circular(8);
 
     return SizedBox.square(
@@ -236,13 +226,11 @@ class AlbumArtControl extends StatelessWidget {
           color: colors.artworkSurface,
           borderRadius: radius,
           boxShadow: [
-            selected
-                ? selectedStyle.artworkShadow
-                : BoxShadow(
-                  color: colors.artworkShadow,
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
+            BoxShadow(
+              color: colors.artworkShadow,
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
         child: ClipRRect(

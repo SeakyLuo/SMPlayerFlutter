@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -396,11 +397,15 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
         path == '/artists' && uri.queryParameters.containsKey('artist');
+    final isCompactArtistDetailRoute =
+        isArtistDetailRoute &&
+        MediaQuery.sizeOf(context).width <=
+            SmPlayerShellMetrics.navigationMinimalBreakpoint;
     final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
-        isArtistDetailRoute ||
+        isCompactArtistDetailRoute ||
         isHiddenFoldersRoute ||
         path == '/immersive-mode';
     final repository = ref.read(libraryRepositoryProvider);
@@ -444,7 +449,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
           return;
         }
 
-        if (isArtistDetailRoute) {
+        if (isCompactArtistDetailRoute) {
           context.go('/artists');
           return;
         }

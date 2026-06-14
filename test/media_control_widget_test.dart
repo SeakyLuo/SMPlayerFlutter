@@ -1663,6 +1663,10 @@ void main() {
     expect(tester.getSize(trackButton).width, lessThanOrEqualTo(414));
     final trackButtonStyle = tester.widget<TextButton>(trackButton).style!;
     expect(
+      trackButtonStyle.padding?.resolve(const <WidgetState>{}),
+      const EdgeInsets.fromLTRB(8, 8, 12, 8),
+    );
+    expect(
       trackButtonStyle.backgroundColor?.resolve({WidgetState.hovered}),
       const Color(0x1f212b3a),
     );
@@ -1671,7 +1675,7 @@ void main() {
       const Color(0x14212b3a),
     );
     final expectedWideTrackColumn = (1280 - 32) * 9 / 28;
-    final expectedWideTrackCopy = expectedWideTrackColumn - 72 - 14 - 12;
+    final expectedWideTrackCopy = expectedWideTrackColumn - 72 - 14 - 20;
     expect(
       tester
           .getSize(find.byKey(const ValueKey('MediaControl.TrackCopy')))
@@ -1684,8 +1688,8 @@ void main() {
       of: find.text('Song'),
       matching: find.byType(TextButton),
     );
-    expect(tester.getSize(shortTrackButton).width, closeTo(218, 1));
-    expect(tester.getSize(shortTrackButton).height, closeTo(96, 1));
+    expect(tester.getSize(shortTrackButton).width, closeTo(226, 1));
+    expect(tester.getSize(shortTrackButton).height, 88);
     expect(
       tester
           .getSize(find.byKey(const ValueKey('MediaControl.TrackCopy')))
@@ -1849,6 +1853,9 @@ void main() {
     );
 
     expect(find.text('Current lyric'), findsOneWidget);
+    expect(find.byTooltip('Song'), findsOneWidget);
+    expect(find.byTooltip('Artist'), findsOneWidget);
+    expect(find.byTooltip('Current lyric'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('MediaControl.CurrentLyricsContainer')),
       findsOneWidget,

@@ -146,6 +146,7 @@ class MinimalTitlebar extends StatelessWidget {
             message: backLabel,
             waitDuration: const Duration(milliseconds: 450),
             child: InkWell(
+              key: const ValueKey('MainNavigationView.BackButton'),
               onTap: onGoBack,
               hoverColor: titleColor.withValues(alpha: 0.08),
               focusColor: titleColor.withValues(alpha: 0.08),

@@ -369,6 +369,7 @@ class _TableHeader extends StatelessWidget {
             label: i18n.t('table.favorite'),
             onResizeColumn: onResizeColumn,
             resizable: false,
+            alignment: Alignment.center,
           ),
           _HeaderCell(
             column: _LibraryColumn.playCount,
@@ -475,6 +476,7 @@ class _StaticHeaderCell extends StatelessWidget {
     required this.label,
     required this.onResizeColumn,
     this.resizable = true,
+    this.alignment = Alignment.centerLeft,
   });
 
   final _LibraryColumn column;
@@ -482,6 +484,7 @@ class _StaticHeaderCell extends StatelessWidget {
   final String label;
   final void Function(_LibraryColumn column, double deltaX) onResizeColumn;
   final bool resizable;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -494,7 +497,7 @@ class _StaticHeaderCell extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: alignment,
               child: Text(
                 label,
                 style: TextStyle(color: colors.headerText, fontSize: 12),

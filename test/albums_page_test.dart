@@ -22,6 +22,7 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/library/ui/search_commit_icon_button.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
@@ -430,6 +431,56 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('Albums.AppBar.Search')));
     await tester.pumpAndSettle();
+    final appBarActionsRect = tester.getRect(
+      find.byKey(const ValueKey('Albums.AppBarActions')),
+    );
+    final searchFieldRect = tester.getRect(
+      find.byKey(const ValueKey('Albums.AppBar.SearchField')),
+    );
+    final appBarSearchTextField = tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const ValueKey('Albums.AppBar.SearchField')),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(searchFieldRect.height, 36);
+    expect(searchFieldRect.center.dy, appBarActionsRect.center.dy);
+    expect(
+      appBarSearchTextField.decoration?.contentPadding,
+      SearchTextInputMetrics.appBarContentPaddingForHeight(36),
+    );
+    expect(
+      appBarSearchTextField.style?.height,
+      SearchTextInputMetrics.appBarLineHeightForHeight(36),
+    );
+    expect(
+      appBarSearchTextField.strutStyle?.height,
+      SearchTextInputMetrics.appBarLineHeightForHeight(36),
+    );
+    expect(appBarSearchTextField.decoration?.contentPadding, EdgeInsets.zero);
+    expect(
+      appBarSearchTextField.cursorHeight,
+      SearchTextInputMetrics.appBarCursorHeight,
+    );
+    final textOffset = tester.widget<Transform>(
+      find.descendant(
+        of: find.byKey(const ValueKey('Albums.AppBar.SearchField')),
+        matching: find.byKey(
+          const ValueKey('PageSearchField.AppBarTextOffset'),
+        ),
+      ),
+    );
+    expect(
+      textOffset.transform.getTranslation().y,
+      SearchTextInputMetrics.appBarTextVisualOffset,
+    );
+    expect(
+      find
+          .byKey(const ValueKey('PageSearchHistoryPanel.Item.Red'))
+          .hitTestable(),
+      findsOneWidget,
+    );
+
     await tester.enterText(find.byType(TextField).last, 'Red');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
@@ -535,6 +586,12 @@ void main() {
     final historyPanel = find.byType(PageSearchHistoryPanel);
     expect(
       find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Red')),
+      findsOneWidget,
+    );
+    expect(
+      find
+          .byKey(const ValueKey('PageSearchHistoryPanel.Item.Red'))
+          .hitTestable(),
       findsOneWidget,
     );
     expect(tester.getSize(historyPanel).width, 360);
@@ -809,6 +866,21 @@ void main() {
       ),
       baseArtworkSize,
     );
+    final hoverArtworkDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('AlbumTile.ArtworkSurface')).first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(
+      hoverArtworkDecoration.boxShadow!.single,
+      const BoxShadow(
+        color: Color(0x21202d3f),
+        blurRadius: 18,
+        offset: Offset(0, 8),
+      ),
+    );
   });
 
   testWidgets('AlbumTile selected state uses shared clean card style', (
@@ -857,7 +929,7 @@ void main() {
                 .decoration
             as BoxDecoration;
     expect(artworkDecoration.boxShadow, const [
-      BoxShadow(color: Color(0x120078d7), offset: Offset(0, 4), blurRadius: 10),
+      BoxShadow(color: Color(0x21202d3f), offset: Offset(0, 8), blurRadius: 18),
     ]);
 
     final title = tester.widget<Text>(find.text('Blue Hour'));
@@ -916,6 +988,26 @@ void main() {
 
     expect(_quickJumpBackground(tester, 'B'), Colors.transparent);
     expect(_quickJumpBackground(tester, 'R'), isNot(Colors.transparent));
+  });
+
+  testWidgets('AlbumsPage compact quick jump aligns with navigation menu', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(340, 760);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_AlbumsTestApp(snapshot: _snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    final quickJumpRect = tester.getRect(
+      find.byKey(const ValueKey('Albums.QuickJump.#')),
+    );
+    expect(quickJumpRect.width, 30);
+    expect(quickJumpRect.center.dx, 25);
   });
 
   testWidgets('AlbumsPage syncs Electron sort setting with selection', (

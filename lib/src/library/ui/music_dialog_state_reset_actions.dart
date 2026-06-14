@@ -1,0 +1,91 @@
+part of 'music_dialog.dart';
+
+extension _MusicDialogStateResetActions on _MusicDialogState {
+  void _resetProperties() {
+    final originalProperties = _originalProperties;
+    if (originalProperties == null || !_propertiesDirty) {
+      return;
+    }
+
+    setState(() {
+      _applyProperties(originalProperties);
+    });
+    _showMessage(context.smPlayerI18n.t('song.propertiesReset'));
+  }
+
+  void _resetLyrics() {
+    if (!_lyricsDirty) {
+      return;
+    }
+    _lyricsRawText = _originalLyricsText;
+    _lyricsController.text =
+        _showLyricsTimestamps
+            ? _originalLyricsText
+            : _stripLyricsTimestamps(_originalLyricsText);
+    _scrollLyricsToTop();
+    setState(() {});
+    _showMessage(context.smPlayerI18n.t('song.lyricsReset'));
+  }
+
+  void _resetArtwork() {
+    if (_artworkSourcePath.isEmpty) {
+      return;
+    }
+    setState(() {
+      _displayArtworkUrl = _originalDisplayArtworkUrl;
+      _artworkSourcePath = '';
+      _artworkMissing = _originalArtworkMissing;
+      _artworkRecommendation = null;
+      _artworkRecommendationRequestKey = '';
+      _showArtworkDeleteConfirm = false;
+    });
+    _loadArtworkRecommendation();
+    _showMessage(context.smPlayerI18n.t('song.albumArtReset'));
+  }
+
+  void _toggleLyricsTimestamps(bool checked) {
+    final rawText = _currentLyricsRawText;
+    setState(() {
+      _lyricsRawText = rawText;
+      _showLyricsTimestamps = checked;
+      _lyricsController.text =
+          checked ? rawText : _stripLyricsTimestamps(rawText);
+    });
+  }
+
+  void _applyAlbumArtRecommendation(AlbumArtRecommendation recommendation) {
+    setState(() {
+      _displayArtworkUrl = recommendation.sourceUrl;
+      _artworkSourcePath = recommendation.sourcePath;
+      _artworkMissing = false;
+      _artworkRecommendation = null;
+      _showArtworkDeleteConfirm = false;
+    });
+  }
+
+  void _applyAlbumArtLibraryChoice(AlbumArtLibraryChoice choice) {
+    setState(() {
+      _displayArtworkUrl = choice.sourceUrl;
+      _artworkSourcePath = choice.sourcePath;
+      _artworkMissing = false;
+      _artworkRecommendation = null;
+      _showArtworkDeleteConfirm = false;
+      _libraryArtworkPickerOpen = false;
+    });
+  }
+
+  void _addArtistCell() {
+    setState(() {
+      final controller = TextEditingController();
+      controller.addListener(_handleEditorChanged);
+      _artistControllers.add(controller);
+    });
+  }
+
+  void _removeArtistCell(int index) {
+    setState(() {
+      final controller = _artistControllers.removeAt(index);
+      controller.dispose();
+    });
+  }
+}

@@ -239,6 +239,38 @@ class _WorkspacePageSurface extends StatelessWidget {
         (workspaceAppBarPortal?.replacesTitle == true
             ? ''
             : workspaceAppBarPortal?.title ?? synchronousPortalTitle ?? title);
+    final workspaceNavigationAppBar =
+        showNavigationAppBar && !overlayNavigationAppBar
+            ? _WorkspaceNavigationAppBar(
+              headeredPlaylistAppBar: headeredPlaylistAppBar,
+              title:
+                  localTitleContent != null ||
+                          pageTitle.isEmpty &&
+                              workspaceAppBarPortal?.replacesTitle == true
+                      ? ''
+                      : pageTitle,
+              navigationMenuLabel: navigationMenuLabel,
+              onNavigationMenuPressed: onNavigationMenuPressed,
+              titleContent:
+                  localTitleContent ??
+                  (workspaceAppBarPortal?.replacesTitle == true
+                      ? workspaceAppBarPortal?.content
+                      : null),
+              actions:
+                  headeredPlaylistCommandBar ??
+                  (workspaceAppBarPortal?.replacesTitle == true
+                      ? null
+                      : workspaceAppBarPortal?.content),
+              bottomContent: workspaceAppBarPortal?.bottomContent,
+              topInset: 0,
+            )
+            : null;
+    final workspaceNavigationAppBarHeight =
+        workspaceNavigationAppBar == null
+            ? 0.0
+            : workspaceAppBarPortal?.bottomContent == null
+            ? 40.0
+            : 80.0;
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar || localTitleContent != null,
       child: _WorkspaceContentMediaQuery(child: child),
@@ -250,30 +282,8 @@ class _WorkspacePageSurface extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (showNavigationAppBar && !overlayNavigationAppBar)
-                _WorkspaceNavigationAppBar(
-                  headeredPlaylistAppBar: headeredPlaylistAppBar,
-                  title:
-                      localTitleContent != null ||
-                              pageTitle.isEmpty &&
-                                  workspaceAppBarPortal?.replacesTitle == true
-                          ? ''
-                          : pageTitle,
-                  navigationMenuLabel: navigationMenuLabel,
-                  onNavigationMenuPressed: onNavigationMenuPressed,
-                  titleContent:
-                      localTitleContent ??
-                      (workspaceAppBarPortal?.replacesTitle == true
-                          ? workspaceAppBarPortal?.content
-                          : null),
-                  actions:
-                      headeredPlaylistCommandBar ??
-                      (workspaceAppBarPortal?.replacesTitle == true
-                          ? null
-                          : workspaceAppBarPortal?.content),
-                  bottomContent: workspaceAppBarPortal?.bottomContent,
-                  topInset: 0,
-                )
+              if (workspaceNavigationAppBar != null)
+                SizedBox(height: workspaceNavigationAppBarHeight)
               else if (!overlayNavigationAppBar && localTitleContent != null)
                 _WorkspaceLocalHeader(child: localTitleContent!)
               else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
@@ -281,6 +291,14 @@ class _WorkspacePageSurface extends StatelessWidget {
               Expanded(child: content),
             ],
           ),
+          if (workspaceNavigationAppBar != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: workspaceNavigationAppBarHeight,
+              child: workspaceNavigationAppBar,
+            ),
           if (overlayNavigationAppBar)
             Positioned(
               top: 0,
@@ -446,14 +464,6 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                       )
                       : LayoutBuilder(
                         builder: (context, constraints) {
-                          const titleActionGap = 12.0;
-                          const titleReserveWidth = 148.0;
-                          final actionWidth =
-                              (constraints.maxWidth -
-                                      titleReserveWidth -
-                                      titleActionGap)
-                                  .clamp(0.0, 360.0)
-                                  .toDouble();
                           return Row(
                             children: [
                               Expanded(
@@ -462,13 +472,17 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                                   color: titleColor,
                                 ),
                               ),
-                              if (actionWidth > 0) ...[
-                                const SizedBox(width: titleActionGap),
-                                SizedBox(
-                                  width: actionWidth,
+                              const SizedBox(width: 12),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: constraints.maxWidth,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  widthFactor: 1,
                                   child: effectiveActions,
                                 ),
-                              ],
+                              ),
                             ],
                           );
                         },
@@ -489,44 +503,28 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                 ],
               ),
             )
-            : DecoratedBox(
-              decoration: BoxDecoration(
-                color: shellColors.workspaceSolidSurface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha:
-                          Theme.of(context).brightness == Brightness.dark
-                              ? 0.18
-                              : 0.06,
-                    ),
-                    offset: const Offset(0, 8),
-                    blurRadius: 18,
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                height: 80,
-                child: Column(
-                  children: [
-                    topRow,
-                    SizedBox(
-                      key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
-                      height: 40,
-                      child: Material(
-                        color: shellColors.workspaceSolidSurface,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: bottomContent!,
-                        ),
+            : SizedBox(
+              height: 80,
+              child: Column(
+                children: [
+                  topRow,
+                  SizedBox(
+                    key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
+                    height: 40,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: bottomContent!,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
     if (!isHeaderedPlaylist) {
       return Material(
+        key: const ValueKey('WorkspaceNavigationAppBar.Surface'),
         color: shellColors.workspaceSolidSurface,
         child: appBarContent,
       );
@@ -607,6 +605,7 @@ class _WorkspaceNavigationAppBarTitle extends StatelessWidget {
       title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+      textScaler: TextScaler.noScaling,
       style: TextStyle(
         color: color,
         fontSize: 16,

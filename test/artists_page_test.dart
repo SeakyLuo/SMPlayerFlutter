@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -464,6 +465,49 @@ void main() {
     expect(field.decoration?.hintStyle?.color, const Color(0xadcbd5e1));
   });
 
+  testWidgets('ArtistsPage compact detail appbar uses Electron night header', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsAppBarPortalTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        brightness: Brightness.dark,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Artist A').first);
+    await tester.pumpAndSettle();
+
+    final appBarHeaderShadow = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('Artists.DetailHeader.AppBarShadow')),
+    );
+    final decoration = appBarHeaderShadow.decoration as BoxDecoration;
+    final gradient = decoration.gradient! as LinearGradient;
+    expect(gradient.colors, const [Color(0xf70f1319), Color(0xe00f1319)]);
+    expect(decoration.color, isNull);
+    expect(decoration.boxShadow, const [
+      BoxShadow(
+        color: Color(0x29000000),
+        offset: Offset(0, 12),
+        blurRadius: 24,
+      ),
+    ]);
+
+    final summary = tester.widget<Text>(
+      find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+    );
+    expect(summary.style?.color, const Color(0xadcbd5e1));
+  });
+
   testWidgets('ArtistsPage compact detail writes Electron appbar title', (
     tester,
   ) async {
@@ -489,11 +533,32 @@ void main() {
       find.byKey(const ValueKey('Artists.AppBar.Search')),
     );
     expect(searchButton.active, isFalse);
-
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('APPBAR_TITLE:1 Artists'), findsOneWidget);
+    final appBarHeaderShadow = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('Artists.DetailHeader.AppBarShadow')),
+    );
+    expect((appBarHeaderShadow.decoration as BoxDecoration).boxShadow, const [
+      BoxShadow(
+        color: Color(0x0a445870),
+        offset: Offset(0, 12),
+        blurRadius: 24,
+      ),
+    ]);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('Artists.DetailHeader.AppBarShadow')),
+        matching: find.byKey(const ValueKey('Artists.DetailHeader.Back')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('Artists.DetailHeader.AppBarShadow')),
+        matching: find.byKey(
+          const ValueKey('Artists.DetailHeader.BackReservedSpace'),
+        ),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('ArtistsPage compact target route keeps Electron appbar title', (
@@ -979,6 +1044,37 @@ void main() {
     expect(masterState.position.pixels, masterBefore);
   });
 
+  testWidgets('ArtistsPage detail hides native scrollbar like Electron', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _manyAlbumsSnapshot(), i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final detailSurface = find.byKey(const ValueKey('Artists.DetailSurface'));
+    final detailScrollConfig = find.descendant(
+      of: detailSurface,
+      matching: find.byKey(const ValueKey('Artists.DetailScrollConfiguration')),
+    );
+
+    expect(detailScrollConfig, findsOneWidget);
+    expect(
+      find.descendant(
+        of: detailSurface,
+        matching: find.byKey(const ValueKey('Artists.DetailScrollbar')),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('ArtistsPage virtualizes artist album cards like Electron', (
     tester,
   ) async {
@@ -1053,7 +1149,7 @@ void main() {
         albumSectionShadow.decoration as BoxDecoration;
     expect(albumShadowDecoration.boxShadow, const [
       BoxShadow(
-        color: Color(0x14685870),
+        color: Color(0x14445870),
         offset: Offset(0, 16),
         blurRadius: 38,
       ),
@@ -1364,6 +1460,59 @@ void main() {
       albumShuffle.style?.backgroundColor?.resolve({WidgetState.hovered}),
       const Color(0x290078d7),
     );
+  });
+
+  testWidgets('ArtistsPage detail header keeps long title single-line', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(970, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const longArtistName = 'distinctivecompactdiscs146';
+    final snapshot = LibraryContentData(
+      songs: [
+        _snapshot.songs.first.copyWith(
+          artist: longArtistName,
+          artists: const [longArtistName],
+        ),
+      ],
+      recentSongs: _snapshot.recentSongs,
+      recentPlaylists: _snapshot.recentPlaylists,
+      recentAlbums: _snapshot.recentAlbums,
+      recentArtists: _snapshot.recentArtists,
+      recentSearches: _snapshot.recentSearches,
+      playlists: _snapshot.playlists,
+      folders: _snapshot.folders,
+      favoritePlaylistId: _snapshot.favoritePlaylistId,
+      nowPlaying: _snapshot.nowPlaying,
+      hasLibrary: _snapshot.hasLibrary,
+      sortCriterion: _snapshot.sortCriterion,
+      albumsSort: _snapshot.albumsSort,
+      showCount: _snapshot.showCount,
+      hideMultiSelectCommandBarAfterOperation:
+          _snapshot.hideMultiSelectCommandBarAfterOperation,
+      localViewMode: _snapshot.localViewMode,
+      rootPath: _snapshot.rootPath,
+      databasePath: _snapshot.databasePath,
+    );
+
+    await tester.pumpWidget(_ArtistsTestApp(snapshot: snapshot, i18n: i18n));
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(
+      find.byKey(const ValueKey('Artists.DetailHeader.Title')),
+    );
+    final summary = tester.widget<Text>(
+      find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+    );
+
+    expect(title.maxLines, 1);
+    expect(title.textScaler, TextScaler.noScaling);
+    expect(summary.textScaler, TextScaler.noScaling);
   });
 
   testWidgets(
@@ -4563,10 +4712,16 @@ void main() {
     final headerDecoration = header.decoration as BoxDecoration;
     expect(headerDecoration.color, const Color(0xfff8fbfe));
     expect(headerDecoration.gradient, isNull);
-    expect(headerDecoration.boxShadow, isNull);
+    expect(headerDecoration.boxShadow, const [
+      BoxShadow(
+        color: Color(0x0a445870),
+        offset: Offset(0, 12),
+        blurRadius: 24,
+      ),
+    ]);
     expect(
-      tester.getSize(find.byKey(const ValueKey('Artists.DetailHeader.Back'))),
-      const Size(32, 32),
+      find.byKey(const ValueKey('Artists.DetailHeader.Back')),
+      findsNothing,
     );
     expect(
       tester.getSize(
@@ -4586,13 +4741,10 @@ void main() {
       find.byKey(const ValueKey('Artists.DetailHeader.CompactCommandGap')),
     );
     expect(compactCommandGap.width, 6);
-    final backCenter = tester.getCenter(
-      find.byKey(const ValueKey('Artists.DetailHeader.Back')),
-    );
-    final summaryCenter = tester.getCenter(
+    expect(
       find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+      findsOne,
     );
-    expect((backCenter.dy - summaryCenter.dy).abs(), lessThanOrEqualTo(1));
     final albumListTopPadding = tester.widget<SizedBox>(
       find.byKey(const ValueKey('Artists.AlbumList.TopPadding')),
     );
@@ -4653,10 +4805,10 @@ void main() {
       find.byKey(const ValueKey('Artists.DetailHeader.Shuffle')),
     );
     expect(compactDetailMoreRect.left - compactDetailShuffleRect.right, 4);
-    final detailShuffleIcon = tester.widget<Icon>(
+    final detailShuffleIcon = tester.widget<ShuffleIcon>(
       find.descendant(
         of: find.byKey(const ValueKey('Artists.DetailHeader.Shuffle')),
-        matching: find.byType(Icon),
+        matching: find.byType(ShuffleIcon),
       ),
     );
     expect(detailShuffleIcon.size, 17);
@@ -4668,10 +4820,10 @@ void main() {
       find.byKey(const ValueKey('Artists.AlbumShuffle.Blue Hour')),
     );
     expect(compactAlbumMoreRect.left - compactAlbumShuffleRect.right, 4);
-    final shuffleIcon = tester.widget<Icon>(
+    final shuffleIcon = tester.widget<ShuffleIcon>(
       find.descendant(
         of: find.byKey(const ValueKey('Artists.AlbumShuffle.Blue Hour')),
-        matching: find.byType(Icon),
+        matching: find.byType(ShuffleIcon),
       ),
     );
     expect(shuffleIcon.size, 17);

@@ -103,15 +103,6 @@ void _clearArtistRecentSearchesForArtistsPage(_ArtistsPageState state) {
   );
 }
 
-void _returnToArtistListForArtistsPage(_ArtistsPageState state) {
-  // ignore: invalid_use_of_protected_member
-  state.setState(() {
-    state._selectedArtistName = '';
-    state._selection.cancel();
-  });
-  state.context.replace('/artists');
-}
-
 void _openArtistDetailForArtistsPage(
   _ArtistsPageState state,
   String artistName,

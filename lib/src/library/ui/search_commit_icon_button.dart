@@ -53,12 +53,31 @@ class SearchTextInputMetrics {
     height: lineHeight,
     forceStrutHeight: true,
   );
+  static const appBarContentPadding = EdgeInsets.zero;
+  static const appBarTextVisualOffset = -4.5;
+  static const appBarCursorHeight = 24.0;
 
   static EdgeInsets contentPaddingForHeight(double height) {
     final availablePadding = height - fontSize;
     final visualOffset = height >= 38 ? 3.0 : 2.0;
     final top = availablePadding / 2 + visualOffset;
     return EdgeInsets.only(top: top, bottom: availablePadding - top);
+  }
+
+  static EdgeInsets appBarContentPaddingForHeight(double height) {
+    return appBarContentPadding;
+  }
+
+  static double appBarLineHeightForHeight(double height) {
+    return height / fontSize;
+  }
+
+  static StrutStyle appBarStrutStyleForHeight(double height) {
+    return StrutStyle(
+      fontSize: fontSize,
+      height: appBarLineHeightForHeight(height),
+      forceStrutHeight: true,
+    );
   }
 }
 
