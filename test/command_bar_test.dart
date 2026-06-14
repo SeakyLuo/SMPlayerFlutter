@@ -872,7 +872,7 @@ void main() {
     expect(textButton.fontVariations, const [FontVariation.weight(650)]);
   });
 
-  testWidgets('CommandBar appbar hover mirrors Electron narrow appbar', (
+  testWidgets('CommandBar appbar hover matches navigation icon hover', (
     tester,
   ) async {
     await tester.pumpWidget(

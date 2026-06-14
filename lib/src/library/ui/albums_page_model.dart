@@ -2,8 +2,9 @@ part of 'albums_page.dart';
 
 const _albumTileTrackWidth = 180.0;
 const _albumColumnGap = 30.0;
-const _albumQuickJumpWidth = 22.0;
+const _albumQuickJumpWidth = 30.0;
 const _albumGridShellGap = 4.0;
+const _albumCompactGridShellGap = 10.0;
 const _albumRowHeight = 250.0;
 const _albumCompactRowHeight = 234.0;
 const _albumOverscanRows = 2;

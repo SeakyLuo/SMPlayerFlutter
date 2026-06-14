@@ -5,31 +5,9 @@ import '../data/library_time_codec.dart';
 import '../data/library_models.dart';
 import 'song_display_helpers.dart' as song_display;
 
-class ArtistGroup {
-  const ArtistGroup({
-    required this.name,
-    required this.songs,
-    required this.albumCount,
-    required this.artworkSongId,
-  });
-
-  final String name;
-  final List<LibrarySong> songs;
-  final int albumCount;
-  final int artworkSongId;
-}
-
-class AlbumGroup {
-  const AlbumGroup({
-    required this.name,
-    required this.songs,
-    required this.duration,
-  });
-
-  final String name;
-  final List<LibrarySong> songs;
-  final int duration;
-}
+part 'artist_group.dart';
+part 'album_group.dart';
+part 'artist_album_virtual_window.dart';
 
 const artistRowContentHeight = 64.0;
 const artistRowSpacing = 2.0;
@@ -71,20 +49,6 @@ const artistQuickJumpKeys = [
   'Y',
   'Z',
 ];
-
-class ArtistAlbumVirtualWindow {
-  const ArtistAlbumVirtualWindow({
-    required this.startIndex,
-    required this.endIndex,
-    required this.topSpacerHeight,
-    required this.bottomSpacerHeight,
-  });
-
-  final int startIndex;
-  final int endIndex;
-  final double topSpacerHeight;
-  final double bottomSpacerHeight;
-}
 
 List<ArtistGroup> buildArtistGroups(
   List<LibrarySong> songs,

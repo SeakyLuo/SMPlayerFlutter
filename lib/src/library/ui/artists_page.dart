@@ -39,15 +39,37 @@ import '../../platform/desktop_feature_service.dart';
 import 'quick_jump_tooltip.dart';
 
 part 'artists_master_detail.dart';
-part 'artists_list_item.dart';
+part 'artist_list_item.dart';
+part 'artist_list_artwork.dart';
 part 'artists_detail.dart';
+part 'artist_detail_header_delegate.dart';
+part 'artist_detail_header.dart';
+part 'artist_detail_compact_command_row.dart';
+part 'artist_header_action_button_style.dart';
+part 'artist_album_sliver_section.dart';
+part 'artist_album_song_row_shell.dart';
+part 'artist_album_song_list_top_border_painter.dart';
 part 'artists_page_state_helpers.dart';
-part 'artists_page_master.dart';
-part 'artists_page_chrome.dart';
-part 'artists_page_search.dart';
-part 'artists_album_header.dart';
+part 'artists_master_metrics.dart';
+part 'compact_artists_page.dart';
+part 'artists_master.dart';
+part 'artist_quick_jump.dart';
+part 'artists_loading_master.dart';
+part 'artists_progress.dart';
+part 'artists_detail_loading_state.dart';
+part 'artists_loading_spinner.dart';
+part 'artists_loading_spinner_painter.dart';
+part 'artists_custom_scrollbar.dart';
+part 'artists_page_panel.dart';
+part 'artists_empty_state.dart';
+part 'artists_app_bar_search_actions.dart';
+part 'artists_search_box.dart';
+part 'artist_album_header.dart';
+part 'artist_album_title_link.dart';
+part 'album_artwork.dart';
 part 'artists_colors.dart';
 part 'artists_page_actions.dart';
+part 'artists_summary_format.dart';
 
 const _artistsBackdropSaturate120 = ColorFilter.matrix([
   1.1574,
@@ -387,25 +409,33 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 : _allArtistsTitle(snapshot, artistGroups, i18n);
         final compactAppBarDetailControls =
             useWorkspaceAppBar && compactLayout && compactAppBarArtist != null
-                ? _ArtistDetailCompactCommandRow(
-                  artist: compactAppBarArtist,
-                  i18n: i18n,
-                  onReturnToArtistList: _returnToArtistList,
-                  onPlaySongs: () {
-                    _playShuffledSongIds(
-                      compactAppBarArtist.songs.map((song) => song.id).toList(),
-                      artistName: compactAppBarArtist.name,
-                    );
-                  },
-                  onOpenArtistMenu: (position) {
-                    _showGroupContextMenu(
-                      position: position,
-                      type: _ArtistGroupMenuType.artist,
-                      label: compactAppBarArtist.name,
-                      songs: compactAppBarArtist.songs,
-                      showLocateArtist: true,
-                    );
-                  },
+                ? DecoratedBox(
+                  key: const ValueKey('Artists.DetailHeader.AppBarShadow'),
+                  decoration: _ArtistsColors.compactDetailHeaderDecoration(
+                    Theme.of(context).brightness,
+                  ),
+                  child: _ArtistDetailCompactCommandRow(
+                    artist: compactAppBarArtist,
+                    i18n: i18n,
+                    workspaceAppBarBottom: true,
+                    onPlaySongs: () {
+                      _playShuffledSongIds(
+                        compactAppBarArtist.songs
+                            .map((song) => song.id)
+                            .toList(),
+                        artistName: compactAppBarArtist.name,
+                      );
+                    },
+                    onOpenArtistMenu: (position) {
+                      _showGroupContextMenu(
+                        position: position,
+                        type: _ArtistGroupMenuType.artist,
+                        label: compactAppBarArtist.name,
+                        songs: compactAppBarArtist.songs,
+                        showLocateArtist: true,
+                      );
+                    },
+                  ),
                 )
                 : null;
         _syncAppBarPortal(
@@ -536,7 +566,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                       );
                     },
                     onJumpToArtistKey: _jumpToArtistKey,
-                    onReturnToArtistList: _returnToArtistList,
                     onPlaySongs: _playShuffledSongIds,
                     onPlayTrack: _playTrackInQueue,
                     onTogglePlayPause:

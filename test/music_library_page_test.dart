@@ -926,6 +926,29 @@ void main() {
     );
   });
 
+  testWidgets('MusicLibraryPage favorite header aligns to column center', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _MusicLibraryTestApp(snapshot: _snapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final headerRect = tester.getRect(
+      find.byKey(const ValueKey('MusicLibrary.Header.favorite')),
+    );
+    final labelRect = tester.getRect(find.text('Favorite'));
+
+    expect(labelRect.center.dx, closeTo(headerRect.center.dx, 0.1));
+  });
+
   testWidgets(
     'MusicLibraryPage wide table header stays fixed while rows scroll',
     (tester) async {

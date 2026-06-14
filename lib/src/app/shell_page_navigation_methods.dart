@@ -108,6 +108,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     unawaited(_desktopFeatureService.setWindowFullScreen(nextFullScreen));
   }
 
+  void _exitDesktopWindowFullScreen() {
+    _setDesktopWindowFullScreen(false);
+    unawaited(_desktopFeatureService.setWindowFullScreen(false));
+  }
+
   void _enterMiniMode() {
     final currentPath = widget.currentPath ?? _currentPath;
     final exitTarget =
@@ -182,6 +187,14 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
         currentUri.path == '/albums' &&
         currentUri.queryParameters.containsKey('album');
     if (isAlbumDetailRoute && widget.onGoBack != null) {
+      _navigationHistory.clear();
+      widget.onGoBack!.call();
+      return;
+    }
+    final isArtistDetailRoute =
+        currentUri.path == '/artists' &&
+        currentUri.queryParameters.containsKey('artist');
+    if (isArtistDetailRoute && widget.canGoBack && widget.onGoBack != null) {
       _navigationHistory.clear();
       widget.onGoBack!.call();
       return;

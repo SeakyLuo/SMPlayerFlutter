@@ -28,6 +28,7 @@ class GridArtworkCardContent extends StatelessWidget {
     required this.textStrongColor,
     required this.textMutedColor,
     this.artworkKey,
+    this.artworkShadow,
     this.selectedMark,
   });
 
@@ -40,6 +41,7 @@ class GridArtworkCardContent extends StatelessWidget {
   final Color textStrongColor;
   final Color textMutedColor;
   final Key? artworkKey;
+  final BoxShadow? artworkShadow;
   final Widget? selectedMark;
 
   @override
@@ -49,14 +51,20 @@ class GridArtworkCardContent extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox.square(
-                key: artworkKey,
-                dimension: 160,
-                child: GridArtworkCover(
-                  artworkUrls: artworkUrls,
-                  fallback: fallback,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: artworkShadow == null ? null : [artworkShadow!],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox.square(
+                  key: artworkKey,
+                  dimension: 160,
+                  child: GridArtworkCover(
+                    artworkUrls: artworkUrls,
+                    fallback: fallback,
+                  ),
                 ),
               ),
             ),

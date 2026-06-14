@@ -32,7 +32,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
             ? 36.0
             : 84.0;
     final actionButtonSize = compact ? 32.0 : 38.0;
-    final actionIconSize = compact ? 17.0 : 20.0;
+    final actionIconSize = compact ? 14.0 : 20.0;
     return ConstrainedBox(
       key: ValueKey('Artists.AlbumHeader.${album.name}'),
       constraints: BoxConstraints(minHeight: headerMinHeight),
@@ -136,89 +136,6 @@ class _ArtistAlbumHeader extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ArtistAlbumTitleLink extends StatefulWidget {
-  const _ArtistAlbumTitleLink({
-    required this.albumName,
-    required this.brightness,
-    required this.compact,
-  });
-
-  final String albumName;
-  final Brightness brightness;
-  final bool compact;
-
-  @override
-  State<_ArtistAlbumTitleLink> createState() => _ArtistAlbumTitleLinkState();
-}
-
-class _ArtistAlbumTitleLinkState extends State<_ArtistAlbumTitleLink> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        _hovered
-            ? _ArtistsColors.albumTitleHoverForeground(widget.brightness)
-            : _ArtistsColors.textStrongFor(widget.brightness);
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-      splashFactory: NoSplash.splashFactory,
-      onHover: (hovered) {
-        if (_hovered == hovered) {
-          return;
-        }
-        setState(() {
-          _hovered = hovered;
-        });
-      },
-      onTap: () {
-        context.go(
-          '/albums?album=${Uri.encodeQueryComponent(widget.albumName)}',
-        );
-      },
-      child: Text(
-        key: ValueKey('Artists.AlbumTitle.${widget.albumName}'),
-        widget.albumName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontSize: widget.compact ? 17 : 18,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class AlbumArtwork extends StatelessWidget {
-  const AlbumArtwork({super.key, required this.album, required this.dimension});
-
-  final AlbumGroup album;
-  final double dimension;
-
-  @override
-  Widget build(BuildContext context) {
-    final firstSong = getAlbumArtworkSong(album.songs);
-    final brightness = Theme.of(context).brightness;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox.square(
-        key: ValueKey('Artists.AlbumArtwork.${album.name}'),
-        dimension: dimension,
-        child: DecoratedBox(
-          key: ValueKey('Artists.AlbumArtwork.Background.${album.name}'),
-          decoration: BoxDecoration(
-            color: _ArtistsColors.albumArtworkBackground(brightness),
-          ),
-          child: SongArtwork(artworkPath: firstSong.thumbnailPath),
         ),
       ),
     );

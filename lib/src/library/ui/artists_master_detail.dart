@@ -34,7 +34,6 @@ class _ArtistsMasterDetail extends StatelessWidget {
     required this.onOpenArtistDetailMenu,
     required this.onOpenAlbumMenu,
     required this.onJumpToArtistKey,
-    required this.onReturnToArtistList,
     required this.onPlaySongs,
     required this.onPlayTrack,
     required this.onTogglePlayPause,
@@ -85,7 +84,6 @@ class _ArtistsMasterDetail extends StatelessWidget {
   onOpenAlbumMenu;
   final void Function(Map<String, int> artistQuickJumpMap, String key)
   onJumpToArtistKey;
-  final VoidCallback onReturnToArtistList;
   final void Function(
     List<int> songIds, {
     String? albumName,
@@ -145,7 +143,6 @@ class _ArtistsMasterDetail extends StatelessWidget {
           onOpenAlbumMenu(position: position, album: album);
         },
         onJumpToArtistKey: onJumpToArtistKey,
-        onReturnToArtistList: onReturnToArtistList,
         onPlaySongs: onPlaySongs,
         selectedTrackId: selectedTrackId,
         isPlaying: isPlaying,

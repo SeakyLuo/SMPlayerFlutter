@@ -118,6 +118,22 @@ void main() {
 
     expect(tester.getSize(firstCard).width, 180);
     expect(tester.getSize(firstArtwork), const Size.square(160));
+    final artworkShadow =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .ancestor(
+                        of: firstArtwork,
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(artworkShadow.borderRadius, BorderRadius.circular(8));
+    expect(artworkShadow.boxShadow, const [
+      BoxShadow(color: Color(0x21202d3f), offset: Offset(0, 8), blurRadius: 18),
+    ]);
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(firstCard));
@@ -155,6 +171,7 @@ void main() {
               selected: true,
               showDragHandle: false,
               cardKey: const ValueKey('Playlists.PlaylistCard'),
+              artworkKey: const ValueKey('Playlists.ArtworkSurface'),
               onOpen: () {},
               onPlay: () {},
             ),
@@ -182,6 +199,23 @@ void main() {
       tester.widget<Text>(find.text('0 songs')).style?.color,
       const Color(0xff0063b1),
     );
+    final artworkShadow =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .ancestor(
+                        of: find.byKey(
+                          const ValueKey('Playlists.ArtworkSurface'),
+                        ),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(artworkShadow.boxShadow, const [
+      BoxShadow(color: Color(0x21202d3f), offset: Offset(0, 8), blurRadius: 18),
+    ]);
   });
 
   testWidgets('PlaylistsPage drag handle mirrors Electron floating handle', (

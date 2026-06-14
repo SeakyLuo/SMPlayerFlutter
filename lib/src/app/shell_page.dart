@@ -603,10 +603,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   }
 
   bool _handlePlaybackShortcutKey(KeyEvent event) {
-    if (event is! KeyDownEvent ||
-        _shouldIgnorePlaybackShortcutFocus(
-          FocusManager.instance.primaryFocus,
-        )) {
+    if (event is! KeyDownEvent) {
+      return false;
+    }
+    if (_isWindowFullScreen && event.logicalKey == LogicalKeyboardKey.escape) {
+      _exitDesktopWindowFullScreen();
+      return true;
+    }
+    if (_shouldIgnorePlaybackShortcutFocus(
+      FocusManager.instance.primaryFocus,
+    )) {
       return false;
     }
 

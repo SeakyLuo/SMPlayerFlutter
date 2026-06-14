@@ -20,6 +20,23 @@ void main() {
       isNotEmpty,
     );
 
+    final embeddedInfoPlist = File('macos/Runner/EmbeddedInfo.plist');
+    expect(embeddedInfoPlist.existsSync(), isTrue);
+    expect(
+      _readPlistValue(
+        embeddedInfoPlist.path,
+        'NSMicrophoneUsageDescription',
+      ),
+      isNotEmpty,
+    );
+    expect(
+      _readPlistValue(
+        embeddedInfoPlist.path,
+        'NSSpeechRecognitionUsageDescription',
+      ),
+      isNotEmpty,
+    );
+
     for (final path in [
       'macos/Runner/en.lproj/InfoPlist.strings',
       'macos/Runner/zh-Hans.lproj/InfoPlist.strings',
@@ -65,6 +82,10 @@ void main() {
       projectText.contains('INFOPLIST_KEY_NSSpeechRecognitionUsageDescription'),
       isTrue,
     );
+    expect(projectText, contains('-sectcreate'));
+    expect(projectText, contains('__TEXT'));
+    expect(projectText, contains('__info_plist'));
+    expect(projectText, contains('Runner/EmbeddedInfo.plist'));
 
     final patchScript = File(
       'macos/Runner/patch_privacy_usage_descriptions.sh',
@@ -73,6 +94,9 @@ void main() {
     final patchScriptText = patchScript.readAsStringSync();
     expect(patchScriptText, contains(r'scan_root "$TARGET_BUILD_DIR"'));
     expect(patchScriptText, contains('InfoPlist.strings'));
+    expect(patchScriptText, contains(r'touch "$APP_DIR"'));
+    expect(patchScriptText, contains(r'codesign --force --sign "$SIGN_IDENTITY"'));
+    expect(patchScriptText, contains(r'"$APP_DIR"'));
     expect(patchScriptText, contains('NSSpeechRecognitionUsageDescription'));
   });
 
@@ -83,6 +107,14 @@ void main() {
     expect(mainWindow.existsSync(), isTrue);
 
     final appDelegateText = appDelegate.readAsStringSync();
+    expect(
+      appDelegateText,
+      contains('NSSpeechRecognitionUsageDescription'),
+    );
+    expect(
+      appDelegateText,
+      contains('NSMicrophoneUsageDescription'),
+    );
     expect(appDelegateText, contains('securityScopedExternalFileBookmarks'));
     expect(
       appDelegateText,
