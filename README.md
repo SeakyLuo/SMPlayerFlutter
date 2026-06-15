@@ -26,3 +26,4 @@ You may fork, modify, and redistribute this project for non-commercial purposes,
 
 ## FIXME
 1. 最小高度宽屏和窄屏下不对
+2. 正在播放支持swipe delete/like

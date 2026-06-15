@@ -112,7 +112,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     if (nextFilter != _activeFilter) {
       _activeFilter = nextFilter;
-      _recordRecentSearch();
     }
   }
 
@@ -659,7 +658,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         },
       ).toString(),
     );
-    _recordRecentSearch();
   }
 
   String _searchTitle(SmPlayerI18n i18n) {
@@ -800,25 +798,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     await ref
         .read(libraryRepositoryProvider)
         .removePreferenceItem('song', '${song.id}');
-  }
-
-  void _recordRecentSearch() {
-    final query = widget.query.trim();
-    if (query.isEmpty) {
-      return;
-    }
-
-    final type =
-        widget.folderRelativePath?.isNotEmpty == true
-            ? SearchHistoryType.folders
-            : searchHistoryTypeForFilter(_activeFilter);
-    unawaited(
-      ref.read(libraryRepositoryProvider).addRecentSearch(query, type).then((
-        _,
-      ) {
-        invalidateRecentSearchData(ref);
-      }),
-    );
   }
 
   int _totalCount(SearchResults results) {

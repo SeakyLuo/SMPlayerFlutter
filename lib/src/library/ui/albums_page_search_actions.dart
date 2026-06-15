@@ -4,6 +4,7 @@ extension _AlbumsPageSearchActions on _AlbumsPageState {
   void _submitSearch({bool closeAppBar = false}) {
     final query = _searchDraft.trim();
     _showProcessing();
+    // ignore: invalid_use_of_protected_member
     setState(() {
       _searchDraft = query;
       _searchQuery = _searchDraft;
@@ -27,24 +28,18 @@ extension _AlbumsPageSearchActions on _AlbumsPageState {
 
   void _selectSearchQuery(String query) {
     FocusManager.instance.primaryFocus?.unfocus();
+    // ignore: invalid_use_of_protected_member
     setState(() {
       _searchDraft = query;
       _searchQuery = query;
       _searchFocused = false;
       _appBarSearchOpen = false;
     });
-    unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.albums)
-          .then((_) {
-            invalidateRecentSearchData(ref);
-          }),
-    );
     _scrollAlbumsToTop();
   }
 
   void _clearSearch() {
+    // ignore: invalid_use_of_protected_member
     setState(() {
       _searchDraft = '';
       _searchQuery = '';
@@ -56,6 +51,7 @@ extension _AlbumsPageSearchActions on _AlbumsPageState {
   }
 
   void _changeSearchFocus(bool focused) {
+    // ignore: invalid_use_of_protected_member
     setState(() {
       _searchFocused = focused;
     });

@@ -201,7 +201,9 @@ GoRouter createSmPlayerRouter({
                     (context, state) => _smPlayerBranchPage(
                       state: state,
                       settingsController: settingsController,
-                      child: const PlaylistsPage(),
+                      child: PlaylistsPage(
+                        searchQuery: state.uri.queryParameters['search'] ?? '',
+                      ),
                     ),
               ),
               GoRoute(

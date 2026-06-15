@@ -79,12 +79,12 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
     appBarTabText: _SearchColors.textStrong,
     appBarTabActiveText: Color(0xff0063b1),
     appBarTabSurface: Color(0x80ffffff),
-    appBarTabActiveSurface: SmPlayerInteractionColors.hoverSurface,
+    appBarTabActiveSurface: Color(0x240078d7),
     appBarTabHoverText: Color(0xff0063b1),
     appBarTabHoverSurface: GlobalUI.hoverBgColorDay,
     appBarTabHoverBorder: GlobalUI.hoverBorderColorDay,
-    appBarTabBorder: Color(0x24536379),
-    appBarTabActiveBorder: Color(0x380078d7),
+    appBarTabBorder: Color(0x1f536379),
+    appBarTabActiveBorder: Color(0x6b0078d7),
   );
 
   static const dark = SearchPageThemeColors(
@@ -111,12 +111,12 @@ class SearchPageThemeColors extends ThemeExtension<SearchPageThemeColors> {
     appBarTabText: Color(0xeff6f9fc),
     appBarTabActiveText: Color(0xff5fb6ff),
     appBarTabSurface: Color(0x0effffff),
-    appBarTabActiveSurface: Color(0x290078d7),
+    appBarTabActiveSurface: Color(0x2e0078d7),
     appBarTabHoverText: Color(0xff5fb6ff),
     appBarTabHoverSurface: GlobalUI.hoverBgColorNight,
     appBarTabHoverBorder: GlobalUI.hoverBorderColorNight,
     appBarTabBorder: Color(0x1fd6e0ec),
-    appBarTabActiveBorder: Color(0x570078d7),
+    appBarTabActiveBorder: Color(0x610078d7),
   );
 
   static SearchPageThemeColors of(BuildContext context) {

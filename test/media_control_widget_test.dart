@@ -1189,7 +1189,7 @@ void main() {
     },
   );
 
-  testWidgets('MediaControl disables main volume slider when player is empty', (
+  testWidgets('MediaControl keeps main volume slider available when empty', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -1199,6 +1199,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
+    final emittedVolumes = <int>[];
     await tester.pumpWidget(
       SmPlayerI18nScope(
         i18n: i18n,
@@ -1220,7 +1221,7 @@ void main() {
               onSeek: (_) {},
               onBeginSeek: () {},
               onEndSeek: () {},
-              onVolumeChange: (_) {},
+              onVolumeChange: emittedVolumes.add,
               onToggleMute: () {},
               onToggleShuffle: () {},
               onToggleRepeat: () {},
@@ -1243,12 +1244,15 @@ void main() {
         matching: find.byType(Slider),
       ),
     );
-    expect(volumeSlider.value, 0);
-    expect(volumeSlider.onChanged, isNull);
+    expect(volumeSlider.value, 73);
+    expect(volumeSlider.onChanged, isNotNull);
+    volumeSlider.onChanged!(41);
+    await tester.pump();
+    expect(emittedVolumes, [41]);
   });
 
   testWidgets(
-    'MediaControl disables transport and main volume when track is empty',
+    'MediaControl disables transport but keeps main volume when track is empty',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 420);
@@ -1258,6 +1262,7 @@ void main() {
       });
 
       var playToggled = false;
+      final emittedVolumes = <int>[];
       await tester.pumpWidget(
         SmPlayerI18nScope(
           i18n: i18n,
@@ -1281,7 +1286,7 @@ void main() {
                 onSeek: (_) {},
                 onBeginSeek: () {},
                 onEndSeek: () {},
-                onVolumeChange: (_) {},
+                onVolumeChange: emittedVolumes.add,
                 onToggleMute: () {},
                 onToggleShuffle: () {},
                 onToggleRepeat: () {},
@@ -1332,8 +1337,11 @@ void main() {
           matching: find.byType(Slider),
         ),
       );
-      expect(volumeSlider.value, 0);
-      expect(volumeSlider.onChanged, isNull);
+      expect(volumeSlider.value, 73);
+      expect(volumeSlider.onChanged, isNotNull);
+      volumeSlider.onChanged!(41);
+      await tester.pump();
+      expect(emittedVolumes, [41]);
     },
   );
 

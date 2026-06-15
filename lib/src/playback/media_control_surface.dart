@@ -166,8 +166,7 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
                 trackId: widget.trackId,
                 favorite: widget.favorite,
                 disabled: widget.disabled,
-                volumeValue:
-                    widget.disabled ? 0 : clampVolumeValue(widget.volume),
+                volumeValue: clampVolumeValue(widget.volume),
                 isMuted: widget.isMuted,
                 mode: widget.mode,
                 onVolumeChange: widget.onVolumeChange,

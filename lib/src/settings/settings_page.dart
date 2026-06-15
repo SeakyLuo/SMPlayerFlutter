@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/folder_update_result_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/scan_progress_overlay.dart';
 import 'package:smplayer_flutter/src/library/ui/remove_dialog.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';

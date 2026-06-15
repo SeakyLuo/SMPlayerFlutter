@@ -291,7 +291,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
                                   _liveVolumeValue,
                                   isMuted,
                                 ),
-                                disabled: disabled,
+                                disabled: false,
                                 volumeValue: volumeValue,
                                 sliderActiveColor: sliderActiveColor,
                                 sliderInactiveColor: sliderInactiveColor,
@@ -339,7 +339,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
                                     isMuted,
                                   ),
                                   active: isMuted,
-                                  disabled: disabled,
+                                  disabled: false,
                                   onPressed: onToggleMute,
                                 ),
                                 const SizedBox(width: 14),
@@ -351,7 +351,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
                                       'MediaControl.WideVolumeSlider',
                                     ),
                                     value: volumeValue,
-                                    disabled: disabled,
+                                    disabled: false,
                                     activeTrackColor:
                                         volumeSliderActiveColor ??
                                         MediaControlColors.accent,

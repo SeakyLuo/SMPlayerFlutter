@@ -555,11 +555,21 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     _globalNavigationCollapsed = collapsed;
   }
 
-  void _commitSearch(
+  void _openSearchWithoutRecording(
     String value, [
     SearchHistoryType type = SearchHistoryType.sidebar,
   ]) {
-    _commitSearchWithRepository(value, type);
+    final nextSearchText = value.trim();
+    setState(() {
+      _searchText = nextSearchText;
+      if (nextSearchText.isNotEmpty) {
+        _currentPath = '/search';
+      }
+    });
+    if (nextSearchText.isNotEmpty) {
+      _closeNavigationOverlay(preserveSearchText: true);
+      widget.onSearchCommit?.call(nextSearchText, type);
+    }
   }
 
   void _commitSearchWithRepository(

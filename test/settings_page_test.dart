@@ -162,6 +162,8 @@ void main() {
       'preferences.artists': '偏好歌手',
       'preferences.clearInvalid': '清理无效项',
       'preferences.collapse': '收起列表',
+      'preferences.disabled': '已禁用',
+      'preferences.enabled': '已启用',
       'preferences.expand': '展开列表',
       'preferences.folders': '偏好文件夹',
       'preferences.info': '偏好的项目会根据偏好程度以更高或更低的概率出现在「随机播放」->「快速播放」中。',
@@ -402,6 +404,7 @@ void main() {
   testWidgets('SettingsPage opens PreferenceSettingsPage dialog', (
     tester,
   ) async {
+    final repository = _FakePreferenceRepository(_preferenceSnapshot);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 900);
     addTearDown(() {
@@ -413,7 +416,17 @@ void main() {
       SmPlayerI18nScope(
         i18n: i18n,
         child: MaterialApp(
-          home: SettingsPage(onLoadSystemFonts: () async => const []),
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: SettingsPage(
+            libraryRepository: repository,
+            onLoadSystemFonts: () async => const [],
+          ),
         ),
       ),
     );
@@ -426,8 +439,7 @@ void main() {
     expect(find.text('偏好专辑'), findsOneWidget);
     expect(find.text('偏好播放列表'), findsOneWidget);
     expect(find.text('偏好文件夹'), findsOneWidget);
-    expect(find.text('最近添加'), findsOneWidget);
-    expect(find.text('我喜欢'), findsOneWidget);
+    expect(find.text('Song A'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1361,14 +1373,12 @@ void main() {
     expect(find.text('Song A'), findsOneWidget);
     expect(find.text('Missing Song'), findsOneWidget);
 
-    final itemSwitch = tester.widget<Switch>(find.byType(Switch).at(1));
-    expect(itemSwitch.value, isTrue);
+    expect(find.text('已启用'), findsNWidgets(7));
 
-    await tester.tap(find.byType(Switch).at(1));
+    await tester.tap(find.text('已启用').at(1));
     await tester.pump();
 
-    final updatedItemSwitch = tester.widget<Switch>(find.byType(Switch).at(1));
-    expect(updatedItemSwitch.value, isFalse);
+    expect(find.text('已禁用'), findsOneWidget);
     expect(repository.updatedItemId, 1);
     expect(repository.updatedItemEnabled, isFalse);
 

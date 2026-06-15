@@ -1002,6 +1002,12 @@ void main() {
 
       expect(hoverSlideFor(playNext).offset, const Offset(0.36, 0));
       expect(hoverOpacityFor(playNext).opacity, 0);
+      final metadataWidthBefore =
+          tester
+              .getSize(
+                find.byKey(const ValueKey('PlaylistControlItem.Metadata')),
+              )
+              .width;
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(
@@ -1029,7 +1035,13 @@ void main() {
       final actionsRect = tester.getRect(
         find.byKey(const ValueKey('PlaylistControlItem.Actions')),
       );
-      expect(rowRect.right - actionsRect.right, lessThanOrEqualTo(8));
+      expect(rowRect.right - actionsRect.right, lessThanOrEqualTo(14));
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('PlaylistControlItem.Metadata')))
+            .width,
+        metadataWidthBefore,
+      );
 
       await mouse.moveTo(rowRect.bottomRight + const Offset(24, 24));
       await tester.pump();

@@ -425,7 +425,7 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
         trackId: trackId,
         favorite: favorite,
         disabled: disabled,
-        volumeValue: disabled ? 0 : clampVolumeValue(volume),
+        volumeValue: clampVolumeValue(volume),
         isMuted: isMuted,
         mode: mode,
         onVolumeChange: onVolumeChange,

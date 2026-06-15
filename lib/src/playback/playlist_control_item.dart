@@ -278,22 +278,31 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
             final compact =
                 compactVariant ||
                 (headeredPlaylist ? contentWidth <= 1120 : contentWidth <= 800);
+            final standardCompact =
+                compact && !compactVariant && !headeredPlaylist;
             final compactNarrow = compactVariant && contentWidth <= 1120;
             final actionCompactLayout =
-                compactVariant || (headeredPlaylist && compact);
+                compactVariant ||
+                headeredPlaylist && compact ||
+                standardCompact;
             final actionCompactCollapsed =
                 widget.collapseCompactPrimaryActions ||
                 (compactVariant &&
                     !widget.showCompactPrimaryActions &&
                     compactNarrow) ||
-                (headeredPlaylist && compact);
+                (headeredPlaylist && compact) ||
+                standardCompact;
             final hideFavoriteForCompact =
                 compact &&
                 (compactVariant
                     ? constraints.maxWidth <= 800
                     : constraints.maxWidth <= 720);
             final hideDurationForNarrowHover =
-                actionCompactCollapsed && hoverActionsVisible;
+                (actionCompactCollapsed || standardCompact) &&
+                hoverActionsVisible;
+            final showInlineActions = showActionSlot;
+            final stableCompactTrailing =
+                showInlineActions && compact && actionCompactCollapsed;
             final durationWidth =
                 compactVariant
                     ? widget.compactDurationWidth ??
@@ -305,6 +314,16 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     : compact
                     ? 20.0
                     : 74.0;
+            final compactCollapsedActionCount =
+                1 +
+                (widget.onPlayNextClick == null ? 0 : 1) +
+                (widget.onRemoveFromListClick == null ? 0 : 1);
+            final compactCollapsedActionsWidth =
+                34.0 * compactCollapsedActionCount;
+            final stableCompactTrailingWidth = max(
+              12.0 + compactCollapsedActionsWidth,
+              (compactVariant ? 12.0 : 18.0) + durationWidth,
+            );
             final artwork = _QueueArtwork(
               song: widget.song,
               current: widget.current,
@@ -316,15 +335,45 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               onTogglePlayPause: widget.onTogglePlayPause,
               colors: colors,
             );
-            final rowPadding =
-                hideDurationForNarrowHover
-                    ? EdgeInsets.fromLTRB(
-                      baseRowPadding.left,
-                      baseRowPadding.top,
-                      6,
-                      baseRowPadding.bottom,
-                    )
-                    : baseRowPadding;
+            final rowPadding = baseRowPadding;
+            Widget queueActions({required bool compactCollapsed}) {
+              return _QueueActions(
+                favorite: widget.song.favorite,
+                compact: compact,
+                playNextLabel: widget.playNextLabel,
+                removeLabel: widget.removeLabel,
+                addToPlaylistLabel: widget.addToPlaylistLabel,
+                favoriteLabel: widget.favoriteLabel,
+                moreLabel: widget.moreLabel,
+                compactVariant: actionCompactLayout,
+                showHoverActions: hoverActionsVisible,
+                onToggleFavoriteClick: widget.onToggleFavoriteClick,
+                showFavoriteAction:
+                    widget.showFavoriteAction && !hideFavoriteForCompact,
+                favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                favoriteLoading: widget.favoriteLoading,
+                favoriteHoverVisible: hoverActionsVisible,
+                onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                onPlayNextClick: widget.onPlayNextClick,
+                onRemoveFromListClick: widget.onRemoveFromListClick,
+                onOpenContextMenu: widget.onOpenContextMenu,
+                colors: colors,
+                customColors: widget.colors != null,
+                compactCollapsed: compactCollapsed,
+                showCompactPrimaryActions: widget.showCompactPrimaryActions,
+              );
+            }
+
+            Widget duration() {
+              return _QueueDuration(
+                song: widget.song,
+                current: widget.current,
+                compactVariant: compactVariant,
+                width: durationWidth,
+                colors: colors,
+              );
+            }
+
             return Padding(
               padding: rowPadding,
               child: Row(
@@ -355,68 +404,37 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       ),
                     ),
                   ),
-                  if (showActionSlot && !compact) ...[
+                  if (showInlineActions && !compact) ...[
                     const SizedBox(width: 14),
                     ConstrainedBox(
                       constraints: const BoxConstraints(minWidth: 170),
                       child: Center(
-                        child: _QueueActions(
-                          favorite: widget.song.favorite,
-                          compact: compact,
-                          playNextLabel: widget.playNextLabel,
-                          removeLabel: widget.removeLabel,
-                          addToPlaylistLabel: widget.addToPlaylistLabel,
-                          favoriteLabel: widget.favoriteLabel,
-                          moreLabel: widget.moreLabel,
-                          compactVariant: actionCompactLayout,
-                          showHoverActions: hoverActionsVisible,
-                          onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                          showFavoriteAction:
-                              widget.showFavoriteAction &&
-                              !hideFavoriteForCompact,
-                          favoriteAsHoverAction: widget.favoriteAsHoverAction,
-                          favoriteLoading: widget.favoriteLoading,
-                          favoriteHoverVisible: hoverActionsVisible,
-                          onAddToPlaylistClick: widget.onAddToPlaylistClick,
-                          onPlayNextClick: widget.onPlayNextClick,
-                          onRemoveFromListClick: widget.onRemoveFromListClick,
-                          onOpenContextMenu: widget.onOpenContextMenu,
-                          colors: colors,
-                          customColors: widget.colors != null,
-                          compactCollapsed: false,
-                          showCompactPrimaryActions:
-                              widget.showCompactPrimaryActions,
-                        ),
+                        child: queueActions(compactCollapsed: false),
                       ),
                     ),
-                  ] else if (showActionSlot) ...[
-                    const SizedBox(width: 12),
-                    _QueueActions(
-                      favorite: widget.song.favorite,
-                      compact: compact,
-                      playNextLabel: widget.playNextLabel,
-                      removeLabel: widget.removeLabel,
-                      addToPlaylistLabel: widget.addToPlaylistLabel,
-                      favoriteLabel: widget.favoriteLabel,
-                      moreLabel: widget.moreLabel,
-                      compactVariant: actionCompactLayout,
-                      showHoverActions: hoverActionsVisible,
-                      onToggleFavoriteClick: widget.onToggleFavoriteClick,
-                      showFavoriteAction:
-                          widget.showFavoriteAction && !hideFavoriteForCompact,
-                      favoriteAsHoverAction: widget.favoriteAsHoverAction,
-                      favoriteLoading: widget.favoriteLoading,
-                      favoriteHoverVisible: hoverActionsVisible,
-                      onAddToPlaylistClick: widget.onAddToPlaylistClick,
-                      onPlayNextClick: widget.onPlayNextClick,
-                      onRemoveFromListClick: widget.onRemoveFromListClick,
-                      onOpenContextMenu: widget.onOpenContextMenu,
-                      colors: colors,
-                      customColors: widget.colors != null,
-                      compactCollapsed: actionCompactCollapsed,
-                      showCompactPrimaryActions:
-                          widget.showCompactPrimaryActions,
+                  ] else if (stableCompactTrailing) ...[
+                    SizedBox(
+                      width: stableCompactTrailingWidth,
+                      child: Stack(
+                        alignment: Alignment.centerRight,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: queueActions(
+                              compactCollapsed: actionCompactCollapsed,
+                            ),
+                          ),
+                          if (!hideDurationForNarrowHover)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: duration(),
+                            ),
+                        ],
+                      ),
                     ),
+                  ] else if (showInlineActions) ...[
+                    const SizedBox(width: 12),
+                    queueActions(compactCollapsed: actionCompactCollapsed),
                   ],
                   if (!compact && hasAlbumColumn) ...[
                     const SizedBox(width: 14),
@@ -434,58 +452,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       ),
                     ),
                   ],
-                  if (!hideDurationForNarrowHover) ...[
+                  if (!stableCompactTrailing &&
+                      !hideDurationForNarrowHover) ...[
                     SizedBox(width: compactVariant ? 12 : 18),
-                    SizedBox(
-                      key: const ValueKey('PlaylistControlItem.Duration'),
-                      width: durationWidth,
-                      child:
-                          compactVariant
-                              ? Text(
-                                formatDuration(widget.song.duration.toDouble()),
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.visible,
-                                textAlign: TextAlign.end,
-                                style: TextStyle(
-                                  color:
-                                      widget.current
-                                          ? colors.currentForeground
-                                          : colors.textStrong,
-                                  fontSize: 14,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              )
-                              : OverflowBox(
-                                alignment: Alignment.centerRight,
-                                minWidth: 0,
-                                maxWidth: max(durationWidth, 50),
-                                child: SizedBox(
-                                  width: max(durationWidth, 50),
-                                  child: Text(
-                                    formatDuration(
-                                      widget.song.duration.toDouble(),
-                                    ),
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.visible,
-                                    textAlign: TextAlign.end,
-                                    style: TextStyle(
-                                      color:
-                                          widget.current
-                                              ? colors.currentForeground
-                                              : colors.textStrong,
-                                      fontSize: 13,
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                    ),
+                    duration(),
                   ],
                 ],
               ),
@@ -641,6 +611,69 @@ class _QueueSwipeRemoveAction extends StatelessWidget {
         onPressed: onPressed,
         icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+}
+
+class _QueueDuration extends StatelessWidget {
+  const _QueueDuration({
+    required this.song,
+    required this.current,
+    required this.compactVariant,
+    required this.width,
+    required this.colors,
+  });
+
+  final LibrarySong song;
+  final bool current;
+  final bool compactVariant;
+  final double width;
+  final PlaylistControlItemColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = current ? colors.currentForeground : colors.textStrong;
+    if (compactVariant) {
+      return SizedBox(
+        key: const ValueKey('PlaylistControlItem.Duration'),
+        width: width,
+        child: Text(
+          formatDuration(song.duration.toDouble()),
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          textAlign: TextAlign.end,
+          style: TextStyle(
+            color: color,
+            fontSize: 14,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      key: const ValueKey('PlaylistControlItem.Duration'),
+      width: width,
+      child: OverflowBox(
+        alignment: Alignment.centerRight,
+        minWidth: 0,
+        maxWidth: max(width, 50),
+        child: SizedBox(
+          width: max(width, 50),
+          child: Text(
+            formatDuration(song.duration.toDouble()),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -836,16 +869,18 @@ class _QueueMetadata extends StatelessWidget {
         );
       }
       children.add(
-        _QueueMetadataLink(
-          text: artist,
-          foregroundColor: color,
-          hoverColor: hoverColor,
-          onTap:
-              onSeeArtist == null
-                  ? null
-                  : () {
-                    onSeeArtist!(artist);
-                  },
+        Flexible(
+          child: _QueueMetadataLink(
+            text: artist,
+            foregroundColor: color,
+            hoverColor: hoverColor,
+            onTap:
+                onSeeArtist == null
+                    ? null
+                    : () {
+                      onSeeArtist!(artist);
+                    },
+          ),
         ),
       );
     }
@@ -854,23 +889,22 @@ class _QueueMetadata extends StatelessWidget {
       children
         ..add(Text(' · ', style: TextStyle(color: color, fontSize: 13)))
         ..add(
-          _QueueMetadataLink(
-            key: const ValueKey('PlaylistControlItem.InlineAlbum'),
-            text: displayAlbum(song, i18n),
-            foregroundColor: color,
-            hoverColor: hoverColor,
-            onTap: onSeeAlbum,
+          Flexible(
+            child: _QueueMetadataLink(
+              key: const ValueKey('PlaylistControlItem.InlineAlbum'),
+              text: displayAlbum(song, i18n),
+              foregroundColor: color,
+              hoverColor: hoverColor,
+              onTap: onSeeAlbum,
+            ),
           ),
         );
     }
 
     return SizedBox(
+      key: const ValueKey('PlaylistControlItem.Metadata'),
       height: 18,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        child: Row(children: children),
-      ),
+      child: Row(children: children),
     );
   }
 }

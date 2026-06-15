@@ -8,6 +8,9 @@ import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'recent_page_model.dart';
 import 'recent_scrollbar.dart';
 
+const _recentSearchMinimalContentBreakpoint = 656.0;
+const _recentSearchMinimalScrollbarOffset = 8.0;
+
 class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
     super.key,
@@ -34,37 +37,44 @@ class RecentSearchList extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return RecentScrollbar(
-      builder:
-          (controller) => ListView.builder(
-            controller: controller,
-            padding: EdgeInsets.fromLTRB(
-              8,
-              2,
-              0,
-              multiSelect ? multiSelectCommandBarScrollSpacer : 92,
-            ),
-            itemExtent: 56,
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return _RecentSearchRow(
-                entry: entry,
-                i18n: i18n,
-                selected: selectedEntryIds.contains(entry.id),
-                multiSelect: multiSelect,
-                onSearch: () {
-                  onSearch(entry);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minimal =
+            constraints.maxWidth < _recentSearchMinimalContentBreakpoint;
+        return RecentScrollbar(
+          trailingEdgeOffset: minimal ? _recentSearchMinimalScrollbarOffset : 0,
+          builder:
+              (controller) => ListView.builder(
+                controller: controller,
+                padding: EdgeInsets.fromLTRB(
+                  8,
+                  2,
+                  0,
+                  multiSelect ? multiSelectCommandBarScrollSpacer : 92,
+                ),
+                itemExtent: 56,
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return _RecentSearchRow(
+                    entry: entry,
+                    i18n: i18n,
+                    selected: selectedEntryIds.contains(entry.id),
+                    multiSelect: multiSelect,
+                    onSearch: () {
+                      onSearch(entry);
+                    },
+                    onToggleSelection: () {
+                      onToggleSelection(entry.id);
+                    },
+                    onRemove: () {
+                      onRemove(entry.id);
+                    },
+                  );
                 },
-                onToggleSelection: () {
-                  onToggleSelection(entry.id);
-                },
-                onRemove: () {
-                  onRemove(entry.id);
-                },
-              );
-            },
-          ),
+              ),
+        );
+      },
     );
   }
 }

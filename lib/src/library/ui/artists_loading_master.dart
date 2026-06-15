@@ -89,12 +89,22 @@ class _ArtistsLoadingMaster extends StatelessWidget {
                         children: [
                           Positioned.fill(
                             right: 12,
-                            child: ListView(
-                              key: const ValueKey('Artists.LoadingMaster.List'),
-                              controller: scrollController,
-                              clipBehavior: Clip.none,
-                              padding: EdgeInsets.zero,
-                              children: const [],
+                            child: ScrollConfiguration(
+                              key: const ValueKey(
+                                'Artists.LoadingMasterScrollConfiguration',
+                              ),
+                              behavior: ScrollConfiguration.of(
+                                context,
+                              ).copyWith(scrollbars: false),
+                              child: ListView(
+                                key: const ValueKey(
+                                  'Artists.LoadingMaster.List',
+                                ),
+                                controller: scrollController,
+                                clipBehavior: Clip.none,
+                                padding: EdgeInsets.zero,
+                                children: const [],
+                              ),
                             ),
                           ),
                           _ArtistsCustomScrollbar(

@@ -311,14 +311,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               if (!mounted) {
                 return;
               }
-              unawaited(
-                ref
-                    .read(libraryRepositoryProvider)
-                    .addRecentSearch(target, SearchHistoryType.artists)
-                    .then((_) {
-                      invalidateRecentSearchData(ref);
-                    }),
-              );
               if (_artistListController.hasClients) {
                 _artistListController.jumpTo(targetIndex * artistRowHeight);
               }
@@ -755,28 +747,19 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         exactMatches.isNotEmpty
             ? exactMatches.first
             : (suggestions.isEmpty ? null : suggestions.first);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .addRecentSearch(query, SearchHistoryType.artists)
+          .then((_) {
+            invalidateRecentSearchData(ref);
+          }),
+    );
     if (targetArtist != null) {
-      unawaited(
-        ref
-            .read(libraryRepositoryProvider)
-            .addRecentSearch(targetArtist.name, SearchHistoryType.artists)
-            .then((_) {
-              invalidateRecentSearchData(ref);
-            }),
-      );
       setState(() {
         _artistSearch = targetArtist.name;
       });
       _openArtistDetail(targetArtist.name);
-    } else {
-      unawaited(
-        ref
-            .read(libraryRepositoryProvider)
-            .addRecentSearch(query, SearchHistoryType.artists)
-            .then((_) {
-              invalidateRecentSearchData(ref);
-            }),
-      );
     }
   }
 
