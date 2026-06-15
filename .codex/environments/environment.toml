@@ -1,0 +1,11 @@
+version = 1
+name = "smplayer_flutter"
+
+[setup]
+script = ""
+
+[[actions]]
+name = "启动 SMPlayer"
+icon = "tool"
+command = "\"/c/Users/luoki/AppData/Local/flutter/bin/flutter.bat\" run -d windows --no-pub"
+platform = "win32"
