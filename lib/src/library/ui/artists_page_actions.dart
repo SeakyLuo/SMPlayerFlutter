@@ -26,14 +26,6 @@ extension _ArtistsPageActions on _ArtistsPageState {
       _artistSearch = query;
       _artistSearchFocused = false;
     });
-    unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.artists)
-          .then((_) {
-            invalidateRecentSearchData(ref);
-          }),
-    );
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = buildArtistGroups(snapshot.songs, i18n);

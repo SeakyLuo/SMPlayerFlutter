@@ -145,6 +145,7 @@ class _SearchResultSection extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   _sectionTitle(section.type, section.count),
@@ -251,6 +252,7 @@ class _SearchResultSection extends StatelessWidget {
                 mediaControlState.isPlaying,
             selected: selection.isSelected(_songSelectionKey(songs[index])),
             selectionMode: selection.multiSelect,
+            variant: PlaylistControlItemVariant.headeredPlaylist,
             playNextLabel: i18n.t('context.playNext'),
             removeLabel: i18n.t('nowPlaying.remove'),
             onPlayTrack: () {
@@ -264,7 +266,6 @@ class _SearchResultSection extends StatelessWidget {
             onPlayNextClick: () {
               onPlayNext(songs[index]);
             },
-            onRemoveFromListClick: () {},
             onSeeArtist: (artist) {
               onOpenArtist(artist);
             },

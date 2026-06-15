@@ -145,6 +145,102 @@ void main() {
     expect(tester.getCenter(playAction), tester.getCenter(firstArtwork));
   });
 
+  testWidgets('PlaylistsPage search query filters playlist names', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _PlaylistTestApp(child: const PlaylistsPage(searchQuery: 'Chill')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(GridViewHolder),
+        matching: find.text('Chill'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(GridViewHolder),
+        matching: find.text('Mix'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('PlaylistsPage search matches songs inside playlists', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _PlaylistTestApp(child: const PlaylistsPage(searchQuery: 'Blue Hour')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(GridViewHolder),
+        matching: find.text('Mix'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(GridViewHolder),
+        matching: find.text('Chill'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('PlaylistsPage records playlist search history', (tester) async {
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(repository: repository, child: const PlaylistsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Blue Hour');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    expect(repository.recentSearchQuery, 'Blue Hour');
+    expect(repository.recentSearchType, SearchHistoryType.playlists);
+  });
+
+  testWidgets('PlaylistsPage search dropdown closes on blank tap', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(
+        snapshot: _snapshotWithRecentPlaylistSearch,
+        child: const PlaylistsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Road'), findsOneWidget);
+
+    await tester.tapAt(const Offset(1000, 700));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Road'), findsNothing);
+  });
+
   testWidgets('Playlist card selected state uses shared clean card style', (
     tester,
   ) async {
@@ -990,6 +1086,8 @@ class _FakeLibraryRepository extends LibraryRepository {
   List<int>? replacedNowPlayingSongIds;
   List<int> favoriteSongIds = [];
   bool? favoriteValue;
+  String? recentSearchQuery;
+  SearchHistoryType? recentSearchType;
 
   @override
   Future<void> setSongsFavorite(List<int> songIds, bool favorite) async {
@@ -1078,6 +1176,21 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<void> replaceNowPlaying(List<int> songIds) async {
     replacedNowPlayingSongIds = songIds.toList();
   }
+
+  @override
+  Future<SearchHistoryEntry?> addRecentSearch(
+    String query, [
+    SearchHistoryType type = SearchHistoryType.sidebar,
+  ]) async {
+    recentSearchQuery = query;
+    recentSearchType = type;
+    return SearchHistoryEntry(
+      id: 1,
+      query: query,
+      type: type,
+      searchedAt: '2026-06-15T00:00:00',
+    );
+  }
 }
 
 class _DelayedFavoriteLibraryRepository extends _FakeLibraryRepository {
@@ -1149,14 +1262,17 @@ const _i18n = SmPlayerI18n(
     'common.artistUnknown': 'Unknown Artist',
     'common.cancel': 'Cancel',
     'common.clear': 'Clear',
+    'common.close': 'Close',
     'common.duration': 'Duration',
     'common.favorite': 'Favorite',
     'common.myFavorites': 'My Favorites',
     'common.name': 'Name',
     'common.nowPlaying': 'Now Playing',
     'common.playlist': 'Playlist',
+    'common.search': 'Search',
     'common.sort': 'Sort',
     'common.undo': 'Undo',
+    'collection.scanFirst': 'Choose a library folder and scan it first.',
     'context.addToPlaylist': 'Add To',
     'context.play': 'Play',
     'context.playNext': 'Play Next',
@@ -1182,10 +1298,13 @@ const _i18n = SmPlayerI18n(
     'playlists.nameUsed': 'Name is already used.',
     'playlists.newName': 'New Playlist',
     'playlists.newPlaylist': 'New Playlist',
+    'playlists.noMatch': 'No playlists match',
+    'playlists.noMatchCopy': 'Try a different keyword.',
     'playlists.none': 'No playlists',
     'playlists.noneCopy': 'Create playlists to collect songs.',
     'playlists.removeSelected': 'Remove Selected',
     'playlists.rename': 'Rename',
+    'playlists.searchPlaylistPlaceholder': 'Search playlists',
     'playlists.songCount': '{count} songs',
     'preferences.level.dislike': 'Dislike',
     'preferences.level.do-not-appear': 'Do Not Appear',
@@ -1252,6 +1371,25 @@ const _snapshot = LibraryContentData(
       songIds: [],
       sortCriterion: PlaylistSortCriterion.title,
       isBuiltIn: false,
+    ),
+  ],
+  favoritePlaylistId: 3,
+  nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+);
+
+final _snapshotWithRecentPlaylistSearch = LibraryContentData(
+  songs: _snapshot.songs,
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  databasePath: r'C:\Music\library.db',
+  playlists: _snapshot.playlists,
+  recentSearches: const [
+    SearchHistoryEntry(
+      id: 40,
+      query: 'Road',
+      type: SearchHistoryType.playlists,
+      searchedAt: '2026-06-15T00:00:00',
     ),
   ],
   favoritePlaylistId: 3,

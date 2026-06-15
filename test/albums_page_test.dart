@@ -1245,9 +1245,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(repository.recordedSearches, [
-      (query: 'Blue Hour', type: SearchHistoryType.albums),
-    ]);
+    expect(repository.recordedSearches, isEmpty);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Blue Hour',
@@ -1275,9 +1273,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(repository.recordedSearches, [
-      (query: 'Red', type: SearchHistoryType.albums),
-    ]);
+    expect(repository.recordedSearches, isEmpty);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Red',

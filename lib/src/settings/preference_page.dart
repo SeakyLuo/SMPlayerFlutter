@@ -17,7 +17,16 @@ class PreferenceSettingsPage extends StatefulWidget {
 }
 
 class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
+  static const _preferenceSectionLimits = {
+    PreferenceSectionKey.songs: 100,
+    PreferenceSectionKey.artists: 50,
+    PreferenceSectionKey.albums: 50,
+    PreferenceSectionKey.playlists: 30,
+    PreferenceSectionKey.folders: 30,
+  };
+
   late PreferenceSettingsSnapshot _snapshot;
+  final _preferenceScrollController = ScrollController();
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
   var _loadFailed = false;
@@ -33,151 +42,113 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   }
 
   @override
+  void dispose() {
+    _preferenceScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
 
-    return SettingsDialogOverlay(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < 640 || constraints.maxHeight < 720;
-          final width =
-              compact
-                  ? constraints.maxWidth
-                  : math.min(1080.0, constraints.maxWidth - 48.0);
-          final height =
-              compact
-                  ? constraints.maxHeight
-                  : math.min(820.0, constraints.maxHeight - 48.0);
-          return Container(
-            width: math.max(0, width),
-            height: math.max(0, height),
-            margin: compact ? EdgeInsets.zero : const EdgeInsets.all(24),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: colors.dialogSurface,
-              borderRadius: BorderRadius.circular(compact ? 0 : 18),
-              border: compact ? null : Border.all(color: colors.cardBorder),
-            ),
-            child: Column(
-              children: [
-                SettingsDialogHeader(
-                  title: i18n.t('settings.preferenceSettings'),
-                  onClose: widget.onClose,
-                ),
-                Expanded(
-                  child:
-                      _loading
-                          ? Center(child: Text(i18n.t('preferences.loading')))
-                          : _loadFailed
-                          ? Center(
-                            child: Text(i18n.t('preferences.loadFailed')),
-                          )
-                          : SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
-                            child: Column(
-                              children: [
-                                const _PreferenceInfo(),
-                                PreferenceSection(
-                                  title: i18n.t('preferences.songs'),
-                                  section: PreferenceSectionKey.songs,
-                                  limit: 100,
-                                  enabled:
-                                      _snapshot.enabled[PreferenceSectionKey
-                                          .songs]!,
-                                  items: _snapshot.songs,
-                                  expanded: _expandedSections.contains(
-                                    PreferenceSectionKey.songs,
-                                  ),
-                                  onToggleEnabled: _toggleEnabled,
-                                  onToggleExpanded: _toggleExpanded,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                  onClearInvalid: _clearInvalid,
-                                ),
-                                PreferenceSection(
-                                  title: i18n.t('preferences.artists'),
-                                  section: PreferenceSectionKey.artists,
-                                  limit: 50,
-                                  enabled:
-                                      _snapshot.enabled[PreferenceSectionKey
-                                          .artists]!,
-                                  items: _snapshot.artists,
-                                  expanded: _expandedSections.contains(
-                                    PreferenceSectionKey.artists,
-                                  ),
-                                  onToggleEnabled: _toggleEnabled,
-                                  onToggleExpanded: _toggleExpanded,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                  onClearInvalid: _clearInvalid,
-                                ),
-                                PreferenceSection(
-                                  title: i18n.t('preferences.albums'),
-                                  section: PreferenceSectionKey.albums,
-                                  limit: 50,
-                                  enabled:
-                                      _snapshot.enabled[PreferenceSectionKey
-                                          .albums]!,
-                                  items: _snapshot.albums,
-                                  expanded: _expandedSections.contains(
-                                    PreferenceSectionKey.albums,
-                                  ),
-                                  onToggleEnabled: _toggleEnabled,
-                                  onToggleExpanded: _toggleExpanded,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                  onClearInvalid: _clearInvalid,
-                                ),
-                                PreferenceSection(
-                                  title: i18n.t('preferences.playlists'),
-                                  section: PreferenceSectionKey.playlists,
-                                  limit: 30,
-                                  enabled:
-                                      _snapshot.enabled[PreferenceSectionKey
-                                          .playlists]!,
-                                  items: _snapshot.playlists,
-                                  expanded: _expandedSections.contains(
-                                    PreferenceSectionKey.playlists,
-                                  ),
-                                  onToggleEnabled: _toggleEnabled,
-                                  onToggleExpanded: _toggleExpanded,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                  onClearInvalid: _clearInvalid,
-                                ),
-                                PreferenceSection(
-                                  title: i18n.t('preferences.folders'),
-                                  section: PreferenceSectionKey.folders,
-                                  limit: 30,
-                                  enabled:
-                                      _snapshot.enabled[PreferenceSectionKey
-                                          .folders]!,
-                                  items: _snapshot.folders,
-                                  expanded: _expandedSections.contains(
-                                    PreferenceSectionKey.folders,
-                                  ),
-                                  onToggleEnabled: _toggleEnabled,
-                                  onToggleExpanded: _toggleExpanded,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                  onClearInvalid: _clearInvalid,
-                                ),
-                                _PreferenceOthersSection(
-                                  items: _snapshot.others,
-                                  onUpdateItem: _updateItem,
-                                  onRemoveItem: _removeItem,
-                                ),
-                              ],
-                            ),
-                          ),
-                ),
-              ],
-            ),
-          );
-        },
+    return PopupDialog(
+      className: 'preference-modal ContentDialog PreferenceDialog',
+      navClassName: 'music-dialog-pivot PreferenceDialogPivot',
+      overlayClassName: 'music-dialog-overlay PreferenceDialogOverlay',
+      navLabel: i18n.t('settings.preferenceSettings'),
+      ariaLabel: i18n.t('settings.preferenceSettings'),
+      onClose: widget.onClose,
+      closeOnBackdrop: true,
+      width: 1080,
+      height: 820,
+      navChildren: [PopupDialogTitle(i18n.t('settings.preferenceSettings'))],
+      child: _PreferenceScrollFrame(
+        controller: _preferenceScrollController,
+        child:
+            _loading
+                ? _PreferenceLoading(message: i18n.t('preferences.loading'))
+                : _loadFailed
+                ? _PreferenceLoading(message: i18n.t('preferences.loadFailed'))
+                : _buildPreferencePage(i18n),
       ),
+    );
+  }
+
+  Widget _buildPreferencePage(SmPlayerI18n i18n) {
+    return Column(
+      children: [
+        const _PreferenceInfo(),
+        PreferenceSection(
+          title: i18n.t('preferences.songs'),
+          section: PreferenceSectionKey.songs,
+          limit: _preferenceSectionLimits[PreferenceSectionKey.songs]!,
+          enabled: _snapshot.enabled[PreferenceSectionKey.songs]!,
+          items: _snapshot.songs,
+          expanded: _expandedSections.contains(PreferenceSectionKey.songs),
+          onToggleEnabled: _toggleEnabled,
+          onToggleExpanded: _toggleExpanded,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+          onClearInvalid: _clearInvalid,
+        ),
+        PreferenceSection(
+          title: i18n.t('preferences.artists'),
+          section: PreferenceSectionKey.artists,
+          limit: _preferenceSectionLimits[PreferenceSectionKey.artists]!,
+          enabled: _snapshot.enabled[PreferenceSectionKey.artists]!,
+          items: _snapshot.artists,
+          expanded: _expandedSections.contains(PreferenceSectionKey.artists),
+          onToggleEnabled: _toggleEnabled,
+          onToggleExpanded: _toggleExpanded,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+          onClearInvalid: _clearInvalid,
+        ),
+        PreferenceSection(
+          title: i18n.t('preferences.albums'),
+          section: PreferenceSectionKey.albums,
+          limit: _preferenceSectionLimits[PreferenceSectionKey.albums]!,
+          enabled: _snapshot.enabled[PreferenceSectionKey.albums]!,
+          items: _snapshot.albums,
+          expanded: _expandedSections.contains(PreferenceSectionKey.albums),
+          onToggleEnabled: _toggleEnabled,
+          onToggleExpanded: _toggleExpanded,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+          onClearInvalid: _clearInvalid,
+        ),
+        PreferenceSection(
+          title: i18n.t('preferences.playlists'),
+          section: PreferenceSectionKey.playlists,
+          limit: _preferenceSectionLimits[PreferenceSectionKey.playlists]!,
+          enabled: _snapshot.enabled[PreferenceSectionKey.playlists]!,
+          items: _snapshot.playlists,
+          expanded: _expandedSections.contains(PreferenceSectionKey.playlists),
+          onToggleEnabled: _toggleEnabled,
+          onToggleExpanded: _toggleExpanded,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+          onClearInvalid: _clearInvalid,
+        ),
+        PreferenceSection(
+          title: i18n.t('preferences.folders'),
+          section: PreferenceSectionKey.folders,
+          limit: _preferenceSectionLimits[PreferenceSectionKey.folders]!,
+          enabled: _snapshot.enabled[PreferenceSectionKey.folders]!,
+          items: _snapshot.folders,
+          expanded: _expandedSections.contains(PreferenceSectionKey.folders),
+          onToggleEnabled: _toggleEnabled,
+          onToggleExpanded: _toggleExpanded,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+          onClearInvalid: _clearInvalid,
+        ),
+        _PreferenceOthersSection(
+          items: _snapshot.others,
+          onUpdateItem: _updateItem,
+          onRemoveItem: _removeItem,
+        ),
+      ],
     );
   }
 
@@ -319,34 +290,79 @@ class PreferenceSection extends StatelessWidget {
     return _PreferenceSectionFrame(
       title: title,
       counter: '${items.length}/$limit',
-      action: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PreferenceSwitch(
-            checked: enabled,
-            onChanged: (checked) {
-              onToggleEnabled(section, checked);
-            },
-          ),
-          if (items.length > 5)
-            TextButton(
-              onPressed: () {
-                onToggleExpanded(section);
-              },
-              child: Text(
-                expanded
-                    ? i18n.t('preferences.collapse')
-                    : i18n.t('preferences.expand'),
+      action: Builder(
+        builder: (context) {
+          final mobile =
+              MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _PreferenceSwitch(
+                checked: enabled,
+                showLabel: !mobile,
+                onChanged: (checked) {
+                  onToggleEnabled(section, checked);
+                },
               ),
-            ),
-          if (hasInvalid)
-            TextButton(
-              onPressed: () {
-                onClearInvalid(section);
-              },
-              child: Text(i18n.t('preferences.clearInvalid')),
-            ),
-        ],
+              if (items.length > 5) ...[
+                SizedBox(width: mobile ? 4 : 8),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(0, 28),
+                    padding: EdgeInsets.symmetric(horizontal: mobile ? 4 : 8),
+                    foregroundColor: SettingsPageColors.of(context).accent,
+                  ),
+                  onPressed: () {
+                    onToggleExpanded(section);
+                  },
+                  icon: Icon(
+                    expanded
+                        ? FluentIcons.chevron_up_16_regular
+                        : FluentIcons.chevron_down_16_regular,
+                    size: 14,
+                  ),
+                  label: Text(
+                    expanded
+                        ? i18n.t('preferences.collapse')
+                        : i18n.t('preferences.expand'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              if (hasInvalid) ...[
+                SizedBox(width: mobile ? 4 : 8),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    foregroundColor: SettingsPageColors.of(context).textStrong,
+                    side: BorderSide(
+                      color: SettingsPageColors.of(context).cardBorder,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  onPressed: () {
+                    onClearInvalid(section);
+                  },
+                  child: Text(
+                    i18n.t('preferences.clearInvalid'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
       ),
       child:
           visibleItems.isEmpty
@@ -382,64 +398,175 @@ class PreferenceItems extends StatelessWidget {
     final colors = SettingsPageColors.of(context);
 
     return Column(
-      children:
-          items.map((item) {
-            return Container(
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.cardBorder)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _preferenceItemName(i18n, item),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textStrong,
-                        fontWeight: FontWeight.w600,
-                      ),
+      children: [
+        for (final entry in items.indexed)
+          _PreferenceItemRow(
+            item: entry.$2,
+            odd: entry.$1.isEven,
+            onUpdateItem: onUpdateItem,
+            onRemoveItem: onRemoveItem,
+          ),
+      ],
+    );
+  }
+}
+
+class _PreferenceItemRow extends StatefulWidget {
+  const _PreferenceItemRow({
+    required this.item,
+    required this.odd,
+    required this.onUpdateItem,
+    required this.onRemoveItem,
+  });
+
+  final PreferenceItemSnapshot item;
+  final bool odd;
+  final void Function(
+    PreferenceItemSnapshot item,
+    PreferenceItemSnapshot update,
+  )
+  onUpdateItem;
+  final ValueChanged<PreferenceItemSnapshot> onRemoveItem;
+
+  @override
+  State<_PreferenceItemRow> createState() => _PreferenceItemRowState();
+}
+
+class _PreferenceItemRowState extends State<_PreferenceItemRow> {
+  var _hovered = false;
+  var _removeFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final colors = SettingsPageColors.of(context);
+    final item = widget.item;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final showRemove =
+            widget.item.canRemove && (_hovered || _removeFocused);
+        return MouseRegion(
+          onEnter: (_) {
+            setState(() {
+              _hovered = true;
+            });
+          },
+          onExit: (_) {
+            setState(() {
+              _hovered = false;
+            });
+          },
+          child: Container(
+            constraints: BoxConstraints(minHeight: compact ? 42 : 48),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: colors.cardBorder)),
+              color:
+                  _hovered
+                      ? colors.accentHover
+                      : widget.odd
+                      ? colors.cardSurface
+                      : colors.dialogSurface,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Tooltip(
+                    message: item.tooltip,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _preferenceItemName(i18n, item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textStrong,
+                            fontSize: compact ? 13 : 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (!item.isValid)
+                          Text(
+                            i18n.t('preferences.invalid'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: SettingsPageColors.danger,
+                              fontSize: compact ? 11 : 12,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  if (!item.isValid)
-                    Text(
-                      i18n.t('preferences.invalid'),
-                      style: const TextStyle(color: SettingsPageColors.danger),
-                    ),
-                  const SizedBox(width: 12),
-                  if (item.canRemove)
-                    IconButton(
-                      tooltip: i18n.t('playlists.removeSelected'),
-                      icon: const Icon(FluentIcons.dismiss_20_regular),
-                      onPressed: () {
-                        onRemoveItem(item);
-                      },
-                    )
-                  else
-                    const SizedBox(width: 40),
-                  const SizedBox(width: 4),
-                  _PreferenceSwitch(
-                    checked: item.isEnabled,
-                    onChanged: (checked) {
-                      onUpdateItem(item, item.copyWith(isEnabled: checked));
+                ),
+                SizedBox(width: compact ? 8 : 14),
+                SizedBox(
+                  width: compact ? 30 : 48,
+                  child:
+                      item.canRemove
+                          ? AnimatedOpacity(
+                            duration: const Duration(milliseconds: 140),
+                            opacity: showRemove ? 1 : 0,
+                            child: Focus(
+                              onFocusChange: (focused) {
+                                setState(() {
+                                  _removeFocused = focused;
+                                });
+                              },
+                              child: IconButton(
+                                tooltip: i18n.t('playlists.removeSelected'),
+                                icon: const Icon(
+                                  FluentIcons.dismiss_20_regular,
+                                ),
+                                iconSize: 18,
+                                padding: EdgeInsets.zero,
+                                constraints: BoxConstraints.tightFor(
+                                  width: compact ? 28 : 30,
+                                  height: compact ? 28 : 30,
+                                ),
+                                style: IconButton.styleFrom(
+                                  side: BorderSide(color: colors.cardBorder),
+                                  backgroundColor: colors.buttonSurface,
+                                  foregroundColor: colors.textMuted,
+                                ),
+                                onPressed: () {
+                                  widget.onRemoveItem(item);
+                                },
+                              ),
+                            ),
+                          )
+                          : const SizedBox.shrink(),
+                ),
+                SizedBox(width: compact ? 8 : 14),
+                _PreferenceSwitch(
+                  checked: item.isEnabled,
+                  showLabel: !compact,
+                  onChanged: (checked) {
+                    widget.onUpdateItem(
+                      item,
+                      item.copyWith(isEnabled: checked),
+                    );
+                  },
+                ),
+                SizedBox(width: compact ? 8 : 14),
+                SizedBox(
+                  width: compact ? 124 : 150,
+                  child: PreferenceLevelSelect(
+                    value: item.level,
+                    onChange: (level) {
+                      widget.onUpdateItem(item, item.copyWith(level: level));
                     },
                   ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 150,
-                    child: PreferenceLevelSelect(
-                      value: item.level,
-                      onChange: (level) {
-                        onUpdateItem(item, item.copyWith(level: level));
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -459,7 +586,14 @@ class PreferenceLevelSelect extends StatefulWidget {
 }
 
 class _PreferenceLevelSelectState extends State<PreferenceLevelSelect> {
-  static const _levels = PreferenceLevel.values;
+  static const _preferenceLevels = [
+    PreferenceLevel.veryHigh,
+    PreferenceLevel.higher,
+    PreferenceLevel.high,
+    PreferenceLevel.normal,
+    PreferenceLevel.dislike,
+    PreferenceLevel.doNotAppear,
+  ];
 
   final _link = LayerLink();
   OverlayEntry? _overlayEntry;
@@ -567,7 +701,7 @@ class _PreferenceLevelSelectState extends State<PreferenceLevelSelect> {
               width: 170,
               child: _PreferenceLevelMenu(
                 value: widget.value,
-                levels: _levels,
+                levels: _preferenceLevels,
                 onSelected: (level) {
                   widget.onChange(level);
                   _close();
@@ -603,7 +737,7 @@ class _PreferenceLevelSelectState extends State<PreferenceLevelSelect> {
     final position = box.localToGlobal(Offset.zero);
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final bottomBoundary = math.max(0.0, viewportHeight - 128.0);
-    final desiredHeight = (_levels.length * 38.0) + 16.0;
+    final desiredHeight = (_preferenceLevels.length * 38.0) + 16.0;
     final spaceBelow = math.max(
       0.0,
       bottomBoundary - position.dy - box.size.height - 8.0,

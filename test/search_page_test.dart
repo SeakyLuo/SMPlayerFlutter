@@ -263,11 +263,11 @@ void main() {
       ),
     );
 
-    expect(sectionRect.left, 8);
+    expect(sectionRect.left, 14);
     expect(sortButtonRect.right, 752);
   });
 
-  testWidgets('SearchPage filter tabs reuse recent secondary tab styling', (
+  testWidgets('SearchPage filter tabs reuse recent played filter styling', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -284,14 +284,19 @@ void main() {
       of: find.text('Songs').first,
       matching: find.byType(TextButton),
     );
+    final songsIconFinder = find.descendant(
+      of: songsTabFinder,
+      matching: find.byIcon(FluentIcons.music_note_2_20_regular),
+    );
     final songsTab = tester.widget<TextButton>(songsTabFinder);
     final shape = songsTab.style!.shape!.resolve({})! as RoundedRectangleBorder;
     final hoveredShape =
         songsTab.style!.shape!.resolve({WidgetState.hovered})!
             as RoundedRectangleBorder;
 
-    expect(tester.getSize(songsTabFinder).height, 34);
-    expect(shape.borderRadius, BorderRadius.circular(10));
+    expect(tester.getSize(songsTabFinder).height, 36);
+    expect(tester.getSize(songsTabFinder).width, greaterThanOrEqualTo(72));
+    expect(shape.borderRadius, BorderRadius.circular(999));
     expect(
       songsTab.style!.backgroundColor!.resolve({}),
       const Color(0x80ffffff),
@@ -305,6 +310,15 @@ void main() {
       const Color(0xff0063b1),
     );
     expect(hoveredShape.side.color, GlobalUI.hoverBorderColorDay);
+    expect(songsIconFinder, findsOneWidget);
+    expect(
+      tester.getCenter(songsIconFinder).dx,
+      lessThan(tester.getCenter(find.text('Songs').first).dx),
+    );
+    expect(
+      tester.widget<Text>(find.text('Songs').first).style?.fontWeight,
+      FontWeight.w700,
+    );
   });
 
   testWidgets('SearchPage song rows use Electron narrow queue columns', (
@@ -328,24 +342,135 @@ void main() {
     await tester.pumpAndSettle();
 
     final firstRow = find.byType(PlaylistControlItem).first;
+    final firstRowDuration = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+    );
+    final firstRowActions = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.Actions')),
+    );
     expect(
       tester.widget<PlaylistControlItem>(firstRow).variant,
-      PlaylistControlItemVariant.standard,
+      PlaylistControlItemVariant.headeredPlaylist,
+    );
+    expect(tester.getSize(firstRowDuration).width, 20);
+    expect(tester.getSize(find.text('2:00').first).height, lessThan(24));
+    expect(firstRowActions, findsOneWidget);
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsNothing,
+    );
+    final playNextAction = find.descendant(
+      of: firstRow,
+      matching: find.byKey(
+        const ValueKey('PlaylistControlItem.PlayNextAction'),
+      ),
+    );
+    final moreAction = find.descendant(
+      of: firstRow,
+      matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+    );
+    expect(playNextAction, findsOneWidget);
+    expect(moreAction, findsOneWidget);
+    expect(
+      tester
+          .widget<AnimatedSlide>(
+            find
+                .ancestor(
+                  of: playNextAction,
+                  matching: find.byType(AnimatedSlide),
+                )
+                .first,
+          )
+          .offset,
+      const Offset(0.36, 0),
     );
     expect(
       tester
-          .getSize(
-            find.descendant(
-              of: firstRow,
-              matching: find.byKey(
-                const ValueKey('PlaylistControlItem.Duration'),
-              ),
-            ),
+          .widget<AnimatedOpacity>(
+            find
+                .ancestor(
+                  of: playNextAction,
+                  matching: find.byType(AnimatedOpacity),
+                )
+                .first,
           )
-          .width,
-      20,
+          .opacity,
+      0,
     );
-    expect(tester.getSize(find.text('2:00').first).height, lessThan(24));
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(firstRow));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+
+    expect(firstRowDuration, findsNothing);
+    expect(firstRowActions, findsOneWidget);
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.PlayNextAction'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(const ValueKey('PlaylistControlItem.MoreAction')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: firstRow,
+        matching: find.byKey(
+          const ValueKey('PlaylistControlItem.RemoveAction'),
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      tester
+          .widget<AnimatedSlide>(
+            find
+                .ancestor(
+                  of: playNextAction,
+                  matching: find.byType(AnimatedSlide),
+                )
+                .first,
+          )
+          .offset,
+      Offset.zero,
+    );
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find
+                .ancestor(
+                  of: playNextAction,
+                  matching: find.byType(AnimatedOpacity),
+                )
+                .first,
+          )
+          .opacity,
+      1,
+    );
   });
 
   testWidgets('SearchPage multi-select Add To can append to Now Playing', (
@@ -759,6 +884,34 @@ void main() {
 
     expect(find.text('Root Song'), findsOneWidget);
     expect(find.text('Child Song'), findsOneWidget);
+  });
+
+  testWidgets('SearchPage filter changes do not record search history', (
+    tester,
+  ) async {
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        child: const SearchPage(query: 'road', activeType: 'songs'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(
+      _SearchPageTestApp(
+        snapshot: _snapshot,
+        i18n: i18n,
+        repository: repository,
+        child: const SearchPage(query: 'road', activeType: 'artists'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.recordedSearches, isEmpty);
   });
 
   testWidgets('SearchPage does not render empty typed sections', (

@@ -214,41 +214,49 @@ class _CompactArtistsPage extends StatelessWidget {
                           else ...[
                             Positioned.fill(
                               right: 0,
-                              child: ListView.builder(
+                              child: ScrollConfiguration(
                                 key: const ValueKey(
-                                  'Artists.CompactMaster.List',
+                                  'Artists.CompactMasterScrollConfiguration',
                                 ),
-                                controller: scrollController,
-                                itemExtent: artistRowHeight,
-                                clipBehavior: Clip.none,
-                                scrollCacheExtent: ScrollCacheExtent.pixels(
-                                  artistRowHeight * artistOverscanRows,
+                                behavior: ScrollConfiguration.of(
+                                  context,
+                                ).copyWith(scrollbars: false),
+                                child: ListView.builder(
+                                  key: const ValueKey(
+                                    'Artists.CompactMaster.List',
+                                  ),
+                                  controller: scrollController,
+                                  itemExtent: artistRowHeight,
+                                  clipBehavior: Clip.none,
+                                  scrollCacheExtent: ScrollCacheExtent.pixels(
+                                    artistRowHeight * artistOverscanRows,
+                                  ),
+                                  padding: const EdgeInsets.only(
+                                    bottom: _artistsMasterPlayerSafeBottom,
+                                  ),
+                                  itemCount: visibleArtists.length,
+                                  itemBuilder: (context, index) {
+                                    final artist = visibleArtists[index];
+                                    return _ArtistListItem(
+                                      artist: artist,
+                                      active: false,
+                                      i18n: i18n,
+                                      locateHighlighted:
+                                          artist.name == locatedArtistName,
+                                      locatePulse: locateArtistPulse,
+                                      compactNavMinimal: navMinimal,
+                                      onPressed: () {
+                                        onOpenArtistDetail(artist.name);
+                                      },
+                                      onPlay: () {
+                                        onPlayArtist(artist);
+                                      },
+                                      onOpenContextMenu: (position) {
+                                        onOpenArtistMenu(position, artist);
+                                      },
+                                    );
+                                  },
                                 ),
-                                padding: const EdgeInsets.only(
-                                  bottom: _artistsMasterPlayerSafeBottom,
-                                ),
-                                itemCount: visibleArtists.length,
-                                itemBuilder: (context, index) {
-                                  final artist = visibleArtists[index];
-                                  return _ArtistListItem(
-                                    artist: artist,
-                                    active: false,
-                                    i18n: i18n,
-                                    locateHighlighted:
-                                        artist.name == locatedArtistName,
-                                    locatePulse: locateArtistPulse,
-                                    compactNavMinimal: navMinimal,
-                                    onPressed: () {
-                                      onOpenArtistDetail(artist.name);
-                                    },
-                                    onPlay: () {
-                                      onPlayArtist(artist);
-                                    },
-                                    onOpenContextMenu: (position) {
-                                      onOpenArtistMenu(position, artist);
-                                    },
-                                  );
-                                },
                               ),
                             ),
                             _ArtistsCustomScrollbar(

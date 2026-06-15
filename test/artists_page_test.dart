@@ -1169,6 +1169,66 @@ void main() {
     );
   });
 
+  testWidgets('ArtistsPage master hides native scrollbar like Electron', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _manyArtistsSnapshot(), i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final masterPanel = find.byKey(const ValueKey('Artists.MasterPanel'));
+    expect(
+      find.descendant(
+        of: masterPanel,
+        matching: find.byKey(
+          const ValueKey('Artists.MasterScrollConfiguration'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: masterPanel,
+        matching: find.byKey(const ValueKey('Artists.MasterScrollbar')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'ArtistsPage compact master hides native scrollbar like Electron',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _ArtistsTestApp(snapshot: _manyArtistsSnapshot(), i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('Artists.CompactMasterScrollConfiguration')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('Artists.MasterScrollbar')),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('ArtistsPage virtualizes artist album cards like Electron', (
     tester,
   ) async {
@@ -5368,7 +5428,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.recordedSearches, [
-      (query: 'Artist A', type: SearchHistoryType.artists),
+      (query: 'Artist', type: SearchHistoryType.artists),
     ]);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -5414,41 +5474,42 @@ void main() {
     expect(find.text('Blue Hour'), findsOneWidget);
   });
 
-  testWidgets('ArtistsPage selects artist search suggestions', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 800);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final repository = _FakeLibraryRepository();
-    final router = _createArtistsRouter();
+  testWidgets(
+    'ArtistsPage selecting artist suggestions does not record search',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final repository = _FakeLibraryRepository();
+      final router = _createArtistsRouter();
 
-    await tester.pumpWidget(
-      _ArtistsRouterTestApp(
-        snapshot: _snapshot,
-        i18n: i18n,
-        router: router,
-        repository: repository,
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _ArtistsRouterTestApp(
+          snapshot: _snapshot,
+          i18n: i18n,
+          router: router,
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Art');
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Art');
+      await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('PageSearchHistoryPanel.Item.Artist A')),
+      );
+      await tester.pumpAndSettle();
 
-    expect(repository.recordedSearches, [
-      (query: 'Artist A', type: SearchHistoryType.artists),
-    ]);
-    final uri = router.routeInformationProvider.value.uri;
-    expect(uri.path, '/artists');
-    expect(uri.queryParameters['artist'], isNull);
-  });
+      expect(repository.recordedSearches, isEmpty);
+      final uri = router.routeInformationProvider.value.uri;
+      expect(uri.path, '/artists');
+      expect(uri.queryParameters['artist'], isNull);
+    },
+  );
 
   testWidgets('ArtistsPage search suggestions are limited like Electron', (
     tester,
@@ -5524,9 +5585,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(repository.recordedSearches, [
-      (query: 'Artist A', type: SearchHistoryType.artists),
-    ]);
+    expect(repository.recordedSearches, isEmpty);
     final uri = router.routeInformationProvider.value.uri;
     expect(uri.path, '/artists');
     expect(uri.queryParameters['artist'], isNull);
@@ -5837,9 +5896,7 @@ void main() {
       router.go('/artists?artist=Artist%20B');
       await tester.pumpAndSettle();
 
-      expect(repository.recordedSearches, [
-        (query: 'Artist B', type: SearchHistoryType.artists),
-      ]);
+      expect(repository.recordedSearches, isEmpty);
       final searchBox = tester.widget<TextField>(find.byType(TextField));
       expect(searchBox.controller!.text, 'Artist B');
       expect(find.text('Green Song'), findsOneWidget);
@@ -5869,9 +5926,7 @@ void main() {
     router.go('/artists?artist=100%25%20Pure');
     await tester.pumpAndSettle();
 
-    expect(repository.recordedSearches, [
-      (query: '100% Pure', type: SearchHistoryType.artists),
-    ]);
+    expect(repository.recordedSearches, isEmpty);
     expect(
       tester
           .widget<Text>(
@@ -5993,9 +6048,7 @@ void main() {
       snapshot.value = _twoArtistSnapshot;
       await tester.pumpAndSettle();
 
-      expect(repository.recordedSearches, [
-        (query: 'Artist B', type: SearchHistoryType.artists),
-      ]);
+      expect(repository.recordedSearches, isEmpty);
       expect(find.text('Green Song'), findsOneWidget);
     },
   );

@@ -1490,6 +1490,35 @@ void main() {
     expect(scrollbarRect.right, 500);
   });
 
+  testWidgets('RecentPage narrow recent search scrollbar sticks to edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithManySearches, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches'));
+    await tester.pumpAndSettle();
+
+    final firstRow = find.byKey(const ValueKey('Recent.SearchRow.101'));
+    final rowRect = tester.getRect(firstRow);
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    final scrollbarRect = tester.getRect(scrollbar);
+
+    expect(rowRect.left, 16);
+    expect(500 - rowRect.right, 8);
+    expect(scrollbarRect.right, 500);
+  });
+
   testWidgets('RecentPage song group header keeps Electron height', (
     tester,
   ) async {
@@ -1963,6 +1992,28 @@ const _snapshotWithSearches = LibraryContentData(
   playlists: [],
   favoritePlaylistId: 0,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
+  hasLibrary: true,
+  sortCriterion: MusicLibrarySortCriterion.title,
+  albumsSort: AlbumSortCriterion.defaultSort,
+  showCount: true,
+  hideMultiSelectCommandBarAfterOperation: true,
+  databasePath: '',
+);
+
+final _snapshotWithManySearches = LibraryContentData(
+  songs: const [],
+  recentSearches: [
+    for (var index = 0; index < 28; index += 1)
+      SearchHistoryEntry(
+        id: 101 + index,
+        query: 'recent search $index',
+        type: SearchHistoryType.sidebar,
+        searchedAt: '2026-05-20T00:00:00',
+      ),
+  ],
+  playlists: const [],
+  favoritePlaylistId: 0,
+  nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
   hasLibrary: true,
   sortCriterion: MusicLibrarySortCriterion.title,
   albumsSort: AlbumSortCriterion.defaultSort,

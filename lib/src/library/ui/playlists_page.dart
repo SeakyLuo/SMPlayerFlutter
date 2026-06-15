@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
@@ -16,6 +18,9 @@ import 'package:smplayer_flutter/src/library/ui/grid_view_holder.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
+import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
+import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
+    as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
@@ -23,6 +28,10 @@ part 'playlists_page_crud_actions.dart';
 part 'playlists_page_drag_actions.dart';
 part 'playlists_page_local_overrides.dart';
 part 'playlists_page_playback_actions.dart';
+part 'playlists_page_search_actions.dart';
+part 'playlists_page_toolbar.dart';
+part 'playlists_app_bar_actions.dart';
+part 'playlists_empty_state.dart';
 part 'playlists_page_helpers.dart';
 part 'playlist_drop_placeholder.dart';
 part 'playlists_colors.dart';
@@ -32,15 +41,24 @@ const _playlistCardHeight = gridViewHolderHeight;
 const _playlistDragOverlapThreshold = 0.2;
 
 class PlaylistsPage extends ConsumerStatefulWidget {
-  const PlaylistsPage({super.key, this.selectedPlaylistId});
+  const PlaylistsPage({
+    super.key,
+    this.selectedPlaylistId,
+    this.searchQuery = '',
+  });
 
   final int? selectedPlaylistId;
+  final String searchQuery;
 
   @override
   ConsumerState<PlaylistsPage> createState() => _PlaylistsPageState();
 }
 
 class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
+  late var _searchDraft = widget.searchQuery.trim();
+  late var _searchQuery = widget.searchQuery.trim();
+  var _searchFocused = false;
+  var _appBarSearchOpen = false;
   List<int>? _previewPlaylistIds;
   List<int>? _committedPlaylistIds;
   final _playlistOverrides = <int, LibraryPlaylist>{};
@@ -63,6 +81,16 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   }
 
   @override
+  void didUpdateWidget(covariant PlaylistsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      final query = widget.searchQuery.trim();
+      _searchDraft = query;
+      _searchQuery = query;
+    }
+  }
+
+  @override
   void dispose() {
     _clearAppBarPortalOwner();
     super.dispose();
@@ -79,9 +107,13 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     required bool showPortal,
     required String routePath,
     required String title,
-    required Widget content,
+    required SmPlayerI18n i18n,
+    required List<String> searchSuggestions,
+    required List<SearchHistoryEntry> searchHistoryEntries,
+    required VoidCallback onCreatePlaylist,
   }) {
-    final signature = '$showPortal:$routePath:$title';
+    final signature =
+        '$showPortal:$routePath:$title:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -101,8 +133,44 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       notifier.state = WorkspaceAppBarPortalEntry(
         owner: _appBarPortalOwner,
         routePath: routePath,
+        routeLocation: routePath,
         title: title,
-        content: content,
+        content: _PlaylistsAppBarActions(
+          searchOpen: _appBarSearchOpen,
+          searchDraft: _searchDraft,
+          searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+          i18n: i18n,
+          searchFocused: _searchFocused,
+          searchSuggestions: searchSuggestions,
+          searchHistoryEntries: searchHistoryEntries,
+          onOpenSearch: () {
+            setState(() {
+              _appBarSearchOpen = true;
+              _searchFocused = true;
+            });
+          },
+          onCloseSearch: () {
+            setState(() {
+              _appBarSearchOpen = false;
+              _searchFocused = false;
+            });
+          },
+          onSearchChanged: (value) {
+            setState(() {
+              _searchDraft = value;
+            });
+          },
+          onSearchFocusChanged: _changeSearchFocus,
+          onSearchSubmitted: () {
+            _submitSearch(closeAppBar: true);
+          },
+          onClearSearch: _clearSearch,
+          onSelectSearchSuggestion: _selectSearchQuery,
+          onRemoveRecentSearch: _removeRecentSearch,
+          onClearRecentSearches: _clearRecentSearches,
+          onCreatePlaylist: onCreatePlaylist,
+        ),
+        replacesTitle: _appBarSearchOpen,
       );
     });
   }
@@ -367,36 +435,19 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             .map((playlistId) => playlistById[playlistId])
             .whereType<LibraryPlaylist>()
             .toList();
+    final visiblePlaylists =
+        _searchQuery.trim().isEmpty
+            ? orderedPlaylists
+            : _searchPlaylists(orderedPlaylists, songsById, _searchQuery);
+    final searchSuggestions =
+        _searchDraft.trim().isEmpty
+            ? const <String>[]
+            : _playlistSearchSuggestions(customPlaylists, songsById);
+    final searchHistoryEntries = latestSearchHistoryEntries(
+      snapshot.recentSearches,
+      SearchHistoryType.playlists,
+    );
     final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
-    final createButton = CommandBar(
-      overflowLabel: i18n.t('player.more'),
-      children: [
-        CommandBarButton(
-          icon: FluentIcons.add_20_regular,
-          label: i18n.t('playlists.newName'),
-          canOverflow: false,
-          onPressed: () {
-            unawaited(_createPlaylist(context, i18n, snapshot));
-          },
-        ),
-      ],
-    );
-    final createAppBarButton = CommandBar(
-      style: CommandBarStyleVariant.appBar,
-      overflowLabel: i18n.t('player.more'),
-      children: [
-        CommandBarButton(
-          key: const ValueKey('Playlists.AppBar.Create'),
-          icon: FluentIcons.add_20_regular,
-          label: i18n.t('playlists.newName'),
-          showLabel: false,
-          canOverflow: false,
-          onPressed: () {
-            unawaited(_createPlaylist(context, i18n, snapshot));
-          },
-        ),
-      ],
-    );
     _syncAppBarPortal(
       showPortal: true,
       routePath: '/playlists',
@@ -409,7 +460,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                         .length,
               })
               : i18n.t('common.playlists'),
-      content: createAppBarButton,
+      i18n: i18n,
+      searchSuggestions: searchSuggestions,
+      searchHistoryEntries: searchHistoryEntries,
+      onCreatePlaylist: () {
+        unawaited(_createPlaylist(context, i18n, snapshot));
+      },
     );
 
     return Padding(
@@ -417,13 +473,43 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       child: Column(
         children: [
           if (!useWorkspaceAppBar) ...[
-            createButton,
+            _PlaylistsToolbar(
+              searchDraft: _searchDraft,
+              searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
+              i18n: i18n,
+              searchFocused: _searchFocused,
+              searchSuggestions: searchSuggestions,
+              searchHistoryEntries: searchHistoryEntries,
+              onSearchChanged: (value) {
+                setState(() {
+                  _searchDraft = value;
+                });
+              },
+              onSearchFocusChanged: _changeSearchFocus,
+              onSearchSubmitted: _submitSearch,
+              onClearSearch: _clearSearch,
+              onSelectSearchSuggestion: _selectSearchQuery,
+              onRemoveRecentSearch: _removeRecentSearch,
+              onClearRecentSearches: _clearRecentSearches,
+              onCreatePlaylist: () {
+                unawaited(_createPlaylist(context, i18n, snapshot));
+              },
+            ),
             const SizedBox(height: 18),
           ],
           Expanded(
             child:
-                orderedPlaylists.isEmpty
-                    ? const SizedBox.shrink()
+                visiblePlaylists.isEmpty
+                    ? _PlaylistsEmptyState(
+                      title:
+                          _searchQuery.isEmpty
+                              ? i18n.t('playlists.none')
+                              : i18n.t('playlists.noMatch'),
+                      message:
+                          _searchQuery.isEmpty
+                              ? i18n.t('collection.scanFirst')
+                              : i18n.t('playlists.noMatchCopy'),
+                    )
                     : LayoutBuilder(
                       builder: (context, constraints) {
                         final columns =
@@ -451,9 +537,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                   crossAxisSpacing: 30,
                                   mainAxisSpacing: 26,
                                 ),
-                            itemCount: orderedPlaylists.length,
+                            itemCount: visiblePlaylists.length,
                             itemBuilder: (context, index) {
-                              final playlist = orderedPlaylists[index];
+                              final playlist = visiblePlaylists[index];
                               final playlistSongs =
                                   playlist.songIds
                                       .map((songId) => songsById[songId])

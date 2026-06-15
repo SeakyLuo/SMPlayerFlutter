@@ -106,7 +106,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
 
     final searchQuery = stripVoicePrefix(command, const ['搜索', 'search']);
     if (searchQuery != null && searchQuery.isNotEmpty) {
-      _commitSearch(searchQuery);
+      _openSearchWithoutRecording(searchQuery);
       return i18n.t('voiceAssistant.executed');
     }
 
@@ -146,7 +146,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
       'play folder',
     ]);
     if (playFolder != null && playFolder.isNotEmpty) {
-      _commitSearch(playFolder, SearchHistoryType.folders);
+      _openSearchWithoutRecording(playFolder, SearchHistoryType.folders);
       return i18n.t('voiceAssistant.executed');
     }
 
@@ -222,7 +222,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
         }
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.search:
-        _commitSearch(result.value!);
+        _openSearchWithoutRecording(result.value!);
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.playArtist:
         return _playMatchedSongs(
@@ -241,7 +241,7 @@ extension _SmPlayerShellVoiceMethods on _SmPlayerShellPageState {
       case VoiceAssistantMatchType.playPlaylist:
         return _playPlaylistByName(snapshot, i18n, result.value!);
       case VoiceAssistantMatchType.playFolder:
-        _commitSearch(result.value!, SearchHistoryType.folders);
+        _openSearchWithoutRecording(result.value!, SearchHistoryType.folders);
         return i18n.t('voiceAssistant.executed');
       case VoiceAssistantMatchType.searchAndPlay:
       case VoiceAssistantMatchType.playMusic:

@@ -73,13 +73,14 @@ class _SearchFilterTabs extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 40),
+        constraints: const BoxConstraints(minHeight: 44),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 3, 0, 3),
+          padding: const EdgeInsets.only(bottom: 2),
           child: Row(
             children: [
               for (final tab in orderedTabs) ...[
                 _SearchFilterTab(
+                  filter: tab.key,
                   label: tab.label,
                   count: tab.count,
                   selected: tab.key == activeFilter,
@@ -88,7 +89,7 @@ class _SearchFilterTabs extends StatelessWidget {
                     onChanged(tab.key);
                   },
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
               ],
             ],
           ),
@@ -100,6 +101,7 @@ class _SearchFilterTabs extends StatelessWidget {
 
 class _SearchFilterTab extends StatelessWidget {
   const _SearchFilterTab({
+    required this.filter,
     required this.label,
     required this.count,
     required this.selected,
@@ -107,6 +109,7 @@ class _SearchFilterTab extends StatelessWidget {
     required this.onPressed,
   });
 
+  final SearchFilterKey filter;
   final String label;
   final int count;
   final bool selected;
@@ -125,8 +128,8 @@ class _SearchFilterTab extends StatelessWidget {
 
     return Opacity(
       opacity: enabled ? 1 : 0.46,
-      child: SizedBox(
-        height: 34,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 72, minHeight: 36),
         child: TextButton(
           style: _searchFilterTabButtonStyle(
             foregroundColor: foreground,
@@ -155,21 +158,26 @@ class _SearchFilterTab extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              IconTheme(
+                data: IconThemeData(size: 18, color: foreground),
+                child: _SearchFilterTabIcon(filter: filter, color: foreground),
+              ),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 8),
               Text(
                 '$count',
                 style: TextStyle(
                   color: foreground,
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -177,6 +185,28 @@ class _SearchFilterTab extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SearchFilterTabIcon extends StatelessWidget {
+  const _SearchFilterTabIcon({required this.filter, required this.color});
+
+  final SearchFilterKey filter;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (filter) {
+      SearchFilterKey.all => const Icon(
+        FluentIcons.apps_list_detail_20_regular,
+        size: 18,
+      ),
+      SearchFilterKey.artists => const Icon(FluentIcons.people_20_regular),
+      SearchFilterKey.albums => SmPlayerAlbumIcon(size: 18, color: color),
+      SearchFilterKey.songs => const Icon(FluentIcons.music_note_2_20_regular),
+      SearchFilterKey.playlists => SmPlayerPlaylistIcon(size: 18, color: color),
+      SearchFilterKey.folders => const Icon(FluentIcons.folder_20_regular),
+    };
   }
 }
 
@@ -188,9 +218,9 @@ ButtonStyle _searchFilterTabButtonStyle({
   required Color borderColor,
   required Color hoverBorderColor,
 }) {
-  const height = 34.0;
-  const radius = 10.0;
-  const padding = EdgeInsets.symmetric(horizontal: 12);
+  const height = 36.0;
+  const radius = 999.0;
+  const padding = EdgeInsets.symmetric(horizontal: 18);
 
   Color resolveColor(Set<WidgetState> states, Color regular, Color hovered) {
     return _searchFilterTabHovered(states) ? hovered : regular;
@@ -211,7 +241,7 @@ ButtonStyle _searchFilterTabButtonStyle({
 
   return TextButton.styleFrom(
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    minimumSize: const Size(0, height),
+    minimumSize: const Size(72, height),
     maximumSize: const Size(double.infinity, height),
     padding: padding,
     foregroundColor: foregroundColor,
@@ -224,7 +254,7 @@ ButtonStyle _searchFilterTabButtonStyle({
   ).copyWith(
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     elevation: const WidgetStatePropertyAll(0),
-    minimumSize: const WidgetStatePropertyAll(Size(0, height)),
+    minimumSize: const WidgetStatePropertyAll(Size(72, height)),
     maximumSize: const WidgetStatePropertyAll(Size(double.infinity, height)),
     foregroundColor: WidgetStateProperty.resolveWith(
       (states) => resolveColor(states, foregroundColor, hoverForegroundColor),
