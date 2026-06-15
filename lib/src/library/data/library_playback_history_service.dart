@@ -436,6 +436,8 @@ class LibraryPlaybackHistoryService {
     File nowPlayingFile,
     List<int> songIds,
   ) {
+    nowPlayingFile.parent.createSync(recursive: true);
+
     if (songIds.isEmpty) {
       nowPlayingFile.writeAsStringSync('[]');
       return;
