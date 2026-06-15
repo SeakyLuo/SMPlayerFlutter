@@ -1299,6 +1299,32 @@ void main() {
     },
   );
 
+  test('replaceNowPlaying creates the NowPlaying file directory', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-now-playing-create-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final songPaths = [
+      p.join(directory.path, 'Library', 'One.mp3'),
+      p.join(directory.path, 'Library', 'Two.mp3'),
+    ];
+    final databaseFile = File(p.join(directory.path, 'SMPlayerSettings.db'));
+    final nowPlayingFile = File(
+      p.join(directory.path, 'missing', 'NowPlaying.json'),
+    );
+    _createBatchLyricsDatabase(databaseFile, songPaths);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+      nowPlayingFileResolver: () => nowPlayingFile,
+    );
+
+    await repository.replaceNowPlaying([1, 2]);
+
+    expect(jsonDecode(nowPlayingFile.readAsStringSync()), songPaths);
+  });
+
   test('pending song delete commit uses system trash hook', () async {
     final directory = await Directory.systemTemp.createTemp(
       'smplayer-trash-song-',
