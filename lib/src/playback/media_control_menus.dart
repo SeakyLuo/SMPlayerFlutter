@@ -79,6 +79,8 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required PlaybackMode mode,
   required bool isMuted,
   required int volumeValue,
+  bool desktopLyricsEnabled = false,
+  VoidCallback? onToggleDesktopLyrics,
   required VoidCallback onQuickPlay,
   required ValueChanged<int> onVolumeChange,
   required VoidCallback onToggleMute,
@@ -129,6 +131,14 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           onToggleRepeatOne: onToggleRepeatOne,
         ),
       ),
+      if (onToggleDesktopLyrics != null)
+        MenuFlyoutItem(
+          key: 'desktop-lyrics',
+          text: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
+          iconWidget: const _DesktopLyricsMenuIcon(),
+          checked: desktopLyricsEnabled,
+          onPressed: onToggleDesktopLyrics,
+        ),
       MenuFlyoutItem(
         key: 'player-volume',
         text: i18n.t('player.volume'),
@@ -313,6 +323,19 @@ String _playbackModeName(SmPlayerI18n i18n, PlaybackMode mode) {
     PlaybackMode.repeat => i18n.t('player.playbackModeRepeat'),
     PlaybackMode.repeatOne => i18n.t('player.playbackModeRepeatOne'),
   };
+}
+
+class _DesktopLyricsMenuIcon extends StatelessWidget {
+  const _DesktopLyricsMenuIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color ??
+        Colors.black;
+    return SvgIcon(svg: _desktopLyricsIconSvg, size: 18, color: color);
+  }
 }
 
 SmPlayerI18n _mediaControlI18n(BuildContext context) {

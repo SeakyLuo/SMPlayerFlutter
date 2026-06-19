@@ -460,7 +460,7 @@ double _mediaControlUtilityWidth({
     return condensed ? minimalWidth : max(80, minimalWidth);
   }
   if (condensed) {
-    return max(hasVoiceAssistant ? 140 : 132, compactWidth);
+    return max(hasVoiceAssistant ? 140 : 132, compactWidth + 16);
   }
   return 280;
 }

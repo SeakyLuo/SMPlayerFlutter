@@ -63,11 +63,19 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
                 _pendingDesktopLyricsSignature = null;
                 if (updated) {
                   _lastDesktopLyricsSignature = signature;
+                  if (_desktopLyricsRetrySignature == signature) {
+                    _desktopLyricsRetrySignature = null;
+                  }
+                  _desktopLyricsRetryTimer?.cancel();
+                  _desktopLyricsRetryTimer = null;
+                } else {
+                  _scheduleDesktopLyricsRetry(signature, lyricsState.visible);
                 }
               },
               onError: (_) {
                 if (mounted && _pendingDesktopLyricsSignature == signature) {
                   _pendingDesktopLyricsSignature = null;
+                  _scheduleDesktopLyricsRetry(signature, lyricsState.visible);
                 }
               },
             ),
@@ -92,6 +100,21 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       i18n,
       mediaControlState.progressSeconds,
     );
+  }
+
+  void _scheduleDesktopLyricsRetry(String signature, bool visible) {
+    if (!visible || _desktopLyricsRetrySignature == signature) {
+      return;
+    }
+    _desktopLyricsRetrySignature = signature;
+    _desktopLyricsRetryTimer?.cancel();
+    _desktopLyricsRetryTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted || _lastDesktopLyricsSignature == signature) {
+        return;
+      }
+      _pendingDesktopLyricsSignature = null;
+      setState(() {});
+    });
   }
 
   LyricsSnapshot? _desktopLyricsForSong(LibrarySong? currentSong) {

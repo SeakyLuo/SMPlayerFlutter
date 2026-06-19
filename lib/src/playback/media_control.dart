@@ -34,7 +34,7 @@ part 'media_control_artwork.dart';
 part 'media_control_colors.dart';
 
 const _playerCompactBreakpoint = 800.0;
-const _playerCondensedUtilityBreakpoint = 1200.0;
+const _playerCondensedUtilityBreakpoint = 920.0;
 const _artworkColorMinValue = 10;
 const _artworkColorMaxValue = 205;
 const _artworkColorGridDivisions = 16;
