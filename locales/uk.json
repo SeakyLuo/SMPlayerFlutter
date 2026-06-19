@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Доріжки, які все ще стоять у черзі після поточного вибору.",
   "player.like": "Додати в обране",
   "player.desktopLyrics": "тексти на робочому столі",
+  "player.desktopLyricsEnabled": "Тексти на робочому столі ввімкнено",
+  "player.desktopLyricsDisabled": "Тексти на робочому столі вимкнено",
   "player.miniMode": "режим міні",
   "player.enterMiniMode": "Увійти в міні-режим",
   "player.exitMiniMode": "Вийти з міні-режиму",

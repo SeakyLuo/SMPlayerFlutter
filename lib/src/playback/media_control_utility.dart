@@ -15,6 +15,8 @@ class MediaControlUtilityRows extends StatefulWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.desktopLyricsEnabled = false,
+    this.onToggleDesktopLyrics,
     this.onOpenVoiceAssistant,
     this.condensed = false,
     this.minimal = false,
@@ -44,6 +46,8 @@ class MediaControlUtilityRows extends StatefulWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
   final bool minimal;
@@ -90,6 +94,8 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
     final onToggleRepeat = widget.onToggleRepeat;
     final onToggleRepeatOne = widget.onToggleRepeatOne;
     final onToggleFavorite = widget.onToggleFavorite;
+    final desktopLyricsEnabled = widget.desktopLyricsEnabled;
+    final onToggleDesktopLyrics = widget.onToggleDesktopLyrics;
     final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
     final condensed = widget.condensed;
     final minimal = widget.minimal;
@@ -116,6 +122,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
       minimal: minimal,
       condensed: condensed,
       hasVoiceAssistant: onOpenVoiceAssistant != null,
+      hasDesktopLyrics: onToggleDesktopLyrics != null,
     );
     final compactMinimal = minimal && (width == null ? condensed : width <= 68);
     final utilityButtonSize = compactMinimal ? 34.0 : 36.0;
@@ -127,104 +134,67 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
             : condensed
             ? 8.0
             : 14.0;
-    final showCompactModeButton =
-        (condensed || minimal) && !(minimal && onOpenVoiceAssistant != null);
     final modeRow = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showCompactModeButton) ...[
-          Builder(
-            builder: (modeButtonContext) {
-              return _PlayerIconButton(
-                key: const ValueKey('MediaControl.CompactModeButton'),
-                tooltip:
-                    '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-                icon: _playbackModeIcon(mode),
-                active: mode != PlaybackMode.once,
-                disabled: disabled,
-                buttonSize: utilityButtonSize,
-                padding: utilityButtonPadding,
-                iconSize: utilityIconSize,
-                showLongPressProgress: false,
-                holdDuration: const Duration(milliseconds: 520),
-                onPressed: () {
-                  _compactVolumeKey.currentState?._closePopover();
-                  switch (getNextPlaybackMode(mode)) {
-                    case PlaybackMode.shuffle:
-                      onToggleShuffle();
-                    case PlaybackMode.repeat:
-                      onToggleRepeat();
-                    case PlaybackMode.repeatOne:
-                      onToggleRepeatOne();
-                    case PlaybackMode.once:
-                      if (mode == PlaybackMode.shuffle) {
-                        onToggleShuffle();
-                      } else if (mode == PlaybackMode.repeat) {
-                        onToggleRepeat();
-                      } else {
-                        onToggleRepeatOne();
-                      }
-                  }
-                },
-                onLongPress: () {
-                  _showPlaybackModeMenuClosingVolume(
-                    modeButtonContext,
-                    i18n: i18n,
-                    mode: mode,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                  );
-                },
-                onSecondaryTap: () {
-                  _showPlaybackModeMenuClosingVolume(
-                    modeButtonContext,
-                    i18n: i18n,
-                    mode: mode,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                  );
-                },
-              );
-            },
-          ),
-          SizedBox(width: modeRowGap),
-        ] else if (!condensed && !minimal) ...[
+        Builder(
+          builder: (modeButtonContext) {
+            return _PlayerIconButton(
+              key: const ValueKey('MediaControl.CompactModeButton'),
+              tooltip:
+                  '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+              icon: _playbackModeIcon(mode),
+              active: mode != PlaybackMode.once,
+              disabled: disabled,
+              buttonSize: utilityButtonSize,
+              padding: utilityButtonPadding,
+              iconSize: utilityIconSize,
+              showLongPressProgress: false,
+              holdDuration: const Duration(milliseconds: 520),
+              onPressed: () {
+                _compactVolumeKey.currentState?._closePopover();
+                _cyclePlaybackMode(
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+              onLongPress: () {
+                _showPlaybackModeMenuClosingVolume(
+                  modeButtonContext,
+                  i18n: i18n,
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+              onSecondaryTap: () {
+                _showPlaybackModeMenuClosingVolume(
+                  modeButtonContext,
+                  i18n: i18n,
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+            );
+          },
+        ),
+        SizedBox(width: modeRowGap),
+        if (onToggleDesktopLyrics != null) ...[
           _PlayerIconButton(
-            key: const ValueKey('MediaControl.ShuffleButton'),
-            tooltip:
-                mode == PlaybackMode.shuffle
-                    ? i18n.t('player.shuffleEnabled')
-                    : i18n.t('player.shuffleDisabled'),
-            icon: _shuffleIcon,
-            active: mode == PlaybackMode.shuffle,
-            disabled: disabled,
-            onPressed: onToggleShuffle,
-          ),
-          SizedBox(width: modeRowGap),
-          _PlayerIconButton(
-            key: const ValueKey('MediaControl.RepeatButton'),
-            tooltip:
-                mode == PlaybackMode.repeat
-                    ? i18n.t('player.repeatEnabled')
-                    : i18n.t('player.repeatDisabled'),
-            icon: _repeatIcon,
-            active: mode == PlaybackMode.repeat,
-            disabled: disabled,
-            onPressed: onToggleRepeat,
-          ),
-          SizedBox(width: modeRowGap),
-          _PlayerIconButton(
-            key: const ValueKey('MediaControl.RepeatOneButton'),
-            tooltip:
-                mode == PlaybackMode.repeatOne
-                    ? i18n.t('player.repeatOneEnabled')
-                    : i18n.t('player.repeatOneDisabled'),
-            icon: _repeatOneIcon,
-            active: mode == PlaybackMode.repeatOne,
-            disabled: disabled,
-            onPressed: onToggleRepeatOne,
+            key: const ValueKey('MediaControl.DesktopLyricsButton'),
+            tooltip: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
+            icon: _desktopLyricsIcon,
+            active: desktopLyricsEnabled,
+            disabled: false,
+            buttonSize: utilityButtonSize,
+            padding: utilityButtonPadding,
+            iconSize: utilityIconSize,
+            onPressed: onToggleDesktopLyrics,
           ),
           SizedBox(width: modeRowGap),
         ],
@@ -446,16 +416,51 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
   }
 }
 
+void _cyclePlaybackMode({
+  required PlaybackMode mode,
+  required VoidCallback onToggleShuffle,
+  required VoidCallback onToggleRepeat,
+  required VoidCallback onToggleRepeatOne,
+}) {
+  switch (getNextPlaybackMode(mode)) {
+    case PlaybackMode.shuffle:
+      onToggleShuffle();
+    case PlaybackMode.repeat:
+      onToggleRepeat();
+    case PlaybackMode.repeatOne:
+      onToggleRepeatOne();
+    case PlaybackMode.once:
+      if (mode == PlaybackMode.shuffle) {
+        onToggleShuffle();
+      } else if (mode == PlaybackMode.repeat) {
+        onToggleRepeat();
+      } else {
+        onToggleRepeatOne();
+      }
+  }
+}
+
+String _desktopLyricsTooltip(SmPlayerI18n i18n, bool enabled) {
+  return i18n.t(
+    enabled ? 'player.desktopLyricsEnabled' : 'player.desktopLyricsDisabled',
+  );
+}
+
 double _mediaControlUtilityWidth({
   required bool minimal,
   required bool condensed,
   required bool hasVoiceAssistant,
+  required bool hasDesktopLyrics,
 }) {
+  final modeButtonCount =
+      2 + (hasVoiceAssistant ? 1 : 0) + (hasDesktopLyrics ? 1 : 0);
+  final compactWidth = modeButtonCount * 36.0 + (modeButtonCount - 1) * 8.0;
+  final minimalWidth = modeButtonCount * 34.0 + (modeButtonCount - 1) * 6.0;
   if (minimal) {
-    return condensed ? 68 : 80;
+    return condensed ? minimalWidth : max(80, minimalWidth);
   }
   if (condensed) {
-    return hasVoiceAssistant ? 140 : 132;
+    return max(hasVoiceAssistant ? 140 : 132, compactWidth);
   }
   return 280;
 }
@@ -465,11 +470,13 @@ double _resolvedMediaControlUtilityWidth({
   required bool minimal,
   required bool condensed,
   required bool hasVoiceAssistant,
+  required bool hasDesktopLyrics,
 }) {
   final utilityWidth = _mediaControlUtilityWidth(
     minimal: minimal,
     condensed: condensed,
     hasVoiceAssistant: hasVoiceAssistant,
+    hasDesktopLyrics: hasDesktopLyrics,
   );
   return max(width ?? utilityWidth, utilityWidth);
 }

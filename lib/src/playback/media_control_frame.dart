@@ -72,6 +72,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.desktopLyricsEnabled = false,
+    this.onToggleDesktopLyrics,
     required this.utilityCondensed,
     required this.onMoreClick,
     this.borderRadius = const BorderRadius.vertical(top: Radius.circular(18)),
@@ -130,6 +132,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
   final bool navMinimal;
@@ -170,6 +174,7 @@ class MediaControlSurfaceBar extends StatelessWidget {
       minimal: utilityMinimal,
       condensed: utilityCondensed,
       hasVoiceAssistant: onOpenVoiceAssistant != null,
+      hasDesktopLyrics: onToggleDesktopLyrics != null,
     );
     final leadingContentAligned = leadingWidth == null && utilityFlex != null;
 
@@ -220,6 +225,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
                 onToggleRepeat: onToggleRepeat,
                 onToggleRepeatOne: onToggleRepeatOne,
                 onToggleFavorite: onToggleFavorite,
+                desktopLyricsEnabled: desktopLyricsEnabled,
+                onToggleDesktopLyrics: onToggleDesktopLyrics,
                 onOpenVoiceAssistant: onOpenVoiceAssistant,
                 condensed: condensed,
                 navMinimal: navMinimal,
@@ -262,6 +269,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
                         onToggleRepeat: onToggleRepeat,
                         onToggleRepeatOne: onToggleRepeatOne,
                         onToggleFavorite: onToggleFavorite,
+                        desktopLyricsEnabled: desktopLyricsEnabled,
+                        onToggleDesktopLyrics: onToggleDesktopLyrics,
                         onOpenVoiceAssistant: onOpenVoiceAssistant,
                         utilityCondensed: utilityCondensed,
                         utilityMinimal: utilityMinimal,
@@ -299,6 +308,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
                     onToggleRepeat: onToggleRepeat,
                     onToggleRepeatOne: onToggleRepeatOne,
                     onToggleFavorite: onToggleFavorite,
+                    desktopLyricsEnabled: desktopLyricsEnabled,
+                    onToggleDesktopLyrics: onToggleDesktopLyrics,
                     onOpenVoiceAssistant: onOpenVoiceAssistant,
                     utilityCondensed: utilityCondensed,
                     utilityMinimal: utilityMinimal,
@@ -334,6 +345,8 @@ class MediaControlSurfaceBar extends StatelessWidget {
                     onToggleRepeat: onToggleRepeat,
                     onToggleRepeatOne: onToggleRepeatOne,
                     onToggleFavorite: onToggleFavorite,
+                    desktopLyricsEnabled: desktopLyricsEnabled,
+                    onToggleDesktopLyrics: onToggleDesktopLyrics,
                     onOpenVoiceAssistant: onOpenVoiceAssistant,
                     utilityCondensed: utilityCondensed,
                     utilityMinimal: utilityMinimal,
@@ -373,6 +386,8 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    required this.desktopLyricsEnabled,
+    required this.onToggleDesktopLyrics,
     required this.onOpenVoiceAssistant,
     required this.utilityCondensed,
     required this.utilityMinimal,
@@ -402,6 +417,8 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback? onOpenVoiceAssistant;
   final bool utilityCondensed;
   final bool utilityMinimal;
@@ -434,6 +451,8 @@ class _MediaControlSurfaceBarUtility extends StatelessWidget {
         onToggleRepeat: onToggleRepeat,
         onToggleRepeatOne: onToggleRepeatOne,
         onToggleFavorite: onToggleFavorite,
+        desktopLyricsEnabled: desktopLyricsEnabled,
+        onToggleDesktopLyrics: onToggleDesktopLyrics,
         onOpenVoiceAssistant: onOpenVoiceAssistant,
         condensed: utilityCondensed,
         minimal: utilityMinimal,

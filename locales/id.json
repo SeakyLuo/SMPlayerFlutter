@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Trek yang masih antri setelah pemilihan saat ini.",
   "player.like": "Tambahkan ke Favorit",
   "player.desktopLyrics": "lirik desktop",
+  "player.desktopLyricsEnabled": "Lirik desktop aktif",
+  "player.desktopLyricsDisabled": "Lirik desktop nonaktif",
   "player.miniMode": "modus kecil",
   "player.enterMiniMode": "Masuk ke mode kecil",
   "player.exitMiniMode": "Keluar dari mode kecil",

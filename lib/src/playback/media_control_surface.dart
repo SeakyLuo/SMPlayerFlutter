@@ -27,6 +27,8 @@ class MediaControlSurface extends StatefulWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.desktopLyricsEnabled = false,
+    this.onToggleDesktopLyrics,
     this.onOpenVoiceAssistant,
     this.condensed = false,
     this.navMinimal = false,
@@ -67,6 +69,8 @@ class MediaControlSurface extends StatefulWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback? onOpenVoiceAssistant;
   final bool condensed;
   final bool navMinimal;
@@ -175,6 +179,8 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
                 onToggleRepeat: widget.onToggleRepeat,
                 onToggleRepeatOne: widget.onToggleRepeatOne,
                 onToggleFavorite: widget.onToggleFavorite,
+                desktopLyricsEnabled: widget.desktopLyricsEnabled,
+                onToggleDesktopLyrics: widget.onToggleDesktopLyrics,
                 onOpenVoiceAssistant: widget.onOpenVoiceAssistant,
                 condensed: utilityCondensed,
                 minimal: utilityMinimal,

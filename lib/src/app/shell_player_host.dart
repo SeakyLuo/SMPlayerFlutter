@@ -44,6 +44,7 @@ class ShellPlayerHost extends StatelessWidget {
     required this.onForcePrevious,
     required this.onNext,
     required this.onToggleShuffle,
+    required this.onToggleDesktopLyrics,
     required this.onToggleFavorite,
     required this.onQuickPlay,
     required this.onOpenNowPlaying,
@@ -81,6 +82,7 @@ class ShellPlayerHost extends StatelessWidget {
   final VoidCallback onForcePrevious;
   final bool Function() onNext;
   final VoidCallback onToggleShuffle;
+  final VoidCallback onToggleDesktopLyrics;
   final void Function(WidgetRef ref, LibrarySong song) onToggleFavorite;
   final void Function(WidgetRef ref) onQuickPlay;
   final VoidCallback onOpenNowPlaying;
@@ -189,6 +191,9 @@ class ShellPlayerHost extends StatelessWidget {
                   onToggleShuffle: onToggleShuffle,
                   onToggleRepeat: mediaControlController.onToggleRepeat,
                   onToggleRepeatOne: mediaControlController.onToggleRepeatOne,
+                  desktopLyricsEnabled:
+                      settingsController.snapshot.desktopLyricsEnabled,
+                  onToggleDesktopLyrics: onToggleDesktopLyrics,
                   onToggleFavorite:
                       currentSong == null
                           ? mediaControlController.onToggleFavorite

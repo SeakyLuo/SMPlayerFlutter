@@ -935,6 +935,8 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
 
     final colors = MenuFlyoutThemeColors.of(context);
     final hasSubmenu = item.submenu.isNotEmpty && !item.disabled;
+    final checkedTrailing =
+        item.checked && _menuFlyoutItemHasOwnLeadingIcon(item);
     final active = _active && !item.disabled && !_busy;
     final foreground =
         item.disabled
@@ -1037,7 +1039,14 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                     ),
                   ),
                 ),
-                if (hasSubmenu) ...[
+                if (checkedTrailing) ...[
+                  const SizedBox(width: 10),
+                  Icon(
+                    FluentIcons.checkmark_20_regular,
+                    size: 16,
+                    color: colors.checked,
+                  ),
+                ] else if (hasSubmenu) ...[
                   const SizedBox(width: 10),
                   Icon(
                     FluentIcons.chevron_right_20_regular,
@@ -1071,7 +1080,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
   }
 
   Widget? _buildLeadingIcon(MenuFlyoutItem item, Color foreground) {
-    if (item.checked) {
+    if (item.checked && !_menuFlyoutItemHasOwnLeadingIcon(item)) {
       return Icon(
         FluentIcons.checkmark_20_regular,
         size: 16,
@@ -1206,7 +1215,9 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout();
-    final hasTrailingIcon = item.submenu.isNotEmpty && !item.disabled;
+    final hasTrailingIcon =
+        (item.submenu.isNotEmpty && !item.disabled) ||
+        (item.checked && _menuFlyoutItemHasOwnLeadingIcon(item));
     final leadingWidth = hasLeadingIconSpace ? 30.0 : 0.0;
     final trailingWidth = hasTrailingIcon ? 26.0 : 0.0;
     final itemWidth =
@@ -1222,8 +1233,11 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
 }
 
 bool _menuFlyoutItemHasLeadingIcon(MenuFlyoutItem item) {
-  return item.checked ||
-      item.icon != null ||
+  return item.checked || _menuFlyoutItemHasOwnLeadingIcon(item);
+}
+
+bool _menuFlyoutItemHasOwnLeadingIcon(MenuFlyoutItem item) {
+  return item.icon != null ||
       item.iconWidget != null ||
       item.useAlbumIcon ||
       item.usePlaylistIcon ||

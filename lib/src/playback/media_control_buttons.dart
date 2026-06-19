@@ -229,10 +229,7 @@ class _PlayerButtonIcon extends StatelessWidget {
       );
     }
     if (icon == _listPlaybackIcon) {
-      return CustomPaint(
-        painter: _AppsListDetailIconPainter(resolvedColor),
-        size: Size.square(size),
-      );
+      return SmPlayerPlaylistIcon(size: size, color: resolvedColor);
     }
     if (icon == _shuffleIcon) {
       return ShuffleIcon(size: size * 0.75, color: resolvedColor);
@@ -241,6 +238,14 @@ class _PlayerButtonIcon extends StatelessWidget {
       return CustomPaint(
         painter: _VoiceAssistantIconPainter(resolvedColor),
         size: Size.square(size),
+      );
+    }
+    if (icon == _desktopLyricsIcon) {
+      return SvgIcon(
+        key: const ValueKey('MediaControl.DesktopLyricsIcon'),
+        svg: _desktopLyricsIconSvg,
+        size: size,
+        color: resolvedColor,
       );
     }
     if (icon == _volumeMutedIcon ||
@@ -459,9 +464,7 @@ class _SkipTransportIconPainter extends CustomPainter {
 Path _nextRegularPath() {
   return Path()
     ..fillType = PathFillType.evenOdd
-    ..addRRect(
-      RRect.fromLTRBR(16, 3, 17, 17, const Radius.circular(0.5)),
-    )
+    ..addRRect(RRect.fromLTRBR(16, 3, 17, 17, const Radius.circular(0.5)))
     ..moveTo(3, 4.25)
     ..cubicTo(3, 3.25, 4.12, 2.65, 4.95, 3.21)
     ..lineTo(13.45, 8.92)
@@ -682,54 +685,6 @@ class _FavoriteFilledIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FavoriteFilledIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
-class _AppsListDetailIconPainter extends CustomPainter {
-  const _AppsListDetailIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.45 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-
-    for (final top in const [5.25, 10.15, 15.05]) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(4.5 * scale, top * scale, 3.3 * scale, 3.3 * scale),
-          Radius.circular(0.7 * scale),
-        ),
-        paint,
-      );
-    }
-    canvas.drawLine(
-      Offset(10.5 * scale, 6.9 * scale),
-      Offset(19.5 * scale, 6.9 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(10.5 * scale, 11.8 * scale),
-      Offset(18 * scale, 11.8 * scale),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(10.5 * scale, 16.7 * scale),
-      Offset(19.5 * scale, 16.7 * scale),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _AppsListDetailIconPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

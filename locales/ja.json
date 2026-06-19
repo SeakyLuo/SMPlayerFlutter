@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "現在選択されている後もキューに残っているトラック。",
   "player.like": "お気に入りに追加",
   "player.desktopLyrics": "デスクトップの歌詞",
+  "player.desktopLyricsEnabled": "デスクトップ歌詞はオン",
+  "player.desktopLyricsDisabled": "デスクトップ歌詞はオフ",
   "player.miniMode": "ミニモード",
   "player.enterMiniMode": "ミニモードに入る",
   "player.exitMiniMode": "ミニモードを終了する",

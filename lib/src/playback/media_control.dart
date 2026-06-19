@@ -11,6 +11,7 @@ import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -80,6 +81,8 @@ class MediaControl extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    this.desktopLyricsEnabled = false,
+    this.onToggleDesktopLyrics,
     required this.onQuickPlay,
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
@@ -134,6 +137,8 @@ class MediaControl extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback onQuickPlay;
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
@@ -212,6 +217,8 @@ class MediaControl extends StatelessWidget {
                         onToggleRepeat: onToggleRepeat,
                         onToggleRepeatOne: onToggleRepeatOne,
                         onToggleFavorite: onToggleFavorite,
+                        desktopLyricsEnabled: desktopLyricsEnabled,
+                        onToggleDesktopLyrics: onToggleDesktopLyrics,
                         onQuickPlay: onQuickPlay,
                         onOpenNowPlaying: onOpenNowPlaying,
                         onToggleWindowFullScreen: onToggleWindowFullScreen,
@@ -246,6 +253,7 @@ class MediaControl extends StatelessWidget {
                     leadingFlex: 9,
                     surfaceFlex: 10,
                     utilityFlex: 9,
+                    columnGap: 16,
                     preserveWideBackground: true,
                     leading: _PlayerTrack(
                       track: track,
@@ -279,6 +287,8 @@ class MediaControl extends StatelessWidget {
                     onToggleRepeat: onToggleRepeat,
                     onToggleRepeatOne: onToggleRepeatOne,
                     onToggleFavorite: onToggleFavorite,
+                    desktopLyricsEnabled: desktopLyricsEnabled,
+                    onToggleDesktopLyrics: onToggleDesktopLyrics,
                     onOpenVoiceAssistant: onOpenVoiceAssistant,
                     utilityCondensed: condensedUtility,
                     onMoreClick: (moreButtonContext) {

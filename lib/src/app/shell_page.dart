@@ -81,6 +81,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
     this.onGoBack,
     this.onSearchCommit,
     this.desktopFeatureService,
+    this.settingsController,
     this.settingsRepository,
     this.appVersion,
     this.initialExternalFilePaths = const [],
@@ -96,6 +97,7 @@ class SmPlayerShellPage extends ConsumerStatefulWidget {
   final VoidCallback? onGoBack;
   final MainNavigationSearchCommit? onSearchCommit;
   final DesktopFeatureService? desktopFeatureService;
+  final SettingsController? settingsController;
   final LibraryRepository? settingsRepository;
   final String? appVersion;
   final List<String> initialExternalFilePaths;
@@ -147,6 +149,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   int? _finishingAudioTrackId;
   final _persistedAudioDurations = <int, int>{};
   Timer? _playbackStallTimer;
+  Timer? _desktopLyricsRetryTimer;
   double _stalledProgressSeconds = 0;
   DateTime? _stalledProgressStartedAt;
   late final ValueNotifier<({LibrarySong song, SongDialogMode mode})?>
@@ -154,6 +157,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   late final ValueNotifier<int> _playerDialogRefreshNotifier;
   String? _lastDesktopTraySignature;
   String? _lastDesktopLyricsSignature;
+  String? _pendingDesktopLyricsSignature;
+  String? _desktopLyricsRetrySignature;
   String? _lastMediaSessionSignature;
   bool? _lastWindowControlsLight;
   int? _desktopLyricsSongId;
@@ -161,6 +166,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   LyricsRequestMode? _desktopLyricsMode;
   LyricsSnapshot? _desktopLyrics;
   var _playerLyricsRefreshRevision = 0;
+  late final bool _ownsSettingsController;
+  late SettingsSnapshot _observedSettingsSnapshot;
   final _playerArtworkResolveAttemptedSongIds = <int>{};
   final _playerArtworkResolvingSongIds = <int>{};
   final _playerArtworkErrorAttemptedKeys = <String>{};
@@ -178,7 +185,11 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     HardwareKeyboard.instance.addHandler(_handlePlaybackShortcutKey);
-    _settingsController = SettingsController(null, widget.settingsRepository);
+    _ownsSettingsController = widget.settingsController == null;
+    _settingsController =
+        widget.settingsController ??
+        SettingsController(null, widget.settingsRepository);
+    _observedSettingsSnapshot = _settingsController.snapshot;
     _mediaControlController = MediaControlController(
       null,
       _settingsController.savePlaybackSettingsImmediate,
@@ -187,6 +198,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     _playerDialogRefreshNotifier = ValueNotifier(0);
     _audioPlayer = AudioPlayer();
     _mediaControlController.addListener(_syncAudioPlayerFromController);
+    _settingsController.addListener(_handleSettingsChanged);
     _audioSubscriptions = [
       _audioPlayer.positionStream.listen(_handleAudioPositionChanged),
       _audioPlayer.durationStream.listen(_handleAudioDurationChanged),
@@ -198,7 +210,15 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         createDesktopFeatureService(
           settingsRepository: widget.settingsRepository,
         );
-    unawaited(_desktopFeatureService.initialize(_handleDesktopFeatureAction));
+    unawaited(
+      _desktopFeatureService.initialize(_handleDesktopFeatureAction).then((_) {
+        if (!mounted) {
+          return;
+        }
+        _lastDesktopLyricsSignature = null;
+        setState(() {});
+      }),
+    );
     if (_isMiniMode) {
       unawaited(_desktopFeatureService.enterMiniMode());
     } else if (widget.initialDisplayMode == SmPlayerDisplayMode.fullScreen) {
@@ -252,13 +272,17 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     HardwareKeyboard.instance.removeHandler(_handlePlaybackShortcutKey);
     WidgetsBinding.instance.removeObserver(this);
     _mediaControlController.removeListener(_syncAudioPlayerFromController);
+    _settingsController.removeListener(_handleSettingsChanged);
+    _desktopLyricsRetryTimer?.cancel();
     for (final subscription in _audioSubscriptions) {
       unawaited(subscription.cancel());
     }
     unawaited(_audioPlayer.dispose());
     _stopPlaybackStallTimer();
     _desktopFeatureService.dispose();
-    _settingsController.dispose();
+    if (_ownsSettingsController) {
+      _settingsController.dispose();
+    }
     _playerDialogNotifier.dispose();
     _playerDialogRefreshNotifier.dispose();
     super.dispose();
@@ -278,6 +302,70 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       }
       _syncNavigationMode(MediaQuery.sizeOf(context).width);
     });
+  }
+
+  void _handleSettingsChanged() {
+    final previous = _observedSettingsSnapshot;
+    final next = _settingsController.snapshot;
+    _observedSettingsSnapshot = next;
+
+    var shouldRebuild = false;
+    if (_settingsAffectDesktopLyrics(previous, next)) {
+      _lastDesktopLyricsSignature = null;
+      _pendingDesktopLyricsSignature = null;
+      _desktopLyricsRetrySignature = null;
+      shouldRebuild = true;
+    }
+    if (_settingsAffectDesktopTray(previous, next)) {
+      _lastDesktopTraySignature = null;
+      shouldRebuild = true;
+    }
+    if (_settingsAffectWindowControls(previous, next)) {
+      _lastWindowControlsLight = null;
+      shouldRebuild = true;
+    }
+    if (previous.previousButtonRestartsTrack !=
+        next.previousButtonRestartsTrack) {
+      shouldRebuild = true;
+    }
+    if (!shouldRebuild) {
+      return;
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _settingsAffectDesktopLyrics(
+    SettingsSnapshot previous,
+    SettingsSnapshot next,
+  ) {
+    return previous.desktopLyricsEnabled != next.desktopLyricsEnabled ||
+        previous.desktopLyricsLocked != next.desktopLyricsLocked ||
+        previous.desktopLyricsColor != next.desktopLyricsColor ||
+        previous.desktopLyricsStrokeColor != next.desktopLyricsStrokeColor ||
+        previous.desktopLyricsFontSize != next.desktopLyricsFontSize ||
+        previous.desktopLyricsFontFamily != next.desktopLyricsFontFamily ||
+        previous.desktopLyricsOpacity != next.desktopLyricsOpacity ||
+        previous.desktopLyricsBounds != next.desktopLyricsBounds ||
+        previous.playerLyricsSource != next.playerLyricsSource ||
+        _settingsAffectWindowControls(previous, next);
+  }
+
+  bool _settingsAffectDesktopTray(
+    SettingsSnapshot previous,
+    SettingsSnapshot next,
+  ) {
+    return previous.quitOnClose != next.quitOnClose;
+  }
+
+  bool _settingsAffectWindowControls(
+    SettingsSnapshot previous,
+    SettingsSnapshot next,
+  ) {
+    return previous.nightMode != next.nightMode ||
+        previous.nightModeStartTime != next.nightModeStartTime ||
+        previous.nightModeEndTime != next.nightModeEndTime;
   }
 
   @override
@@ -526,6 +614,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onNext: _playNextFromCurrentQueue,
             onToggleShuffle: _toggleShufflePlayback,
+            onToggleDesktopLyrics: _toggleDesktopLyricsFromPlatform,
             onToggleFavorite: _togglePlayerFavorite,
             onQuickPlay: _quickPlayLibrary,
             onOpenNowPlaying: () {

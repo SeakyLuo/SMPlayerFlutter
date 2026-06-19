@@ -26,7 +26,12 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
-    show LyricsRequestMode, NightMode, SettingsSnapshot, SmPlayerDisplayMode;
+    show
+        AppSettingsUpdate,
+        LyricsRequestMode,
+        NightMode,
+        SettingsSnapshot,
+        SmPlayerDisplayMode;
 
 void main() {
   setUp(() {
@@ -1466,6 +1471,216 @@ void main() {
 
     expect(editableTextState.widget.focusNode.hasFocus, isTrue);
     expect(_lastActiveMediaSession(desktopService).playing, isFalse);
+  });
+
+  testWidgets('shell syncs desktop lyrics after setting changes', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    setSmPlayerGlobalSettingsSnapshot(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        autoPlay: false,
+      ),
+    );
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+    final settingsController = SettingsController(
+      const SettingsSnapshot.defaults().copyWith(
+        lastMusicIndex: 0,
+        autoPlay: false,
+      ),
+    );
+    addTearDown(settingsController.dispose);
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: desktopService,
+        settingsController: settingsController,
+      ),
+    );
+    for (var pump = 0; pump < 6; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(desktopService.desktopLyricsStates.last.visible, isFalse);
+
+    await settingsController.updateSettings(
+      const AppSettingsUpdate(desktopLyricsEnabled: true),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(desktopService.desktopLyricsStates.last.visible, isTrue);
+    expect(
+      desktopService.desktopLyricsStates.last.fallbackText,
+      'First Song - First Artist',
+    );
+  });
+
+  testWidgets('shell syncs enabled desktop lyrics after restoring playback', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    final settings = const SettingsSnapshot.defaults().copyWith(
+      desktopLyricsEnabled: true,
+      lastMusicIndex: 0,
+      autoPlay: false,
+    );
+    setSmPlayerGlobalSettingsSnapshot(settings);
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+    final settingsController = SettingsController(settings);
+    addTearDown(settingsController.dispose);
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: desktopService,
+        settingsController: settingsController,
+      ),
+    );
+    for (var pump = 0; pump < 6; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(
+      desktopService.desktopLyricsStates.any(
+        (state) =>
+            state.visible && state.fallbackText == 'First Song - First Artist',
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('shell retries desktop lyrics sync after failed native update', (
+    tester,
+  ) async {
+    _setViewSize(tester, const Size(1300, 600));
+    final settings = const SettingsSnapshot.defaults().copyWith(
+      desktopLyricsEnabled: true,
+      lastMusicIndex: 0,
+      autoPlay: false,
+    );
+    setSmPlayerGlobalSettingsSnapshot(settings);
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [
+          LibrarySong(
+            id: 10,
+            path: '/tmp/first.mp3',
+            title: 'First Song',
+            artist: 'First Artist',
+            artists: ['First Artist'],
+            album: 'First Album',
+            duration: 180,
+            playCount: 0,
+            lyricsOffsetMs: 0,
+            dateAdded: '',
+            favorite: false,
+            thumbnailPath: '',
+          ),
+        ],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      ),
+    );
+    final desktopService =
+        _ShellDesktopFeatureService()
+          ..desktopLyricsUpdateResults.addAll([false, true]);
+    final settingsController = SettingsController(settings);
+    addTearDown(settingsController.dispose);
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: desktopService,
+        settingsController: settingsController,
+      ),
+    );
+    for (var pump = 0; pump < 8; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final visibleStates =
+        desktopService.desktopLyricsStates
+            .where(
+              (state) =>
+                  state.visible &&
+                  state.fallbackText == 'First Song - First Artist',
+            )
+            .toList();
+    expect(visibleStates, hasLength(2));
   });
 
   testWidgets('overlay sidebar search expands and keeps focus', (tester) async {
@@ -2916,6 +3131,7 @@ class _ShellPageTestApp extends StatelessWidget {
     this.messages = const {},
     this.repository,
     this.desktopService,
+    this.settingsController,
     this.initialDisplayMode = SmPlayerDisplayMode.normal,
     this.currentPath,
     this.currentLocation,
@@ -2927,6 +3143,7 @@ class _ShellPageTestApp extends StatelessWidget {
   final Map<String, String> messages;
   final LibraryRepository? repository;
   final DesktopFeatureService? desktopService;
+  final SettingsController? settingsController;
   final SmPlayerDisplayMode initialDisplayMode;
   final String? currentPath;
   final String? currentLocation;
@@ -2947,6 +3164,7 @@ class _ShellPageTestApp extends StatelessWidget {
           home: SmPlayerShellPage(
             appVersion: appVersion,
             desktopFeatureService: desktopService,
+            settingsController: settingsController,
             initialDisplayMode: initialDisplayMode,
             currentPath: currentPath,
             currentLocation: currentLocation,
@@ -3234,6 +3452,8 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   ValueChanged<DesktopFeatureAction>? onAction;
   final trayStates = <DesktopTrayState>[];
   final mediaSessions = <MediaSessionDisplayState>[];
+  final desktopLyricsStates = <DesktopLyricsDisplayState>[];
+  final desktopLyricsUpdateResults = <bool>[];
   var windowVisible = true;
   var windowFullScreen = false;
   var showWindowCount = 0;
@@ -3285,9 +3505,12 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   }
 
   @override
-  Future<void> updateDesktopLyricsState(
-    DesktopLyricsDisplayState state,
-  ) async {}
+  Future<bool> updateDesktopLyricsState(DesktopLyricsDisplayState state) async {
+    desktopLyricsStates.add(state);
+    return desktopLyricsUpdateResults.isEmpty
+        ? true
+        : desktopLyricsUpdateResults.removeAt(0);
+  }
 
   @override
   Future<void> enterMiniMode() async {

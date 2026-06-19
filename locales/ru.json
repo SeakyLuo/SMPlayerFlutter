@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Треки, которые все еще находятся в очереди после текущего выбора.",
   "player.like": "Добавить в избранное",
   "player.desktopLyrics": "тексты песен на рабочем столе",
+  "player.desktopLyricsEnabled": "Тексты песен на рабочем столе включены",
+  "player.desktopLyricsDisabled": "Тексты песен на рабочем столе отключены",
   "player.miniMode": "мини-режим",
   "player.enterMiniMode": "Войти в мини-режим",
   "player.exitMiniMode": "Выйти из мини-режима",

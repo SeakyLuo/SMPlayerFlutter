@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Skladby, které jsou stále ve frontě po aktuálním výběru.",
   "player.like": "Přidat k oblíbeným",
   "player.desktopLyrics": "texty na plochu",
+  "player.desktopLyricsEnabled": "Texty na ploše zapnuty",
+  "player.desktopLyricsDisabled": "Texty na ploše vypnuty",
   "player.miniMode": "mini režim",
   "player.enterMiniMode": "Přejít do mini režimu",
   "player.exitMiniMode": "Ukončit režim mini",

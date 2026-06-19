@@ -25,6 +25,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.onToggleRepeat,
     required this.onToggleRepeatOne,
     required this.onToggleFavorite,
+    required this.desktopLyricsEnabled,
+    this.onToggleDesktopLyrics,
     required this.onQuickPlay,
     required this.onOpenNowPlaying,
     required this.onToggleWindowFullScreen,
@@ -75,6 +77,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final VoidCallback onToggleRepeat;
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleFavorite;
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
   final VoidCallback onQuickPlay;
   final VoidCallback onOpenNowPlaying;
   final VoidCallback onToggleWindowFullScreen;
@@ -112,6 +116,10 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityIconSize = utilitySize - utilityPadding * 2;
     final utilityGap = narrow ? 2.0 : 6.0;
     const utilityControlOuterSlack = 4.0;
+    final utilityButtonCount =
+        2 +
+        (onToggleDesktopLyrics == null ? 0 : 1) +
+        (onOpenVoiceAssistant == null ? 0 : 1);
     final previousTitle =
         previousButtonRestartsTrack
             ? i18n.t('player.restartCurrentTrackHoldPrevious')
@@ -162,71 +170,78 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityControls = Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        if (onOpenVoiceAssistant == null)
-          Builder(
-            builder: (modeButtonContext) {
-              return _PlayerIconButton(
-                key: const ValueKey('MediaControl.CompactModeButton'),
-                tooltip:
-                    '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-                icon: _playbackModeIcon(mode),
-                buttonSize: utilitySize,
-                padding: utilityPadding,
-                iconSize: utilityIconSize,
-                active: mode != PlaybackMode.once,
-                disabled: disabled,
-                showLongPressProgress: false,
-                holdDuration: const Duration(milliseconds: 520),
-                onPressed: () {
-                  switch (getNextPlaybackMode(mode)) {
-                    case PlaybackMode.shuffle:
-                      onToggleShuffle();
-                    case PlaybackMode.repeat:
-                      onToggleRepeat();
-                    case PlaybackMode.repeatOne:
-                      onToggleRepeatOne();
-                    case PlaybackMode.once:
-                      if (mode == PlaybackMode.shuffle) {
-                        onToggleShuffle();
-                      } else if (mode == PlaybackMode.repeat) {
-                        onToggleRepeat();
-                      } else {
-                        onToggleRepeatOne();
-                      }
-                  }
-                },
-                onLongPress: () {
-                  _showCompactPlaybackModeMenu(
-                    modeButtonContext,
-                    i18n: i18n,
-                    mode: mode,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                  );
-                },
-                onSecondaryTap: () {
-                  _showCompactPlaybackModeMenu(
-                    modeButtonContext,
-                    i18n: i18n,
-                    mode: mode,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                  );
-                },
-              );
-            },
-          )
-        else
-          _PlayerIconButton(
-            tooltip: i18n.t('player.voiceAssistant'),
-            icon: _voiceIcon,
-            buttonSize: utilitySize,
-            padding: utilityPadding,
-            iconSize: utilityIconSize,
-            disabled: false,
-            onPressed: onOpenVoiceAssistant!,
+        Builder(
+          builder: (modeButtonContext) {
+            return _PlayerIconButton(
+              key: const ValueKey('MediaControl.CompactModeButton'),
+              tooltip:
+                  '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
+              icon: _playbackModeIcon(mode),
+              buttonSize: utilitySize,
+              padding: utilityPadding,
+              iconSize: utilityIconSize,
+              active: mode != PlaybackMode.once,
+              disabled: disabled,
+              showLongPressProgress: false,
+              holdDuration: const Duration(milliseconds: 520),
+              onPressed: () {
+                _cyclePlaybackMode(
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+              onLongPress: () {
+                _showCompactPlaybackModeMenu(
+                  modeButtonContext,
+                  i18n: i18n,
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+              onSecondaryTap: () {
+                _showCompactPlaybackModeMenu(
+                  modeButtonContext,
+                  i18n: i18n,
+                  mode: mode,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                );
+              },
+            );
+          },
+        ),
+        if (onToggleDesktopLyrics != null)
+          Padding(
+            padding: EdgeInsets.only(left: utilityGap),
+            child: _PlayerIconButton(
+              key: const ValueKey('MediaControl.DesktopLyricsButton'),
+              tooltip: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
+              icon: _desktopLyricsIcon,
+              buttonSize: utilitySize,
+              padding: utilityPadding,
+              iconSize: utilityIconSize,
+              active: desktopLyricsEnabled,
+              disabled: false,
+              onPressed: onToggleDesktopLyrics!,
+            ),
+          ),
+        if (onOpenVoiceAssistant != null)
+          Padding(
+            padding: EdgeInsets.only(left: utilityGap),
+            child: _PlayerIconButton(
+              tooltip: i18n.t('player.voiceAssistant'),
+              icon: _voiceIcon,
+              buttonSize: utilitySize,
+              padding: utilityPadding,
+              iconSize: utilityIconSize,
+              disabled: false,
+              onPressed: onOpenVoiceAssistant!,
+            ),
           ),
         Builder(
           builder: (moreButtonContext) {
@@ -288,7 +303,9 @@ class _CompactMediaControlLayout extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final utilityWidth =
-                  utilitySize * 2 + utilityGap + utilityControlOuterSlack;
+                  utilitySize * utilityButtonCount +
+                  utilityGap * (utilityButtonCount - 1) +
+                  utilityControlOuterSlack;
               final transportWidth = narrow ? 176.0 : 208.0;
 
               return Row(
