@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -187,6 +188,10 @@ void main() {
     expect(find.byType(MediaControlSurfaceBar), findsOneWidget);
     expect(find.byType(MediaControlSurface), findsOneWidget);
     expect(
+      tester.getSize(find.byType(MediaControlPlayerFrame)).height,
+      SmPlayerShellMetrics.playerHeight,
+    );
+    expect(
       tester
           .getSize(find.byKey(const ValueKey('MediaControl.ProgressRow')))
           .width,
@@ -258,6 +263,10 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    expect(
+      tester.getSize(find.byType(MediaControlPlayerFrame)).height,
+      SmPlayerShellMetrics.playerHeight,
+    );
     expect(
       find.byKey(const ValueKey('MediaControl.PlayerCompactBaseGradient')),
       findsNothing,

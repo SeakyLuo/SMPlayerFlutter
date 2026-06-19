@@ -10,7 +10,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 class MyFavoritesPage extends ConsumerWidget {
   const MyFavoritesPage({super.key});
@@ -180,33 +180,23 @@ void _playTrack(
   int trackId,
   List<int> queueSongIds,
 ) {
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  final song = songsById[trackId]!;
-  unawaited(
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: ref,
+    snapshot: snapshot,
+    i18n: i18n,
+    songIds: queueSongIds,
+    queueIndex: queueSongIds.indexOf(trackId),
   );
-  ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(song, i18n),
-        durationSeconds: song.duration.toDouble(),
-        queueIndex: queueSongIds.indexOf(trackId),
-      );
 }
 
 void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds =
-      (ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds)
-          .toList();
-  final currentTrackId =
-      ref.read(mediaControlControllerProvider).state.track.id;
-  final currentIndex =
-      currentTrackId == null ? -1 : queueSongIds.indexOf(currentTrackId);
-  queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
-  ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-  unawaited(
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final currentIndex = currentQueueIndexForPlaybackOccurrence(
+    ref.read(mediaControlControllerProvider).state,
+    queueSongIds,
   );
+  queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
+  setNowPlayingQueue(ref, queueSongIds);
 }
 
 class _FavoritesPagePanel extends StatelessWidget {

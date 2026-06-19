@@ -22,7 +22,7 @@ import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 part 'playlists_page_crud_actions.dart';
 part 'playlists_page_drag_actions.dart';

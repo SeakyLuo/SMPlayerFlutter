@@ -20,8 +20,7 @@ import '../../app/loading_state.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
-import '../../playback/media_control_provider.dart';
-import '../../playback/media_control_track_factory.dart';
+import '../../playback/playback_queue_actions.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart';
@@ -482,66 +481,71 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                             Expanded(
                               child: Scrollbar(
                                 controller: _albumGridScrollController,
-                                child: GridView.builder(
-                                  controller: _albumGridScrollController,
-                                  scrollCacheExtent: ScrollCacheExtent.pixels(
-                                    albumRowHeight * _albumOverscanRows,
-                                  ),
-                                  padding: EdgeInsets.fromLTRB(
-                                    14,
-                                    8,
-                                    8,
-                                    _selection.multiSelect
-                                        ? multiSelectCommandBarScrollSpacer
-                                        : 28,
-                                  ),
-                                  gridDelegate: _AlbumGridDelegate(
-                                    crossAxisCount: columns,
-                                    crossAxisExtent: _albumTileTrackWidth,
-                                    mainAxisExtent: albumRowHeight,
-                                    crossAxisSpacing: _albumColumnGap,
-                                  ),
-                                  itemCount: visibleAlbums.length,
-                                  itemBuilder: (context, index) {
-                                    final album = visibleAlbums[index];
-                                    return AlbumTile(
-                                      album: album,
-                                      multiSelect: _selection.multiSelect,
-                                      selected: _selection.isSelected(
-                                        album.name,
-                                      ),
-                                      onOpenAlbum: () {
-                                        _openAlbum(album.name);
-                                      },
-                                      onPlayAlbum: () {
-                                        ref
-                                            .read(libraryRepositoryProvider)
-                                            .recordAlbumPlayed(album.name);
-                                        _playSongIds(album.songIds);
-                                      },
-                                      onAddAlbum: (position) {
-                                        _showAlbumAddToMenu(
-                                          position,
-                                          album,
-                                          customPlaylists,
-                                          snapshot,
-                                          i18n,
-                                        );
-                                      },
-                                      onToggleSelection: () {
-                                        _toggleAlbumSelection(album.name);
-                                      },
-                                      onOpenContextMenu: (position) {
-                                        unawaited(
-                                          _showAlbumContextMenu(
+                                child: ScrollConfiguration(
+                                  behavior: ScrollConfiguration.of(
+                                    context,
+                                  ).copyWith(scrollbars: false),
+                                  child: GridView.builder(
+                                    controller: _albumGridScrollController,
+                                    scrollCacheExtent: ScrollCacheExtent.pixels(
+                                      albumRowHeight * _albumOverscanRows,
+                                    ),
+                                    padding: EdgeInsets.fromLTRB(
+                                      14,
+                                      8,
+                                      8,
+                                      _selection.multiSelect
+                                          ? multiSelectCommandBarScrollSpacer
+                                          : 28,
+                                    ),
+                                    gridDelegate: _AlbumGridDelegate(
+                                      crossAxisCount: columns,
+                                      crossAxisExtent: _albumTileTrackWidth,
+                                      mainAxisExtent: albumRowHeight,
+                                      crossAxisSpacing: _albumColumnGap,
+                                    ),
+                                    itemCount: visibleAlbums.length,
+                                    itemBuilder: (context, index) {
+                                      final album = visibleAlbums[index];
+                                      return AlbumTile(
+                                        album: album,
+                                        multiSelect: _selection.multiSelect,
+                                        selected: _selection.isSelected(
+                                          album.name,
+                                        ),
+                                        onOpenAlbum: () {
+                                          _openAlbum(album.name);
+                                        },
+                                        onPlayAlbum: () {
+                                          ref
+                                              .read(libraryRepositoryProvider)
+                                              .recordAlbumPlayed(album.name);
+                                          _playSongIds(album.songIds);
+                                        },
+                                        onAddAlbum: (position) {
+                                          _showAlbumAddToMenu(
                                             position,
                                             album,
                                             customPlaylists,
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
+                                            snapshot,
+                                            i18n,
+                                          );
+                                        },
+                                        onToggleSelection: () {
+                                          _toggleAlbumSelection(album.name);
+                                        },
+                                        onOpenContextMenu: (position) {
+                                          unawaited(
+                                            _showAlbumContextMenu(
+                                              position,
+                                              album,
+                                              customPlaylists,
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                             ),

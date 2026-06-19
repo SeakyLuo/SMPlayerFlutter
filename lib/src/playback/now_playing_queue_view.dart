@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control.dart';
+
+const _nowPlayingQueueBottomInset = SmPlayerShellMetrics.playerTopRadius + 10.0;
+const _nowPlayingQueueScrollbarThickness = 5.0;
+const _nowPlayingQueueScrollbarHoverThickness = 7.0;
+const _nowPlayingQueueCompactTrailingPadding = 10.0;
 
 class NowPlayingQueueView extends StatelessWidget {
   const NowPlayingQueueView({
@@ -28,6 +34,7 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenContextMenu,
+    this.compactScrollbarTrailingOffset = 0,
   });
 
   final List<LibrarySong> queueSongs;
@@ -52,6 +59,7 @@ class NowPlayingQueueView extends StatelessWidget {
   final ValueChanged<String> onOpenAlbum;
   final void Function(Offset position, LibrarySong song, int queueIndex)
   onOpenContextMenu;
+  final double compactScrollbarTrailingOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -77,23 +85,52 @@ class NowPlayingQueueView extends StatelessWidget {
           compactQueueLayout: compactQueueLayout,
         ),
     ];
-    return Scrollbar(
-      controller: scrollController,
-      child: PlaylistControl.reorderable(
-        entries: entries,
-        scrollController: scrollController,
-        padding: EdgeInsets.fromLTRB(
-          0,
-          0,
-          0,
-          selectionMode
-              ? multiSelectCommandBarScrollSpacer
-              : compactQueueLayout
-              ? 2
-              : 18,
-        ),
-        onReorder: onReorderVisible,
+    final playlist = PlaylistControl.reorderable(
+      entries: entries,
+      scrollController: scrollController,
+      padding: EdgeInsets.fromLTRB(
+        0,
+        0,
+        0,
+        selectionMode
+            ? multiSelectCommandBarScrollSpacer
+            : _nowPlayingQueueBottomInset,
       ),
+      onReorder: onReorderVisible,
+    );
+    final scrollableChild =
+        compactQueueLayout && compactScrollbarTrailingOffset != 0
+            ? Transform.translate(
+              offset: Offset(-compactScrollbarTrailingOffset, 0),
+              child: playlist,
+            )
+            : playlist;
+    Widget scrollbar = Scrollbar(
+      key: const ValueKey('NowPlayingQueue.Scrollbar'),
+      controller: scrollController,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: scrollableChild,
+      ),
+    );
+    if (!compactQueueLayout || compactScrollbarTrailingOffset == 0) {
+      return scrollbar;
+    }
+    scrollbar = ScrollbarTheme(
+      data: ScrollbarTheme.of(context).copyWith(
+        thickness: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.hovered)
+              ? _nowPlayingQueueScrollbarHoverThickness
+              : _nowPlayingQueueScrollbarThickness;
+        }),
+        radius: const Radius.circular(999),
+        trackColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+      child: scrollbar,
+    );
+    return Transform.translate(
+      offset: Offset(compactScrollbarTrailingOffset, 0),
+      child: scrollbar,
     );
   }
 
@@ -107,7 +144,7 @@ class NowPlayingQueueView extends StatelessWidget {
     final current =
         selectedQueueIndex == null
             ? song.id == selectedTrackId
-            : queueIndex == selectedQueueIndex;
+            : queueIndex == selectedQueueIndex && song.id == selectedTrackId;
     return PlaylistControlEntry(
       key: ValueKey('now-playing-${song.id}-$queueIndex'),
       logicalIndex: queueIndex,
@@ -122,7 +159,8 @@ class NowPlayingQueueView extends StatelessWidget {
               ? PlaylistControlItemVariant.compact
               : PlaylistControlItemVariant.standard,
       collapseCompactPrimaryActions: compactQueueLayout,
-      compactTrailingPadding: compactQueueLayout ? 20 : null,
+      compactTrailingPadding:
+          compactQueueLayout ? _nowPlayingQueueCompactTrailingPadding : null,
       favoriteLabel: i18n.t('common.favorite'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       removeLabel: i18n.t('nowPlaying.remove'),

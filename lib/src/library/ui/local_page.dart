@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -15,7 +14,7 @@ import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
-import '../../playback/media_control_track_factory.dart';
+import '../../playback/playback_queue_actions.dart';
 import '../../platform/desktop_feature_service.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';

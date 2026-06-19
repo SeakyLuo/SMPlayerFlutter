@@ -3,14 +3,13 @@ part of 'shell_page.dart';
 extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   void _playSongQueue(List<LibrarySong> songs) {
     final songIds = songs.map((song) => song.id).toList();
-    final firstSong = songs.first;
-    _playbackQueueOverride = songIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(firstSong, context.smPlayerI18n),
-      durationSeconds: firstSong.duration.toDouble(),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
       queueIndex: 0,
+      mediaController: _mediaControlController,
     );
   }
 
@@ -60,7 +59,13 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return false;
     }
 
-    final currentIndex = _currentQueueIndex(snapshot, playbackSongIds);
+    var currentIndex = _currentQueueIndex(snapshot, playbackSongIds);
+    if (automatic && forward && currentIndex == -1) {
+      currentIndex = uniquePlaybackQueueIndex(
+        playbackSongIds,
+        _mediaControlController.state.track.id,
+      );
+    }
     if (automatic &&
         forward &&
         _mediaControlController.state.mode == PlaybackMode.shuffle &&
@@ -80,8 +85,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return false;
     }
 
-    _playQueueIndex(snapshot, playbackSongIds, nextIndex);
-    return true;
+    return _playQueueIndex(snapshot, playbackSongIds, nextIndex);
   }
 
   bool _shuffleAndPlayNextRound(
@@ -92,16 +96,12 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       playbackSongIds,
       _mediaControlController.state.track.id,
     );
-    _playbackQueueOverride = nextSongIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
-    );
-    return _playQueueSong(snapshot, nextSongIds.first, 0);
+    setNowPlayingQueue(ref, nextSongIds);
+    return _playQueueSong(snapshot, nextSongIds, 0);
   }
 
   List<int> _playbackSongIds(LibraryContentData snapshot) {
-    final override = _playbackQueueOverride;
+    final override = ref.read(nowPlayingQueueOverrideProvider);
     if (override != null) {
       return normalizePlaybackQueueSongIds(
         override,
@@ -125,23 +125,25 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     );
   }
 
-  void _playQueueIndex(
+  bool _playQueueIndex(
     LibraryContentData snapshot,
     List<int> playbackSongIds,
     int queueIndex,
   ) {
-    final played = _playQueueSong(
-      snapshot,
-      playbackSongIds[queueIndex],
-      queueIndex,
-    );
+    final played = _playQueueSong(snapshot, playbackSongIds, queueIndex);
     if (!played) {
-      return;
+      return false;
     }
+    return true;
   }
 
-  bool _playQueueSong(LibraryContentData snapshot, int songId, int queueIndex) {
+  bool _playQueueSong(
+    LibraryContentData snapshot,
+    List<int> songIds,
+    int queueIndex,
+  ) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
+    final songId = songIds[queueIndex];
     final song = songsById[songId];
     if (song == null) {
       return false;
@@ -150,12 +152,17 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     final startSeconds = resolveQueuePlaybackStartSeconds(
       currentTrackId: _mediaControlController.state.track.id,
       nextTrackId: song.id,
+      currentQueueIndex: _mediaControlController.state.selectedQueueIndex,
+      nextQueueIndex: queueIndex,
       currentProgressSeconds: _mediaControlController.state.progressSeconds,
     );
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(song, context.smPlayerI18n),
-      durationSeconds: song.duration.toDouble(),
+    playQueueIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
       queueIndex: queueIndex,
+      mediaController: _mediaControlController,
       progressSeconds: startSeconds,
     );
     _settingsController.savePlaybackSettingsImmediate(
@@ -177,17 +184,15 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     if (songIds.isEmpty) {
       return;
     }
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
     final repository = ref.read(libraryRepositoryProvider);
     await repository.recordPlaylistPlayed(playlistId);
-    await repository.replaceNowPlaying(songIds);
-    _playbackQueueOverride = songIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(firstSong, i18n),
-      durationSeconds: firstSong.duration.toDouble(),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: i18n,
+      songIds: songIds,
       queueIndex: 0,
+      mediaController: _mediaControlController,
     );
   }
 }

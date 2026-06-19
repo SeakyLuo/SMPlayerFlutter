@@ -825,12 +825,29 @@ int currentPlaybackQueueIndex(
   if (currentTrackId == null) {
     return -1;
   }
-  if (currentTrackIndex > -1 &&
-      currentTrackIndex < songIds.length &&
-      songIds[currentTrackIndex] == currentTrackId) {
-    return currentTrackIndex;
+  if (currentTrackIndex > -1 && currentTrackIndex < songIds.length) {
+    return songIds[currentTrackIndex] == currentTrackId
+        ? currentTrackIndex
+        : -1;
   }
   return songIds.indexOf(currentTrackId);
+}
+
+int uniquePlaybackQueueIndex(List<int> songIds, int? currentTrackId) {
+  if (currentTrackId == null) {
+    return -1;
+  }
+  var matchedIndex = -1;
+  for (var index = 0; index < songIds.length; index++) {
+    if (songIds[index] != currentTrackId) {
+      continue;
+    }
+    if (matchedIndex != -1) {
+      return -1;
+    }
+    matchedIndex = index;
+  }
+  return matchedIndex;
 }
 
 PlaybackStallRecoveryAction stalledPlaybackRecoveryAction({

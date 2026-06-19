@@ -4,14 +4,15 @@ part of 'recent_page.dart';
 
 extension _RecentPagePlaybackActions on _RecentPageState {
   void _playSong(LibrarySong song, List<int> queueSongIds, [int? queueIndex]) {
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    final snapshot = ref.read(recentPageDataProvider).value!;
+    setNowPlayingQueue(ref, queueSongIds);
+    playQueueIndexFromSongs(
+      ref: ref,
+      songs: snapshot.songs,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex ?? queueSongIds.indexOf(song.id),
+    );
     ref.invalidate(recentPageDataProvider);
   }
 
@@ -59,15 +60,16 @@ extension _RecentPagePlaybackActions on _RecentPageState {
 
   void _playNext(int songId) {
     final snapshot = ref.read(recentPageDataProvider).value!;
-    final queueSongIds = snapshot.nowPlaying.songIds.toList();
-    final selectedQueueIndex =
-        ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
-    final insertIndex =
-        selectedQueueIndex != null && selectedQueueIndex < queueSongIds.length
-            ? selectedQueueIndex + 1
-            : queueSongIds.length;
+    final queueSongIds = effectiveNowPlayingSongIds(
+      ref,
+      snapshot.nowPlaying.songIds,
+    );
+    final insertIndex = insertIndexAfterCurrentOccurrence(
+      ref.read(mediaControlControllerProvider).state,
+      queueSongIds,
+    );
     queueSongIds.insert(insertIndex, songId);
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
+    setNowPlayingQueue(ref, queueSongIds);
     ref.invalidate(recentPageDataProvider);
   }
 }

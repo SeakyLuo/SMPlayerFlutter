@@ -113,34 +113,39 @@ class MusicLyricsControl extends StatelessWidget {
                         readOnly: saving,
                         emphasizeReadOnly: false,
                         childBuilder: (context, focusNode) {
-                          return TextField(
-                            focusNode: focusNode,
-                            controller: lyricsController,
-                            scrollController: lyricsScrollController,
-                            expands: true,
-                            maxLines: null,
-                            minLines: null,
-                            enabled: !saving,
-                            textAlignVertical: TextAlignVertical.top,
-                            cursorColor: colors.accentStrong,
-                            style: TextStyle(
-                              color:
-                                  saving
-                                      ? colors.fieldDisabledText
-                                      : colors.text,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              height: 1.7,
-                            ),
-                            decoration: _dialogFieldDecoration(
+                          return ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(
                               context,
-                              readOnly: saving,
-                              emphasizeReadOnly: false,
-                              multiline: true,
-                              hintText:
-                                  lyrics?.source == LyricsSource.none
-                                      ? i18n.t('nowPlaying.noLyrics')
-                                      : '',
+                            ).copyWith(scrollbars: false),
+                            child: TextField(
+                              focusNode: focusNode,
+                              controller: lyricsController,
+                              scrollController: lyricsScrollController,
+                              expands: true,
+                              maxLines: null,
+                              minLines: null,
+                              enabled: !saving,
+                              textAlignVertical: TextAlignVertical.top,
+                              cursorColor: colors.accentStrong,
+                              style: TextStyle(
+                                color:
+                                    saving
+                                        ? colors.fieldDisabledText
+                                        : colors.text,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                height: 1.7,
+                              ),
+                              decoration: _dialogFieldDecoration(
+                                context,
+                                readOnly: saving,
+                                emphasizeReadOnly: false,
+                                multiline: true,
+                                hintText:
+                                    lyrics?.source == LyricsSource.none
+                                        ? i18n.t('nowPlaying.noLyrics')
+                                        : '',
+                              ),
                             ),
                           );
                         },

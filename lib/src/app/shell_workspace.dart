@@ -72,13 +72,10 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
     final rawHeaderedPlaylistAppBar = ref.watch(
       headeredPlaylistAppBarPortalProvider,
     );
-    final headeredPlaylistAppBar =
-        rawHeaderedPlaylistAppBar != null &&
-                (rawHeaderedPlaylistAppBar.routeLocation == null ||
-                    rawHeaderedPlaylistAppBar.routeLocation ==
-                        widget.currentLocation)
-            ? rawHeaderedPlaylistAppBar
-            : null;
+    final headeredPlaylistAppBar = resolveHeaderedPlaylistAppBarForLocation(
+      rawEntry: rawHeaderedPlaylistAppBar,
+      currentLocation: widget.currentLocation,
+    );
     final workspaceAppBarPortal = ref.watch(workspaceAppBarPortalProvider);
     _rememberWorkspaceAppBarPortal(workspaceAppBarPortal);
     final currentUri = Uri.parse(widget.currentLocation);

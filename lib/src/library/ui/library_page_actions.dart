@@ -7,6 +7,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 import 'headered_playlist_model.dart';
 
@@ -23,13 +24,8 @@ bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
 
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
   final snapshot = await _readLibraryContentData(ref);
-  final nextSongIds = [
-    ...(ref.read(nowPlayingQueueOverrideProvider) ??
-        snapshot.nowPlaying.songIds),
-    ...songIds,
-  ];
-  ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
-  await ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
+  final nextSongIds = [...currentNowPlayingSongIds(ref, snapshot), ...songIds];
+  setNowPlayingQueue(ref, nextSongIds);
 }
 
 Future<void> addSongsToNowPlayingWithUndo({
@@ -43,12 +39,10 @@ Future<void> addSongsToNowPlayingWithUndo({
   }
   final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  final currentSongIds =
-      ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds;
+  final currentSongIds = currentNowPlayingSongIds(ref, snapshot);
   final insertedIndex = currentSongIds.length;
   final queueAfterAdd = [...currentSongIds, ...songIds];
-  ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueAfterAdd;
-  await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueAfterAdd);
+  setNowPlayingQueue(ref, queueAfterAdd);
   if (!context.mounted) {
     return;
   }
@@ -62,16 +56,11 @@ Future<void> addSongsToNowPlayingWithUndo({
       target: i18n.t('common.nowPlaying'),
     ),
     onUndo: () async {
-      final currentSongIds =
-          ref.read(nowPlayingQueueOverrideProvider) ?? queueAfterAdd;
+      final currentSongIds = effectiveNowPlayingSongIds(ref, queueAfterAdd);
       final restoredSongIds =
           currentSongIds.toList()
             ..removeRange(insertedIndex, insertedIndex + songIds.length);
-      ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-          restoredSongIds;
-      await ref
-          .read(libraryRepositoryProvider)
-          .replaceNowPlaying(restoredSongIds);
+      setNowPlayingQueue(ref, restoredSongIds);
     },
   );
 }

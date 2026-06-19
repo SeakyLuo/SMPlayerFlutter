@@ -26,10 +26,10 @@ import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
@@ -573,6 +573,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           ),
                         );
                       },
+                      compactScrollbarTrailingOffset: 8,
                     ),
                   ),
                 ],
@@ -618,14 +619,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     List<int> queueSongIds,
     int queueIndex,
   ) {
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
-    _replaceQueue(queueSongIds);
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex,
+    );
   }
 
   void _playSongIds(List<int> songIds) {
@@ -633,17 +633,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       return;
     }
 
-    final songs = ref.read(libraryContentDataProvider).value?.songs ?? const [];
-    final songsById = {for (final song in songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
-          durationSeconds: firstSong.duration.toDouble(),
-          queueIndex: 0,
-        );
-    _replaceQueue(songIds);
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: 0,
+    );
   }
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
@@ -670,8 +666,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     if (currentSongIds != null) {
       _syncSelectedQueueIndexForQueueChange(currentSongIds, songIds);
     }
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+    setNowPlayingQueue(ref, songIds);
   }
 
   void _syncSelectedQueueIndexForQueueChange(
@@ -772,16 +767,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
-    final songs = ref.read(libraryContentDataProvider).value!.songs;
-    final songsById = {for (final song in songs) song.id: song};
-    final nextSong = songsById[queueSongIds[queueIndex]]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(nextSong, context.smPlayerI18n),
-          durationSeconds: nextSong.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
+    playQueueIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex,
+    );
   }
 
   void _moveQueueSongItem(List<int> queueSongIds, int oldIndex, int newIndex) {

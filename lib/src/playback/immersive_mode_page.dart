@@ -31,6 +31,7 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_scaffold.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_stage.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -792,14 +793,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     List<int> queueSongIds,
     int queueIndex,
   ) {
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
-    _replaceQueue(queueSongIds);
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex,
+    );
   }
 
   void _playSongIds(List<int> songIds) {
@@ -811,17 +811,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       return;
     }
 
-    final songs = ref.read(libraryContentDataProvider).value!.songs;
-    final songsById = {for (final song in songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
-          durationSeconds: firstSong.duration.toDouble(),
-          queueIndex: 0,
-        );
-    _replaceQueue(songIds);
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: 0,
+    );
   }
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
@@ -969,8 +965,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     if (currentSongIds != null) {
       _syncSelectedQueueIndexForQueueChange(currentSongIds, songIds);
     }
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+    setNowPlayingQueue(ref, songIds);
   }
 
   List<int> _currentQueueSongIds(List<int> fallback) {
@@ -1087,16 +1082,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   }
 
   void _playQueueSongAt(List<int> queueSongIds, int queueIndex) {
-    final songs = ref.read(libraryContentDataProvider).value!.songs;
-    final songsById = {for (final song in songs) song.id: song};
-    final nextSong = songsById[queueSongIds[queueIndex]]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(nextSong, context.smPlayerI18n),
-          durationSeconds: nextSong.duration.toDouble(),
-          queueIndex: queueIndex,
-        );
+    playQueueIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex,
+    );
   }
 
   void _playNext(List<int> queueSongIds, int queueIndex) {
