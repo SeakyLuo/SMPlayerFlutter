@@ -611,6 +611,35 @@ void main() {
     );
   });
 
+  testWidgets('MusicDialog lyrics textarea uses only custom scrollbar', (
+    tester,
+  ) async {
+    final repository =
+        _FakeMusicDialogRepository()
+          ..lyricsRawText = List.generate(
+            80,
+            (index) => '[00:${index.toString().padLeft(2, '0')}.00]Line $index',
+          ).join('\n');
+
+    await tester.pumpWidget(
+      _MusicDialogTestApp(
+        repository: repository,
+        initialMode: SongDialogMode.lyrics,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('MusicDialog.LyricsScrollbar.Position')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('MusicDialog.LyricsScrollbar.Thumb')),
+      findsOneWidget,
+    );
+    expect(find.byType(RawScrollbar), findsNothing);
+  });
+
   testWidgets('MusicDialog formats readonly tag lists like Electron', (
     tester,
   ) async {

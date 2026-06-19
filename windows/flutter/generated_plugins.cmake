@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   flutter_tts
+  just_audio_windows
   screen_retriever_windows
   speech_to_text_windows
   sqlite3_flutter_libs

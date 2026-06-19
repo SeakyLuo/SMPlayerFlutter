@@ -257,20 +257,12 @@ void _playSongIdsForArtistsPage(_ArtistsPageState state, List<int> songIds) {
     return;
   }
 
-  final songs =
-      state.ref.read(libraryContentDataProvider).value?.songs ?? const [];
-  final songsById = {for (final song in songs) song.id: song};
-  final firstSong = songsById[songIds.first]!;
-  state.ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(firstSong, state.context.smPlayerI18n),
-        durationSeconds: firstSong.duration.toDouble(),
-        queueIndex: 0,
-      );
-  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-  unawaited(
-    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds),
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: state.ref,
+    snapshot: state.ref.read(libraryContentDataProvider).value!,
+    i18n: state.context.smPlayerI18n,
+    songIds: songIds,
+    queueIndex: 0,
   );
 }
 
@@ -280,12 +272,8 @@ void _playTrackInQueueForArtistsPage(
   List<int> queueSongIds,
 ) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  final song = songsById[songId]!;
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final currentSongIds =
-      state.ref.read(nowPlayingQueueOverrideProvider) ??
-      snapshot.nowPlaying.songIds;
+  final currentSongIds = currentNowPlayingSongIds(state.ref, snapshot);
   final queueChanged =
       !_sameSongIdsForArtistsPage(queueSongIds, currentSongIds);
   final resolvedQueueSongIds =
@@ -293,18 +281,13 @@ void _playTrackInQueueForArtistsPage(
           ? shufflePlaybackQueueForCurrentTrack(queueSongIds, songId)
           : (queueChanged ? queueSongIds.toList() : currentSongIds.toList());
   final queueIndex = resolvedQueueSongIds.indexOf(songId);
-  state.ref
-      .read(libraryRepositoryProvider)
-      .replaceNowPlaying(resolvedQueueSongIds);
-  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-      resolvedQueueSongIds;
-  state.ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(song, state.context.smPlayerI18n),
-        durationSeconds: song.duration.toDouble(),
-        queueIndex: queueIndex,
-      );
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: state.ref,
+    snapshot: snapshot,
+    i18n: state.context.smPlayerI18n,
+    songIds: resolvedQueueSongIds,
+    queueIndex: queueIndex,
+  );
 }
 
 bool _sameSongIdsForArtistsPage(List<int> left, List<int> right) {
@@ -321,28 +304,13 @@ bool _sameSongIdsForArtistsPage(List<int> left, List<int> right) {
 
 void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final previousSongIds =
-      (state.ref.read(nowPlayingQueueOverrideProvider) ??
-              snapshot.nowPlaying.songIds)
-          .toList();
-  final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final currentTrackId = mediaState.track.id;
-  final currentQueueIndex = mediaState.selectedQueueIndex;
-  final activeIndex =
-      currentTrackId != null &&
-              currentQueueIndex != null &&
-              currentQueueIndex > -1 &&
-              currentQueueIndex < previousSongIds.length &&
-              previousSongIds[currentQueueIndex] == currentTrackId
-          ? currentQueueIndex
-          : (currentTrackId == null
-              ? -1
-              : previousSongIds.indexOf(currentTrackId));
-  final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
-  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
-  unawaited(
-    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
+  final previousSongIds = currentNowPlayingSongIds(state.ref, snapshot);
+  final activeIndex = currentQueueIndexForPlaybackOccurrence(
+    state.ref.read(mediaControlControllerProvider).state,
+    previousSongIds,
   );
+  final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
+  setNowPlayingQueue(state.ref, nextSongIds);
   final songsById = {for (final song in snapshot.songs) song.id: song};
   showUndoableNotification(
     context: state.context,
@@ -351,46 +319,32 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
       'title': songsById[songId]!.title,
     }),
     onUndo: () async {
-      await state.ref
-          .read(libraryRepositoryProvider)
-          .replaceNowPlaying(previousSongIds);
-      state.ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-          previousSongIds;
+      setNowPlayingQueue(state.ref, previousSongIds);
     },
   );
 }
 
 void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  final song = songsById[songId]!;
   final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final queueSongIds =
-      (state.ref.read(nowPlayingQueueOverrideProvider) ??
-              snapshot.nowPlaying.songIds)
-          .toList();
+  final queueSongIds = currentNowPlayingSongIds(state.ref, snapshot);
   var queueIndex = queueSongIds.indexOf(songId);
   if (queueIndex == -1) {
-    final currentIndex =
-        mediaState.selectedQueueIndex ??
-        (mediaState.track.id == null
-            ? -1
-            : queueSongIds.indexOf(mediaState.track.id!));
+    final currentIndex = currentQueueIndexForPlaybackOccurrence(
+      mediaState,
+      queueSongIds,
+    );
     queueIndex = currentIndex == -1 ? queueSongIds.length : currentIndex + 1;
     queueSongIds.insert(queueIndex, songId);
   }
 
-  state.ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-  unawaited(
-    state.ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: state.ref,
+    snapshot: snapshot,
+    i18n: state.context.smPlayerI18n,
+    songIds: queueSongIds,
+    queueIndex: queueIndex,
   );
-  state.ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(song, state.context.smPlayerI18n),
-        durationSeconds: song.duration.toDouble(),
-        queueIndex: queueIndex,
-      );
 }
 
 void _playShuffledSongIdsForArtistsPage(

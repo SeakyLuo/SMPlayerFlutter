@@ -15,7 +15,7 @@ import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 class AlbumDetailPage extends ConsumerStatefulWidget {
   const AlbumDetailPage({super.key, required this.albumName});
@@ -287,33 +287,21 @@ void _playTrack(
   int trackId,
   List<int> queueSongIds,
 ) {
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  final song = songsById[trackId]!;
-  unawaited(
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: ref,
+    snapshot: snapshot,
+    i18n: i18n,
+    songIds: queueSongIds,
+    queueIndex: queueSongIds.indexOf(trackId),
   );
-  ref
-      .read(mediaControlControllerProvider)
-      .playTrack(
-        mediaControlTrackForSong(song, i18n),
-        durationSeconds: song.duration.toDouble(),
-        queueIndex: queueSongIds.indexOf(trackId),
-      );
 }
 
 void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds =
-      (ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds)
-          .toList();
-  final selectedQueueIndex =
-      ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
-  final insertIndex =
-      selectedQueueIndex != null && selectedQueueIndex < queueSongIds.length
-          ? selectedQueueIndex + 1
-          : queueSongIds.length;
-  queueSongIds.insert(insertIndex, songId);
-  ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-  unawaited(
-    ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final insertIndex = insertIndexAfterCurrentOccurrence(
+    ref.read(mediaControlControllerProvider).state,
+    queueSongIds,
   );
+  queueSongIds.insert(insertIndex, songId);
+  setNowPlayingQueue(ref, queueSongIds);
 }

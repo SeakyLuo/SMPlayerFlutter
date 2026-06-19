@@ -61,9 +61,13 @@ LibrarySong? resolveShellPlayerSong(
 double resolveQueuePlaybackStartSeconds({
   required int? currentTrackId,
   required int nextTrackId,
+  required int? currentQueueIndex,
+  required int nextQueueIndex,
   required double currentProgressSeconds,
 }) {
-  return currentTrackId == nextTrackId ? currentProgressSeconds : 0;
+  return currentTrackId == nextTrackId && currentQueueIndex == nextQueueIndex
+      ? currentProgressSeconds
+      : 0;
 }
 
 bool shouldIgnoreAudioPositionForPendingSeek({

@@ -421,7 +421,10 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    final snapshot = await repository.getLibraryContentData();
+    final snapshot = await ref.refresh(libraryContentDataProvider.future);
+    if (!mounted) {
+      return;
+    }
     final openedSongIdSet = openedSongIds.toSet();
     final queueWithoutOpened =
         snapshot.nowPlaying.songIds
@@ -436,22 +439,16 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       ...openedSongIds,
       ...queueWithoutOpened.skip(insertIndex),
     ];
-    await repository.replaceNowPlaying(nextQueue);
-    if (!mounted) {
-      return;
-    }
-
-    ref.invalidate(libraryContentDataProvider);
     _settingsController.savePlaybackSettingsImmediate(
       PlaybackSettingsUpdate(lastMusicIndex: insertIndex, musicProgress: 0),
     );
-
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final song = songsById[openedSongIds.first]!;
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(song, context.smPlayerI18n),
-      durationSeconds: song.duration.toDouble(),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: context.smPlayerI18n,
+      songIds: nextQueue,
       queueIndex: insertIndex,
+      mediaController: _mediaControlController,
     );
     _navigateTo('/now-playing');
     await _desktopFeatureService.showWindow();
@@ -481,13 +478,15 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    ref.read(libraryRepositoryProvider).replaceNowPlaying([song.id]);
-    ref.invalidate(libraryContentDataProvider);
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(song, context.smPlayerI18n),
-      durationSeconds: song.duration.toDouble(),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot!,
+      i18n: context.smPlayerI18n,
+      songIds: [song.id],
       queueIndex: 0,
+      mediaController: _mediaControlController,
     );
+    ref.invalidate(libraryContentDataProvider);
   }
 
   void _toggleDesktopLyricsLock() {

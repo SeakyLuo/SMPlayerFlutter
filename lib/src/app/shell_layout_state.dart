@@ -75,12 +75,10 @@ class ShellLayoutState {
     final isNavigationOverlaySurface =
         isNavigationPaneVisible &&
         navigationMode != SmPlayerNavigationMode.wide;
-    final headeredPlaylistAppBar =
-        rawHeaderedPlaylistAppBar != null &&
-                (rawHeaderedPlaylistAppBar.routeLocation == null ||
-                    rawHeaderedPlaylistAppBar.routeLocation == currentLocation)
-            ? rawHeaderedPlaylistAppBar
-            : null;
+    final headeredPlaylistAppBar = resolveHeaderedPlaylistAppBarForLocation(
+      rawEntry: rawHeaderedPlaylistAppBar,
+      currentLocation: currentLocation,
+    );
     final minimalTitlebarHeight =
         !isImmersiveModeRoute &&
                 navigationMode == SmPlayerNavigationMode.minimal

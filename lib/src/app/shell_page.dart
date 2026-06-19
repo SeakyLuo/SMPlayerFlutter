@@ -46,6 +46,7 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -135,7 +136,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _playbackRuntimeSettingsRestored = false;
   var _playbackTrackRestoreScheduled = false;
   var _playbackTrackRestored = false;
-  List<int>? _playbackQueueOverride;
   SmPlayerNavigationMode? _navigationMode;
   var _currentPath = '/songs';
   final _routeMemory = <String, String>{};

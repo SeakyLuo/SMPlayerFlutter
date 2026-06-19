@@ -110,15 +110,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     if (songIds.isEmpty) {
       return;
     }
-    final songsById = {for (final song in songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
-    _playbackQueueOverride = songIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    await repository.replaceNowPlaying(songIds);
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(firstSong, i18n),
-      durationSeconds: firstSong.duration.toDouble(),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: i18n,
+      songIds: songIds,
       queueIndex: 0,
+      mediaController: _mediaControlController,
     );
   }
 
@@ -139,11 +137,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         const <int>[];
     final insertedIndex = before.length;
     final nextSongIds = [...before, song.id];
-    _playbackQueueOverride = nextSongIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
-    );
+    setNowPlayingQueue(ref, nextSongIds);
     _showUndo(
       context.smPlayerI18n.t('notification.songAddedTo', {
         'title': song.title,
@@ -157,10 +151,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
           insertedIndex,
           1,
         );
-        _playbackQueueOverride = restoredSongIds;
-        ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-            restoredSongIds;
-        ref.read(libraryRepositoryProvider).replaceNowPlaying(restoredSongIds);
+        setNowPlayingQueue(ref, restoredSongIds);
       },
     );
   }

@@ -11,18 +11,14 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
       queueSongIds.shuffle(Random());
     }
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final firstSong = songsById[queueSongIds.first]!;
     final i18n = context.smPlayerI18n;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-    await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds);
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(firstSong, i18n),
-          durationSeconds: firstSong.duration.toDouble(),
-          queueIndex: 0,
-        );
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: i18n,
+      songIds: queueSongIds,
+      queueIndex: 0,
+    );
   }
 
   Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
@@ -31,15 +27,12 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
     }
 
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final currentSongIds =
-        ref.read(nowPlayingQueueOverrideProvider) ??
-        snapshot.nowPlaying.songIds;
+    final currentSongIds = currentNowPlayingSongIds(ref, snapshot);
     final insertedIndex = currentSongIds.length;
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final i18n = context.smPlayerI18n;
     final queueAfterAdd = [...currentSongIds, ...songIds];
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueAfterAdd;
-    await ref.read(libraryRepositoryProvider).replaceNowPlaying(queueAfterAdd);
+    setNowPlayingQueue(ref, queueAfterAdd);
     _showUndoNotification(
       songIds.length == 1
           ? i18n.t('notification.songAddedTo', {
@@ -58,11 +51,7 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
               insertedIndex,
               min(insertedIndex + songIds.length, currentSongIds.length),
             );
-        await ref
-            .read(libraryRepositoryProvider)
-            .replaceNowPlaying(restoredSongIds);
-        ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-            restoredSongIds;
+        setNowPlayingQueue(ref, restoredSongIds);
       },
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -21,6 +22,8 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode, NightMode, SettingsSnapshot, SmPlayerDisplayMode;
@@ -129,6 +132,8 @@ void main() {
         resolveQueuePlaybackStartSeconds(
           currentTrackId: 7,
           nextTrackId: 7,
+          currentQueueIndex: 1,
+          nextQueueIndex: 1,
           currentProgressSeconds: 64,
         ),
         64,
@@ -136,7 +141,19 @@ void main() {
       expect(
         resolveQueuePlaybackStartSeconds(
           currentTrackId: 7,
+          nextTrackId: 7,
+          currentQueueIndex: 1,
+          nextQueueIndex: 2,
+          currentProgressSeconds: 64,
+        ),
+        0,
+      );
+      expect(
+        resolveQueuePlaybackStartSeconds(
+          currentTrackId: 7,
           nextTrackId: 8,
+          currentQueueIndex: 1,
+          nextQueueIndex: 2,
           currentProgressSeconds: 64,
         ),
         0,
@@ -577,15 +594,67 @@ void main() {
     );
   });
 
-  test(
-    'currentPlaybackQueueIndex mirrors Electron stale queue index fallback',
-    () {
-      expect(currentPlaybackQueueIndex([10, 20, 30], 20, 1), 1);
-      expect(currentPlaybackQueueIndex([10, 20, 30], 20, 0), 1);
-      expect(currentPlaybackQueueIndex([10, 20, 30], 99, 0), -1);
-      expect(currentPlaybackQueueIndex([10, 20, 30], null, 0), -1);
-    },
-  );
+  test('currentPlaybackQueueIndex requires matching index and song id', () {
+    expect(currentPlaybackQueueIndex([10, 20, 30], 20, 1), 1);
+    expect(currentPlaybackQueueIndex([10, 20, 30], 20, 0), -1);
+    expect(currentPlaybackQueueIndex([20, 10, 20], 20, 2), 2);
+    expect(currentPlaybackQueueIndex([10, 20, 30], 20), 1);
+    expect(currentPlaybackQueueIndex([10, 20, 30], 99, 0), -1);
+    expect(currentPlaybackQueueIndex([10, 20, 30], null, 0), -1);
+  });
+
+  test('uniquePlaybackQueueIndex recovers only unambiguous track ids', () {
+    expect(uniquePlaybackQueueIndex([10, 20, 30], 20), 1);
+    expect(uniquePlaybackQueueIndex([20, 10, 20], 20), -1);
+    expect(uniquePlaybackQueueIndex([10, 20, 30], 99), -1);
+    expect(uniquePlaybackQueueIndex([10, 20, 30], null), -1);
+  });
+
+  testWidgets('playQueueIndexFromSongs uses explicit shell controller', (
+    tester,
+  ) async {
+    const i18n = SmPlayerI18n(locale: 'en-US', messages: {});
+    final shellController = MediaControlController();
+    late MediaControlController providerController;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: Consumer(
+          builder: (context, ref, _) {
+            providerController = ref.read(mediaControlControllerProvider);
+            playQueueIndexFromSongs(
+              ref: ref,
+              songs: const [
+                LibrarySong(
+                  id: 7,
+                  path: '/tmp/song.mp3',
+                  title: 'Queue Song',
+                  artist: '',
+                  artists: [],
+                  album: '',
+                  duration: 180,
+                  playCount: 0,
+                  lyricsOffsetMs: 0,
+                  dateAdded: '',
+                  favorite: false,
+                  thumbnailPath: '',
+                ),
+              ],
+              i18n: i18n,
+              songIds: const [7],
+              queueIndex: 0,
+              mediaController: shellController,
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(shellController.state.track.id, 7);
+    expect(shellController.state.selectedQueueIndex, 0);
+    expect(providerController.state.track.id, isNull);
+  });
 
   test('playback shortcuts mirror Electron shell keys', () {
     expect(
@@ -2623,6 +2692,72 @@ void main() {
     expect(desktopService.windowVisible, isTrue);
   });
 
+  testWidgets('shell auto plays externally opened audio files', (tester) async {
+    final repository = _SnapshotRepository(
+      const LibraryContentData(
+        songs: [],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: []),
+      ),
+    );
+    final desktopService = _ShellDesktopFeatureService();
+    final navigations = <String>[];
+    final audioFile = File(
+      '${Directory.systemTemp.path}/smplayer_external_open_test.mp3',
+    )..writeAsBytesSync([0]);
+    addTearDown(() {
+      if (audioFile.existsSync()) {
+        audioFile.deleteSync();
+      }
+    });
+
+    await tester.pumpWidget(
+      _ShellPageTestApp(
+        repository: repository,
+        desktopService: desktopService,
+        onNavigate: navigations.add,
+      ),
+    );
+    await tester.pump();
+
+    desktopService.emit(
+      DesktopFeatureAction(
+        DesktopFeatureCommand.openExternalAudioFiles,
+        filePaths: [audioFile.path],
+      ),
+    );
+    for (var pump = 0; pump < 8; pump += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(repository.importExternalAudioFileCalls, [
+      [audioFile.path],
+    ]);
+    expect(repository.replaceNowPlayingCalls, [
+      [1],
+    ]);
+    expect(navigations, contains('/now-playing'));
+    expect(desktopService.showWindowCount, 1);
+    expect(
+      desktopService.mediaSessions.any(
+        (state) =>
+            state.active &&
+            state.title == 'smplayer_external_open_test' &&
+            state.playing,
+      ),
+      isTrue,
+    );
+  });
+
   testWidgets('shell syncs light window controls for night mode', (
     tester,
   ) async {
@@ -2835,6 +2970,7 @@ class _SnapshotRepository extends _StartupRepository {
   final artworkSnapshotSongIds = <int>[];
   final favoriteWrites = <({List<int> songIds, bool favorite})>[];
   final replaceNowPlayingCalls = <List<int>>[];
+  final importExternalAudioFileCalls = <List<String>>[];
 
   @override
   Future<LibraryContentData> getLibraryContentData() async {
@@ -2904,7 +3040,76 @@ class _SnapshotRepository extends _StartupRepository {
   @override
   Future<void> replaceNowPlaying(List<int> songIds) async {
     replaceNowPlayingCalls.add(songIds);
+    snapshot = _copyLibraryContentData(
+      snapshot,
+      nowPlaying: NowPlayingSnapshot(
+        playlistId: snapshot.nowPlaying.playlistId,
+        songIds: songIds,
+      ),
+    );
   }
+
+  @override
+  Future<List<int>> importExternalAudioFiles(List<String> filePaths) async {
+    importExternalAudioFileCalls.add(filePaths);
+    final startId =
+        snapshot.songs.fold<int>(0, (maxId, song) => max(maxId, song.id)) + 1;
+    final importedSongs = <LibrarySong>[];
+    for (var index = 0; index < filePaths.length; index += 1) {
+      final filePath = filePaths[index];
+      final fileName = filePath.split(Platform.pathSeparator).last;
+      final title = fileName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+      importedSongs.add(
+        LibrarySong(
+          id: startId + index,
+          path: filePath,
+          title: title,
+          artist: '',
+          artists: const [],
+          album: '',
+          duration: 180,
+          playCount: 0,
+          lyricsOffsetMs: 0,
+          dateAdded: '2026-06-17T00:00:00Z',
+          favorite: false,
+          thumbnailPath: '',
+        ),
+      );
+    }
+    snapshot = _copyLibraryContentData(
+      snapshot,
+      songs: [...snapshot.songs, ...importedSongs],
+    );
+    return importedSongs.map((song) => song.id).toList();
+  }
+}
+
+LibraryContentData _copyLibraryContentData(
+  LibraryContentData snapshot, {
+  List<LibrarySong>? songs,
+  NowPlayingSnapshot? nowPlaying,
+}) {
+  return LibraryContentData(
+    songs: songs ?? snapshot.songs,
+    recentSongs: snapshot.recentSongs,
+    recentPlaylists: snapshot.recentPlaylists,
+    recentAlbums: snapshot.recentAlbums,
+    recentArtists: snapshot.recentArtists,
+    recentSearches: snapshot.recentSearches,
+    playlists: snapshot.playlists,
+    folders: snapshot.folders,
+    favoritePlaylistId: snapshot.favoritePlaylistId,
+    nowPlaying: nowPlaying ?? snapshot.nowPlaying,
+    hasLibrary: snapshot.hasLibrary,
+    sortCriterion: snapshot.sortCriterion,
+    albumsSort: snapshot.albumsSort,
+    showCount: snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        snapshot.hideMultiSelectCommandBarAfterOperation,
+    localViewMode: snapshot.localViewMode,
+    rootPath: snapshot.rootPath,
+    databasePath: snapshot.databasePath,
+  );
 }
 
 LibraryContentData _snapshotWithFavoriteSongs(

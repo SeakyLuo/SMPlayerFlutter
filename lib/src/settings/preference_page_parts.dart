@@ -53,10 +53,13 @@ class _PreferenceScrollFrame extends StatelessWidget {
       interactive: true,
       radius: const Radius.circular(999),
       thickness: 5,
-      child: SingleChildScrollView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
-        child: child,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
+          child: child,
+        ),
       ),
     );
   }

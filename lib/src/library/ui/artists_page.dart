@@ -21,7 +21,7 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/media_control_provider.dart';
 import '../../playback/media_control_model.dart'
     show PlaybackMode, shufflePlaybackQueueForCurrentTrack;
-import '../../playback/media_control_track_factory.dart';
+import '../../playback/playback_queue_actions.dart';
 import '../../playback/playlist_control.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';

@@ -31,7 +31,7 @@ import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.d
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/playing_wave.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 

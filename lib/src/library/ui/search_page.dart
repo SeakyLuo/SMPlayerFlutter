@@ -33,7 +33,7 @@ import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -883,15 +883,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _playTrack(LibrarySong song, int index, List<int> songIds) {
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: index,
-        );
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: index,
+    );
   }
 
   void _playSongIds(List<int> songIds) {
@@ -899,37 +897,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return;
     }
 
-    final songs = ref.read(libraryContentDataProvider).value!.songs;
-    final songsById = {for (final song in songs) song.id: song};
-    final firstSong = songsById[songIds.first]!;
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(firstSong, context.smPlayerI18n),
-          durationSeconds: firstSong.duration.toDouble(),
-          queueIndex: 0,
-        );
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = songIds;
-    unawaited(ref.read(libraryRepositoryProvider).replaceNowPlaying(songIds));
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: 0,
+    );
   }
 
   void _playNext(LibrarySong song) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds =
-        (ref.read(nowPlayingQueueOverrideProvider) ??
-                snapshot.nowPlaying.songIds)
-            .toList();
+    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
     queueSongIds.remove(song.id);
-    final selectedQueueIndex =
-        ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
-    queueSongIds.insert(
-      selectedQueueIndex == null ? 0 : selectedQueueIndex + 1,
-      song.id,
+    final insertIndex = insertIndexAfterCurrentOccurrence(
+      ref.read(mediaControlControllerProvider).state,
+      queueSongIds,
     );
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
-    );
+    queueSongIds.insert(insertIndex, song.id);
+    setNowPlayingQueue(ref, queueSongIds);
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {

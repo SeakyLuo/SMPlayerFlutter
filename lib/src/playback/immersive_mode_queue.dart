@@ -25,6 +25,8 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
+const _nowPlayingQueueCompactTrailingPadding = 10.0;
+
 List<int> _moveQueueSongIds(
   List<int> queueSongIds,
   int draggedIndex,
@@ -644,154 +646,153 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   }
 
   Widget _buildQueueList(BuildContext context) {
+    final list = ListView.builder(
+      key: const ValueKey('ImmersiveMode.QueueList'),
+      controller: scrollController,
+      padding: _listPadding(),
+      itemCount: songs.length,
+      itemBuilder: (context, index) {
+        final song = songs[index];
+        final current =
+            mediaControlState.selectedQueueIndex == null
+                ? song.id == mediaControlState.track.id
+                : index == mediaControlState.selectedQueueIndex;
+        final dropPosition =
+            _dropIndicator?.queueIndex == index
+                ? _dropIndicator?.position
+                : null;
+        final item = PlaylistControlItem(
+          key: ValueKey('now-playing-full-row-${song.id}-$index'),
+          song: song,
+          current: current,
+          playing: current && mediaControlState.isPlaying,
+          selected: selection.isSelected(index),
+          selectionMode: selection.multiSelect,
+          dropPosition: dropPosition,
+          variant: PlaylistControlItemVariant.compact,
+          collapseCompactPrimaryActions: true,
+          compactTrailingPadding: _nowPlayingQueueCompactTrailingPadding,
+          playNextLabel: i18n.t('context.playNext'),
+          removeLabel: i18n.t('nowPlaying.remove'),
+          onPlayTrack: () {
+            onPlayTrack(song, songIds, index);
+          },
+          onTogglePlayPause: onTogglePlayPause,
+          onToggleSelection: () {
+            selection.toggle(index);
+            onSelectionChanged();
+          },
+          onRemoveFromListClick: () {
+            onRemove(songIds, index);
+            showUndoableNotification(
+              context: context,
+              i18n: i18n,
+              message: i18n.t('notification.removedFrom', {
+                'title': song.title,
+                'target': i18n.t('common.nowPlaying'),
+              }),
+              onUndo:
+                  () => onReplaceQueue(
+                    insertImmersiveModeQueueSongs(
+                      currentQueueSongIds(),
+                      index,
+                      [song.id],
+                    ),
+                  ),
+            );
+          },
+          onToggleFavoriteClick: () {
+            onToggleFavorite([song.id], !song.favorite);
+          },
+          onAddToPlaylistClick: (buttonContext) {
+            _showAddToPlaylistMenu(buttonContext, song);
+          },
+          onSeeAlbum: () {
+            context.go(
+              '/albums?album=${Uri.encodeComponent(_displayAlbum(song, i18n))}',
+            );
+            onClose();
+          },
+          onSeeArtist: (artist) {
+            context.go('/artists?artist=${Uri.encodeComponent(artist)}');
+            onClose();
+          },
+          onOpenContextMenu: (position) {
+            _showQueueContextMenu(context, position, song, index);
+          },
+        );
+        final rowItem =
+            fullScreen
+                ? Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: item,
+                )
+                : item;
+        return DragTarget<int>(
+          key: ValueKey('now-playing-full-target-${song.id}-$index'),
+          onMove: (details) {
+            final position = _dropPositionFor(context, details.offset);
+            setState(() {
+              _dropIndicator = (queueIndex: index, position: position);
+            });
+          },
+          onLeave: (_) {
+            if (_dropIndicator?.queueIndex == index) {
+              setState(() {
+                _dropIndicator = null;
+              });
+            }
+          },
+          onAcceptWithDetails: (details) {
+            final draggedIndex = _draggedQueueIndex ?? details.data;
+            final position =
+                _dropIndicator?.queueIndex == index
+                    ? _dropIndicator!.position
+                    : _dropPositionFor(context, details.offset);
+            _clearQueueDrop();
+            _moveQueueSongToDropTarget(songIds, draggedIndex, index, position);
+          },
+          builder: (context, _, _) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                return Draggable<int>(
+                  data: index,
+                  axis: Axis.vertical,
+                  affinity: Axis.vertical,
+                  feedback: SizedBox(
+                    width: constraints.maxWidth,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Opacity(opacity: 0.92, child: rowItem),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(opacity: 0.42, child: rowItem),
+                  onDragStarted: () {
+                    setState(() {
+                      _draggedQueueIndex = index;
+                      _dropIndicator = null;
+                    });
+                  },
+                  onDraggableCanceled: (_, _) {
+                    _clearQueueDrop();
+                  },
+                  onDragEnd: (_) {
+                    _clearQueueDrop();
+                  },
+                  child: rowItem,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
     return Scrollbar(
       key: const ValueKey('ImmersiveMode.QueueScrollbar'),
       controller: scrollController,
-      child: ListView.builder(
-        key: const ValueKey('ImmersiveMode.QueueList'),
-        controller: scrollController,
-        padding: _listPadding(),
-        itemCount: songs.length,
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          final current =
-              mediaControlState.selectedQueueIndex == null
-                  ? song.id == mediaControlState.track.id
-                  : index == mediaControlState.selectedQueueIndex;
-          final dropPosition =
-              _dropIndicator?.queueIndex == index
-                  ? _dropIndicator?.position
-                  : null;
-          final item = PlaylistControlItem(
-            key: ValueKey('now-playing-full-row-${song.id}-$index'),
-            song: song,
-            current: current,
-            playing: current && mediaControlState.isPlaying,
-            selected: selection.isSelected(index),
-            selectionMode: selection.multiSelect,
-            dropPosition: dropPosition,
-            variant: PlaylistControlItemVariant.compact,
-            collapseCompactPrimaryActions: true,
-            compactTrailingPadding: 20,
-            playNextLabel: i18n.t('context.playNext'),
-            removeLabel: i18n.t('nowPlaying.remove'),
-            onPlayTrack: () {
-              onPlayTrack(song, songIds, index);
-            },
-            onTogglePlayPause: onTogglePlayPause,
-            onToggleSelection: () {
-              selection.toggle(index);
-              onSelectionChanged();
-            },
-            onRemoveFromListClick: () {
-              onRemove(songIds, index);
-              showUndoableNotification(
-                context: context,
-                i18n: i18n,
-                message: i18n.t('notification.removedFrom', {
-                  'title': song.title,
-                  'target': i18n.t('common.nowPlaying'),
-                }),
-                onUndo:
-                    () => onReplaceQueue(
-                      insertImmersiveModeQueueSongs(
-                        currentQueueSongIds(),
-                        index,
-                        [song.id],
-                      ),
-                    ),
-              );
-            },
-            onToggleFavoriteClick: () {
-              onToggleFavorite([song.id], !song.favorite);
-            },
-            onAddToPlaylistClick: (buttonContext) {
-              _showAddToPlaylistMenu(buttonContext, song);
-            },
-            onSeeAlbum: () {
-              context.go(
-                '/albums?album=${Uri.encodeComponent(_displayAlbum(song, i18n))}',
-              );
-              onClose();
-            },
-            onSeeArtist: (artist) {
-              context.go('/artists?artist=${Uri.encodeComponent(artist)}');
-              onClose();
-            },
-            onOpenContextMenu: (position) {
-              _showQueueContextMenu(context, position, song, index);
-            },
-          );
-          final rowItem =
-              fullScreen
-                  ? Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: item,
-                  )
-                  : item;
-          return DragTarget<int>(
-            key: ValueKey('now-playing-full-target-${song.id}-$index'),
-            onMove: (details) {
-              final position = _dropPositionFor(context, details.offset);
-              setState(() {
-                _dropIndicator = (queueIndex: index, position: position);
-              });
-            },
-            onLeave: (_) {
-              if (_dropIndicator?.queueIndex == index) {
-                setState(() {
-                  _dropIndicator = null;
-                });
-              }
-            },
-            onAcceptWithDetails: (details) {
-              final draggedIndex = _draggedQueueIndex ?? details.data;
-              final position =
-                  _dropIndicator?.queueIndex == index
-                      ? _dropIndicator!.position
-                      : _dropPositionFor(context, details.offset);
-              _clearQueueDrop();
-              _moveQueueSongToDropTarget(
-                songIds,
-                draggedIndex,
-                index,
-                position,
-              );
-            },
-            builder: (context, _, _) {
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  return Draggable<int>(
-                    data: index,
-                    axis: Axis.vertical,
-                    affinity: Axis.vertical,
-                    feedback: SizedBox(
-                      width: constraints.maxWidth,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Opacity(opacity: 0.92, child: rowItem),
-                      ),
-                    ),
-                    childWhenDragging: Opacity(opacity: 0.42, child: rowItem),
-                    onDragStarted: () {
-                      setState(() {
-                        _draggedQueueIndex = index;
-                        _dropIndicator = null;
-                      });
-                    },
-                    onDraggableCanceled: (_, _) {
-                      _clearQueueDrop();
-                    },
-                    onDragEnd: (_) {
-                      _clearQueueDrop();
-                    },
-                    child: rowItem,
-                  );
-                },
-              );
-            },
-          );
-        },
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: list,
       ),
     );
   }

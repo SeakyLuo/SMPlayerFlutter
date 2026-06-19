@@ -55,6 +55,36 @@ void main() {
     expect(index.nodes['Rock/Live']!.directSongIds, [2]);
   });
 
+  test('buildFolderIndex ignores songs outside the library root', () {
+    const rootPath = '/Users/me/Music';
+    final songs = [
+      _song(id: 1, path: '/Users/me/Music/Album/A.mp3', title: 'A'),
+      _song(id: 2, path: '/Users/me/Desktop/Loose.mp3', title: 'Loose'),
+    ];
+    const folders = [
+      LibraryFolder(
+        id: 10,
+        path: '/Users/me/Music/Album',
+        parentId: 0,
+        criterion: 0,
+      ),
+      LibraryFolder(
+        id: 11,
+        path: '/Users/me/Desktop',
+        parentId: 0,
+        criterion: 0,
+      ),
+    ];
+
+    final index = buildFolderIndex(songs, folders, rootPath);
+
+    expect(index.nodes['']!.childPaths, ['Album']);
+    expect(index.nodes.containsKey('Users'), isFalse);
+    expect(index.nodes.containsKey('Desktop'), isFalse);
+    expect(index.songsById.keys, [1]);
+    expect(index.nodes['Album']!.directSongIds, [1]);
+  });
+
   test('buildFolderIndex applies folder criterion to direct songs', () {
     const rootPath = r'C:\Music';
     final songs = [

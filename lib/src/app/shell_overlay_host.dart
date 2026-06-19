@@ -8,7 +8,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
-import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
 
@@ -60,9 +60,6 @@ class ShellOverlayHost extends ConsumerWidget {
                 if (libraryContent == null) {
                   return const SizedBox.shrink();
                 }
-                final songsById = {
-                  for (final song in libraryContent.songs) song.id: song,
-                };
                 return MusicDialog(
                   song: dialog.song,
                   initialMode: dialog.mode,
@@ -71,16 +68,13 @@ class ShellOverlayHost extends ConsumerWidget {
                   queueSongIds: libraryContent.nowPlaying.songIds,
                   onPlay: onTogglePlayPause,
                   onPlayTrack: (trackId, queueSongIds) {
-                    final song = songsById[trackId]!;
-                    ref.read(nowPlayingQueueOverrideProvider.notifier).state =
-                        queueSongIds;
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .replaceNowPlaying(queueSongIds);
-                    mediaControlController.playTrack(
-                      mediaControlTrackForSong(song, context.smPlayerI18n),
-                      durationSeconds: song.duration.toDouble(),
+                    replaceNowPlayingQueueAndPlayIndex(
+                      ref: ref,
+                      snapshot: libraryContent,
+                      i18n: context.smPlayerI18n,
+                      songIds: queueSongIds,
                       queueIndex: queueSongIds.indexOf(trackId),
+                      mediaController: mediaControlController,
                     );
                   },
                   onReveal: onRevealPath,

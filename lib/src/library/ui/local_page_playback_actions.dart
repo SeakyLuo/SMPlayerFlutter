@@ -54,24 +54,18 @@ extension _LocalPagePlaybackActions on _LocalPageState {
       return;
     }
 
-    _playTrack(songIds.first, songIds);
+    _playTrack(songIds.first, songIds, queueIndex: 0);
   }
 
-  void _playTrack(int trackId, List<int> queueSongIds) {
+  void _playTrack(int trackId, List<int> queueSongIds, {int? queueIndex}) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final song = songsById[trackId]!;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: context.smPlayerI18n,
+      songIds: queueSongIds,
+      queueIndex: queueIndex ?? queueSongIds.indexOf(trackId),
     );
-    ref
-        .read(mediaControlControllerProvider)
-        .playTrack(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-          durationSeconds: song.duration.toDouble(),
-          queueIndex: max(0, queueSongIds.indexOf(trackId)),
-        );
     _updateLocalPageState(() {
       _selectedSongIds
         ..clear()
@@ -84,21 +78,13 @@ extension _LocalPagePlaybackActions on _LocalPageState {
 
   void _playNext(int songId) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds =
-        (ref.read(nowPlayingQueueOverrideProvider) ??
-                snapshot.nowPlaying.songIds)
-            .toList();
-    final selectedQueueIndex =
-        ref.read(mediaControlControllerProvider).state.selectedQueueIndex;
-    final insertIndex =
-        selectedQueueIndex != null && selectedQueueIndex < queueSongIds.length
-            ? selectedQueueIndex + 1
-            : queueSongIds.length;
-    queueSongIds.insert(insertIndex, songId);
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = queueSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(queueSongIds),
+    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final insertIndex = insertIndexAfterCurrentOccurrence(
+      ref.read(mediaControlControllerProvider).state,
+      queueSongIds,
     );
+    queueSongIds.insert(insertIndex, songId);
+    setNowPlayingQueue(ref, queueSongIds);
   }
 
   void _jumpToSongKey(

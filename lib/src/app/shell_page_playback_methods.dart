@@ -106,11 +106,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       playbackSongIds,
       _mediaControlController.state.track.id,
     );
-    _playbackQueueOverride = nextSongIds;
-    ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
-    unawaited(
-      ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds),
-    );
+    setNowPlayingQueue(ref, nextSongIds);
     final nextQueueIndex = currentPlaybackQueueIndex(
       nextSongIds,
       _mediaControlController.state.track.id,

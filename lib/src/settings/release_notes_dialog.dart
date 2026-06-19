@@ -33,14 +33,19 @@ class ReleaseNotesDialog extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(28, 0, 28, 44),
         child: Scrollbar(
-          child: ListView.separated(
-            primary: false,
-            padding: const EdgeInsets.only(right: 14),
-            itemCount: releaseNotes.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 18),
-            itemBuilder: (context, index) {
-              return _ReleaseNoteVersion(entry: releaseNotes[index]);
-            },
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ListView.separated(
+              primary: false,
+              padding: const EdgeInsets.only(right: 14),
+              itemCount: releaseNotes.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 18),
+              itemBuilder: (context, index) {
+                return _ReleaseNoteVersion(entry: releaseNotes[index]);
+              },
+            ),
           ),
         ),
       ),

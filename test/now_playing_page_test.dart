@@ -292,7 +292,13 @@ void main() {
     expect(rowRect.height, 78);
     expect(durationRect.right, 672);
     expect(rowRect.right - durationRect.right, 20);
-    expect(list.padding, const EdgeInsets.fromLTRB(0, 0, 0, 2));
+    expect(list.padding, const EdgeInsets.fromLTRB(0, 0, 0, 28));
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('NowPlayingQueue.Scrollbar')))
+          .right,
+      700,
+    );
     expect(
       tester.widget<PlaylistControlItem>(firstRow).variant,
       PlaylistControlItemVariant.compact,

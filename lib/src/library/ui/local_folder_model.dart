@@ -101,6 +101,13 @@ String getSongFolderRelativePath(String songPath, String rootPath) {
   return segments.take(segments.length - 1).join('/');
 }
 
+bool isLocalPathUnderRoot(String path, String rootPath) {
+  final normalizedPath = normalizePath(path);
+  final normalizedRootPath = normalizePath(rootPath);
+  return normalizedPath == normalizedRootPath ||
+      normalizedPath.startsWith('$normalizedRootPath/');
+}
+
 FolderNode createFolderNode(String relativePath, String rootPath) {
   return FolderNode(
     id: 0,
@@ -172,11 +179,17 @@ FolderIndex buildFolderIndex(
   String rootPath,
 ) {
   final nodes = <String, FolderNode>{};
-  final songsById = {for (final song in songs) song.id: song};
+  final localSongs =
+      songs.where((song) => isLocalPathUnderRoot(song.path, rootPath)).toList();
+  final localFolders =
+      folders
+          .where((folder) => isLocalPathUnderRoot(folder.path, rootPath))
+          .toList();
+  final songsById = {for (final song in localSongs) song.id: song};
 
   nodes[''] = createFolderNode('', rootPath);
 
-  for (final folder in folders) {
+  for (final folder in localFolders) {
     final relativePath = _getFolderRelativePath(folder.path, rootPath);
     nodes.putIfAbsent(
       relativePath,
@@ -202,7 +215,7 @@ FolderIndex buildFolderIndex(
     }
   }
 
-  for (final song in songs) {
+  for (final song in localSongs) {
     final relativeFolderPath = getSongFolderRelativePath(song.path, rootPath);
     final segments =
         relativeFolderPath.isEmpty ? <String>[] : relativeFolderPath.split('/');

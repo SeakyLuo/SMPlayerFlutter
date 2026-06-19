@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -444,6 +446,70 @@ void main() {
     final appBarTitle = tester.widget<Text>(find.text('Blue Hour'));
     expect(appBarTitle.style?.fontSize, 16);
   });
+
+  testWidgets('headered playlist route starts at top before portal publishes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 480);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const _WorkspaceAppBarTestApp(
+        currentPath: '/favorites',
+        currentLocation: '/favorites',
+        textScaler: TextScaler.noScaling,
+        child: SizedBox.expand(
+          key: ValueKey('HeaderedPlaylist.FirstFrameProbe'),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('WorkspaceNavigationAppBar.Surface')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('WorkspaceNavigationAppBar.ImmersiveSurface')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getTopLeft(
+            find.byKey(const ValueKey('HeaderedPlaylist.FirstFrameProbe')),
+          )
+          .dy,
+      0,
+    );
+  });
+
+  test(
+    'shell layout treats headered playlist routes as immersive before portal publishes',
+    () {
+      final layout = ShellLayoutState.resolve(
+        currentPath: '/favorites',
+        currentLocation: '/favorites',
+        windowWidth: 700,
+        navigationPaneOpen: false,
+        minimalNavigationOpen: false,
+        canGoBack: true,
+        rawHeaderedPlaylistAppBar: null,
+      );
+
+      expect(layout.headeredPlaylistAppBar, isNotNull);
+      expect(layout.headeredPlaylistAppBar?.title, '');
+      expect(layout.workspaceTop, 0);
+      expect(layout.immersiveMinimalTitlebar, true);
+      expect(layout.navigationSurfaceTop, 0);
+      expect(
+        layout.navigationContentTopInset,
+        SmPlayerShellMetrics.minimalTitlebarHeight,
+      );
+    },
+  );
 }
 
 const _i18n = SmPlayerI18n(

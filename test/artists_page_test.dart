@@ -5873,35 +5873,34 @@ void main() {
     },
   );
 
-  testWidgets(
-    'ArtistsPage target route records search and fills input like Electron',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1200, 800);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      final repository = _FakeLibraryRepository();
-      final router = _createArtistsRouter();
+  testWidgets('ArtistsPage target route fills input without recording search', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final repository = _FakeLibraryRepository();
+    final router = _createArtistsRouter();
 
-      await tester.pumpWidget(
-        _ArtistsRouterTestApp(
-          snapshot: _twoArtistSnapshot,
-          i18n: i18n,
-          router: router,
-          repository: repository,
-        ),
-      );
-      router.go('/artists?artist=Artist%20B');
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _ArtistsRouterTestApp(
+        snapshot: _twoArtistSnapshot,
+        i18n: i18n,
+        router: router,
+        repository: repository,
+      ),
+    );
+    router.go('/artists?artist=Artist%20B');
+    await tester.pumpAndSettle();
 
-      expect(repository.recordedSearches, isEmpty);
-      final searchBox = tester.widget<TextField>(find.byType(TextField));
-      expect(searchBox.controller!.text, 'Artist B');
-      expect(find.text('Green Song'), findsOneWidget);
-    },
-  );
+    expect(repository.recordedSearches, isEmpty);
+    final searchBox = tester.widget<TextField>(find.byType(TextField));
+    expect(searchBox.controller!.text, 'Artist B');
+    expect(find.text('Green Song'), findsOneWidget);
+  });
 
   testWidgets('ArtistsPage target route does not double-decode artist query', (
     tester,
