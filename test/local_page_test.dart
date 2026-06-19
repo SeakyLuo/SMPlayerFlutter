@@ -50,6 +50,7 @@ void main() {
       'common.comma': ', ',
       'common.artistSeparator': ', ',
       'common.folders': 'Folders',
+      'common.songs': 'Songs',
       'common.name': 'Name',
       'common.artist': 'Artist',
       'common.album': 'Album',
@@ -508,7 +509,7 @@ void main() {
     expect(find.text('Sub'), findsOneWidget);
     expect(find.text('Root Song'), findsOneWidget);
     expect(_richTextContaining('Folders'), findsOneWidget);
-    expect(_richTextContaining('All Songs'), findsOneWidget);
+    expect(_richTextContaining('Songs'), findsOneWidget);
 
     await tester.tap(find.text('Root Song'));
     await tester.pump(const Duration(milliseconds: 300));
@@ -921,16 +922,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_richTextContaining('Folders'), findsOneWidget);
-    expect(_richTextContaining('All Songs'), findsOneWidget);
+    expect(_richTextContaining('Songs'), findsOneWidget);
     expect(find.text('Sub'), findsOneWidget);
 
     await tester.tap(
       find
-          .ancestor(
-            of: _richTextContaining('Folders'),
-            matching: find.byType(TextButton),
-          )
-          .first,
+            .ancestor(
+              of: _richTextContaining('Folders'),
+              matching: find.byType(InkWell),
+            )
+            .first,
     );
     await tester.pumpAndSettle();
 
@@ -950,7 +951,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_richTextContaining('Folders'), findsNothing);
-    expect(_richTextContaining('All Songs'), findsNothing);
+    expect(_richTextContaining('Songs'), findsNothing);
     expect(find.text('Root Song'), findsOneWidget);
   });
 
@@ -970,7 +971,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_richTextContaining('Folders'), findsNothing);
-    expect(_richTextContaining('All Songs'), findsNothing);
+    expect(_richTextContaining('Songs'), findsNothing);
     expect(find.text('Sub'), findsOneWidget);
     expect(find.text('Target'), findsOneWidget);
   });
@@ -3006,7 +3007,7 @@ void main() {
     expect(openedFolder, 'Sub');
   });
 
-  testWidgets('FolderChainListView checks current child without icon gap', (
+  testWidgets('FolderChainListView checks current child before label', (
     tester,
   ) async {
     _setLargeSurface(tester);
@@ -3049,11 +3050,6 @@ void main() {
       ),
       findsOneWidget,
     );
-    final textLeft = tester.getTopLeft(
-      find.descendant(of: currentChild, matching: find.text('Sub')).last,
-    );
-    final itemLeft = tester.getTopLeft(currentChild);
-    expect(textLeft.dx - itemLeft.dx, lessThan(24));
     expect(
       tester
           .getCenter(
@@ -3065,7 +3061,7 @@ void main() {
                 .first,
           )
           .dx,
-      greaterThan(tester.getCenter(find.text('Sub').last).dx),
+      lessThan(tester.getCenter(find.text('Sub').last).dx),
     );
   });
 

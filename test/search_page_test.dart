@@ -282,34 +282,35 @@ void main() {
 
     final songsTabFinder = find.ancestor(
       of: find.text('Songs').first,
-      matching: find.byType(TextButton),
+      matching: find.byType(SmPlayerTextIconButton),
     );
     final songsIconFinder = find.descendant(
       of: songsTabFinder,
       matching: find.byIcon(FluentIcons.music_note_2_20_regular),
     );
-    final songsTab = tester.widget<TextButton>(songsTabFinder);
-    final shape = songsTab.style!.shape!.resolve({})! as RoundedRectangleBorder;
-    final hoveredShape =
-        songsTab.style!.shape!.resolve({WidgetState.hovered})!
-            as RoundedRectangleBorder;
 
     expect(tester.getSize(songsTabFinder).height, 36);
     expect(tester.getSize(songsTabFinder).width, greaterThanOrEqualTo(72));
-    expect(shape.borderRadius, BorderRadius.circular(999));
     expect(
-      songsTab.style!.backgroundColor!.resolve({}),
+      _textIconButtonDecoration(tester, songsTabFinder).color,
       const Color(0x80ffffff),
     );
-    expect(
-      songsTab.style!.backgroundColor!.resolve({WidgetState.hovered}),
-      GlobalUI.hoverBgColorDay,
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(songsTabFinder),
+      ),
     );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, songsTabFinder);
+    expect(hoverDecoration.color, GlobalUI.hoverBgColorDay);
     expect(
-      songsTab.style!.foregroundColor!.resolve({WidgetState.hovered}),
+      _textIconButtonTextColor(tester, songsTabFinder, 'Songs'),
       const Color(0xff0063b1),
     );
-    expect(hoveredShape.side.color, GlobalUI.hoverBorderColorDay);
+    expect(hoverDecoration.border?.top.color, GlobalUI.hoverBorderColorDay);
     expect(songsIconFinder, findsOneWidget);
     expect(
       tester.getCenter(songsIconFinder).dx,
@@ -1125,6 +1126,34 @@ class _SearchPageTestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
+  return tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: scope, matching: find.byType(DecoratedBox)),
+          )
+          .firstWhere((box) {
+            final decoration = box.decoration;
+            return decoration is BoxDecoration && decoration.border != null;
+          })
+          .decoration
+      as BoxDecoration;
+}
+
+Color? _textIconButtonTextColor(
+  WidgetTester tester,
+  Finder scope,
+  String text,
+) {
+  return tester
+      .widgetList<RichText>(
+        find.descendant(of: scope, matching: find.byType(RichText)),
+      )
+      .firstWhere((richText) => richText.text.toPlainText() == text)
+      .text
+      .style!
+      .color;
 }
 
 class _FakeLibraryRepository extends LibraryRepository {

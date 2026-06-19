@@ -282,6 +282,9 @@ class _MainNavigationFloatingTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
+    const arrowWidth = 6.0;
+    const arrowHeight = 12.0;
+    const borderRadius = 6.0;
     return Positioned(
       left: tooltip.left,
       top: tooltip.top,
@@ -290,44 +293,24 @@ class _MainNavigationFloatingTooltip extends StatelessWidget {
         child: IgnorePointer(
           child: Material(
             color: Colors.transparent,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: -4,
-                  top: 13,
-                  child: Transform.rotate(
-                    angle: 0.7853981633974483,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: colors.dropdownSurface,
-                        border: Border(
-                          left: BorderSide(color: colors.searchBorder),
-                          bottom: BorderSide(color: colors.searchBorder),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 220),
+            child: CustomPaint(
+              key: const ValueKey('MainNavigationView.FloatingTooltipBubble'),
+              painter: _MainNavigationFloatingTooltipPainter(
+                backgroundColor: colors.dropdownSurface,
+                borderColor: colors.searchBorder,
+                shadowColor: colors.dropdownShadow,
+                shadowBlurRadius: 24,
+                shadowOffset: const Offset(0, 10),
+                borderRadius: borderRadius,
+                arrowWidth: arrowWidth,
+                arrowHeight: arrowHeight,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.dropdownSurface,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: colors.searchBorder),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors.dropdownShadow,
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
                   ),
                   child: Text(
                     tooltip.label,
@@ -341,12 +324,107 @@ class _MainNavigationFloatingTooltip extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _MainNavigationFloatingTooltipPainter extends CustomPainter {
+  const _MainNavigationFloatingTooltipPainter({
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.shadowColor,
+    required this.shadowBlurRadius,
+    required this.shadowOffset,
+    required this.borderRadius,
+    required this.arrowWidth,
+    required this.arrowHeight,
+  });
+
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color shadowColor;
+  final double shadowBlurRadius;
+  final Offset shadowOffset;
+  final double borderRadius;
+  final double arrowWidth;
+  final double arrowHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bodyRect = Offset.zero & size;
+    final path = _outlinePath(bodyRect);
+    final shadowPaint =
+        Paint()
+          ..color = shadowColor
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowBlurRadius);
+    canvas.drawPath(path.shift(shadowOffset), shadowPaint);
+    canvas.drawPath(path, Paint()..color = backgroundColor);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  Path _outlinePath(Rect bodyRect) {
+    final r = borderRadius;
+    final arrowTop = bodyRect.center.dy - arrowHeight / 2;
+    final arrowBottom = bodyRect.center.dy + arrowHeight / 2;
+    return Path()
+      ..moveTo(bodyRect.left + r, bodyRect.top)
+      ..lineTo(bodyRect.right - r, bodyRect.top)
+      ..quadraticBezierTo(
+        bodyRect.right,
+        bodyRect.top,
+        bodyRect.right,
+        bodyRect.top + r,
+      )
+      ..lineTo(bodyRect.right, bodyRect.bottom - r)
+      ..quadraticBezierTo(
+        bodyRect.right,
+        bodyRect.bottom,
+        bodyRect.right - r,
+        bodyRect.bottom,
+      )
+      ..lineTo(bodyRect.left + r, bodyRect.bottom)
+      ..quadraticBezierTo(
+        bodyRect.left,
+        bodyRect.bottom,
+        bodyRect.left,
+        bodyRect.bottom - r,
+      )
+      ..lineTo(bodyRect.left, arrowBottom)
+      ..lineTo(bodyRect.left - arrowWidth, bodyRect.center.dy)
+      ..lineTo(bodyRect.left, arrowTop)
+      ..lineTo(bodyRect.left, bodyRect.top + r)
+      ..quadraticBezierTo(
+        bodyRect.left,
+        bodyRect.top,
+        bodyRect.left + r,
+        bodyRect.top,
+      )
+      ..close();
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _MainNavigationFloatingTooltipPainter oldDelegate,
+  ) {
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.shadowColor != shadowColor ||
+        oldDelegate.shadowBlurRadius != shadowBlurRadius ||
+        oldDelegate.shadowOffset != shadowOffset ||
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.arrowWidth != arrowWidth ||
+        oldDelegate.arrowHeight != arrowHeight;
   }
 }
 

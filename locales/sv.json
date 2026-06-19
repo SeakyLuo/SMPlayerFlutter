@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Dataimport misslyckades",
   "settings.display": "Visning",
   "settings.desktopLyrics": "skrivbordstexter",
+  "settings.desktopLyricsEnabled": "Visa skrivbordstexter",
   "settings.desktopLyricsColor": "Teckensnittsfärg",
   "settings.desktopLyricsFontFamily": "teckensnitt",
   "settings.desktopLyricsFontSearch": "Sök teckensnitt",

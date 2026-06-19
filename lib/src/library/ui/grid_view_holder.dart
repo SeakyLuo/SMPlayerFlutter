@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/card_corner_badge.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_artwork_card_content.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
@@ -266,7 +265,6 @@ class _GridViewHolderDragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final night = Theme.of(context).brightness == Brightness.dark;
     return Positioned(
       top: 2,
       right: 2,
@@ -282,46 +280,10 @@ class _GridViewHolderDragHandle extends StatelessWidget {
                     child: AnimatedSlide(
                       offset: Offset.zero,
                       duration: const Duration(milliseconds: 120),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x291e2a3a),
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color:
-                                    night
-                                        ? const Color(0xc7181e26)
-                                        : const Color(0xd1ffffff),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color:
-                                      night
-                                          ? const Color(0x1fffffff)
-                                          : const Color(0x9effffff),
-                                ),
-                              ),
-                              child: SizedBox.square(
-                                dimension: 32,
-                                child: CustomPaint(
-                                  painter: _GridViewHolderGripPainter(
-                                    color: color,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      child: CardCornerBadge(
+                        shadowOffset: const Offset(0, 8),
+                        shadowBlurRadius: 18,
+                        child: CardCornerGripIcon(color: color),
                       ),
                     ),
                   ),
@@ -329,39 +291,6 @@ class _GridViewHolderDragHandle extends StatelessWidget {
               )
               : const SizedBox.shrink(),
     );
-  }
-}
-
-class _GridViewHolderGripPainter extends CustomPainter {
-  const _GridViewHolderGripPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill;
-    final iconLeft = (size.width - 18) / 2;
-    final iconTop = (size.height - 18) / 2;
-    const scale = 18 / 24;
-    const xPositions = [8.0, 12.0, 16.0];
-    const yPositions = [6.0, 12.0, 18.0];
-    for (final y in yPositions) {
-      for (final x in xPositions) {
-        canvas.drawCircle(
-          Offset(iconLeft + x * scale, iconTop + y * scale),
-          1 * scale,
-          paint,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GridViewHolderGripPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
 

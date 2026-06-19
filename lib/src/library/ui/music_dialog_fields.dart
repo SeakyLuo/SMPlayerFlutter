@@ -268,6 +268,7 @@ class _ArtistFieldGrid extends StatelessWidget {
         controllers.length >= _MusicDialogState.maxArtistCells
             ? null
             : _MusicDialogIconButton(
+              key: const ValueKey('MusicDialog.AddArtistButton'),
               iconWidget: const _ElectronIcon(_ElectronIconName.plus, size: 18),
               tooltip: context.smPlayerI18n.t('common.add'),
               size: 42,
@@ -305,6 +306,7 @@ class _ArtistRemoveButton extends StatelessWidget {
     final colors = PopupDialogColors.resolve(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
     return IconButton(
+      tooltip: context.smPlayerI18n.t('playlists.removeSelected'),
       style: IconButton.styleFrom(
         fixedSize: const Size(28, 28),
         minimumSize: const Size(28, 28),

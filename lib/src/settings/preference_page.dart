@@ -61,6 +61,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
       closeOnBackdrop: true,
       width: 1080,
       height: 820,
+      verticalInset: 96,
       navChildren: [PopupDialogTitle(i18n.t('settings.preferenceSettings'))],
       child: _PreferenceScrollFrame(
         controller: _preferenceScrollController,
@@ -289,7 +290,7 @@ class PreferenceSection extends StatelessWidget {
 
     return _PreferenceSectionFrame(
       title: title,
-      counter: '${items.length}/$limit',
+      counter: '${items.length} / $limit',
       action: Builder(
         builder: (context) {
           final mobile =
@@ -394,9 +395,6 @@ class PreferenceItems extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-
     return Column(
       children: [
         for (final entry in items.indexed)
@@ -462,13 +460,10 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
             constraints: BoxConstraints(minHeight: compact ? 42 : 48),
             padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: colors.cardBorder)),
-              color:
-                  _hovered
-                      ? colors.accentHover
-                      : widget.odd
-                      ? colors.cardSurface
-                      : colors.dialogSurface,
+              border: Border(
+                top: BorderSide(color: colors.preferenceCardBorder),
+              ),
+              color: colors.preferenceBodySurface,
             ),
             child: Row(
               children: [
@@ -571,7 +566,7 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
   }
 }
 
-class PreferenceLevelSelect extends StatefulWidget {
+class PreferenceLevelSelect extends StatelessWidget {
   const PreferenceLevelSelect({
     super.key,
     required this.value,
@@ -581,11 +576,6 @@ class PreferenceLevelSelect extends StatefulWidget {
   final PreferenceLevel value;
   final ValueChanged<PreferenceLevel> onChange;
 
-  @override
-  State<PreferenceLevelSelect> createState() => _PreferenceLevelSelectState();
-}
-
-class _PreferenceLevelSelectState extends State<PreferenceLevelSelect> {
   static const _preferenceLevels = [
     PreferenceLevel.veryHigh,
     PreferenceLevel.higher,
@@ -595,233 +585,25 @@ class _PreferenceLevelSelectState extends State<PreferenceLevelSelect> {
     PreferenceLevel.doNotAppear,
   ];
 
-  final _link = LayerLink();
-  OverlayEntry? _overlayEntry;
-  var _open = false;
-  var _openUpward = false;
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-
-    return CompositedTransformTarget(
-      link: _link,
-      child: SizedBox(
-        height: 36,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            alignment: Alignment.centerLeft,
-            backgroundColor:
-                _open ? colors.selectOpenSurface : colors.inputSurface,
-            foregroundColor: _open ? colors.accentStrong : colors.textStrong,
-            side: BorderSide(
-              color: _open ? colors.selectOpenBorder : colors.inputBorder,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(9),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-          ),
-          onPressed: _toggleOpen,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _preferenceLevelLabel(i18n, widget.value),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+    return _SettingsSelectControl<PreferenceLevel>(
+      value: value,
+      options:
+          _preferenceLevels
+              .map(
+                (level) => SelectSettingOption<PreferenceLevel>(
+                  value: level,
+                  label: _preferenceLevelLabel(i18n, level),
                 ),
-              ),
-              Icon(
-                _open
-                    ? FluentIcons.chevron_up_20_regular
-                    : FluentIcons.chevron_down_20_regular,
-                size: 16,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _toggleOpen() {
-    if (_open) {
-      _close();
-      return;
-    }
-    setState(() {
-      _open = true;
-    });
-    _showOverlay();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _open) {
-        _updateDropdownGeometry();
-      }
-    });
-  }
-
-  void _showOverlay() {
-    _removeOverlay();
-    _overlayEntry = OverlayEntry(builder: _buildOverlay);
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
-  Widget _buildOverlay(BuildContext context) {
-    return _settingsNoTextScaling(
-      context,
-      Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _close,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          CompositedTransformFollower(
-            link: _link,
-            targetAnchor:
-                _openUpward ? Alignment.topRight : Alignment.bottomRight,
-            followerAnchor:
-                _openUpward ? Alignment.bottomRight : Alignment.topRight,
-            offset: Offset(0, _openUpward ? -6 : 6),
-            child: SizedBox(
-              width: 170,
-              child: _PreferenceLevelMenu(
-                value: widget.value,
-                levels: _preferenceLevels,
-                onSelected: (level) {
-                  widget.onChange(level);
-                  _close();
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  void _close() {
-    if (!_open && _overlayEntry == null) {
-      return;
-    }
-    setState(() {
-      _open = false;
-    });
-    _removeOverlay();
-  }
-
-  void _updateDropdownGeometry() {
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null) {
-      return;
-    }
-    final position = box.localToGlobal(Offset.zero);
-    final viewportHeight = MediaQuery.sizeOf(context).height;
-    final bottomBoundary = math.max(0.0, viewportHeight - 128.0);
-    final desiredHeight = (_preferenceLevels.length * 38.0) + 16.0;
-    final spaceBelow = math.max(
-      0.0,
-      bottomBoundary - position.dy - box.size.height - 8.0,
-    );
-    final spaceAbove = math.max(0.0, position.dy - 8.0);
-    final nextOpenUpward =
-        spaceBelow < desiredHeight && spaceAbove > spaceBelow;
-    if (_openUpward == nextOpenUpward) {
-      return;
-    }
-    setState(() {
-      _openUpward = nextOpenUpward;
-    });
-    _overlayEntry?.markNeedsBuild();
-  }
-}
-
-class _PreferenceLevelMenu extends StatelessWidget {
-  const _PreferenceLevelMenu({
-    required this.value,
-    required this.levels,
-    required this.onSelected,
-  });
-
-  final PreferenceLevel value;
-  final List<PreferenceLevel> levels;
-  final ValueChanged<PreferenceLevel> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.dropdownSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.inputBorder),
-          boxShadow: [
-            BoxShadow(
-              color: colors.dropdownShadow,
-              offset: const Offset(0, 18),
-              blurRadius: 44,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children:
-                levels.map((level) {
-                  final selected = level == value;
-                  return TextButton(
-                    style: TextButton.styleFrom(
-                      alignment: Alignment.centerLeft,
-                      foregroundColor:
-                          selected ? colors.accentStrong : colors.textStrong,
-                      backgroundColor:
-                          selected ? colors.accentHover : Colors.transparent,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      minimumSize: const Size.fromHeight(34),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    onPressed: () {
-                      onSelected(level);
-                    },
-                    child: Text(
-                      _preferenceLevelLabel(i18n, level),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-          ),
-        ),
-      ),
+              )
+              .toList(),
+      onChange: onChange,
+      height: 36,
+      borderRadius: 9,
+      horizontalPadding: 10,
+      fontWeight: FontWeight.w700,
     );
   }
 }

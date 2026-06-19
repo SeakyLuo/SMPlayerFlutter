@@ -47,6 +47,7 @@ class _MainNavigationViewTitle extends StatelessWidget {
     required this.onGoBack,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
     required this.onTooltipRequested,
     required this.onTooltipDismissed,
   });
@@ -60,6 +61,7 @@ class _MainNavigationViewTitle extends StatelessWidget {
   final VoidCallback? onGoBack;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTitlebarTap;
   final _NavigationTooltipRequest? onTooltipRequested;
   final VoidCallback onTooltipDismissed;
 
@@ -108,6 +110,7 @@ class _MainNavigationViewTitle extends StatelessWidget {
                       child: _WindowDragRegion(
                         onWindowDragStart: onWindowDragStart,
                         onWindowDragEnd: onWindowDragEnd,
+                        onTap: onTitlebarTap,
                         child:
                             hideAppName
                                 ? const SizedBox.expand()
@@ -153,24 +156,30 @@ class _WindowDragRegion extends StatelessWidget {
     required this.child,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTap,
   });
 
   final Widget child;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        if (event.buttons == 1) {
-          onWindowDragStart?.call();
-        }
-      },
-      onPointerUp: (_) => onWindowDragEnd?.call(),
-      onPointerCancel: (_) => onWindowDragEnd?.call(),
-      child: Align(alignment: Alignment.centerLeft, child: child),
+      onTap: onTap,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (event.buttons == 1) {
+            onWindowDragStart?.call();
+          }
+        },
+        onPointerUp: (_) => onWindowDragEnd?.call(),
+        onPointerCancel: (_) => onWindowDragEnd?.call(),
+        child: Align(alignment: Alignment.centerLeft, child: child),
+      ),
     );
   }
 }

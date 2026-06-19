@@ -72,9 +72,7 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
       _showMessage(i18n.t('song.propertiesUpdated'));
       return;
     }
-    setState(() {
-      _saving = true;
-    });
+    _setSaving(true);
     try {
       await ref
           .read(libraryRepositoryProvider)
@@ -106,29 +104,16 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _saving = false;
-        });
+        _setSaving(false);
       }
     }
   }
 
-  Future<void> _clearPlayCount() async {
+  void _clearPlayCount() {
     if (_saving || _loading || _properties == null) {
       return;
     }
 
-    await ref
-        .read(libraryRepositoryProvider)
-        .updateSongPlayCount(widget.song.id, 0);
-    if (!mounted) {
-      return;
-    }
-    final nextProperties = _properties!.copyWith(playCount: 0);
-    setState(() {
-      _applyProperties(nextProperties);
-    });
-    patchLibrarySongOverride(ref, _songWithProperties(nextProperties));
-    _notifySaved();
+    _setPlayCountText('0');
   }
 }

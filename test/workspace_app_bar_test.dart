@@ -71,6 +71,40 @@ void main() {
     expect(surfaceMaterial.elevation, 0);
   });
 
+  testWidgets(
+    'minimal workspace app bar leaves bottom padding before content',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(430, 360);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        const _WorkspaceAppBarTestApp(
+          currentPath: '/songs',
+          textScaler: TextScaler.noScaling,
+          child: SizedBox(
+            key: ValueKey('WorkspaceAppBar.ContentProbe'),
+            height: 20,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final surface = find.byKey(
+        const ValueKey('WorkspaceNavigationAppBar.Surface'),
+      );
+      final content = find.byKey(
+        const ValueKey('WorkspaceAppBar.ContentProbe'),
+      );
+
+      expect(tester.getSize(surface).height, 48);
+      expect(tester.getTopLeft(content).dy, 48);
+    },
+  );
+
   testWidgets('minimal now-playing app bar keeps the full title visible', (
     tester,
   ) async {

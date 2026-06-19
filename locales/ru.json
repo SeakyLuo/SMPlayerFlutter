@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Импорт данных не удался",
   "settings.display": "Отображение",
   "settings.desktopLyrics": "тексты песен на рабочем столе",
+  "settings.desktopLyricsEnabled": "Показывать тексты на рабочем столе",
   "settings.desktopLyricsColor": "Цвет шрифта",
   "settings.desktopLyricsFontFamily": "шрифт",
   "settings.desktopLyricsFontSearch": "Поиск шрифта",

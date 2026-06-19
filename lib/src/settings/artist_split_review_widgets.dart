@@ -477,34 +477,95 @@ class _ArtistSplitCopy extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
+        if (editing)
+          _ArtistSplitEditingValue(
+            label: afterLabel,
+            labelWidth: compact ? 44 : 48,
+            artists:
+                (artists.isEmpty ? const [''] : artists)
+                    .take(_maxArtistCells)
+                    .toList(),
+            canAdd: artists.length < _maxArtistCells,
+            onAddArtist: onAddArtist,
+            onSaveEdit: onSaveEdit,
+            onRemoveArtist: onRemoveArtist,
+            onUpdateArtist: onUpdateArtist,
+          )
+        else
+          _ArtistSplitValueRow(
+            label: afterLabel,
+            labelWidth: compact ? 44 : 48,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final artist in _getEditedArtists(artists)) ...[
+                    _ArtistSplitChip(label: artist, merge: merge),
+                    const SizedBox(width: 5),
+                  ],
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ArtistSplitEditingValue extends StatelessWidget {
+  const _ArtistSplitEditingValue({
+    required this.label,
+    required this.labelWidth,
+    required this.artists,
+    required this.canAdd,
+    required this.onAddArtist,
+    required this.onSaveEdit,
+    required this.onRemoveArtist,
+    required this.onUpdateArtist,
+  });
+
+  final String label;
+  final double labelWidth;
+  final List<String> artists;
+  final bool canAdd;
+  final VoidCallback onAddArtist;
+  final VoidCallback onSaveEdit;
+  final ValueChanged<int> onRemoveArtist;
+  final void Function(int index, String value) onUpdateArtist;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _ArtistSplitValueRow(
-          label: afterLabel,
-          labelWidth: compact ? 44 : 48,
-          alignStart: editing,
-          child:
-              editing
-                  ? _ArtistSplitEditor(
-                    artists:
-                        (artists.isEmpty ? const [''] : artists)
-                            .take(_maxArtistCells)
-                            .toList(),
-                    canAdd: artists.length < _maxArtistCells,
-                    onAddArtist: onAddArtist,
-                    onSaveEdit: onSaveEdit,
-                    onRemoveArtist: onRemoveArtist,
-                    onUpdateArtist: onUpdateArtist,
-                  )
-                  : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final artist in _getEditedArtists(artists)) ...[
-                          _ArtistSplitChip(label: artist, merge: merge),
-                          const SizedBox(width: 5),
-                        ],
-                      ],
-                    ),
-                  ),
+          label: label,
+          labelWidth: labelWidth,
+          child: Row(
+            children: [
+              _ArtistSplitSmallIconButton(
+                icon: FluentIcons.add_20_regular,
+                tooltip: i18n.t('common.add'),
+                onPressed: canAdd ? onAddArtist : null,
+              ),
+              const SizedBox(width: 5),
+              _ArtistSplitSmallIconButton(
+                icon: FluentIcons.checkmark_20_regular,
+                tooltip: i18n.t('settings.save'),
+                onPressed: onSaveEdit,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: EdgeInsets.only(left: labelWidth + 8),
+          child: _ArtistSplitEditor(
+            artists: artists,
+            onRemoveArtist: onRemoveArtist,
+            onUpdateArtist: onUpdateArtist,
+          ),
         ),
       ],
     );
@@ -516,24 +577,20 @@ class _ArtistSplitValueRow extends StatelessWidget {
     required this.label,
     required this.child,
     required this.labelWidth,
-    this.alignStart = false,
   });
 
   final String label;
   final Widget child;
   final double labelWidth;
-  final bool alignStart;
 
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
     return Row(
-      crossAxisAlignment:
-          alignStart ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
           width: labelWidth,
-          height: alignStart ? 28 : null,
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(

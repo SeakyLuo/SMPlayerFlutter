@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Не вдалося імпортувати дані",
   "settings.display": "Відображення",
   "settings.desktopLyrics": "тексти на робочому столі",
+  "settings.desktopLyricsEnabled": "Показувати тексти на робочому столі",
   "settings.desktopLyricsColor": "Колір шрифту",
   "settings.desktopLyricsFontFamily": "шрифт",
   "settings.desktopLyricsFontSearch": "Пошук шрифту",

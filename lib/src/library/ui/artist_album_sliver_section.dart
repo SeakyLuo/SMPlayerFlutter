@@ -124,7 +124,11 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                 final last = index == album.songs.length - 1;
                 return _ArtistAlbumSongRowShell(
                   key:
-                      first ? ValueKey('Artists.SongList.${album.name}') : null,
+                      first
+                          ? ValueKey('Artists.SongList.${album.name}')
+                          : last
+                          ? ValueKey('Artists.SongList.Last.${album.name}')
+                          : null,
                   sectionColor: sectionColor,
                   sectionBorder: sectionBorder,
                   songListBorder: songListBorder,

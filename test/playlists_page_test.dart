@@ -10,6 +10,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/ui/card_corner_badge.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_view_holder.dart';
@@ -143,6 +144,44 @@ void main() {
     expect(playAction, findsOneWidget);
     expect(tester.getSize(playAction), const Size.square(48));
     expect(tester.getCenter(playAction), tester.getCenter(firstArtwork));
+  });
+
+  testWidgets('PlaylistsPage grid fits three fixed cards at medium width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(680, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _PlaylistTestApp(
+        snapshot: _playlistGridSnapshot(4),
+        child: const PlaylistsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const ValueKey('Playlists.PlaylistCard'));
+    expect(cards, findsNWidgets(4));
+    expect(
+      tester.getTopLeft(cards.at(0)).dy,
+      tester.getTopLeft(cards.at(1)).dy,
+    );
+    expect(
+      tester.getTopLeft(cards.at(1)).dy,
+      tester.getTopLeft(cards.at(2)).dy,
+    );
+    expect(
+      tester.getTopLeft(cards.at(2)).dx,
+      greaterThan(tester.getTopLeft(cards.at(1)).dx),
+    );
+    expect(
+      tester.getTopLeft(cards.at(3)).dy,
+      greaterThan(tester.getTopLeft(cards.at(0)).dy),
+    );
   });
 
   testWidgets('PlaylistsPage search query filters playlist names', (
@@ -337,6 +376,10 @@ void main() {
     final dragHandle = find.byTooltip('Drag to Sort').first;
 
     expect(tester.getSize(dragHandle), const Size.square(32));
+    expect(
+      find.descendant(of: dragHandle, matching: find.byType(CardCornerBadge)),
+      findsOneWidget,
+    );
 
     final cardTopRight = tester.getTopRight(firstCard);
     final handleTopRight = tester.getTopRight(dragHandle);
@@ -1376,6 +1419,31 @@ const _snapshot = LibraryContentData(
   favoritePlaylistId: 3,
   nowPlaying: NowPlayingSnapshot(playlistId: 0, songIds: []),
 );
+
+LibraryContentData _playlistGridSnapshot(int playlistCount) {
+  return LibraryContentData(
+    songs: _snapshot.songs,
+    hasLibrary: true,
+    sortCriterion: MusicLibrarySortCriterion.title,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    databasePath: _snapshot.databasePath,
+    playlists: [
+      _snapshot.playlists.first,
+      for (var index = 0; index < playlistCount; index++)
+        LibraryPlaylist(
+          id: 20 + index,
+          name: 'Grid ${index + 1}',
+          priority: index + 1,
+          songCount: 0,
+          songIds: const [],
+          sortCriterion: PlaylistSortCriterion.title,
+          isBuiltIn: false,
+        ),
+    ],
+    favoritePlaylistId: _snapshot.favoritePlaylistId,
+    nowPlaying: _snapshot.nowPlaying,
+  );
+}
 
 final _snapshotWithRecentPlaylistSearch = LibraryContentData(
   songs: _snapshot.songs,

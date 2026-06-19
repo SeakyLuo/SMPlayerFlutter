@@ -132,6 +132,7 @@ extension _SettingsPageSections on _SettingsPageState {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SettingsActionButton(
+                icon: FluentIcons.text_bullet_list_add_20_regular,
                 disabled:
                     _lyricsBatchCancelRequested ||
                     widget.lyricsBatchSongCount == null ||
@@ -174,7 +175,7 @@ extension _SettingsPageSections on _SettingsPageState {
             ],
           ),
           if (_showLyricsBatchOptions)
-            _LyricsBatchOptions(
+            _LyricsBatchOptionsDialog(
               overwrite: _lyricsBatchOverwrite,
               onOverwriteChanged: (checked) {
                 setState(() {
@@ -206,111 +207,103 @@ extension _SettingsPageSections on _SettingsPageState {
         key: _desktopLyricsKey,
         id: 'desktop-lyrics',
         title: i18n.t('settings.desktopLyrics'),
-        headerAction: _ElectronSwitch(
-          value: _snapshot.desktopLyricsEnabled,
-          onChanged: (checked) {
-            _updateSettings(AppSettingsUpdate(desktopLyricsEnabled: checked));
-          },
-        ),
-        children:
-            _snapshot.desktopLyricsEnabled
-                ? [
-                  ColorSettingRow(
-                    label: i18n.t('settings.desktopLyricsColor'),
-                    value: _snapshot.desktopLyricsColor,
-                    onPickColor: widget.onPickColor,
-                    onChange: (value) {
-                      _updateSettings(
-                        AppSettingsUpdate(desktopLyricsColor: value),
-                      );
-                    },
+        children: [
+          ToggleSettingRow(
+            label: i18n.t('settings.desktopLyricsEnabled'),
+            checked: _snapshot.desktopLyricsEnabled,
+            onChange: (checked) {
+              _updateSettings(AppSettingsUpdate(desktopLyricsEnabled: checked));
+            },
+          ),
+          if (_snapshot.desktopLyricsEnabled) ...[
+            ColorSettingRow(
+              label: i18n.t('settings.desktopLyricsColor'),
+              value: _snapshot.desktopLyricsColor,
+              onPickColor: widget.onPickColor,
+              onChange: (value) {
+                _updateSettings(AppSettingsUpdate(desktopLyricsColor: value));
+              },
+            ),
+            ToggleSettingRow(
+              label: i18n.t('settings.desktopLyricsStroke'),
+              checked: _snapshot.desktopLyricsStrokeColor.isNotEmpty,
+              onChange: (checked) {
+                _updateSettings(
+                  AppSettingsUpdate(
+                    desktopLyricsStrokeColor: checked ? '#111111' : '',
                   ),
-                  ToggleSettingRow(
-                    label: i18n.t('settings.desktopLyricsStroke'),
-                    checked: _snapshot.desktopLyricsStrokeColor.isNotEmpty,
-                    onChange: (checked) {
-                      _updateSettings(
-                        AppSettingsUpdate(
-                          desktopLyricsStrokeColor: checked ? '#111111' : '',
-                        ),
-                      );
-                    },
-                  ),
-                  if (_snapshot.desktopLyricsStrokeColor.isNotEmpty)
-                    ColorSettingRow(
-                      label: i18n.t('settings.desktopLyricsStrokeColor'),
-                      value: _snapshot.desktopLyricsStrokeColor,
-                      onPickColor: widget.onPickColor,
-                      onChange: (value) {
-                        _updateSettings(
-                          AppSettingsUpdate(desktopLyricsStrokeColor: value),
-                        );
-                      },
-                    ),
-                  SelectSettingRow<String>(
-                    label: i18n.t('settings.desktopLyricsFontFamily'),
-                    value: _snapshot.desktopLyricsFontFamily,
-                    options: _desktopLyricsFontOptions(i18n),
-                    searchable: true,
-                    searchPlaceholder: i18n.t(
-                      'settings.desktopLyricsFontSearch',
-                    ),
-                    emptyLabel: i18n.t('settings.desktopLyricsFontNoResults'),
-                    onChange: (value) {
-                      _updateSettings(
-                        AppSettingsUpdate(desktopLyricsFontFamily: value),
-                      );
-                    },
-                  ),
-                  RangeSettingRow(
-                    label: i18n.t('settings.desktopLyricsFontSize'),
-                    min: 20,
-                    max: 48,
-                    step: 1,
-                    value: _snapshot.desktopLyricsFontSize,
-                    valueLabel: '${_snapshot.desktopLyricsFontSize}px',
-                    onChange: (value) {
-                      _updateSettings(
-                        AppSettingsUpdate(desktopLyricsFontSize: value),
-                      );
-                    },
-                  ),
-                  RangeSettingRow(
-                    label: i18n.t('settings.desktopLyricsOpacity'),
-                    min: 45,
-                    max: 100,
-                    step: 1,
-                    value: _snapshot.desktopLyricsOpacity,
-                    valueLabel: '${_snapshot.desktopLyricsOpacity}%',
-                    onChange: (value) {
-                      _updateSettings(
-                        AppSettingsUpdate(desktopLyricsOpacity: value),
-                      );
-                    },
-                  ),
-                  SettingsButtonRow(
-                    children: [
-                      SettingsActionButton(
-                        icon: FluentIcons.arrow_undo_24_regular,
-                        onClick: () {
-                          _updateSettings(
-                            const AppSettingsUpdate(
-                              desktopLyricsColor: '#4aa8ff',
-                              desktopLyricsStrokeColor: '#111111',
-                              desktopLyricsFontSize: 28,
-                              desktopLyricsFontFamily: 'system',
-                              desktopLyricsOpacity: 88,
-                            ),
-                          );
-                        },
-                        child: Text(
-                          i18n.t('settings.desktopLyricsRestoreDefaults'),
-                        ),
+                );
+              },
+            ),
+            if (_snapshot.desktopLyricsStrokeColor.isNotEmpty)
+              ColorSettingRow(
+                label: i18n.t('settings.desktopLyricsStrokeColor'),
+                value: _snapshot.desktopLyricsStrokeColor,
+                onPickColor: widget.onPickColor,
+                onChange: (value) {
+                  _updateSettings(
+                    AppSettingsUpdate(desktopLyricsStrokeColor: value),
+                  );
+                },
+              ),
+            SelectSettingRow<String>(
+              label: i18n.t('settings.desktopLyricsFontFamily'),
+              value: _snapshot.desktopLyricsFontFamily,
+              options: _desktopLyricsFontOptions(i18n),
+              searchable: true,
+              searchPlaceholder: i18n.t('settings.desktopLyricsFontSearch'),
+              emptyLabel: i18n.t('settings.desktopLyricsFontNoResults'),
+              onChange: (value) {
+                _updateSettings(
+                  AppSettingsUpdate(desktopLyricsFontFamily: value),
+                );
+              },
+            ),
+            RangeSettingRow(
+              label: i18n.t('settings.desktopLyricsFontSize'),
+              min: 20,
+              max: 48,
+              step: 1,
+              value: _snapshot.desktopLyricsFontSize,
+              valueLabel: '${_snapshot.desktopLyricsFontSize}px',
+              onChange: (value) {
+                _updateSettings(
+                  AppSettingsUpdate(desktopLyricsFontSize: value),
+                );
+              },
+            ),
+            RangeSettingRow(
+              label: i18n.t('settings.desktopLyricsOpacity'),
+              min: 45,
+              max: 100,
+              step: 1,
+              value: _snapshot.desktopLyricsOpacity,
+              valueLabel: '${_snapshot.desktopLyricsOpacity}%',
+              onChange: (value) {
+                _updateSettings(AppSettingsUpdate(desktopLyricsOpacity: value));
+              },
+            ),
+            SettingsButtonRow(
+              children: [
+                SettingsActionButton(
+                  icon: FluentIcons.arrow_undo_24_regular,
+                  onClick: () {
+                    _updateSettings(
+                      const AppSettingsUpdate(
+                        desktopLyricsColor: '#4aa8ff',
+                        desktopLyricsStrokeColor: '#111111',
+                        desktopLyricsFontSize: 28,
+                        desktopLyricsFontFamily: 'system',
+                        desktopLyricsOpacity: 88,
                       ),
-                    ],
-                  ),
-                ]
-                : null,
+                    );
+                  },
+                  child: Text(i18n.t('settings.desktopLyricsRestoreDefaults')),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     ];
   }

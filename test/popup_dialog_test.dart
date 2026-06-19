@@ -7,6 +7,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 
@@ -41,6 +42,10 @@ void main() {
     expect(
       tester.getSize(find.byKey(const ValueKey('popup-dialog-close-button'))),
       const Size(42, 40),
+    );
+    expect(
+      tester.widget(find.byKey(const ValueKey('popup-dialog-close-button'))),
+      isA<SmPlayerTextIconButton>(),
     );
     expect(_closeButtonSurface(tester).color, const Color(0xebffffff));
 
@@ -278,6 +283,37 @@ void main() {
     expect(closed, isTrue);
   });
 
+  testWidgets('PopupDialog close button removes dialog after hover', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(const _TestApp(child: _ClosablePopupDialogHost()));
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('popup-dialog-close-button'))),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    expect(find.byType(Tooltip), findsNothing);
+    expect(find.text('Close'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('popup-dialog-close-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('popup-dialog-shell')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('PopupDialog tabs fill mobile nav cells like Electron', (
     tester,
   ) async {
@@ -511,9 +547,17 @@ void main() {
 }
 
 BoxDecoration _closeButtonSurface(WidgetTester tester) {
-  final decoratedBox = tester.widget<DecoratedBox>(
-    find.byKey(const ValueKey('popup-dialog-close-button-surface')),
-  );
+  final decoratedBox = tester
+      .widgetList<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(const ValueKey('popup-dialog-close-button')),
+          matching: find.byType(DecoratedBox),
+        ),
+      )
+      .firstWhere((box) {
+        final decoration = box.decoration;
+        return decoration is BoxDecoration && decoration.border != null;
+      });
   return decoratedBox.decoration as BoxDecoration;
 }
 
@@ -540,6 +584,37 @@ class _TestApp extends StatelessWidget {
         },
       ),
       child: MaterialApp(home: Material(child: child)),
+    );
+  }
+}
+
+class _ClosablePopupDialogHost extends StatefulWidget {
+  const _ClosablePopupDialogHost();
+
+  @override
+  State<_ClosablePopupDialogHost> createState() =>
+      _ClosablePopupDialogHostState();
+}
+
+class _ClosablePopupDialogHostState extends State<_ClosablePopupDialogHost> {
+  var _visible = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        if (_visible)
+          PopupDialog(
+            navLabel: 'Dialog title',
+            navChildren: const [Text('Dialog title')],
+            onClose: () {
+              setState(() {
+                _visible = false;
+              });
+            },
+            child: const SizedBox.shrink(),
+          ),
+      ],
     );
   }
 }

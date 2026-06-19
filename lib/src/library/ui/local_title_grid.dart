@@ -11,6 +11,8 @@ import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
 import 'menu_flyout.dart';
 
+const localFolderChainRadius = 8.0;
+
 class LocalTitleGrid extends StatelessWidget {
   const LocalTitleGrid({
     super.key,
@@ -185,7 +187,7 @@ class _FolderChainListViewState extends State<FolderChainListView> {
       height: widget.compact ? 36 : 42,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(localFolderChainRadius),
           boxShadow: [
             BoxShadow(
               color: colors.panelShadow,
@@ -199,7 +201,9 @@ class _FolderChainListViewState extends State<FolderChainListView> {
           useOwnLayer: true,
           quality: GlassQuality.minimal,
           clipBehavior: Clip.hardEdge,
-          shape: const LiquidRoundedRectangle(borderRadius: 8),
+          shape: const LiquidRoundedRectangle(
+            borderRadius: localFolderChainRadius,
+          ),
           settings: LiquidGlassSettings(
             glassColor:
                 nightMode ? const Color(0xf0161c24) : const Color(0xffffffff),
@@ -215,7 +219,7 @@ class _FolderChainListViewState extends State<FolderChainListView> {
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(localFolderChainRadius),
               border: Border.all(color: colors.panelBorder),
             ),
             child: Padding(
@@ -565,7 +569,7 @@ class _FolderChainItemState extends State<_FolderChainItem> {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: active ? colors.surfaceControlHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(localFolderChainRadius),
             ),
             child: segmentContent,
           ),

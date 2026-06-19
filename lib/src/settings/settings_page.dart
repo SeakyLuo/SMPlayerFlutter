@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_switch.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -383,6 +384,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 message: i18n.t('settings.smartMultiArtistFixMessage'),
                 confirmText: i18n.t('settings.smartMultiArtistFixConfirm'),
                 busy: _smartArtistFixRunning,
+                usePopupDialog: true,
                 onCancel: () {
                   if (_smartArtistFixRunning) {
                     return;
@@ -790,10 +792,14 @@ class _SettingsPageState extends State<SettingsPage> {
         '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
         '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}'
         '$backupSummary',
+        duration: const Duration(seconds: 5),
       );
     } catch (_) {
       if (mounted) {
-        _showMessage(i18n.t('settings.lyricsBatchFailed'));
+        _showMessage(
+          i18n.t('settings.lyricsBatchFailed'),
+          duration: const Duration(seconds: 5),
+        );
       }
     } finally {
       _lyricsBatchRunning = false;
@@ -951,8 +957,12 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _showMessage(String message) {
-    showAppNotification(context: context, message: message);
+  void _showMessage(String message, {Duration? duration}) {
+    showAppNotification(
+      context: context,
+      message: message,
+      duration: duration ?? appNotificationDuration,
+    );
   }
 }
 

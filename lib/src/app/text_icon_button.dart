@@ -5,6 +5,34 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
+const _textIconButtonGlassSettings = LiquidGlassSettings(
+  blur: 30,
+  thickness: 12,
+  refractiveIndex: 1.03,
+  saturation: 1.2,
+  chromaticAberration: 0,
+  lightIntensity: 0.04,
+  ambientStrength: 0.04,
+  glowIntensity: 0,
+  glassColor: Color(0x08ffffff),
+  standardOpacityMultiplier: 0.12,
+);
+
+const _textIconButtonNightGlassSettings = LiquidGlassSettings(
+  blur: 24,
+  thickness: 8,
+  refractiveIndex: 1.02,
+  saturation: 1.12,
+  chromaticAberration: 0,
+  lightIntensity: 0.025,
+  ambientStrength: 0.03,
+  glowIntensity: 0,
+  glassColor: Color(0x05ffffff),
+  standardOpacityMultiplier: 0.08,
+);
+
+enum SmPlayerTextIconButtonTooltipMode { overlay, local }
+
 class SmPlayerTextIconButton extends StatefulWidget {
   const SmPlayerTextIconButton({
     super.key,
@@ -21,6 +49,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.disabled = false,
     this.showLabel = true,
     this.tooltipEnabled = true,
+    this.tooltipMode = SmPlayerTextIconButtonTooltipMode.overlay,
     this.tooltip,
     this.minWidth = 0,
     this.maxWidth,
@@ -39,6 +68,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.glassUseOwnLayer = true,
     this.glassAllowElevation = false,
     this.glassClipBehavior = Clip.hardEdge,
+    this.glassEnabled = true,
   });
 
   final String label;
@@ -54,6 +84,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final bool disabled;
   final bool showLabel;
   final bool tooltipEnabled;
+  final SmPlayerTextIconButtonTooltipMode tooltipMode;
   final String? tooltip;
   final double minWidth;
   final double? maxWidth;
@@ -72,6 +103,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final bool glassUseOwnLayer;
   final bool glassAllowElevation;
   final Clip glassClipBehavior;
+  final bool glassEnabled;
 
   @override
   State<SmPlayerTextIconButton> createState() => _SmPlayerTextIconButtonState();
@@ -87,6 +119,7 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         SmPlayerTextIconButtonTheme.maybeOf(context) ??
         Theme.of(context).extension<SmPlayerTextIconButtonColors>() ??
         SmPlayerTextIconButtonColors.day;
+    final brightness = Theme.of(context).brightness;
     final enabled =
         widget.onPressed != null && !widget.disabled && !widget.loading;
     final hovered = enabled && (_hovered || _focused);
@@ -96,18 +129,24 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
             : hovered
             ? colors.commandTextHover
             : colors.commandText;
+    final surfaceColor =
+        widget.active && widget.activeSurface
+            ? colors.controlActive
+            : hovered
+            ? colors.controlHover
+            : colors.control;
     final borderColor =
         hovered ? colors.controlHoverBorder : colors.controlBorder;
+    final usesGlass =
+        widget.glassEnabled &&
+        (widget.glassSettings != null ||
+            colors.control.a > 0 ||
+            colors.controlBorder.a > 0);
     final iconOnlyWidth =
         widget.minWidth > widget.height ? widget.minWidth : widget.height;
     final control = DecoratedBox(
       decoration: BoxDecoration(
-        color:
-            widget.active && widget.activeSurface
-                ? colors.controlActive
-                : hovered
-                ? colors.controlHover
-                : colors.control,
+        color: surfaceColor,
         borderRadius: BorderRadius.circular(widget.borderRadius),
         border: Border.all(color: borderColor),
       ),
@@ -196,19 +235,22 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
         ),
       ),
     );
-    final glassSettings = widget.glassSettings;
     final visualControl =
-        glassSettings == null
-            ? control
-            : GlassContainer(
+        usesGlass
+            ? GlassContainer(
               useOwnLayer: widget.glassUseOwnLayer,
               quality: widget.glassQuality,
               shape: LiquidRoundedRectangle(borderRadius: widget.borderRadius),
-              settings: glassSettings,
+              settings:
+                  widget.glassSettings ??
+                  (brightness == Brightness.dark
+                      ? _textIconButtonNightGlassSettings
+                      : _textIconButtonGlassSettings),
               clipBehavior: widget.glassClipBehavior,
               allowElevation: widget.glassAllowElevation,
               child: control,
-            );
+            )
+            : control;
     final button = Opacity(
       opacity: enabled ? 1 : widget.opacityWhenDisabled,
       child: FocusableActionDetector(
@@ -278,7 +320,91 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
     if (tooltip == null) {
       return button;
     }
+    if (widget.tooltipMode == SmPlayerTextIconButtonTooltipMode.local) {
+      return _SmPlayerTextIconButtonLocalTooltip(
+        message: tooltip,
+        visible: hovered,
+        buttonHeight: widget.height,
+        child: button,
+      );
+    }
     return Tooltip(message: tooltip, child: button);
+  }
+}
+
+class _SmPlayerTextIconButtonLocalTooltip extends StatelessWidget {
+  const _SmPlayerTextIconButtonLocalTooltip({
+    required this.message,
+    required this.visible,
+    required this.buttonHeight,
+    required this.child,
+  });
+
+  final String message;
+  final bool visible;
+  final double buttonHeight;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final background = dark ? const Color(0xf5222222) : const Color(0xfafdfdfd);
+    final border = dark ? const Color(0x5cffffff) : const Color(0x3d1f2a36);
+    final foreground = dark ? const Color(0xffffffff) : const Color(0xff1f252b);
+    return Semantics(
+      tooltip: message,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          child,
+          if (visible)
+            Positioned(
+              top: buttonHeight + 8,
+              left: -120,
+              right: -120,
+              child: IgnorePointer(
+                child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: background,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: border),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x26000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        child: Text(
+                          message,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            height: 1,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

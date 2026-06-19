@@ -806,13 +806,12 @@ class LibraryLyricsService {
   }
 
   String _normalizeLyricsForCompare(String rawLyrics) {
-    return rawLyrics
+    final withoutLeadingBom =
+        rawLyrics.startsWith('\ufeff') ? rawLyrics.substring(1) : rawLyrics;
+    return withoutLeadingBom
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .join('\n');
+        .trim();
   }
 
   Future<LyricsSnapshot?> _getSidecarLyrics(String songPath) async {

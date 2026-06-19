@@ -375,13 +375,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 layout.isNavigationOverlaySurface ||
                 _isNavigationSearchHistoryOpen,
             leftInset: layout.sidebarSurfaceWidth,
-            onDismiss: () {
-              if (_isNavigationSearchHistoryOpen) {
-                _dismissNavigationSearchHistory();
-                return;
-              }
-              _closeNavigationOverlay();
-            },
+            onDismiss: _dismissNavigationSurface,
           ),
           ShellNavigationHost(
             layout: layout,
@@ -493,6 +487,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onWindowDragStart: _startWindowDrag,
             onWindowDragEnd: _stopWindowDrag,
+            onTitlebarTap: _dismissNavigationSurface,
           ),
           ShellTitlebarHost(
             layout: layout,
@@ -501,6 +496,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onGoBack: _goBack,
             onWindowDragStart: _startWindowDrag,
             onWindowDragEnd: _stopWindowDrag,
+            onTitlebarTap: _dismissNavigationSurface,
             onMinimize: _minimizeDesktopWindow,
             onToggleMaximize: _toggleDesktopWindowMaximized,
             onClose: _closeDesktopWindow,

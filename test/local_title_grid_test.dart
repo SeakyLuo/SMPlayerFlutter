@@ -77,6 +77,52 @@ void main() {
     expect(find.textContaining(r'C:\Music'), findsNothing);
   });
 
+  testWidgets('FolderChainListView hover background matches container radius', (
+    tester,
+  ) async {
+    _setSurface(tester);
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: const [LocalPageColors.day]),
+          home: Scaffold(
+            body: FolderChainListView(
+              songs: const [],
+              folders: const [],
+              i18n: i18n,
+              rootPath: r'C:\Music',
+              currentRelativePath: '',
+              onOpenFolder: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Music')));
+    await tester.pumpAndSettle();
+
+    final hoverDecoration =
+        tester.widgetList<DecoratedBox>(find.byType(DecoratedBox)).firstWhere((
+              box,
+            ) {
+              final decoration = box.decoration;
+              return decoration is BoxDecoration &&
+                  decoration.color == LocalPageColors.day.surfaceControlHover;
+            }).decoration
+            as BoxDecoration;
+
+    expect(
+      hoverDecoration.borderRadius,
+      BorderRadius.circular(localFolderChainRadius),
+    );
+  });
+
   testWidgets(
     'FolderChainListView current segment scroll action matches Electron',
     (tester) async {

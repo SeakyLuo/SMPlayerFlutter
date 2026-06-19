@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -862,6 +863,13 @@ void main() {
 
     expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
     expect(find.text('37'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+        matching: find.byKey(const ValueKey('VolumeSlider.TooltipBody')),
+      ),
+      findsOneWidget,
+    );
 
     await tester.pump(const Duration(milliseconds: 901));
 
@@ -3526,18 +3534,48 @@ void main() {
     );
     expect(compactVolumePopoverRect.right, compactVolumeButtonRect.right + 6);
     expect(compactVolumePopoverRect.bottom, compactVolumeButtonRect.top - 8);
-    final compactVolumePopover = tester.widget<DecoratedBox>(
-      find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+    final compactVolumeGlass = tester.widget<GlassContainer>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+        matching: find.byType(GlassContainer),
+      ),
     );
-    final compactVolumeDecoration =
-        compactVolumePopover.decoration as BoxDecoration;
-    expect(compactVolumeDecoration.color, const Color(0xf5222222));
+    expect(compactVolumeGlass.useOwnLayer, isTrue);
+    expect(compactVolumeGlass.quality, GlassQuality.minimal);
     expect(
-      compactVolumeDecoration.border,
+      (compactVolumeGlass.settings as LiquidGlassSettings).glassColor,
+      const Color(0xf5222222),
+    );
+    expect((compactVolumeGlass.settings as LiquidGlassSettings).blur, 46);
+    final compactVolumeBorderDecoration = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border != null);
+    expect(
+      compactVolumeBorderDecoration.border,
       Border.all(color: const Color(0x2effffff)),
     );
-    expect(compactVolumeDecoration.borderRadius, BorderRadius.circular(8));
-    expect(compactVolumeDecoration.boxShadow, const [
+    expect(
+      compactVolumeBorderDecoration.borderRadius,
+      BorderRadius.circular(8),
+    );
+    final compactVolumeShadowDecoration = tester
+        .widgetList<DecoratedBox>(
+          find.ancestor(
+            of: find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.boxShadow != null);
+    expect(compactVolumeShadowDecoration.boxShadow, const [
       BoxShadow(
         color: Color(0x6b000000),
         offset: Offset(0, 16),
@@ -3553,23 +3591,37 @@ void main() {
       ),
       findsNothing,
     );
+    final compactVolumeSliderTheme = tester.widget<SliderTheme>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('MediaControl.CompactVolumePopover')),
+            matching: find.byType(SliderTheme),
+          )
+          .first,
+    );
+    expect(
+      compactVolumeSliderTheme.data.activeTrackColor,
+      MediaControlColors.accent,
+    );
+    expect(compactVolumeSliderTheme.data.thumbColor, MediaControlColors.accent);
+
+    await tester.pump(const Duration(milliseconds: 950));
+    expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsNothing);
 
     tester.widget<Slider>(find.byType(Slider).last).onChangeStart!(50);
     await tester.pump();
     expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
-    final compactVolumeTooltipArrow = tester.widget<DecoratedBox>(
-      find.byKey(const ValueKey('VolumeSlider.TooltipArrow')),
-    );
-    final compactVolumeTooltipArrowBorder =
-        (compactVolumeTooltipArrow.decoration as BoxDecoration).border!
-            as Border;
-    expect(compactVolumeTooltipArrowBorder.top.color, const Color(0x2effffff));
     expect(
-      compactVolumeTooltipArrowBorder.right.color,
-      const Color(0x2effffff),
+      find.descendant(
+        of: find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+        matching: find.byKey(const ValueKey('VolumeSlider.TooltipBody')),
+      ),
+      findsOneWidget,
     );
-    expect(compactVolumeTooltipArrowBorder.bottom, BorderSide.none);
-    expect(compactVolumeTooltipArrowBorder.left, BorderSide.none);
+    expect(
+      find.byKey(const ValueKey('VolumeSlider.TooltipArrow')),
+      findsNothing,
+    );
   });
 
   testWidgets('compact mode menu closes compact volume like Electron', (

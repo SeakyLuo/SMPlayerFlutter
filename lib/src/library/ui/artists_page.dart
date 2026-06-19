@@ -173,6 +173,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     required String routePath,
     required Widget content,
     required String compactTitle,
+    required String layoutSignature,
     required int searchSuggestionCount,
     required int searchHistoryCount,
     Widget? bottomContent,
@@ -183,6 +184,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       routePath: routePath,
       content: content,
       compactTitle: compactTitle,
+      layoutSignature: layoutSignature,
       searchSuggestionCount: searchSuggestionCount,
       searchHistoryCount: searchHistoryCount,
       bottomContent: bottomContent,
@@ -249,6 +251,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             onChangeArtistSort: _changeArtistSort,
           ),
           compactTitle: i18n.t('library.allArtists'),
+          layoutSignature: 'loading',
           searchSuggestionCount: 0,
           searchHistoryCount: 0,
         );
@@ -375,11 +378,10 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 ? matchingSelectedArtists.first
                 : (visibleArtists.isEmpty ? null : visibleArtists.first);
         final compactSelectedArtist =
-            compactLayout && targetArtist != null
-                ? targetArtist
-                : (matchingSelectedArtists.isNotEmpty
-                    ? matchingSelectedArtists.first
-                    : null);
+            targetArtist ??
+            (matchingSelectedArtists.isNotEmpty
+                ? matchingSelectedArtists.first
+                : null);
         final artistQuickJumpKeys = artistQuickJumpKeysForSort(
           _artistSortCriterion,
         );
@@ -417,103 +419,111 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 )
                 .toList();
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
-        final compactAppBarTitle =
-            compactLayout
-                ? compactSelectedArtist?.name ??
-                    _allArtistsTitle(snapshot, artistGroups, i18n)
-                : _allArtistsTitle(snapshot, artistGroups, i18n);
-        final compactAppBarDetailControls =
-            useWorkspaceAppBar && compactLayout && compactSelectedArtist != null
-                ? DecoratedBox(
-                  key: const ValueKey('Artists.DetailHeader.AppBarShadow'),
-                  decoration: _ArtistsColors.compactDetailHeaderDecoration(
-                    Theme.of(context).brightness,
-                  ),
-                  child: _ArtistDetailCompactCommandRow(
-                    artist: compactSelectedArtist,
-                    i18n: i18n,
-                    workspaceAppBarBottom: true,
-                    onPlaySongs: () {
-                      _playShuffledSongIds(
-                        compactSelectedArtist.songs
-                            .map((song) => song.id)
-                            .toList(),
-                        artistName: compactSelectedArtist.name,
-                      );
-                    },
-                    onOpenArtistMenu: (position) {
-                      _showGroupContextMenu(
-                        position: position,
-                        type: _ArtistGroupMenuType.artist,
-                        label: compactSelectedArtist.name,
-                        songs: compactSelectedArtist.songs,
-                        showLocateArtist: true,
-                      );
-                    },
-                  ),
-                )
-                : null;
-        _syncAppBarPortal(
-          showPortal: true,
-          routePath: '/artists',
-          content: _ArtistsAppBarSearchActions(
-            searchOpen: _appBarSearchOpen,
-            artistSearch: _artistSearch,
-            sortCriterion: _artistSortCriterion,
-            i18n: i18n,
-            searchFocused: _artistSearchFocused,
-            searchSuggestions: artistSearchSuggestions,
-            searchHistoryEntries: artistSearchHistoryEntries,
-            onOpenSearch: () {
-              setState(() {
-                _appBarSearchOpen = true;
-                _artistSearchFocused = true;
-              });
-            },
-            onCloseSearch: () {
-              setState(() {
-                _appBarSearchOpen = false;
-                _artistSearchFocused = false;
-              });
-            },
-            onSearchChanged: (value) {
-              setState(() {
-                _artistSearch = value;
-              });
-            },
-            onSearchFocusChanged: _changeArtistSearchFocus,
-            onSearchSubmitted: () {
-              _submitArtistSearch();
-              setState(() {
-                _appBarSearchOpen = false;
-              });
-            },
-            onClearSearch: () {
-              setState(() {
-                _artistSearch = '';
-              });
-            },
-            onSelectSearchSuggestion: (query) {
-              _selectArtistSearchQuery(query);
-              setState(() {
-                _appBarSearchOpen = false;
-              });
-            },
-            onRemoveRecentSearch: _removeArtistRecentSearch,
-            onClearRecentSearches: _clearArtistRecentSearches,
-            onChangeArtistSort: _changeArtistSort,
-          ),
-          compactTitle: compactAppBarTitle,
-          searchSuggestionCount: artistSearchSuggestions.length,
-          searchHistoryCount: artistSearchHistoryEntries.length,
-          bottomContent: compactAppBarDetailControls,
-        );
-
         return Stack(
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxWidth <= 720;
+                final compactAppBarTitle =
+                    compact
+                        ? compactSelectedArtist?.name ??
+                            _allArtistsTitle(snapshot, artistGroups, i18n)
+                        : _allArtistsTitle(snapshot, artistGroups, i18n);
+                final compactAppBarDetailControls =
+                    useWorkspaceAppBar &&
+                            compact &&
+                            compactSelectedArtist != null
+                        ? DecoratedBox(
+                          key: const ValueKey(
+                            'Artists.DetailHeader.AppBarShadow',
+                          ),
+                          decoration:
+                              _ArtistsColors.compactDetailHeaderDecoration(
+                                Theme.of(context).brightness,
+                              ),
+                          child: _ArtistDetailCompactCommandRow(
+                            artist: compactSelectedArtist,
+                            i18n: i18n,
+                            workspaceAppBarBottom: true,
+                            onPlaySongs: () {
+                              _playShuffledSongIds(
+                                compactSelectedArtist.songs
+                                    .map((song) => song.id)
+                                    .toList(),
+                                artistName: compactSelectedArtist.name,
+                              );
+                            },
+                            onOpenArtistMenu: (position) {
+                              _showGroupContextMenu(
+                                position: position,
+                                type: _ArtistGroupMenuType.artist,
+                                label: compactSelectedArtist.name,
+                                songs: compactSelectedArtist.songs,
+                                showLocateArtist: true,
+                              );
+                            },
+                          ),
+                        )
+                        : null;
+                _syncAppBarPortal(
+                  showPortal: true,
+                  routePath: '/artists',
+                  content: _ArtistsAppBarSearchActions(
+                    searchOpen: _appBarSearchOpen,
+                    artistSearch: _artistSearch,
+                    sortCriterion: _artistSortCriterion,
+                    i18n: i18n,
+                    searchFocused: _artistSearchFocused,
+                    searchSuggestions: artistSearchSuggestions,
+                    searchHistoryEntries: artistSearchHistoryEntries,
+                    onOpenSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = true;
+                        _artistSearchFocused = true;
+                      });
+                    },
+                    onCloseSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = false;
+                        _artistSearchFocused = false;
+                      });
+                    },
+                    onSearchChanged: (value) {
+                      setState(() {
+                        _artistSearch = value;
+                      });
+                    },
+                    onSearchFocusChanged: _changeArtistSearchFocus,
+                    onSearchSubmitted: () {
+                      _submitArtistSearch();
+                      setState(() {
+                        _appBarSearchOpen = false;
+                      });
+                    },
+                    onClearSearch: () {
+                      setState(() {
+                        _artistSearch = '';
+                      });
+                    },
+                    onSelectSearchSuggestion: (query) {
+                      _selectArtistSearchQuery(query);
+                      setState(() {
+                        _appBarSearchOpen = false;
+                      });
+                    },
+                    onRemoveRecentSearch: _removeArtistRecentSearch,
+                    onClearRecentSearches: _clearArtistRecentSearches,
+                    onChangeArtistSort: _changeArtistSort,
+                  ),
+                  compactTitle: compactAppBarTitle,
+                  layoutSignature:
+                      compact
+                          ? 'compact:${compactSelectedArtist?.name ?? ''}'
+                          : 'wide',
+                  searchSuggestionCount: artistSearchSuggestions.length,
+                  searchHistoryCount: artistSearchHistoryEntries.length,
+                  bottomContent: compactAppBarDetailControls,
+                );
                 return _ArtistsPagePanel(
                   child: _ArtistsMasterDetail(
                     compact: compact,

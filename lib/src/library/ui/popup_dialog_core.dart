@@ -149,6 +149,40 @@ class _PopupDialogState extends State<PopupDialog> {
                     );
                     final useTrailingSpacer =
                         !mobile && !dialogClasses.usesFullWidthNavTitle;
+                    final navBar = Semantics(
+                      label: widget.navLabel,
+                      child: GestureDetector(
+                        key: const ValueKey('popup-dialog-nav'),
+                        behavior: HitTestBehavior.opaque,
+                        onPanStart:
+                            widget.onWindowDragStart == null
+                                ? null
+                                : (_) => widget.onWindowDragStart!(),
+                        onPanEnd:
+                            widget.onWindowDragEnd == null
+                                ? null
+                                : (_) => widget.onWindowDragEnd!(),
+                        onPanCancel: widget.onWindowDragEnd,
+                        child: Padding(
+                          padding:
+                              mobile
+                                  ? const EdgeInsets.fromLTRB(12, 44, 12, 10)
+                                  : const EdgeInsets.fromLTRB(28, 22, 28, 18),
+                          child: Row(
+                            children: [
+                              ...navChildren,
+                              if (useTrailingSpacer) const Spacer(),
+                              if (!mobile)
+                                _PopupDialogCloseButton(
+                                  label: i18n.t('common.close'),
+                                  colors: colors,
+                                  onClose: widget.onClose,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
                     final dialog = GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},
@@ -179,59 +213,38 @@ class _PopupDialogState extends State<PopupDialog> {
                                     ],
                           ),
                           clipBehavior: Clip.antiAlias,
-                          child: Column(
-                            children: [
-                              Semantics(
-                                label: widget.navLabel,
-                                child: GestureDetector(
-                                  key: const ValueKey('popup-dialog-nav'),
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanStart:
-                                      widget.onWindowDragStart == null
-                                          ? null
-                                          : (_) => widget.onWindowDragStart!(),
-                                  onPanEnd:
-                                      widget.onWindowDragEnd == null
-                                          ? null
-                                          : (_) => widget.onWindowDragEnd!(),
-                                  onPanCancel: widget.onWindowDragEnd,
-                                  child: Padding(
-                                    padding:
-                                        mobile
-                                            ? const EdgeInsets.fromLTRB(
-                                              12,
-                                              44,
-                                              12,
-                                              10,
-                                            )
-                                            : const EdgeInsets.fromLTRB(
-                                              28,
-                                              22,
-                                              28,
-                                              18,
-                                            ),
-                                    child: Row(
-                                      children: [
-                                        ...navChildren,
-                                        if (useTrailingSpacer) const Spacer(),
-                                        if (!mobile)
-                                          Tooltip(
-                                            message: i18n.t('common.close'),
-                                            child: _PopupDialogCloseButton(
-                                              colors: colors,
-                                              onClose: widget.onClose,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                          child:
+                              mobile
+                                  ? Column(
+                                    children: [
+                                      navBar,
+                                      if (widget.afterNav != null)
+                                        widget.afterNav!,
+                                      Expanded(child: widget.child),
+                                      if (widget.footer != null) widget.footer!,
+                                    ],
+                                  )
+                                  : Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Column(
+                                        children: [
+                                          const SizedBox(height: 80),
+                                          if (widget.afterNav != null)
+                                            widget.afterNav!,
+                                          Expanded(child: widget.child),
+                                          if (widget.footer != null)
+                                            widget.footer!,
+                                        ],
+                                      ),
+                                      Positioned(
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: navBar,
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ),
-                              if (widget.afterNav != null) widget.afterNav!,
-                              Expanded(child: widget.child),
-                              if (widget.footer != null) widget.footer!,
-                            ],
-                          ),
                         ),
                       ),
                     );

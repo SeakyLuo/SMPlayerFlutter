@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Échec de l'importation des données",
   "settings.display": "Affichage",
   "settings.desktopLyrics": "paroles sur le bureau",
+  "settings.desktopLyricsEnabled": "Afficher les paroles sur le bureau",
   "settings.desktopLyricsColor": "Couleur de police",
   "settings.desktopLyricsFontFamily": "police de caractères",
   "settings.desktopLyricsFontSearch": "Rechercher une police",

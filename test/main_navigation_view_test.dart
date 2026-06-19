@@ -424,6 +424,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('音乐库'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.FloatingTooltipBubble')),
+      findsOneWidget,
+    );
 
     await gesture.moveTo(const Offset(95, 895));
     await tester.pump();
@@ -1613,6 +1617,57 @@ void main() {
       expect(settingsRect.top - playlistRect.bottom, 8);
     },
   );
+
+  testWidgets('sidebar scrollable content does not show default scrollbars', (
+    tester,
+  ) async {
+    final playlists = List<LibraryPlaylist>.generate(
+      16,
+      (index) => LibraryPlaylist(
+        id: index + 1,
+        name: 'Playlist ${index + 1}',
+        priority: index,
+        songCount: 2,
+        songIds: const [1, 2],
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        scrollBehavior: const MaterialScrollBehavior().copyWith(
+          scrollbars: true,
+        ),
+        home: SizedBox(
+          width: 320,
+          height: 520,
+          child: MainNavigationView(
+            isPaneOpen: true,
+            showTitlebar: false,
+            currentPath: '/playlists',
+            searchText: '',
+            i18n: testI18n,
+            playlists: playlists,
+            onPaneToggle: _noop,
+            onSearchTextChanged: _ignoreString,
+            onSearchCommitted: _ignoreSearchCommit,
+            onSearchCleared: _noop,
+            onItemInvoked: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('MainNavigationView.PlaylistScroll')),
+      findsOneWidget,
+    );
+    expect(find.byType(Scrollbar), findsNothing);
+    expect(find.byType(RawScrollbar), findsNothing);
+  });
 
   testWidgets('sidebar playlist item exposes Electron context menu actions', (
     tester,

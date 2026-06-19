@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -1202,43 +1203,53 @@ void main() {
 
     expect(find.byKey(const ValueKey('Recent.AppBarTabs')), findsOneWidget);
     expect(find.text('Clear History'), findsNothing);
-    expect(tester.getSize(find.widgetWithText(TextButton, 'Added')).height, 34);
-    final playedTab = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Played'),
+    final addedTabFinder = find.ancestor(
+      of: find.text('Added'),
+      matching: find.byType(SmPlayerTextIconButton),
+    );
+    expect(tester.getSize(addedTabFinder).height, 34);
+    final playedTabFinder = find.ancestor(
+      of: find.text('Played'),
+      matching: find.byType(SmPlayerTextIconButton),
     );
     expect(
-      playedTab.style!.backgroundColor!.resolve({}),
+      _textIconButtonDecoration(tester, playedTabFinder).color,
       const Color(0x80ffffff),
     );
-    expect(
-      playedTab.style!.backgroundColor!.resolve({WidgetState.hovered}),
-      GlobalUI.hoverBgColorDay,
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(playedTabFinder),
+      ),
     );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, playedTabFinder);
+    expect(hoverDecoration.color, GlobalUI.hoverBgColorDay);
     expect(
-      playedTab.style!.foregroundColor!.resolve({WidgetState.hovered}),
+      _textIconButtonTextColor(tester, playedTabFinder),
       const Color(0xff0063b1),
     );
-    final hoveredShape =
-        playedTab.style!.shape!.resolve({WidgetState.hovered})!
-            as RoundedRectangleBorder;
-    expect(hoveredShape.side.color, GlobalUI.hoverBorderColorDay);
+    expect(hoverDecoration.border?.top.color, GlobalUI.hoverBorderColorDay);
 
     await tester.tap(find.text('Played'));
     await tester.pumpAndSettle();
 
     expect(find.text('Songs'), findsOneWidget);
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('Recent.FilterButton.songs')))
-          .height,
-      36,
+    final songsFilterButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('Recent.FilterButton.songs')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
     );
+    expect(songsFilterButton.height, 36);
+    expect(songsFilterButton.glassEnabled, isFalse);
 
     final artistsFilter = find.byKey(
       const ValueKey('Recent.FilterButton.artists'),
     );
-    final regularDecoration =
-        tester.widget<Container>(artistsFilter).decoration as BoxDecoration;
+    final regularDecoration = _textIconButtonDecoration(tester, artistsFilter);
     expect(regularDecoration.color, const Color(0x80ffffff));
 
     tester.binding.handlePointerEvent(
@@ -1249,11 +1260,13 @@ void main() {
     );
     await tester.pump();
 
-    final hoverDecoration =
-        tester.widget<Container>(artistsFilter).decoration as BoxDecoration;
-    expect(hoverDecoration.color, GlobalUI.hoverBgColorDay);
+    final filterHoverDecoration = _textIconButtonDecoration(
+      tester,
+      artistsFilter,
+    );
+    expect(filterHoverDecoration.color, GlobalUI.hoverBgColorDay);
     expect(
-      hoverDecoration.border,
+      filterHoverDecoration.border,
       Border.all(color: GlobalUI.hoverBorderColorDay),
     );
   });
@@ -1488,6 +1501,103 @@ void main() {
     expect(tileRect.left, 8);
     expect(500 - tileRect.right, 8);
     expect(scrollbarRect.right, 500);
+  });
+
+  testWidgets('RecentPage wide song scrollbar stays outside content', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithThreeRecentAdded, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final firstTile =
+        find
+            .ancestor(
+              of: find.text('First Song'),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is AnimatedContainer &&
+                    widget.padding == EdgeInsets.zero,
+              ),
+            )
+            .first;
+    final tileRect = tester.getRect(firstTile);
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    final scrollbarRect = tester.getRect(scrollbar);
+
+    expect(1200 - tileRect.right, greaterThanOrEqualTo(8));
+    expect(scrollbarRect.right, 1200);
+  });
+
+  testWidgets('RecentPage wide collection scrollbar stays outside content', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithRecentAlbums, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Played'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Albums'));
+    await tester.pumpAndSettle();
+
+    final albumTitle = find.text('January Album').first;
+    final albumCard =
+        find
+            .ancestor(of: albumTitle, matching: find.byType(AnimatedContainer))
+            .first;
+    final albumRect = tester.getRect(albumCard);
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    final scrollbarRect = tester.getRect(scrollbar);
+
+    expect(1200 - albumRect.right, greaterThanOrEqualTo(14));
+    expect(scrollbarRect.right, 1200);
+  });
+
+  testWidgets('RecentPage wide search scrollbar stays outside rows', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _RecentTestApp(snapshot: _snapshotWithManySearches, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Searches'));
+    await tester.pumpAndSettle();
+
+    final firstRow = find.byKey(const ValueKey('Recent.SearchRow.101'));
+    final rowRect = tester.getRect(firstRow);
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    final scrollbarRect = tester.getRect(scrollbar);
+
+    expect(1200 - rowRect.right, greaterThanOrEqualTo(18));
+    expect(scrollbarRect.right, 1200);
   });
 
   testWidgets('RecentPage narrow recent search scrollbar sticks to edge', (
@@ -2288,6 +2398,30 @@ const _snapshotWithUnknownRecentPlayed = LibraryContentData(
   hideMultiSelectCommandBarAfterOperation: true,
   databasePath: '',
 );
+
+BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
+  return tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: scope, matching: find.byType(DecoratedBox)),
+          )
+          .firstWhere((box) {
+            final decoration = box.decoration;
+            return decoration is BoxDecoration && decoration.border != null;
+          })
+          .decoration
+      as BoxDecoration;
+}
+
+Color? _textIconButtonTextColor(WidgetTester tester, Finder scope) {
+  return tester
+      .widgetList<RichText>(
+        find.descendant(of: scope, matching: find.byType(RichText)),
+      )
+      .firstWhere((richText) => richText.text.toPlainText() == 'Played')
+      .text
+      .style!
+      .color;
+}
 
 const _snapshotWithRecentAlbums = LibraryContentData(
   songs: [

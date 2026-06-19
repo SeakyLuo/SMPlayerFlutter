@@ -1126,6 +1126,7 @@ const _i18n = SmPlayerI18n(
     'common.artistUnknown': 'Unknown Artist',
     'common.cancel': 'Cancel',
     'common.folders': 'Folders',
+    'common.songs': 'Songs',
     'common.myFavorites': 'Favorites',
     'common.name': 'Name',
     'common.sort': 'Sort',

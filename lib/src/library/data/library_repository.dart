@@ -769,7 +769,7 @@ class LibraryRepository {
 
   Future<ArtistSplitAnalysisResult> analyzeArtistSplits() async {
     final songs = await getLibrarySongs();
-    return _artistSplitService.analyze(songs);
+    return _artistSplitService.analyzeExistingLibrary(songs);
   }
 
   Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {

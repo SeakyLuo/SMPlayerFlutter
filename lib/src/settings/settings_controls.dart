@@ -21,13 +21,15 @@ class ToggleSettingRow extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 38),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
+        hoverColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         onTap: () {
           onChange(!checked);
         },
         child: Row(
           children: [
-            _ElectronSwitch(value: checked, onChanged: onChange),
-            const SizedBox(width: 14),
             Expanded(
               child: Row(
                 children: [
@@ -55,6 +57,13 @@ class ToggleSettingRow extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 16),
+            SmPlayerSwitch(
+              value: checked,
+              onChanged: onChange,
+              trackKey: const ValueKey('settings-toggle-track'),
+              thumbKey: const ValueKey('settings-toggle-thumb'),
+            ),
           ],
         ),
       ),
@@ -62,60 +71,16 @@ class ToggleSettingRow extends StatelessWidget {
   }
 }
 
-class _ElectronSwitch extends StatelessWidget {
-  const _ElectronSwitch({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return Semantics(
-      checked: value,
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          onChanged(!value);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          width: 48,
-          height: 26,
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: value ? colors.accent : colors.buttonSurface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: value ? Colors.transparent : const Color(0x52535e6a),
-            ),
-          ),
-          child: Align(
-            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 140),
-              curve: Curves.easeOutCubic,
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: value ? Colors.white : const Color(0xff767c83),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class SelectSettingOption<T> {
-  const SelectSettingOption({required this.value, required this.label});
+  const SelectSettingOption({
+    required this.value,
+    required this.label,
+    this.icon,
+  });
 
   final T value;
   final String label;
+  final IconData? icon;
 }
 
 class SelectSettingRow<T> extends StatelessWidget {
@@ -152,7 +117,7 @@ class SelectSettingRow<T> extends StatelessWidget {
   }
 }
 
-class _InlineSelectSettingRow<T> extends StatefulWidget {
+class _InlineSelectSettingRow<T> extends StatelessWidget {
   const _InlineSelectSettingRow({
     required this.label,
     required this.value,
@@ -172,12 +137,55 @@ class _InlineSelectSettingRow<T> extends StatefulWidget {
   final ValueChanged<T> onChange;
 
   @override
-  State<_InlineSelectSettingRow<T>> createState() =>
-      _InlineSelectSettingRowState<T>();
+  Widget build(BuildContext context) {
+    return _SettingsRowFrame(
+      label: label,
+      controlWidth: 210,
+      child: _SettingsSelectControl<T>(
+        value: value,
+        options: options,
+        searchable: searchable,
+        searchPlaceholder: searchPlaceholder,
+        emptyLabel: emptyLabel,
+        onChange: onChange,
+      ),
+    );
+  }
 }
 
-class _InlineSelectSettingRowState<T>
-    extends State<_InlineSelectSettingRow<T>> {
+class _SettingsSelectControl<T> extends StatefulWidget {
+  const _SettingsSelectControl({
+    required this.value,
+    required this.options,
+    required this.onChange,
+    this.searchable = false,
+    this.searchPlaceholder,
+    this.emptyLabel,
+    this.width,
+    this.height = 38,
+    this.borderRadius = 8,
+    this.horizontalPadding = 12,
+    this.fontWeight = FontWeight.w600,
+  });
+
+  final T value;
+  final List<SelectSettingOption<T>> options;
+  final ValueChanged<T> onChange;
+  final bool searchable;
+  final String? searchPlaceholder;
+  final String? emptyLabel;
+  final double? width;
+  final double height;
+  final double borderRadius;
+  final double horizontalPadding;
+  final FontWeight fontWeight;
+
+  @override
+  State<_SettingsSelectControl<T>> createState() =>
+      _SettingsSelectControlState<T>();
+}
+
+class _SettingsSelectControlState<T> extends State<_SettingsSelectControl<T>> {
   final _link = LayerLink();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -202,57 +210,56 @@ class _InlineSelectSettingRowState<T>
     final selectedOption = widget.options.firstWhere(
       (option) => option.value == widget.value,
     );
-    return _SettingsRowFrame(
-      label: widget.label,
-      controlWidth: 210,
-      child: CompositedTransformTarget(
-        link: _link,
-        child: Builder(
-          builder: (targetContext) {
-            _targetContext = targetContext;
-            return SizedBox(
-              height: 38,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  alignment: Alignment.centerLeft,
-                  backgroundColor:
-                      _open ? colors.selectOpenSurface : colors.inputSurface,
-                  foregroundColor:
-                      _open ? colors.accentStrong : colors.textStrong,
-                  side: BorderSide(
-                    color: _open ? colors.selectOpenBorder : colors.inputBorder,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+    return CompositedTransformTarget(
+      link: _link,
+      child: Builder(
+        builder: (targetContext) {
+          _targetContext = targetContext;
+          return SizedBox(
+            width: widget.width,
+            height: widget.height,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                backgroundColor:
+                    _open ? colors.selectOpenSurface : colors.inputSurface,
+                foregroundColor:
+                    _open ? colors.accentStrong : colors.textStrong,
+                side: BorderSide(
+                  color: _open ? colors.selectOpenBorder : colors.inputBorder,
                 ),
-                onPressed: _toggleOpen,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        selectedOption.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      _open
-                          ? FluentIcons.chevron_up_20_regular
-                          : FluentIcons.chevron_down_20_regular,
-                      size: 16,
-                    ),
-                  ],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(widget.borderRadius),
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: widget.horizontalPadding,
                 ),
               ),
-            );
-          },
-        ),
+              onPressed: _toggleOpen,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedOption.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: widget.fontWeight,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _open
+                        ? FluentIcons.chevron_up_20_regular
+                        : FluentIcons.chevron_down_20_regular,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -262,21 +269,19 @@ class _InlineSelectSettingRowState<T>
       _close();
       return;
     }
+    final geometry = _dropdownGeometry();
     setState(() {
       _open = true;
+      _openUpward = geometry.openUpward;
+      _dropdownMaxHeight = geometry.maxHeight;
     });
     _showOverlay();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _open) {
-        _updateDropdownGeometry();
-      }
-    });
   }
 
   void _showOverlay() {
     _removeOverlay();
     _overlayEntry = OverlayEntry(builder: _buildOverlay);
-    Overlay.of(context).insert(_overlayEntry!);
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
   }
 
   Widget _buildOverlay(BuildContext context) {
@@ -367,13 +372,22 @@ class _InlineSelectSettingRowState<T>
   }
 
   void _updateDropdownGeometry() {
+    final geometry = _dropdownGeometry();
+    setState(() {
+      _openUpward = geometry.openUpward;
+      _dropdownMaxHeight = geometry.maxHeight;
+    });
+    _overlayEntry?.markNeedsBuild();
+  }
+
+  ({bool openUpward, double maxHeight}) _dropdownGeometry() {
     final box = _targetBox();
     if (box == null) {
-      return;
+      return (openUpward: false, maxHeight: 260);
     }
     final position = box.localToGlobal(Offset.zero);
     final viewportHeight = MediaQuery.sizeOf(context).height;
-    final bottomBoundary = math.max(0.0, viewportHeight - 128.0);
+    final bottomBoundary = math.max(0.0, viewportHeight - 8.0);
     final optionHeight = widget.searchable ? 48.0 : 0.0;
     final desiredHeight = math.max(
       120.0,
@@ -384,18 +398,10 @@ class _InlineSelectSettingRowState<T>
       bottomBoundary - position.dy - box.size.height - 8.0,
     );
     final spaceAbove = math.max(0.0, position.dy - 8.0);
-    final nextOpenUpward =
-        spaceBelow < desiredHeight && spaceAbove > spaceBelow;
-    final availableSpace = nextOpenUpward ? spaceAbove : spaceBelow;
-    final nextMaxHeight = math.min(
-      desiredHeight,
-      math.max(120.0, availableSpace),
-    );
-    setState(() {
-      _openUpward = nextOpenUpward;
-      _dropdownMaxHeight = nextMaxHeight;
-    });
-    _overlayEntry?.markNeedsBuild();
+    final openUpward = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+    final availableSpace = openUpward ? spaceAbove : spaceBelow;
+    final maxHeight = math.min(desiredHeight, math.max(120.0, availableSpace));
+    return (openUpward: openUpward, maxHeight: maxHeight);
   }
 
   int _visibleOptionCount() {
@@ -445,6 +451,9 @@ class _SettingsSelectOptionsPanel<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = SettingsPageColors.of(context);
+    final reserveLeading = options.any(
+      (option) => option.icon != null || option.value == value,
+    );
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -563,6 +572,8 @@ class _SettingsSelectOptionsPanel<T> extends StatelessWidget {
                                   child: _SettingsSelectOptionButton(
                                     selected: selected,
                                     label: option.label,
+                                    icon: option.icon,
+                                    reserveLeading: reserveLeading,
                                     onPressed: () {
                                       onSelected(option.value);
                                     },
@@ -583,57 +594,56 @@ class _SettingsSelectOptionButton extends StatelessWidget {
   const _SettingsSelectOptionButton({
     required this.selected,
     required this.label,
+    required this.icon,
+    required this.reserveLeading,
     required this.onPressed,
   });
 
   final bool selected;
   final String label;
+  final IconData? icon;
+  final bool reserveLeading;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final colors = SettingsPageColors.of(context);
     final foreground = selected ? colors.accentStrong : colors.textStrong;
-    return Tooltip(
-      message: label,
-      waitDuration: const Duration(milliseconds: 350),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(7),
-          hoverColor: colors.accentHover,
-          onTap: onPressed,
-          child: Ink(
-            height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: selected ? colors.accentHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Row(
-              children: [
+    final leadingIcon = selected ? FluentIcons.checkmark_20_regular : icon;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(7),
+        hoverColor: colors.accentHover,
+        onTap: onPressed,
+        child: Ink(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: selected ? colors.accentHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Row(
+            children: [
+              if (reserveLeading) ...[
                 SizedBox(
                   width: 20,
                   child:
-                      selected
-                          ? Icon(
-                            FluentIcons.checkmark_20_regular,
-                            size: 16,
-                            color: foreground,
-                          )
-                          : null,
+                      leadingIcon == null
+                          ? null
+                          : Icon(leadingIcon, size: 16, color: foreground),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: foreground, fontSize: 13),
-                  ),
-                ),
               ],
-            ),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: foreground, fontSize: 13),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -954,6 +964,7 @@ class SettingsActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = SettingsPageColors.of(context);
     final label =
         tooltip ??
         switch (child) {
@@ -962,21 +973,45 @@ class SettingsActionButton extends StatelessWidget {
         };
     final button = _settingsNoTextScaling(
       context,
-      SmPlayerTextIconButton(
-        icon: icon,
-        label: label,
-        disabled: disabled,
-        active: primary,
-        minWidth: compact ? 0 : 0,
-        height: 40,
-        horizontalPadding: compact ? 12 : 14,
-        iconSize: compact ? 16 : 18,
-        onPressed: onClick,
-        child: child,
+      SmPlayerTextIconButtonTheme(
+        colors: _settingsActionButtonColors(colors, primary: primary),
+        child: SmPlayerTextIconButton(
+          icon: icon,
+          label: label,
+          disabled: disabled,
+          active: false,
+          minWidth: compact ? 0 : 0,
+          height: 40,
+          horizontalPadding: compact ? 12 : 14,
+          iconSize: compact ? 16 : 18,
+          onPressed: onClick,
+          child: child,
+        ),
       ),
     );
     return button;
   }
+}
+
+SmPlayerTextIconButtonColors _settingsActionButtonColors(
+  SettingsPalette colors, {
+  required bool primary,
+}) {
+  return SmPlayerTextIconButtonColors(
+    commandText: primary ? Colors.white : colors.textStrong,
+    commandTextHover: primary ? Colors.white : colors.accentStrong,
+    control:
+        primary ? colors.accent.withValues(alpha: 0.28) : colors.buttonSurface,
+    controlHover:
+        primary ? colors.accent.withValues(alpha: 0.36) : colors.accentHover,
+    controlHoverBorder:
+        primary ? colors.accent.withValues(alpha: 0.62) : colors.inputBorder,
+    controlActive:
+        primary ? colors.accent.withValues(alpha: 0.28) : colors.accentHover,
+    controlBorder:
+        primary ? colors.accent.withValues(alpha: 0.46) : colors.inputBorder,
+    accentStrong: primary ? Colors.white : colors.accentStrong,
+  );
 }
 
 class SettingsButtonRow extends StatelessWidget {

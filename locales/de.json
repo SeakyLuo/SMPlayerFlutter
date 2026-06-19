@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Der Datenimport ist fehlgeschlagen",
   "settings.display": "Anzeige",
   "settings.desktopLyrics": "Desktop-Lyrics",
+  "settings.desktopLyricsEnabled": "Desktop-Lyrics anzeigen",
   "settings.desktopLyricsColor": "Schriftfarbe",
   "settings.desktopLyricsFontFamily": "Schriftart",
   "settings.desktopLyricsFontSearch": "Schriftart suchen",

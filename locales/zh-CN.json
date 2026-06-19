@@ -554,6 +554,7 @@
   "settings.dataImportFailed": "数据导入失败",
   "settings.display": "显示",
   "settings.desktopLyrics": "桌面歌词",
+  "settings.desktopLyricsEnabled": "显示桌面歌词",
   "settings.desktopLyricsColor": "字体颜色",
   "settings.desktopLyricsFontFamily": "字体",
   "settings.desktopLyricsFontSearch": "搜索字体",

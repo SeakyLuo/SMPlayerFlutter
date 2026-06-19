@@ -975,6 +975,29 @@ void main() {
     );
   });
 
+  testWidgets('overlay navigation titlebar tap hides sidebar', (tester) async {
+    _setViewSize(tester, const Size(800, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('MainNavigationView.TogglePaneButton')),
+    );
+    await tester.pumpAndSettle();
+
+    final sidebar = find.byKey(SmPlayerShellKeys.sidebar);
+    expect(tester.getSize(sidebar).width, SmPlayerShellMetrics.sidebarWidth);
+
+    final sidebarRect = tester.getRect(sidebar);
+    await tester.tapAt(Offset(sidebarRect.left + 200, sidebarRect.top + 24));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(sidebar).width,
+      SmPlayerShellMetrics.collapsedSidebarWidth,
+    );
+  });
+
   testWidgets('overlay navigation starts collapsed on app startup', (
     tester,
   ) async {
@@ -1122,6 +1145,23 @@ void main() {
       ),
       closedMenuRect,
     );
+  });
+
+  testWidgets('minimal titlebar tap hides open sidebar', (tester) async {
+    _setViewSize(tester, const Size(600, 600));
+
+    await tester.pumpWidget(const _ShellPageTestApp());
+    await tester.pump();
+    await tester.tap(find.byKey(SmPlayerShellKeys.minimalMenuButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(SmPlayerShellKeys.sidebar), findsOneWidget);
+
+    await tester.tapAt(const Offset(300, 16));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(SmPlayerShellKeys.sidebar), findsNothing);
+    expect(find.byKey(SmPlayerShellKeys.minimalMenuButton), findsOneWidget);
   });
 
   testWidgets('navigation mode changes follow Electron collapse rules', (

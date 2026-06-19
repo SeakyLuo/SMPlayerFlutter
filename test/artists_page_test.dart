@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_colors.dart';
+import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
@@ -677,6 +679,103 @@ void main() {
     expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
     expect(find.text('APPBAR_TITLE:Artist B'), findsNothing);
   });
+
+  testWidgets(
+    'ArtistsPage publishes detail appbar bottom after resize compact',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _ArtistsAppBarPortalTestApp(snapshot: _twoArtistSnapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('APPBAR_TITLE:2 Artists'), findsOneWidget);
+      expect(find.text('APPBAR_BOTTOM:false'), findsOneWidget);
+
+      tester.view.physicalSize = const Size(640, 800);
+      await tester.pumpAndSettle();
+
+      expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
+      expect(find.text('APPBAR_BOTTOM:true'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('Artists.DetailHeader.AppBarShadow')),
+          matching: find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'ArtistsPage shell shows detail appbar bottom after resize compact',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _ArtistsWorkspaceTestApp(snapshot: _twoArtistSnapshot, i18n: i18n),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('WorkspaceNavigationAppBar.Bottom')),
+        findsNothing,
+      );
+
+      tester.view.physicalSize = const Size(640, 800);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Artist A'), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('WorkspaceNavigationAppBar.Bottom')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('WorkspaceNavigationAppBar.Bottom')),
+          matching: find.byKey(const ValueKey('Artists.DetailHeader.Summary')),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'ArtistsPage constrained compact appbar title follows visible detail',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        _ArtistsAppBarPortalTestApp(
+          snapshot: _twoArtistSnapshot,
+          i18n: i18n,
+          pageWidth: 640,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('APPBAR_TITLE:Artist A'), findsOneWidget);
+      expect(find.text('APPBAR_TITLE:2 Artists'), findsNothing);
+      expect(find.text('APPBAR_BOTTOM:true'), findsOneWidget);
+      expect(find.text('Blue Song'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'ArtistsPage appbar search query keeps Electron toolbar icon color',
@@ -1470,7 +1569,7 @@ void main() {
       find.byKey(const ValueKey('Artists.MasterPanel')),
     );
     final masterDecoration = masterPanel.decoration as BoxDecoration;
-    expect(masterDecoration.color, const Color(0x06ffffff));
+    expect(masterDecoration.color, isNull);
     expect(
       masterDecoration.border,
       const Border(right: BorderSide(color: Color(0x1fd6e0ec))),
@@ -2383,6 +2482,38 @@ void main() {
         .widgetList<Text>(find.text('Artist A'))
         .firstWhere((text) => text.style?.fontSize == 13);
     expect(metadata.style?.color, const Color(0xc276b5dc));
+  });
+
+  testWidgets('ArtistsPage album last song row does not draw a top border', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _ArtistsTestApp(snapshot: _multiSongArtistSnapshot, i18n: i18n),
+    );
+    await tester.pumpAndSettle();
+
+    final lastSongShell = find.byKey(
+      const ValueKey('Artists.SongList.Last.Blue Hour'),
+    );
+    final lastSongDecoration = tester.widget<DecoratedBox>(
+      find
+          .descendant(of: lastSongShell, matching: find.byType(DecoratedBox))
+          .first,
+    );
+    final decoration = lastSongDecoration.decoration as BoxDecoration;
+    final border = decoration.border! as Border;
+
+    expect(border.top, BorderSide.none);
+    expect(border.left.style, BorderStyle.solid);
+    expect(border.right.style, BorderStyle.solid);
+    expect(border.bottom.style, BorderStyle.solid);
   });
 
   testWidgets('ArtistsPage empty library keeps Electron no-artists copy', (
@@ -6208,18 +6339,55 @@ class _ArtistsTestApp extends StatelessWidget {
   }
 }
 
+class _ArtistsWorkspaceTestApp extends StatelessWidget {
+  const _ArtistsWorkspaceTestApp({required this.snapshot, required this.i18n});
+
+  final LibraryContentData snapshot;
+  final SmPlayerI18n i18n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: [
+        smPlayerI18nProvider.overrideWith((ref) async => i18n),
+        libraryContentDataProvider.overrideWith((ref) async => snapshot),
+      ],
+      child: SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _artistsPageTestTheme(),
+          home: Scaffold(
+            body: SmPlayerWorkspace(
+              currentPath: '/artists',
+              currentLocation: '/artists',
+              headerHeight: 92,
+              showNavigationAppBar: true,
+              navigationMenuLabel: '菜单',
+              onNavigationMenuPressed: () {},
+              navigationAppBarTopInset: 0,
+              child: const ArtistsPage(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ArtistsAppBarPortalTestApp extends StatelessWidget {
   const _ArtistsAppBarPortalTestApp({
     required this.snapshot,
     required this.i18n,
     this.brightness = Brightness.light,
     this.initialLocation = '/artists',
+    this.pageWidth,
   });
 
   final LibraryContentData snapshot;
   final SmPlayerI18n i18n;
   final Brightness brightness;
   final String initialLocation;
+  final double? pageWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -6256,9 +6424,22 @@ class _ArtistsAppBarPortalTestApp extends StatelessWidget {
                     Expanded(
                       child: WorkspaceNavigationAppBarScope(
                         active: true,
-                        child: ArtistsPage(
-                          targetArtistName: state.uri.queryParameters['artist'],
-                        ),
+                        child:
+                            pageWidth == null
+                                ? ArtistsPage(
+                                  targetArtistName:
+                                      state.uri.queryParameters['artist'],
+                                )
+                                : Align(
+                                  alignment: Alignment.topLeft,
+                                  child: SizedBox(
+                                    width: pageWidth,
+                                    child: ArtistsPage(
+                                      targetArtistName:
+                                          state.uri.queryParameters['artist'],
+                                    ),
+                                  ),
+                                ),
                       ),
                     ),
                   ],
@@ -6333,6 +6514,7 @@ ThemeData _artistsPageTestTheme({Brightness brightness = Brightness.light}) {
     brightness: brightness,
     extensions: [
       dark ? AppNotificationThemeColors.dark : AppNotificationThemeColors.light,
+      dark ? ShellThemeColors.dark : ShellThemeColors.light,
       dark
           ? DefaultAlbumArtworkThemeColors.dark
           : DefaultAlbumArtworkThemeColors.light,

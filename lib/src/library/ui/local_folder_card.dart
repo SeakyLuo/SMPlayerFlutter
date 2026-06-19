@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../app/smplayer_vector_icons.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'artwork_floating_action_button.dart';
+import 'card_corner_badge.dart';
 import 'grid_artwork_card_content.dart';
 import 'local_folder_model.dart';
 import 'local_i18n_counts.dart';
@@ -871,41 +871,9 @@ class _FolderTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      key: const ValueKey('LocalFolderCard.FolderTypeBadge'),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color:
-                nightMode ? const Color(0x3d000000) : const Color(0x1f1e2a3a),
-            offset: const Offset(0, 12),
-            blurRadius: 26,
-          ),
-        ],
-      ),
-      child: GlassContainer(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        useOwnLayer: true,
-        quality: GlassQuality.minimal,
-        clipBehavior: Clip.antiAlias,
-        shape: const LiquidRoundedRectangle(borderRadius: 8),
-        settings: LiquidGlassSettings(
-          glassColor:
-              nightMode ? const Color(0xc7181e26) : const Color(0xd1ffffff),
-          blur: 16,
-          thickness: 18,
-          chromaticAberration: 0,
-          lightIntensity: 0.18,
-          ambientStrength: 0.12,
-          saturation: 1.5,
-          glowIntensity: 0,
-        ),
-        child: const _FolderTypeBadgeImage(iconSize: 20),
-      ),
+    return const CardCornerBadge(
+      key: ValueKey('LocalFolderCard.FolderTypeBadge'),
+      child: _FolderTypeBadgeImage(iconSize: 20),
     );
   }
 }

@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "データのインポートに失敗しました",
   "settings.display": "表示",
   "settings.desktopLyrics": "デスクトップの歌詞",
+  "settings.desktopLyricsEnabled": "デスクトップの歌詞を表示",
   "settings.desktopLyricsColor": "文字の色",
   "settings.desktopLyricsFontFamily": "フォント",
   "settings.desktopLyricsFontSearch": "フォントの検索",

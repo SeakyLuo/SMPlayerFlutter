@@ -10,7 +10,7 @@ class _ArtistsColors {
   }
 
   static Color? masterBackground(Brightness brightness) {
-    return brightness == Brightness.dark ? const Color(0x06ffffff) : null;
+    return null;
   }
 
   static Color albumSection(Brightness brightness) {

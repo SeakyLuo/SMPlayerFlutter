@@ -3,42 +3,19 @@ part of 'artist_split_review_panel.dart';
 class _ArtistSplitEditor extends StatelessWidget {
   const _ArtistSplitEditor({
     required this.artists,
-    required this.canAdd,
-    required this.onAddArtist,
-    required this.onSaveEdit,
     required this.onRemoveArtist,
     required this.onUpdateArtist,
   });
 
   final List<String> artists;
-  final bool canAdd;
-  final VoidCallback onAddArtist;
-  final VoidCallback onSaveEdit;
   final ValueChanged<int> onRemoveArtist;
   final void Function(int index, String value) onUpdateArtist;
 
   @override
   Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            _ArtistSplitSmallIconButton(
-              icon: FluentIcons.add_20_regular,
-              tooltip: i18n.t('common.add'),
-              onPressed: canAdd ? onAddArtist : null,
-            ),
-            const SizedBox(width: 5),
-            _ArtistSplitSmallIconButton(
-              icon: FluentIcons.checkmark_20_regular,
-              tooltip: i18n.t('settings.save'),
-              onPressed: onSaveEdit,
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
         for (var index = 0; index < artists.length; index += 1) ...[
           _ArtistSplitEditorCell(
             value: artists[index],

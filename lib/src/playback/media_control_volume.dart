@@ -433,32 +433,22 @@ class _VolumeSliderTooltip extends StatelessWidget {
   final Color borderColor;
   final BoxShadow shadow;
 
+  static const _horizontalArrowWidth = 8.0;
+  static const _horizontalArrowHeight = 6.0;
+  static const _verticalArrowWidth = 6.0;
+  static const _verticalArrowHeight = 12.0;
+  static const _borderRadius = 6.0;
+  static const _minBodyWidth = 44.0;
+  static const _bodyHorizontalPadding = 10.0;
+  static const _bodyVerticalPadding = 6.0;
+
   @override
   Widget build(BuildContext context) {
-    final tooltip = DecoratedBox(
-      key: const ValueKey('VolumeSlider.Tooltip'),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: borderColor),
-        boxShadow: [shadow],
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 38),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: foregroundColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              height: 1,
-            ),
-          ),
-        ),
-      ),
+    final textStyle = TextStyle(
+      color: foregroundColor,
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
     );
     if (orientation == VolumeSliderOrientation.vertical) {
       final centerY = _volumeSliderVerticalThumbCenterY(
@@ -473,23 +463,22 @@ class _VolumeSliderTooltip extends StatelessWidget {
               : (sliderSize.width / 2) +
                   overlayRadius +
                   _volumeSliderTooltipGap;
-      final tooltipWithArrow = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          tooltip,
-          Positioned(
-            right: -5,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: _VolumeSliderTooltipArrow(
-                backgroundColor: backgroundColor,
-                borderColor: borderColor,
-                border: const _VolumeSliderTooltipArrowBorder.topRight(),
-              ),
-            ),
-          ),
-        ],
+      final tooltip = _VolumeSliderTooltipBubble(
+        value: value,
+        textStyle: textStyle,
+        backgroundColor: backgroundColor,
+        borderColor: borderColor,
+        shadow: shadow,
+        arrowSide:
+            verticalTooltipSide == VolumeSliderVerticalTooltipSide.left
+                ? _VolumeSliderTooltipArrowSide.right
+                : _VolumeSliderTooltipArrowSide.left,
+        borderRadius: _borderRadius,
+        minBodyWidth: _minBodyWidth,
+        bodyHorizontalPadding: _bodyHorizontalPadding,
+        bodyVerticalPadding: _bodyVerticalPadding,
+        arrowWidth: _verticalArrowWidth,
+        arrowHeight: _verticalArrowHeight,
       );
       return Positioned(
         key: const ValueKey('VolumeSlider.TooltipPosition'),
@@ -504,7 +493,7 @@ class _VolumeSliderTooltip extends StatelessWidget {
         top: centerY,
         child: FractionalTranslation(
           translation: const Offset(0, -0.5),
-          child: tooltipWithArrow,
+          child: tooltip,
         ),
       );
     }
@@ -513,23 +502,19 @@ class _VolumeSliderTooltip extends StatelessWidget {
       sliderSize.width,
       overlayRadius,
     );
-    final tooltipWithArrow = Stack(
-      clipBehavior: Clip.none,
-      children: [
-        tooltip,
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: -4,
-          child: Center(
-            child: _VolumeSliderTooltipArrow(
-              backgroundColor: backgroundColor,
-              borderColor: borderColor,
-              border: const _VolumeSliderTooltipArrowBorder.bottomRight(),
-            ),
-          ),
-        ),
-      ],
+    final tooltip = _VolumeSliderTooltipBubble(
+      value: value,
+      textStyle: textStyle,
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      shadow: shadow,
+      arrowSide: _VolumeSliderTooltipArrowSide.bottom,
+      borderRadius: _borderRadius,
+      minBodyWidth: _minBodyWidth,
+      bodyHorizontalPadding: _bodyHorizontalPadding,
+      bodyVerticalPadding: _bodyVerticalPadding,
+      arrowWidth: _horizontalArrowWidth,
+      arrowHeight: _horizontalArrowHeight,
     );
     return Positioned(
       key: const ValueKey('VolumeSlider.TooltipPosition'),
@@ -537,66 +522,261 @@ class _VolumeSliderTooltip extends StatelessWidget {
       bottom: sliderSize.height + _volumeSliderTooltipGap,
       child: FractionalTranslation(
         translation: const Offset(-0.5, 0),
-        child: tooltipWithArrow,
+        child: tooltip,
       ),
     );
   }
 }
 
-class _VolumeSliderTooltipArrow extends StatelessWidget {
-  const _VolumeSliderTooltipArrow({
+enum _VolumeSliderTooltipArrowSide { left, right, bottom }
+
+class _VolumeSliderTooltipBubble extends StatelessWidget {
+  const _VolumeSliderTooltipBubble({
+    required this.value,
+    required this.textStyle,
     required this.backgroundColor,
     required this.borderColor,
-    required this.border,
+    required this.shadow,
+    required this.arrowSide,
+    required this.borderRadius,
+    required this.minBodyWidth,
+    required this.bodyHorizontalPadding,
+    required this.bodyVerticalPadding,
+    required this.arrowWidth,
+    required this.arrowHeight,
+  });
+
+  final int value;
+  final TextStyle textStyle;
+  final Color backgroundColor;
+  final Color borderColor;
+  final BoxShadow shadow;
+  final _VolumeSliderTooltipArrowSide arrowSide;
+  final double borderRadius;
+  final double minBodyWidth;
+  final double bodyHorizontalPadding;
+  final double bodyVerticalPadding;
+  final double arrowWidth;
+  final double arrowHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = ConstrainedBox(
+      constraints: BoxConstraints(minWidth: minBodyWidth),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: bodyHorizontalPadding,
+          vertical: bodyVerticalPadding,
+        ),
+        child: Text('$value', textAlign: TextAlign.center, style: textStyle),
+      ),
+    );
+    final body = KeyedSubtree(
+      key: const ValueKey('VolumeSlider.TooltipBody'),
+      child: child,
+    );
+    return CustomPaint(
+      key: const ValueKey('VolumeSlider.Tooltip'),
+      painter: _VolumeSliderTooltipBubblePainter(
+        backgroundColor: backgroundColor,
+        borderColor: borderColor,
+        shadow: shadow,
+        arrowSide: arrowSide,
+        borderRadius: borderRadius,
+        arrowWidth: arrowWidth,
+        arrowHeight: arrowHeight,
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left:
+              arrowSide == _VolumeSliderTooltipArrowSide.left ? arrowWidth : 0,
+          right:
+              arrowSide == _VolumeSliderTooltipArrowSide.right ? arrowWidth : 0,
+          bottom:
+              arrowSide == _VolumeSliderTooltipArrowSide.bottom
+                  ? arrowHeight
+                  : 0,
+        ),
+        child: body,
+      ),
+    );
+  }
+}
+
+class _VolumeSliderTooltipBubblePainter extends CustomPainter {
+  const _VolumeSliderTooltipBubblePainter({
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.shadow,
+    required this.arrowSide,
+    required this.borderRadius,
+    required this.arrowWidth,
+    required this.arrowHeight,
   });
 
   final Color backgroundColor;
   final Color borderColor;
-  final _VolumeSliderTooltipArrowBorder border;
+  final BoxShadow shadow;
+  final _VolumeSliderTooltipArrowSide arrowSide;
+  final double borderRadius;
+  final double arrowWidth;
+  final double arrowHeight;
 
   @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: pi / 4,
-      child: DecoratedBox(
-        key: const ValueKey('VolumeSlider.TooltipArrow'),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          border: Border(
-            top: border.top ? BorderSide(color: borderColor) : BorderSide.none,
-            right:
-                border.right ? BorderSide(color: borderColor) : BorderSide.none,
-            bottom:
-                border.bottom
-                    ? BorderSide(color: borderColor)
-                    : BorderSide.none,
-            left:
-                border.left ? BorderSide(color: borderColor) : BorderSide.none,
-          ),
-        ),
-        child: const SizedBox(width: 7, height: 7),
-      ),
+  void paint(Canvas canvas, Size size) {
+    final bodyRect = Rect.fromLTWH(
+      arrowSide == _VolumeSliderTooltipArrowSide.left ? arrowWidth : 0,
+      0,
+      size.width -
+          (arrowSide == _VolumeSliderTooltipArrowSide.left ||
+                  arrowSide == _VolumeSliderTooltipArrowSide.right
+              ? arrowWidth
+              : 0),
+      size.height -
+          (arrowSide == _VolumeSliderTooltipArrowSide.bottom ? arrowHeight : 0),
+    );
+    final path = _tooltipOutlinePath(bodyRect);
+    final shadowPaint =
+        Paint()
+          ..color = shadow.color
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadow.blurRadius);
+    canvas.drawPath(path.shift(shadow.offset), shadowPaint);
+    canvas.drawPath(path, Paint()..color = backgroundColor);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
     );
   }
-}
 
-class _VolumeSliderTooltipArrowBorder {
-  const _VolumeSliderTooltipArrowBorder.bottomRight()
-    : top = false,
-      right = true,
-      bottom = true,
-      left = false;
+  @override
+  bool shouldRepaint(covariant _VolumeSliderTooltipBubblePainter oldDelegate) {
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.shadow != shadow ||
+        oldDelegate.arrowSide != arrowSide ||
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.arrowWidth != arrowWidth ||
+        oldDelegate.arrowHeight != arrowHeight;
+  }
 
-  const _VolumeSliderTooltipArrowBorder.topRight()
-    : top = true,
-      right = true,
-      bottom = false,
-      left = false;
-
-  final bool top;
-  final bool right;
-  final bool bottom;
-  final bool left;
+  Path _tooltipOutlinePath(Rect bodyRect) {
+    final r = min(borderRadius, min(bodyRect.width, bodyRect.height) / 2);
+    if (arrowSide == _VolumeSliderTooltipArrowSide.right) {
+      final arrowTop = bodyRect.center.dy - arrowHeight / 2;
+      final arrowBottom = bodyRect.center.dy + arrowHeight / 2;
+      return Path()
+        ..moveTo(bodyRect.left + r, bodyRect.top)
+        ..lineTo(bodyRect.right - r, bodyRect.top)
+        ..quadraticBezierTo(
+          bodyRect.right,
+          bodyRect.top,
+          bodyRect.right,
+          bodyRect.top + r,
+        )
+        ..lineTo(bodyRect.right, arrowTop)
+        ..lineTo(bodyRect.right + arrowWidth, bodyRect.center.dy)
+        ..lineTo(bodyRect.right, arrowBottom)
+        ..lineTo(bodyRect.right, bodyRect.bottom - r)
+        ..quadraticBezierTo(
+          bodyRect.right,
+          bodyRect.bottom,
+          bodyRect.right - r,
+          bodyRect.bottom,
+        )
+        ..lineTo(bodyRect.left + r, bodyRect.bottom)
+        ..quadraticBezierTo(
+          bodyRect.left,
+          bodyRect.bottom,
+          bodyRect.left,
+          bodyRect.bottom - r,
+        )
+        ..lineTo(bodyRect.left, bodyRect.top + r)
+        ..quadraticBezierTo(
+          bodyRect.left,
+          bodyRect.top,
+          bodyRect.left + r,
+          bodyRect.top,
+        )
+        ..close();
+    }
+    if (arrowSide == _VolumeSliderTooltipArrowSide.left) {
+      final arrowTop = bodyRect.center.dy - arrowHeight / 2;
+      final arrowBottom = bodyRect.center.dy + arrowHeight / 2;
+      return Path()
+        ..moveTo(bodyRect.left + r, bodyRect.top)
+        ..lineTo(bodyRect.right - r, bodyRect.top)
+        ..quadraticBezierTo(
+          bodyRect.right,
+          bodyRect.top,
+          bodyRect.right,
+          bodyRect.top + r,
+        )
+        ..lineTo(bodyRect.right, bodyRect.bottom - r)
+        ..quadraticBezierTo(
+          bodyRect.right,
+          bodyRect.bottom,
+          bodyRect.right - r,
+          bodyRect.bottom,
+        )
+        ..lineTo(bodyRect.left + r, bodyRect.bottom)
+        ..quadraticBezierTo(
+          bodyRect.left,
+          bodyRect.bottom,
+          bodyRect.left,
+          bodyRect.bottom - r,
+        )
+        ..lineTo(bodyRect.left, arrowBottom)
+        ..lineTo(bodyRect.left - arrowWidth, bodyRect.center.dy)
+        ..lineTo(bodyRect.left, arrowTop)
+        ..lineTo(bodyRect.left, bodyRect.top + r)
+        ..quadraticBezierTo(
+          bodyRect.left,
+          bodyRect.top,
+          bodyRect.left + r,
+          bodyRect.top,
+        )
+        ..close();
+    }
+    final arrowLeft = bodyRect.center.dx - arrowWidth / 2;
+    final arrowRight = bodyRect.center.dx + arrowWidth / 2;
+    return Path()
+      ..moveTo(bodyRect.left + r, bodyRect.top)
+      ..lineTo(bodyRect.right - r, bodyRect.top)
+      ..quadraticBezierTo(
+        bodyRect.right,
+        bodyRect.top,
+        bodyRect.right,
+        bodyRect.top + r,
+      )
+      ..lineTo(bodyRect.right, bodyRect.bottom - r)
+      ..quadraticBezierTo(
+        bodyRect.right,
+        bodyRect.bottom,
+        bodyRect.right - r,
+        bodyRect.bottom,
+      )
+      ..lineTo(arrowRight, bodyRect.bottom)
+      ..lineTo(bodyRect.center.dx, bodyRect.bottom + arrowHeight)
+      ..lineTo(arrowLeft, bodyRect.bottom)
+      ..lineTo(bodyRect.left + r, bodyRect.bottom)
+      ..quadraticBezierTo(
+        bodyRect.left,
+        bodyRect.bottom,
+        bodyRect.left,
+        bodyRect.bottom - r,
+      )
+      ..lineTo(bodyRect.left, bodyRect.top + r)
+      ..quadraticBezierTo(
+        bodyRect.left,
+        bodyRect.top,
+        bodyRect.left + r,
+        bodyRect.top,
+      )
+      ..close();
+  }
 }
 
 double _volumeSliderHorizontalThumbCenterX(

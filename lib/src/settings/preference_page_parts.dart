@@ -8,22 +8,36 @@ class _PreferenceInfo extends StatelessWidget {
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.cardSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.cardBorder),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 9,
-            backgroundColor: Colors.transparent,
+          SizedBox(
+            width: 18,
+            height: 18,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.fromBorderSide(
-                  BorderSide(color: SettingsPageColors.inputBorder),
-                ),
+                border: Border.all(color: colors.inputBorder),
               ),
               child: Center(
-                child: Text('i', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(
+                  'i',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
               ),
             ),
           ),
@@ -31,7 +45,11 @@ class _PreferenceInfo extends StatelessWidget {
           Expanded(
             child: Text(
               i18n.t('preferences.info'),
-              style: TextStyle(color: colors.textMuted, fontSize: 13),
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: 13,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -89,13 +107,13 @@ class _PreferenceLoading extends StatelessWidget {
 class _PreferenceSectionFrame extends StatelessWidget {
   const _PreferenceSectionFrame({
     required this.title,
-    required this.counter,
     required this.action,
     required this.child,
+    this.counter,
   });
 
   final String title;
-  final String counter;
+  final String? counter;
   final Widget action;
   final Widget child;
 
@@ -104,67 +122,82 @@ class _PreferenceSectionFrame extends StatelessWidget {
     final colors = SettingsPageColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: colors.cardSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.cardBorder),
-      ),
-      child: Column(
-        children: [
-          Container(
-            constraints: const BoxConstraints(minHeight: 52),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            color: colors.preferenceHeader,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 620;
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              title,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: compact ? 14 : 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: compact ? 7 : 9,
-                              vertical: compact ? 2 : 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.accentHover,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              counter,
-                              style: TextStyle(
-                                color: colors.accent,
-                                fontSize: compact ? 11 : 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    action,
-                  ],
-                );
-              },
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.cardShadow,
+            offset: const Offset(0, 10),
+            blurRadius: 30,
+            spreadRadius: -8,
           ),
-          child,
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.preferenceCardSurface,
+            border: Border.all(color: colors.preferenceCardBorder, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Container(
+                constraints: const BoxConstraints(minHeight: 52),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: colors.preferenceHeader,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: colors.preferenceCardBorder,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 620;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: compact ? 14 : 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (counter != null) ...[
+                                const SizedBox(width: 10),
+                                Text(
+                                  counter!,
+                                  style: TextStyle(
+                                    color: colors.textMuted,
+                                    fontSize: compact ? 12 : 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        action,
+                      ],
+                    );
+                  },
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -191,7 +224,6 @@ class _PreferenceOthersSection extends StatelessWidget {
 
     return _PreferenceSectionFrame(
       title: i18n.t('settings.others'),
-      counter: '${items.length}',
       action: const SizedBox.shrink(),
       child: PreferenceItems(
         items: items,
@@ -210,13 +242,21 @@ class _PreferenceEmpty extends StatelessWidget {
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
 
-    return SizedBox(
-      height: 44,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Text(
-          i18n.t('preferences.noItems'),
-          style: TextStyle(color: colors.textMuted),
+    return ColoredBox(
+      color: colors.preferenceBodySurface,
+      child: SizedBox(
+        width: double.infinity,
+        height: 72,
+        child: Center(
+          child: Text(
+            i18n.t('preferences.noItems'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );
@@ -256,7 +296,7 @@ class _PreferenceSwitch extends StatelessWidget {
           foregroundColor: colors.textStrong,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ).copyWith(
-          overlayColor: WidgetStatePropertyAll(colors.accentHover),
+          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
         ),
         onPressed: () {
@@ -266,7 +306,7 @@ class _PreferenceSwitch extends StatelessWidget {
           mainAxisAlignment:
               showLabel ? MainAxisAlignment.start : MainAxisAlignment.center,
           children: [
-            _PreferenceSwitchTrack(checked: checked),
+            SmPlayerSwitch(value: checked, onChanged: onChanged),
             if (showLabel) ...[
               const SizedBox(width: 10),
               SizedBox(
@@ -283,39 +323,6 @@ class _PreferenceSwitch extends StatelessWidget {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PreferenceSwitchTrack extends StatelessWidget {
-  const _PreferenceSwitchTrack({required this.checked});
-
-  final bool checked;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      width: 44,
-      height: 20,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: checked ? colors.accent : colors.inputBorder,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        alignment: checked ? Alignment.centerRight : Alignment.centerLeft,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: SizedBox.square(dimension: 14),
         ),
       ),
     );

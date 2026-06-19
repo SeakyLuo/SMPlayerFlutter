@@ -1,65 +1,58 @@
 part of 'popup_dialog.dart';
 
-class _PopupDialogCloseButton extends StatefulWidget {
-  const _PopupDialogCloseButton({required this.colors, required this.onClose});
+class _PopupDialogCloseButton extends StatelessWidget {
+  const _PopupDialogCloseButton({
+    required this.label,
+    required this.colors,
+    required this.onClose,
+  });
 
+  final String label;
   final PopupDialogResolvedColors colors;
   final VoidCallback onClose;
 
   @override
-  State<_PopupDialogCloseButton> createState() =>
-      _PopupDialogCloseButtonState();
-}
-
-class _PopupDialogCloseButtonState extends State<_PopupDialogCloseButton> {
-  var _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final colors = widget.colors;
     final nightMode = Theme.of(context).brightness == Brightness.dark;
     final hoverSurface =
         nightMode
             ? GlobalUI.buttonHoverBgColorNight
             : GlobalUI.buttonHoverBgColorDay;
-    final background = _hovered ? hoverSurface : colors.buttonSurface;
-    final foreground = colors.buttonText;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
-      },
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-        });
-      },
-      child: GestureDetector(
-        key: const ValueKey('popup-dialog-close-button'),
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onClose,
-        child: Semantics(
-          button: true,
-          child: DecoratedBox(
-            key: const ValueKey('popup-dialog-close-button-surface'),
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colors.buttonBorder),
-              boxShadow: colors.buttonShadow,
-            ),
-            child: SizedBox(
-              width: 42,
-              height: 40,
-              child: SvgIcon(
-                key: const ValueKey('popup-dialog-close-icon'),
-                svg: _popupDialogCloseIconSvg,
-                size: 18,
-                color: foreground,
-              ),
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: colors.buttonShadow,
+      ),
+      child: SmPlayerTextIconButtonTheme(
+        colors: SmPlayerTextIconButtonColors(
+          commandText: colors.buttonText,
+          commandTextHover: colors.buttonText,
+          control: colors.buttonSurface,
+          controlHover: hoverSurface,
+          controlHoverBorder: colors.buttonBorder,
+          controlActive: colors.activeButtonSurface,
+          controlBorder: colors.buttonBorder,
+          accentStrong: colors.activeButtonText,
+        ),
+        child: SmPlayerTextIconButton(
+          key: const ValueKey('popup-dialog-close-button'),
+          label: label,
+          onPressed: onClose,
+          showLabel: false,
+          tooltipMode: SmPlayerTextIconButtonTooltipMode.local,
+          minWidth: 42,
+          height: 40,
+          iconSize: 18,
+          borderRadius: 10,
+          glassEnabled: false,
+          iconWidget: Builder(
+            builder:
+                (context) => SvgIcon(
+                  key: const ValueKey('popup-dialog-close-icon'),
+                  svg: _popupDialogCloseIconSvg,
+                  size: 18,
+                  color: IconTheme.of(context).color,
+                ),
           ),
         ),
       ),

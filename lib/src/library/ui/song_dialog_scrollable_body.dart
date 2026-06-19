@@ -26,10 +26,13 @@ class _SongDialogScrollableBodyState extends State<_SongDialogScrollableBody> {
       controller: _controller,
       right: 5,
       bottom: 0,
-      child: SingleChildScrollView(
-        controller: _controller,
-        padding: widget.padding,
-        child: widget.child,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(
+          controller: _controller,
+          padding: widget.padding,
+          child: widget.child,
+        ),
       ),
     );
   }

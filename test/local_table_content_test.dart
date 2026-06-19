@@ -400,6 +400,7 @@ const _i18n = SmPlayerI18n(
     'common.artist': 'Artist',
     'common.artistSeparator': ', ',
     'common.name': 'Name',
+    'common.songs': 'Songs',
     'context.addToPlaylist': 'Add To',
     'context.play': 'Play',
     'context.playNext': 'Play Next',

@@ -27,12 +27,13 @@ void _syncArtistsAppBarPortal(
   required String routePath,
   required Widget content,
   required String compactTitle,
+  required String layoutSignature,
   required int searchSuggestionCount,
   required int searchHistoryCount,
   Widget? bottomContent,
 }) {
   final signature =
-      '$showPortal:$routePath:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
+      '$showPortal:$routePath:$layoutSignature:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }

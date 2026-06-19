@@ -253,6 +253,18 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
   }
 
+  void _setPlayCountText(String value) {
+    setState(() {
+      _playCountController.text = value;
+    });
+  }
+
+  void _setSaving(bool value) {
+    setState(() {
+      _saving = value;
+    });
+  }
+
   @override
   void dispose() {
     _titleController.dispose();

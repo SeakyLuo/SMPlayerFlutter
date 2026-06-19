@@ -552,6 +552,7 @@
   "settings.dataImportFailed": "資料匯入失敗",
   "settings.display": "顯示",
   "settings.desktopLyrics": "桌面歌詞",
+  "settings.desktopLyricsEnabled": "顯示桌面歌詞",
   "settings.desktopLyricsColor": "字體顏色",
   "settings.desktopLyricsFontFamily": "字體",
   "settings.desktopLyricsFontSearch": "搜尋字體",

@@ -54,7 +54,7 @@ class _RecentPlayedFilterBar extends StatelessWidget {
   }
 }
 
-class _FilterButton extends StatefulWidget {
+class _FilterButton extends StatelessWidget {
   const _FilterButton({
     required this.visualKey,
     required this.active,
@@ -70,99 +70,66 @@ class _FilterButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   @override
-  State<_FilterButton> createState() => _FilterButtonState();
-}
-
-class _FilterButtonState extends State<_FilterButton> {
-  var _hovered = false;
-  var _focused = false;
-  var _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
     final colors = RecentThemeColors.of(context);
-    final hovered = !widget.active && (_hovered || _focused || _pressed);
-    final foreground =
-        widget.active
-            ? colors.playedFilterActiveText
-            : hovered
-            ? colors.appBarTabHoverText
-            : colors.playedFilterText;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: Align(
-          alignment: Alignment.center,
-          widthFactor: 1,
-          child: InkWell(
+      child: SizedBox(
+        key: visualKey,
+        height: 36,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
-            hoverColor: Colors.transparent,
-            focusColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            onHover: (value) {
-              if (_hovered != value) {
-                setState(() {
-                  _hovered = value;
-                });
-              }
-            },
-            onFocusChange: (value) {
-              if (_focused != value) {
-                setState(() {
-                  _focused = value;
-                });
-              }
-            },
-            onHighlightChanged: (value) {
-              if (_pressed != value) {
-                setState(() {
-                  _pressed = value;
-                });
-              }
-            },
-            onTap: widget.onPressed,
-            child: Container(
-              key: widget.visualKey,
+            boxShadow: active ? colors.playedFilterActiveShadow : const [],
+          ),
+          child: SmPlayerTextIconButtonTheme(
+            colors: _recentTabButtonColors(
+              commandText:
+                  active
+                      ? colors.playedFilterActiveText
+                      : colors.playedFilterText,
+              commandTextHover:
+                  active
+                      ? colors.playedFilterActiveText
+                      : colors.appBarTabHoverText,
+              control:
+                  active
+                      ? colors.playedFilterActiveSurface
+                      : colors.playedFilterSurface,
+              controlHover:
+                  active
+                      ? colors.playedFilterActiveSurface
+                      : colors.appBarTabHoverSurface,
+              controlBorder:
+                  active
+                      ? colors.playedFilterActiveBorder
+                      : colors.playedFilterBorder,
+              controlHoverBorder:
+                  active
+                      ? colors.playedFilterActiveBorder
+                      : colors.appBarTabHoverBorder,
+              controlActive: colors.playedFilterActiveSurface,
+              accentStrong: colors.playedFilterActiveText,
+            ),
+            child: SmPlayerTextIconButton(
+              label: label,
+              active: active,
+              onPressed: onPressed,
+              minWidth: 72,
               height: 36,
-              constraints: const BoxConstraints(minWidth: 72),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              decoration: BoxDecoration(
-                color:
-                    widget.active
-                        ? colors.playedFilterActiveSurface
-                        : hovered
-                        ? colors.appBarTabHoverSurface
-                        : colors.playedFilterSurface,
-                border: Border.all(
-                  color:
-                      widget.active
-                          ? colors.playedFilterActiveBorder
-                          : hovered
-                          ? colors.appBarTabHoverBorder
-                          : colors.playedFilterBorder,
-                ),
-                borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
-                boxShadow:
-                    widget.active ? colors.playedFilterActiveShadow : const [],
-              ),
-              child: IconTheme(
-                data: IconThemeData(size: 18, color: foreground),
-                child: DefaultTextStyle.merge(
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      widget.icon,
-                      const SizedBox(width: 8),
-                      Text(widget.label),
-                    ],
-                  ),
+              horizontalPadding: 18,
+              iconSize: 18,
+              iconGap: 8,
+              borderRadius: _recentPlayedFilterRadius,
+              iconWidget: icon,
+              glassEnabled: false,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),

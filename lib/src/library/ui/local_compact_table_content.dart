@@ -180,7 +180,7 @@ class LocalCompactTableContent extends StatelessWidget {
       if (rowIndex == 0) {
         return _sectionRow(
           context,
-          title: i18n.t('local.allSongs'),
+          title: i18n.t('common.songs'),
           count: currentSongs.length,
           expanded: songsExpanded,
           onToggle: onToggleSongsExpanded,

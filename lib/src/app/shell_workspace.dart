@@ -23,6 +23,12 @@ class SmPlayerShellWorkspaceKeys {
   );
 }
 
+const _workspaceNavigationAppBarTopRowHeight = 40.0;
+const _workspaceNavigationAppBarBottomPadding = 8.0;
+const _workspaceNavigationAppBarHeight =
+    _workspaceNavigationAppBarTopRowHeight +
+    _workspaceNavigationAppBarBottomPadding;
+
 class SmPlayerWorkspace extends ConsumerStatefulWidget {
   const SmPlayerWorkspace({
     super.key,
@@ -266,8 +272,8 @@ class _WorkspacePageSurface extends StatelessWidget {
         workspaceNavigationAppBar == null
             ? 0.0
             : workspaceAppBarPortal?.bottomContent == null
-            ? 40.0
-            : 80.0;
+            ? _workspaceNavigationAppBarHeight
+            : _workspaceNavigationAppBarTopRowHeight * 2;
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar || localTitleContent != null,
       child: _WorkspaceContentMediaQuery(child: child),
@@ -301,7 +307,9 @@ class _WorkspacePageSurface extends StatelessWidget {
               top: 0,
               left: 0,
               right: 0,
-              height: navigationAppBarTopInset + 40,
+              height:
+                  navigationAppBarTopInset +
+                  _workspaceNavigationAppBarTopRowHeight,
               child: _WorkspaceNavigationAppBar(
                 headeredPlaylistAppBar: headeredPlaylistAppBar,
                 title: headeredPlaylistAppBar!.title,
@@ -430,7 +438,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
     final effectiveActions =
         _isEmptyWorkspaceAppBarActions(actions) ? null : actions;
     final topRow = SizedBox(
-      height: SmPlayerShellMetrics.navigationButtonSize,
+      height: _workspaceNavigationAppBarTopRowHeight,
       child: Padding(
         padding: const EdgeInsets.only(
           left: SmPlayerShellMetrics.navigationPaneHorizontalPadding,
@@ -492,22 +500,29 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
     final appBarContent =
         bottomContent == null
             ? SizedBox(
-              height: topInset + 40,
+              height:
+                  topInset +
+                  _workspaceNavigationAppBarTopRowHeight +
+                  (topInset == 0 ? _workspaceNavigationAppBarBottomPadding : 0),
               child: Column(
                 children: [
                   if (topInset > 0) SizedBox(height: topInset),
                   topRow,
+                  if (topInset == 0)
+                    const SizedBox(
+                      height: _workspaceNavigationAppBarBottomPadding,
+                    ),
                 ],
               ),
             )
             : SizedBox(
-              height: 80,
+              height: _workspaceNavigationAppBarTopRowHeight * 2,
               child: Column(
                 children: [
                   topRow,
                   SizedBox(
                     key: const ValueKey('WorkspaceNavigationAppBar.Bottom'),
-                    height: 40,
+                    height: _workspaceNavigationAppBarTopRowHeight,
                     child: Material(
                       color: Colors.transparent,
                       child: Padding(

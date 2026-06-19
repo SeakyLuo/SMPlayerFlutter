@@ -38,6 +38,7 @@ part 'playlists_colors.dart';
 
 const _playlistCardWidth = gridViewHolderWidth;
 const _playlistCardHeight = gridViewHolderHeight;
+const _playlistGridCrossAxisSpacing = 30.0;
 const _playlistDragOverlapThreshold = 0.2;
 
 class PlaylistsPage extends ConsumerStatefulWidget {
@@ -512,12 +513,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                     )
                     : LayoutBuilder(
                       builder: (context, constraints) {
-                        final columns =
-                            constraints.maxWidth < 720
-                                ? 2
-                                : ((constraints.maxWidth + 30) / 210)
-                                    .floor()
-                                    .clamp(1, 8);
+                        final columns = ((constraints.maxWidth +
+                                    _playlistGridCrossAxisSpacing) /
+                                (_playlistCardWidth +
+                                    _playlistGridCrossAxisSpacing))
+                            .floor()
+                            .clamp(1, 8);
                         return Listener(
                           onPointerMove: (event) {
                             if (_draggingPlaylistId == null) {
@@ -534,7 +535,8 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: columns,
                                   mainAxisExtent: 250,
-                                  crossAxisSpacing: 30,
+                                  crossAxisSpacing:
+                                      _playlistGridCrossAxisSpacing,
                                   mainAxisSpacing: 26,
                                 ),
                             itemCount: visiblePlaylists.length,

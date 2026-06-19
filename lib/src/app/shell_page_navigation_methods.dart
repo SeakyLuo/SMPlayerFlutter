@@ -327,6 +327,14 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
   }
 
+  void _dismissNavigationSurface() {
+    if (_isNavigationSearchHistoryOpen) {
+      _dismissNavigationSearchHistory();
+      return;
+    }
+    _closeNavigationOverlay();
+  }
+
   void _dismissNavigationSearchHistory() {
     if (!_isNavigationSearchHistoryOpen) {
       return;
