@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Import dat se nezdařil",
   "settings.display": "Zobrazení",
   "settings.desktopLyrics": "texty na plochu",
+  "settings.desktopLyricsEnabled": "Zobrazit texty na ploše",
   "settings.desktopLyricsColor": "Barva písma",
   "settings.desktopLyricsFontFamily": "písmo",
   "settings.desktopLyricsFontSearch": "Hledat písmo",

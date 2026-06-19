@@ -126,62 +126,54 @@ class _SearchFilterTab extends StatelessWidget {
             ? colors.appBarTabText
             : colors.appBarTabText.withValues(alpha: 0.46);
 
-    return Opacity(
-      opacity: enabled ? 1 : 0.46,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 72, minHeight: 36),
-        child: TextButton(
-          style: _searchFilterTabButtonStyle(
-            foregroundColor: foreground,
-            hoverForegroundColor:
-                selected
-                    ? colors.appBarTabActiveText
-                    : colors.appBarTabHoverText,
-            backgroundColor:
-                selected
-                    ? colors.appBarTabActiveSurface
-                    : colors.appBarTabSurface,
-            hoverBackgroundColor:
-                selected
-                    ? colors.appBarTabActiveSurface
-                    : colors.appBarTabHoverSurface,
-            borderColor:
-                selected
-                    ? colors.appBarTabActiveBorder
-                    : colors.appBarTabBorder,
-            hoverBorderColor:
-                selected
-                    ? colors.appBarTabActiveBorder
-                    : colors.appBarTabHoverBorder,
-          ),
-          onPressed: enabled ? onPressed : null,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconTheme(
-                data: IconThemeData(size: 18, color: foreground),
-                child: _SearchFilterTabIcon(filter: filter, color: foreground),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$count',
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
+    return SmPlayerTextIconButtonTheme(
+      colors: SmPlayerTextIconButtonColors(
+        commandText: foreground,
+        commandTextHover:
+            selected ? colors.appBarTabActiveText : colors.appBarTabHoverText,
+        control:
+            selected ? colors.appBarTabActiveSurface : colors.appBarTabSurface,
+        controlHover:
+            selected
+                ? colors.appBarTabActiveSurface
+                : colors.appBarTabHoverSurface,
+        controlHoverBorder:
+            selected
+                ? colors.appBarTabActiveBorder
+                : colors.appBarTabHoverBorder,
+        controlActive: colors.appBarTabActiveSurface,
+        controlBorder:
+            selected ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
+        accentStrong: colors.appBarTabActiveText,
+      ),
+      child: SmPlayerTextIconButton(
+        label: label,
+        active: selected,
+        disabled: !enabled,
+        opacityWhenDisabled: 0.46,
+        onPressed: onPressed,
+        minWidth: 72,
+        height: 36,
+        horizontalPadding: 18,
+        iconSize: 18,
+        iconGap: 8,
+        borderRadius: 999,
+        iconWidget: _SearchFilterTabIcon(filter: filter),
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
       ),
     );
@@ -189,13 +181,13 @@ class _SearchFilterTab extends StatelessWidget {
 }
 
 class _SearchFilterTabIcon extends StatelessWidget {
-  const _SearchFilterTabIcon({required this.filter, required this.color});
+  const _SearchFilterTabIcon({required this.filter});
 
   final SearchFilterKey filter;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color;
     return switch (filter) {
       SearchFilterKey.all => const Icon(
         FluentIcons.apps_list_detail_20_regular,
@@ -208,68 +200,4 @@ class _SearchFilterTabIcon extends StatelessWidget {
       SearchFilterKey.folders => const Icon(FluentIcons.folder_20_regular),
     };
   }
-}
-
-ButtonStyle _searchFilterTabButtonStyle({
-  required Color foregroundColor,
-  required Color hoverForegroundColor,
-  required Color backgroundColor,
-  required Color hoverBackgroundColor,
-  required Color borderColor,
-  required Color hoverBorderColor,
-}) {
-  const height = 36.0;
-  const radius = 999.0;
-  const padding = EdgeInsets.symmetric(horizontal: 18);
-
-  Color resolveColor(Set<WidgetState> states, Color regular, Color hovered) {
-    return _searchFilterTabHovered(states) ? hovered : regular;
-  }
-
-  BorderSide resolveSide(Set<WidgetState> states) {
-    return BorderSide(
-      color: resolveColor(states, borderColor, hoverBorderColor),
-    );
-  }
-
-  RoundedRectangleBorder resolveShape(Set<WidgetState> states) {
-    return RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(radius),
-      side: resolveSide(states),
-    );
-  }
-
-  return TextButton.styleFrom(
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    minimumSize: const Size(72, height),
-    maximumSize: const Size(double.infinity, height),
-    padding: padding,
-    foregroundColor: foregroundColor,
-    backgroundColor: backgroundColor,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(radius),
-      side: BorderSide(color: borderColor),
-    ),
-    shadowColor: Colors.transparent,
-  ).copyWith(
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    elevation: const WidgetStatePropertyAll(0),
-    minimumSize: const WidgetStatePropertyAll(Size(72, height)),
-    maximumSize: const WidgetStatePropertyAll(Size(double.infinity, height)),
-    foregroundColor: WidgetStateProperty.resolveWith(
-      (states) => resolveColor(states, foregroundColor, hoverForegroundColor),
-    ),
-    backgroundColor: WidgetStateProperty.resolveWith(
-      (states) => resolveColor(states, backgroundColor, hoverBackgroundColor),
-    ),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    side: WidgetStateProperty.resolveWith(resolveSide),
-    shape: WidgetStateProperty.resolveWith(resolveShape),
-  );
-}
-
-bool _searchFilterTabHovered(Set<WidgetState> states) {
-  return states.contains(WidgetState.hovered) ||
-      states.contains(WidgetState.focused) ||
-      states.contains(WidgetState.pressed);
 }

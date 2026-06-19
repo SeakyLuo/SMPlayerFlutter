@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -73,6 +74,8 @@ const _recentArtistRowHeight = 72.0;
 const _recentArtistRowGap = 2.0;
 const _recentSongTileWidth = 270.0;
 const _recentSongTileColumnGap = 28.0;
+const _recentCollectionGridRightPadding = 14.0;
+const _recentWideScrollbarTrailingOffset = 18.0;
 
 class RecentPage extends ConsumerStatefulWidget {
   const RecentPage({super.key});

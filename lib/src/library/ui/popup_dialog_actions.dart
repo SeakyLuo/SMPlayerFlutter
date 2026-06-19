@@ -46,100 +46,76 @@ class PopupDialogActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
-    final primaryDestructive = primary && destructive;
-    final background =
-        primary
-            ? primaryDestructive
-                ? colors.destructive
-                : colors.accent
-            : Colors.transparent;
-    final foreground = primary ? Colors.white : colors.accentStrong;
-    final resolvedForeground =
-        onPressed == null
-            ? primary
-                ? foreground.withValues(alpha: 0.72)
-                : colors.textMuted.withValues(alpha: 0.54)
-            : foreground;
-    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
+    if (!primary) {
+      return SmPlayerTextIconButton(
+        label: label,
+        loading: loading,
+        disabled: onPressed == null,
+        onPressed: onPressed,
+        minWidth: 88,
+      );
+    }
 
-    return TextButton(
-      style: TextButton.styleFrom(
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-        minimumSize: const Size(88, 36),
-        maximumSize: const Size(double.infinity, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        foregroundColor: foreground,
-        disabledForegroundColor: foreground.withValues(alpha: 0.72),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          height: 1,
-        ).copyWith(fontFamily: fontFamily),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ).copyWith(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.disabled)) {
-            return primary
-                ? background.withValues(alpha: 0.72)
-                : Colors.transparent;
-          }
-          if (primaryDestructive &&
-              (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.pressed))) {
-            return PopupDialogColors.destructiveHover;
-          }
-          if (primary &&
-              (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.pressed))) {
-            return PopupDialogColors.accentStrong;
-          }
-          return background;
-        }),
-        side: const WidgetStatePropertyAll(BorderSide.none),
-        elevation: const WidgetStatePropertyAll(0),
-        shadowColor: const WidgetStatePropertyAll(Colors.transparent),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.disabled)) {
-            return Colors.transparent;
-          }
-          if (primary) {
-            return Colors.transparent;
-          }
-          return colors.accent.withValues(alpha: 0.10);
-        }),
+    return SmPlayerTextIconButtonTheme(
+      colors: _popupDialogActionButtonColors(
+        colors,
+        primary: primary,
+        destructive: destructive,
       ),
-      onPressed: onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (loading) ...[
-            SizedBox.square(
-              dimension: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-                backgroundColor: Colors.white.withValues(alpha: 0.42),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: resolvedForeground,
-              fontFamily: fontFamily,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              height: 1,
-            ),
-            textHeightBehavior: const TextHeightBehavior(
-              applyHeightToFirstAscent: false,
-              applyHeightToLastDescent: false,
-            ),
-          ),
-        ],
+      child: SmPlayerTextIconButton(
+        label: label,
+        loading: loading,
+        disabled: onPressed == null,
+        onPressed: onPressed,
+        minWidth: 88,
+        height: 36,
+        horizontalPadding: 16,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        fontVariations: const [],
+        glassEnabled: false,
       ),
     );
   }
+}
+
+SmPlayerTextIconButtonColors _popupDialogActionButtonColors(
+  PopupDialogResolvedColors colors, {
+  required bool primary,
+  required bool destructive,
+}) {
+  if (primary && destructive) {
+    return SmPlayerTextIconButtonColors(
+      commandText: Colors.white,
+      commandTextHover: Colors.white,
+      control: colors.destructive,
+      controlHover: PopupDialogColors.destructiveHover,
+      controlHoverBorder: PopupDialogColors.destructiveHover,
+      controlActive: PopupDialogColors.destructiveHover,
+      controlBorder: colors.destructive,
+      accentStrong: Colors.white,
+    );
+  }
+  if (primary) {
+    return SmPlayerTextIconButtonColors(
+      commandText: Colors.white,
+      commandTextHover: Colors.white,
+      control: colors.accent,
+      controlHover: colors.accentStrong,
+      controlHoverBorder: colors.accentStrong,
+      controlActive: colors.accentStrong,
+      controlBorder: colors.accent,
+      accentStrong: Colors.white,
+    );
+  }
+  return SmPlayerTextIconButtonColors(
+    commandText: colors.accentStrong,
+    commandTextHover: colors.accentStrong,
+    control: colors.buttonSurface,
+    controlHover: colors.buttonHoverSurface,
+    controlHoverBorder: colors.buttonBorder,
+    controlActive: colors.activeButtonSurface,
+    controlBorder: colors.buttonBorder,
+    accentStrong: colors.accentStrong,
+  );
 }

@@ -15,8 +15,21 @@ class LibraryArtistSplitService {
 
   final LibrarySongPropertiesService _songPropertiesService;
 
-  ArtistSplitAnalysisResult analyze(List<LibrarySong> songs) {
+  ArtistSplitAnalysisResult analyzeExistingLibrary(List<LibrarySong> songs) {
     return artist_split_model.analyzeArtistSplits(songs);
+  }
+
+  ArtistSplitAnalysisResult analyzeScannedLibrary(
+    List<LibrarySong> existingSongs, {
+    required List<LibrarySong> scannedSongs,
+  }) {
+    return artist_split_model.analyzeArtistSplits(
+      [...existingSongs, ...scannedSongs],
+      analysisSongs: scannedSongs,
+      usageSongs: existingSongs,
+      existingLibraryScan: false,
+      includeScannedSongsInUsage: true,
+    );
   }
 
   ArtistSplitAnalysisResult emptyAnalysis() {

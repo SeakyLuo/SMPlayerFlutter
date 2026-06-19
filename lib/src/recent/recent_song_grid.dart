@@ -68,7 +68,10 @@ class _RecentSongGrid extends StatelessWidget {
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
-          trailingEdgeOffset: minimal ? _recentMinimalPageHorizontalPadding : 0,
+          trailingEdgeOffset:
+              minimal
+                  ? _recentMinimalPageHorizontalPadding
+                  : _recentWideScrollbarTrailingOffset,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,

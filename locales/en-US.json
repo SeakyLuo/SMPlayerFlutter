@@ -555,6 +555,7 @@
   "settings.dataImportFailed": "Failed to import data",
   "settings.display": "Display",
   "settings.desktopLyrics": "Desktop Lyrics",
+  "settings.desktopLyricsEnabled": "Show desktop lyrics",
   "settings.desktopLyricsColor": "Text color",
   "settings.desktopLyricsFontFamily": "Font",
   "settings.desktopLyricsFontSearch": "Search fonts",

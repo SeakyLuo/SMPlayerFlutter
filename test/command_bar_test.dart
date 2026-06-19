@@ -896,6 +896,10 @@ void main() {
 
     final button = find.byKey(const ValueKey('appbar-action'));
     expect(_textIconButtonDecoration(tester, button).color, Colors.transparent);
+    expect(
+      find.descendant(of: button, matching: find.byType(GlassContainer)),
+      findsNothing,
+    );
 
     tester.binding.handlePointerEvent(
       PointerHoverEvent(
@@ -907,6 +911,10 @@ void main() {
 
     final hoverDecoration = _textIconButtonDecoration(tester, button);
     expect(hoverDecoration.color, CommandBarColors.appBarHover);
+    expect(
+      find.descendant(of: button, matching: find.byType(GlassContainer)),
+      findsNothing,
+    );
     expect(
       _textIconButtonIconColor(tester, button),
       CommandBarColors.appBarHoverForeground,
@@ -973,14 +981,80 @@ void main() {
       ),
     );
 
-    final decoratedBox = tester.widget<DecoratedBox>(
-      find.descendant(
-        of: find.byType(SmPlayerTextIconButton),
-        matching: find.byType(DecoratedBox),
-      ),
-    );
+    final decoratedBox = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(SmPlayerTextIconButton),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .firstWhere((box) {
+          final decoration = box.decoration;
+          return decoration is BoxDecoration && decoration.border != null;
+        });
     final decoration = decoratedBox.decoration as BoxDecoration;
     expect(decoration.boxShadow, isNull);
+  });
+
+  testWidgets('SmPlayerTextIconButton uses glass container by default', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final glass = tester.widget<GlassContainer>(
+      find.descendant(
+        of: find.byType(SmPlayerTextIconButton),
+        matching: find.byType(GlassContainer),
+      ),
+    );
+    expect(glass.quality, GlassQuality.minimal);
+    expect(glass.useOwnLayer, isTrue);
+    expect(glass.allowElevation, isFalse);
+    expect(glass.clipBehavior, Clip.hardEdge);
+    expect(glass.settings, isNotNull);
+    expect(glass.shape, isA<LiquidRoundedRectangle>());
+  });
+
+  testWidgets('SmPlayerTextIconButton uses lighter glass in dark theme', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(brightness: Brightness.dark),
+        home: Scaffold(
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final glass = tester.widget<GlassContainer>(
+      find.descendant(
+        of: find.byType(SmPlayerTextIconButton),
+        matching: find.byType(GlassContainer),
+      ),
+    );
+    expect(glass.settings?.blur, 24);
+    expect(glass.settings?.thickness, 8);
+    expect(glass.settings?.refractiveIndex, 1.02);
+    expect(glass.settings?.saturation, 1.12);
+    expect(glass.settings?.lightIntensity, 0.025);
+    expect(glass.settings?.ambientStrength, 0.03);
+    expect(glass.settings?.glassColor, const Color(0x05ffffff));
+    expect(glass.settings?.standardOpacityMultiplier, 0.08);
   });
 
   testWidgets(
@@ -1043,6 +1117,33 @@ void main() {
       expect(tooltip.message, 'Play');
     },
   );
+
+  testWidgets('SmPlayerTextIconButton shows icon-only tooltip on hover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SmPlayerTextIconButton(
+            icon: FluentIcons.play_24_regular,
+            label: 'Play',
+            showLabel: false,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(
+      location: tester.getCenter(find.byType(SmPlayerTextIconButton)),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Play'), findsOneWidget);
+  });
 
   testWidgets('SmPlayerTextIconButton respects tooltipEnabled false', (
     tester,
@@ -3400,7 +3501,10 @@ BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
           .widgetList<DecoratedBox>(
             find.descendant(of: scope, matching: find.byType(DecoratedBox)),
           )
-          .firstWhere((box) => box.decoration is BoxDecoration)
+          .firstWhere((box) {
+            final decoration = box.decoration;
+            return decoration is BoxDecoration && decoration.border != null;
+          })
           .decoration
       as BoxDecoration;
 }

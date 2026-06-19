@@ -454,11 +454,15 @@ class _FeedbackActionButton extends StatefulWidget {
 
 class _FeedbackActionButtonState extends State<_FeedbackActionButton> {
   final _link = LayerLink();
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   OverlayEntry? _overlayEntry;
 
   @override
   void dispose() {
     _removeOverlay();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -493,7 +497,7 @@ class _FeedbackActionButtonState extends State<_FeedbackActionButton> {
   void _showOverlay() {
     _removeOverlay();
     _overlayEntry = OverlayEntry(builder: _buildOverlay);
-    Overlay.of(context).insert(_overlayEntry!);
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
   }
 
   void _removeOverlay() {
@@ -503,7 +507,6 @@ class _FeedbackActionButtonState extends State<_FeedbackActionButton> {
 
   Widget _buildOverlay(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
     return _settingsNoTextScaling(
       context,
       Stack(
@@ -520,69 +523,34 @@ class _FeedbackActionButtonState extends State<_FeedbackActionButton> {
             targetAnchor: Alignment.topLeft,
             followerAnchor: Alignment.bottomLeft,
             offset: const Offset(0, -6),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 138,
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: colors.dropdownSurface,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colors.inputBorder),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colors.dropdownShadow,
-                      offset: const Offset(0, 16),
-                      blurRadius: 42,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _FeedbackOptionButton(
-                      label: i18n.t('settings.viaEmail'),
-                      onSelected: widget.onSelected,
-                    ),
-                    _FeedbackOptionButton(
-                      label: i18n.t('settings.viaWebBrowser'),
-                      onSelected: widget.onSelected,
-                    ),
-                  ],
-                ),
+            child: SizedBox(
+              width: 170,
+              child: _SettingsSelectOptionsPanel<String>(
+                options: [
+                  SelectSettingOption(
+                    value: i18n.t('settings.viaEmail'),
+                    label: i18n.t('settings.viaEmail'),
+                    icon: FluentIcons.mail_20_regular,
+                  ),
+                  SelectSettingOption(
+                    value: i18n.t('settings.viaWebBrowser'),
+                    label: i18n.t('settings.viaWebBrowser'),
+                    icon: FluentIcons.globe_20_regular,
+                  ),
+                ],
+                maxHeight: 120,
+                value: '',
+                searchable: false,
+                searchController: _searchController,
+                searchFocusNode: _searchFocusNode,
+                searchPlaceholder: null,
+                emptyLabel: null,
+                onSearchChanged: (_) {},
+                onSelected: widget.onSelected,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FeedbackOptionButton extends StatelessWidget {
-  const _FeedbackOptionButton({required this.label, required this.onSelected});
-
-  final String label;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SettingsPageColors.of(context);
-    return TextButton(
-      style: TextButton.styleFrom(
-        minimumSize: const Size.fromHeight(34),
-        alignment: Alignment.centerLeft,
-        foregroundColor: colors.textStrong,
-        backgroundColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-      ),
-      onPressed: () {
-        onSelected(label);
-      },
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(label, style: const TextStyle(fontSize: 13)),
       ),
     );
   }
@@ -644,6 +612,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.onConfirm,
     this.confirmText,
     this.busy = false,
+    this.usePopupDialog = false,
   });
 
   final String title;
@@ -652,10 +621,43 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   final VoidCallback onConfirm;
   final String? confirmText;
   final bool busy;
+  final bool usePopupDialog;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final actionLabel =
+        busy
+            ? i18n.t('settings.smartMultiArtistFixPending')
+            : confirmText ?? i18n.t('common.confirm');
+    if (usePopupDialog) {
+      return PopupDialog(
+        className: 'settings-confirm-dialog ContentDialog',
+        navClassName: 'settings-confirm-nav',
+        overlayClassName: 'settings-confirm-overlay',
+        navLabel: title,
+        ariaLabel: title,
+        width: 480,
+        height: 240,
+        onClose: busy ? () {} : onCancel,
+        navChildren: [Expanded(child: PopupDialogTitle(title))],
+        footer: PopupDialogActions(
+          children: [
+            PopupDialogActionButton(
+              label: actionLabel,
+              primary: true,
+              loading: busy,
+              onPressed: busy ? null : onConfirm,
+            ),
+            PopupDialogActionButton(
+              label: i18n.t('common.cancel'),
+              onPressed: busy ? null : onCancel,
+            ),
+          ],
+        ),
+        child: PopupDialogMessageContent(message: message),
+      );
+    }
     return RemoveDialog(
       title: title,
       message: message,

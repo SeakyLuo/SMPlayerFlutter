@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../../app/app_interaction_colors.dart';
 import '../../i18n/app_i18n.dart';
@@ -54,19 +55,12 @@ class LocalContentSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = LocalPageColors.of(context);
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final headerHeight = dark ? 38.0 : 30.0;
-    final headerRadius = dark ? 999.0 : 8.0;
-    final headerPadding =
-        dark
-            ? const EdgeInsets.symmetric(horizontal: 16)
-            : const EdgeInsets.symmetric(horizontal: 8);
-    final headerForeground =
-        dark && expanded ? colors.accentStrong : colors.textStrong;
-    final headerFontSize = dark || compact ? 15.0 : 16.0;
-    final countForeground =
-        dark ? headerForeground.withValues(alpha: 0.72) : colors.textMuted;
-    final borderRadius = BorderRadius.circular(headerRadius);
+    const headerHeight = 30.0;
+    const headerPadding = EdgeInsets.symmetric(horizontal: 8);
+    final headerForeground = colors.textStrong;
+    final headerFontSize = compact ? 15.0 : 16.0;
+    final countForeground = colors.textMuted;
+    final borderRadius = BorderRadius.circular(8);
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 14 : 24),
       child: Column(
@@ -81,44 +75,27 @@ class LocalContentSection extends StatelessWidget {
                 child: InkWell(
                   onTap: onToggle,
                   borderRadius: borderRadius,
-                  hoverColor: dark ? const Color(0x09ffffff) : null,
                   splashColor: Colors.transparent,
                   highlightColor: Colors.transparent,
                   child: Container(
                     height: headerHeight,
                     padding: headerPadding,
                     decoration: BoxDecoration(
-                      color:
-                          dark
-                              ? expanded
-                                  ? const Color(0x3d0078d7)
-                                  : const Color(0x09ffffff)
-                              : Colors.transparent,
-                      border:
-                          dark
-                              ? Border.all(
-                                color:
-                                    expanded
-                                        ? const Color(0x7a0078d7)
-                                        : const Color(0x38d6e0ec),
-                              )
-                              : null,
+                      color: Colors.transparent,
                       borderRadius: borderRadius,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        if (!dark) ...[
-                          Icon(
-                            expanded
-                                ? Icons.keyboard_arrow_down
-                                : Icons.chevron_right,
-                            size: 15,
-                            color: headerForeground,
-                          ),
-                          const SizedBox(width: 7),
-                        ],
+                        Icon(
+                          expanded
+                              ? FluentIcons.chevron_down_20_regular
+                              : FluentIcons.chevron_right_20_regular,
+                          size: 15,
+                          color: headerForeground,
+                        ),
+                        const SizedBox(width: 7),
                         Text(
                           title,
                           textHeightBehavior: const TextHeightBehavior(
@@ -133,7 +110,7 @@ class LocalContentSection extends StatelessWidget {
                             height: 1,
                           ),
                         ),
-                        SizedBox(width: dark ? 8 : 7),
+                        const SizedBox(width: 7),
                         Text(
                           '$count',
                           textHeightBehavior: const TextHeightBehavior(
@@ -143,11 +120,8 @@ class LocalContentSection extends StatelessWidget {
                           style: TextStyle(
                             color: countForeground,
                             fontSize: headerFontSize,
-                            fontWeight:
-                                dark ? FontWeight.w600 : FontWeight.w500,
-                            fontVariations: [
-                              FontVariation.weight(dark ? 650 : 560),
-                            ],
+                            fontWeight: FontWeight.w500,
+                            fontVariations: const [FontVariation.weight(560)],
                             height: 1,
                           ),
                         ),

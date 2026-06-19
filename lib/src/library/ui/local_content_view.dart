@@ -205,7 +205,7 @@ class LocalContentView extends StatelessWidget {
         if (currentSongs.isNotEmpty)
           showLocalSectionHeaders
               ? LocalContentSection(
-                title: i18n.t('local.allSongs'),
+                title: i18n.t('common.songs'),
                 count: currentSongs.length,
                 expanded: songsExpanded,
                 onToggle: onToggleSongsExpanded,

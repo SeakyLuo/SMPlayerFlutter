@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Impor data gagal",
   "settings.display": "Tampilan",
   "settings.desktopLyrics": "lirik desktop",
+  "settings.desktopLyricsEnabled": "Tampilkan lirik desktop",
   "settings.desktopLyricsColor": "Warna huruf",
   "settings.desktopLyricsFontFamily": "font",
   "settings.desktopLyricsFontSearch": "Cari font",

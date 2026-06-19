@@ -13,24 +13,30 @@ class ShellWindowDragRegion extends StatelessWidget {
     required this.child,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    this.onTap,
   });
 
   final Widget child;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        if (event.buttons == 1) {
-          onWindowDragStart?.call();
-        }
-      },
-      onPointerUp: (_) => onWindowDragEnd?.call(),
-      onPointerCancel: (_) => onWindowDragEnd?.call(),
-      child: child,
+      onTap: onTap,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (event.buttons == 1) {
+            onWindowDragStart?.call();
+          }
+        },
+        onPointerUp: (_) => onWindowDragEnd?.call(),
+        onPointerCancel: (_) => onWindowDragEnd?.call(),
+        child: child,
+      ),
     );
   }
 }
@@ -118,6 +124,7 @@ class MinimalTitlebar extends StatelessWidget {
     required this.onGoBack,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
     required this.headeredPlaylistAppBar,
   });
 
@@ -127,6 +134,7 @@ class MinimalTitlebar extends StatelessWidget {
   final VoidCallback onGoBack;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTitlebarTap;
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
 
   @override
@@ -166,6 +174,7 @@ class MinimalTitlebar extends StatelessWidget {
           child: ShellWindowDragRegion(
             onWindowDragStart: onWindowDragStart,
             onWindowDragEnd: onWindowDragEnd,
+            onTap: onTitlebarTap,
             child:
                 title.isEmpty
                     ? const SizedBox.expand()
@@ -209,6 +218,7 @@ class WindowsAppTitleBar extends StatelessWidget {
     required this.showDragRegion,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
     required this.onMinimize,
     required this.onToggleMaximize,
     required this.onClose,
@@ -221,6 +231,7 @@ class WindowsAppTitleBar extends StatelessWidget {
   final bool showDragRegion;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTitlebarTap;
   final VoidCallback onMinimize;
   final VoidCallback onToggleMaximize;
   final VoidCallback onClose;
@@ -269,6 +280,7 @@ class WindowsAppTitleBar extends StatelessWidget {
               key: const ValueKey('WindowsAppTitleBar.DragRegion'),
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,
+              onTap: onTitlebarTap,
               child: const SizedBox.expand(),
             ),
           ),

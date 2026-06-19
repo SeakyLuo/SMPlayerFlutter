@@ -509,8 +509,19 @@ class _PlayerCompactVolumeActionState
   static const _popoverBackground = Color(0xf5222222);
   static const _popoverBorder = Color(0x2effffff);
   static const _popoverShadow = Color(0x6b000000);
-  static const _sliderActive = Color(0xf5ffffff);
   static const _sliderInactive = Color(0x52ffffff);
+  static const _popoverGlassSettings = LiquidGlassSettings(
+    blur: 46,
+    thickness: 20,
+    refractiveIndex: 1.06,
+    saturation: 1.65,
+    chromaticAberration: 0,
+    lightIntensity: 0.1,
+    ambientStrength: 0.08,
+    glowIntensity: 0.04,
+    glassColor: _popoverBackground,
+    standardOpacityMultiplier: 0.24,
+  );
 
   final _tapRegionGroup = Object();
   OverlayEntry? _popoverEntry;
@@ -587,9 +598,7 @@ class _PlayerCompactVolumeActionState
       buttonBox.localToGlobal(Offset(buttonBox.size.width, 0)),
     );
     final decoration = BoxDecoration(
-      color: _popoverBackground,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: _popoverBorder),
       boxShadow: const [
         BoxShadow(color: _popoverShadow, offset: Offset(0, 16), blurRadius: 36),
       ],
@@ -604,36 +613,66 @@ class _PlayerCompactVolumeActionState
         child: Material(
           color: Colors.transparent,
           child: DecoratedBox(
-            key: const ValueKey('MediaControl.CompactVolumePopover'),
             decoration: decoration,
-            child: VolumeSlider(
-              value: widget.volumeValue,
-              disabled: widget.disabled,
-              activeTrackColor: _sliderActive,
-              inactiveTrackColor: _sliderInactive,
-              thumbColor: Colors.white,
-              overlayColor: Colors.transparent,
-              orientation: VolumeSliderOrientation.vertical,
-              verticalHeight: _popoverSize.height,
-              verticalTrackLength: 96,
-              trackHeight: 2,
-              thumbRadius: 6,
-              overlayRadius: 6,
-              verticalTooltipSide: VolumeSliderVerticalTooltipSide.left,
-              tooltipBackgroundColor: _popoverBackground,
-              tooltipForegroundColor: Colors.white,
-              tooltipBorderColor: _popoverBorder,
-              tooltipShadow: const BoxShadow(
-                color: Color(0x57000000),
-                offset: Offset(0, 8),
-                blurRadius: 18,
+            child: SizedBox(
+              key: const ValueKey('MediaControl.CompactVolumePopover'),
+              width: _popoverSize.width,
+              height: _popoverSize.height,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: GlassContainer(
+                      width: _popoverSize.width,
+                      height: _popoverSize.height,
+                      useOwnLayer: true,
+                      quality: GlassQuality.minimal,
+                      clipBehavior: Clip.hardEdge,
+                      shape: const LiquidRoundedRectangle(borderRadius: 8),
+                      settings: _popoverGlassSettings,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _popoverBorder),
+                        ),
+                      ),
+                    ),
+                  ),
+                  VolumeSlider(
+                    value: widget.volumeValue,
+                    disabled: widget.disabled,
+                    activeTrackColor:
+                        widget.sliderActiveColor ?? MediaControlColors.accent,
+                    inactiveTrackColor:
+                        widget.sliderInactiveColor ?? _sliderInactive,
+                    thumbColor:
+                        widget.sliderThumbColor ?? MediaControlColors.accent,
+                    overlayColor:
+                        widget.sliderOverlayColor ?? Colors.transparent,
+                    orientation: VolumeSliderOrientation.vertical,
+                    verticalHeight: _popoverSize.height,
+                    verticalTrackLength: 96,
+                    trackHeight: 2,
+                    thumbRadius: 6,
+                    overlayRadius: 6,
+                    verticalTooltipSide: VolumeSliderVerticalTooltipSide.left,
+                    tooltipBackgroundColor: _popoverBackground,
+                    tooltipForegroundColor: Colors.white,
+                    tooltipBorderColor: _popoverBorder,
+                    tooltipShadow: const BoxShadow(
+                      color: Color(0x57000000),
+                      offset: Offset(0, 8),
+                      blurRadius: 18,
+                    ),
+                    showTooltipOnMount: true,
+                    showTooltipOnHoverOrFocus: false,
+                    onChange: (value) {
+                      widget.onVolumeChange(value);
+                      _popoverEntry?.markNeedsBuild();
+                    },
+                  ),
+                ],
               ),
-              showTooltipOnMount: true,
-              showTooltipOnHoverOrFocus: false,
-              onChange: (value) {
-                widget.onVolumeChange(value);
-                _popoverEntry?.markNeedsBuild();
-              },
             ),
           ),
         ),

@@ -1037,14 +1037,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                     ),
                   ),
                 ),
-                if (item.checked) ...[
-                  const SizedBox(width: 10),
-                  Icon(
-                    FluentIcons.checkmark_20_regular,
-                    size: 16,
-                    color: colors.checked,
-                  ),
-                ] else if (hasSubmenu) ...[
+                if (hasSubmenu) ...[
                   const SizedBox(width: 10),
                   Icon(
                     FluentIcons.chevron_right_20_regular,
@@ -1078,6 +1071,13 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
   }
 
   Widget? _buildLeadingIcon(MenuFlyoutItem item, Color foreground) {
+    if (item.checked) {
+      return Icon(
+        FluentIcons.checkmark_20_regular,
+        size: 16,
+        color: MenuFlyoutThemeColors.of(context).checked,
+      );
+    }
     final color = item.disabled ? foreground : item.iconColor ?? foreground;
     if (item.icon == FluentIcons.play_20_regular) {
       return Center(
@@ -1206,8 +1206,7 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout();
-    final hasTrailingIcon =
-        item.checked || item.submenu.isNotEmpty && !item.disabled;
+    final hasTrailingIcon = item.submenu.isNotEmpty && !item.disabled;
     final leadingWidth = hasLeadingIconSpace ? 30.0 : 0.0;
     final trailingWidth = hasTrailingIcon ? 26.0 : 0.0;
     final itemWidth =
@@ -1223,7 +1222,8 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
 }
 
 bool _menuFlyoutItemHasLeadingIcon(MenuFlyoutItem item) {
-  return item.icon != null ||
+  return item.checked ||
+      item.icon != null ||
       item.iconWidget != null ||
       item.useAlbumIcon ||
       item.usePlaylistIcon ||

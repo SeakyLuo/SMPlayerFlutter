@@ -68,6 +68,7 @@ class MainNavigationView extends StatefulWidget {
     this.onSearchHistoryOpenChanged,
     this.onWindowDragStart,
     this.onWindowDragEnd,
+    this.onTitlebarTap,
   });
 
   final bool isPaneOpen;
@@ -96,6 +97,7 @@ class MainNavigationView extends StatefulWidget {
   final ValueChanged<bool>? onSearchHistoryOpenChanged;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback? onTitlebarTap;
 
   @override
   State<MainNavigationView> createState() => _MainNavigationViewState();
@@ -458,6 +460,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                               onGoBack: widget.onGoBack,
                               onWindowDragStart: widget.onWindowDragStart,
                               onWindowDragEnd: widget.onWindowDragEnd,
+                              onTitlebarTap: widget.onTitlebarTap,
                               onTooltipRequested:
                                   contentCollapsed
                                       ? _showFloatingTooltip
@@ -564,12 +567,17 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                   showPlaylistChildren: showPlaylistChildren,
                                 );
                                 if (constraints.maxHeight < 440) {
-                                  return ListView(
-                                    padding: EdgeInsets.zero,
-                                    children: [
-                                      ...libraryAndPlayback,
-                                      playlistSection,
-                                    ],
+                                  return ScrollConfiguration(
+                                    behavior: ScrollConfiguration.of(
+                                      context,
+                                    ).copyWith(scrollbars: false),
+                                    child: ListView(
+                                      padding: EdgeInsets.zero,
+                                      children: [
+                                        ...libraryAndPlayback,
+                                        playlistSection,
+                                      ],
+                                    ),
                                   );
                                 }
                                 return Column(

@@ -16,6 +16,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/card_corner_badge.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_card.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
@@ -28,6 +29,7 @@ void main() {
     locale: 'en-US',
     messages: {
       'common.folders': 'Folders',
+      'common.songs': 'Songs',
       'common.artistSeparator': ', ',
       'common.artistUnknown': 'Unknown Artist',
       'context.addToPlaylist': 'Add To',
@@ -43,7 +45,7 @@ void main() {
     },
   );
 
-  testWidgets('Local content section tag centers night title and count', (
+  testWidgets('Local content section night header matches day shape', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -86,8 +88,23 @@ void main() {
 
     final titleText = tester.widget<Text>(title);
     final countText = tester.widget<Text>(count);
-    expect(titleText.style?.fontSize, 15);
-    expect(countText.style?.fontSize, 15);
+    expect(titleText.style?.fontSize, 16);
+    expect(countText.style?.fontSize, 16);
+    expect(
+      find.descendant(
+        of: header,
+        matching: find.byIcon(FluentIcons.chevron_down_20_regular),
+      ),
+      findsOneWidget,
+    );
+    final headerContainer = tester.widget<Container>(
+      find.descendant(of: header, matching: find.byType(Container)).first,
+    );
+    expect(headerContainer.constraints?.minHeight, 30);
+    final decoration = headerContainer.decoration! as BoxDecoration;
+    expect(decoration.color, Colors.transparent);
+    expect(decoration.border, isNull);
+    expect(decoration.borderRadius, BorderRadius.circular(8));
   });
 
   testWidgets('Local grid song hover mirrors Electron card surface', (
@@ -1083,14 +1100,17 @@ void main() {
       );
       await tester.pump();
 
+      final badgeRoot = find.byKey(
+        const ValueKey('LocalFolderCard.FolderTypeBadge'),
+      );
+      expect(tester.widget<CardCornerBadge>(badgeRoot), isA<CardCornerBadge>());
       final badge = tester.widget<DecoratedBox>(
-        find.byKey(const ValueKey('LocalFolderCard.FolderTypeBadge')),
+        find
+            .descendant(of: badgeRoot, matching: find.byType(DecoratedBox))
+            .first,
       );
       final glass = tester.widget<GlassContainer>(
-        find.descendant(
-          of: find.byKey(const ValueKey('LocalFolderCard.FolderTypeBadge')),
-          matching: find.byType(GlassContainer),
-        ),
+        find.descendant(of: badgeRoot, matching: find.byType(GlassContainer)),
       );
       return (decoration: badge.decoration as BoxDecoration, glass: glass);
     }

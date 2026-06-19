@@ -31,38 +31,32 @@ class _MusicDialogIconButton extends StatelessWidget {
             : nightMode
             ? GlobalUI.buttonHoverBgColorNight
             : GlobalUI.buttonHoverBgColorDay;
-    final button = IconButton(
-      style: IconButton.styleFrom(
-        fixedSize: Size(size, size == 42 ? 40 : size),
-        minimumSize: Size(size, size == 42 ? 40 : size),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        foregroundColor: foreground,
-        disabledForegroundColor: foreground,
-        backgroundColor: background,
-        disabledBackgroundColor: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: colors.buttonBorder),
-        ),
-        shadowColor: Colors.transparent,
-      ).copyWith(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered) ||
-              states.contains(WidgetState.focused)) {
-            return hoverBackground;
-          }
-          return background;
-        }),
-        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    return SmPlayerTextIconButtonTheme(
+      colors: SmPlayerTextIconButtonColors(
+        commandText: foreground,
+        commandTextHover: foreground,
+        control: background,
+        controlHover: hoverBackground,
+        controlHoverBorder: colors.buttonBorder,
+        controlActive: hoverBackground,
+        controlBorder: colors.buttonBorder,
+        accentStrong: foreground,
       ),
-      icon: iconWidget,
-      onPressed: disabled ? null : onPressed,
-    ).withDialogButtonShadow(colors.buttonShadow, radius: 8);
-    final message = tooltip;
-    if (message == null) {
-      return button;
-    }
-    return Tooltip(message: message, child: button);
+      child: SmPlayerTextIconButton(
+        label: tooltip ?? '',
+        tooltip: tooltip,
+        tooltipEnabled: tooltip != null,
+        showLabel: false,
+        iconWidget: iconWidget,
+        onPressed: onPressed,
+        disabled: disabled,
+        minWidth: size,
+        height: size == 42 ? 40 : size,
+        iconSize: iconSize,
+        borderRadius: 8,
+        opacityWhenDisabled: 1,
+        glassEnabled: false,
+      ).withDialogButtonShadow(colors.buttonShadow, radius: 8),
+    );
   }
 }

@@ -10,6 +10,7 @@ import 'recent_scrollbar.dart';
 
 const _recentSearchMinimalContentBreakpoint = 656.0;
 const _recentSearchMinimalScrollbarOffset = 8.0;
+const _recentSearchWideScrollbarOffset = 18.0;
 
 class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
@@ -42,7 +43,10 @@ class RecentSearchList extends StatelessWidget {
         final minimal =
             constraints.maxWidth < _recentSearchMinimalContentBreakpoint;
         return RecentScrollbar(
-          trailingEdgeOffset: minimal ? _recentSearchMinimalScrollbarOffset : 0,
+          trailingEdgeOffset:
+              minimal
+                  ? _recentSearchMinimalScrollbarOffset
+                  : _recentSearchWideScrollbarOffset,
           builder:
               (controller) => ListView.builder(
                 controller: controller,

@@ -11,6 +11,7 @@ const _nowPlayingQueueBottomInset = SmPlayerShellMetrics.playerTopRadius + 10.0;
 const _nowPlayingQueueScrollbarThickness = 5.0;
 const _nowPlayingQueueScrollbarHoverThickness = 7.0;
 const _nowPlayingQueueCompactTrailingPadding = 10.0;
+const _nowPlayingQueueCompactDurationWidth = 50.0;
 
 class NowPlayingQueueView extends StatelessWidget {
   const NowPlayingQueueView({
@@ -99,7 +100,7 @@ class NowPlayingQueueView extends StatelessWidget {
       onReorder: onReorderVisible,
     );
     final scrollableChild =
-        compactQueueLayout && compactScrollbarTrailingOffset != 0
+        compactScrollbarTrailingOffset != 0
             ? Transform.translate(
               offset: Offset(-compactScrollbarTrailingOffset, 0),
               child: playlist,
@@ -113,7 +114,7 @@ class NowPlayingQueueView extends StatelessWidget {
         child: scrollableChild,
       ),
     );
-    if (!compactQueueLayout || compactScrollbarTrailingOffset == 0) {
+    if (compactScrollbarTrailingOffset == 0) {
       return scrollbar;
     }
     scrollbar = ScrollbarTheme(
@@ -159,6 +160,8 @@ class NowPlayingQueueView extends StatelessWidget {
               ? PlaylistControlItemVariant.compact
               : PlaylistControlItemVariant.standard,
       collapseCompactPrimaryActions: compactQueueLayout,
+      compactDurationWidth:
+          compactQueueLayout ? _nowPlayingQueueCompactDurationWidth : null,
       compactTrailingPadding:
           compactQueueLayout ? _nowPlayingQueueCompactTrailingPadding : null,
       favoriteLabel: i18n.t('common.favorite'),

@@ -27,7 +27,11 @@ class _ArtistAlbumSongRowShell extends StatelessWidget {
         decoration: BoxDecoration(
           color: sectionColor,
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(radius)),
-          border: Border.all(color: sectionBorder),
+          border: Border(
+            left: BorderSide(color: sectionBorder),
+            right: BorderSide(color: sectionBorder),
+            bottom: BorderSide(color: sectionBorder),
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(radius)),

@@ -182,11 +182,16 @@ class _MainNavigationPlaylistSection extends StatelessWidget {
               if (constraints.hasBoundedHeight)
                 Flexible(
                   fit: FlexFit.loose,
-                  child: ListView(
-                    key: const ValueKey('MainNavigationView.PlaylistScroll'),
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    children: playlistItems,
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: ListView(
+                      key: const ValueKey('MainNavigationView.PlaylistScroll'),
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      children: playlistItems,
+                    ),
                   ),
                 )
               else

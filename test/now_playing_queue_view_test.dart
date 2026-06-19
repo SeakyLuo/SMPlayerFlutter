@@ -90,6 +90,70 @@ void main() {
     });
   });
 
+  testWidgets('NowPlayingQueueView wide scrollbar stays outside rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1300, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [DefaultAlbumArtworkThemeColors.light],
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              height: 300,
+              child: NowPlayingQueueView(
+                queueSongs: const [_song, _summerSong, _currentSong],
+                visibleEntries: const [
+                  (0, _song),
+                  (1, _summerSong),
+                  (2, _currentSong),
+                ],
+                searchQuery: '',
+                scrollController: controller,
+                selectedQueueIndex: null,
+                selectedTrackId: _song.id,
+                isPlaying: false,
+                selectionMode: false,
+                isSelected: (_) => false,
+                onReorderVisible: (_, _) {},
+                onPlayQueueTrack: (_, _) {},
+                onTogglePlayPause: () {},
+                onToggleQueueSelection: (_) {},
+                onToggleFavorite: (_) {},
+                onOpenAddToPlaylist: (_, _) {},
+                onRemoveQueueIndex: (_, _) {},
+                onOpenArtist: (_) {},
+                onOpenAlbum: (_) {},
+                onOpenContextMenu: (_, _, _) {},
+                compactScrollbarTrailingOffset: 8,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.getRect(find.byType(ReorderableListView)).left, 0);
+    expect(tester.getRect(find.byType(ReorderableListView)).right, 1200);
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('NowPlayingQueue.Scrollbar')))
+          .right,
+      1208,
+    );
+  });
+
   testWidgets('NowPlayingQueueView row artist and album open detail routes', (
     tester,
   ) async {
@@ -283,6 +347,15 @@ void main() {
           ),
         ),
       );
+
+      final rowRectBeforeHover = tester.getRect(
+        find.byKey(const ValueKey('PlaylistControlItem.Row')),
+      );
+      final durationRect = tester.getRect(
+        find.byKey(const ValueKey('PlaylistControlItem.Duration')),
+      );
+      expect(durationRect.width, 50);
+      expect(rowRectBeforeHover.right - durationRect.right, 10);
 
       final mouse = await tester.createGesture(
         kind: ui.PointerDeviceKind.mouse,

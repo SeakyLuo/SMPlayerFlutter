@@ -84,42 +84,51 @@ class _RecentTabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = RecentThemeColors.of(context);
     if (colors.primaryTabsUsePillStyle) {
-      return TextButton(
-        style: _recentTextButtonStyle(
-          foregroundColor:
+      return SmPlayerTextIconButtonTheme(
+        colors: _recentTabButtonColors(
+          commandText:
               active ? colors.primaryTabActiveText : colors.primaryTabText,
-          hoverForegroundColor:
+          commandTextHover:
               active ? colors.primaryTabActiveText : colors.appBarTabHoverText,
-          backgroundColor:
+          control:
               active
                   ? colors.primaryTabActiveSurface
                   : colors.primaryTabSurface,
-          hoverBackgroundColor:
+          controlHover:
               active
                   ? colors.primaryTabActiveSurface
                   : colors.appBarTabHoverSurface,
-          borderColor:
+          controlBorder:
               active ? colors.primaryTabActiveBorder : colors.primaryTabBorder,
-          hoverBorderColor:
+          controlHoverBorder:
               active
                   ? colors.primaryTabActiveBorder
                   : colors.appBarTabHoverBorder,
-          minHeight: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          radius: colors.primaryTabRadius,
+          controlActive: colors.primaryTabActiveSurface,
+          accentStrong: colors.primaryTabActiveText,
         ),
-        onPressed: onPressed,
-        child: _RecentTabContent(
+        child: SmPlayerTextIconButton(
           label: label,
-          count: count,
-          showCount: showCount,
-          labelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-          countStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+          active: active,
+          onPressed: onPressed,
+          minWidth: 0,
+          height: 38,
+          horizontalPadding: 16,
+          borderRadius: colors.primaryTabRadius,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          child: _RecentTabContent(
+            label: label,
+            count: count,
+            showCount: showCount,
+            labelStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+            countStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       );
@@ -176,6 +185,28 @@ class _RecentTabButton extends StatelessWidget {
       ),
     );
   }
+}
+
+SmPlayerTextIconButtonColors _recentTabButtonColors({
+  required Color commandText,
+  required Color commandTextHover,
+  required Color control,
+  required Color controlHover,
+  required Color controlBorder,
+  required Color controlHoverBorder,
+  required Color controlActive,
+  required Color accentStrong,
+}) {
+  return SmPlayerTextIconButtonColors(
+    commandText: commandText,
+    commandTextHover: commandTextHover,
+    control: control,
+    controlHover: controlHover,
+    controlHoverBorder: controlHoverBorder,
+    controlActive: controlActive,
+    controlBorder: controlBorder,
+    accentStrong: accentStrong,
+  );
 }
 
 class _RecentTabContent extends StatelessWidget {

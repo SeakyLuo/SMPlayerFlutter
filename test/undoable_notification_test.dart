@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -127,6 +128,85 @@ void main() {
 
     await tester.pump(appNotificationDuration);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('notification timeout pauses while hovered', (tester) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: TextButton(
+                  onPressed: () {
+                    showAppNotification(
+                      context: context,
+                      message: 'Hover pause',
+                      duration: const Duration(milliseconds: 200),
+                    );
+                  },
+                  child: const Text('Show'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show'));
+    await tester.pump();
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+      location: tester.getCenter(find.text('Hover pause')),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.text('Hover pause'), findsOneWidget);
+
+    await mouse.moveTo(Offset.zero);
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hover pause'), findsNothing);
+    await mouse.removePointer();
+  });
+
+  testWidgets('notification tap dismisses the overlay', (tester) async {
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: _i18n,
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppNotificationThemeColors.light]),
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: TextButton(
+                  onPressed: () {
+                    showAppNotification(
+                      context: context,
+                      message: 'Dismiss me',
+                      duration: const Duration(seconds: 5),
+                    );
+                  },
+                  child: const Text('Show'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show'));
+    await tester.pump();
+    await tester.tap(find.text('Dismiss me'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dismiss me'), findsNothing);
   });
 
   testWidgets('notification action spinner follows Electron action index', (

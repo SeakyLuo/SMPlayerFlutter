@@ -83,33 +83,37 @@ class _RecentAppBarTabButton extends StatelessWidget {
     final colors = RecentThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 6),
-      child: SizedBox(
-        height: 34,
-        child: TextButton(
-          style: _recentTextButtonStyle(
-            foregroundColor:
-                active ? colors.appBarTabActiveText : colors.appBarTabText,
-            hoverForegroundColor:
-                active ? colors.appBarTabActiveText : colors.appBarTabHoverText,
-            backgroundColor:
-                active
-                    ? colors.appBarTabActiveSurface
-                    : colors.appBarTabSurface,
-            hoverBackgroundColor:
-                active
-                    ? colors.appBarTabActiveSurface
-                    : colors.appBarTabHoverSurface,
-            borderColor:
-                active ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
-            hoverBorderColor:
-                active
-                    ? colors.appBarTabActiveBorder
-                    : colors.appBarTabHoverBorder,
-            minHeight: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            radius: colors.appBarTabRadius,
-          ),
+      child: SmPlayerTextIconButtonTheme(
+        colors: _recentTabButtonColors(
+          commandText:
+              active ? colors.appBarTabActiveText : colors.appBarTabText,
+          commandTextHover:
+              active ? colors.appBarTabActiveText : colors.appBarTabHoverText,
+          control:
+              active ? colors.appBarTabActiveSurface : colors.appBarTabSurface,
+          controlHover:
+              active
+                  ? colors.appBarTabActiveSurface
+                  : colors.appBarTabHoverSurface,
+          controlBorder:
+              active ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
+          controlHoverBorder:
+              active
+                  ? colors.appBarTabActiveBorder
+                  : colors.appBarTabHoverBorder,
+          controlActive: colors.appBarTabActiveSurface,
+          accentStrong: colors.appBarTabActiveText,
+        ),
+        child: SmPlayerTextIconButton(
+          label: label,
+          active: active,
           onPressed: onPressed,
+          minWidth: 0,
+          height: 34,
+          horizontalPadding: 12,
+          borderRadius: colors.appBarTabRadius,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           child: _RecentTabContent(
             label: label,
             count: count,

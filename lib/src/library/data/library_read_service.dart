@@ -1,5 +1,6 @@
 import 'package:sqlite3/sqlite3.dart';
 
+import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_models.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 
@@ -270,5 +271,5 @@ int toStoredLocalFolderSortCriterion(LocalFolderSortCriterion value) {
 }
 
 String normalizeTagText(String value) {
-  return value.trim();
+  return artist_tags.normalizeTagText(value);
 }

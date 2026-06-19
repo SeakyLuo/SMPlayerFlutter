@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Falló la importación de datos",
   "settings.display": "Pantalla",
   "settings.desktopLyrics": "letras en el escritorio",
+  "settings.desktopLyricsEnabled": "Mostrar letras en el escritorio",
   "settings.desktopLyricsColor": "Color de fuente",
   "settings.desktopLyricsFontFamily": "fuente",
   "settings.desktopLyricsFontSearch": "Buscar fuente",

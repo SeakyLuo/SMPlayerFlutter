@@ -1782,6 +1782,111 @@ void main() {
   });
 
   test(
+    'refreshLocalFolder updates smart artists for existing scanned songs',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'smplayer-refresh-existing-artist-split-',
+      );
+      addTearDown(() async {
+        await directory.delete(recursive: true);
+      });
+      final root = Directory('${directory.path}/Library');
+      await root.create(recursive: true);
+      final song = File('${root.path}/Duet.mp3');
+      await song.writeAsBytes([0xff, 0xfb, 0x90, 0x64]);
+      await const Id3TagService().writeSongTagProperties(
+        song.path,
+        const Id3SongTagProperties(title: 'Duet', artist: 'Alice/Bob'),
+      );
+
+      final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+      _createScanDatabase(databaseFile, '');
+      final db = sqlite3.open(databaseFile.path);
+      try {
+        db.execute('DELETE FROM Music');
+        db.execute('DELETE FROM MusicArtist');
+        db.execute('DELETE FROM File');
+        db.execute('DELETE FROM Folder');
+        db.execute('UPDATE Settings SET RootPath = ?', [root.path]);
+        db.execute('INSERT INTO Folder (Path, State) VALUES (?, 1)', [
+          root.path,
+        ]);
+        db.execute(
+          '''
+        INSERT INTO Music (
+          Id, Path, Name, Artist, Album, ThumbnailPath, Duration,
+          PlayCount, DateAdded, LyricsOffsetMs, State
+        )
+        VALUES (?, ?, ?, ?, '', '', 0, 0, ?, 0, 1)
+      ''',
+          [1, song.path, 'Duet', 'Alice/Bob', '2026-05-20'],
+        );
+        db.execute(
+          'INSERT INTO MusicArtist (MusicId, Name, Priority, State) VALUES (?, ?, 0, 1)',
+          [1, 'Alice/Bob'],
+        );
+        db.execute('INSERT INTO File (Path, FileId, State) VALUES (?, ?, 1)', [
+          song.path,
+          1,
+        ]);
+        db.execute(
+          '''
+        INSERT INTO Music (
+          Id, Path, Name, Artist, Album, ThumbnailPath, Duration,
+          PlayCount, DateAdded, LyricsOffsetMs, State
+        )
+        VALUES (?, ?, ?, ?, '', '', 0, 0, ?, 0, 1)
+      ''',
+          [2, '${directory.path}/Known.mp3', 'Known', 'Alice', '2026-05-20'],
+        );
+        db.execute(
+          'INSERT INTO MusicArtist (MusicId, Name, Priority, State) VALUES (?, ?, 0, 1)',
+          [2, 'Alice'],
+        );
+      } finally {
+        db.dispose();
+      }
+
+      final repository = LibraryRepository(
+        databaseFileResolver: () async => databaseFile,
+      );
+
+      final result = await repository.refreshLocalFolder(root.path);
+
+      expect(result.filesAdded, isEmpty);
+      expect(result.artistSplitsApplied, hasLength(1));
+      expect(result.artistSplitsApplied.single.artists, ['Alice', 'Bob']);
+
+      final checkDb = sqlite3.open(databaseFile.path);
+      try {
+        expect(
+          checkDb.select('SELECT Artist FROM Music WHERE Path = ?', [
+            song.path,
+          ]).single['Artist'],
+          'Alice, Bob',
+        );
+        expect(
+          checkDb
+              .select(
+                '''
+              SELECT Name
+              FROM MusicArtist
+              WHERE MusicId = ?
+                AND State = 1
+              ORDER BY Priority, Id
+            ''',
+                [1],
+              )
+              .map((row) => row['Name']),
+          ['Alice', 'Bob'],
+        );
+      } finally {
+        checkDb.dispose();
+      }
+    },
+  );
+
+  test(
     'scanAllMusicLibrary cancellation stops before database writes',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -2445,6 +2550,32 @@ Plain first
       expect(saved.targetRawLyrics, '[00:02.00]New line');
     },
   );
+
+  test('batch lyrics compare keeps Electron whitespace semantics', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'smplayer-batch-lyrics-compare-',
+    );
+    addTearDown(() async {
+      await directory.delete(recursive: true);
+    });
+    final song = File('${directory.path}/Whitespace.mp3')
+      ..writeAsBytesSync(const []);
+    final lyrics = File('${directory.path}/Whitespace.lrc')
+      ..writeAsStringSync('Line one\n\nLine two');
+    final databaseFile = File('${directory.path}/SMPlayerSettings.db');
+    _createBatchLyricsDatabase(databaseFile, [song.path]);
+    final repository = LibraryRepository(
+      databaseFileResolver: () async => databaseFile,
+      internetLyricsResolver: (_) async => 'Line one\nLine two',
+    );
+
+    final result = await repository.batchAddInternetLyrics(overwrite: true);
+
+    expect(result.overwritten, 1);
+    expect(result.skipped, 0);
+    expect(lyrics.readAsStringSync(), 'Line one\nLine two');
+    expect(result.details.single.result, LyricsBatchDetailResult.overwritten);
+  });
 
   test(
     'preference settings repository mirrors Electron service operations',

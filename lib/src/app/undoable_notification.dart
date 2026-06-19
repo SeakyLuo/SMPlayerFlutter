@@ -157,6 +157,16 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
           actions: resolvedActions,
           bottomAligned: hasAction,
           runningActionIndex: controller.runningActionIndex,
+          onHoverChanged: (hovered) {
+            if (hovered) {
+              controller.pauseTimer();
+            } else {
+              controller.resumeTimer();
+            }
+          },
+          onDismiss: () {
+            controller.close(AppNotificationClosedReason.hide);
+          },
           onAction: (actionIndex) async {
             final action = resolvedActions[actionIndex];
             controller.setRunning(actionIndex);
@@ -179,7 +189,10 @@ class _AppNotificationController {
   final runningActionIndex = ValueNotifier<int?>(null);
   OverlayEntry? entry;
   Timer? timer;
+  Duration _remainingDuration = Duration.zero;
+  DateTime? _timeoutAt;
   bool isClosed = false;
+  bool _timerPaused = false;
 
   Future<AppNotificationClosedReason> get closed => closedCompleter.future;
 
@@ -188,7 +201,45 @@ class _AppNotificationController {
   }
 
   void startTimer(Duration duration) {
-    timer = Timer(duration, () => close(AppNotificationClosedReason.timeout));
+    _remainingDuration = duration;
+    _startRemainingTimer();
+  }
+
+  void _startRemainingTimer() {
+    timer?.cancel();
+    if (isClosed || _remainingDuration <= Duration.zero) {
+      close(AppNotificationClosedReason.timeout);
+      return;
+    }
+    _timeoutAt = DateTime.now().add(_remainingDuration);
+    timer = Timer(
+      _remainingDuration,
+      () => close(AppNotificationClosedReason.timeout),
+    );
+  }
+
+  void pauseTimer() {
+    if (isClosed || _timerPaused || runningActionIndex.value != null) {
+      return;
+    }
+    final timeoutAt = _timeoutAt;
+    if (timeoutAt != null) {
+      final remaining = timeoutAt.difference(DateTime.now());
+      _remainingDuration =
+          remaining > Duration.zero ? remaining : Duration.zero;
+    }
+    timer?.cancel();
+    timer = null;
+    _timeoutAt = null;
+    _timerPaused = true;
+  }
+
+  void resumeTimer() {
+    if (isClosed || !_timerPaused || runningActionIndex.value != null) {
+      return;
+    }
+    _timerPaused = false;
+    _startRemainingTimer();
   }
 
   void setRunning(int actionIndex) {
@@ -202,6 +253,7 @@ class _AppNotificationController {
     }
     isClosed = true;
     timer?.cancel();
+    _timeoutAt = null;
     entry?.remove();
     entry = null;
     runningActionIndex.dispose();
@@ -220,6 +272,8 @@ class _AppNotificationOverlay extends StatelessWidget {
     required this.bottomAligned,
     required this.runningActionIndex,
     required this.actions,
+    required this.onHoverChanged,
+    required this.onDismiss,
     required this.onAction,
   });
 
@@ -227,6 +281,8 @@ class _AppNotificationOverlay extends StatelessWidget {
   final List<AppNotificationAction> actions;
   final bool bottomAligned;
   final ValueListenable<int?> runningActionIndex;
+  final ValueChanged<bool> onHoverChanged;
+  final VoidCallback onDismiss;
   final ValueChanged<int> onAction;
 
   @override
@@ -331,7 +387,15 @@ class _AppNotificationOverlay extends StatelessWidget {
       child: SafeArea(
         top: !bottomAligned,
         bottom: bottomAligned,
-        child: notification,
+        child: MouseRegion(
+          onEnter: (_) {
+            onHoverChanged(true);
+          },
+          onExit: (_) {
+            onHoverChanged(false);
+          },
+          child: GestureDetector(onTap: onDismiss, child: notification),
+        ),
       ),
     );
   }

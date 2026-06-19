@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'id3_tag_service.dart';
+import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_models.dart';
 
 const _activeState = 1;
@@ -70,7 +71,12 @@ class LibrarySongPropertiesService {
         file.path,
       );
       final title = normalizeTagText(id3Properties.title);
-      final artist = normalizeTagText(id3Properties.artist);
+      final artist = normalizeArtists(
+        artist_tags.normalizeArtistTagValues(
+          id3Properties.artists,
+          id3Properties.artist,
+        ),
+      ).join(', ');
       final album = normalizeTagText(id3Properties.album);
 
       return SongPropertiesSnapshot(
@@ -242,14 +248,10 @@ class LibrarySongPropertiesService {
   }
 
   List<String> normalizeArtists(List<String> artists) {
-    return artists
-        .map(normalizeTagText)
-        .where((artist) => artist.isNotEmpty)
-        .toSet()
-        .toList();
+    return artist_tags.normalizeArtists(artists);
   }
 
   String normalizeTagText(String value) {
-    return value.trim();
+    return artist_tags.normalizeTagText(value);
   }
 }

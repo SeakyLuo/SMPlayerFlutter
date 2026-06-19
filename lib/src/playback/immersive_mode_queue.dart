@@ -26,6 +26,7 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 
 const _nowPlayingQueueCompactTrailingPadding = 10.0;
+const _nowPlayingQueueCompactDurationWidth = 50.0;
 
 List<int> _moveQueueSongIds(
   List<int> queueSongIds,
@@ -671,6 +672,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
           collapseCompactPrimaryActions: true,
+          compactDurationWidth: _nowPlayingQueueCompactDurationWidth,
           compactTrailingPadding: _nowPlayingQueueCompactTrailingPadding,
           playNextLabel: i18n.t('context.playNext'),
           removeLabel: i18n.t('nowPlaying.remove'),

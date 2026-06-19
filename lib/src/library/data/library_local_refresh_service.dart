@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_artist_split_service.dart';
+import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_audio_metadata_service.dart';
 import 'library_hidden_storage_service.dart';
 import 'library_local_delete_service.dart';
@@ -253,8 +254,35 @@ class LibraryLocalRefreshService {
       try {
         markScannedTablesInactive(db);
         final folderIds = upsertScannedFolders(db, rootPath, folders);
+        final scannedSongs = _buildScannedSongs(
+          scannedPaths,
+          metadataByPath,
+          useFilenameNotMusicName: settings.useFilenameNotMusicName,
+        );
+        final artistAnalysis =
+            settings.smartMultiArtistRecognition
+                ? _artistSplitService.analyzeScannedLibrary(
+                  _readService.readSongs(db),
+                  scannedSongs: scannedSongs,
+                )
+                : _artistSplitService.emptyAnalysis();
+        final directSplitsByTempId = {
+          for (final split in artistAnalysis.directSplits) split.songId: split,
+        };
+        final possibleSplitsByTempId = {
+          for (final split in artistAnalysis.possibleSplits)
+            split.songId: split,
+        };
+        final mergeSuggestionsByTempId = {
+          for (final split in artistAnalysis.mergeSuggestions)
+            split.songId: split,
+        };
+        final appliedSplits = <ArtistSplitResultItem>[];
+        final possibleSplits = <ArtistSplitResultItem>[];
+        final mergeSuggestions = <ArtistSplitResultItem>[];
         for (final entry in scannedPaths.indexed) {
           final writtenCount = entry.$1 + 1;
+          final scannedSong = scannedSongs[entry.$1];
           onProgress?.call(
             LocalFolderRefreshProgress(
               current: writtenCount,
@@ -270,24 +298,37 @@ class LibraryLocalRefreshService {
               missingCount: removedPaths.length,
             ),
           );
-          upsertScannedAudioFile(
+          final songId = upsertScannedAudioFile(
             db,
             entry.$2,
             folderIds,
             metadata: metadataByPath[entry.$2]!,
             useFilenameNotMusicName: settings.useFilenameNotMusicName,
           );
+          final mergeSuggestion = mergeSuggestionsByTempId[scannedSong.id];
+          final directSplit =
+              mergeSuggestion == null
+                  ? directSplitsByTempId[scannedSong.id]
+                  : null;
+          if (directSplit != null) {
+            final appliedSplit = _withSongId(directSplit, songId);
+            _artistSplitService.applySplitsInsideTransaction(db, [
+              appliedSplit,
+            ]);
+            appliedSplits.add(appliedSplit);
+          }
+          if (mergeSuggestion != null) {
+            mergeSuggestions.add(_withSongId(mergeSuggestion, songId));
+          }
+          final possibleSplit =
+              mergeSuggestion == null
+                  ? possibleSplitsByTempId[scannedSong.id]
+                  : null;
+          if (possibleSplit != null) {
+            possibleSplits.add(_withSongId(possibleSplit, songId));
+          }
         }
         setRootPath(db, rootPath);
-
-        final artistAnalysis =
-            settings.smartMultiArtistRecognition
-                ? _artistSplitService.analyze(_readService.readSongs(db))
-                : _artistSplitService.emptyAnalysis();
-        _artistSplitService.applySplitsInsideTransaction(
-          db,
-          artistAnalysis.directSplits,
-        );
         onProgress?.call(
           LocalFolderRefreshProgress(
             stage: LocalFolderRefreshStage.updating,
@@ -317,9 +358,9 @@ class LibraryLocalRefreshService {
           filesAdded: addedPaths,
           filesRemoved: removedPaths,
           filesMoved: movedFiles.map((file) => file.newPath).toList(),
-          artistSplitsApplied: artistAnalysis.directSplits,
-          artistSplitSuggestions: artistAnalysis.possibleSplits,
-          artistMergeSuggestions: artistAnalysis.mergeSuggestions,
+          artistSplitsApplied: appliedSplits,
+          artistSplitSuggestions: possibleSplits,
+          artistMergeSuggestions: mergeSuggestions,
         );
       } on Object {
         db.execute('ROLLBACK');
@@ -452,7 +493,8 @@ class LibraryLocalRefreshService {
                     ),
               )
               .toList();
-      final readTotal = max(addedPaths.length, 1);
+      final addedPathKeys = addedPaths.map(localScanPathComparisonKey).toSet();
+      final readTotal = max(scannedPaths.length, 1);
       var readAddedCount = 0;
       onProgress?.call(
         LocalFolderRefreshProgress(
@@ -462,7 +504,7 @@ class LibraryLocalRefreshService {
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
           folderCount: folderProgressMax(),
-          songCount: addedPaths.length,
+          songCount: scannedPaths.length,
           updatedCount: movedFiles.length,
           missingCount: removedSongs.length,
           canCancel: true,
@@ -470,11 +512,15 @@ class LibraryLocalRefreshService {
       );
       final metadataByPath = await _audioMetadataService
           .readAudioFileMetadataBatch(
-            addedPaths,
+            scannedPaths,
             cacheSongArtwork: cacheSongArtwork,
             cancellation: cancellation,
             onProgress: (filePath, completedCount) {
-              readAddedCount += 1;
+              if (addedPathKeys.contains(
+                localScanPathComparisonKey(filePath),
+              )) {
+                readAddedCount += 1;
+              }
               onProgress?.call(
                 LocalFolderRefreshProgress(
                   stage: LocalFolderRefreshStage.reading,
@@ -484,7 +530,7 @@ class LibraryLocalRefreshService {
                   checkedFolderCount: checkedFolderCount,
                   folderCount: folderProgressMax(),
                   processedSongCount: completedCount,
-                  songCount: addedPaths.length,
+                  songCount: scannedPaths.length,
                   addedCount: readAddedCount,
                   updatedCount: movedFiles.length,
                   missingCount: removedSongs.length,
@@ -496,7 +542,7 @@ class LibraryLocalRefreshService {
       final rootPath =
           settings.rootPath.isEmpty ? folderPath : settings.rootPath;
       final folders = nonEmptyScannedFolders(rootPath, scannedPaths);
-      final writeTotal = max(addedPaths.length + removedSongs.length + 1, 1);
+      final writeTotal = max(scannedPaths.length + removedSongs.length + 1, 1);
       onProgress?.call(
         LocalFolderRefreshProgress(
           stage: LocalFolderRefreshStage.updating,
@@ -505,7 +551,7 @@ class LibraryLocalRefreshService {
           currentPath: '',
           checkedFolderCount: checkedFolderCount,
           folderCount: folderProgressMax(),
-          songCount: addedPaths.length,
+          songCount: scannedPaths.length,
           addedCount: addedPaths.length,
           updatedCount: movedFiles.length,
           missingCount: removedSongs.length,
@@ -536,7 +582,7 @@ class LibraryLocalRefreshService {
               currentPath: '',
               checkedFolderCount: checkedFolderCount,
               folderCount: folderProgressMax(),
-              songCount: addedPaths.length,
+              songCount: scannedPaths.length,
               addedCount: addedPaths.length,
               updatedCount: movedFiles.length,
               missingCount: removedSongs.length,
@@ -544,8 +590,35 @@ class LibraryLocalRefreshService {
           );
         }
         final folderIds = upsertScannedFolders(db, rootPath, folders);
-        for (final entry in addedPaths.indexed) {
+        final scannedSongs = _buildScannedSongs(
+          scannedPaths,
+          metadataByPath,
+          useFilenameNotMusicName: settings.useFilenameNotMusicName,
+        );
+        final artistAnalysis =
+            settings.smartMultiArtistRecognition
+                ? _artistSplitService.analyzeScannedLibrary(
+                  _readService.readSongs(db),
+                  scannedSongs: scannedSongs,
+                )
+                : _artistSplitService.emptyAnalysis();
+        final directSplitsByTempId = {
+          for (final split in artistAnalysis.directSplits) split.songId: split,
+        };
+        final possibleSplitsByTempId = {
+          for (final split in artistAnalysis.possibleSplits)
+            split.songId: split,
+        };
+        final mergeSuggestionsByTempId = {
+          for (final split in artistAnalysis.mergeSuggestions)
+            split.songId: split,
+        };
+        final appliedSplits = <ArtistSplitResultItem>[];
+        final possibleSplits = <ArtistSplitResultItem>[];
+        final mergeSuggestions = <ArtistSplitResultItem>[];
+        for (final entry in scannedPaths.indexed) {
           final writtenCount = entry.$1 + 1;
+          final scannedSong = scannedSongs[entry.$1];
           onProgress?.call(
             LocalFolderRefreshProgress(
               current: removedProgress + writtenCount,
@@ -555,29 +628,42 @@ class LibraryLocalRefreshService {
               checkedFolderCount: checkedFolderCount,
               folderCount: folderProgressMax(),
               processedSongCount: writtenCount,
-              songCount: addedPaths.length,
+              songCount: scannedPaths.length,
               addedCount: addedPaths.length,
               updatedCount: movedFiles.length,
               missingCount: removedSongs.length,
             ),
           );
-          upsertScannedAudioFile(
+          final songId = upsertScannedAudioFile(
             db,
             entry.$2,
             folderIds,
             metadata: metadataByPath[entry.$2]!,
             useFilenameNotMusicName: settings.useFilenameNotMusicName,
           );
+          final mergeSuggestion = mergeSuggestionsByTempId[scannedSong.id];
+          final directSplit =
+              mergeSuggestion == null
+                  ? directSplitsByTempId[scannedSong.id]
+                  : null;
+          if (directSplit != null) {
+            final appliedSplit = _withSongId(directSplit, songId);
+            _artistSplitService.applySplitsInsideTransaction(db, [
+              appliedSplit,
+            ]);
+            appliedSplits.add(appliedSplit);
+          }
+          if (mergeSuggestion != null) {
+            mergeSuggestions.add(_withSongId(mergeSuggestion, songId));
+          }
+          final possibleSplit =
+              mergeSuggestion == null
+                  ? possibleSplitsByTempId[scannedSong.id]
+                  : null;
+          if (possibleSplit != null) {
+            possibleSplits.add(_withSongId(possibleSplit, songId));
+          }
         }
-
-        final artistAnalysis =
-            settings.smartMultiArtistRecognition
-                ? _artistSplitService.analyze(_readService.readSongs(db))
-                : _artistSplitService.emptyAnalysis();
-        _artistSplitService.applySplitsInsideTransaction(
-          db,
-          artistAnalysis.directSplits,
-        );
         onProgress?.call(
           LocalFolderRefreshProgress(
             stage: LocalFolderRefreshStage.updating,
@@ -586,8 +672,8 @@ class LibraryLocalRefreshService {
             currentPath: '',
             checkedFolderCount: checkedFolderCount,
             folderCount: folderProgressMax(),
-            processedSongCount: addedPaths.length,
-            songCount: addedPaths.length,
+            processedSongCount: scannedPaths.length,
+            songCount: scannedPaths.length,
             addedCount: addedPaths.length,
             updatedCount: movedFiles.length,
             missingCount: removedSongs.length,
@@ -607,9 +693,9 @@ class LibraryLocalRefreshService {
           filesAdded: addedPaths,
           filesRemoved: removedSongs.map((song) => song.path).toList(),
           filesMoved: movedSongs.map((song) => song.newPath).toList(),
-          artistSplitsApplied: artistAnalysis.directSplits,
-          artistSplitSuggestions: artistAnalysis.possibleSplits,
-          artistMergeSuggestions: artistAnalysis.mergeSuggestions,
+          artistSplitsApplied: appliedSplits,
+          artistSplitSuggestions: possibleSplits,
+          artistMergeSuggestions: mergeSuggestions,
         );
       } on Object {
         db.execute('ROLLBACK');
@@ -799,9 +885,10 @@ class LibraryLocalRefreshService {
     final artists =
         _songPropertiesService
             .normalizeArtists(
-              properties.artists.isNotEmpty
-                  ? properties.artists
-                  : [properties.artist],
+              artist_tags.normalizeArtistTagValues(
+                properties.artists,
+                properties.artist,
+              ),
             )
             .take(6)
             .toList();
@@ -842,6 +929,68 @@ class LibraryLocalRefreshService {
     final songId = rows.first['id'] as int;
     _songPropertiesService.syncSongArtists(db, songId, artists);
     return songId;
+  }
+
+  List<LibrarySong> _buildScannedSongs(
+    List<String> paths,
+    Map<String, AudioFileMetadata> metadataByPath, {
+    required bool useFilenameNotMusicName,
+  }) {
+    return [
+      for (final entry in paths.indexed)
+        _scannedSongFromMetadata(
+          entry.$1 + 1,
+          entry.$2,
+          metadataByPath[entry.$2]!,
+          useFilenameNotMusicName: useFilenameNotMusicName,
+        ),
+    ];
+  }
+
+  LibrarySong _scannedSongFromMetadata(
+    int tempId,
+    String filePath,
+    AudioFileMetadata metadata, {
+    required bool useFilenameNotMusicName,
+  }) {
+    final properties = metadata.properties;
+    final title =
+        useFilenameNotMusicName || properties.title.trim().isEmpty
+            ? p.basenameWithoutExtension(filePath)
+            : properties.title.trim();
+    final artists =
+        _songPropertiesService
+            .normalizeArtists(
+              artist_tags.normalizeArtistTagValues(
+                properties.artists,
+                properties.artist,
+              ),
+            )
+            .take(6)
+            .toList();
+    return LibrarySong(
+      id: tempId,
+      path: filePath,
+      thumbnailPath: metadata.thumbnailPath,
+      title: title,
+      artist: artists.join(', '),
+      artists: artists,
+      album: properties.album.trim(),
+      duration: metadata.duration,
+      playCount: 0,
+      lyricsOffsetMs: 0,
+      dateAdded: metadata.dateAdded,
+      favorite: false,
+    );
+  }
+
+  ArtistSplitResultItem _withSongId(ArtistSplitResultItem item, int songId) {
+    return ArtistSplitResultItem(
+      songId: songId,
+      title: item.title,
+      artist: item.artist,
+      artists: item.artists,
+    );
   }
 
   int upsertScannedAudioFile(

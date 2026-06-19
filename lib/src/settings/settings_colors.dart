@@ -55,6 +55,9 @@ class SettingsPalette extends ThemeExtension<SettingsPalette> {
     required this.dialogSurface,
     required this.overlay,
     required this.preferenceHeader,
+    required this.preferenceCardSurface,
+    required this.preferenceCardBorder,
+    required this.preferenceBodySurface,
   });
 
   static const light = SettingsPalette(
@@ -65,7 +68,7 @@ class SettingsPalette extends ThemeExtension<SettingsPalette> {
     accentHover: SettingsPageColors.accentHover,
     cardSurface: SettingsPageColors.cardSurface,
     cardBorder: SettingsPageColors.cardBorder,
-    cardShadow: SettingsPageColors.cardShadow,
+    cardShadow: Color(0x26384a5f),
     inputSurface: SettingsPageColors.inputSurface,
     inputBorder: SettingsPageColors.inputBorder,
     selectOpenSurface: SettingsPageColors.selectOpenSurface,
@@ -79,7 +82,10 @@ class SettingsPalette extends ThemeExtension<SettingsPalette> {
     progressTrack: Color(0x297e8b9a),
     dialogSurface: SettingsPageColors.dialogSurface,
     overlay: SettingsPageColors.overlay,
-    preferenceHeader: SettingsPageColors.preferenceHeader,
+    preferenceHeader: Color(0xfffbfcfe),
+    preferenceCardSurface: Color(0xffffffff),
+    preferenceCardBorder: Color(0x66cfd9e6),
+    preferenceBodySurface: Color(0xffffffff),
   );
 
   static const dark = SettingsPalette(
@@ -104,7 +110,10 @@ class SettingsPalette extends ThemeExtension<SettingsPalette> {
     progressTrack: Color(0x2ecbd5e1),
     dialogSurface: Color(0xff181e26),
     overlay: Color(0x7a05070a),
-    preferenceHeader: Color(0x14ffffff),
+    preferenceHeader: Color(0x2638444f),
+    preferenceCardSurface: Color(0x171f2933),
+    preferenceCardBorder: Color(0x33d6e0ec),
+    preferenceBodySurface: Color(0x0f141b22),
   );
 
   final Color textStrong;
@@ -129,6 +138,9 @@ class SettingsPalette extends ThemeExtension<SettingsPalette> {
   final Color dialogSurface;
   final Color overlay;
   final Color preferenceHeader;
+  final Color preferenceCardSurface;
+  final Color preferenceCardBorder;
+  final Color preferenceBodySurface;
 
   @override
   SettingsPalette copyWith() {

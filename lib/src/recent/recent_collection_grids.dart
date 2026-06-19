@@ -333,6 +333,7 @@ class _RecentArtistList extends StatelessWidget {
       builder: (context, constraints) {
         final columns = _recentArtistColumnCount(constraints.maxWidth);
         return RecentScrollbar(
+          trailingEdgeOffset: _recentWideScrollbarTrailingOffset,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,
@@ -347,7 +348,12 @@ class _RecentArtistList extends StatelessWidget {
                   for (final group in groups) ...[
                     _RecentTimeGroupHeader(label: group.label),
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 14, 0),
+                      padding: const EdgeInsets.fromLTRB(
+                        8,
+                        0,
+                        _recentCollectionGridRightPadding,
+                        0,
+                      ),
                       sliver: SliverGrid.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
@@ -416,6 +422,7 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
       builder: (context, constraints) {
         final columns = _recentCollectionColumnCount(constraints.maxWidth);
         return RecentScrollbar(
+          trailingEdgeOffset: _recentWideScrollbarTrailingOffset,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,
@@ -431,7 +438,12 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
                   for (final group in groups) ...[
                     _RecentTimeGroupHeader(label: group.label),
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 14, 22),
+                      padding: const EdgeInsets.fromLTRB(
+                        8,
+                        0,
+                        _recentCollectionGridRightPadding,
+                        22,
+                      ),
                       sliver: SliverGrid.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,

@@ -1,7 +1,7 @@
 part of 'settings_page.dart';
 
-class _LyricsBatchOptions extends StatelessWidget {
-  const _LyricsBatchOptions({
+class _LyricsBatchOptionsDialog extends StatelessWidget {
+  const _LyricsBatchOptionsDialog({
     required this.overwrite,
     required this.onOverwriteChanged,
     required this.onStart,
@@ -16,45 +16,63 @@ class _LyricsBatchOptions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.progressPanelSurface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.progressPanelBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return PopupDialog(
+      className: 'lyrics-batch-options-dialog ContentDialog',
+      navClassName: 'lyrics-batch-options-dialog-nav',
+      navLabel: i18n.t('settings.batchAddLyrics'),
+      ariaLabel: i18n.t('settings.batchAddLyrics'),
+      width: 430,
+      height: 220,
+      closeOnBackdrop: true,
+      onClose: onCancel,
+      navChildren: [
+        Expanded(child: PopupDialogTitle(i18n.t('settings.batchAddLyrics'))),
+      ],
+      footer: PopupDialogActions(
         children: [
-          Text(
-            i18n.t('settings.lyricsBatchWriteStrategy'),
-            style: TextStyle(
-              color: colors.textStrong,
-              fontWeight: FontWeight.w600,
-            ),
+          PopupDialogActionButton(
+            label: i18n.t('common.start'),
+            primary: true,
+            onPressed: onStart,
           ),
-          const SizedBox(height: 8),
-          ToggleSettingRow(
-            label: i18n.t('settings.lyricsBatchOverwriteToggle'),
-            checked: overwrite,
-            onChange: onOverwriteChanged,
-          ),
-          Wrap(
-            spacing: 10,
-            children: [
-              SettingsActionButton(
-                primary: true,
-                onClick: onStart,
-                child: Text(i18n.t('common.start')),
-              ),
-              SettingsActionButton(
-                onClick: onCancel,
-                child: Text(i18n.t('common.cancel')),
-              ),
-            ],
+          PopupDialogActionButton(
+            label: i18n.t('common.cancel'),
+            onPressed: onCancel,
           ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
+        child: _LyricsBatchOptionsContent(
+          overwrite: overwrite,
+          onOverwriteChanged: onOverwriteChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _LyricsBatchOptionsContent extends StatelessWidget {
+  const _LyricsBatchOptionsContent({
+    required this.overwrite,
+    required this.onOverwriteChanged,
+  });
+
+  final bool overwrite;
+  final ValueChanged<bool> onOverwriteChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: ToggleSettingRow(
+          label: i18n.t('settings.lyricsBatchOverwriteToggle'),
+          checked: overwrite,
+          onChange: onOverwriteChanged,
+        ),
       ),
     );
   }

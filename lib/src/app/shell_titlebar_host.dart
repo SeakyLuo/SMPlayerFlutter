@@ -15,6 +15,7 @@ class ShellTitlebarHost extends StatelessWidget {
     required this.onGoBack,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
     required this.onMinimize,
     required this.onToggleMaximize,
     required this.onClose,
@@ -26,6 +27,7 @@ class ShellTitlebarHost extends StatelessWidget {
   final VoidCallback onGoBack;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback onTitlebarTap;
   final VoidCallback onMinimize;
   final VoidCallback onToggleMaximize;
   final VoidCallback onClose;
@@ -48,6 +50,7 @@ class ShellTitlebarHost extends StatelessWidget {
               onGoBack: onGoBack,
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,
+              onTitlebarTap: onTitlebarTap,
               headeredPlaylistAppBar: layout.headeredPlaylistAppBar,
             ),
           ),
@@ -67,6 +70,7 @@ class ShellTitlebarHost extends StatelessWidget {
               showDragRegion: true,
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,
+              onTitlebarTap: onTitlebarTap,
               onMinimize: onMinimize,
               onToggleMaximize: onToggleMaximize,
               onClose: onClose,
@@ -88,6 +92,7 @@ class ShellTitlebarHost extends StatelessWidget {
               showDragRegion: false,
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,
+              onTitlebarTap: onTitlebarTap,
               onMinimize: onMinimize,
               onToggleMaximize: onToggleMaximize,
               onClose: onClose,

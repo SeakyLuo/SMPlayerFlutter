@@ -8,6 +8,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
 part 'popup_dialog_core.dart';
@@ -21,6 +22,7 @@ part 'popup_confirm_dialog.dart';
 part 'popup_input_dialog_shell.dart';
 part 'popup_dialog_text_field.dart';
 part 'popup_dialog_actions.dart';
+part 'popup_dialog_message_content.dart';
 part 'popup_dialog_colors.dart';
 
 const popupDialogMobileBreakpoint = 720.0;

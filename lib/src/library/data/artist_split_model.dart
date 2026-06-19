@@ -1,118 +1,213 @@
 import 'library_models.dart';
 
-ArtistSplitAnalysisResult analyzeArtistSplits(List<LibrarySong> songs) {
-  final knownArtists =
-      songs.expand(_sourceArtists).map(_normalizeArtistKey).where((artist) {
-        return artist.isNotEmpty;
-      }).toSet();
+ArtistSplitAnalysisResult analyzeArtistSplits(
+  List<LibrarySong> songs, {
+  List<LibrarySong>? analysisSongs,
+  List<LibrarySong>? usageSongs,
+  bool existingLibraryScan = true,
+  bool includeScannedSongsInUsage = false,
+}) {
+  final targetSongs =
+      analysisSongs ??
+      (existingLibraryScan
+          ? songs
+              .where(
+                (song) => song.artists.length <= 1 && song.artist.isNotEmpty,
+              )
+              .toList()
+          : songs);
+  final artistSplitPlan = _buildArtistSplitPlan(
+    targetSongs,
+    knownArtistSongs: songs,
+  );
+  final artistMergePlan = _buildArtistMergePlan(
+    targetSongs,
+    artistSplitPlan,
+    usageSongs: usageSongs ?? songs,
+    includeScannedSongs: includeScannedSongsInUsage,
+  );
   final directSplits = <ArtistSplitResultItem>[];
   final possibleSplits = <ArtistSplitResultItem>[];
-  final splitArtistsBySongId = <int, List<String>>{};
+  final mergeSuggestions = <ArtistSplitResultItem>[];
 
-  for (final song in songs) {
-    final splitArtists = splitSmartArtistCandidate(song.artist);
-    if (splitArtists.length < 2) {
+  for (final song in targetSongs) {
+    final mergeArtists = artistMergePlan[song];
+    if (mergeArtists != null) {
+      mergeSuggestions.add(_toArtistSplitResultItem(song, mergeArtists));
       continue;
     }
-    if (_sameArtists(song.artists, splitArtists)) {
+
+    final directArtists = artistSplitPlan.autoSplits[song];
+    if (directArtists != null) {
+      directSplits.add(_toArtistSplitResultItem(song, directArtists));
       continue;
     }
-    final item = ArtistSplitResultItem(
-      songId: song.id,
-      title: song.title,
-      artist: song.artist,
-      artists: splitArtists,
-    );
-    final allKnown = splitArtists.every(
-      (artist) => knownArtists.contains(_normalizeArtistKey(artist)),
-    );
-    if (allKnown) {
-      directSplits.add(item);
-      splitArtistsBySongId[song.id] = splitArtists;
-    } else {
-      possibleSplits.add(item);
+
+    final possibleArtists = artistSplitPlan.suggestions[song];
+    if (possibleArtists != null) {
+      possibleSplits.add(_toArtistSplitResultItem(song, possibleArtists));
     }
   }
 
   return ArtistSplitAnalysisResult(
     directSplits: directSplits,
     possibleSplits: possibleSplits,
-    mergeSuggestions: _analyzeArtistMergeSuggestions(
-      songs,
-      splitArtistsBySongId,
-    ),
+    mergeSuggestions: mergeSuggestions,
   );
 }
 
 List<String> splitSmartArtistCandidate(String artist) {
-  return artist
-      .split(_artistSeparatorPattern)
-      .map((part) => part.trim())
-      .where((part) => part.isNotEmpty)
-      .toSet()
-      .toList();
+  return _normalizeArtists(
+    artist.split(_smartArtistSplitPattern).map((part) => part.trim()).toList(),
+  );
 }
 
-final _artistSeparatorPattern = RegExp(
-  r'\s*(?:,|，|、|/|／|;|；|\+|&|\band\b|\bfeat\.?(?=\s|$)|\bft\.?(?=\s|$))\s*',
-  caseSensitive: false,
-);
+final _smartArtistSplitPattern = RegExp(r'\s*(?:/|／|;|；|,|，|、|\|)\s*');
+final _artistValueSplitPattern = RegExp(r'\s*(?:;|；|、|\|)\s*');
+
+_ArtistSplitPlan _buildArtistSplitPlan(
+  List<LibrarySong> songs, {
+  required List<LibrarySong> knownArtistSongs,
+}) {
+  final knownArtists = _getKnownArtists(knownArtistSongs);
+  final autoSplits = <LibrarySong, List<String>>{};
+  final candidates = <_ArtistSplitCandidate>[];
+
+  for (final song in songs) {
+    if (song.artists.length > 1) {
+      autoSplits[song] = song.artists;
+      for (final artist in song.artists) {
+        knownArtists.add(_normalizeArtistKey(artist));
+      }
+      continue;
+    }
+
+    final artists = splitSmartArtistCandidate(song.artist);
+    if (artists.length > 1) {
+      candidates.add(_ArtistSplitCandidate(song: song, artists: artists));
+    } else if (song.artist.isNotEmpty) {
+      knownArtists.add(_normalizeArtistKey(song.artist));
+    }
+  }
+
+  final recurringPartKeys = _getRecurringCandidatePartKeys(candidates);
+  final unresolvedCandidates = candidates.toSet();
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (final candidate in unresolvedCandidates.toList()) {
+      if (!candidate.artists.any((artist) {
+        final artistKey = _normalizeArtistKey(artist);
+        return knownArtists.contains(artistKey) ||
+            recurringPartKeys.contains(artistKey);
+      })) {
+        continue;
+      }
+
+      autoSplits[candidate.song] = candidate.artists;
+      for (final artist in candidate.artists) {
+        knownArtists.add(_normalizeArtistKey(artist));
+      }
+      unresolvedCandidates.remove(candidate);
+      changed = true;
+    }
+  }
+
+  return _ArtistSplitPlan(
+    autoSplits: autoSplits,
+    suggestions: {
+      for (final candidate in unresolvedCandidates)
+        candidate.song: candidate.artists,
+    },
+  );
+}
+
+Set<String> _getKnownArtists(List<LibrarySong> songs) {
+  return {
+    for (final song in songs)
+      for (final artist in _normalizeArtists(song.artists))
+        _normalizeArtistKey(artist),
+  };
+}
 
 String _normalizeArtistKey(String artist) {
   return artist.trim().toLowerCase();
 }
 
-bool _sameArtists(List<String> left, List<String> right) {
-  if (left.length != right.length) {
-    return false;
-  }
-
-  for (final (index, artist) in left.indexed) {
-    if (_normalizeArtistKey(artist) != _normalizeArtistKey(right[index])) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-List<ArtistSplitResultItem> _analyzeArtistMergeSuggestions(
+Map<LibrarySong, List<String>> _buildArtistMergePlan(
   List<LibrarySong> songs,
-  Map<int, List<String>> splitArtistsBySongId,
-) {
-  final artistUsage = _artistUsage(songs);
-  final suggestions = <ArtistSplitResultItem>[];
+  _ArtistSplitPlan artistSplitPlan, {
+  required List<LibrarySong> usageSongs,
+  bool includeScannedSongs = true,
+}) {
+  final artistUsage = _artistUsage(
+    usageSongs,
+    scannedSongs: songs,
+    includeScannedSongs: includeScannedSongs,
+  );
   final expandedCandidatesByArtistKey = <String, List<String>>{};
+  final mergeSuggestions = <LibrarySong, List<String>>{};
 
   for (final song in songs) {
-    final sourceArtists =
-        splitArtistsBySongId[song.id] ?? _sourceArtistsForMerge(song);
-    final mergedArtists = _mergedArtists(
+    final sourceArtists = _getArtistMergeSourceArtists(song, artistSplitPlan);
+    final explodedArtists = _explodeKnownCompositeArtists(
       sourceArtists,
+      artistUsage,
+    );
+    final mergedArtists = _mergedArtists(
+      explodedArtists,
       artistUsage,
       expandedCandidatesByArtistKey,
     );
-    if (_sameArtists(_normalizeArtists(sourceArtists), mergedArtists)) {
-      continue;
+
+    if (_haveArtistNamesChanged(sourceArtists, mergedArtists)) {
+      mergeSuggestions[song] = mergedArtists;
     }
-    suggestions.add(
-      ArtistSplitResultItem(
-        songId: song.id,
-        title: song.title,
-        artist: song.artist,
-        artists: mergedArtists,
-      ),
-    );
   }
 
-  return suggestions;
+  return mergeSuggestions;
 }
 
-Map<String, _ArtistUsage> _artistUsage(List<LibrarySong> songs) {
+List<String> _explodeKnownCompositeArtists(
+  List<String> artists,
+  Map<String, _ArtistUsage> artistUsage,
+) {
+  final result = <String>[];
+  for (final artist in artists) {
+    final parts = splitSmartArtistCandidate(artist);
+    if (parts.length > 1 &&
+        parts.every(
+          (part) => artistUsage.containsKey(
+            _normalizeArtistKey(_normalizeArtistMergeName(part)),
+          ),
+        )) {
+      result.addAll(parts);
+    } else {
+      result.add(artist);
+    }
+  }
+  return _normalizeArtistMergeNames(result);
+}
+
+Map<String, _ArtistUsage> _artistUsage(
+  List<LibrarySong> songs, {
+  required List<LibrarySong> scannedSongs,
+  required bool includeScannedSongs,
+}) {
   final usage = <String, _ArtistUsage>{};
   for (final song in songs) {
-    for (final artist in _sourceArtistsForMerge(song)) {
+    for (final artist in song.artists) {
+      if (splitSmartArtistCandidate(artist).length != 1) {
+        continue;
+      }
       _addArtistUsage(usage, artist);
+    }
+  }
+  if (includeScannedSongs) {
+    for (final song in scannedSongs) {
+      for (final artist in _getScannedSongArtistUnits(song)) {
+        _addArtistUsage(usage, artist);
+      }
     }
   }
   return usage;
@@ -222,11 +317,7 @@ String _pickPreferredArtistName(
   return sorted.first;
 }
 
-List<String> _sourceArtists(LibrarySong song) {
-  return song.artists.isEmpty ? [song.artist] : song.artists;
-}
-
-List<String> _sourceArtistsForMerge(LibrarySong song) {
+List<String> _getScannedSongArtistUnits(LibrarySong song) {
   if (song.artists.length > 1) {
     return song.artists;
   }
@@ -234,6 +325,17 @@ List<String> _sourceArtistsForMerge(LibrarySong song) {
   return splitArtists.length > 1
       ? splitArtists
       : (song.artist.isEmpty ? [] : [song.artist]);
+}
+
+List<String> _getArtistMergeSourceArtists(
+  LibrarySong song,
+  _ArtistSplitPlan artistSplitPlan,
+) {
+  return _normalizeArtistMergeNames(
+    artistSplitPlan.autoSplits[song] ??
+        artistSplitPlan.suggestions[song] ??
+        _getScannedSongArtistUnits(song),
+  );
 }
 
 List<String> _normalizeArtistMergeNames(List<String> artists) {
@@ -250,13 +352,17 @@ String _normalizeArtistMergeName(String artist) {
 List<String> _normalizeArtists(List<String> artists) {
   final result = <String>[];
   final seen = <String>{};
-  for (final artist in artists.map((artist) => artist.trim())) {
-    final key = _normalizeArtistKey(artist);
-    if (artist.isEmpty || seen.contains(key)) {
-      continue;
+  for (final value in artists) {
+    for (final artist in value.split(_artistValueSplitPattern).map((part) {
+      return part.trim();
+    })) {
+      final key = _normalizeArtistKey(artist);
+      if (artist.isEmpty || seen.contains(key)) {
+        continue;
+      }
+      seen.add(key);
+      result.add(artist);
     }
-    seen.add(key);
-    result.add(artist);
   }
   return result;
 }
@@ -326,6 +432,59 @@ bool _isArtistNameBoundary(String edge, String adjacent) {
 
 bool _isArtistNameWordChar(String value) {
   return RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(value);
+}
+
+bool _haveArtistNamesChanged(List<String> left, List<String> right) {
+  final leftKeys = _normalizeArtists(left).map(_normalizeArtistKey).toList();
+  final rightKeys = _normalizeArtists(right).map(_normalizeArtistKey).toList();
+  return leftKeys.length != rightKeys.length ||
+      leftKeys.indexed.any((entry) => entry.$2 != rightKeys[entry.$1]);
+}
+
+Set<String> _getRecurringCandidatePartKeys(
+  List<_ArtistSplitCandidate> candidates,
+) {
+  final candidateKeysByPartKey = <String, Set<String>>{};
+  for (final candidate in candidates) {
+    final candidateKey = _normalizeArtistKey(candidate.song.artist);
+    for (final artist in candidate.artists) {
+      final partKey = _normalizeArtistKey(artist);
+      final candidateKeys = candidateKeysByPartKey[partKey] ?? <String>{};
+      candidateKeys.add(candidateKey);
+      candidateKeysByPartKey[partKey] = candidateKeys;
+    }
+  }
+
+  return {
+    for (final entry in candidateKeysByPartKey.entries)
+      if (entry.value.length > 1) entry.key,
+  };
+}
+
+ArtistSplitResultItem _toArtistSplitResultItem(
+  LibrarySong song,
+  List<String> artists,
+) {
+  return ArtistSplitResultItem(
+    songId: song.id,
+    title: song.title,
+    artist: song.artist,
+    artists: artists,
+  );
+}
+
+class _ArtistSplitPlan {
+  const _ArtistSplitPlan({required this.autoSplits, required this.suggestions});
+
+  final Map<LibrarySong, List<String>> autoSplits;
+  final Map<LibrarySong, List<String>> suggestions;
+}
+
+class _ArtistSplitCandidate {
+  const _ArtistSplitCandidate({required this.song, required this.artists});
+
+  final LibrarySong song;
+  final List<String> artists;
 }
 
 class _ArtistUsage {

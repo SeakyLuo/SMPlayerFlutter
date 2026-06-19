@@ -267,20 +267,50 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final addArtistButton = tester.widget<IconButton>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('MusicDialog.ElectronIcon.plus')),
-            matching: find.byType(IconButton),
-          )
-          .first,
+    final addArtistButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicDialog.AddArtistButton')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
     );
+    expect(addArtistButton.showLabel, isFalse);
     expect(
-      addArtistButton.style?.backgroundColor?.resolve(const <WidgetState>{
-        WidgetState.hovered,
-      }),
+      _textIconButtonDecoration(
+        tester,
+        find.byKey(const ValueKey('MusicDialog.AddArtistButton')),
+      ).color,
+      PopupDialogResolvedColors.dark.buttonSurface,
+    );
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(
+          find.byKey(const ValueKey('MusicDialog.AddArtistButton')),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      _textIconButtonDecoration(
+        tester,
+        find.byKey(const ValueKey('MusicDialog.AddArtistButton')),
+      ).color,
       GlobalUI.buttonHoverBgColorNight,
     );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(
+      location: tester.getCenter(
+        find.byKey(const ValueKey('MusicDialog.AddArtistButton')),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Add'), findsOneWidget);
   });
 
   testWidgets(
@@ -320,6 +350,7 @@ void main() {
         }),
         GlobalUI.buttonHoverBgColorDay,
       );
+      expect(removeButton.tooltip, 'Remove');
 
       await tester.pumpWidget(
         _MusicDialogTestApp(
@@ -436,6 +467,8 @@ void main() {
     final thumb = find.byKey(const ValueKey('MusicDialog.BodyScrollbar.Thumb'));
     expect(track, findsOneWidget);
     expect(thumb, findsOneWidget);
+    expect(find.byType(Scrollbar), findsNothing);
+    expect(find.byType(RawScrollbar), findsNothing);
     expect(tester.getSize(track).width, 9);
     expect(tester.getSize(thumb).height, greaterThanOrEqualTo(38));
     expect(tester.getSize(thumb).width, 5);
@@ -953,13 +986,10 @@ void main() {
     },
   );
 
-  testWidgets('MusicDialog clear play count does not enter saving state', (
+  testWidgets('MusicDialog clear play count waits for property save', (
     tester,
   ) async {
-    final repository =
-        _FakeMusicDialogRepository()
-          ..propertiesPlayCount = 3
-          ..updateSongPlayCountCompleter = Completer<void>();
+    final repository = _FakeMusicDialogRepository()..propertiesPlayCount = 3;
 
     await tester.pumpWidget(
       _MusicDialogTestApp(
@@ -969,30 +999,54 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final clearButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(clearButton.onPressed, isNotNull);
+    expect(clearButton.tooltip, 'Reset to 0');
+    expect(find.byTooltip('Reset to 0'), findsOneWidget);
+    _expectElectronIconSvg(tester, 'undo', 'M5 2.5a.5');
+
     await tester.tap(
       find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final saveButton = tester.widget<TextButton>(
       find.widgetWithText(TextButton, 'Save'),
     );
-    final clearButton = tester.widget<IconButton>(
-      find.descendant(
-        of: find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
-        matching: find.byType(IconButton),
-      ),
-    );
     expect(saveButton.onPressed, isNotNull);
-    expect(clearButton.onPressed, isNotNull);
-    expect(find.byTooltip('Reset to 0'), findsOneWidget);
-    _expectElectronIconSvg(tester, 'undo', 'M5 2.5a.5');
-    expect(repository.updateSongPlayCountCount, 1);
+    expect(repository.updateSongPlayCountCount, 0);
+    expect(repository.updateSongPropertiesCount, 0);
+    expect(find.widgetWithText(TextField, '0'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Reset'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
+      findsNothing,
+    );
 
-    repository.updateSongPlayCountCompleter!.complete();
+    await tester.tap(find.widgetWithText(TextButton, 'Reset'));
     await tester.pumpAndSettle();
 
-    expect(repository.updatedPlayCount, 0);
+    expect(find.widgetWithText(TextField, '3'), findsOneWidget);
+    expect(repository.updateSongPlayCountCount, 0);
+    expect(repository.updateSongPropertiesCount, 0);
+
+    await tester.tap(
+      find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(repository.updateSongPlayCountCount, 0);
+    expect(repository.updateSongPropertiesCount, 1);
+    expect(repository.lastPropertiesUpdate?.playCount, 0);
     expect(
       find.byKey(const ValueKey('MusicDialog.ClearPlayCountButton')),
       findsNothing,
@@ -1044,6 +1098,13 @@ void main() {
     final pathField = tester.widget<TextField>(
       find.widgetWithText(TextField, 'song.mp3'),
     );
+    final revealButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicDialog.ShowInExplorerButton')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(revealButton.tooltip, 'Show in Explorer');
     expect(pathField.enabled, isNot(false));
     expect(pathField.readOnly, isTrue);
     expect(pathField.showCursor, isFalse);
@@ -1080,6 +1141,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.byTooltip('Sync to filename "song"'), findsOneWidget);
+    final useFileNameButton = tester.widget<SmPlayerTextIconButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('MusicDialog.UseFileNameButton')),
+        matching: find.byType(SmPlayerTextIconButton),
+      ),
+    );
+    expect(useFileNameButton.tooltip, 'Sync to filename "song"');
     _expectElectronIconSvg(tester, 'refresh', 'M4.97 4.97');
 
     await tester.tap(

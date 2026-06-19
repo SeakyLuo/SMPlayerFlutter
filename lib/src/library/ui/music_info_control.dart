@@ -76,7 +76,7 @@ class MusicInfoControl extends StatelessWidget {
             : p.basenameWithoutExtension(currentProperties.path);
     final showUseFilenameButton =
         currentProperties != null && titleController.text != titleFilename;
-    final playCount = currentProperties?.playCount ?? 0;
+    final playCount = int.tryParse(playCountController.text) ?? 0;
     final playCountTooltip =
         playCount == 0
             ? i18n.t('song.notPlayedYet', {'title': titleController.text})

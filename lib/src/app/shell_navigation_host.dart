@@ -33,6 +33,7 @@ class ShellNavigationHost extends ConsumerWidget {
     required this.onPlaylistRandomPlay,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
   });
 
   final ShellLayoutState layout;
@@ -56,6 +57,7 @@ class ShellNavigationHost extends ConsumerWidget {
   final ValueChanged<int> onPlaylistRandomPlay;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback onTitlebarTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -108,6 +110,7 @@ class ShellNavigationHost extends ConsumerWidget {
             onPlaylistRandomPlay: onPlaylistRandomPlay,
             onWindowDragStart: onWindowDragStart,
             onWindowDragEnd: onWindowDragEnd,
+            onTitlebarTap: onTitlebarTap,
           ),
         ),
       ),
@@ -137,6 +140,7 @@ class _ShellNavigationContent extends ConsumerWidget {
     required this.onPlaylistRandomPlay,
     required this.onWindowDragStart,
     required this.onWindowDragEnd,
+    required this.onTitlebarTap,
   });
 
   final ShellLayoutState layout;
@@ -159,6 +163,7 @@ class _ShellNavigationContent extends ConsumerWidget {
   final ValueChanged<int> onPlaylistRandomPlay;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final VoidCallback onTitlebarTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,6 +210,7 @@ class _ShellNavigationContent extends ConsumerWidget {
       onPlaylistRandomPlay: onPlaylistRandomPlay,
       onWindowDragStart: onWindowDragStart,
       onWindowDragEnd: onWindowDragEnd,
+      onTitlebarTap: onTitlebarTap,
     );
   }
 }

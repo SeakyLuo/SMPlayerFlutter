@@ -50,14 +50,9 @@ Future<bool> showPopupConfirmDialog({
                   children: [
                     _InputDialogTitle(title),
                     const SizedBox(height: 18),
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: PopupDialogColors.resolve(context).text,
-                        fontSize: 15,
-                        height: 1.55,
-                      ),
+                    PopupDialogMessageContent(
+                      message: message,
+                      padding: EdgeInsets.zero,
                     ),
                     PopupDialogActions(
                       compact: true,

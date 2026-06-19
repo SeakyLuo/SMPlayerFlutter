@@ -1,15 +1,21 @@
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/smplayer_switch.dart';
+import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
+import 'package:smplayer_flutter/src/settings/settings_colors.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_page.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
@@ -42,6 +48,7 @@ void main() {
       'settings.dataExported': '数据已导出',
       'settings.dataExportFailed': '导出失败',
       'settings.desktopLyrics': '桌面歌词',
+      'settings.desktopLyricsEnabled': '显示桌面歌词',
       'settings.desktopLyricsColor': '字体颜色',
       'settings.desktopLyricsFontFamily': '字体',
       'settings.desktopLyricsFontNoResults': '没有匹配的字体',
@@ -387,6 +394,13 @@ void main() {
       SmPlayerI18nScope(
         i18n: englishI18n,
         child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
           home: SettingsPage(onLoadSystemFonts: () async => const []),
         ),
       ),
@@ -399,6 +413,41 @@ void main() {
     expect(find.text('繁體中文'), findsOneWidget);
     expect(find.text('Simplified Chinese'), findsNothing);
     expect(find.text('Traditional Chinese'), findsNothing);
+  });
+
+  testWidgets('SettingsPage night mode dropdown shows every option', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: SettingsPage(onLoadSystemFonts: () async => const []),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('跟随系统').last);
+    await tester.pump();
+
+    expect(find.text('跟随系统'), findsNWidgets(3));
+    expect(find.text('自定义'), findsOneWidget);
+    expect(find.text('开启'), findsOneWidget);
+    expect(find.text('永不'), findsOneWidget);
   });
 
   testWidgets('SettingsPage opens PreferenceSettingsPage dialog', (
@@ -443,6 +492,130 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'PreferenceSettingsPage separates section header and empty body',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
+            home: PreferenceSettingsPage(
+              initialSnapshot: _preferenceSnapshot,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+
+      final empty = find.text('没有项目。').first;
+      final emptyBox = find.ancestor(
+        of: empty,
+        matching: find.byType(SizedBox),
+      );
+      expect(tester.getSize(emptyBox.first).height, 72);
+
+      final headerContainer = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('偏好歌手'), matching: find.byType(Container))
+            .first,
+      );
+      final headerDecoration = headerContainer.decoration! as BoxDecoration;
+      final body = tester.widget<ColoredBox>(
+        find.ancestor(of: empty, matching: find.byType(ColoredBox)).first,
+      );
+      expect(headerDecoration.color, isNot(body.color));
+
+      final sectionOuter = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('偏好歌手'), matching: find.byType(Container))
+            .at(1),
+      );
+      final outerDecoration = sectionOuter.decoration! as BoxDecoration;
+      expect(outerDecoration.boxShadow, isNotEmpty);
+
+      final sectionDecorations =
+          tester
+              .widgetList<DecoratedBox>(
+                find.ancestor(
+                  of: find.text('偏好歌手'),
+                  matching: find.byType(DecoratedBox),
+                ),
+              )
+              .map((box) => box.decoration)
+              .whereType<BoxDecoration>();
+      expect(
+        sectionDecorations.any((decoration) {
+          final border = decoration.border;
+          return border is Border && border.top.width == 1.5;
+        }),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('SettingsPage feedback menu opens and selects email', (
+    tester,
+  ) async {
+    var emailSelected = false;
+    var browserSelected = false;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
+          home: SettingsPage(
+            onLoadSystemFonts: () async => const [],
+            onSendFeedbackEmail: () {
+              emailSelected = true;
+            },
+            onOpenFeedbackInBrowser: () {
+              browserSelected = true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('提供反馈'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('提供反馈'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('通过邮件'), findsOneWidget);
+    expect(find.text('通过浏览器'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('通过邮件')).dx,
+      tester.getTopLeft(find.text('通过浏览器')).dx,
+    );
+
+    await tester.tap(find.text('通过邮件'));
+    await tester.pump();
+
+    expect(emailSelected, isTrue);
+    expect(browserSelected, isFalse);
+  });
+
   testWidgets('SettingsPage shows desktop lyrics controls when enabled', (
     tester,
   ) async {
@@ -482,6 +655,7 @@ void main() {
     );
 
     expect(find.text('字体颜色'), findsOneWidget);
+    expect(find.text('显示桌面歌词'), findsOneWidget);
     expect(find.text('锁定桌面歌词并让鼠标点击穿透'), findsNothing);
     expect(find.text('文字描边'), findsOneWidget);
     expect(find.text('字体字号'), findsOneWidget);
@@ -493,7 +667,143 @@ void main() {
 
     final restoreButton = find.widgetWithText(SettingsActionButton, '恢复默认');
     expect(tester.getSize(restoreButton).width, lessThan(180));
+    expect(
+      tester.getRect(find.text('显示桌面歌词')).top,
+      greaterThan(tester.getRect(find.text('桌面歌词')).bottom),
+    );
   });
+
+  testWidgets(
+    'ToggleSettingRow places label left and switch right without hover fill',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  child: ToggleSettingRow(
+                    label: '文字描边',
+                    checked: true,
+                    onChange: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final row = find.byType(ToggleSettingRow);
+      final label = find.text('文字描边');
+      final switchControl = find.byKey(const ValueKey('settings-toggle-track'));
+      final inkWell = tester.widget<InkWell>(
+        find.descendant(of: row, matching: find.byType(InkWell)),
+      );
+      final switchDecoration =
+          tester.widget<AnimatedContainer>(switchControl).decoration!
+              as BoxDecoration;
+
+      expect(tester.getSize(row).height, 38);
+      expect(tester.getRect(label).left, tester.getRect(row).left);
+      expect(tester.getSize(switchControl), const Size(48, 26));
+      expect(tester.getRect(switchControl).right, tester.getRect(row).right);
+      expect(switchDecoration.color, const Color(0xff0a84ff));
+      expect(
+        tester.getRect(label).right,
+        lessThan(tester.getRect(switchControl).left),
+      );
+      expect(
+        inkWell.overlayColor?.resolve({WidgetState.hovered}),
+        Colors.transparent,
+      );
+    },
+  );
+
+  testWidgets(
+    'ToggleSettingRow thumb stays white and circular while dragging',
+    (tester) async {
+      await tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  child: ToggleSettingRow(
+                    label: '文字描边',
+                    checked: false,
+                    onChange: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final thumb = find.byKey(const ValueKey('settings-toggle-thumb'));
+      final initialThumbDecorations =
+          tester
+              .widgetList<DecoratedBox>(
+                find.descendant(of: thumb, matching: find.byType(DecoratedBox)),
+              )
+              .map((box) => box.decoration)
+              .whereType<BoxDecoration>();
+      expect(
+        initialThumbDecorations.any(
+          (decoration) =>
+              decoration.color == Colors.white &&
+              decoration.shape == BoxShape.circle,
+        ),
+        isTrue,
+      );
+      expect(tester.getSize(thumb), const Size(20, 20));
+      expect(
+        find.descendant(of: thumb, matching: find.byType(GlassContainer)),
+        findsNothing,
+      );
+
+      final switchControl = find.byKey(const ValueKey('settings-toggle-track'));
+      final gesture = await tester.startGesture(
+        tester.getCenter(switchControl),
+      );
+      await gesture.moveBy(const Offset(24, 0));
+      await tester.pump();
+
+      expect(tester.getSize(thumb), const Size(20, 20));
+      expect(
+        find.descendant(of: thumb, matching: find.byType(GlassContainer)),
+        findsOneWidget,
+      );
+
+      await gesture.up();
+      await tester.pump();
+
+      expect(tester.getSize(thumb), const Size(20, 20));
+      expect(
+        find.descendant(of: thumb, matching: find.byType(GlassContainer)),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('SettingsPage searches desktop lyrics system fonts', (
     tester,
@@ -517,6 +827,13 @@ void main() {
                 ).copyWith(textScaler: TextScaler.linear(2)),
                 child: child!,
               ),
+          theme: ThemeData(
+            extensions: [
+              ShellThemeColors.light,
+              DefaultAlbumArtworkThemeColors.light,
+              AppNotificationThemeColors.light,
+            ],
+          ),
           home: SettingsPage(
             initialSnapshot: const SettingsSnapshot.defaults().copyWith(
               desktopLyricsEnabled: true,
@@ -554,9 +871,13 @@ void main() {
     expect(tester.getSize(find.text('搜索字体')).width, lessThan(80));
     expect(
       tester.getTopLeft(find.text('搜索字体')).dx,
-      tester.getTopLeft(find.text('系统默认').last).dx,
+      greaterThan(tester.getTopLeft(selectPanel).dx),
     );
-    expect(find.byTooltip('Academy Engraved LET Fonts.ttf'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('搜索字体')).dx,
+      lessThan(tester.getTopLeft(selectPanel).dx + 48),
+    );
+    expect(find.text('Academy Engraved LET Fonts.ttf'), findsOneWidget);
     final searchFieldContext = tester.element(find.byType(EditableText).last);
     expect(MediaQuery.textScalerOf(searchFieldContext).scale(13), 13);
     expect(find.text('.SFCompactRounded'), findsNothing);
@@ -891,6 +1212,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('是否现在扫描音乐库并生成多歌手更新建议？'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('popup-dialog-overlay'))),
+      const Size(1200, 900),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('popup-dialog-shell'))),
+      const Size(480, 240),
+    );
+    expect(find.byType(PopupDialogActions), findsOneWidget);
+    expect(find.text('取消'), findsOneWidget);
 
     await tester.tap(find.text('智能修正'));
     await tester.pumpAndSettle();
@@ -1168,6 +1499,45 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('SettingsActionButton primary uses readable dark emphasis', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark().copyWith(
+          extensions: const [SettingsPalette.dark],
+        ),
+        home: Scaffold(
+          body: SettingsActionButton(
+            primary: true,
+            onClick: () {},
+            child: const Text('开始'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final button = find.byType(SmPlayerTextIconButton);
+    final decoration = _textIconButtonDecoration(tester, button);
+    expect(decoration.color, SettingsPageColors.accent.withValues(alpha: 0.28));
+    expect(_textIconButtonTextColor(tester, button, '开始'), Colors.white);
+
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: tester.getCenter(button),
+      ),
+    );
+    await tester.pump();
+
+    final hoverDecoration = _textIconButtonDecoration(tester, button);
+    expect(
+      hoverDecoration.color,
+      SettingsPageColors.accent.withValues(alpha: 0.36),
+    );
+  });
+
   testWidgets('SettingsPage disables lyrics batch until songs are loaded', (
     tester,
   ) async {
@@ -1314,6 +1684,13 @@ void main() {
         SmPlayerI18nScope(
           i18n: i18n,
           child: MaterialApp(
+            theme: ThemeData(
+              extensions: [
+                ShellThemeColors.light,
+                DefaultAlbumArtworkThemeColors.light,
+                AppNotificationThemeColors.light,
+              ],
+            ),
             home: Scaffold(
               body: SettingsPage(
                 libraryRepository: repository,
@@ -1339,6 +1716,7 @@ void main() {
 
       await tester.tap(find.text('详情'));
       await tester.pumpAndSettle();
+
       await tester.tap(find.text('Track A'));
       await tester.pumpAndSettle();
 
@@ -1374,8 +1752,23 @@ void main() {
     expect(find.text('Missing Song'), findsOneWidget);
 
     expect(find.text('已启用'), findsNWidgets(7));
+    expect(find.byType(SmPlayerSwitch), findsNWidgets(7));
+    final preferenceSwitchButton = tester.widget<TextButton>(
+      find
+          .ancestor(
+            of: find.text('已启用').first,
+            matching: find.byType(TextButton),
+          )
+          .first,
+    );
+    expect(
+      preferenceSwitchButton.style?.overlayColor?.resolve({
+        WidgetState.hovered,
+      }),
+      Colors.transparent,
+    );
 
-    await tester.tap(find.text('已启用').at(1));
+    await tester.tap(find.byType(SmPlayerSwitch).at(1));
     await tester.pump();
 
     expect(find.text('已禁用'), findsOneWidget);
@@ -1394,6 +1787,95 @@ void main() {
     expect(find.text('Song A'), findsNothing);
     expect(repository.removedItemId, 1);
   });
+
+  testWidgets('PreferenceSettingsPage opens level menu for other items', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final snapshot = _preferenceSnapshot.copyWith(
+      others: const [
+        PreferenceItemSnapshot(
+          id: 21,
+          type: PreferenceEntityType.recentAdded,
+          name: '最近添加',
+          tooltip: '最近添加',
+          isEnabled: false,
+          level: PreferenceLevel.normal,
+          isValid: true,
+          canRemove: false,
+        ),
+      ],
+    );
+    final repository = _FakePreferenceRepository(snapshot);
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          home: PreferenceSettingsPage(
+            initialSnapshot: snapshot,
+            libraryRepository: repository,
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('最近添加'));
+    await tester.pumpAndSettle();
+
+    final otherLevelButton =
+        find
+            .ancestor(
+              of: find.text('正常').last,
+              matching: find.byType(OutlinedButton),
+            )
+            .last;
+    await tester.tap(otherLevelButton);
+    await tester.pump();
+
+    expect(find.text('非常高'), findsOneWidget);
+
+    await tester.tap(find.text('很高'));
+    await tester.pump();
+
+    expect(repository.updatedItemId, 21);
+    expect(repository.updatedItemLevel, PreferenceLevel.higher);
+  });
+}
+
+BoxDecoration _textIconButtonDecoration(WidgetTester tester, Finder scope) {
+  return tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: scope, matching: find.byType(DecoratedBox)),
+          )
+          .firstWhere((box) {
+            final decoration = box.decoration;
+            return decoration is BoxDecoration && decoration.border != null;
+          })
+          .decoration
+      as BoxDecoration;
+}
+
+Color? _textIconButtonTextColor(
+  WidgetTester tester,
+  Finder scope,
+  String text,
+) {
+  return tester
+      .widgetList<RichText>(
+        find.descendant(of: scope, matching: find.byType(RichText)),
+      )
+      .firstWhere((richText) => richText.text.toPlainText() == text)
+      .text
+      .style!
+      .color;
 }
 
 const _preferenceSnapshot = PreferenceSettingsSnapshot(

@@ -549,6 +549,7 @@
   "settings.dataImportFailed": "Gegevensimport mislukt",
   "settings.display": "Weergave",
   "settings.desktopLyrics": "bureaubladteksten",
+  "settings.desktopLyricsEnabled": "Bureaubladteksten weergeven",
   "settings.desktopLyricsColor": "Lettertype kleur",
   "settings.desktopLyricsFontFamily": "lettertype",
   "settings.desktopLyricsFontSearch": "Zoek lettertype",
