@@ -714,7 +714,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
        let value = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
        let x = value["x"],
        let y = value["y"] {
-      return NSRect(x: x, y: y, width: defaultSize.width, height: defaultSize.height)
+      let candidate = NSRect(x: x, y: y, width: defaultSize.width, height: defaultSize.height)
+      if desktopLyricsFrameIsVisible(candidate) {
+        return candidate
+      }
     }
     let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
     return NSRect(
@@ -722,6 +725,16 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       y: visibleFrame.minY + 120,
       width: defaultSize.width,
       height: defaultSize.height)
+  }
+
+  private func desktopLyricsFrameIsVisible(_ frame: NSRect) -> Bool {
+    for screen in NSScreen.screens {
+      let intersection = screen.visibleFrame.intersection(frame)
+      if !intersection.isNull && intersection.width >= 160 && intersection.height >= 40 {
+        return true
+      }
+    }
+    return false
   }
 }
 

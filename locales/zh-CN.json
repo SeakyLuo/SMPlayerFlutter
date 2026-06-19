@@ -461,6 +461,8 @@
   "nowPlaying.upNextCopy": "当前选择之后仍在队列中的曲目。",
   "player.like": "设为我喜欢",
   "player.desktopLyrics": "桌面歌词",
+  "player.desktopLyricsEnabled": "已打开桌面歌词",
+  "player.desktopLyricsDisabled": "已关闭桌面歌词",
   "player.miniMode": "迷你模式",
   "player.enterMiniMode": "进入迷你模式",
   "player.exitMiniMode": "退出迷你模式",

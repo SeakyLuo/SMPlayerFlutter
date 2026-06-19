@@ -8,6 +8,7 @@ import 'package:smplayer_flutter/main.dart' as app;
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
+import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/app/shell_workspace.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -307,6 +308,44 @@ void main() {
     );
     final title = tester.widget<Text>(find.text('common.settings'));
     expect(title.style?.fontSize, 16);
+  });
+
+  testWidgets('settings route shares the shell settings controller', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1300, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settingsController = SettingsController(
+      const SettingsSnapshot.defaults(),
+    );
+    addTearDown(settingsController.dispose);
+    final router = createSmPlayerRouter(settingsController: settingsController);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          smPlayerI18nProvider.overrideWith((ref) async => testI18n),
+          libraryContentDataProvider.overrideWith(
+            (ref) async => emptyLibraryData,
+          ),
+        ],
+        child: _RouterTestApp(router: router, i18n: testI18n),
+      ),
+    );
+    router.go('/settings');
+    await _pumpRouter(tester);
+
+    final settingsPage = tester.widget<SettingsPage>(find.byType(SettingsPage));
+    final shellPage = tester.widget<SmPlayerShellPage>(
+      find.byType(SmPlayerShellPage),
+    );
+    expect(settingsPage.controller, same(settingsController));
+    expect(shellPage.settingsController, same(settingsController));
   });
 
   testWidgets('minimal navigation ignores stale headered playlist app bar', (

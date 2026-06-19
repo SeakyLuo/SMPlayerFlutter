@@ -426,6 +426,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       currentPath: path,
       currentLocation: uri.toString(),
       canGoBack: canGoBack,
+      settingsController: settingsController,
       settingsRepository: repository,
       onNavigate: (target) {
         if (target == '/artists' && isCompactArtistDetailRoute) {

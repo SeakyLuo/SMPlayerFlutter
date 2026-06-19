@@ -1689,23 +1689,29 @@ void main() {
     final trackButtonStyle = tester.widget<TextButton>(trackButton).style!;
     expect(
       trackButtonStyle.padding?.resolve(const <WidgetState>{}),
-      const EdgeInsets.fromLTRB(8, 8, 12, 8),
+      EdgeInsets.zero,
     );
-    expect(
-      trackButtonStyle.backgroundColor?.resolve({WidgetState.hovered}),
-      const Color(0x1f212b3a),
+    final trackSurface = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('MediaControl.TrackHoverSurface')),
     );
-    expect(
-      trackButtonStyle.side?.resolve({WidgetState.hovered})?.color,
-      const Color(0x14212b3a),
-    );
-    final expectedWideTrackColumn = (1280 - 32) * 9 / 28;
+    final surfaceDecoration = trackSurface.decoration! as BoxDecoration;
+    expect(trackSurface.padding, const EdgeInsets.fromLTRB(8, 8, 12, 8));
+    expect(surfaceDecoration.borderRadius, BorderRadius.circular(14));
+    final expectedWideTrackColumn = (1280 - 32 - 32) * 9 / 28;
     final expectedWideTrackCopy = expectedWideTrackColumn - 72 - 14 - 20;
     expect(
       tester
           .getSize(find.byKey(const ValueKey('MediaControl.TrackCopy')))
           .width,
       closeTo(expectedWideTrackCopy, 0.1),
+    );
+    final trackSurfaceRect = tester.getRect(
+      find.byKey(const ValueKey('MediaControl.TrackHoverSurface')),
+    );
+    final progressTimeRect = tester.getRect(find.text('0:00').first);
+    expect(
+      progressTimeRect.left - trackSurfaceRect.right,
+      greaterThanOrEqualTo(16),
     );
 
     await pumpTrack(title: 'Song', artist: 'Artist');
@@ -3067,6 +3073,72 @@ void main() {
       tester.getTopLeft(overlay).dx - tester.getTopLeft(trackButton).dx,
       closeTo(0, 1),
     );
+  });
+
+  testWidgets('wide MediaControl track hover keeps vertical padding', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack(
+                id: 1,
+                title: 'kpop4',
+                artist: '未知歌手',
+                artworkUrl: '',
+                isLoading: false,
+                favorite: false,
+              ),
+              disabled: false,
+              isPlaying: false,
+              volume: 50,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 180,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (_) {},
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
+              onEnterMiniMode: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final trackSurface = find.byKey(
+      const ValueKey('MediaControl.TrackHoverSurface'),
+    );
+    final overlay = find.byKey(const ValueKey('MediaControl.ArtworkOverlay'));
+    final buttonRect = tester.getRect(trackSurface);
+    final artworkRect = tester.getRect(overlay);
+
+    expect(artworkRect.top - buttonRect.top, closeTo(8, 1));
+    expect(buttonRect.bottom - artworkRect.bottom, closeTo(8, 1));
   });
 
   testWidgets('compact MediaControl utility buttons fit near minimum width', (

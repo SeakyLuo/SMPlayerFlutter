@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Faixas que ainda estão na fila após a seleção atual.",
   "player.like": "Adicionar aos Favoritos",
   "player.desktopLyrics": "letras na área de trabalho",
+  "player.desktopLyricsEnabled": "Letras na área de trabalho ativadas",
+  "player.desktopLyricsDisabled": "Letras na área de trabalho desativadas",
   "player.miniMode": "modo mini",
   "player.enterMiniMode": "Entrar no modo mini",
   "player.exitMiniMode": "Sair do modo mini",

@@ -11,7 +11,7 @@ abstract class DesktopFeatureService {
 
   Future<void> updateMediaSession(MediaSessionDisplayState state);
 
-  Future<void> updateDesktopLyricsState(DesktopLyricsDisplayState state);
+  Future<bool> updateDesktopLyricsState(DesktopLyricsDisplayState state);
 
   Future<void> enterMiniMode();
 
@@ -81,9 +81,9 @@ class NoopDesktopFeatureService implements DesktopFeatureService {
   Future<void> updateMediaSession(MediaSessionDisplayState state) async {}
 
   @override
-  Future<void> updateDesktopLyricsState(
-    DesktopLyricsDisplayState state,
-  ) async {}
+  Future<bool> updateDesktopLyricsState(DesktopLyricsDisplayState state) async {
+    return true;
+  }
 
   @override
   Future<void> enterMiniMode() async {}
@@ -334,13 +334,16 @@ class TrayWindowDesktopFeatureService
   }
 
   @override
-  Future<void> updateDesktopLyricsState(DesktopLyricsDisplayState state) async {
-    await _ignorePlatformErrors(
-      _desktopFeatureChannel.invokeMethod<void>(
+  Future<bool> updateDesktopLyricsState(DesktopLyricsDisplayState state) async {
+    try {
+      await _desktopFeatureChannel.invokeMethod<void>(
         'updateDesktopLyricsWindow',
         state.toPlatformMap(),
-      ),
-    );
+      );
+      return true;
+    } on Object {
+      return false;
+    }
   }
 
   @override

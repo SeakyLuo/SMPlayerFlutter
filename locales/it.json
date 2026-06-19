@@ -459,6 +459,8 @@
   "nowPlaying.upNextCopy": "Tracce ancora in coda dopo la selezione corrente.",
   "player.like": "Aggiungi ai preferiti",
   "player.desktopLyrics": "testi sul desktop",
+  "player.desktopLyricsEnabled": "Testi sul desktop attivati",
+  "player.desktopLyricsDisabled": "Testi sul desktop disattivati",
   "player.miniMode": "modalità mini",
   "player.enterMiniMode": "Accedi alla modalità mini",
   "player.exitMiniMode": "Esci dalla modalità mini",

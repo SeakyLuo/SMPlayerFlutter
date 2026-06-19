@@ -48,9 +48,30 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       i18n: i18n,
     );
     _ensureDesktopLyricsLoaded(currentSong, mode: settings.playerLyricsSource);
-    if (_lastDesktopLyricsSignature != lyricsState.signature) {
-      _lastDesktopLyricsSignature = lyricsState.signature;
-      unawaited(_desktopFeatureService.updateDesktopLyricsState(lyricsState));
+    if (_lastDesktopLyricsSignature != lyricsState.signature &&
+        _pendingDesktopLyricsSignature != lyricsState.signature) {
+      final signature = lyricsState.signature;
+      _pendingDesktopLyricsSignature = signature;
+      unawaited(
+        _desktopFeatureService
+            .updateDesktopLyricsState(lyricsState)
+            .then(
+              (updated) {
+                if (!mounted || _pendingDesktopLyricsSignature != signature) {
+                  return;
+                }
+                _pendingDesktopLyricsSignature = null;
+                if (updated) {
+                  _lastDesktopLyricsSignature = signature;
+                }
+              },
+              onError: (_) {
+                if (mounted && _pendingDesktopLyricsSignature == signature) {
+                  _pendingDesktopLyricsSignature = null;
+                }
+              },
+            ),
+      );
     }
 
     final mediaSessionState = MediaSessionDisplayState.fromShell(

@@ -1571,6 +1571,54 @@ void main() {
     expect(selected, 'mix');
   });
 
+  testWidgets('MenuFlyout checked item keeps its leading icon', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showMenuFlyout(
+                    context,
+                    items: [
+                      MenuFlyoutItem(
+                        key: 'playlist',
+                        text: 'Playlist',
+                        icon: FluentIcons.music_note_2_20_regular,
+                        checked: true,
+                        onPressed: () {},
+                      ),
+                    ],
+                  );
+                },
+                child: const Text('Open'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final label = find.text('Playlist');
+    final leadingIcon = find.byIcon(FluentIcons.music_note_2_20_regular);
+    final checkIcon = find.byIcon(FluentIcons.checkmark_20_regular);
+    expect(label, findsOneWidget);
+    expect(leadingIcon, findsOneWidget);
+    expect(checkIcon, findsOneWidget);
+    expect(
+      tester.getCenter(leadingIcon).dx,
+      lessThan(tester.getCenter(label).dx),
+    );
+    expect(
+      tester.getCenter(checkIcon).dx,
+      greaterThan(tester.getCenter(label).dx),
+    );
+  });
+
   testWidgets('MenuFlyout left-opening submenu stays beside parent', (
     tester,
   ) async {
