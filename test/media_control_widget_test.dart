@@ -13,7 +13,6 @@ import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
-import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 
@@ -287,7 +286,7 @@ void main() {
   testWidgets(
     'MediaControl condensed utility fits Electron voice and More row',
     (tester) async {
-      tester.view.physicalSize = const Size(1000, 220);
+      tester.view.physicalSize = const Size(900, 220);
       tester.view.devicePixelRatio = 1;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -301,7 +300,7 @@ void main() {
             theme: _mediaControlTestTheme(),
             home: Scaffold(
               body: SizedBox(
-                width: 1000,
+                width: 900,
                 child: MediaControl(
                   track: const MediaControlTrack(
                     id: 1,
@@ -2788,136 +2787,100 @@ void main() {
     },
   );
 
-  testWidgets(
-    'compact playback mode button opens Electron-style long press menu',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(700, 420);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('compact playback mode is available from More menu', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final controller = MediaControlController(
-        const MediaControlState(
-          track: MediaControlTrack(
-            id: 1,
-            title: 'Song',
-            artist: 'Artist',
-            artworkUrl: '',
-            isLoading: false,
-            favorite: false,
-          ),
-          disabled: false,
-          isPlaying: false,
-          volume: 50,
-          isMuted: false,
-          mode: PlaybackMode.once,
-          progressSeconds: 0,
-          durationSeconds: 180,
-          isProgressSeeking: false,
+    final controller = MediaControlController(
+      const MediaControlState(
+        track: MediaControlTrack(
+          id: 1,
+          title: 'Song',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+          favorite: false,
         ),
-      );
+        disabled: false,
+        isPlaying: false,
+        volume: 50,
+        isMuted: false,
+        mode: PlaybackMode.once,
+        progressSeconds: 0,
+        durationSeconds: 180,
+        isProgressSeeking: false,
+      ),
+    );
 
-      Future<void> pumpMediaControl() {
-        return tester.pumpWidget(
-          SmPlayerI18nScope(
-            i18n: i18n,
-            child: MaterialApp(
-              theme: _mediaControlTestTheme(),
-              home: Scaffold(
-                body: MediaControl(
-                  track: controller.state.track,
-                  disabled: controller.state.disabled,
-                  isPlaying: controller.state.isPlaying,
-                  volume: controller.state.volume,
-                  isMuted: controller.state.isMuted,
-                  mode: controller.state.mode,
-                  progressSeconds: controller.state.progressSeconds,
-                  durationSeconds: controller.state.durationSeconds,
-                  onTogglePlayPause: controller.onTogglePlayPause,
-                  onPrevious: controller.onPrevious,
-                  onNext: controller.onNext,
-                  onSeek: controller.onSeek,
-                  onBeginSeek: controller.onBeginSeek,
-                  onEndSeek: controller.onEndSeek,
-                  onVolumeChange: controller.onVolumeChange,
-                  onToggleMute: controller.onToggleMute,
-                  onToggleShuffle: controller.onToggleShuffle,
-                  onToggleRepeat: controller.onToggleRepeat,
-                  onToggleRepeatOne: controller.onToggleRepeatOne,
-                  onToggleFavorite: controller.onToggleFavorite,
-                  onQuickPlay: () {},
-                  onOpenNowPlaying: () {},
-                  onToggleWindowFullScreen: () {},
-                  isWindowFullScreen: false,
-                  onEnterMiniMode: () {},
-                ),
+    Future<void> pumpMediaControl() {
+      return tester.pumpWidget(
+        SmPlayerI18nScope(
+          i18n: i18n,
+          child: MaterialApp(
+            theme: _mediaControlTestTheme(),
+            home: Scaffold(
+              body: MediaControl(
+                track: controller.state.track,
+                disabled: controller.state.disabled,
+                isPlaying: controller.state.isPlaying,
+                volume: controller.state.volume,
+                isMuted: controller.state.isMuted,
+                mode: controller.state.mode,
+                progressSeconds: controller.state.progressSeconds,
+                durationSeconds: controller.state.durationSeconds,
+                onTogglePlayPause: controller.onTogglePlayPause,
+                onPrevious: controller.onPrevious,
+                onNext: controller.onNext,
+                onSeek: controller.onSeek,
+                onBeginSeek: controller.onBeginSeek,
+                onEndSeek: controller.onEndSeek,
+                onVolumeChange: controller.onVolumeChange,
+                onToggleMute: controller.onToggleMute,
+                onToggleShuffle: controller.onToggleShuffle,
+                onToggleRepeat: controller.onToggleRepeat,
+                onToggleRepeatOne: controller.onToggleRepeatOne,
+                onToggleFavorite: controller.onToggleFavorite,
+                onQuickPlay: () {},
+                onOpenNowPlaying: () {},
+                onToggleWindowFullScreen: () {},
+                isWindowFullScreen: false,
+                onEnterMiniMode: () {},
               ),
             ),
           ),
-        );
-      }
-
-      await pumpMediaControl();
-
-      final modeButton = find.byTooltip('Playback Mode: List').last;
-      final modeHoldAction = tester.widget<HoldReleaseAction>(
-        find
-            .ancestor(of: modeButton, matching: find.byType(HoldReleaseAction))
-            .first,
+        ),
       );
-      expect(modeHoldAction.holdDuration, const Duration(milliseconds: 520));
-      expect(modeHoldAction.triggerHoldOnReady, isTrue);
+    }
 
-      await tester.tap(modeButton, buttons: kSecondaryButton);
-      await tester.pumpAndSettle();
-      expect(controller.state.mode, PlaybackMode.once);
-      expect(find.text('List'), findsOneWidget);
-      expect(find.text('Shuffle'), findsOneWidget);
-      await tester.tap(find.text('List'));
-      await tester.pumpAndSettle();
+    await pumpMediaControl();
 
-      final modeHold = await tester.startGesture(
-        tester.getCenter(modeButton),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Shuffle'), findsNothing);
-      await tester.pump(const Duration(milliseconds: 120));
-      await modeHold.up();
-      expect(
-        find.byKey(const ValueKey('MediaControl.LongPressProgress')),
-        findsNothing,
-      );
-      await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('MediaControl.CompactModeButton')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const ValueKey('MediaControl.MoreButton')));
+    await tester.pumpAndSettle();
 
-      expect(find.text('List'), findsOneWidget);
-      expect(find.text('Shuffle'), findsOneWidget);
-      expect(find.text('Repeat'), findsOneWidget);
-      expect(find.text('Repeat One'), findsOneWidget);
+    expect(controller.state.mode, PlaybackMode.once);
+    expect(find.text('Playback Mode: List'), findsOneWidget);
+    await tester.tap(find.text('Playback Mode: List'));
+    await tester.pumpAndSettle();
+    expect(find.text('List'), findsOneWidget);
+    expect(find.text('Shuffle'), findsOneWidget);
+    expect(find.text('Repeat'), findsOneWidget);
+    expect(find.text('Repeat One'), findsOneWidget);
 
-      await tester.tap(find.text('Repeat'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Repeat'));
+    await tester.pumpAndSettle();
 
-      expect(controller.state.mode, PlaybackMode.repeat);
-
-      await pumpMediaControl();
-      await tester.pumpAndSettle();
-      final repeatModeButton = find.byTooltip('Playback Mode: Repeat').last;
-      final repeatModeHold = await tester.startGesture(
-        tester.getCenter(repeatModeButton),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pump(const Duration(milliseconds: 520));
-      await repeatModeHold.up();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Repeat'));
-      await tester.pumpAndSettle();
-
-      expect(controller.state.mode, PlaybackMode.repeat);
-    },
-  );
+    expect(controller.state.mode, PlaybackMode.repeat);
+  });
 
   testWidgets('compact MediaControl narrows buttons at Electron 520px rule', (
     tester,
@@ -3513,11 +3476,11 @@ void main() {
     }
   });
 
-  testWidgets('medium MediaControl exposes compact volume button', (
+  testWidgets('900px MediaControl exposes compact volume button', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 420);
+    tester.view.physicalSize = const Size(900, 420);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -3696,11 +3659,74 @@ void main() {
     );
   });
 
+  testWidgets('1000px MediaControl keeps wide volume slider', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      SmPlayerI18nScope(
+        i18n: i18n,
+        child: MaterialApp(
+          theme: _mediaControlTestTheme(),
+          home: Scaffold(
+            body: MediaControl(
+              track: const MediaControlTrack(
+                id: 1,
+                title: 'Song',
+                artist: 'Artist',
+                artworkUrl: '',
+                isLoading: false,
+                favorite: false,
+              ),
+              disabled: false,
+              isPlaying: false,
+              volume: 50,
+              isMuted: false,
+              mode: PlaybackMode.once,
+              progressSeconds: 0,
+              durationSeconds: 180,
+              onTogglePlayPause: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onSeek: (_) {},
+              onBeginSeek: () {},
+              onEndSeek: () {},
+              onVolumeChange: (_) {},
+              onToggleMute: () {},
+              onToggleShuffle: () {},
+              onToggleRepeat: () {},
+              onToggleRepeatOne: () {},
+              onToggleFavorite: () {},
+              onQuickPlay: () {},
+              onOpenNowPlaying: () {},
+              onToggleWindowFullScreen: () {},
+              isWindowFullScreen: false,
+              onEnterMiniMode: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('MediaControl.WideVolumeSlider')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('MediaControl.CompactVolumeButton')),
+      findsNothing,
+    );
+  });
+
   testWidgets('compact mode menu closes compact volume like Electron', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 420);
+    tester.view.physicalSize = const Size(900, 420);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();

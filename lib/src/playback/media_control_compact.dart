@@ -116,10 +116,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityIconSize = utilitySize - utilityPadding * 2;
     final utilityGap = narrow ? 2.0 : 6.0;
     const utilityControlOuterSlack = 4.0;
-    final utilityButtonCount =
-        2 +
-        (onToggleDesktopLyrics == null ? 0 : 1) +
-        (onOpenVoiceAssistant == null ? 0 : 1);
+    final utilityButtonCount = 1 + (onOpenVoiceAssistant == null ? 0 : 1);
     final previousTitle =
         previousButtonRestartsTrack
             ? i18n.t('player.restartCurrentTrackHoldPrevious')
@@ -170,69 +167,9 @@ class _CompactMediaControlLayout extends StatelessWidget {
     final utilityControls = Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Builder(
-          builder: (modeButtonContext) {
-            return _PlayerIconButton(
-              key: const ValueKey('MediaControl.CompactModeButton'),
-              tooltip:
-                  '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-              icon: _playbackModeIcon(mode),
-              buttonSize: utilitySize,
-              padding: utilityPadding,
-              iconSize: utilityIconSize,
-              active: mode != PlaybackMode.once,
-              disabled: disabled,
-              showLongPressProgress: false,
-              holdDuration: const Duration(milliseconds: 520),
-              onPressed: () {
-                _cyclePlaybackMode(
-                  mode: mode,
-                  onToggleShuffle: onToggleShuffle,
-                  onToggleRepeat: onToggleRepeat,
-                  onToggleRepeatOne: onToggleRepeatOne,
-                );
-              },
-              onLongPress: () {
-                _showCompactPlaybackModeMenu(
-                  modeButtonContext,
-                  i18n: i18n,
-                  mode: mode,
-                  onToggleShuffle: onToggleShuffle,
-                  onToggleRepeat: onToggleRepeat,
-                  onToggleRepeatOne: onToggleRepeatOne,
-                );
-              },
-              onSecondaryTap: () {
-                _showCompactPlaybackModeMenu(
-                  modeButtonContext,
-                  i18n: i18n,
-                  mode: mode,
-                  onToggleShuffle: onToggleShuffle,
-                  onToggleRepeat: onToggleRepeat,
-                  onToggleRepeatOne: onToggleRepeatOne,
-                );
-              },
-            );
-          },
-        ),
-        if (onToggleDesktopLyrics != null)
-          Padding(
-            padding: EdgeInsets.only(left: utilityGap),
-            child: _PlayerIconButton(
-              key: const ValueKey('MediaControl.DesktopLyricsButton'),
-              tooltip: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
-              icon: _desktopLyricsIcon,
-              buttonSize: utilitySize,
-              padding: utilityPadding,
-              iconSize: utilityIconSize,
-              active: desktopLyricsEnabled,
-              disabled: false,
-              onPressed: onToggleDesktopLyrics!,
-            ),
-          ),
         if (onOpenVoiceAssistant != null)
           Padding(
-            padding: EdgeInsets.only(left: utilityGap),
+            padding: EdgeInsets.only(right: utilityGap),
             child: _PlayerIconButton(
               tooltip: i18n.t('player.voiceAssistant'),
               icon: _voiceIcon,
@@ -245,52 +182,51 @@ class _CompactMediaControlLayout extends StatelessWidget {
           ),
         Builder(
           builder: (moreButtonContext) {
-            return Padding(
-              padding: EdgeInsets.only(left: utilityGap),
-              child: _PlayerIconButton(
-                key: const ValueKey('MediaControl.MoreButton'),
-                tooltip: i18n.t('player.more'),
-                icon: _moreIcon,
-                buttonSize: utilitySize,
-                padding: utilityPadding,
-                iconSize: utilityIconSize,
-                onPressed: () {
-                  _showCompactMoreMenu(
-                    moreButtonContext,
-                    i18n: i18n,
-                    disabled: disabled,
-                    trackId: track.id,
-                    mode: mode,
-                    isMuted: isMuted,
-                    volumeValue: volume,
-                    onQuickPlay: onQuickPlay,
-                    onToggleMute: onToggleMute,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                    onOpenNowPlaying: onOpenNowPlaying,
-                    onToggleWindowFullScreen: onToggleWindowFullScreen,
-                    isWindowFullScreen: isWindowFullScreen,
-                    onEnterMiniMode: onEnterMiniMode,
-                    currentSong: currentSong,
-                    nowPlayingSongIds: nowPlayingSongIds,
-                    playlists: playlists,
-                    preferenceLevel: preferenceLevel,
-                    onResolvePreferenceLevel: onResolvePreferenceLevel,
-                    onAddToNowPlaying: onAddToNowPlaying,
-                    onCreatePlaylist: onCreatePlaylist,
-                    onAddToPlaylist: onAddToPlaylist,
-                    onUndoPreference: onUndoPreference,
-                    onSetPreference: onSetPreference,
-                    onSeeArtist: onSeeArtist,
-                    onSeeAlbum: onSeeAlbum,
-                    onSeeMusicInfo: onSeeMusicInfo,
-                    onSeeLyrics: onSeeLyrics,
-                    onSeeAlbumArt: onSeeAlbumArt,
-                    onSeeLocal: onSeeLocal,
-                  );
-                },
-              ),
+            return _PlayerIconButton(
+              key: const ValueKey('MediaControl.MoreButton'),
+              tooltip: i18n.t('player.more'),
+              icon: _moreIcon,
+              buttonSize: utilitySize,
+              padding: utilityPadding,
+              iconSize: utilityIconSize,
+              onPressed: () {
+                _showCompactMoreMenu(
+                  moreButtonContext,
+                  i18n: i18n,
+                  disabled: disabled,
+                  trackId: track.id,
+                  mode: mode,
+                  isMuted: isMuted,
+                  volumeValue: volume,
+                  desktopLyricsEnabled: desktopLyricsEnabled,
+                  onToggleDesktopLyrics: onToggleDesktopLyrics,
+                  onQuickPlay: onQuickPlay,
+                  onToggleMute: onToggleMute,
+                  onToggleShuffle: onToggleShuffle,
+                  onToggleRepeat: onToggleRepeat,
+                  onToggleRepeatOne: onToggleRepeatOne,
+                  onOpenNowPlaying: onOpenNowPlaying,
+                  onToggleWindowFullScreen: onToggleWindowFullScreen,
+                  isWindowFullScreen: isWindowFullScreen,
+                  onEnterMiniMode: onEnterMiniMode,
+                  currentSong: currentSong,
+                  nowPlayingSongIds: nowPlayingSongIds,
+                  playlists: playlists,
+                  preferenceLevel: preferenceLevel,
+                  onResolvePreferenceLevel: onResolvePreferenceLevel,
+                  onAddToNowPlaying: onAddToNowPlaying,
+                  onCreatePlaylist: onCreatePlaylist,
+                  onAddToPlaylist: onAddToPlaylist,
+                  onUndoPreference: onUndoPreference,
+                  onSetPreference: onSetPreference,
+                  onSeeArtist: onSeeArtist,
+                  onSeeAlbum: onSeeAlbum,
+                  onSeeMusicInfo: onSeeMusicInfo,
+                  onSeeLyrics: onSeeLyrics,
+                  onSeeAlbumArt: onSeeAlbumArt,
+                  onSeeLocal: onSeeLocal,
+                );
+              },
             );
           },
         ),
@@ -349,6 +285,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required PlaybackMode mode,
     required bool isMuted,
     required int volumeValue,
+    required bool desktopLyricsEnabled,
+    VoidCallback? onToggleDesktopLyrics,
     required VoidCallback onQuickPlay,
     required VoidCallback onToggleMute,
     required VoidCallback onToggleShuffle,
@@ -386,6 +324,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
         mode: mode,
         isMuted: isMuted,
         volumeValue: volumeValue,
+        desktopLyricsEnabled: desktopLyricsEnabled,
+        onToggleDesktopLyrics: onToggleDesktopLyrics,
         onQuickPlay: onQuickPlay,
         onVolumeChange: onVolumeChange,
         onToggleMute: onToggleMute,
@@ -438,24 +378,6 @@ class _CompactMediaControlLayout extends StatelessWidget {
     );
     menuClosed = true;
     itemsNotifier.dispose();
-  }
-
-  void _showCompactPlaybackModeMenu(
-    BuildContext context, {
-    required SmPlayerI18n i18n,
-    required PlaybackMode mode,
-    required VoidCallback onToggleShuffle,
-    required VoidCallback onToggleRepeat,
-    required VoidCallback onToggleRepeatOne,
-  }) {
-    _showPlaybackModeMenu(
-      context,
-      i18n: i18n,
-      mode: mode,
-      onToggleShuffle: onToggleShuffle,
-      onToggleRepeat: onToggleRepeat,
-      onToggleRepeatOne: onToggleRepeatOne,
-    );
   }
 }
 

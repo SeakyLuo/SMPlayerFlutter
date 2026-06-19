@@ -1668,7 +1668,7 @@ void main() {
         settingsController: settingsController,
       ),
     );
-    for (var pump = 0; pump < 8; pump += 1) {
+    for (var pump = 0; pump < 24; pump += 1) {
       await tester.pump(const Duration(milliseconds: 16));
     }
 
@@ -3507,6 +3507,9 @@ class _ShellDesktopFeatureService implements DesktopFeatureService {
   @override
   Future<bool> updateDesktopLyricsState(DesktopLyricsDisplayState state) async {
     desktopLyricsStates.add(state);
+    if (!state.visible) {
+      return true;
+    }
     return desktopLyricsUpdateResults.isEmpty
         ? true
         : desktopLyricsUpdateResults.removeAt(0);
