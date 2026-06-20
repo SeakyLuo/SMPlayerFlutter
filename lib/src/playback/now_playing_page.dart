@@ -660,42 +660,17 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final snapshot = ref.read(libraryContentDataProvider).value;
     final queueOverride = ref.read(nowPlayingQueueOverrideProvider);
     final currentSongIds = queueOverride ?? snapshot?.nowPlaying.songIds;
+    if (currentSongIds != null) {
+      syncMediaControlForQueueChange(
+        mediaController: ref.read(mediaControlControllerProvider),
+        currentSongIds: currentSongIds,
+        nextSongIds: songIds,
+      );
+    }
     if (currentSongIds != null && _sameSongIds(currentSongIds, songIds)) {
       return;
     }
-    if (currentSongIds != null) {
-      _syncSelectedQueueIndexForQueueChange(currentSongIds, songIds);
-    }
     setNowPlayingQueue(ref, songIds);
-  }
-
-  void _syncSelectedQueueIndexForQueueChange(
-    List<int> currentSongIds,
-    List<int> nextSongIds,
-  ) {
-    final mediaController = ref.read(mediaControlControllerProvider);
-    final mediaState = mediaController.state;
-    final trackId = mediaState.track.id;
-    if (trackId == null) {
-      return;
-    }
-    final currentIndex =
-        mediaState.selectedQueueIndex ??
-        currentSongIds.indexWhere((songId) => songId == trackId);
-    if (currentIndex < 0 || currentIndex >= currentSongIds.length) {
-      final nextIndex = nextSongIds.indexWhere((songId) => songId == trackId);
-      mediaController.setSelectedQueueIndex(nextIndex > -1 ? nextIndex : null);
-      return;
-    }
-    final nextIndex = _matchingQueueIndexByOccurrence(
-      trackId,
-      currentSongIds,
-      currentIndex,
-      nextSongIds,
-    );
-    if (mediaState.selectedQueueIndex != nextIndex) {
-      mediaController.setSelectedQueueIndex(nextIndex);
-    }
   }
 
   void _removeQueueIndex(
@@ -1269,34 +1244,6 @@ bool _sameSongIds(List<int> left, List<int> right) {
     }
   }
   return true;
-}
-
-int? _matchingQueueIndexByOccurrence(
-  int trackId,
-  List<int> currentSongIds,
-  int currentIndex,
-  List<int> nextSongIds,
-) {
-  var occurrence = 0;
-  for (var index = 0; index <= currentIndex; index += 1) {
-    if (currentSongIds[index] == trackId) {
-      occurrence += 1;
-    }
-  }
-  if (occurrence == 0) {
-    return null;
-  }
-  var nextOccurrence = 0;
-  for (var index = 0; index < nextSongIds.length; index += 1) {
-    if (nextSongIds[index] != trackId) {
-      continue;
-    }
-    nextOccurrence += 1;
-    if (nextOccurrence == occurrence) {
-      return index;
-    }
-  }
-  return null;
 }
 
 String _displayPathName(String path) {

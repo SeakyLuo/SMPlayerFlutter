@@ -1614,6 +1614,99 @@ void main() {
     );
   });
 
+  testWidgets(
+    'shell restores desktop lyrics after playback queue snapshot loads',
+    (tester) async {
+      _setViewSize(tester, const Size(1300, 600));
+      final settings = const SettingsSnapshot.defaults().copyWith(
+        desktopLyricsEnabled: true,
+        lastMusicIndex: 0,
+        autoPlay: false,
+      );
+      setSmPlayerGlobalSettingsSnapshot(settings);
+      const firstSong = LibrarySong(
+        id: 10,
+        path: '/tmp/first.mp3',
+        title: 'First Song',
+        artist: 'First Artist',
+        artists: ['First Artist'],
+        album: 'First Album',
+        duration: 180,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '',
+        favorite: false,
+        thumbnailPath: '',
+      );
+      const loadedSnapshot = LibraryContentData(
+        songs: [firstSong],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: [10]),
+      );
+      const initialSnapshot = LibraryContentData(
+        songs: [firstSong],
+        recentSongs: [],
+        recentPlaylists: [],
+        recentAlbums: [],
+        recentArtists: [],
+        recentSearches: [],
+        playlists: [],
+        hasLibrary: true,
+        sortCriterion: MusicLibrarySortCriterion.title,
+        albumsSort: AlbumSortCriterion.defaultSort,
+        databasePath: '',
+        nowPlaying: NowPlayingSnapshot(playlistId: 1, songIds: []),
+      );
+      final repository = _SnapshotRepository(initialSnapshot);
+      final desktopService = _ShellDesktopFeatureService();
+      final settingsController = SettingsController(settings);
+      addTearDown(settingsController.dispose);
+
+      await tester.pumpWidget(
+        _ShellPageTestApp(
+          repository: repository,
+          desktopService: desktopService,
+          settingsController: settingsController,
+        ),
+      );
+      for (var pump = 0; pump < 6; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        desktopService.desktopLyricsStates.any((state) => state.visible),
+        isFalse,
+      );
+
+      repository.snapshot = loadedSnapshot;
+      final element = tester.element(find.byType(SmPlayerShellPage));
+      ProviderScope.containerOf(
+        element,
+        listen: false,
+      ).invalidate(libraryContentDataProvider);
+      for (var pump = 0; pump < 8; pump += 1) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(
+        desktopService.desktopLyricsStates.any(
+          (state) =>
+              state.visible &&
+              state.fallbackText == 'First Song - First Artist',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   testWidgets('shell retries desktop lyrics sync after failed native update', (
     tester,
   ) async {

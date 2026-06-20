@@ -250,6 +250,10 @@ class MediaControlController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearTrack() {
+    loadTrack(const MediaControlTrack.empty());
+  }
+
   void playTrack(
     MediaControlTrack track, {
     required double durationSeconds,

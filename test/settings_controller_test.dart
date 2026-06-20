@@ -275,6 +275,39 @@ void main() {
       SmPlayerDisplayMode.normal,
     ]);
   });
+
+  test('SettingsController saveViewState does not notify listeners', () async {
+    final repository = _ViewStateRepository();
+    final controller = SettingsController(
+      const SettingsSnapshot.defaults(),
+      repository,
+    );
+    var notifications = 0;
+    controller.addListener(() {
+      notifications += 1;
+    });
+
+    await controller.saveViewState(lastPage: '/albums', lastPlaylistId: 42);
+
+    expect(notifications, 0);
+    expect(controller.snapshot.lastPage, '/albums');
+    expect(controller.snapshot.lastPlaylistId, 42);
+    expect(smPlayerGlobalSettingsSnapshot.lastPage, '/albums');
+    expect(smPlayerGlobalSettingsSnapshot.lastPlaylistId, 42);
+    expect(repository.savedLastPages, ['/albums']);
+    expect(repository.savedLastPlaylistIds, [42]);
+  });
+}
+
+class _ViewStateRepository extends LibraryRepository {
+  final savedLastPages = <String?>[];
+  final savedLastPlaylistIds = <int?>[];
+
+  @override
+  Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
+    savedLastPages.add(lastPage);
+    savedLastPlaylistIds.add(lastPlaylistId);
+  }
 }
 
 class _DisplayModeRepository extends LibraryRepository {

@@ -3,7 +3,6 @@ import Carbon.HIToolbox
 import FlutterMacOS
 import MediaPlayer
 import UserNotifications
-import WebKit
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
   private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
@@ -654,11 +653,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   }
 
   private func ensureDesktopLyricsPanel(bounds rawBounds: String?) -> NSPanel {
+    let frame = resolveDesktopLyricsFrame(rawBounds)
     if let panel = desktopLyricsPanel {
+      if !desktopLyricsFrameIsVisibleOnTargetScreen(panel.frame) {
+        panel.setFrame(frame, display: true)
+        sendDesktopLyricsBounds()
+      }
       return panel
     }
 
-    let frame = resolveDesktopLyricsFrame(rawBounds)
     let panel = NSPanel(
       contentRect: frame,
       styleMask: [.borderless, .nonactivatingPanel],
@@ -671,6 +674,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     panel.hidesOnDeactivate = false
     panel.isMovableByWindowBackground = true
+    panel.acceptsMouseMovedEvents = true
     panel.delegate = self
     let lyricsView = DesktopLyricsNativeView(frame: NSRect(origin: .zero, size: frame.size))
     lyricsView.onCommand = { [weak self] command in
@@ -680,14 +684,18 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     panel.contentView = lyricsView
     desktopLyricsPanel = panel
     desktopLyricsView = lyricsView
+    sendDesktopLyricsBounds()
     return panel
   }
 
   func windowDidMove(_ notification: Notification) {
-    guard notification.object as? NSWindow === desktopLyricsPanel else {
+    if notification.object as? NSWindow === desktopLyricsPanel {
+      sendDesktopLyricsBounds()
       return
     }
-    sendDesktopLyricsBounds()
+    if notification.object as? NSWindow === self {
+      repositionDesktopLyricsPanelIfNeeded()
+    }
   }
 
   private func sendDesktopLyricsBounds() {
@@ -707,34 +715,41 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     }
   }
 
-  private func resolveDesktopLyricsFrame(_ rawBounds: String?) -> NSRect {
-    let defaultSize = NSSize(width: 760, height: 148)
-    if let rawBounds = rawBounds,
-       let data = rawBounds.data(using: .utf8),
-       let value = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
-       let x = value["x"],
-       let y = value["y"] {
-      let candidate = NSRect(x: x, y: y, width: defaultSize.width, height: defaultSize.height)
-      if desktopLyricsFrameIsVisible(candidate) {
-        return candidate
-      }
+  private func repositionDesktopLyricsPanelIfNeeded() {
+    guard let panel = desktopLyricsPanel,
+          !desktopLyricsFrameIsVisibleOnTargetScreen(panel.frame) else {
+      return
     }
-    let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
-    return NSRect(
-      x: visibleFrame.midX - defaultSize.width / 2,
-      y: visibleFrame.minY + 120,
-      width: defaultSize.width,
-      height: defaultSize.height)
+    panel.setFrame(resolveDesktopLyricsFrame(nil), display: true)
+    sendDesktopLyricsBounds()
   }
 
-  private func desktopLyricsFrameIsVisible(_ frame: NSRect) -> Bool {
-    for screen in NSScreen.screens {
-      let intersection = screen.visibleFrame.intersection(frame)
-      if !intersection.isNull && intersection.width >= 160 && intersection.height >= 40 {
-        return true
-      }
-    }
-    return false
+  private func resolveDesktopLyricsFrame(_ rawBounds: String?) -> NSRect {
+    let targetVisibleFrame =
+      desktopLyricsTargetScreen()?.visibleFrame ??
+      NSScreen.main?.visibleFrame ??
+      NSScreen.screens[0].visibleFrame
+    return DesktopLyricsWindowGeometry.resolveFrame(
+      rawBounds: rawBounds,
+      targetVisibleFrame: targetVisibleFrame,
+      screenVisibleFrames: desktopLyricsVisibleFrames())
+  }
+
+  private func desktopLyricsTargetScreen() -> NSScreen? {
+    return screen ?? NSScreen.main ?? NSScreen.screens.first
+  }
+
+  private func desktopLyricsFrameIsVisibleOnTargetScreen(_ frame: NSRect) -> Bool {
+    let targetVisibleFrame =
+      desktopLyricsTargetScreen()?.visibleFrame ??
+      NSScreen.screens[0].visibleFrame
+    return DesktopLyricsWindowGeometry.frameIsVisible(
+      frame,
+      screenVisibleFrames: [targetVisibleFrame])
+  }
+
+  private func desktopLyricsVisibleFrames() -> [NSRect] {
+    return NSScreen.screens.map { $0.visibleFrame }
   }
 }
 
@@ -945,494 +960,316 @@ private final class NativeSplashView: NSView {
   }
 }
 
-private final class DesktopLyricsNativeView: NSView, WKNavigationDelegate, WKScriptMessageHandler {
-  private let webView: DesktopLyricsWebView
+private final class DesktopLyricsNativeView: NSView {
   private var state = [String: Any]()
-  private var webViewReady = false
+  private var isHovered = false
+  private var trackingArea: NSTrackingArea?
   var onCommand: ((String) -> Void)?
 
   override init(frame frameRect: NSRect) {
-    let contentController = WKUserContentController()
-    let configuration = WKWebViewConfiguration()
-    configuration.userContentController = contentController
-    webView = DesktopLyricsWebView(
-      frame: NSRect(origin: .zero, size: frameRect.size),
-      configuration: configuration)
     super.init(frame: frameRect)
-    configureWebView(contentController)
+    configureView()
   }
 
   required init?(coder: NSCoder) {
-    let contentController = WKUserContentController()
-    let configuration = WKWebViewConfiguration()
-    configuration.userContentController = contentController
-    webView = DesktopLyricsWebView(frame: .zero, configuration: configuration)
     super.init(coder: coder)
-    configureWebView(contentController)
+    configureView()
   }
 
-  deinit {
-    webView.configuration.userContentController.removeScriptMessageHandler(forName: "desktopLyricsCommand")
+  override var isOpaque: Bool {
+    return false
+  }
+
+  override func updateTrackingAreas() {
+    if let trackingArea {
+      removeTrackingArea(trackingArea)
+    }
+    let options: NSTrackingArea.Options = [
+      .activeAlways,
+      .inVisibleRect,
+      .mouseEnteredAndExited,
+      .mouseMoved,
+    ]
+    let nextArea = NSTrackingArea(rect: bounds, options: options, owner: self)
+    trackingArea = nextArea
+    addTrackingArea(nextArea)
+    super.updateTrackingAreas()
   }
 
   func apply(state: [String: Any]) {
     self.state = state
-    guard webViewReady else {
+    needsDisplay = true
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    guard !bounds.isEmpty else {
       return
     }
-    applyCurrentState()
-  }
-
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    webViewReady = true
-    applyCurrentState()
-  }
-
-  private func applyCurrentState() {
-    let script = "window.smplayerDesktopLyricsUpdate(\(jsonLiteral(state)))"
-    webView.evaluateJavaScript(script, completionHandler: nil)
-  }
-
-  func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard message.name == "desktopLyricsCommand" else {
-      return
+    if isHovered {
+      drawCard()
+      drawToolbar()
     }
-    if let command = message.body as? String {
-      onCommand?(command)
-      return
-    }
-    if let payload = message.body as? [String: Any],
-       let command = payload["command"] as? String {
-      onCommand?(command)
+    drawLyricsText()
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    isHovered = true
+    needsDisplay = true
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    isHovered = false
+    needsDisplay = true
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    if !isHovered {
+      isHovered = true
+      needsDisplay = true
     }
   }
-
-  func shouldWebViewHandleMouseDown(_ event: NSEvent) -> Bool {
-    let point = convert(event.locationInWindow, from: nil)
-    for rect in desktopLyricsButtonRects() where rect.contains(point) {
-      return true
-    }
-    return false
-  }
-
-  func handleWebViewBackgroundMouseDown(_ event: NSEvent) {
-    if (state["locked"] as? Bool) == true {
-      return
-    }
-    window?.performDrag(with: event)
-  }
-
-  private func configureWebView(_ contentController: WKUserContentController) {
-    wantsLayer = true
-    layer?.backgroundColor = NSColor.clear.cgColor
-    contentController.add(self, name: "desktopLyricsCommand")
-    webView.desktopLyricsView = self
-    webView.navigationDelegate = self
-    webView.frame = bounds
-    webView.autoresizingMask = [.width, .height]
-    webView.setValue(false, forKey: "drawsBackground")
-    webView.wantsLayer = true
-    webView.layer?.backgroundColor = NSColor.clear.cgColor
-    addSubview(webView)
-    webView.loadHTMLString(Self.html, baseURL: nil)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-      guard let self else {
-        return
-      }
-      self.webViewReady = true
-      self.applyCurrentState()
-    }
-  }
-
-  private func desktopLyricsButtonRects() -> [NSRect] {
-    let locked = (state["locked"] as? Bool) == true
-    var items: [CGFloat] = [26, 26, 26, 9, 42, 42, 56, 9, 26, 26]
-    if !locked {
-      items.append(26)
-    }
-    let gap: CGFloat = 3
-    let totalWidth = items.reduce(CGFloat(0), +) + gap * CGFloat(items.count - 1)
-    var x = bounds.midX - totalWidth / 2
-    let y = bounds.maxY - 8 - 12 - 30 + 2
-    var rects = [NSRect]()
-    for width in items {
-      if width == 9 {
-        x += width + gap
-        continue
-      }
-      rects.append(NSRect(x: x, y: y, width: width, height: 26))
-      x += width + gap
-    }
-    return rects
-  }
-
-  private func jsonLiteral(_ value: [String: Any]) -> String {
-    guard JSONSerialization.isValidJSONObject(value),
-          let data = try? JSONSerialization.data(withJSONObject: value),
-          let json = String(data: data, encoding: .utf8) else {
-      return "{}"
-    }
-    return json
-  }
-
-  private static let html = """
-<!doctype html>
-<html class="desktop-lyrics-host">
-<head>
-<meta charset="utf-8">
-<style>
-:root.desktop-lyrics-host,
-html.desktop-lyrics-host,
-html.desktop-lyrics-host body,
-html.desktop-lyrics-host #root,
-body.desktop-lyrics-host,
-html:has(.desktop-lyrics-window),
-html:has(.desktop-lyrics-window) body,
-html:has(.desktop-lyrics-window) #root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  background: transparent !important;
-  background-color: transparent !important;
-  overflow: hidden;
-}
-
-.desktop-lyrics-window {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: stretch;
-  color: #17202c;
-  font-family: var(--desktop-lyrics-font-family);
-  user-select: none;
-}
-
-.desktop-lyrics-card {
-  position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  align-items: center;
-  row-gap: 6px;
-  min-width: 0;
-  min-height: 0;
-  margin: 8px;
-  padding: 10px 18px 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  overflow: hidden;
-  cursor: move;
-  transition: background-color 160ms ease, border-color 160ms ease, backdrop-filter 160ms ease;
-}
-
-.desktop-lyrics-card:hover,
-.desktop-lyrics-card:focus-within {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(8, 12, 18, calc(var(--desktop-lyrics-opacity) * 0.34));
-  backdrop-filter: blur(36px) saturate(1.5);
-  -webkit-backdrop-filter: blur(36px) saturate(1.5);
-}
-
-.desktop-lyrics-drag-region {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.desktop-lyrics-toolbar {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  height: 30px;
-  opacity: 0;
-  transform: translateY(-3px);
-  transition: opacity 160ms ease, transform 160ms ease;
-  cursor: default;
-}
-
-.desktop-lyrics-card:hover .desktop-lyrics-toolbar,
-.desktop-lyrics-toolbar:focus-within {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.desktop-lyrics-toolbar button {
-  display: grid;
-  place-items: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  background: rgba(6, 10, 16, 0.16);
-  color: rgba(255, 255, 255, 0.94);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 750;
-  cursor: pointer;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.42));
-}
-
-.desktop-lyrics-toolbar button:hover {
-  background: rgba(6, 10, 16, 0.28);
-  color: #fff;
-}
-
-.desktop-lyrics-toolbar svg {
-  width: 16px;
-  height: 16px;
-}
-
-.desktop-lyrics-toolbar-divider {
-  width: 1px;
-  height: 16px;
-  margin: 0 4px;
-  background: rgba(255, 255, 255, 0.28);
-}
-
-.desktop-lyrics-text {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  align-self: center;
-  min-height: calc(var(--desktop-lyrics-font-size) * 1.2);
-  color: var(--desktop-lyrics-color);
-  font-size: var(--desktop-lyrics-font-size);
-  font-weight: 800;
-  line-height: 1.16;
-  letter-spacing: 0;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-text-stroke: 0.7px var(--desktop-lyrics-stroke-color);
-  paint-order: stroke fill;
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--desktop-lyrics-stroke-color) 50%, transparent);
-}
-
-.desktop-lyrics-text span {
-  display: inline-block;
-  white-space: nowrap;
-}
-
-.desktop-lyrics-text[data-overflow='true'] {
-  justify-content: flex-start;
-}
-
-.desktop-lyrics-text[data-overflow='true'] span {
-  animation: desktop-lyrics-scroll var(--desktop-lyrics-scroll-duration) ease-in-out infinite alternate;
-}
-
-@keyframes desktop-lyrics-scroll {
-  0%,
-  16% {
-    transform: translateX(0);
-  }
-
-  84%,
-  100% {
-    transform: translateX(calc(var(--desktop-lyrics-scroll-distance) * -1));
-  }
-}
-
-.desktop-lyrics-meta {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  align-self: center;
-  gap: 10px;
-  min-width: 0;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-
-.desktop-lyrics-card:hover .desktop-lyrics-meta,
-.desktop-lyrics-card:focus-within .desktop-lyrics-meta {
-  opacity: 1;
-}
-
-.desktop-lyrics-meta span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.desktop-lyrics-window.is-day .desktop-lyrics-card:hover,
-.desktop-lyrics-window.is-day .desktop-lyrics-card:focus-within {
-  border-color: rgba(15, 23, 42, 0.08);
-  background: rgba(245, 250, 255, calc(var(--desktop-lyrics-opacity) * 0.24));
-}
-
-.desktop-lyrics-window.is-day .desktop-lyrics-toolbar button {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.38);
-  color: rgba(17, 24, 39, 0.76);
-  box-shadow: 0 1px 5px rgba(20, 30, 45, 0.08);
-  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.38));
-}
-
-.desktop-lyrics-window.is-day .desktop-lyrics-toolbar button:hover {
-  background: rgba(255, 255, 255, 0.58);
-  color: #111827;
-}
-
-.desktop-lyrics-window.is-day .desktop-lyrics-toolbar-divider {
-  background: rgba(15, 23, 42, 0.16);
-}
-
-.desktop-lyrics-window.is-day .desktop-lyrics-meta {
-  color: rgba(17, 24, 39, 0.68);
-}
-
-.desktop-lyrics-window.is-locked .desktop-lyrics-card {
-  cursor: default;
-}
-</style>
-</head>
-<body class="desktop-lyrics-host">
-<main class="desktop-lyrics-window is-night" id="window">
-  <section class="desktop-lyrics-card" id="card">
-    <div class="desktop-lyrics-drag-region" aria-hidden="true"></div>
-    <div class="desktop-lyrics-meta">
-      <span id="songTitle"></span>
-      <span id="artist"></span>
-    </div>
-    <div class="desktop-lyrics-text" id="lyricBox">
-      <span id="lyricText"></span>
-    </div>
-    <div class="desktop-lyrics-toolbar" id="toolbar">
-      <button type="button" data-command="previous" id="previousButton"></button>
-      <button type="button" data-command="play-pause" id="playPauseButton"></button>
-      <button type="button" data-command="next" id="nextButton"></button>
-      <span class="desktop-lyrics-toolbar-divider" aria-hidden="true"></span>
-      <button type="button" data-command="offset:-100">-0.1s</button>
-      <button type="button" data-command="offset:100">+0.1s</button>
-      <button type="button" data-command="reset-offset" id="offsetButton">0.0s</button>
-      <span class="desktop-lyrics-toolbar-divider" aria-hidden="true"></span>
-      <button type="button" data-command="toggle-lock" id="lockButton"></button>
-      <button type="button" data-command="open-settings" id="settingsButton"></button>
-      <button type="button" data-command="disable" id="closeButton"></button>
-    </div>
-  </section>
-</main>
-<script>
-const icons = {
-  previous: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6V5Zm3 7 9-7v14l-9-7Z"/></svg>',
-  next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2V5ZM6 19V5l9 7-9 7Z"/></svg>',
-  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5Z"/></svg>',
-  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z"/></svg>',
-  lock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"/></svg>',
-  unlock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 8h-2a3 3 0 0 0-6 0v2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1V8a5 5 0 0 1 10 0Z"/></svg>',
-  settings: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.5-2-3.5-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A7.7 7.7 0 0 0 7 6L4.6 5 2.6 8.5l2 1.5-.1 1.5.1 1.5-2 1.5 2 3.5 2.4-1a7.7 7.7 0 0 0 2.6 1.5L10 22h4l.4-2.5A7.7 7.7 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
-  close: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m6.7 5.3 12 12-1.4 1.4-12-12 1.4-1.4Zm10.6 0 1.4 1.4-12 12-1.4-1.4 12-12Z"/></svg>',
-};
-
-const windowNode = document.getElementById('window');
-const lyricBox = document.getElementById('lyricBox');
-const lyricText = document.getElementById('lyricText');
-const songTitle = document.getElementById('songTitle');
-const artist = document.getElementById('artist');
-const playPauseButton = document.getElementById('playPauseButton');
-const previousButton = document.getElementById('previousButton');
-const nextButton = document.getElementById('nextButton');
-const lockButton = document.getElementById('lockButton');
-const settingsButton = document.getElementById('settingsButton');
-const closeButton = document.getElementById('closeButton');
-const offsetButton = document.getElementById('offsetButton');
-
-function request(command) {
-  window.webkit.messageHandlers.desktopLyricsCommand.postMessage(command);
-}
-
-function fontCss(fontFamily) {
-  if (!fontFamily || fontFamily === 'system') {
-    return '"Segoe UI", system-ui, sans-serif';
-  }
-  return `"${String(fontFamily).replaceAll('\\\\', '\\\\\\\\').replaceAll('"', '\\\\"')}", "Segoe UI", system-ui, sans-serif`;
-}
-
-function updateScrollDistance() {
-  const distance = Math.max(0, Math.ceil(lyricText.scrollWidth - lyricBox.clientWidth));
-  windowNode.style.setProperty('--desktop-lyrics-scroll-distance', `${distance}px`);
-  windowNode.style.setProperty('--desktop-lyrics-scroll-duration', `${Math.min(12, Math.max(5, Math.round(distance / 28) + 4))}s`);
-  if (distance > 0) {
-    lyricBox.dataset.overflow = 'true';
-  } else {
-    delete lyricBox.dataset.overflow;
-  }
-}
-
-function updateIcon(button, name) {
-  button.innerHTML = icons[name];
-}
-
-window.smplayerDesktopLyricsUpdate = function(state) {
-  const offsetSeconds = Math.round((state.offsetMs || 0) / 100) / 10;
-  const text = state.loading ? '...' : (state.lyricText || state.fallbackText || '');
-  windowNode.className = `desktop-lyrics-window${state.nightMode ? ' is-night' : ' is-day'}${state.locked ? ' is-locked' : ''}`;
-  windowNode.style.setProperty('--desktop-lyrics-opacity', (state.opacity || 88) / 100);
-  windowNode.style.setProperty('--desktop-lyrics-font-size', `${state.fontSize || 28}px`);
-  windowNode.style.setProperty('--desktop-lyrics-font-family', fontCss(state.fontFamily));
-  windowNode.style.setProperty('--desktop-lyrics-color', state.textColor || '#4aa8ff');
-  windowNode.style.setProperty('--desktop-lyrics-stroke-color', state.strokeColor || 'transparent');
-  songTitle.textContent = state.songTitle || '';
-  artist.textContent = state.artist || '';
-  artist.hidden = !state.artist;
-  lyricBox.title = text;
-  lyricText.textContent = text;
-  previousButton.title = state.labelPrevious || '';
-  nextButton.title = state.labelNext || '';
-  playPauseButton.title = state.labelPlayPause || '';
-  lockButton.title = state.locked ? (state.labelUnlock || '') : (state.labelLock || '');
-  settingsButton.title = state.labelSettings || '';
-  closeButton.title = state.labelClose || '';
-  closeButton.hidden = !!state.locked;
-  offsetButton.textContent = offsetSeconds > 0 ? `+${offsetSeconds}s` : `${offsetSeconds}s`;
-  updateIcon(previousButton, 'previous');
-  updateIcon(nextButton, 'next');
-  updateIcon(playPauseButton, state.playing ? 'pause' : 'play');
-  updateIcon(lockButton, state.locked ? 'lock' : 'unlock');
-  updateIcon(settingsButton, 'settings');
-  updateIcon(closeButton, 'close');
-  requestAnimationFrame(updateScrollDistance);
-};
-
-document.querySelectorAll('[data-command]').forEach((button) => {
-  button.addEventListener('click', () => request(button.dataset.command));
-});
-
-new ResizeObserver(updateScrollDistance).observe(lyricBox);
-window.smplayerDesktopLyricsUpdate({});
-</script>
-</body>
-</html>
-"""
-}
-
-private final class DesktopLyricsWebView: WKWebView {
-  weak var desktopLyricsView: DesktopLyricsNativeView?
 
   override func mouseDown(with event: NSEvent) {
-    if desktopLyricsView?.shouldWebViewHandleMouseDown(event) == true {
-      super.mouseDown(with: event)
+    let point = convert(event.locationInWindow, from: nil)
+    if isHovered {
+      for button in desktopLyricsButtons() where button.rect.contains(point) {
+        onCommand?(button.command)
+        return
+      }
+    }
+    if (state["locked"] as? Bool) != true {
+      window?.performDrag(with: event)
+    }
+  }
+
+  private func configureView() {
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+  }
+
+  private func drawCard() {
+    let cardRect = bounds.insetBy(dx: 8, dy: 8)
+    let path = NSBezierPath(roundedRect: cardRect, xRadius: 8, yRadius: 8)
+    NSColor(calibratedRed: 0.06, green: 0.09, blue: 0.12, alpha: 0.80).setFill()
+    path.fill()
+    NSColor.white.withAlphaComponent(0.18).setStroke()
+    path.lineWidth = 1
+    path.stroke()
+  }
+
+  private func drawLyricsText() {
+    let text = lyricsText()
+    if text.isEmpty {
       return
     }
-    desktopLyricsView?.handleWebViewBackgroundMouseDown(event)
+    let opacity = CGFloat(numberValue("opacity", defaultValue: 88)) / 100.0
+    let fontSize = CGFloat(numberValue("fontSize", defaultValue: 28))
+    let font = lyricsFont(size: fontSize)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineBreakMode = .byTruncatingTail
+    let textColor = desktopLyricsColor("textColor", defaultHex: "#4aa8ff", opacity: opacity)
+    let strokeColor = desktopLyricsColor("strokeColor", defaultHex: "#111111", opacity: opacity)
+    let rect = NSRect(
+      x: bounds.minX + 18,
+      y: bounds.midY - fontSize * 0.68,
+      width: max(0, bounds.width - 36),
+      height: fontSize * 1.36)
+    if strokeColor.alphaComponent > 0 {
+      drawString(
+        text,
+        in: rect,
+        attributes: [
+          .font: font,
+          .paragraphStyle: paragraph,
+          .foregroundColor: strokeColor,
+          .strokeColor: strokeColor,
+          .strokeWidth: 8,
+        ])
+    }
+    drawString(
+      text,
+      in: rect,
+      attributes: [
+        .font: font,
+        .paragraphStyle: paragraph,
+        .foregroundColor: textColor,
+      ])
+  }
+
+  private func drawToolbar() {
+    let buttons = desktopLyricsButtons()
+    for button in buttons {
+      if button.command.isEmpty {
+        continue
+      }
+      let path = NSBezierPath(roundedRect: button.rect, xRadius: 5, yRadius: 5)
+      if (state["nightMode"] as? Bool) == false {
+        NSColor.white.withAlphaComponent(0.38).setFill()
+        NSColor(calibratedWhite: 0, alpha: 0.08).setStroke()
+      } else {
+        NSColor(calibratedRed: 0.02, green: 0.04, blue: 0.06, alpha: 0.22).setFill()
+        NSColor.clear.setStroke()
+      }
+      path.fill()
+      path.lineWidth = 1
+      path.stroke()
+      drawButtonContent(button)
+    }
+  }
+
+  private func drawButtonContent(_ button: DesktopLyricsButton) {
+    let color =
+      (state["nightMode"] as? Bool) == false
+      ? NSColor(calibratedWhite: 0.12, alpha: 0.76)
+      : NSColor.white.withAlphaComponent(0.94)
+    if let symbolName = button.symbolName,
+       let image = systemSymbol(named: symbolName, color: color) {
+      let side: CGFloat = 16
+      let imageRect = NSRect(
+        x: button.rect.midX - side / 2,
+        y: button.rect.midY - side / 2,
+        width: side,
+        height: side)
+      image.draw(in: imageRect)
+      return
+    }
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineBreakMode = .byClipping
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+      .paragraphStyle: paragraph,
+      .foregroundColor: color,
+    ]
+    drawString(button.label, in: button.rect.insetBy(dx: 2, dy: 5), attributes: attributes)
+  }
+
+  private func desktopLyricsButtons() -> [DesktopLyricsButton] {
+    let locked = (state["locked"] as? Bool) == true
+    let playing = (state["playing"] as? Bool) == true
+    let offsetSeconds = numberValue("offsetMs", defaultValue: 0) / 1000.0
+    let offsetLabel =
+      offsetSeconds > 0
+      ? String(format: "+%.1fs", offsetSeconds)
+      : String(format: "%.1fs", offsetSeconds)
+    var specs = [
+      DesktopLyricsButton(command: "previous", label: "", symbolName: "backward.end.fill", width: 26, rect: .zero),
+      DesktopLyricsButton(
+        command: "play-pause",
+        label: "",
+        symbolName: playing ? "pause.fill" : "play.fill",
+        width: 26,
+        rect: .zero),
+      DesktopLyricsButton(command: "next", label: "", symbolName: "forward.end.fill", width: 26, rect: .zero),
+      DesktopLyricsButton(command: "", label: "", symbolName: nil, width: 9, rect: .zero),
+      DesktopLyricsButton(command: "offset:-100", label: "-0.1s", symbolName: nil, width: 42, rect: .zero),
+      DesktopLyricsButton(command: "offset:100", label: "+0.1s", symbolName: nil, width: 42, rect: .zero),
+      DesktopLyricsButton(command: "reset-offset", label: offsetLabel, symbolName: nil, width: 56, rect: .zero),
+      DesktopLyricsButton(command: "", label: "", symbolName: nil, width: 9, rect: .zero),
+      DesktopLyricsButton(
+        command: "toggle-lock",
+        label: "",
+        symbolName: locked ? "lock.fill" : "lock.open.fill",
+        width: 26,
+        rect: .zero),
+      DesktopLyricsButton(command: "open-settings", label: "", symbolName: "gearshape.fill", width: 26, rect: .zero),
+    ]
+    if !locked {
+      specs.append(DesktopLyricsButton(command: "disable", label: "", symbolName: "xmark", width: 26, rect: .zero))
+    }
+    let gap: CGFloat = 3
+    let totalWidth = specs.reduce(CGFloat(0)) { $0 + $1.width } + gap * CGFloat(specs.count - 1)
+    var x = bounds.midX - totalWidth / 2
+    let y = bounds.maxY - 8 - 12 - 26
+    for index in specs.indices {
+      specs[index].rect = NSRect(x: x, y: y, width: specs[index].width, height: 26)
+      x += specs[index].width + gap
+    }
+    return specs
+  }
+
+  private func lyricsText() -> String {
+    if (state["loading"] as? Bool) == true {
+      return "..."
+    }
+    if let lyricText = state["lyricText"] as? String, !lyricText.isEmpty {
+      return lyricText
+    }
+    return (state["fallbackText"] as? String) ?? ""
+  }
+
+  private func lyricsFont(size: CGFloat) -> NSFont {
+    if let family = state["fontFamily"] as? String,
+       !family.isEmpty,
+       family != "system",
+       let font = NSFontManager.shared.font(
+        withFamily: family,
+        traits: [],
+        weight: 8,
+        size: size) {
+      return font
+    }
+    return NSFont.systemFont(ofSize: size, weight: .semibold)
+  }
+
+  private func desktopLyricsColor(
+    _ key: String,
+    defaultHex: String,
+    opacity: CGFloat
+  ) -> NSColor {
+    if key == "strokeColor",
+       let rawValue = state[key] as? String,
+       rawValue.isEmpty {
+      return .clear
+    }
+    let rawValue = (state[key] as? String) ?? defaultHex
+    return NSColor(hex: rawValue).withAlphaComponent(opacity)
+  }
+
+  private func drawString(
+    _ text: String,
+    in rect: NSRect,
+    attributes: [NSAttributedString.Key: Any]
+  ) {
+    NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+  }
+
+  private func numberValue(_ key: String, defaultValue: Double) -> Double {
+    if let number = state[key] as? NSNumber {
+      return number.doubleValue
+    }
+    return defaultValue
+  }
+
+  private func systemSymbol(named name: String, color: NSColor) -> NSImage? {
+    if #available(macOS 11.0, *) {
+      let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+      return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+        .withSymbolConfiguration(configuration)?
+        .tint(color: color)
+    }
+    return nil
+  }
+}
+
+private struct DesktopLyricsButton {
+  let command: String
+  let label: String
+  let symbolName: String?
+  let width: CGFloat
+  var rect: NSRect
+}
+
+private extension NSImage {
+  func tint(color: NSColor) -> NSImage {
+    let image = copy() as! NSImage
+    image.lockFocus()
+    color.set()
+    NSRect(origin: .zero, size: image.size).fill(using: .sourceAtop)
+    image.unlockFocus()
+    return image
   }
 }
 

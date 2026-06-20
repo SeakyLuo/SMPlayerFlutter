@@ -97,6 +97,13 @@ void main() {
       findsOneWidget,
     );
     expect(tester.getSize(appBarCreate), const Size.square(40));
+    final gridView = tester.widget<GridView>(
+      find.byKey(const ValueKey('Playlists.GridView')),
+    );
+    final scrollbar = find.byType(Scrollbar);
+    expect(scrollbar, findsOneWidget);
+    expect(tester.getRect(scrollbar).right, 1200);
+    expect(gridView.padding, const EdgeInsets.fromLTRB(38, 20, 14, 116));
   });
 
   testWidgets('PlaylistsPage playlist grid mirrors AlbumsPage card geometry', (
@@ -116,7 +123,14 @@ void main() {
         find.byKey(const ValueKey('Playlists.PlaylistCard')).first;
     final firstArtwork =
         find.byKey(const ValueKey('Playlists.ArtworkSurface')).first;
+    final gridView = tester.widget<GridView>(
+      find.byKey(const ValueKey('Playlists.GridView')),
+    );
+    final scrollbar = find.byType(Scrollbar);
 
+    expect(scrollbar, findsOneWidget);
+    expect(tester.getRect(scrollbar).right, 1200);
+    expect(gridView.padding, const EdgeInsets.fromLTRB(38, 8, 14, 116));
     expect(tester.getSize(firstCard).width, 180);
     expect(tester.getSize(firstArtwork), const Size.square(160));
     final artworkShadow =

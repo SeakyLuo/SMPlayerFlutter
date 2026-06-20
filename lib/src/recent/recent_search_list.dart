@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
@@ -364,80 +365,36 @@ class _RecentSearchTypeIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconData = switch (type) {
-      SearchHistoryType.sidebar => FluentIcons.search_20_regular,
-      SearchHistoryType.artists => FluentIcons.people_20_regular,
-      SearchHistoryType.songs => FluentIcons.music_note_2_20_regular,
-      SearchHistoryType.folders => FluentIcons.folder_20_regular,
-      SearchHistoryType.albums || SearchHistoryType.playlists => null,
-    };
-
-    if (iconData != null) {
-      return Icon(iconData, size: 18, color: color);
-    }
-
-    return SizedBox.square(
-      dimension: 18,
-      child: CustomPaint(
-        painter: _RecentSearchVectorIconPainter(type: type, color: color),
+    return switch (type) {
+      SearchHistoryType.sidebar => Icon(
+        FluentIcons.search_24_regular,
+        size: 18,
+        color: color,
       ),
-    );
-  }
-}
-
-class _RecentSearchVectorIconPainter extends CustomPainter {
-  const _RecentSearchVectorIconPainter({
-    required this.type,
-    required this.color,
-  });
-
-  final SearchHistoryType type;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    canvas.save();
-    canvas.scale(scale);
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.35
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-
-    switch (type) {
-      case SearchHistoryType.albums:
-        canvas
-          ..drawCircle(const Offset(12, 12), 8, paint)
-          ..drawCircle(const Offset(12, 12), 3, paint);
-        canvas.drawCircle(
-          const Offset(12, 12),
-          0.7,
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.fill,
-        );
-      case SearchHistoryType.playlists:
-        canvas
-          ..drawLine(const Offset(4, 6.5), const Offset(14, 6.5), paint)
-          ..drawLine(const Offset(4, 11.5), const Offset(13, 11.5), paint)
-          ..drawLine(const Offset(4, 16.5), const Offset(10, 16.5), paint)
-          ..drawLine(const Offset(18, 8.5), const Offset(18, 16.5), paint)
-          ..drawCircle(const Offset(16, 17), 2, paint);
-      case SearchHistoryType.sidebar:
-      case SearchHistoryType.artists:
-      case SearchHistoryType.songs:
-      case SearchHistoryType.folders:
-        break;
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_RecentSearchVectorIconPainter oldDelegate) {
-    return oldDelegate.type != type || oldDelegate.color != color;
+      SearchHistoryType.artists => Icon(
+        FluentIcons.people_24_regular,
+        size: 18,
+        color: color,
+      ),
+      SearchHistoryType.songs => Icon(
+        FluentIcons.music_note_2_24_regular,
+        size: 18,
+        color: color,
+      ),
+      SearchHistoryType.folders => Icon(
+        FluentIcons.folder_24_regular,
+        size: 18,
+        color: color,
+      ),
+      SearchHistoryType.albums => Transform.translate(
+        offset: const Offset(0, -1),
+        child: SmPlayerAlbumIcon(size: 18, color: color),
+      ),
+      SearchHistoryType.playlists => SmPlayerPlaylistIcon(
+        size: 18,
+        color: color,
+      ),
+    };
   }
 }
 

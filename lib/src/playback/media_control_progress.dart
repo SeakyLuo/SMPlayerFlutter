@@ -10,9 +10,6 @@ const mediaProgressLoadingTravelWidthFactor =
 @visibleForTesting
 const mediaSliderDisabledInputOpacity = 0.65;
 
-@visibleForTesting
-const mediaSliderDisabledThumbOpacity = 0.8;
-
 class _MediaProgressSlider extends StatelessWidget {
   const _MediaProgressSlider({
     required this.value,
@@ -54,12 +51,7 @@ class _MediaProgressSlider extends StatelessWidget {
     final disabledInactiveTrackColor = inactiveTrackColor.withValues(
       alpha: inactiveTrackColor.a * mediaSliderDisabledInputOpacity,
     );
-    final disabledThumbColor = thumbColor.withValues(
-      alpha:
-          thumbColor.a *
-          mediaSliderDisabledInputOpacity *
-          mediaSliderDisabledThumbOpacity,
-    );
+    final disabledThumbColor = thumbColor;
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: _mediaSliderTrackHeight,

@@ -79,7 +79,6 @@ class SettingsController extends ChangeNotifier {
     );
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     final snapshot = _snapshot;
-    notifyListeners();
     _viewStateWriteQueue = _viewStateWriteQueue
         .catchError((_) {})
         .then(

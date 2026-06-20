@@ -60,7 +60,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
     final color =
         widget.disabled
             ? widget.primary
-                ? Colors.white
+                ? colors.disabledPrimaryIconColor
                 : colors.buttonForeground
             : widget.favorite
             ? MediaControlColors.favorite
@@ -102,6 +102,11 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                 ? [colors.primaryButtonShadow]
                 : [colors.primaryButtonShadow]
             : null;
+    final opacity = widget.disabled && !widget.primary ? 0.65 : 1.0;
+    final iconHidden =
+        widget.disabled && widget.primary
+            ? colors.disabledPrimaryIconHidden
+            : false;
 
     return HoldReleaseAction(
       tooltip: widget.tooltip,
@@ -133,7 +138,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
             curve: Curves.ease,
             offset: hovered ? Offset(0, -1 / size) : Offset.zero,
             child: Opacity(
-              opacity: widget.disabled ? 0.65 : 1,
+              opacity: opacity,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
                 curve: Curves.ease,
@@ -171,7 +176,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
                             icon: widget.icon,
                             color: color,
                             size: iconSize,
-                            hidden: false,
+                            hidden: iconHidden,
                           ),
                         ),
                   ],
@@ -229,7 +234,11 @@ class _PlayerButtonIcon extends StatelessWidget {
       );
     }
     if (icon == _listPlaybackIcon) {
-      return SmPlayerPlaylistIcon(size: size, color: resolvedColor);
+      return SmPlayerPlaylistIcon(
+        size: size,
+        color: resolvedColor,
+        strokeWidth: 1.25,
+      );
     }
     if (icon == _shuffleIcon) {
       return ShuffleIcon(size: size * 0.75, color: resolvedColor);

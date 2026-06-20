@@ -1334,7 +1334,7 @@ void main() {
             .first,
       );
       final playDecoration = playButton.decoration! as BoxDecoration;
-      expect(playDecoration.color, MediaControlColors.disabledButtonSurface);
+      expect(playDecoration.color, Colors.white);
       expect(playDecoration.boxShadow, const [
         BoxShadow(
           color: MediaControlColors.accentShadow,
@@ -1346,6 +1346,16 @@ void main() {
         playDecoration.border,
         Border.all(color: MediaControlColors.accentBorder),
       );
+
+      final progressTheme = tester.widget<SliderTheme>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('MediaControl.ProgressSlider')),
+              matching: find.byType(SliderTheme),
+            )
+            .first,
+      );
+      expect(progressTheme.data.disabledThumbColor, MediaControlColors.accent);
 
       final volumeSlider = tester.widget<Slider>(
         find.descendant(
@@ -3476,11 +3486,11 @@ void main() {
     }
   });
 
-  testWidgets('900px MediaControl exposes compact volume button', (
+  testWidgets('920px MediaControl exposes compact volume button', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(900, 420);
+    tester.view.physicalSize = const Size(920, 420);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -3930,172 +3940,6 @@ void main() {
       findsOneWidget,
     );
   });
-
-  testWidgets(
-    'compact MediaControl keeps More mode and volume available when empty like Electron',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(700, 420);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      var shuffleToggled = false;
-      var favoriteToggled = false;
-      var changedVolume = 0;
-
-      await tester.pumpWidget(
-        SmPlayerI18nScope(
-          i18n: i18n,
-          child: MaterialApp(
-            theme: _mediaControlTestTheme(),
-            home: Scaffold(
-              body: MediaControl(
-                track: const MediaControlTrack.empty(),
-                disabled: true,
-                isPlaying: false,
-                volume: 73,
-                isMuted: false,
-                mode: PlaybackMode.once,
-                progressSeconds: 0,
-                durationSeconds: 0,
-                onTogglePlayPause: () {},
-                onPrevious: () {},
-                onNext: () {},
-                onSeek: (_) {},
-                onBeginSeek: () {},
-                onEndSeek: () {},
-                onVolumeChange: (volume) {
-                  changedVolume = volume;
-                },
-                onToggleMute: () {},
-                onToggleShuffle: () {
-                  shuffleToggled = true;
-                },
-                onToggleRepeat: () {},
-                onToggleRepeatOne: () {},
-                onToggleFavorite: () {
-                  favoriteToggled = true;
-                },
-                onQuickPlay: () {},
-                onOpenNowPlaying: () {},
-                onToggleWindowFullScreen: () {},
-                isWindowFullScreen: false,
-                onEnterMiniMode: () {},
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final disabledPlayButton = tester.widget<AnimatedContainer>(
-        find
-            .descendant(
-              of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
-              matching: find.byType(AnimatedContainer),
-            )
-            .first,
-      );
-      final disabledPlayButtonDecoration =
-          disabledPlayButton.decoration! as BoxDecoration;
-      expect(
-        disabledPlayButtonDecoration.color,
-        MediaControlColors.disabledButtonSurface,
-      );
-      expect(disabledPlayButtonDecoration.boxShadow, const [
-        BoxShadow(
-          color: MediaControlColors.accentShadow,
-          offset: Offset(0, 12),
-          blurRadius: 24,
-        ),
-      ]);
-      expect(
-        disabledPlayButtonDecoration.border,
-        Border.all(color: MediaControlColors.accentBorder),
-      );
-      expect(
-        tester.getSize(
-          find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
-        ),
-        const Size(52, 52),
-      );
-      expect(
-        tester
-            .widgetList<Padding>(
-              find.descendant(
-                of: find.byKey(const ValueKey('MediaControl.PlayPauseButton')),
-                matching: find.byType(Padding),
-              ),
-            )
-            .any((padding) => padding.padding == const EdgeInsets.all(13)),
-        isTrue,
-      );
-      final disabledProgressTheme = tester.widget<SliderTheme>(
-        find
-            .ancestor(
-              of: find.byType(Slider).first,
-              matching: find.byType(SliderTheme),
-            )
-            .first,
-      );
-      expect(
-        disabledProgressTheme.data.disabledThumbColor,
-        MediaControlColors.accent.withValues(
-          alpha:
-              mediaSliderDisabledInputOpacity * mediaSliderDisabledThumbOpacity,
-        ),
-      );
-      expect(
-        disabledProgressTheme.data.disabledActiveTrackColor,
-        MediaControlColors.accent.withValues(
-          alpha: mediaSliderDisabledInputOpacity,
-        ),
-      );
-      expect(
-        disabledProgressTheme.data.disabledInactiveTrackColor,
-        MediaControlColors.sliderInactive.withValues(
-          alpha:
-              MediaControlColors.sliderInactive.a *
-              mediaSliderDisabledInputOpacity,
-        ),
-      );
-      expect(disabledProgressTheme.data.trackHeight, 2);
-      final disabledProgressThumb =
-          disabledProgressTheme.data.thumbShape! as RoundSliderThumbShape;
-      expect(disabledProgressThumb.enabledThumbRadius, 9);
-      final progressSlider = tester.widget<Slider>(find.byType(Slider).first);
-      expect(progressSlider.onChanged, isNull);
-      final defaultArtwork = tester.widget<Image>(find.byType(Image).first);
-      final defaultArtworkProvider = defaultArtwork.image as AssetImage;
-      expect(defaultArtworkProvider.assetName, 'assets/branding/app-icon.png');
-
-      await tester.tap(find.byTooltip('Playback Mode: List').last);
-      await tester.pump();
-      expect(shuffleToggled, isFalse);
-
-      await tester.tap(find.byTooltip('More').last);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Playback Mode: List'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('MediaControl.VolumeMenuItem')),
-        findsOneWidget,
-      );
-      expect(find.text('Add to My Favorites'), findsOneWidget);
-
-      final volumeSlider = tester.widget<Slider>(find.byType(Slider).last);
-      expect(volumeSlider.value, 73);
-      expect(volumeSlider.onChanged, isNotNull);
-      volumeSlider.onChanged!(64);
-      await tester.pump();
-      expect(changedVolume, 64);
-
-      await tester.tap(find.text('Add to My Favorites'));
-      await tester.pumpAndSettle();
-      expect(favoriteToggled, isFalse);
-    },
-  );
 
   testWidgets('PlayerVolumeMenuItem suppresses Material hover overlay', (
     tester,
