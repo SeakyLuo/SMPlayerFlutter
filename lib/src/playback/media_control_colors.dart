@@ -54,7 +54,7 @@ class MediaControlColors {
   static const nightSliderInactive = Color(0x2ecbd5e1);
   static const buttonSurface = Color(0xb8ffffff);
   static const disabledButtonSurface = Color(0x14ffffff);
-  static const disabledPrimaryButtonSurface = Color(0xccffffff);
+  static const disabledPrimaryButtonSurface = Color(0xffffffff);
   static const disabledPrimaryButtonBorder = Color(0x4dd6eaff);
   static const disabledPrimaryButtonShadow = Color(0x120078d7);
   static const nightDisabledPrimaryButtonSurface = Color(0x14ffffff);
@@ -222,7 +222,8 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
       blurRadius: 18,
     ),
     sliderInactive: MediaControlColors.sliderInactive,
-    disabledPrimaryButtonSurface: MediaControlColors.disabledButtonSurface,
+    disabledPrimaryButtonSurface:
+        MediaControlColors.disabledPrimaryButtonSurface,
     disabledPrimaryButtonBorder: MediaControlColors.disabledPrimaryButtonBorder,
     disabledPrimaryIconColor: Colors.transparent,
     disabledPrimaryIconHidden: true,
@@ -295,10 +296,10 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     ),
     sliderInactive: MediaControlColors.nightSliderInactive,
     disabledPrimaryButtonSurface:
-        MediaControlColors.nightDisabledPrimaryButtonSurface,
+        MediaControlColors.disabledPrimaryButtonSurface,
     disabledPrimaryButtonBorder: MediaControlColors.accentBorder,
-    disabledPrimaryIconColor: Colors.white,
-    disabledPrimaryIconHidden: false,
+    disabledPrimaryIconColor: Colors.transparent,
+    disabledPrimaryIconHidden: true,
     disabledPrimaryButtonShadow: MediaControlColors.accentShadow,
     disabledPrimaryButtonShadowOffset: Offset(0, 12),
     disabledPrimaryButtonShadowBlur: 24,

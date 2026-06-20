@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 void main() {
   test('playback mode cycle follows Electron MediaControl order', () {
@@ -212,6 +213,102 @@ void main() {
     expect(controller.state.isPlaying, isFalse);
     expect(controller.state.playbackStatus, PlaybackStatus.loading);
   });
+
+  test(
+    'syncMediaControlForQueueChange clears player when queue is emptied',
+    () {
+      final controller = MediaControlController();
+      controller.applyPlaybackRuntimeSettings(
+        const PlaybackRuntimeSettings(
+          volume: 76,
+          isMuted: true,
+          mode: PlaybackMode.repeat,
+        ),
+      );
+      controller.playTrack(
+        const MediaControlTrack(
+          id: 60,
+          title: 'Song',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+        ),
+        durationSeconds: 180,
+        queueIndex: 0,
+      );
+
+      syncMediaControlForQueueChange(
+        mediaController: controller,
+        currentSongIds: const [60],
+        nextSongIds: const [],
+      );
+
+      expect(controller.state.track.id, isNull);
+      expect(controller.state.disabled, isTrue);
+      expect(controller.state.isPlaying, isFalse);
+      expect(controller.state.progressSeconds, 0);
+      expect(controller.state.durationSeconds, 0);
+      expect(controller.state.selectedQueueIndex, isNull);
+      expect(controller.state.volume, 76);
+      expect(controller.state.isMuted, isTrue);
+      expect(controller.state.mode, PlaybackMode.repeat);
+    },
+  );
+
+  test(
+    'syncMediaControlForQueueChange clears stale player when queue is already empty',
+    () {
+      final controller = MediaControlController();
+      controller.playTrack(
+        const MediaControlTrack(
+          id: 60,
+          title: 'Song',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+        ),
+        durationSeconds: 180,
+      );
+
+      syncMediaControlForQueueChange(
+        mediaController: controller,
+        currentSongIds: const [],
+        nextSongIds: const [],
+      );
+
+      expect(controller.state.track.id, isNull);
+      expect(controller.state.disabled, isTrue);
+      expect(controller.state.selectedQueueIndex, isNull);
+    },
+  );
+
+  test(
+    'syncMediaControlForQueueChange tracks duplicate songs by occurrence',
+    () {
+      final controller = MediaControlController();
+      controller.playTrack(
+        const MediaControlTrack(
+          id: 7,
+          title: 'Duplicate',
+          artist: 'Artist',
+          artworkUrl: '',
+          isLoading: false,
+        ),
+        durationSeconds: 180,
+        queueIndex: 2,
+      );
+
+      syncMediaControlForQueueChange(
+        mediaController: controller,
+        currentSongIds: const [7, 9, 7],
+        nextSongIds: const [7, 9],
+      );
+
+      expect(controller.state.track.id, isNull);
+      expect(controller.state.selectedQueueIndex, isNull);
+      expect(controller.state.disabled, isTrue);
+    },
+  );
 
   test(
     'MediaControlController final ready commit clears restored track loading',

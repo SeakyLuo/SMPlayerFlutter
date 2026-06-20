@@ -417,7 +417,6 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       _playbackTrackRestored = true;
       return;
     }
-    _playbackTrackRestored = true;
     final songIds = _playbackSongIds(snapshot);
     if (snapshot.songs.isEmpty || songIds.isEmpty) {
       return;
@@ -430,6 +429,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     if (restoredSong == null) {
       return;
     }
+    _playbackTrackRestored = true;
     final progressSeconds =
         settings.saveMusicProgress ? settings.musicProgress : 0.0;
     _mediaControlController.playTrack(

@@ -24,6 +24,45 @@ Future<void> setNowPlayingQueue(WidgetRef ref, List<int> songIds) {
   return ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
 }
 
+void syncMediaControlForQueueChange({
+  required MediaControlController mediaController,
+  required List<int> currentSongIds,
+  required List<int> nextSongIds,
+}) {
+  final mediaState = mediaController.state;
+  final trackId = mediaState.track.id;
+  if (trackId == null) {
+    return;
+  }
+
+  final currentIndex =
+      mediaState.selectedQueueIndex ??
+      currentSongIds.indexWhere((songId) => songId == trackId);
+  if (currentIndex < 0 || currentIndex >= currentSongIds.length) {
+    final nextIndex = nextSongIds.indexWhere((songId) => songId == trackId);
+    if (nextIndex > -1) {
+      mediaController.setSelectedQueueIndex(nextIndex);
+    } else {
+      mediaController.clearTrack();
+    }
+    return;
+  }
+
+  final nextIndex = matchingQueueIndexByOccurrence(
+    trackId,
+    currentSongIds,
+    currentIndex,
+    nextSongIds,
+  );
+  if (nextIndex == null) {
+    mediaController.clearTrack();
+    return;
+  }
+  if (mediaState.selectedQueueIndex != nextIndex) {
+    mediaController.setSelectedQueueIndex(nextIndex);
+  }
+}
+
 Future<void> replaceNowPlayingQueueAndPlayIndex({
   required WidgetRef ref,
   required LibraryContentData snapshot,
@@ -103,6 +142,34 @@ int currentQueueIndexForPlaybackOccurrence(
     mediaState.track.id,
     mediaState.selectedQueueIndex ?? -1,
   );
+}
+
+int? matchingQueueIndexByOccurrence(
+  int trackId,
+  List<int> currentSongIds,
+  int currentIndex,
+  List<int> nextSongIds,
+) {
+  var occurrence = 0;
+  for (var index = 0; index <= currentIndex; index += 1) {
+    if (currentSongIds[index] == trackId) {
+      occurrence += 1;
+    }
+  }
+  if (occurrence == 0) {
+    return null;
+  }
+  var nextOccurrence = 0;
+  for (var index = 0; index < nextSongIds.length; index += 1) {
+    if (nextSongIds[index] != trackId) {
+      continue;
+    }
+    nextOccurrence += 1;
+    if (nextOccurrence == occurrence) {
+      return index;
+    }
+  }
+  return null;
 }
 
 int insertIndexAfterCurrentOccurrence(

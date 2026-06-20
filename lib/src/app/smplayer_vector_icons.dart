@@ -60,10 +60,16 @@ class SmPlayerAlbumIcon extends StatelessWidget {
 }
 
 class SmPlayerPlaylistIcon extends StatelessWidget {
-  const SmPlayerPlaylistIcon({super.key, this.size = 21, this.color});
+  const SmPlayerPlaylistIcon({
+    super.key,
+    this.size = 21,
+    this.color,
+    this.strokeWidth = 1.65,
+  });
 
   final double size;
   final Color? color;
+  final double strokeWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +79,9 @@ class SmPlayerPlaylistIcon extends StatelessWidget {
         DefaultTextStyle.of(context).style.color!;
     return SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _SmPlayerPlaylistIconPainter(resolvedColor)),
+      child: CustomPaint(
+        painter: _SmPlayerPlaylistIconPainter(resolvedColor, strokeWidth),
+      ),
     );
   }
 }
@@ -323,9 +331,10 @@ class _SmPlayerAlbumIconPainter extends CustomPainter {
 }
 
 class _SmPlayerPlaylistIconPainter extends CustomPainter {
-  const _SmPlayerPlaylistIconPainter(this.color);
+  const _SmPlayerPlaylistIconPainter(this.color, this.strokeWidth);
 
   final Color color;
+  final double strokeWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -334,7 +343,7 @@ class _SmPlayerPlaylistIconPainter extends CustomPainter {
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.65 * scale
+          ..strokeWidth = strokeWidth * scale
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
 
@@ -376,7 +385,7 @@ class _SmPlayerPlaylistIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SmPlayerPlaylistIconPainter oldDelegate) {
-    return oldDelegate.color != color;
+    return oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
   }
 }
 
