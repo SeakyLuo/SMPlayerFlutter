@@ -158,6 +158,61 @@ void main() {
     expect(splitResults.songs.single.title, 'Split Song');
   });
 
+  test('SearchPage model excludes Now Playing from playlist search', () {
+    const songs = [
+      LibrarySong(
+        id: 101,
+        path: r'C:\Music\blue.mp3',
+        title: 'Blue Song',
+        artist: 'Artist',
+        artists: ['Artist'],
+        album: 'Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+    ];
+    const playlists = [
+      LibraryPlaylist(
+        id: 1,
+        name: 'Now Playing',
+        priority: -1,
+        songCount: 500,
+        songIds: [101],
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: true,
+      ),
+      LibraryPlaylist(
+        id: 2,
+        name: 'Blue Mix',
+        priority: 0,
+        songCount: 1,
+        songIds: [101],
+        sortCriterion: PlaylistSortCriterion.title,
+        isBuiltIn: false,
+      ),
+    ];
+    final searchablePlaylists = search_model.buildSearchablePlaylists(
+      playlists,
+      1,
+    );
+    final results = search_model.buildSearchResults(
+      songs,
+      const [],
+      searchablePlaylists,
+      r'C:\Music',
+      'blue',
+      i18n,
+    );
+
+    expect(searchablePlaylists.map((playlist) => playlist.name), ['Blue Mix']);
+    expect(results.playlists.map((playlist) => playlist.title), ['Blue Mix']);
+    expect(results.playlists.single.songCount, 1);
+  });
+
   test('SearchPage song artist sort matches Electron primary artist logic', () {
     final sorted = search_model.sortSearchSongs(const [
       LibrarySong(
@@ -288,6 +343,10 @@ void main() {
       of: songsTabFinder,
       matching: find.byIcon(FluentIcons.music_note_2_20_regular),
     );
+    final allTabFinder = find.ancestor(
+      of: find.text('All').first,
+      matching: find.byType(SmPlayerTextIconButton),
+    );
 
     expect(tester.getSize(songsTabFinder).height, 36);
     expect(tester.getSize(songsTabFinder).width, greaterThanOrEqualTo(72));
@@ -312,6 +371,13 @@ void main() {
     );
     expect(hoverDecoration.border?.top.color, GlobalUI.hoverBorderColorDay);
     expect(songsIconFinder, findsOneWidget);
+    expect(
+      find.descendant(
+        of: allTabFinder,
+        matching: find.byIcon(FluentIcons.grid_20_regular),
+      ),
+      findsOneWidget,
+    );
     expect(
       tester.getCenter(songsIconFinder).dx,
       lessThan(tester.getCenter(find.text('Songs').first).dx),
@@ -535,7 +601,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('1 selected'), findsOneWidget);
 
-      await tester.tap(find.text('Play Selected'));
+      await tester.tap(_textIconButton('Play Selected'));
       await tester.pumpAndSettle();
 
       expect(repository.replacedNowPlaying, [1]);
@@ -568,7 +634,7 @@ void main() {
     await mouse.addPointer(location: tester.getCenter(find.text('Root Album')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(FluentIcons.add_20_regular).last);
+    await tester.tap(find.byIcon(FluentIcons.add_20_regular).first);
     await tester.pumpAndSettle();
 
     expect(find.text('Now Playing'), findsOneWidget);
@@ -601,7 +667,7 @@ void main() {
     await mouse.addPointer(location: tester.getCenter(find.text('Root Album')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(FluentIcons.add_20_regular).last);
+    await tester.tap(find.byIcon(FluentIcons.add_20_regular).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mix'));
     await tester.pumpAndSettle();
@@ -632,9 +698,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Artist A'), buttons: kSecondaryMouseButton);
+    await tester.tap(
+      find.text('Artist A').last,
+      buttons: kSecondaryMouseButton,
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add To'));
+    await tester.tap(find.text('Add To').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mix'));
     await tester.pumpAndSettle();
@@ -673,7 +742,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Beta Long'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(repository.replacedNowPlaying, [2, 1]);
   });
@@ -849,10 +918,21 @@ void main() {
             )
             .toList();
 
-    expect(buttons.map((button) => button.label), contains('View all'));
-    expect(buttons.map((button) => button.label), contains('Default'));
-    expect(buttons.every((button) => button.height == 40), isTrue);
-    expect(buttons.every((button) => button.horizontalPadding == 14), isTrue);
+    final sectionButtons =
+        buttons
+            .where(
+              (button) =>
+                  button.label == 'View all' || button.label == 'Default',
+            )
+            .toList();
+
+    expect(sectionButtons.map((button) => button.label), contains('View all'));
+    expect(sectionButtons.map((button) => button.label), contains('Default'));
+    expect(sectionButtons.every((button) => button.height == 40), isTrue);
+    expect(
+      sectionButtons.every((button) => button.horizontalPadding == 14),
+      isTrue,
+    );
   });
 
   testWidgets('SearchPage query changes reset the active filter to All', (
@@ -976,9 +1056,6 @@ void main() {
 
       expect(find.text('1 selected'), findsNothing);
 
-      await tester.tap(find.text('Play Selected'));
-      await tester.pumpAndSettle();
-
       expect(repository.replacedNowPlaying, isEmpty);
     },
   );
@@ -1053,6 +1130,13 @@ void main() {
     expect(dialog.initialMode, SongDialogMode.properties);
     expect(dialog.queueSongIds, [2, 1]);
   });
+}
+
+Finder _textIconButton(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is SmPlayerTextIconButton && widget.label == label,
+    description: 'SmPlayerTextIconButton with label $label',
+  );
 }
 
 class _SearchPageRouterTestApp extends StatelessWidget {

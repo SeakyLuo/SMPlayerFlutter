@@ -9,6 +9,7 @@
 #include <shobjidl.h>
 #include <systemmediatransportcontrolsinterop.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cwchar>
 #include <string>
@@ -843,16 +844,27 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   }
   desktop_lyrics_text_color_ =
       ColorFromHex(EncodableString(state, "textColor"), RGB(74, 168, 255));
+  const std::wstring stroke_color = EncodableString(state, "strokeColor");
+  desktop_lyrics_stroke_enabled_ = !stroke_color.empty();
   desktop_lyrics_stroke_color_ =
-      ColorFromHex(EncodableString(state, "strokeColor"), RGB(17, 17, 17));
+      desktop_lyrics_stroke_enabled_
+          ? ColorFromHex(stroke_color, RGB(17, 17, 17))
+          : RGB(0, 0, 0);
   desktop_lyrics_font_size_ = EncodableInt(state, "fontSize", 28);
   desktop_lyrics_opacity_ = EncodableInt(state, "opacity", 88);
   desktop_lyrics_locked_ = EncodableBool(state, "locked");
   desktop_lyrics_night_mode_ = EncodableBool(state, "nightMode");
   desktop_lyrics_playing_ = EncodableBool(state, "playing");
   wchar_t offset_buffer[32];
-  swprintf_s(offset_buffer, L"%+.1fs",
-             EncodableInt(state, "offsetMs", 0) / 1000.0);
+  const int offset_ms = EncodableInt(state, "offsetMs", 0);
+  const double offset_seconds = std::round(offset_ms / 100.0) / 10.0;
+  if (offset_seconds > 0) {
+    swprintf_s(offset_buffer, L"+%.1fs", offset_seconds);
+  } else if (offset_seconds < 0) {
+    swprintf_s(offset_buffer, L"%.1fs", offset_seconds);
+  } else {
+    swprintf_s(offset_buffer, L"0s");
+  }
   desktop_lyrics_offset_label_ = offset_buffer;
   desktop_lyrics_label_previous_ = EncodableString(state, "labelPrevious");
   desktop_lyrics_label_next_ = EncodableString(state, "labelNext");
@@ -903,20 +915,24 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
         kDesktopLyricsWindowClass, L"Desktop Lyrics", WS_POPUP, bounds.left,
         bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top,
         nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
-    ::SetLayeredWindowAttributes(desktop_lyrics_window_, RGB(0, 0, 0), 0,
-                                 LWA_COLORKEY);
     ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
   }
 
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                     SWP_NOOWNERZORDER);
   ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
-  ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
-  ::InvalidateRect(desktop_lyrics_window_, nullptr, TRUE);
+  if (!::IsWindowVisible(desktop_lyrics_window_)) {
+    ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
+  }
+  PaintDesktopLyricsWindow();
 }
 
 void FlutterWindow::HideDesktopLyricsWindow() {
   if (desktop_lyrics_window_) {
+    desktop_lyrics_panel_visible_ = false;
+    desktop_lyrics_tracking_mouse_leave_ = false;
+    desktop_lyrics_buttons_.clear();
     ::ShowWindow(desktop_lyrics_window_, SW_HIDE);
     ::KillTimer(desktop_lyrics_window_, 1);
   }
@@ -928,6 +944,21 @@ void FlutterWindow::DestroyDesktopLyricsWindow() {
     ::DestroyWindow(desktop_lyrics_window_);
     desktop_lyrics_window_ = nullptr;
   }
+}
+
+bool FlutterWindow::UpdateDesktopLyricsPanelVisibility(POINT point) {
+  const bool next_panel_visible =
+      desktop_lyrics_panel_visible_
+          ? ::PtInRect(&desktop_lyrics_card_bounds_, point)
+          : ::PtInRect(&desktop_lyrics_lyric_hit_bounds_, point);
+  if (desktop_lyrics_panel_visible_ == next_panel_visible) {
+    return false;
+  }
+  desktop_lyrics_panel_visible_ = next_panel_visible;
+  if (!next_panel_visible) {
+    desktop_lyrics_buttons_.clear();
+  }
+  return true;
 }
 
 void FlutterWindow::DismissNativeSplash() {
@@ -1004,88 +1035,210 @@ void FlutterWindow::PaintNativeSplash() {
 }
 
 void FlutterWindow::PaintDesktopLyricsWindow() {
-  PAINTSTRUCT paint;
-  HDC hdc = ::BeginPaint(desktop_lyrics_window_, &paint);
+  if (!desktop_lyrics_window_) {
+    return;
+  }
   RECT rect;
   ::GetClientRect(desktop_lyrics_window_, &rect);
+  const int width = rect.right - rect.left;
+  const int height = rect.bottom - rect.top;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  HDC screen_dc = ::GetDC(nullptr);
+  HDC hdc = ::CreateCompatibleDC(screen_dc);
+  BITMAPINFO bitmap_info = {};
+  bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bitmap_info.bmiHeader.biWidth = width;
+  bitmap_info.bmiHeader.biHeight = -height;
+  bitmap_info.bmiHeader.biPlanes = 1;
+  bitmap_info.bmiHeader.biBitCount = 32;
+  bitmap_info.bmiHeader.biCompression = BI_RGB;
+  void* bits = nullptr;
+  HBITMAP bitmap = ::CreateDIBSection(screen_dc, &bitmap_info, DIB_RGB_COLORS,
+                                      &bits, nullptr, 0);
+  HGDIOBJ old_bitmap = ::SelectObject(hdc, bitmap);
+
   HBRUSH transparent_brush = ::CreateSolidBrush(RGB(0, 0, 0));
   ::FillRect(hdc, &rect, transparent_brush);
   ::DeleteObject(transparent_brush);
 
+  const double layout_scale =
+      std::min(width / 760.0, height / 148.0);
+  auto scaled_metric = [layout_scale](int value) {
+    return std::max(1, static_cast<int>(value * layout_scale + 0.5));
+  };
+  const BYTE card_background_alpha = static_cast<BYTE>(
+      std::clamp(desktop_lyrics_opacity_, 0, 100) *
+      (desktop_lyrics_night_mode_ ? 0.34 : 0.24) * 255 / 100);
+  const BYTE card_border_alpha =
+      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.22 : 0.08) * 255);
+  const BYTE button_background_alpha =
+      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.16 : 0.38) * 255);
+
   RECT card = rect;
-  ::InflateRect(&card, -10, -10);
-  HBRUSH card_brush = ::CreateSolidBrush(
-      desktop_lyrics_night_mode_ ? RGB(16, 24, 32) : RGB(245, 248, 252));
-  ::FillRect(hdc, &card, card_brush);
-  ::DeleteObject(card_brush);
+  ::InflateRect(&card, -scaled_metric(8), -scaled_metric(8));
+  desktop_lyrics_card_bounds_ = card;
+  desktop_lyrics_lyric_hit_bounds_ = {};
   desktop_lyrics_buttons_.clear();
 
-  desktop_lyrics_buttons_ = {
-      {RECT{card.left + 10, card.top + 8, card.left + 48, card.top + 34},
-       "previous", L"<<"},
-      {RECT{card.left + 52, card.top + 8, card.left + 112, card.top + 34},
-       "play-pause", desktop_lyrics_label_play_pause_},
-      {RECT{card.left + 116, card.top + 8, card.left + 154, card.top + 34},
-       "next", L">>"},
-      {RECT{card.left + 166, card.top + 8, card.left + 214, card.top + 34},
-       "offset:-100", L"-0.1"},
-      {RECT{card.left + 218, card.top + 8, card.left + 266, card.top + 34},
-       "offset:100", L"+0.1"},
-      {RECT{card.left + 270, card.top + 8, card.left + 326, card.top + 34},
-       "reset-offset", desktop_lyrics_offset_label_},
-      {RECT{card.right - 238, card.top + 8, card.right - 184, card.top + 34},
-       "toggle-lock", desktop_lyrics_locked_ ? desktop_lyrics_label_unlock_
-                                              : desktop_lyrics_label_lock_},
-      {RECT{card.right - 180, card.top + 8, card.right - 102, card.top + 34},
-       "open-settings", desktop_lyrics_label_settings_},
-  };
-  if (!desktop_lyrics_locked_) {
-    desktop_lyrics_buttons_.push_back(
-        {RECT{card.right - 98, card.top + 8, card.right - 40, card.top + 34},
-         "disable", desktop_lyrics_label_close_});
-  }
-  HFONT button_font = ::CreateFontW(
-      -MulDiv(12, 96, 72), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-      CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-  HFONT old_button_font = static_cast<HFONT>(::SelectObject(hdc, button_font));
-  ::SetBkMode(hdc, TRANSPARENT);
-  ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(225, 235, 245)
-                                                 : RGB(32, 42, 54));
-  HBRUSH button_brush = ::CreateSolidBrush(
-      desktop_lyrics_night_mode_ ? RGB(42, 52, 64) : RGB(222, 230, 240));
-  for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
-    ::FillRect(hdc, &button.bounds, button_brush);
-    RECT label_rect = button.bounds;
-    ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-  }
-  ::DeleteObject(button_brush);
-  ::SelectObject(hdc, old_button_font);
-  ::DeleteObject(button_font);
+  if (desktop_lyrics_panel_visible_) {
+    HBRUSH card_brush = ::CreateSolidBrush(
+        desktop_lyrics_night_mode_ ? RGB(8, 12, 18) : RGB(245, 250, 255));
+    HPEN card_pen = ::CreatePen(
+        PS_SOLID, 1,
+        desktop_lyrics_night_mode_ ? RGB(253, 254, 255) : RGB(15, 23, 42));
+    HGDIOBJ old_brush = ::SelectObject(hdc, card_brush);
+    HGDIOBJ old_pen = ::SelectObject(hdc, card_pen);
+    const int radius = scaled_metric(16);
+    ::RoundRect(hdc, card.left, card.top, card.right, card.bottom, radius,
+                radius);
+    ::SelectObject(hdc, old_pen);
+    ::SelectObject(hdc, old_brush);
+    ::DeleteObject(card_pen);
+    ::DeleteObject(card_brush);
 
-  const int font_height = -MulDiv(desktop_lyrics_font_size_, 96, 72);
+    HFONT meta_font = ::CreateFontW(
+        -scaled_metric(12), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        desktop_lyrics_font_family_.c_str());
+    HFONT old_meta_font = static_cast<HFONT>(::SelectObject(hdc, meta_font));
+    ::SetBkMode(hdc, TRANSPARENT);
+    ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(210, 218, 228)
+                                                   : RGB(104, 113, 126));
+    std::wstring meta_text = desktop_lyrics_title_;
+    if (!desktop_lyrics_artist_.empty()) {
+      meta_text += L"     ";
+      meta_text += desktop_lyrics_artist_;
+    }
+    RECT meta_rect{card.left + scaled_metric(18), card.top + scaled_metric(10),
+                   card.right - scaled_metric(18),
+                   card.top + scaled_metric(28)};
+    ::DrawTextW(hdc, meta_text.c_str(), -1, &meta_rect,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    ::SelectObject(hdc, old_meta_font);
+    ::DeleteObject(meta_font);
+
+    std::vector<DesktopLyricsButton> specs = {
+        {RECT{}, "previous", L"\xE100", true},
+        {RECT{}, "play-pause", desktop_lyrics_playing_ ? L"\xE103" : L"\xE102",
+         true},
+        {RECT{}, "next", L"\xE101", true},
+        {RECT{}, "", L"", false},
+        {RECT{}, "offset:-100", L"-0.1s", false},
+        {RECT{}, "offset:100", L"+0.1s", false},
+        {RECT{}, "reset-offset", desktop_lyrics_offset_label_, false},
+        {RECT{}, "", L"", false},
+        {RECT{}, "toggle-lock",
+         desktop_lyrics_locked_ ? L"\xE72E" : L"\xE785", true},
+        {RECT{}, "open-settings", L"\xE713", true},
+    };
+    if (!desktop_lyrics_locked_) {
+      specs.push_back({RECT{}, "disable", L"\xE711", true});
+    }
+
+    const int gap = scaled_metric(3);
+    const int button_height = scaled_metric(26);
+    std::vector<int> widths;
+    widths.reserve(specs.size());
+    int total_width = gap * (static_cast<int>(specs.size()) - 1);
+    for (const DesktopLyricsButton& spec : specs) {
+      int button_width = 26;
+      if (spec.command == "offset:-100" ||
+          spec.command == "offset:100") {
+        button_width = scaled_metric(42);
+      } else if (spec.command == "reset-offset") {
+        button_width = scaled_metric(56);
+      } else if (spec.command.empty()) {
+        button_width = scaled_metric(9);
+      } else {
+        button_width = scaled_metric(button_width);
+      }
+      widths.push_back(button_width);
+      total_width += button_width;
+    }
+    int x = card.left + ((card.right - card.left) - total_width) / 2;
+    const int content_bottom = card.bottom - scaled_metric(1) -
+                               scaled_metric(12);
+    const int y = content_bottom - button_height -
+                  (scaled_metric(30) - button_height) / 2;
+    for (size_t index = 0; index < specs.size(); index += 1) {
+      specs[index].bounds = RECT{x, y, x + widths[index], y + button_height};
+      x += widths[index] + gap;
+    }
+    desktop_lyrics_buttons_ = specs;
+  }
+
+  const int font_height = -scaled_metric(desktop_lyrics_font_size_);
   HFONT lyrics_font = ::CreateFontW(
-      font_height, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+      font_height, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
       OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
       DEFAULT_PITCH | FF_DONTCARE, desktop_lyrics_font_family_.c_str());
   HFONT old_font = static_cast<HFONT>(::SelectObject(hdc, lyrics_font));
   ::SetBkMode(hdc, TRANSPARENT);
-  ::SetTextColor(hdc, desktop_lyrics_text_color_);
-  RECT text_rect = card;
-  text_rect.left += 18;
-  text_rect.right -= 18;
-  text_rect.top += desktop_lyrics_locked_ ? 26 : 42;
-  text_rect.bottom -= 16;
+  const int content_left = card.left + scaled_metric(1) + scaled_metric(18);
+  const int content_right = card.right - scaled_metric(1) - scaled_metric(18);
+  const int content_top = card.top + scaled_metric(1) + scaled_metric(10);
+  const int content_bottom = card.bottom - scaled_metric(1) -
+                             scaled_metric(12);
+  const int meta_height = scaled_metric(16);
+  const int toolbar_height = scaled_metric(30);
+  const int row_gap = scaled_metric(6);
+  const int lyric_top = content_top + meta_height + row_gap;
+  const int toolbar_top = content_bottom - toolbar_height;
+  RECT text_rect{content_left, lyric_top, content_right,
+                 toolbar_top - row_gap};
   SIZE lyric_size = {};
   ::GetTextExtentPoint32W(
       hdc, desktop_lyrics_text_.c_str(),
       static_cast<int>(desktop_lyrics_text_.length()), &lyric_size);
   const int text_width = text_rect.right - text_rect.left;
+  const int text_height = text_rect.bottom - text_rect.top;
+  const int lyric_hit_height = std::min(
+      text_height,
+      std::max(1, static_cast<int>(desktop_lyrics_font_size_ * layout_scale *
+                                       1.24 +
+                                   0.5)));
+  const int lyric_hit_top =
+      text_rect.top + (text_height - lyric_hit_height) / 2;
+  int lyric_hit_width = text_width;
+  if (lyric_size.cx <= text_width) {
+    const int span_padding = std::max(
+        1, static_cast<int>(desktop_lyrics_font_size_ * layout_scale * 0.28 +
+                            0.5));
+    lyric_hit_width =
+        std::min(text_width, static_cast<int>(lyric_size.cx) + span_padding);
+  }
+  const int lyric_hit_left =
+      text_rect.left + (text_width - lyric_hit_width) / 2;
+  desktop_lyrics_lyric_hit_bounds_ =
+      RECT{lyric_hit_left, lyric_hit_top, lyric_hit_left + lyric_hit_width,
+           lyric_hit_top + lyric_hit_height};
+  auto draw_lyrics = [&](RECT target, UINT format) {
+    if (desktop_lyrics_stroke_enabled_) {
+      ::SetTextColor(hdc, desktop_lyrics_stroke_color_);
+      for (int dx = -1; dx <= 1; dx += 1) {
+        for (int dy = -1; dy <= 1; dy += 1) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          RECT stroke_rect = target;
+          ::OffsetRect(&stroke_rect, dx, dy);
+          ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &stroke_rect,
+                      format);
+        }
+      }
+    }
+    ::SetTextColor(hdc, desktop_lyrics_text_color_);
+    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &target, format);
+  };
   if (lyric_size.cx > text_width) {
     const int distance = lyric_size.cx - text_width;
     const int duration_ms =
-        std::min(12000, std::max(5000, ((distance / 28) + 4) * 1000));
+        std::min(12000, std::max(5000, ((distance / scaled_metric(28)) + 4) *
+                                       1000));
     const ULONGLONG elapsed =
         ::GetTickCount64() - desktop_lyrics_text_started_at_;
     const int cycle_ms = duration_ms * 2;
@@ -1102,17 +1255,98 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     RECT scrolling_rect = text_rect;
     scrolling_rect.left -= static_cast<int>(distance * eased_progress);
     scrolling_rect.right = scrolling_rect.left + lyric_size.cx;
-    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &scrolling_rect,
+    draw_lyrics(scrolling_rect,
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
     ::RestoreDC(hdc, saved_dc);
   } else {
-    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &text_rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    draw_lyrics(text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE |
+                               DT_END_ELLIPSIS);
+  }
+
+  if (desktop_lyrics_panel_visible_ && !desktop_lyrics_buttons_.empty()) {
+    HFONT button_font = ::CreateFontW(
+        -scaled_metric(11), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT icon_font = ::CreateFontW(
+        -scaled_metric(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+    HFONT old_button_font =
+        static_cast<HFONT>(::SelectObject(hdc, button_font));
+    ::SetBkMode(hdc, TRANSPARENT);
+    ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(244, 248, 255)
+                                                   : RGB(42, 48, 58));
+    HBRUSH button_brush = ::CreateSolidBrush(
+        desktop_lyrics_night_mode_ ? RGB(6, 10, 16) : RGB(255, 255, 255));
+    for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
+      if (button.command.empty()) {
+        continue;
+      }
+      ::FillRect(hdc, &button.bounds, button_brush);
+      ::SelectObject(hdc, button.icon ? icon_font : button_font);
+      RECT label_rect = button.bounds;
+      ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+    ::DeleteObject(button_brush);
+    ::SelectObject(hdc, old_button_font);
+    ::DeleteObject(icon_font);
+    ::DeleteObject(button_font);
   }
 
   ::SelectObject(hdc, old_font);
   ::DeleteObject(lyrics_font);
-  ::EndPaint(desktop_lyrics_window_, &paint);
+
+  auto* pixels = static_cast<unsigned char*>(bits);
+  for (int index = 0; index < width * height; index += 1) {
+    unsigned char* pixel = pixels + index * 4;
+    if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
+      pixel[3] = 0;
+      continue;
+    }
+    const bool card_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 18 && pixel[1] == 12 && pixel[2] == 8)
+            : (pixel[0] == 255 && pixel[1] == 250 && pixel[2] == 245);
+    const bool card_border =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 255 && pixel[1] == 254 && pixel[2] == 253)
+            : (pixel[0] == 42 && pixel[1] == 23 && pixel[2] == 15);
+    const bool button_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 16 && pixel[1] == 10 && pixel[2] == 6)
+            : (pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255);
+    BYTE alpha = 255;
+    if (card_background) {
+      alpha = card_background_alpha;
+    } else if (card_border) {
+      alpha = card_border_alpha;
+    } else if (button_background) {
+      alpha = button_background_alpha;
+    }
+    pixel[0] = static_cast<unsigned char>(pixel[0] * alpha / 255);
+    pixel[1] = static_cast<unsigned char>(pixel[1] * alpha / 255);
+    pixel[2] = static_cast<unsigned char>(pixel[2] * alpha / 255);
+    pixel[3] = alpha;
+  }
+
+  RECT window_rect;
+  ::GetWindowRect(desktop_lyrics_window_, &window_rect);
+  POINT destination{window_rect.left, window_rect.top};
+  SIZE size{width, height};
+  POINT source{0, 0};
+  BLENDFUNCTION blend = {};
+  blend.BlendOp = AC_SRC_OVER;
+  blend.SourceConstantAlpha = 255;
+  blend.AlphaFormat = AC_SRC_ALPHA;
+  ::UpdateLayeredWindow(desktop_lyrics_window_, screen_dc, &destination, &size,
+                        hdc, &source, 0, &blend, ULW_ALPHA);
+
+  ::SelectObject(hdc, old_bitmap);
+  ::DeleteObject(bitmap);
+  ::DeleteDC(hdc);
+  ::ReleaseDC(nullptr, screen_dc);
 }
 
 LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
@@ -1131,11 +1365,41 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
   }
 
   switch (message) {
+    case WM_ERASEBKGND:
+      return 1;
+    case WM_MOUSEMOVE:
+      {
+        POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        if (window->UpdateDesktopLyricsPanelVisibility(point)) {
+          window->PaintDesktopLyricsWindow();
+        }
+      }
+      if (!window->desktop_lyrics_tracking_mouse_leave_) {
+        TRACKMOUSEEVENT track_mouse_event = {};
+        track_mouse_event.cbSize = sizeof(TRACKMOUSEEVENT);
+        track_mouse_event.dwFlags = TME_LEAVE;
+        track_mouse_event.hwndTrack = hwnd;
+        if (::TrackMouseEvent(&track_mouse_event)) {
+          window->desktop_lyrics_tracking_mouse_leave_ = true;
+        }
+      }
+      return 0;
+    case WM_MOUSELEAVE:
+      if (window->desktop_lyrics_panel_visible_) {
+        window->desktop_lyrics_panel_visible_ = false;
+        window->desktop_lyrics_buttons_.clear();
+        window->PaintDesktopLyricsWindow();
+      }
+      window->desktop_lyrics_tracking_mouse_leave_ = false;
+      return 0;
     case WM_LBUTTONDOWN:
       {
         const POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         for (const DesktopLyricsButton& button :
              window->desktop_lyrics_buttons_) {
+          if (button.command.empty()) {
+            continue;
+          }
           if (::PtInRect(&button.bounds, point)) {
             window->SendDesktopCommand(button.command);
             return 0;
@@ -1152,10 +1416,29 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
       window->SendDesktopLyricsBounds();
       return 0;
     case WM_TIMER:
-      ::InvalidateRect(hwnd, nullptr, FALSE);
+      {
+        POINT cursor_position;
+        RECT window_rect;
+        if (::GetCursorPos(&cursor_position) &&
+            ::GetWindowRect(hwnd, &window_rect) &&
+            ::PtInRect(&window_rect, cursor_position)) {
+          ::ScreenToClient(hwnd, &cursor_position);
+          window->UpdateDesktopLyricsPanelVisibility(cursor_position);
+        } else if (window->desktop_lyrics_panel_visible_) {
+          window->desktop_lyrics_panel_visible_ = false;
+          window->desktop_lyrics_tracking_mouse_leave_ = false;
+          window->desktop_lyrics_buttons_.clear();
+        }
+      }
+      window->PaintDesktopLyricsWindow();
       return 0;
     case WM_PAINT:
-      window->PaintDesktopLyricsWindow();
+      {
+        PAINTSTRUCT paint;
+        ::BeginPaint(hwnd, &paint);
+        ::EndPaint(hwnd, &paint);
+        window->PaintDesktopLyricsWindow();
+      }
       return 0;
   }
   return ::DefWindowProcW(hwnd, message, wparam, lparam);

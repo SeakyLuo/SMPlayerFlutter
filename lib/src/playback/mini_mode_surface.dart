@@ -405,7 +405,6 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                           state.mode,
                                         ),
                                         disabled: state.disabled,
-                                        active: state.mode != PlaybackMode.once,
                                         onPressed: () {
                                           setState(() {
                                             _volumeOpen = false;

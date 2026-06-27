@@ -446,7 +446,6 @@ class DesktopLyricsDisplayState {
       fallbackText,
       songTitle,
       artist,
-      progressSeconds,
       offsetMs,
       bounds,
       labels.signature,
