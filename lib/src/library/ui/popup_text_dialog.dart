@@ -8,6 +8,10 @@ Future<String?> showPopupTextDialog({
   SmPlayerI18n? i18n,
   String? placeholder,
   String Function(String value)? validate,
+  List<SearchHistoryEntry> searchHistoryEntries = const [],
+  ValueChanged<String>? onSearchHistorySelected,
+  ValueChanged<int>? onRemoveSearchHistory,
+  VoidCallback? onClearSearchHistory,
 }) {
   return showDialog<String>(
     context: context,
@@ -25,6 +29,10 @@ Future<String?> showPopupTextDialog({
         confirmLabel: confirmLabel,
         placeholder: placeholder,
         validate: validate,
+        searchHistoryEntries: searchHistoryEntries,
+        onSearchHistorySelected: onSearchHistorySelected,
+        onRemoveSearchHistory: onRemoveSearchHistory,
+        onClearSearchHistory: onClearSearchHistory,
       );
     },
   );
@@ -38,6 +46,10 @@ class _PopupTextDialog extends StatefulWidget {
     required this.confirmLabel,
     this.placeholder,
     this.validate,
+    this.searchHistoryEntries = const [],
+    this.onSearchHistorySelected,
+    this.onRemoveSearchHistory,
+    this.onClearSearchHistory,
   });
 
   final SmPlayerI18n i18n;
@@ -46,6 +58,10 @@ class _PopupTextDialog extends StatefulWidget {
   final String confirmLabel;
   final String? placeholder;
   final String Function(String value)? validate;
+  final List<SearchHistoryEntry> searchHistoryEntries;
+  final ValueChanged<String>? onSearchHistorySelected;
+  final ValueChanged<int>? onRemoveSearchHistory;
+  final VoidCallback? onClearSearchHistory;
 
   @override
   State<_PopupTextDialog> createState() => _PopupTextDialogState();
@@ -54,6 +70,7 @@ class _PopupTextDialog extends StatefulWidget {
 class _PopupTextDialogState extends State<_PopupTextDialog> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+  late List<SearchHistoryEntry> _searchHistoryEntries;
   var _errorText = '';
 
   @override
@@ -61,6 +78,7 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue);
     _focusNode = FocusNode();
+    _searchHistoryEntries = widget.searchHistoryEntries.toList();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -107,6 +125,19 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
               _submit();
             },
           ),
+          if (_searchHistoryEntries.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: PageSearchHistoryPanel(
+                entries: _searchHistoryEntries,
+                i18n: widget.i18n,
+                onSelect: _submitSearchHistory,
+                onRemove: _removeSearchHistory,
+                onClear: _clearSearchHistory,
+              ),
+            ),
+          ],
           PopupDialogActions(
             compact: true,
             children: [
@@ -138,5 +169,25 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
       return;
     }
     Navigator.of(context).pop(value);
+  }
+
+  void _submitSearchHistory(String query) {
+    widget.onSearchHistorySelected?.call(query);
+    Navigator.of(context).pop(query);
+  }
+
+  void _removeSearchHistory(int entryId) {
+    widget.onRemoveSearchHistory?.call(entryId);
+    setState(() {
+      _searchHistoryEntries =
+          _searchHistoryEntries.where((entry) => entry.id != entryId).toList();
+    });
+  }
+
+  void _clearSearchHistory() {
+    widget.onClearSearchHistory?.call();
+    setState(() {
+      _searchHistoryEntries = [];
+    });
   }
 }

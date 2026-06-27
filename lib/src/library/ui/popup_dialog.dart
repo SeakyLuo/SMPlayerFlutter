@@ -10,6 +10,8 @@ import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 
 part 'popup_dialog_core.dart';
 part 'popup_dialog_backdrop.dart';

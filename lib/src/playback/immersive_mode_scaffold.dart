@@ -65,7 +65,8 @@ final _immersiveNightMediaControlColors = MediaControlThemeColors.dark.copyWith(
   textMuted: const Color(0xa8ffffff),
   primaryButtonBorder: const Color(0x6b0078d7),
   primaryButtonHover: MediaControlColors.accentStrong,
-  disabledPrimaryButtonSurface: MediaControlColors.disabledPrimaryButtonSurface,
+  disabledPrimaryButtonSurface:
+      MediaControlColors.nightDisabledPrimaryButtonSurface,
   primaryButtonShadow: const BoxShadow(
     color: Color(0x52000000),
     offset: Offset(0, 12),

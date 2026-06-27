@@ -57,7 +57,7 @@ class MediaControlColors {
   static const disabledPrimaryButtonSurface = Color(0xffffffff);
   static const disabledPrimaryButtonBorder = Color(0x4dd6eaff);
   static const disabledPrimaryButtonShadow = Color(0x120078d7);
-  static const nightDisabledPrimaryButtonSurface = Color(0x14ffffff);
+  static const nightDisabledPrimaryButtonSurface = Color(0x33d6eaff);
 
   static Color textStrongFor(BuildContext context) =>
       MediaControlThemeColors.of(context).textStrong;
@@ -296,7 +296,7 @@ class MediaControlThemeColors extends ThemeExtension<MediaControlThemeColors> {
     ),
     sliderInactive: MediaControlColors.nightSliderInactive,
     disabledPrimaryButtonSurface:
-        MediaControlColors.disabledPrimaryButtonSurface,
+        MediaControlColors.nightDisabledPrimaryButtonSurface,
     disabledPrimaryButtonBorder: MediaControlColors.accentBorder,
     disabledPrimaryIconColor: Colors.transparent,
     disabledPrimaryIconHidden: true,

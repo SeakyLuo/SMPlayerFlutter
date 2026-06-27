@@ -51,6 +51,7 @@ class MainNavigationView extends StatefulWidget {
     required this.onSearchCommitted,
     required this.onSearchCleared,
     required this.onItemInvoked,
+    this.onRecentSearchSelected,
     this.canGoBack = false,
     this.showTitlebar = true,
     this.playlists = const [],
@@ -82,6 +83,7 @@ class MainNavigationView extends StatefulWidget {
   final VoidCallback onPaneToggle;
   final ValueChanged<String> onSearchTextChanged;
   final MainNavigationSearchCommit onSearchCommitted;
+  final MainNavigationSearchCommit? onRecentSearchSelected;
   final VoidCallback onSearchCleared;
   final ValueChanged<String> onItemInvoked;
   final VoidCallback? onGoBack;
@@ -617,10 +619,19 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 i18n: widget.i18n,
                                 onSearchSelected: (entry) {
                                   widget.onSearchTextChanged(entry.query);
-                                  widget.onSearchCommitted(
-                                    entry.query,
-                                    entry.type,
-                                  );
+                                  final onRecentSearchSelected =
+                                      widget.onRecentSearchSelected;
+                                  if (onRecentSearchSelected != null) {
+                                    onRecentSearchSelected(
+                                      entry.query,
+                                      entry.type,
+                                    );
+                                  } else {
+                                    widget.onSearchCommitted(
+                                      entry.query,
+                                      entry.type,
+                                    );
+                                  }
                                   setState(() {
                                     _setSearchHistoryOpen(false);
                                   });
