@@ -859,6 +859,7 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
 
     expect(find.byKey(const ValueKey('VolumeSlider.Tooltip')), findsOneWidget);
     expect(find.text('37'), findsOneWidget);
@@ -940,6 +941,7 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
 
     final initialCenter = tester.getCenter(
       find.byKey(const ValueKey('VolumeSlider.Tooltip')),
@@ -953,12 +955,45 @@ void main() {
       find.byKey(const ValueKey('VolumeSlider.Tooltip')),
     );
     final sliderRect = tester.getRect(find.byType(Slider));
+    final expectedThumbCenterX = sliderRect.left + sliderRect.width * 0.8;
 
     expect(draggedCenter.dx, greaterThan(initialCenter.dx + 80));
+    expect(draggedCenter.dx, closeTo(expectedThumbCenterX, 1));
     expect(
       tooltipRect.bottom,
       lessThan(sliderRect.center.dy - _testVolumeSliderThumbRadius),
     );
+  });
+
+  testWidgets('VolumeSlider tooltip centers over the full-volume thumb', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _mediaControlTestTheme(),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 180,
+              child: VolumeSlider(
+                value: 100,
+                disabled: false,
+                showTooltipOnMount: true,
+                onChange: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final tooltipCenter = tester.getCenter(
+      find.byKey(const ValueKey('VolumeSlider.Tooltip')),
+    );
+    final sliderRect = tester.getRect(find.byType(Slider));
+
+    expect(tooltipCenter.dx, closeTo(sliderRect.right, 1));
   });
 
   testWidgets('VolumeSlider tooltip follows the vertical thumb', (

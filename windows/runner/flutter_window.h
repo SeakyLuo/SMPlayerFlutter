@@ -18,6 +18,7 @@ struct DesktopLyricsButton {
   RECT bounds;
   std::string command;
   std::wstring label;
+  bool icon;
 };
 
 struct WindowsMediaSessionState;
@@ -51,6 +52,7 @@ class FlutterWindow : public Win32Window {
   void HideDesktopLyricsWindow();
   void DestroyDesktopLyricsWindow();
   void PaintDesktopLyricsWindow();
+  bool UpdateDesktopLyricsPanelVisibility(POINT point);
   void DismissNativeSplash();
   void PaintNativeSplash();
   static LRESULT CALLBACK DesktopLyricsWindowProc(HWND hwnd, UINT message,
@@ -90,6 +92,9 @@ class FlutterWindow : public Win32Window {
   bool desktop_lyrics_loading_ = false;
   bool desktop_lyrics_night_mode_ = true;
   bool desktop_lyrics_playing_ = false;
+  bool desktop_lyrics_panel_visible_ = false;
+  bool desktop_lyrics_tracking_mouse_leave_ = false;
+  bool desktop_lyrics_stroke_enabled_ = false;
   std::wstring desktop_lyrics_label_previous_ = L"Previous";
   std::wstring desktop_lyrics_label_next_ = L"Next";
   std::wstring desktop_lyrics_label_play_pause_ = L"Play/Pause";
@@ -99,6 +104,8 @@ class FlutterWindow : public Win32Window {
   std::wstring desktop_lyrics_label_unlock_ = L"Unlock";
   std::wstring desktop_lyrics_label_settings_ = L"Settings";
   std::wstring desktop_lyrics_label_close_ = L"Close";
+  RECT desktop_lyrics_card_bounds_ = {};
+  RECT desktop_lyrics_lyric_hit_bounds_ = {};
   std::vector<DesktopLyricsButton> desktop_lyrics_buttons_;
 };
 

@@ -6589,7 +6589,7 @@ void main() {
             .any((semantics) => semantics.properties.checked ?? false);
       }
 
-      expect(checkedFor('List'), isTrue);
+      expect(checkedFor('List'), isFalse);
       expect(checkedFor('Shuffle'), isFalse);
       expect(checkedFor('Repeat'), isFalse);
       expect(checkedFor('Repeat One'), isFalse);
@@ -6774,9 +6774,8 @@ void main() {
 
       expect(checkedFor('List'), isFalse);
       expect(checkedFor('Shuffle'), isFalse);
-      expect(checkedFor('Repeat'), isTrue);
+      expect(checkedFor('Repeat'), isFalse);
       expect(checkedFor('Repeat One'), isFalse);
-      expect(find.byIcon(FluentIcons.checkmark_20_regular), findsOneWidget);
     },
   );
 

@@ -164,6 +164,15 @@ List<({SearchSortCriterion value, String label})> getSortOptions(
   };
 }
 
+List<LibraryPlaylist> buildSearchablePlaylists(
+  List<LibraryPlaylist> playlists,
+  int nowPlayingPlaylistId,
+) {
+  return playlists
+      .where((playlist) => playlist.id != nowPlayingPlaylistId)
+      .toList();
+}
+
 SearchResults buildSearchResults(
   List<LibrarySong> songs,
   List<LibraryFolder> folders,

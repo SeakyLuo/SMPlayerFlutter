@@ -231,6 +231,57 @@ void main() {
     expect(state.toPlatformMap(), isNot(contains('nextLyricText')));
   });
 
+  test(
+    'desktop lyrics signature ignores progress inside the same lyric line',
+    () {
+      final settings = const SettingsSnapshot.defaults().copyWith(
+        desktopLyricsEnabled: true,
+      );
+      final firstState = DesktopLyricsDisplayState.fromShell(
+        settings: settings,
+        currentSong: _song,
+        lyrics: const LyricsSnapshot(
+          source: LyricsSource.musicFile,
+          isSynced: true,
+          rawText: '',
+          lines: [
+            LyricsLine(id: 1, timestampMs: 0, text: 'First line'),
+            LyricsLine(id: 2, timestampMs: 1200, text: 'Second line'),
+            LyricsLine(id: 3, timestampMs: 2400, text: 'Third line'),
+          ],
+        ),
+        lyricsLoading: false,
+        isPlaying: true,
+        progressSeconds: 1.2,
+        durationSeconds: 180,
+      );
+      final secondState = DesktopLyricsDisplayState.fromShell(
+        settings: settings,
+        currentSong: _song,
+        lyrics: const LyricsSnapshot(
+          source: LyricsSource.musicFile,
+          isSynced: true,
+          rawText: '',
+          lines: [
+            LyricsLine(id: 1, timestampMs: 0, text: 'First line'),
+            LyricsLine(id: 2, timestampMs: 1200, text: 'Second line'),
+            LyricsLine(id: 3, timestampMs: 2400, text: 'Third line'),
+          ],
+        ),
+        lyricsLoading: false,
+        isPlaying: true,
+        progressSeconds: 1.8,
+        durationSeconds: 180,
+      );
+
+      expect(firstState.lyricText, 'Second line');
+      expect(secondState.lyricText, 'Second line');
+      expect(firstState.signature, secondState.signature);
+      expect(firstState.progressSeconds, isNot(secondState.progressSeconds));
+      expect(firstState.toPlatformMap(), contains('progressSeconds'));
+    },
+  );
+
   test('desktop lyrics plain text follows Electron progress ratio', () {
     final settings = const SettingsSnapshot.defaults().copyWith(
       desktopLyricsEnabled: true,

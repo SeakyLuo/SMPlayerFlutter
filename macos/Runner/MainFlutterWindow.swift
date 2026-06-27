@@ -962,8 +962,11 @@ private final class NativeSplashView: NSView {
 
 private final class DesktopLyricsNativeView: NSView {
   private var state = [String: Any]()
-  private var isHovered = false
+  private var isPanelVisible = false
   private var trackingArea: NSTrackingArea?
+  private var lyricsTextStartedAt = Date()
+  private var previousLyricsText = ""
+  private var scrollTimer: Timer?
   var onCommand: ((String) -> Void)?
 
   override init(frame frameRect: NSRect) {
@@ -974,6 +977,10 @@ private final class DesktopLyricsNativeView: NSView {
   required init?(coder: NSCoder) {
     super.init(coder: coder)
     configureView()
+  }
+
+  deinit {
+    scrollTimer?.invalidate()
   }
 
   override var isOpaque: Bool {
@@ -997,7 +1004,13 @@ private final class DesktopLyricsNativeView: NSView {
   }
 
   func apply(state: [String: Any]) {
+    let nextLyricsText = DesktopLyricsNativeView.lyricsText(from: state)
+    if previousLyricsText != nextLyricsText {
+      previousLyricsText = nextLyricsText
+      lyricsTextStartedAt = Date()
+    }
     self.state = state
+    startScrollTimer()
     needsDisplay = true
   }
 
@@ -1006,33 +1019,34 @@ private final class DesktopLyricsNativeView: NSView {
     guard !bounds.isEmpty else {
       return
     }
-    if isHovered {
+    if isPanelVisible {
       drawCard()
-      drawToolbar()
+      drawMeta()
     }
     drawLyricsText()
+    if isPanelVisible {
+      drawToolbar()
+    }
   }
 
   override func mouseEntered(with event: NSEvent) {
-    isHovered = true
-    needsDisplay = true
+    updatePanelVisibility(at: convert(event.locationInWindow, from: nil))
   }
 
   override func mouseExited(with event: NSEvent) {
-    isHovered = false
-    needsDisplay = true
-  }
-
-  override func mouseMoved(with event: NSEvent) {
-    if !isHovered {
-      isHovered = true
+    if isPanelVisible {
+      isPanelVisible = false
       needsDisplay = true
     }
   }
 
+  override func mouseMoved(with event: NSEvent) {
+    updatePanelVisibility(at: convert(event.locationInWindow, from: nil))
+  }
+
   override func mouseDown(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
-    if isHovered {
+    if isPanelVisible {
       for button in desktopLyricsButtons() where button.rect.contains(point) {
         onCommand?(button.command)
         return
@@ -1048,14 +1062,145 @@ private final class DesktopLyricsNativeView: NSView {
     layer?.backgroundColor = NSColor.clear.cgColor
   }
 
+  private func updatePanelVisibility(at point: NSPoint) {
+    let nextPanelVisible =
+      isPanelVisible
+      ? cardRect().contains(point)
+      : lyricHitRect().contains(point)
+    if isPanelVisible == nextPanelVisible {
+      return
+    }
+    isPanelVisible = nextPanelVisible
+    needsDisplay = true
+  }
+
+  private func startScrollTimer() {
+    if scrollTimer != nil {
+      return
+    }
+    scrollTimer = Timer.scheduledTimer(
+      withTimeInterval: 1.0 / 30.0,
+      repeats: true
+    ) { [weak self] _ in
+      self?.needsDisplay = true
+    }
+  }
+
+  private func cardRect() -> NSRect {
+    bounds.insetBy(dx: 8, dy: 8)
+  }
+
+  private func lyricsTextRect() -> NSRect {
+    let cardRect = cardRect()
+    let contentTop = cardRect.maxY - 1 - 10
+    let contentBottom = cardRect.minY + 1 + 12
+    let metaHeight: CGFloat = 16
+    let toolbarHeight: CGFloat = 30
+    let rowGap: CGFloat = 6
+    let toolbarTop = contentBottom
+    let lyricBottom = toolbarTop + toolbarHeight + rowGap
+    let lyricTop = contentTop - metaHeight - rowGap
+    let fontSize = CGFloat(numberValue("fontSize", defaultValue: 28))
+    return NSRect(
+      x: cardRect.minX + 1 + 18,
+      y: lyricBottom,
+      width: max(0, cardRect.width - 2 - 36),
+      height: max(fontSize * 1.42, lyricTop - lyricBottom))
+  }
+
+  private func lyricHitRect() -> NSRect {
+    let rect = lyricsTextRect()
+    let fontSize = CGFloat(numberValue("fontSize", defaultValue: 28))
+    let text = lyricsText()
+    if text.isEmpty {
+      return .zero
+    }
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: lyricsFont(size: fontSize),
+    ]
+    let measuredWidth = ceil(
+      NSAttributedString(string: text, attributes: attributes).size().width)
+    let hitWidth: CGFloat
+    if measuredWidth > rect.width {
+      hitWidth = rect.width
+    } else {
+      hitWidth = min(rect.width, measuredWidth + fontSize * 0.28)
+    }
+    let hitHeight = min(rect.height, fontSize * 1.24)
+    return NSRect(
+      x: rect.midX - hitWidth / 2,
+      y: rect.midY - hitHeight / 2,
+      width: hitWidth,
+      height: hitHeight)
+  }
+
   private func drawCard() {
-    let cardRect = bounds.insetBy(dx: 8, dy: 8)
+    let cardRect = cardRect()
     let path = NSBezierPath(roundedRect: cardRect, xRadius: 8, yRadius: 8)
-    NSColor(calibratedRed: 0.06, green: 0.09, blue: 0.12, alpha: 0.80).setFill()
+    let opacity = CGFloat(numberValue("opacity", defaultValue: 88)) / 100.0
+    if (state["nightMode"] as? Bool) == false {
+      NSColor(
+        calibratedRed: 0.97,
+        green: 0.98,
+        blue: 0.99,
+        alpha: opacity * 0.24
+      ).setFill()
+      NSColor(
+        calibratedRed: 0.06,
+        green: 0.09,
+        blue: 0.16,
+        alpha: 0.08
+      ).setStroke()
+    } else {
+      NSColor(
+        calibratedRed: 0.03,
+        green: 0.05,
+        blue: 0.07,
+        alpha: opacity * 0.34
+      ).setFill()
+      NSColor.white.withAlphaComponent(0.22).setStroke()
+    }
     path.fill()
-    NSColor.white.withAlphaComponent(0.18).setStroke()
     path.lineWidth = 1
     path.stroke()
+  }
+
+  private func drawMeta() {
+    let cardRect = cardRect()
+    let title = (state["songTitle"] as? String) ?? ""
+    let artist = (state["artist"] as? String) ?? ""
+    var metaText = title
+    if !artist.isEmpty {
+      metaText += "     "
+      metaText += artist
+    }
+    if metaText.isEmpty {
+      return
+    }
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineBreakMode = .byTruncatingTail
+    let color: NSColor
+    if (state["nightMode"] as? Bool) == false {
+      color = NSColor(
+        calibratedRed: 0.07,
+        green: 0.09,
+        blue: 0.15,
+        alpha: 0.68)
+    } else {
+      color = NSColor.white.withAlphaComponent(0.70)
+    }
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+      .paragraphStyle: paragraph,
+      .foregroundColor: color,
+    ]
+    let rect = NSRect(
+      x: cardRect.minX + 18,
+      y: cardRect.maxY - 28,
+      width: max(0, cardRect.width - 36),
+      height: 18)
+    drawString(metaText, in: rect, attributes: attributes)
   }
 
   private func drawLyricsText() {
@@ -1063,19 +1208,31 @@ private final class DesktopLyricsNativeView: NSView {
     if text.isEmpty {
       return
     }
-    let opacity = CGFloat(numberValue("opacity", defaultValue: 88)) / 100.0
     let fontSize = CGFloat(numberValue("fontSize", defaultValue: 28))
     let font = lyricsFont(size: fontSize)
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .center
     paragraph.lineBreakMode = .byTruncatingTail
-    let textColor = desktopLyricsColor("textColor", defaultHex: "#4aa8ff", opacity: opacity)
-    let strokeColor = desktopLyricsColor("strokeColor", defaultHex: "#111111", opacity: opacity)
-    let rect = NSRect(
-      x: bounds.minX + 18,
-      y: bounds.midY - fontSize * 0.68,
-      width: max(0, bounds.width - 36),
-      height: fontSize * 1.36)
+    let textColor = desktopLyricsColor("textColor", defaultHex: "#4aa8ff", opacity: 1)
+    let strokeColor = desktopLyricsColor("strokeColor", defaultHex: "#111111", opacity: 1)
+    let rect = lyricsTextRect()
+    let baseAttributes: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .paragraphStyle: paragraph,
+      .foregroundColor: textColor,
+    ]
+    let measuredWidth = ceil(
+      NSAttributedString(string: text, attributes: baseAttributes).size().width)
+    if measuredWidth > rect.width {
+      drawScrollingLyrics(
+        text,
+        in: rect,
+        measuredWidth: measuredWidth,
+        font: font,
+        textColor: textColor,
+        strokeColor: strokeColor)
+      return
+    }
     if strokeColor.alphaComponent > 0 {
       drawString(
         text,
@@ -1085,7 +1242,7 @@ private final class DesktopLyricsNativeView: NSView {
           .paragraphStyle: paragraph,
           .foregroundColor: strokeColor,
           .strokeColor: strokeColor,
-          .strokeWidth: 8,
+          .strokeWidth: 2,
         ])
     }
     drawString(
@@ -1096,6 +1253,58 @@ private final class DesktopLyricsNativeView: NSView {
         .paragraphStyle: paragraph,
         .foregroundColor: textColor,
       ])
+  }
+
+  private func drawScrollingLyrics(
+    _ text: String,
+    in rect: NSRect,
+    measuredWidth: CGFloat,
+    font: NSFont,
+    textColor: NSColor,
+    strokeColor: NSColor
+  ) {
+    let distance = max(0, measuredWidth - rect.width)
+    let duration = min(12.0, max(5.0, Double(Int((distance / 28).rounded())) + 4.0))
+    let elapsed = Date().timeIntervalSince(lyricsTextStartedAt)
+    let cycle = duration * 2
+    let phase = elapsed.truncatingRemainder(dividingBy: cycle)
+    let rawProgress: Double
+    if phase <= duration {
+      rawProgress = phase / duration
+    } else {
+      rawProgress = 1.0 - ((phase - duration) / duration)
+    }
+    let easedProgress = rawProgress * rawProgress * (3.0 - 2.0 * rawProgress)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .left
+    paragraph.lineBreakMode = .byClipping
+    var textRect = rect
+    textRect.origin.x -= distance * easedProgress
+    textRect.size.width = measuredWidth
+
+    NSGraphicsContext.saveGraphicsState()
+    NSBezierPath(rect: rect).addClip()
+    if strokeColor.alphaComponent > 0 {
+      drawString(
+        text,
+        in: textRect,
+        attributes: [
+          .font: font,
+          .paragraphStyle: paragraph,
+          .foregroundColor: strokeColor,
+          .strokeColor: strokeColor,
+          .strokeWidth: 2,
+        ])
+    }
+    drawString(
+      text,
+      in: textRect,
+      attributes: [
+        .font: font,
+        .paragraphStyle: paragraph,
+        .foregroundColor: textColor,
+      ])
+    NSGraphicsContext.restoreGraphicsState()
   }
 
   private func drawToolbar() {
@@ -1149,11 +1358,11 @@ private final class DesktopLyricsNativeView: NSView {
   private func desktopLyricsButtons() -> [DesktopLyricsButton] {
     let locked = (state["locked"] as? Bool) == true
     let playing = (state["playing"] as? Bool) == true
-    let offsetSeconds = numberValue("offsetMs", defaultValue: 0) / 1000.0
+    let offsetSeconds = (numberValue("offsetMs", defaultValue: 0) / 100.0).rounded() / 10.0
     let offsetLabel =
       offsetSeconds > 0
       ? String(format: "+%.1fs", offsetSeconds)
-      : String(format: "%.1fs", offsetSeconds)
+      : offsetSeconds < 0 ? String(format: "%.1fs", offsetSeconds) : "0s"
     var specs = [
       DesktopLyricsButton(command: "previous", label: "", symbolName: "backward.end.fill", width: 26, rect: .zero),
       DesktopLyricsButton(
@@ -1182,9 +1391,12 @@ private final class DesktopLyricsNativeView: NSView {
     let gap: CGFloat = 3
     let totalWidth = specs.reduce(CGFloat(0)) { $0 + $1.width } + gap * CGFloat(specs.count - 1)
     var x = bounds.midX - totalWidth / 2
-    let y = bounds.maxY - 8 - 12 - 26
+    let cardRect = cardRect()
+    let toolbarHeight: CGFloat = 30
+    let buttonHeight: CGFloat = 26
+    let y = cardRect.minY + 1 + 12 + (toolbarHeight - buttonHeight) / 2
     for index in specs.indices {
-      specs[index].rect = NSRect(x: x, y: y, width: specs[index].width, height: 26)
+      specs[index].rect = NSRect(x: x, y: y, width: specs[index].width, height: buttonHeight)
       x += specs[index].width + gap
     }
     return specs
@@ -1207,11 +1419,11 @@ private final class DesktopLyricsNativeView: NSView {
        let font = NSFontManager.shared.font(
         withFamily: family,
         traits: [],
-        weight: 8,
-        size: size) {
+       weight: 8,
+       size: size) {
       return font
     }
-    return NSFont.systemFont(ofSize: size, weight: .semibold)
+    return NSFont.systemFont(ofSize: size, weight: .heavy)
   }
 
   private func desktopLyricsColor(
@@ -1234,6 +1446,16 @@ private final class DesktopLyricsNativeView: NSView {
     attributes: [NSAttributedString.Key: Any]
   ) {
     NSAttributedString(string: text, attributes: attributes).draw(in: rect)
+  }
+
+  private static func lyricsText(from state: [String: Any]) -> String {
+    if (state["loading"] as? Bool) == true {
+      return "..."
+    }
+    if let lyricText = state["lyricText"] as? String, !lyricText.isEmpty {
+      return lyricText
+    }
+    return (state["fallbackText"] as? String) ?? ""
   }
 
   private func numberValue(_ key: String, defaultValue: Double) -> Double {

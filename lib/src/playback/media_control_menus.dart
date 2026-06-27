@@ -13,7 +13,6 @@ List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
       text: i18n.t('player.playbackModeList'),
       icon: _listPlaybackIcon,
       usePlaylistIcon: true,
-      checked: mode == PlaybackMode.once,
       onPressed: () {
         _setPlaybackMode(
           currentMode: mode,
@@ -28,7 +27,6 @@ List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
       key: 'playback-mode-shuffle',
       text: i18n.t('player.playbackModeShuffle'),
       useShuffleIcon: true,
-      checked: mode == PlaybackMode.shuffle,
       onPressed: () {
         _setPlaybackMode(
           currentMode: mode,
@@ -43,7 +41,6 @@ List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
       key: 'playback-mode-repeat',
       text: i18n.t('player.playbackModeRepeat'),
       icon: _repeatIcon,
-      checked: mode == PlaybackMode.repeat,
       onPressed: () {
         _setPlaybackMode(
           currentMode: mode,
@@ -58,7 +55,6 @@ List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
       key: 'playback-mode-repeat-one',
       text: i18n.t('player.playbackModeRepeatOne'),
       icon: _repeatOneIcon,
-      checked: mode == PlaybackMode.repeatOne,
       onPressed: () {
         _setPlaybackMode(
           currentMode: mode,

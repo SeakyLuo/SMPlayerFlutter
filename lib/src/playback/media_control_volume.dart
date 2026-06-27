@@ -137,8 +137,11 @@ class VolumeSlider extends StatefulWidget {
 }
 
 class _VolumeSliderState extends State<VolumeSlider> {
+  final _sliderHostKey = GlobalKey();
+  final _tooltipLayerLink = LayerLink();
   late var _liveValue = clampVolumeValue(widget.value).toDouble();
   late var _lastEmittedValue = clampVolumeValue(widget.value);
+  OverlayEntry? _tooltipOverlayEntry;
   Timer? _tooltipTimer;
   var _tooltipActive = false;
   var _dragging = false;
@@ -148,11 +151,17 @@ class _VolumeSliderState extends State<VolumeSlider> {
     super.initState();
     if (widget.showTooltipOnMount && !widget.disabled) {
       _tooltipActive = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _tooltipActive) {
+          _showTooltipOverlay();
+        }
+      });
       _tooltipTimer = Timer(const Duration(milliseconds: 900), () {
         if (mounted && !_dragging) {
           setState(() {
             _tooltipActive = false;
           });
+          _removeTooltipOverlay();
         }
       });
     }
@@ -169,12 +178,16 @@ class _VolumeSliderState extends State<VolumeSlider> {
     if (widget.disabled && _tooltipActive) {
       _tooltipTimer?.cancel();
       _tooltipActive = false;
+      _removeTooltipOverlay();
+    } else if (_tooltipActive) {
+      _tooltipOverlayEntry?.markNeedsBuild();
     }
   }
 
   @override
   void dispose() {
     _tooltipTimer?.cancel();
+    _removeTooltipOverlay();
     super.dispose();
   }
 
@@ -250,7 +263,8 @@ class _VolumeSliderState extends State<VolumeSlider> {
       ),
     );
 
-    return SizedBox(
+    final sliderHost = SizedBox(
+      key: _sliderHostKey,
       height:
           widget.orientation == VolumeSliderOrientation.vertical
               ? widget.verticalHeight
@@ -272,34 +286,19 @@ class _VolumeSliderState extends State<VolumeSlider> {
               else
                 slider,
               if (_tooltipActive && !widget.disabled)
-                _VolumeSliderTooltip(
-                  value: value.round(),
-                  orientation: widget.orientation,
-                  sliderSize: constraints.biggest,
-                  verticalTrackLength: widget.verticalTrackLength,
-                  overlayRadius: widget.overlayRadius,
-                  verticalTooltipSide: widget.verticalTooltipSide,
-                  backgroundColor:
-                      widget.tooltipBackgroundColor ??
-                      MediaControlThemeColors.of(
-                        context,
-                      ).volumeTooltipBackground,
-                  foregroundColor:
-                      widget.tooltipForegroundColor ??
-                      MediaControlThemeColors.of(
-                        context,
-                      ).volumeTooltipForeground,
-                  borderColor:
-                      widget.tooltipBorderColor ??
-                      MediaControlThemeColors.of(context).volumeTooltipBorder,
-                  shadow:
-                      widget.tooltipShadow ??
-                      MediaControlThemeColors.of(context).volumeTooltipShadow,
-                ),
+                if (widget.orientation == VolumeSliderOrientation.vertical)
+                  _buildTooltip(context, constraints.biggest, value.round()),
             ],
           );
         },
       ),
+    );
+    if (widget.orientation == VolumeSliderOrientation.vertical) {
+      return sliderHost;
+    }
+    return CompositedTransformTarget(
+      link: _tooltipLayerLink,
+      child: sliderHost,
     );
   }
 
@@ -309,10 +308,12 @@ class _VolumeSliderState extends State<VolumeSlider> {
       _liveValue = nextValue.toDouble();
     });
     if (_lastEmittedValue == nextValue) {
+      _tooltipOverlayEntry?.markNeedsBuild();
       return;
     }
     _lastEmittedValue = nextValue;
     widget.onChange(nextValue);
+    _tooltipOverlayEntry?.markNeedsBuild();
   }
 
   void _showTooltip({
@@ -328,12 +329,14 @@ class _VolumeSliderState extends State<VolumeSlider> {
         _tooltipActive = true;
       });
     }
+    _showTooltipOverlay();
     if (!persistent) {
       _tooltipTimer = Timer(duration, () {
         if (mounted && !_dragging) {
           setState(() {
             _tooltipActive = false;
           });
+          _removeTooltipOverlay();
         }
       });
     }
@@ -346,6 +349,86 @@ class _VolumeSliderState extends State<VolumeSlider> {
         _tooltipActive = false;
       });
     }
+    _removeTooltipOverlay();
+  }
+
+  Widget _buildTooltip(BuildContext context, Size sliderSize, int value) {
+    return _VolumeSliderTooltip(
+      value: value,
+      orientation: widget.orientation,
+      sliderSize: sliderSize,
+      verticalTrackLength: widget.verticalTrackLength,
+      overlayRadius: widget.overlayRadius,
+      verticalTooltipSide: widget.verticalTooltipSide,
+      backgroundColor:
+          widget.tooltipBackgroundColor ??
+          MediaControlThemeColors.of(context).volumeTooltipBackground,
+      foregroundColor:
+          widget.tooltipForegroundColor ??
+          MediaControlThemeColors.of(context).volumeTooltipForeground,
+      borderColor:
+          widget.tooltipBorderColor ??
+          MediaControlThemeColors.of(context).volumeTooltipBorder,
+      shadow:
+          widget.tooltipShadow ??
+          MediaControlThemeColors.of(context).volumeTooltipShadow,
+    );
+  }
+
+  void _showTooltipOverlay() {
+    if (widget.orientation == VolumeSliderOrientation.vertical ||
+        widget.disabled) {
+      _removeTooltipOverlay();
+      return;
+    }
+    if (_tooltipOverlayEntry != null) {
+      _tooltipOverlayEntry!.markNeedsBuild();
+      return;
+    }
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) {
+      return;
+    }
+    _tooltipOverlayEntry = OverlayEntry(
+      builder: (overlayContext) {
+        final renderBox =
+            _sliderHostKey.currentContext?.findRenderObject() as RenderBox?;
+        final sliderSize = renderBox?.size ?? Size.zero;
+        return Positioned.fill(
+          child: IgnorePointer(
+            child: CompositedTransformFollower(
+              link: _tooltipLayerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topLeft,
+              followerAnchor: Alignment.topLeft,
+              child: UnconstrainedBox(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: sliderSize.width,
+                  height: sliderSize.height,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _buildTooltip(
+                        overlayContext,
+                        sliderSize,
+                        _liveValue.round(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(_tooltipOverlayEntry!);
+  }
+
+  void _removeTooltipOverlay() {
+    _tooltipOverlayEntry?.remove();
+    _tooltipOverlayEntry = null;
   }
 }
 
@@ -504,7 +587,6 @@ class _VolumeSliderTooltip extends StatelessWidget {
     final centerX = _volumeSliderHorizontalThumbCenterX(
       value,
       sliderSize.width,
-      overlayRadius,
     );
     final tooltip = _VolumeSliderTooltipBubble(
       value: value,
@@ -783,13 +865,8 @@ class _VolumeSliderTooltipBubblePainter extends CustomPainter {
   }
 }
 
-double _volumeSliderHorizontalThumbCenterX(
-  int value,
-  double width,
-  double overlayRadius,
-) {
-  final trackWidth = max(0.0, width - (overlayRadius * 2));
-  return overlayRadius + trackWidth * (clampVolumeValue(value) / 100);
+double _volumeSliderHorizontalThumbCenterX(int value, double width) {
+  return width * (clampVolumeValue(value) / 100);
 }
 
 double _volumeSliderVerticalThumbCenterY(

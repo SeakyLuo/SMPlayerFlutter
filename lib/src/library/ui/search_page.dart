@@ -245,10 +245,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           isFolderUnderFolder(folder.path, searchFolderPath),
                     )
                     .toList();
+        final searchablePlaylists = buildSearchablePlaylists(
+          snapshot.playlists,
+          snapshot.nowPlaying.playlistId,
+        );
         final results = buildSearchResults(
           searchableSongs,
           searchableFolders,
-          snapshot.playlists,
+          searchablePlaylists,
           snapshot.rootPath,
           normalizedQuery,
           i18n,

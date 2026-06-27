@@ -144,7 +144,6 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
               tooltip:
                   '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
               icon: _playbackModeIcon(mode),
-              active: mode != PlaybackMode.once,
               disabled: disabled,
               buttonSize: utilityButtonSize,
               padding: utilityButtonPadding,
