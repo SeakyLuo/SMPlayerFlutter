@@ -484,6 +484,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 onRecentSearchRecorded: _invalidateRecentSearchData,
               );
             },
+            onRecentSearchSelected: _openSearchWithoutRecording,
             onSearchCleared: _clearSearch,
             searchHistoryDismissEpoch: _navigationSearchDismissEpoch,
             onSearchHistoryOpenChanged: (open) {

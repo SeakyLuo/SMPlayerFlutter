@@ -59,6 +59,7 @@ void main() {
       'common.playlist': 'Playlist',
       'common.search': 'Search',
       'common.sort': 'Sort',
+      'common.clear': 'Clear',
       'common.undo': 'Undo',
       'context.addFavorite': 'Add Favorite',
       'context.addToPlaylist': 'Add To',
@@ -184,6 +185,8 @@ void main() {
       'player.more': 'More',
       'player.pause': 'Pause',
       'playlists.create': 'Create',
+      'sidebar.recentSearches': 'Recent searches',
+      'sidebar.removeRecentSearch': 'Remove recent search {query}',
       'playlists.createNew': 'Create Playlist',
       'playlists.nameEmpty': 'Name is required.',
       'playlists.namePlaceholder': 'Playlist name',
@@ -1358,7 +1361,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(FluentIcons.search_20_regular).first);
+    await tester.tapAt(
+      tester.getCenter(find.text('Sub').first),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search Directory'));
     await tester.pumpAndSettle();
 
     expect(find.text('Search under "Sub"'), findsOneWidget);
@@ -1374,6 +1382,54 @@ void main() {
     expect(repository.recentSearchQuery, 'jazz');
     expect(repository.recentSearchType, SearchHistoryType.folders);
     expect(find.text('search:jazz:folders:Sub'), findsOneWidget);
+  });
+
+  testWidgets('LocalPage search folder shows folder search history panel', (
+    tester,
+  ) async {
+    _setCompactSurface(tester);
+    final repository = _FakeLibraryRepository();
+
+    await tester.pumpWidget(
+      _LocalPageRouterTestApp(
+        snapshot: _snapshotWithRecentSearches(const [
+          SearchHistoryEntry(
+            id: 7,
+            query: 'ambient',
+            type: SearchHistoryType.folders,
+            searchedAt: '2026-06-20T00:00:00Z',
+          ),
+          SearchHistoryEntry(
+            id: 8,
+            query: 'album-only',
+            type: SearchHistoryType.albums,
+            searchedAt: '2026-06-20T00:00:00Z',
+          ),
+        ]),
+        i18n: i18n,
+        repository: repository,
+        mediaController: MediaControlController(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(
+      tester.getCenter(find.text('Sub').first),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search Directory'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent searches'), findsOneWidget);
+    expect(find.text('ambient'), findsOneWidget);
+    expect(find.text('album-only'), findsNothing);
+
+    await tester.tap(find.text('ambient'));
+    await tester.pumpAndSettle();
+
+    expect(repository.recentSearchQuery, isNull);
+    expect(find.text('search:ambient:folders:Sub'), findsOneWidget);
   });
 
   testWidgets('LocalPage route query opens target local folder', (
@@ -4444,6 +4500,31 @@ LibraryContentData _snapshotWithSubCriterion(int criterion) {
         criterion: criterion,
       ),
     ],
+    favoritePlaylistId: _snapshot.favoritePlaylistId,
+    nowPlaying: _snapshot.nowPlaying,
+    hasLibrary: _snapshot.hasLibrary,
+    sortCriterion: _snapshot.sortCriterion,
+    albumsSort: _snapshot.albumsSort,
+    showCount: _snapshot.showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        _snapshot.hideMultiSelectCommandBarAfterOperation,
+    rootPath: _snapshot.rootPath,
+    databasePath: _snapshot.databasePath,
+  );
+}
+
+LibraryContentData _snapshotWithRecentSearches(
+  List<SearchHistoryEntry> recentSearches,
+) {
+  return LibraryContentData(
+    songs: _snapshot.songs,
+    recentSongs: _snapshot.recentSongs,
+    recentPlaylists: _snapshot.recentPlaylists,
+    recentAlbums: _snapshot.recentAlbums,
+    recentArtists: _snapshot.recentArtists,
+    recentSearches: recentSearches,
+    playlists: _snapshot.playlists,
+    folders: _snapshot.folders,
     favoritePlaylistId: _snapshot.favoritePlaylistId,
     nowPlaying: _snapshot.nowPlaying,
     hasLibrary: _snapshot.hasLibrary,
