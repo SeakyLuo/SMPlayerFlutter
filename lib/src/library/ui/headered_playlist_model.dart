@@ -1,5 +1,7 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    show compareLocaleText;
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show formatDuration;
@@ -96,7 +98,7 @@ List<LibrarySong> sortSongs(
       PlaylistSortCriterion.dateAdded => left.dateAdded.compareTo(
         right.dateAdded,
       ),
-      PlaylistSortCriterion.title => left.title.compareTo(right.title),
+      PlaylistSortCriterion.title => compareLocaleText(left.title, right.title),
     };
   });
   return sortedSongs;

@@ -248,6 +248,55 @@ void main() {
     expect(sorted.map((song) => song.id), [201, 202]);
   });
 
+  test('SearchPage song title sort follows Electron localeCompare', () {
+    final sorted = search_model.sortSearchSongs(const [
+      LibrarySong(
+        id: 301,
+        path: r'C:\Music\song-2.mp3',
+        title: 'Song 2',
+        artist: 'Artist',
+        artists: ['Artist'],
+        album: 'Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+      LibrarySong(
+        id: 302,
+        path: r'C:\Music\song-10.mp3',
+        title: 'Song 10',
+        artist: 'Artist',
+        artists: ['Artist'],
+        album: 'Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+      LibrarySong(
+        id: 303,
+        path: r'C:\Music\song-1.mp3',
+        title: 'Song 1',
+        artist: 'Artist',
+        artists: ['Artist'],
+        album: 'Album',
+        duration: 120,
+        playCount: 0,
+        lyricsOffsetMs: 0,
+        dateAdded: '2026-05-20T00:00:00',
+        favorite: false,
+        thumbnailPath: '',
+      ),
+    ], SearchSortCriterion.title);
+
+    expect(sorted.map((song) => song.id), [303, 302, 301]);
+  });
+
   testWidgets('SearchPage scopes results to the Electron folder parameter', (
     tester,
   ) async {

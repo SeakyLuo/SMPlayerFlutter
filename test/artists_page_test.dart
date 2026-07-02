@@ -36,6 +36,7 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
         buildArtistQuickJumpMap,
         buildArtistGroups,
         compareArtistText,
+        compareLocaleText,
         formatDuration,
         getArtistAlbumVirtualWindow,
         getArtistCountQuickJumpBucket,
@@ -246,6 +247,22 @@ void main() {
     final titles = ['Song 10', 'Song 2', 'Song 1']..sort(compareArtistText);
 
     expect(titles, ['Song 1', 'Song 2', 'Song 10']);
+  });
+
+  test('compareArtistText follows Electron base sensitivity', () {
+    expect(compareArtistText('Éclair', 'Eclair'), 0);
+  });
+
+  test('compareLocaleText follows Electron localeCompare title order', () {
+    final titles = ['B', 'a', 'A', '李']..sort(compareLocaleText);
+
+    expect(titles, ['李', 'a', 'A', 'B']);
+  });
+
+  test('compareLocaleText keeps Electron non-numeric title order', () {
+    final titles = ['Song 10', 'Song 2', 'Song 1']..sort(compareLocaleText);
+
+    expect(titles, ['Song 1', 'Song 10', 'Song 2']);
   });
 
   test('searchArtists follows Electron score order', () {

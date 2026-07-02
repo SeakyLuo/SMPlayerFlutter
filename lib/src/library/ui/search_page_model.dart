@@ -1,6 +1,8 @@
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    show compareLocaleText;
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -198,7 +200,7 @@ SearchResults buildSearchResults(
         ..sort(
           (left, right) => _compareMany([
             right.score.compareTo(left.score),
-            left.entity.title.compareTo(right.entity.title),
+            compareLocaleText(left.entity.title, right.entity.title),
           ]),
         );
   final matchedSongList = matchedSongs.map((result) => result.entity).toList();
@@ -219,7 +221,7 @@ SearchResults buildSearchResults(
         ..sort(
           (left, right) => _compareMany([
             right.score.compareTo(left.score),
-            left.playlist.name.compareTo(right.playlist.name),
+            compareLocaleText(left.playlist.name, right.playlist.name),
           ]),
         );
 
@@ -280,13 +282,13 @@ List<SearchResult> sortSearchResults(
   switch (criterion) {
     case SearchSortCriterion.name:
     case SearchSortCriterion.title:
-      sorted.sort((left, right) => left.title.compareTo(right.title));
+      sorted.sort((left, right) => compareLocaleText(left.title, right.title));
       return sorted;
     case SearchSortCriterion.album:
       sorted.sort(
         (left, right) => _compareMany([
           right.albumCount.compareTo(left.albumCount),
-          left.title.compareTo(right.title),
+          compareLocaleText(left.title, right.title),
         ]),
       );
       return sorted;
@@ -294,7 +296,7 @@ List<SearchResult> sortSearchResults(
       sorted.sort(
         (left, right) => _compareMany([
           right.playCount.compareTo(left.playCount),
-          left.title.compareTo(right.title),
+          compareLocaleText(left.title, right.title),
         ]),
       );
       return sorted;
@@ -302,7 +304,7 @@ List<SearchResult> sortSearchResults(
       sorted.sort(
         (left, right) => _compareMany([
           right.duration.compareTo(left.duration),
-          left.title.compareTo(right.title),
+          compareLocaleText(left.title, right.title),
         ]),
       );
       return sorted;
@@ -323,7 +325,7 @@ List<LibrarySong> sortSearchSongs(
     case SearchSortCriterion.name:
       sorted.sort(
         (left, right) => _compareMany([
-          left.title.compareTo(right.title),
+          compareLocaleText(left.title, right.title),
           right.playCount.compareTo(left.playCount),
         ]),
       );
@@ -331,7 +333,10 @@ List<LibrarySong> sortSearchSongs(
     case SearchSortCriterion.artist:
       sorted.sort(
         (left, right) => _compareMany([
-          _searchPrimaryArtist(left).compareTo(_searchPrimaryArtist(right)),
+          compareLocaleText(
+            _searchPrimaryArtist(left),
+            _searchPrimaryArtist(right),
+          ),
           right.playCount.compareTo(left.playCount),
         ]),
       );
@@ -339,7 +344,7 @@ List<LibrarySong> sortSearchSongs(
     case SearchSortCriterion.album:
       sorted.sort(
         (left, right) => _compareMany([
-          left.album.compareTo(right.album),
+          compareLocaleText(left.album, right.album),
           right.playCount.compareTo(left.playCount),
         ]),
       );
@@ -348,7 +353,7 @@ List<LibrarySong> sortSearchSongs(
       sorted.sort(
         (left, right) => _compareMany([
           right.playCount.compareTo(left.playCount),
-          left.title.compareTo(right.title),
+          compareLocaleText(left.title, right.title),
         ]),
       );
       return sorted;
