@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 
 typedef SmPlayerInputValidator = String Function(String value);
@@ -14,6 +15,10 @@ Future<String?> showSmPlayerInputDialog({
   required String confirmText,
   String? placeholder,
   SmPlayerInputValidator? validate,
+  List<SearchHistoryEntry> searchHistoryEntries = const [],
+  ValueChanged<String>? onSearchHistorySelected,
+  ValueChanged<int>? onRemoveSearchHistory,
+  VoidCallback? onClearSearchHistory,
 }) {
   return showPopupTextDialog(
     context: context,
@@ -23,6 +28,10 @@ Future<String?> showSmPlayerInputDialog({
     i18n: i18n,
     placeholder: placeholder,
     validate: validate,
+    searchHistoryEntries: searchHistoryEntries,
+    onSearchHistorySelected: onSearchHistorySelected,
+    onRemoveSearchHistory: onRemoveSearchHistory,
+    onClearSearchHistory: onClearSearchHistory,
   );
 }
 

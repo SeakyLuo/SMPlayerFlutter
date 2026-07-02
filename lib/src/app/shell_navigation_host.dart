@@ -19,6 +19,7 @@ class ShellNavigationHost extends ConsumerWidget {
     required this.onGoBack,
     required this.onSearchTextChanged,
     required this.onSearchCommitted,
+    required this.onRecentSearchSelected,
     required this.onSearchCleared,
     required this.searchHistoryDismissEpoch,
     required this.onSearchHistoryOpenChanged,
@@ -43,6 +44,8 @@ class ShellNavigationHost extends ConsumerWidget {
   final VoidCallback onGoBack;
   final ValueChanged<String> onSearchTextChanged;
   final void Function(String value, [SearchHistoryType type]) onSearchCommitted;
+  final void Function(String value, [SearchHistoryType type])
+  onRecentSearchSelected;
   final VoidCallback onSearchCleared;
   final int searchHistoryDismissEpoch;
   final ValueChanged<bool> onSearchHistoryOpenChanged;
@@ -96,6 +99,7 @@ class ShellNavigationHost extends ConsumerWidget {
             onGoBack: onGoBack,
             onSearchTextChanged: onSearchTextChanged,
             onSearchCommitted: onSearchCommitted,
+            onRecentSearchSelected: onRecentSearchSelected,
             onSearchCleared: onSearchCleared,
             searchHistoryDismissEpoch: searchHistoryDismissEpoch,
             onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
@@ -126,6 +130,7 @@ class _ShellNavigationContent extends ConsumerWidget {
     required this.onGoBack,
     required this.onSearchTextChanged,
     required this.onSearchCommitted,
+    required this.onRecentSearchSelected,
     required this.onSearchCleared,
     required this.searchHistoryDismissEpoch,
     required this.onSearchHistoryOpenChanged,
@@ -149,6 +154,8 @@ class _ShellNavigationContent extends ConsumerWidget {
   final VoidCallback onGoBack;
   final ValueChanged<String> onSearchTextChanged;
   final void Function(String value, [SearchHistoryType type]) onSearchCommitted;
+  final void Function(String value, [SearchHistoryType type])
+  onRecentSearchSelected;
   final VoidCallback onSearchCleared;
   final int searchHistoryDismissEpoch;
   final ValueChanged<bool> onSearchHistoryOpenChanged;
@@ -196,6 +203,7 @@ class _ShellNavigationContent extends ConsumerWidget {
       onGoBack: onGoBack,
       onSearchTextChanged: onSearchTextChanged,
       onSearchCommitted: onSearchCommitted,
+      onRecentSearchSelected: onRecentSearchSelected,
       onSearchCleared: onSearchCleared,
       searchHistoryDismissEpoch: searchHistoryDismissEpoch,
       onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
