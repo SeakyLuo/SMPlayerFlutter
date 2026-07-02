@@ -325,6 +325,20 @@ void main() {
     );
   });
 
+  test('sortSongs title mode follows Electron local text collation', () {
+    final songs = [
+      _song(id: 1, title: 'Song 10'),
+      _song(id: 2, title: 'Song 2'),
+      _song(id: 3, title: 'Song 1'),
+    ];
+
+    expect(sortSongs(songs, LocalSortMode.title).map((song) => song.id), [
+      3,
+      2,
+      1,
+    ]);
+  });
+
   test('local sort criterion values match Electron store values', () {
     expect(localSortModeFromCriterion(0), LocalSortMode.title);
     expect(localSortModeFromCriterion(1), LocalSortMode.artist);
