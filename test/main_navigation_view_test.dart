@@ -1819,6 +1819,14 @@ void main() {
       expect(find.text('最近搜索'), findsOneWidget);
       expect(find.text('Jazz'), findsNWidgets(2));
 
+      await tester.tap(
+        find.byKey(const ValueKey('MainNavigationView.SearchHistorySelect.1')),
+      );
+      await tester.pumpAndSettle();
+      expect(repository.recordedSearches, [
+        (query: 'Jazz', type: SearchHistoryType.sidebar),
+      ]);
+
       await tester.tap(find.byKey(SmPlayerShellKeys.workspace));
       await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsNothing);

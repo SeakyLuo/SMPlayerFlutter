@@ -106,27 +106,29 @@ extension _LocalPageFolderActions on _LocalPageState {
   }
 
   Future<void> _searchDirectory(FolderNode folder, SmPlayerI18n i18n) async {
-    final query = await _requestSearchDirectoryQuery(folder, i18n);
-    if (query == null) {
+    final result = await _requestSearchDirectoryQuery(folder, i18n);
+    if (result == null) {
       return;
     }
     if (!mounted) {
       return;
     }
 
-    unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.folders)
-          .then((_) {
-            invalidateRecentSearchData(ref);
-          }),
-    );
+    if (result.addToRecentSearches) {
+      unawaited(
+        ref
+            .read(libraryRepositoryProvider)
+            .addRecentSearch(result.query, SearchHistoryType.folders)
+            .then((_) {
+              invalidateRecentSearchData(ref);
+            }),
+      );
+    }
     context.go(
       Uri(
         path: '/search',
         queryParameters: {
-          'query': query,
+          'query': result.query,
           'type': 'folders',
           'folder': folder.relativePath,
         },
@@ -134,19 +136,56 @@ extension _LocalPageFolderActions on _LocalPageState {
     );
   }
 
-  Future<String?> _requestSearchDirectoryQuery(
-    FolderNode folder,
-    SmPlayerI18n i18n,
-  ) async {
-    return showSmPlayerInputDialog(
+  Future<({String query, bool addToRecentSearches})?>
+  _requestSearchDirectoryQuery(FolderNode folder, SmPlayerI18n i18n) async {
+    final recentSearches =
+        latestSearchHistoryEntries(
+          ref.read(libraryContentDataProvider).value!.recentSearches,
+          SearchHistoryType.folders,
+        ).toList();
+    var selectedSearchHistory = false;
+    final query = await showSmPlayerInputDialog(
       context: context,
       i18n: i18n,
       title: i18n.t('local.searchDirectoryPrompt', {'name': folder.name}),
       defaultValue: '',
       confirmText: i18n.t('common.search'),
+      searchHistoryEntries: recentSearches,
+      onSearchHistorySelected: (_) {
+        selectedSearchHistory = true;
+      },
+      onRemoveSearchHistory: _removeSearchDirectoryHistory,
+      onClearSearchHistory: () {
+        _clearSearchDirectoryHistory(recentSearches);
+      },
       validate: (query) {
         return query.isEmpty ? i18n.t('local.searchQueryEmpty') : '';
       },
+    );
+    if (query == null) {
+      return null;
+    }
+    return (query: query, addToRecentSearches: !selectedSearchHistory);
+  }
+
+  void _removeSearchDirectoryHistory(int entryId) {
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
+    );
+  }
+
+  void _clearSearchDirectoryHistory(List<SearchHistoryEntry> entries) {
+    final entryIds = entries.map((entry) => entry.id).toList();
+    unawaited(
+      ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
+        _,
+      ) {
+        invalidateRecentSearchData(ref);
+      }),
     );
   }
 
