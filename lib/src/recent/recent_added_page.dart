@@ -63,6 +63,9 @@ class _RecentAddedPage extends StatelessWidget {
               icon: FluentIcons.multiselect_ltr_20_regular,
               label: i18n.t('albums.multiSelect'),
               active: multiSelect,
+              activeMatchesHover: true,
+              tooltip:
+                  multiSelect ? i18n.t('common.exitMultiSelectTooltip') : null,
               disabled: songs.isEmpty,
               onPressed: onToggleMultiSelect,
             ),

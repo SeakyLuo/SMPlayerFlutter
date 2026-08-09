@@ -269,7 +269,9 @@ class _AlbumArtLibraryPickerDialogState
                   fontWeight: FontWeight.w700,
                   fontVariations: const [FontVariation.weight(720)],
                   active: selectedChoice != null,
+                  activeHoverSurface: PopupDialogColors.accentStrong,
                   disabled: selectedChoice == null,
+                  glassEnabled: false,
                   onPressed:
                       selectedChoice == null
                           ? null

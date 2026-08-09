@@ -22,33 +22,42 @@ class ShellWorkspaceHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final workspace = SmPlayerWorkspace(
+      key: SmPlayerShellKeys.workspace,
+      currentPath: layout.currentPath,
+      currentLocation: layout.currentLocation,
+      headerHeight: SmPlayerShellMetrics.workspaceHeaderHeight,
+      showNavigationAppBar:
+          layout.navigationMode == SmPlayerNavigationMode.minimal &&
+          !layout.isImmersiveModeRoute,
+      navigationMenuLabel: navigationMenuLabel,
+      onNavigationMenuPressed: onNavigationMenuPressed,
+      navigationAppBarTopInset:
+          layout.immersiveMinimalTitlebar ? layout.minimalTitlebarHeight : 0,
+      child: PageStorage(bucket: pageStorageBucket, child: child),
+    );
+    final windowHeight = MediaQuery.sizeOf(context).height;
+    if (layout.isImmersiveModeRoute) {
+      return Positioned(
+        left: 0,
+        top: layout.workspaceTop,
+        right: 0,
+        height: windowHeight,
+        child: workspace,
+      );
+    }
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      left: layout.isImmersiveModeRoute ? 0 : layout.shellSidebarWidth,
+      left: layout.shellSidebarWidth,
       top: layout.workspaceTop,
       right: 0,
       height:
-          layout.isImmersiveModeRoute
-              ? MediaQuery.sizeOf(context).height
-              : MediaQuery.sizeOf(context).height -
-                  SmPlayerShellMetrics.playerHeight +
-                  SmPlayerShellMetrics.playerTopRadius -
-                  layout.workspaceTop,
-      child: SmPlayerWorkspace(
-        key: SmPlayerShellKeys.workspace,
-        currentPath: layout.currentPath,
-        currentLocation: layout.currentLocation,
-        headerHeight: SmPlayerShellMetrics.workspaceHeaderHeight,
-        showNavigationAppBar:
-            layout.navigationMode == SmPlayerNavigationMode.minimal &&
-            !layout.isImmersiveModeRoute,
-        navigationMenuLabel: navigationMenuLabel,
-        onNavigationMenuPressed: onNavigationMenuPressed,
-        navigationAppBarTopInset:
-            layout.immersiveMinimalTitlebar ? layout.minimalTitlebarHeight : 0,
-        child: PageStorage(bucket: pageStorageBucket, child: child),
-      ),
+          windowHeight -
+          SmPlayerShellMetrics.playerHeight +
+          SmPlayerShellMetrics.playerTopRadius -
+          layout.workspaceTop,
+      child: workspace,
     );
   }
 }

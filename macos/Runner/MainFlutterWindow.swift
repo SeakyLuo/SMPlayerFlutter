@@ -641,15 +641,16 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
 
   private func updateDesktopLyricsWindow(_ state: [String: Any]) {
     guard (state["visible"] as? Bool) == true else {
-      desktopLyricsPanel?.orderOut(nil)
+      hideDesktopLyricsPanel()
       return
     }
 
     let panel = ensureDesktopLyricsPanel(bounds: state["bounds"] as? String)
+    configureDesktopLyricsPanel(panel)
     desktopLyricsView?.apply(state: state)
     panel.ignoresMouseEvents = false
-    panel.isMovableByWindowBackground = (state["locked"] as? Bool) != true
-    panel.orderFrontRegardless()
+    panel.isMovableByWindowBackground = false
+    panel.orderFront(nil)
   }
 
   private func ensureDesktopLyricsPanel(bounds rawBounds: String?) -> NSPanel {
@@ -667,15 +668,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false)
-    panel.isOpaque = false
-    panel.backgroundColor = .clear
-    panel.hasShadow = false
-    panel.level = .screenSaver
-    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-    panel.hidesOnDeactivate = false
-    panel.isMovableByWindowBackground = true
-    panel.acceptsMouseMovedEvents = true
-    panel.delegate = self
+    configureDesktopLyricsPanel(panel)
     let lyricsView = DesktopLyricsNativeView(frame: NSRect(origin: .zero, size: frame.size))
     lyricsView.onCommand = { [weak self] command in
       self?.sendDesktopCommand(command)
@@ -686,6 +679,25 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     desktopLyricsView = lyricsView
     sendDesktopLyricsBounds()
     return panel
+  }
+
+  private func configureDesktopLyricsPanel(_ panel: NSPanel) {
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
+    panel.hasShadow = false
+    panel.level = .floating
+    panel.collectionBehavior = [.managed, .fullScreenNone]
+    panel.hidesOnDeactivate = false
+    panel.isMovableByWindowBackground = false
+    panel.acceptsMouseMovedEvents = true
+    panel.delegate = self
+  }
+
+  private func hideDesktopLyricsPanel() {
+    guard let panel = desktopLyricsPanel else {
+      return
+    }
+    panel.orderOut(nil)
   }
 
   func windowDidMove(_ notification: Notification) {
@@ -961,6 +973,7 @@ private final class NativeSplashView: NSView {
 }
 
 private final class DesktopLyricsNativeView: NSView {
+  private let glassView = NSVisualEffectView()
   private var state = [String: Any]()
   private var isPanelVisible = false
   private var trackingArea: NSTrackingArea?
@@ -1036,6 +1049,7 @@ private final class DesktopLyricsNativeView: NSView {
   override func mouseExited(with event: NSEvent) {
     if isPanelVisible {
       isPanelVisible = false
+      updateGlassSurface()
       needsDisplay = true
     }
   }
@@ -1052,7 +1066,7 @@ private final class DesktopLyricsNativeView: NSView {
         return
       }
     }
-    if (state["locked"] as? Bool) != true {
+    if (state["locked"] as? Bool) != true && draggableRect().contains(point) {
       window?.performDrag(with: event)
     }
   }
@@ -1060,6 +1074,15 @@ private final class DesktopLyricsNativeView: NSView {
   private func configureView() {
     wantsLayer = true
     layer?.backgroundColor = NSColor.clear.cgColor
+    glassView.blendingMode = .behindWindow
+    glassView.state = .active
+    glassView.material = .hudWindow
+    glassView.isHidden = true
+    glassView.wantsLayer = true
+    glassView.layer?.cornerRadius = 8
+    glassView.layer?.masksToBounds = true
+    glassView.layer?.zPosition = -1
+    addSubview(glassView, positioned: .below, relativeTo: nil)
   }
 
   private func updatePanelVisibility(at point: NSPoint) {
@@ -1071,6 +1094,7 @@ private final class DesktopLyricsNativeView: NSView {
       return
     }
     isPanelVisible = nextPanelVisible
+    updateGlassSurface()
     needsDisplay = true
   }
 
@@ -1134,35 +1158,57 @@ private final class DesktopLyricsNativeView: NSView {
       height: hitHeight)
   }
 
+  private func draggableRect() -> NSRect {
+    isPanelVisible ? cardRect() : lyricHitRect()
+  }
+
   private func drawCard() {
+    updateGlassSurface()
     let cardRect = cardRect()
     let path = NSBezierPath(roundedRect: cardRect, xRadius: 8, yRadius: 8)
     let opacity = CGFloat(numberValue("opacity", defaultValue: 88)) / 100.0
     if (state["nightMode"] as? Bool) == false {
       NSColor(
-        calibratedRed: 0.97,
-        green: 0.98,
-        blue: 0.99,
-        alpha: opacity * 0.24
+        calibratedRed: 0.90,
+        green: 0.88,
+        blue: 0.82,
+        alpha: opacity * 0.070
       ).setFill()
       NSColor(
         calibratedRed: 0.06,
         green: 0.09,
         blue: 0.16,
-        alpha: 0.08
+        alpha: 0.13
       ).setStroke()
     } else {
-      NSColor(
-        calibratedRed: 0.03,
-        green: 0.05,
-        blue: 0.07,
-        alpha: opacity * 0.34
-      ).setFill()
-      NSColor.white.withAlphaComponent(0.22).setStroke()
+      NSColor.white.withAlphaComponent(opacity * 0.045).setFill()
+      NSColor.white.withAlphaComponent(0.24).setStroke()
     }
     path.fill()
     path.lineWidth = 1
     path.stroke()
+
+    let innerRect = cardRect.insetBy(dx: 1, dy: 1)
+    let innerPath = NSBezierPath(roundedRect: innerRect, xRadius: 7, yRadius: 7)
+    if (state["nightMode"] as? Bool) == false {
+      NSColor.white.withAlphaComponent(0.22).setStroke()
+    } else {
+      NSColor.white.withAlphaComponent(0.16).setStroke()
+    }
+    innerPath.lineWidth = 1
+    innerPath.stroke()
+  }
+
+  private func updateGlassSurface() {
+    glassView.isHidden = !isPanelVisible
+    glassView.frame = cardRect()
+    if (state["nightMode"] as? Bool) == false {
+      glassView.material = .hudWindow
+      glassView.alphaValue = 0.62
+    } else {
+      glassView.material = .hudWindow
+      glassView.alphaValue = 0.78
+    }
   }
 
   private func drawMeta() {

@@ -509,7 +509,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         icon: FluentIcons.multiselect_ltr_24_regular,
                         label: i18n.t('albums.multiSelect'),
                         active: _multiSelect,
-                        onPressed: _enableMultiSelect,
+                        activeMatchesHover: true,
+                        tooltip:
+                            _multiSelect
+                                ? i18n.t('common.exitMultiSelectTooltip')
+                                : null,
+                        onPressed: _toggleMultiSelect,
                       ),
                       if (_multiSelect)
                         CommandBarButton(

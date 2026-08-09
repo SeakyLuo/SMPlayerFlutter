@@ -25,7 +25,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
             ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
             : const EdgeInsets.symmetric(horizontal: 18, vertical: 16);
     final headerGap = compact ? 14.0 : 16.0;
-    final actionWidth =
+    final expandedActionWidth =
         compact
             ? 72.0
             : responsive
@@ -39,76 +39,66 @@ class _ArtistAlbumHeader extends StatelessWidget {
       child: Padding(
         key: ValueKey('Artists.AlbumHeader.Padding.${album.name}'),
         padding: headerPadding,
-        child: Row(
-          children: [
-            AlbumArtwork(album: album, dimension: responsive ? 64 : 80),
-            SizedBox(width: headerGap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _ArtistAlbumTitleLink(
-                    albumName: album.name,
-                    brightness: brightness,
-                    compact: compact,
-                  ),
-                  SizedBox(
-                    key: ValueKey('Artists.AlbumSummary.Gap.${album.name}'),
-                    height: compact ? 6 : 8,
-                  ),
-                  Text(
-                    key: ValueKey('Artists.AlbumSummary.${album.name}'),
-                    i18n.t('artists.albumSummary', {
-                      'songs': album.songs.length,
-                      'duration': formatDuration(album.duration),
-                    }),
-                    style: TextStyle(
-                      color: _ArtistsColors.textMutedFor(brightness),
-                      fontSize: 14,
-                    ),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final artworkDimension = responsive ? 64.0 : 80.0;
+            final compactActions =
+                constraints.maxWidth <
+                artworkDimension + headerGap + expandedActionWidth + 24;
+            final showArtwork = constraints.maxWidth >= actionButtonSize + 56;
+            final actionWidth =
+                compactActions ? actionButtonSize : expandedActionWidth;
+            final actionGap = compactActions ? 8.0 : headerGap;
+            return Row(
+              children: [
+                if (showArtwork) ...[
+                  AlbumArtwork(album: album, dimension: artworkDimension),
+                  SizedBox(width: actionGap),
                 ],
-              ),
-            ),
-            SizedBox(
-              key: ValueKey('Artists.AlbumActions.${album.name}'),
-              width: actionWidth,
-              height: actionButtonSize,
-              child: OverflowBox(
-                minWidth: 0,
-                maxWidth: 84,
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      key: ValueKey('Artists.AlbumShuffle.${album.name}'),
-                      tooltip: i18n.t('nowPlaying.randomPlay'),
-                      icon: ShuffleIcon(size: actionIconSize),
-                      constraints: BoxConstraints.tightFor(
-                        width: actionButtonSize,
-                        height: actionButtonSize,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ArtistAlbumTitleLink(
+                        albumName: album.name,
+                        brightness: brightness,
+                        compact: compact,
                       ),
-                      style: _artistHeaderActionButtonStyle(
-                        actionButtonSize,
-                        brightness,
+                      SizedBox(
+                        key: ValueKey('Artists.AlbumSummary.Gap.${album.name}'),
+                        height: compact ? 6 : 8,
                       ),
-                      onPressed: onPlaySongs,
-                    ),
-                    SizedBox(width: compact ? 4 : 6),
-                    Builder(
-                      builder: (buttonContext) {
-                        return GestureDetector(
-                          onSecondaryTapDown: (details) {
-                            onOpenAlbumMenu(details.globalPosition);
-                          },
-                          child: IconButton(
-                            key: ValueKey('Artists.AlbumMore.${album.name}'),
-                            tooltip: i18n.t('player.more'),
-                            icon: SmPlayerMoreHorizontalIcon(
-                              size: actionIconSize,
-                            ),
+                      Text(
+                        key: ValueKey('Artists.AlbumSummary.${album.name}'),
+                        i18n.t('artists.albumSummary', {
+                          'songs': album.songs.length,
+                          'duration': formatDuration(album.duration),
+                        }),
+                        style: TextStyle(
+                          color: _ArtistsColors.textMutedFor(brightness),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  key: ValueKey('Artists.AlbumActions.${album.name}'),
+                  width: actionWidth,
+                  height: actionButtonSize,
+                  child: OverflowBox(
+                    minWidth: 0,
+                    maxWidth: 84,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (!compactActions) ...[
+                          IconButton(
+                            key: ValueKey('Artists.AlbumShuffle.${album.name}'),
+                            tooltip: i18n.t('nowPlaying.randomPlay'),
+                            icon: ShuffleIcon(size: actionIconSize),
                             constraints: BoxConstraints.tightFor(
                               width: actionButtonSize,
                               height: actionButtonSize,
@@ -117,25 +107,53 @@ class _ArtistAlbumHeader extends StatelessWidget {
                               actionButtonSize,
                               brightness,
                             ),
-                            onPressed: () {
-                              final button =
-                                  buttonContext.findRenderObject()!
-                                      as RenderBox;
-                              onOpenAlbumMenu(
-                                button.localToGlobal(
-                                  Offset(0, button.size.height + 4),
-                                ),
-                              );
-                            },
+                            onPressed: onPlaySongs,
                           ),
-                        );
-                      },
+                          SizedBox(width: compact ? 4 : 6),
+                        ],
+                        Builder(
+                          builder: (buttonContext) {
+                            return GestureDetector(
+                              onSecondaryTapDown: (details) {
+                                onOpenAlbumMenu(details.globalPosition);
+                              },
+                              child: IconButton(
+                                key: ValueKey(
+                                  'Artists.AlbumMore.${album.name}',
+                                ),
+                                tooltip: i18n.t('player.more'),
+                                icon: SmPlayerMoreHorizontalIcon(
+                                  size: actionIconSize,
+                                ),
+                                constraints: BoxConstraints.tightFor(
+                                  width: actionButtonSize,
+                                  height: actionButtonSize,
+                                ),
+                                style: _artistHeaderActionButtonStyle(
+                                  actionButtonSize,
+                                  brightness,
+                                ),
+                                onPressed: () {
+                                  final button =
+                                      buttonContext.findRenderObject()!
+                                          as RenderBox;
+                                  onOpenAlbumMenu(
+                                    button.localToGlobal(
+                                      Offset(0, button.size.height + 4),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );

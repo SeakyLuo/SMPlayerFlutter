@@ -71,7 +71,9 @@ class _MusicDialogCommandButton extends StatelessWidget {
             ? commandBarSurface
             : colors.buttonSurface;
     final hoverBackground =
-        primary || disabled
+        primary && !disabled
+            ? PopupDialogColors.accentStrong
+            : disabled
             ? background
             : commandBar
             ? commandBarHoverSurface

@@ -110,6 +110,13 @@ class _RecentTabButton extends StatelessWidget {
         child: SmPlayerTextIconButton(
           label: label,
           active: active,
+          activeHoverSurface:
+              active
+                  ? _recentActiveTabHoverSurface(
+                    context,
+                    colors.primaryTabActiveSurface,
+                  )
+                  : null,
           onPressed: onPressed,
           minWidth: 0,
           height: 38,
@@ -207,6 +214,17 @@ SmPlayerTextIconButtonColors _recentTabButtonColors({
     controlBorder: controlBorder,
     accentStrong: accentStrong,
   );
+}
+
+Color _recentActiveTabHoverSurface(BuildContext context, Color activeSurface) {
+  final hoverOverlay =
+      Theme.of(context).brightness == Brightness.dark
+          ? GlobalUI.hoverBgColorNight
+          : GlobalUI.hoverBgColorDay.withValues(alpha: 0.24);
+  final hoveredSurface = Color.alphaBlend(hoverOverlay, activeSurface);
+  return Theme.of(context).brightness == Brightness.dark
+      ? Color.alphaBlend(const Color(0x24000000), hoveredSurface)
+      : hoveredSurface;
 }
 
 class _RecentTabContent extends StatelessWidget {

@@ -117,11 +117,13 @@ class ImmersiveModeScaffold extends StatelessWidget {
     required this.coverColor,
     this.artworkPath,
     this.night = false,
+    this.entranceAnimation = const AlwaysStoppedAnimation(1),
   });
 
   final String? artworkPath;
   final Color coverColor;
   final bool night;
+  final Animation<double> entranceAnimation;
   final Widget child;
 
   @override
@@ -142,7 +144,7 @@ class ImmersiveModeScaffold extends StatelessWidget {
       ],
     );
 
-    return Stack(
+    final backdrop = Stack(
       fit: StackFit.expand,
       children: [
         ColoredBox(color: colors.pageBackground),
@@ -177,6 +179,16 @@ class ImmersiveModeScaffold extends StatelessWidget {
         ),
         if (night) const _ImmersiveModeNightWarmOverlay(),
         if (!night) _ImmersiveModeDayWashOverlay(coverColor: coverColor),
+      ],
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _ImmersiveModeBackgroundTransition(
+          key: const ValueKey('ImmersiveMode.BackgroundEntrance'),
+          animation: entranceAnimation,
+          child: backdrop,
+        ),
         Theme(
           data: scopedTheme,
           child: ScrollConfiguration(
@@ -187,6 +199,31 @@ class ImmersiveModeScaffold extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ImmersiveModeBackgroundTransition extends StatelessWidget {
+  const _ImmersiveModeBackgroundTransition({
+    super.key,
+    required this.animation,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        return Opacity(
+          opacity: Curves.easeInOutCubic.transform(animation.value),
+          child: child,
+        );
+      },
     );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 
 class SmPlayerShellFrame extends StatelessWidget {
+  static const _miniModeTransitionDuration = Duration(milliseconds: 400);
+
   const SmPlayerShellFrame({
     super.key,
     required this.colors,
@@ -38,10 +40,34 @@ class SmPlayerShellFrame extends StatelessWidget {
           child: SafeArea(
             top: false,
             bottom: false,
-            child:
-                isMiniMode
-                    ? miniModeHost
-                    : Stack(fit: StackFit.expand, children: children),
+            child: AnimatedSwitcher(
+              duration: _miniModeTransitionDuration,
+              reverseDuration: _miniModeTransitionDuration,
+              switchInCurve: Curves.easeInOutCubic,
+              switchOutCurve: Curves.easeInOutCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween<double>(
+                      begin: 0.96,
+                      end: 1,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child:
+                  isMiniMode
+                      ? KeyedSubtree(
+                        key: const ValueKey('SmPlayerShellFrame.MiniMode'),
+                        child: miniModeHost,
+                      )
+                      : KeyedSubtree(
+                        key: const ValueKey('SmPlayerShellFrame.NormalMode'),
+                        child: Stack(fit: StackFit.expand, children: children),
+                      ),
+            ),
           ),
         ),
       ),

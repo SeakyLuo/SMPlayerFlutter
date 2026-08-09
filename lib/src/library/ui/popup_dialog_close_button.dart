@@ -39,7 +39,6 @@ class _PopupDialogCloseButton extends StatelessWidget {
           label: label,
           onPressed: onClose,
           showLabel: false,
-          tooltipMode: SmPlayerTextIconButtonTooltipMode.local,
           minWidth: 42,
           height: 40,
           iconSize: 18,

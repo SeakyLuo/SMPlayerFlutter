@@ -174,6 +174,15 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
       progressSeconds: state.progressSeconds,
       durationSeconds: effectiveDuration,
     );
+    final emptyTrack = state.track.id == null;
+    final transportDisabled = state.disabled || emptyTrack;
+    final playButtonDisabled = emptyTrack ? false : state.disabled;
+    final playButtonTooltip =
+        emptyTrack
+            ? i18n.t('nowPlaying.quickPlay')
+            : state.isPlaying
+            ? i18n.t('player.pause')
+            : i18n.t('player.play');
     final playbackModeTooltip =
         '${i18n.t('player.playbackMode')}: ${_miniModePlaybackModeName(i18n, state.mode)}';
 
@@ -235,6 +244,7 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _MiniModeButton(
+                        key: const ValueKey('MiniMode.PreviousButton'),
                         tooltip:
                             widget.previousButtonRestartsTrack
                                 ? i18n.t(
@@ -242,33 +252,38 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                 )
                                 : i18n.t('player.previous'),
                         icon: _MiniModeIconName.previous,
-                        disabled: state.disabled,
+                        disabled: transportDisabled,
                         onPressed: widget.onPrevious,
                         size: 40,
                         padding: 9,
                       ),
                       const SizedBox(width: 10),
                       _MiniModeButton(
+                        key: const ValueKey('MiniMode.PlayPauseButton'),
                         primary: true,
-                        tooltip:
-                            state.isPlaying
-                                ? i18n.t('player.pause')
-                                : i18n.t('player.play'),
+                        tooltip: playButtonTooltip,
                         icon:
                             state.isPlaying
                                 ? _MiniModeIconName.pause
                                 : _MiniModeIconName.play,
                         loading: state.track.isLoading,
-                        disabled: state.disabled,
-                        onPressed: widget.onTogglePlayPause,
+                        disabled: playButtonDisabled,
+                        onPressed: () {
+                          if (emptyTrack) {
+                            widget.onQuickPlay();
+                            return;
+                          }
+                          widget.onTogglePlayPause();
+                        },
                         size: 48,
                         padding: 12,
                       ),
                       const SizedBox(width: 10),
                       _MiniModeButton(
+                        key: const ValueKey('MiniMode.NextButton'),
                         tooltip: i18n.t('player.next'),
                         icon: _MiniModeIconName.next,
-                        disabled: state.disabled,
+                        disabled: transportDisabled,
                         onPressed: widget.onNext,
                         size: 40,
                         padding: 9,
@@ -382,9 +397,12 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   _MiniModeButton(
+                                    key: const ValueKey(
+                                      'MiniMode.QuickPlayButton',
+                                    ),
                                     tooltip: i18n.t('nowPlaying.quickPlay'),
                                     icon: _MiniModeIconName.dice,
-                                    disabled: state.disabled,
+                                    disabled: false,
                                     onPressed: () {
                                       setState(() {
                                         _volumeOpen = false;
@@ -404,7 +422,7 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                         icon: _miniModePlaybackModeIcon(
                                           state.mode,
                                         ),
-                                        disabled: state.disabled,
+                                        disabled: false,
                                         onPressed: () {
                                           setState(() {
                                             _volumeOpen = false;
@@ -433,26 +451,33 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                       );
                                     },
                                   ),
-                                  _MiniModeButton(
-                                    tooltip:
-                                        state.track.favorite
-                                            ? i18n.t('player.unlike')
-                                            : i18n.t('player.like'),
-                                    icon:
-                                        state.track.favorite
-                                            ? _MiniModeIconName.heartFilled
-                                            : _MiniModeIconName.heart,
-                                    disabled: state.disabled,
-                                    favorite: state.track.favorite,
-                                    onPressed: widget.onToggleFavorite,
-                                    size: 34,
-                                    padding: 8,
-                                  ),
+                                  if (currentSong != null)
+                                    _MiniModeButton(
+                                      key: const ValueKey(
+                                        'MiniMode.FavoriteButton',
+                                      ),
+                                      tooltip:
+                                          state.track.favorite
+                                              ? i18n.t('player.unlike')
+                                              : i18n.t('player.like'),
+                                      icon:
+                                          state.track.favorite
+                                              ? _MiniModeIconName.heartFilled
+                                              : _MiniModeIconName.heart,
+                                      disabled: state.disabled,
+                                      favorite: state.track.favorite,
+                                      onPressed: widget.onToggleFavorite,
+                                      size: 34,
+                                      padding: 8,
+                                    ),
                                   if (widget.onOpenVoiceAssistant != null)
                                     _MiniModeButton(
+                                      key: const ValueKey(
+                                        'MiniMode.VoiceAssistantButton',
+                                      ),
                                       tooltip: i18n.t('player.voiceAssistant'),
                                       icon: _MiniModeIconName.voice,
-                                      disabled: state.disabled,
+                                      disabled: false,
                                       onPressed: () {
                                         setState(() {
                                           _volumeOpen = false;
@@ -497,7 +522,7 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
                                 value: progress,
                                 max: duration,
                                 disabled:
-                                    state.disabled || effectiveDuration <= 0,
+                                    transportDisabled || effectiveDuration <= 0,
                                 onBeginSeek: () {
                                   setState(() {
                                     _isProgressSeeking = true;

@@ -196,14 +196,10 @@ class NowPlayingQueueView extends StatelessWidget {
 }
 
 class NowPlayingEmptyState extends StatelessWidget {
-  const NowPlayingEmptyState({
-    super.key,
-    required this.title,
-    required this.message,
-  });
+  const NowPlayingEmptyState({super.key, required this.title, this.message});
 
   final String title;
-  final String message;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -229,18 +225,20 @@ class NowPlayingEmptyState extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: NowPlayingColors.textMuted,
-                    fontSize: 14,
-                    height: 1.65,
+              if (message != null) ...[
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Text(
+                    message!,
+                    style: const TextStyle(
+                      color: NowPlayingColors.textMuted,
+                      fontSize: 14,
+                      height: 1.65,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

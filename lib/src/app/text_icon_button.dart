@@ -31,8 +31,6 @@ const _textIconButtonNightGlassSettings = LiquidGlassSettings(
   standardOpacityMultiplier: 0.08,
 );
 
-enum SmPlayerTextIconButtonTooltipMode { overlay, local }
-
 class SmPlayerTextIconButton extends StatefulWidget {
   const SmPlayerTextIconButton({
     super.key,
@@ -46,10 +44,11 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.loading = false,
     this.active = false,
     this.activeSurface = true,
+    this.activeMatchesHover = false,
+    this.activeHoverSurface,
     this.disabled = false,
     this.showLabel = true,
     this.tooltipEnabled = true,
-    this.tooltipMode = SmPlayerTextIconButtonTooltipMode.overlay,
     this.tooltip,
     this.minWidth = 0,
     this.maxWidth,
@@ -81,10 +80,11 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final bool loading;
   final bool active;
   final bool activeSurface;
+  final bool activeMatchesHover;
+  final Color? activeHoverSurface;
   final bool disabled;
   final bool showLabel;
   final bool tooltipEnabled;
-  final SmPlayerTextIconButtonTooltipMode tooltipMode;
   final String? tooltip;
   final double minWidth;
   final double? maxWidth;
@@ -110,66 +110,114 @@ class SmPlayerTextIconButton extends StatefulWidget {
 }
 
 class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.tooltipEnabled) {
+      return _SmPlayerTextIconButtonInteraction(configuration: widget);
+    }
+    final tooltip = widget.tooltip ?? (widget.showLabel ? null : widget.label);
+    if (tooltip == null) {
+      return _SmPlayerTextIconButtonInteraction(configuration: widget);
+    }
+    return _SmPlayerTextIconButtonInteraction(
+      configuration: widget,
+      tooltip: tooltip,
+    );
+  }
+}
+
+class _SmPlayerTextIconButtonInteraction extends StatefulWidget {
+  const _SmPlayerTextIconButtonInteraction({
+    required this.configuration,
+    this.tooltip,
+  });
+
+  final SmPlayerTextIconButton configuration;
+  final String? tooltip;
+
+  @override
+  State<_SmPlayerTextIconButtonInteraction> createState() =>
+      _SmPlayerTextIconButtonInteractionState();
+}
+
+class _SmPlayerTextIconButtonInteractionState
+    extends State<_SmPlayerTextIconButtonInteraction> {
+  final _tooltipAnchorKey = GlobalKey();
   var _hovered = false;
   var _focused = false;
+  OverlayEntry? _tooltipOverlayEntry;
+
+  @override
+  void dispose() {
+    _removeTooltipOverlay();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final config = widget.configuration;
     final colors =
         SmPlayerTextIconButtonTheme.maybeOf(context) ??
         Theme.of(context).extension<SmPlayerTextIconButtonColors>() ??
         SmPlayerTextIconButtonColors.day;
     final brightness = Theme.of(context).brightness;
     final enabled =
-        widget.onPressed != null && !widget.disabled && !widget.loading;
+        config.onPressed != null && !config.disabled && !config.loading;
     final hovered = enabled && (_hovered || _focused);
+    final activeMatchesHover = config.active && config.activeMatchesHover;
+    final usesHoverStyle = hovered || activeMatchesHover;
     final foreground =
-        widget.active
-            ? colors.accentStrong
-            : hovered
+        activeMatchesHover || hovered
             ? colors.commandTextHover
+            : config.active
+            ? colors.accentStrong
             : colors.commandText;
     final surfaceColor =
-        widget.active && widget.activeSurface
+        activeMatchesHover
+            ? colors.controlHover
+            : config.active && config.activeSurface && !hovered
             ? colors.controlActive
+            : config.active && config.activeSurface && hovered
+            ? config.activeHoverSurface ??
+                Color.alphaBlend(colors.controlHover, colors.controlActive)
             : hovered
             ? colors.controlHover
             : colors.control;
     final borderColor =
-        hovered ? colors.controlHoverBorder : colors.controlBorder;
+        usesHoverStyle ? colors.controlHoverBorder : colors.controlBorder;
     final usesGlass =
-        widget.glassEnabled &&
-        (widget.glassSettings != null ||
+        config.glassEnabled &&
+        (config.glassSettings != null ||
             colors.control.a > 0 ||
             colors.controlBorder.a > 0);
     final iconOnlyWidth =
-        widget.minWidth > widget.height ? widget.minWidth : widget.height;
+        config.minWidth > config.height ? config.minWidth : config.height;
     final control = DecoratedBox(
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(widget.borderRadius),
+        borderRadius: BorderRadius.circular(config.borderRadius),
         border: Border.all(color: borderColor),
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minWidth: widget.showLabel ? widget.minWidth : iconOnlyWidth,
-          minHeight: widget.height,
-          maxHeight: widget.height,
+          minWidth: config.showLabel ? config.minWidth : iconOnlyWidth,
+          minHeight: config.height,
+          maxHeight: config.height,
           maxWidth:
-              widget.showLabel
-                  ? widget.maxWidth ?? double.infinity
+              config.showLabel
+                  ? config.maxWidth ?? double.infinity
                   : iconOnlyWidth,
         ),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: widget.showLabel ? widget.horizontalPadding : 0,
-            vertical: widget.verticalPadding,
+            horizontal: config.showLabel ? config.horizontalPadding : 0,
+            vertical: config.verticalPadding,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (widget.loading)
+              if (config.loading)
                 SizedBox.square(
                   dimension: 16,
                   child: CircularProgressIndicator(
@@ -177,55 +225,55 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
                     color: foreground,
                   ),
                 )
-              else if (widget.iconWidget case final iconWidget?)
+              else if (config.iconWidget case final iconWidget?)
                 IconTheme(
-                  data: IconThemeData(size: widget.iconSize, color: foreground),
+                  data: IconThemeData(size: config.iconSize, color: foreground),
                   child: iconWidget,
                 )
-              else if (widget.icon case final icon?)
+              else if (config.icon case final icon?)
                 isMultiSelectIcon(icon)
                     ? UniformMultiSelectIcon(
-                      size: widget.iconSize,
+                      size: config.iconSize,
                       color: foreground,
                     )
                     : icon == FluentIcons.play_20_regular
-                    ? SmPlayerPlayIcon(size: widget.iconSize, color: foreground)
-                    : Icon(icon, size: widget.iconSize, color: foreground),
-              if (widget.showLabel) ...[
-                if (widget.loading ||
-                    widget.icon != null ||
-                    widget.iconWidget != null)
-                  SizedBox(width: widget.iconGap),
+                    ? SmPlayerPlayIcon(size: config.iconSize, color: foreground)
+                    : Icon(icon, size: config.iconSize, color: foreground),
+              if (config.showLabel) ...[
+                if (config.loading ||
+                    config.icon != null ||
+                    config.iconWidget != null)
+                  SizedBox(width: config.iconGap),
                 Flexible(
                   child: DefaultTextStyle.merge(
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: TextStyle(
                       color: foreground,
-                      fontSize: widget.fontSize,
-                      fontWeight: widget.fontWeight,
-                      fontVariations: widget.fontVariations,
+                      fontSize: config.fontSize,
+                      fontWeight: config.fontWeight,
+                      fontVariations: config.fontVariations,
                       height: 1,
                       decoration: TextDecoration.none,
                     ),
-                    child: widget.child ?? Text(widget.label),
+                    child: config.child ?? Text(config.label),
                   ),
                 ),
-                if (widget.trailingIconWidget != null ||
-                    widget.trailingIcon != null) ...[
-                  SizedBox(width: widget.iconGap),
-                  if (widget.trailingIconWidget case final trailingIconWidget?)
+                if (config.trailingIconWidget != null ||
+                    config.trailingIcon != null) ...[
+                  SizedBox(width: config.iconGap),
+                  if (config.trailingIconWidget case final trailingIconWidget?)
                     IconTheme(
                       data: IconThemeData(
-                        size: widget.iconSize,
+                        size: config.iconSize,
                         color: foreground,
                       ),
                       child: trailingIconWidget,
                     )
-                  else if (widget.trailingIcon case final trailingIcon?)
+                  else if (config.trailingIcon case final trailingIcon?)
                     Icon(
                       trailingIcon,
-                      size: widget.iconSize,
+                      size: config.iconSize,
                       color: foreground,
                     ),
                 ],
@@ -238,21 +286,21 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
     final visualControl =
         usesGlass
             ? GlassContainer(
-              useOwnLayer: widget.glassUseOwnLayer,
-              quality: widget.glassQuality,
-              shape: LiquidRoundedRectangle(borderRadius: widget.borderRadius),
+              useOwnLayer: config.glassUseOwnLayer,
+              quality: config.glassQuality,
+              shape: LiquidRoundedRectangle(borderRadius: config.borderRadius),
               settings:
-                  widget.glassSettings ??
+                  config.glassSettings ??
                   (brightness == Brightness.dark
                       ? _textIconButtonNightGlassSettings
                       : _textIconButtonGlassSettings),
-              clipBehavior: widget.glassClipBehavior,
-              allowElevation: widget.glassAllowElevation,
+              clipBehavior: config.glassClipBehavior,
+              allowElevation: config.glassAllowElevation,
               child: control,
             )
             : control;
     final button = Opacity(
-      opacity: enabled ? 1 : widget.opacityWhenDisabled,
+      opacity: enabled ? 1 : config.opacityWhenDisabled,
       child: FocusableActionDetector(
         enabled: enabled,
         mouseCursor:
@@ -265,85 +313,107 @@ class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) {
               if (enabled) {
-                widget.onPressed?.call();
+                config.onPressed?.call();
               }
               return null;
             },
           ),
         },
-        onShowHoverHighlight: (value) {
-          if (_hovered != value) {
-            setState(() {
-              _hovered = value;
-            });
-          }
-        },
-        onShowFocusHighlight: (value) {
-          if (_focused != value) {
-            setState(() {
-              _focused = value;
-            });
-          }
-        },
+        onShowHoverHighlight: _setHovered,
+        onShowFocusHighlight: _setFocused,
         child: MouseRegion(
           onEnter: (_) {
-            if (!_hovered) {
-              setState(() {
-                _hovered = true;
-              });
-            }
+            _setHovered(true);
           },
           onExit: (_) {
-            if (_hovered) {
-              setState(() {
-                _hovered = false;
-              });
-            }
+            _setHovered(false);
           },
           child: Semantics(
             button: true,
             enabled: enabled,
-            label: widget.showLabel ? null : widget.label,
+            label: config.showLabel ? null : config.label,
+            tooltip: widget.tooltip,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapUp: enabled ? (_) => widget.onPressed?.call() : null,
+              onTapUp: enabled ? (_) => config.onPressed?.call() : null,
               child: visualControl,
             ),
           ),
         ),
       ),
     );
-    if (!widget.tooltipEnabled) {
-      return button;
+    return KeyedSubtree(key: _tooltipAnchorKey, child: button);
+  }
+
+  void _setHovered(bool hovered) {
+    if (_hovered == hovered) {
+      return;
     }
-    final tooltip = widget.tooltip ?? (widget.showLabel ? null : widget.label);
-    if (tooltip == null) {
-      return button;
+    setState(() {
+      _hovered = hovered;
+    });
+    _updateTooltipOverlay();
+  }
+
+  void _setFocused(bool focused) {
+    if (_focused == focused) {
+      return;
     }
-    if (widget.tooltipMode == SmPlayerTextIconButtonTooltipMode.local) {
-      return _SmPlayerTextIconButtonLocalTooltip(
-        message: tooltip,
-        visible: hovered,
-        buttonHeight: widget.height,
-        child: button,
-      );
+    setState(() {
+      _focused = focused;
+    });
+    _updateTooltipOverlay();
+  }
+
+  void _updateTooltipOverlay() {
+    if (widget.tooltip == null) {
+      return;
     }
-    return Tooltip(message: tooltip, child: button);
+    if (_hovered || _focused) {
+      _showTooltipOverlay();
+    } else {
+      _removeTooltipOverlay();
+    }
+  }
+
+  void _showTooltipOverlay() {
+    if (_tooltipOverlayEntry != null) {
+      return;
+    }
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) {
+      return;
+    }
+    final anchorBox =
+        _tooltipAnchorKey.currentContext!.findRenderObject()! as RenderBox;
+    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
+    final anchorOrigin = overlayBox.globalToLocal(
+      anchorBox.localToGlobal(Offset.zero),
+    );
+    _tooltipOverlayEntry = OverlayEntry(
+      builder:
+          (overlayContext) => _SmPlayerTextIconButtonTooltipOverlay(
+            message: widget.tooltip!,
+            anchor: anchorOrigin & anchorBox.size,
+          ),
+    );
+    overlay.insert(_tooltipOverlayEntry!);
+  }
+
+  void _removeTooltipOverlay() {
+    _tooltipOverlayEntry?.remove();
+    _tooltipOverlayEntry = null;
   }
 }
 
-class _SmPlayerTextIconButtonLocalTooltip extends StatelessWidget {
-  const _SmPlayerTextIconButtonLocalTooltip({
+class _SmPlayerTextIconButtonTooltipOverlay extends StatelessWidget {
+  const _SmPlayerTextIconButtonTooltipOverlay({
     required this.message,
-    required this.visible,
-    required this.buttonHeight,
-    required this.child,
+    required this.anchor,
   });
 
   final String message;
-  final bool visible;
-  final double buttonHeight;
-  final Widget child;
+  final Rect anchor;
 
   @override
   Widget build(BuildContext context) {
@@ -351,58 +421,46 @@ class _SmPlayerTextIconButtonLocalTooltip extends StatelessWidget {
     final background = dark ? const Color(0xf5222222) : const Color(0xfafdfdfd);
     final border = dark ? const Color(0x5cffffff) : const Color(0x3d1f2a36);
     final foreground = dark ? const Color(0xffffffff) : const Color(0xff1f252b);
-    return Semantics(
-      tooltip: message,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          child,
-          if (visible)
-            Positioned(
-              top: buttonHeight + 8,
-              left: -120,
-              right: -120,
-              child: IgnorePointer(
-                child: Center(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: background,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: border),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x26000000),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 240),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 5,
-                        ),
-                        child: Text(
-                          message,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: foreground,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            height: 1,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                      ),
-                    ),
+    return Positioned(
+      top: anchor.bottom + 8,
+      left: anchor.center.dx - 120,
+      width: 240,
+      child: IgnorePointer(
+        child: Center(
+          child: DecoratedBox(
+            key: const ValueKey('SmPlayerTextIconButton.Tooltip'),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: border),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x26000000),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 240),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Text(
+                  message,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    height: 1,
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

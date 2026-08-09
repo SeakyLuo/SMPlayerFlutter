@@ -132,7 +132,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           (_, _) => _NowPlayingPagePanel(
             child: NowPlayingEmptyState(
               title: i18n.t('nowPlaying.noActiveTrack'),
-              message: i18n.t('nowPlaying.noActiveTrackCopy'),
             ),
           ),
       data: (snapshot) {
@@ -252,7 +251,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   MenuFlyoutItem(
                     key: 'now-playing-appbar-clear-queue',
                     text: i18n.t('nowPlaying.clearQueue'),
-                    icon: FluentIcons.dismiss_20_regular,
+                    icon: FluentIcons.delete_20_regular,
                     onPressed: () {
                       _clearQueue(queueSongIds);
                     },
@@ -480,7 +479,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             },
                           ),
                           CommandBarButton(
-                            icon: FluentIcons.dismiss_20_regular,
+                            icon: FluentIcons.delete_20_regular,
                             label: i18n.t('nowPlaying.clearQueue'),
                             onPressed: () {
                               _clearQueue(queueSongIds);
@@ -498,6 +497,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             icon: FluentIcons.multiselect_ltr_20_regular,
                             label: i18n.t('common.multiSelect'),
                             active: _selection.multiSelect,
+                            activeMatchesHover: true,
+                            tooltip:
+                                _selection.multiSelect
+                                    ? i18n.t('common.exitMultiSelectTooltip')
+                                    : null,
                             onPressed: _toggleMultiSelect,
                           ),
                         ],
@@ -643,8 +647,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
-    final preferences =
-        await ref.read(libraryRepositoryProvider).getPreferenceSettings();
+    final repository = ref.read(libraryRepositoryProvider);
+    final preferences = await repository.getPreferenceSettings();
+    if (!mounted) {
+      return;
+    }
     _playSongIds(
       quickPlaySongIds(
         songs: snapshot.songs,
@@ -774,11 +781,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   void _toggleMultiSelect() {
     setState(() {
-      if (_selection.multiSelect) {
-        _selection.cancel();
-      } else {
-        _selection.enterMultiSelect();
-      }
+      _selection.toggleMultiSelect();
     });
   }
 
@@ -1202,7 +1205,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       context: context,
       i18n: context.smPlayerI18n,
       message: message,
-      onUndo: action,
+      onUndo: () async {
+        if (!mounted) {
+          return;
+        }
+        await action();
+      },
     );
   }
 

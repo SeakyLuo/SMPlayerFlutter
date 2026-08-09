@@ -60,6 +60,9 @@ class MediaControlSurfaceBar extends StatelessWidget {
     required this.durationSeconds,
     required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
+    this.playButtonDisabled,
+    this.playButtonTooltip,
+    this.onPlayButtonPressed,
     required this.onPrevious,
     this.onForcePrevious,
     required this.onNext,
@@ -119,7 +122,10 @@ class MediaControlSurfaceBar extends StatelessWidget {
   final double progressSeconds;
   final double durationSeconds;
   final bool previousButtonRestartsTrack;
+  final bool? playButtonDisabled;
+  final String? playButtonTooltip;
   final VoidCallback onTogglePlayPause;
+  final VoidCallback? onPlayButtonPressed;
   final VoidCallback onPrevious;
   final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
@@ -177,6 +183,84 @@ class MediaControlSurfaceBar extends StatelessWidget {
       hasDesktopLyrics: onToggleDesktopLyrics != null,
     );
     final leadingContentAligned = leadingWidth == null && utilityFlex != null;
+    final fixedSideLayout =
+        navMinimal && leadingWidth != null && utilityWidth != null;
+    final surface = MediaControlSurface(
+      trackId: trackId,
+      isLoading: isLoading,
+      favorite: favorite,
+      disabled: disabled,
+      isPlaying: isPlaying,
+      volume: volume,
+      isMuted: isMuted,
+      mode: mode,
+      progressSeconds: progressSeconds,
+      durationSeconds: durationSeconds,
+      previousButtonRestartsTrack: previousButtonRestartsTrack,
+      onTogglePlayPause: onTogglePlayPause,
+      playButtonDisabled: playButtonDisabled,
+      playButtonTooltip: playButtonTooltip,
+      onPlayButtonPressed: onPlayButtonPressed,
+      onPrevious: onPrevious,
+      onForcePrevious: onForcePrevious,
+      onNext: onNext,
+      onSeek: onSeek,
+      onBeginSeek: onBeginSeek,
+      onEndSeek: onEndSeek,
+      onVolumeChange: onVolumeChange,
+      onToggleMute: onToggleMute,
+      onToggleShuffle: onToggleShuffle,
+      onToggleRepeat: onToggleRepeat,
+      onToggleRepeatOne: onToggleRepeatOne,
+      onToggleFavorite: onToggleFavorite,
+      desktopLyricsEnabled: desktopLyricsEnabled,
+      onToggleDesktopLyrics: onToggleDesktopLyrics,
+      onOpenVoiceAssistant: onOpenVoiceAssistant,
+      condensed: condensed,
+      navMinimal: navMinimal,
+      utilityCondensed: utilityCondensed,
+      utilityMinimal: utilityMinimal,
+      utilityWidth: utilityWidth,
+      includeUtility: false,
+      progressSideOverflow: 0,
+      sliderActiveColor: sliderActiveColor,
+      sliderInactiveColor: sliderInactiveColor,
+      sliderThumbColor: sliderThumbColor,
+      sliderThumbShadow: sliderThumbShadow,
+      sliderOverlayColor: sliderOverlayColor,
+      onMoreClick: onMoreClick,
+    );
+    final fixedUtility = _MediaControlSurfaceBarUtility(
+      width: resolvedUtilityWidth,
+      trackId: trackId,
+      favorite: favorite,
+      disabled: disabled,
+      volume: volume,
+      isMuted: isMuted,
+      mode: mode,
+      onVolumeChange: onVolumeChange,
+      onToggleMute: onToggleMute,
+      onToggleShuffle: onToggleShuffle,
+      onToggleRepeat: onToggleRepeat,
+      onToggleRepeatOne: onToggleRepeatOne,
+      onToggleFavorite: onToggleFavorite,
+      desktopLyricsEnabled: desktopLyricsEnabled,
+      onToggleDesktopLyrics: onToggleDesktopLyrics,
+      onOpenVoiceAssistant: onOpenVoiceAssistant,
+      utilityCondensed: utilityCondensed,
+      utilityMinimal: utilityMinimal,
+      sliderActiveColor: sliderActiveColor,
+      sliderInactiveColor: sliderInactiveColor,
+      sliderThumbColor: sliderThumbColor,
+      sliderThumbShadow: sliderThumbShadow,
+      sliderOverlayColor: sliderOverlayColor,
+      volumeSliderActiveColor: volumeSliderActiveColor,
+      volumeSliderInactiveColor: volumeSliderInactiveColor,
+      volumeSliderThumbColor: volumeSliderThumbColor,
+      volumeSliderThumbShadow: volumeSliderThumbShadow,
+      volumeSliderOverlayColor: volumeSliderOverlayColor,
+      onMoreClick: onMoreClick,
+    );
 
     return MediaControlPlayerFrame(
       artworkPath: artworkPath,
@@ -184,188 +268,175 @@ class MediaControlSurfaceBar extends StatelessWidget {
       preserveWideBackground: preserveWideBackground,
       child: Padding(
         padding: padding,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (leadingWidth == null)
-              Expanded(
-                flex: leadingFlex!,
-                child:
-                    leadingContentAligned
-                        ? Align(alignment: Alignment.centerLeft, child: leading)
-                        : leading,
-              )
-            else
-              SizedBox(width: leadingWidth, child: navMinimalSideSlot(leading)),
-            if (columnGap > 0) SizedBox(width: columnGap),
-            Expanded(
-              flex: surfaceFlex,
-              child: MediaControlSurface(
-                trackId: trackId,
-                isLoading: isLoading,
-                favorite: favorite,
-                disabled: disabled,
-                isPlaying: isPlaying,
-                volume: volume,
-                isMuted: isMuted,
-                mode: mode,
-                progressSeconds: progressSeconds,
-                durationSeconds: durationSeconds,
-                previousButtonRestartsTrack: previousButtonRestartsTrack,
-                onTogglePlayPause: onTogglePlayPause,
-                onPrevious: onPrevious,
-                onForcePrevious: onForcePrevious,
-                onNext: onNext,
-                onSeek: onSeek,
-                onBeginSeek: onBeginSeek,
-                onEndSeek: onEndSeek,
-                onVolumeChange: onVolumeChange,
-                onToggleMute: onToggleMute,
-                onToggleShuffle: onToggleShuffle,
-                onToggleRepeat: onToggleRepeat,
-                onToggleRepeatOne: onToggleRepeatOne,
-                onToggleFavorite: onToggleFavorite,
-                desktopLyricsEnabled: desktopLyricsEnabled,
-                onToggleDesktopLyrics: onToggleDesktopLyrics,
-                onOpenVoiceAssistant: onOpenVoiceAssistant,
-                condensed: condensed,
-                navMinimal: navMinimal,
-                utilityCondensed: utilityCondensed,
-                utilityMinimal: utilityMinimal,
-                utilityWidth: utilityWidth,
-                includeUtility: false,
-                progressSideOverflow:
-                    navMinimal && leadingWidth != null
-                        ? leadingWidth! + columnGap - 9
-                        : 0,
-                sliderActiveColor: sliderActiveColor,
-                sliderInactiveColor: sliderInactiveColor,
-                sliderThumbColor: sliderThumbColor,
-                sliderThumbShadow: sliderThumbShadow,
-                sliderOverlayColor: sliderOverlayColor,
-                onMoreClick: onMoreClick,
-              ),
-            ),
-            if (columnGap > 0) SizedBox(width: columnGap),
-            if (utilityWidth == null && utilityFlex != null)
-              Expanded(
-                flex: utilityFlex!,
-                child: navMinimalSideSlot(
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(
-                      width: resolvedUtilityWidth,
-                      child: _MediaControlSurfaceBarUtility(
-                        width: resolvedUtilityWidth,
-                        trackId: trackId,
-                        favorite: favorite,
-                        disabled: disabled,
-                        volume: volume,
-                        isMuted: isMuted,
-                        mode: mode,
-                        onVolumeChange: onVolumeChange,
-                        onToggleMute: onToggleMute,
-                        onToggleShuffle: onToggleShuffle,
-                        onToggleRepeat: onToggleRepeat,
-                        onToggleRepeatOne: onToggleRepeatOne,
-                        onToggleFavorite: onToggleFavorite,
-                        desktopLyricsEnabled: desktopLyricsEnabled,
-                        onToggleDesktopLyrics: onToggleDesktopLyrics,
-                        onOpenVoiceAssistant: onOpenVoiceAssistant,
-                        utilityCondensed: utilityCondensed,
-                        utilityMinimal: utilityMinimal,
-                        sliderActiveColor: sliderActiveColor,
-                        sliderInactiveColor: sliderInactiveColor,
-                        sliderThumbColor: sliderThumbColor,
-                        sliderThumbShadow: sliderThumbShadow,
-                        sliderOverlayColor: sliderOverlayColor,
-                        volumeSliderActiveColor: volumeSliderActiveColor,
-                        volumeSliderInactiveColor: volumeSliderInactiveColor,
-                        volumeSliderThumbColor: volumeSliderThumbColor,
-                        volumeSliderThumbShadow: volumeSliderThumbShadow,
-                        volumeSliderOverlayColor: volumeSliderOverlayColor,
-                        onMoreClick: onMoreClick,
+        child:
+            fixedSideLayout
+                ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    surface,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: leadingWidth,
+                        child: navMinimalSideSlot(leading),
                       ),
                     ),
-                  ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SizedBox(
+                        width: resolvedUtilityWidth,
+                        child: navMinimalSideSlot(fixedUtility),
+                      ),
+                    ),
+                  ],
+                )
+                : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (leadingWidth == null)
+                      Expanded(
+                        flex: leadingFlex!,
+                        child:
+                            leadingContentAligned
+                                ? Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: leading,
+                                )
+                                : leading,
+                      )
+                    else
+                      SizedBox(
+                        width: leadingWidth,
+                        child: navMinimalSideSlot(leading),
+                      ),
+                    if (columnGap > 0) SizedBox(width: columnGap),
+                    Expanded(flex: surfaceFlex, child: surface),
+                    if (columnGap > 0) SizedBox(width: columnGap),
+                    if (utilityWidth == null && utilityFlex != null)
+                      Expanded(
+                        flex: utilityFlex!,
+                        child: navMinimalSideSlot(
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: SizedBox(
+                              width: resolvedUtilityWidth,
+                              child: _MediaControlSurfaceBarUtility(
+                                width: resolvedUtilityWidth,
+                                trackId: trackId,
+                                favorite: favorite,
+                                disabled: disabled,
+                                volume: volume,
+                                isMuted: isMuted,
+                                mode: mode,
+                                onVolumeChange: onVolumeChange,
+                                onToggleMute: onToggleMute,
+                                onToggleShuffle: onToggleShuffle,
+                                onToggleRepeat: onToggleRepeat,
+                                onToggleRepeatOne: onToggleRepeatOne,
+                                onToggleFavorite: onToggleFavorite,
+                                desktopLyricsEnabled: desktopLyricsEnabled,
+                                onToggleDesktopLyrics: onToggleDesktopLyrics,
+                                onOpenVoiceAssistant: onOpenVoiceAssistant,
+                                utilityCondensed: utilityCondensed,
+                                utilityMinimal: utilityMinimal,
+                                sliderActiveColor: sliderActiveColor,
+                                sliderInactiveColor: sliderInactiveColor,
+                                sliderThumbColor: sliderThumbColor,
+                                sliderThumbShadow: sliderThumbShadow,
+                                sliderOverlayColor: sliderOverlayColor,
+                                volumeSliderActiveColor:
+                                    volumeSliderActiveColor,
+                                volumeSliderInactiveColor:
+                                    volumeSliderInactiveColor,
+                                volumeSliderThumbColor: volumeSliderThumbColor,
+                                volumeSliderThumbShadow:
+                                    volumeSliderThumbShadow,
+                                volumeSliderOverlayColor:
+                                    volumeSliderOverlayColor,
+                                onMoreClick: onMoreClick,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (utilityWidth == null)
+                      SizedBox(
+                        width: resolvedUtilityWidth,
+                        child: navMinimalSideSlot(
+                          _MediaControlSurfaceBarUtility(
+                            width: resolvedUtilityWidth,
+                            trackId: trackId,
+                            favorite: favorite,
+                            disabled: disabled,
+                            volume: volume,
+                            isMuted: isMuted,
+                            mode: mode,
+                            onVolumeChange: onVolumeChange,
+                            onToggleMute: onToggleMute,
+                            onToggleShuffle: onToggleShuffle,
+                            onToggleRepeat: onToggleRepeat,
+                            onToggleRepeatOne: onToggleRepeatOne,
+                            onToggleFavorite: onToggleFavorite,
+                            desktopLyricsEnabled: desktopLyricsEnabled,
+                            onToggleDesktopLyrics: onToggleDesktopLyrics,
+                            onOpenVoiceAssistant: onOpenVoiceAssistant,
+                            utilityCondensed: utilityCondensed,
+                            utilityMinimal: utilityMinimal,
+                            sliderActiveColor: sliderActiveColor,
+                            sliderInactiveColor: sliderInactiveColor,
+                            sliderThumbColor: sliderThumbColor,
+                            sliderThumbShadow: sliderThumbShadow,
+                            sliderOverlayColor: sliderOverlayColor,
+                            volumeSliderActiveColor: volumeSliderActiveColor,
+                            volumeSliderInactiveColor:
+                                volumeSliderInactiveColor,
+                            volumeSliderThumbColor: volumeSliderThumbColor,
+                            volumeSliderThumbShadow: volumeSliderThumbShadow,
+                            volumeSliderOverlayColor: volumeSliderOverlayColor,
+                            onMoreClick: onMoreClick,
+                          ),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: resolvedUtilityWidth,
+                        child: navMinimalSideSlot(
+                          _MediaControlSurfaceBarUtility(
+                            width: resolvedUtilityWidth,
+                            trackId: trackId,
+                            favorite: favorite,
+                            disabled: disabled,
+                            volume: volume,
+                            isMuted: isMuted,
+                            mode: mode,
+                            onVolumeChange: onVolumeChange,
+                            onToggleMute: onToggleMute,
+                            onToggleShuffle: onToggleShuffle,
+                            onToggleRepeat: onToggleRepeat,
+                            onToggleRepeatOne: onToggleRepeatOne,
+                            onToggleFavorite: onToggleFavorite,
+                            desktopLyricsEnabled: desktopLyricsEnabled,
+                            onToggleDesktopLyrics: onToggleDesktopLyrics,
+                            onOpenVoiceAssistant: onOpenVoiceAssistant,
+                            utilityCondensed: utilityCondensed,
+                            utilityMinimal: utilityMinimal,
+                            sliderActiveColor: sliderActiveColor,
+                            sliderInactiveColor: sliderInactiveColor,
+                            sliderThumbColor: sliderThumbColor,
+                            sliderThumbShadow: sliderThumbShadow,
+                            sliderOverlayColor: sliderOverlayColor,
+                            volumeSliderActiveColor: volumeSliderActiveColor,
+                            volumeSliderInactiveColor:
+                                volumeSliderInactiveColor,
+                            volumeSliderThumbColor: volumeSliderThumbColor,
+                            volumeSliderThumbShadow: volumeSliderThumbShadow,
+                            volumeSliderOverlayColor: volumeSliderOverlayColor,
+                            onMoreClick: onMoreClick,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              )
-            else if (utilityWidth == null)
-              SizedBox(
-                width: resolvedUtilityWidth,
-                child: navMinimalSideSlot(
-                  _MediaControlSurfaceBarUtility(
-                    width: resolvedUtilityWidth,
-                    trackId: trackId,
-                    favorite: favorite,
-                    disabled: disabled,
-                    volume: volume,
-                    isMuted: isMuted,
-                    mode: mode,
-                    onVolumeChange: onVolumeChange,
-                    onToggleMute: onToggleMute,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                    onToggleFavorite: onToggleFavorite,
-                    desktopLyricsEnabled: desktopLyricsEnabled,
-                    onToggleDesktopLyrics: onToggleDesktopLyrics,
-                    onOpenVoiceAssistant: onOpenVoiceAssistant,
-                    utilityCondensed: utilityCondensed,
-                    utilityMinimal: utilityMinimal,
-                    sliderActiveColor: sliderActiveColor,
-                    sliderInactiveColor: sliderInactiveColor,
-                    sliderThumbColor: sliderThumbColor,
-                    sliderThumbShadow: sliderThumbShadow,
-                    sliderOverlayColor: sliderOverlayColor,
-                    volumeSliderActiveColor: volumeSliderActiveColor,
-                    volumeSliderInactiveColor: volumeSliderInactiveColor,
-                    volumeSliderThumbColor: volumeSliderThumbColor,
-                    volumeSliderThumbShadow: volumeSliderThumbShadow,
-                    volumeSliderOverlayColor: volumeSliderOverlayColor,
-                    onMoreClick: onMoreClick,
-                  ),
-                ),
-              )
-            else
-              SizedBox(
-                width: resolvedUtilityWidth,
-                child: navMinimalSideSlot(
-                  _MediaControlSurfaceBarUtility(
-                    width: resolvedUtilityWidth,
-                    trackId: trackId,
-                    favorite: favorite,
-                    disabled: disabled,
-                    volume: volume,
-                    isMuted: isMuted,
-                    mode: mode,
-                    onVolumeChange: onVolumeChange,
-                    onToggleMute: onToggleMute,
-                    onToggleShuffle: onToggleShuffle,
-                    onToggleRepeat: onToggleRepeat,
-                    onToggleRepeatOne: onToggleRepeatOne,
-                    onToggleFavorite: onToggleFavorite,
-                    desktopLyricsEnabled: desktopLyricsEnabled,
-                    onToggleDesktopLyrics: onToggleDesktopLyrics,
-                    onOpenVoiceAssistant: onOpenVoiceAssistant,
-                    utilityCondensed: utilityCondensed,
-                    utilityMinimal: utilityMinimal,
-                    sliderActiveColor: sliderActiveColor,
-                    sliderInactiveColor: sliderInactiveColor,
-                    sliderThumbColor: sliderThumbColor,
-                    sliderThumbShadow: sliderThumbShadow,
-                    sliderOverlayColor: sliderOverlayColor,
-                    volumeSliderActiveColor: volumeSliderActiveColor,
-                    volumeSliderInactiveColor: volumeSliderInactiveColor,
-                    volumeSliderThumbColor: volumeSliderThumbColor,
-                    volumeSliderThumbShadow: volumeSliderThumbShadow,
-                    volumeSliderOverlayColor: volumeSliderOverlayColor,
-                    onMoreClick: onMoreClick,
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

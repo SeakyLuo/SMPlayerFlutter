@@ -26,17 +26,11 @@ class ShellWindowDragRegion extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (event) {
-          if (event.buttons == 1) {
-            onWindowDragStart?.call();
-          }
-        },
-        onPointerUp: (_) => onWindowDragEnd?.call(),
-        onPointerCancel: (_) => onWindowDragEnd?.call(),
-        child: child,
-      ),
+      onPanStart:
+          onWindowDragStart == null ? null : (_) => onWindowDragStart!(),
+      onPanEnd: onWindowDragEnd == null ? null : (_) => onWindowDragEnd!(),
+      onPanCancel: onWindowDragEnd,
+      child: child,
     );
   }
 }

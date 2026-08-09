@@ -369,6 +369,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _ConfirmSettingsDialog(
                 title: i18n.t('settings.importData'),
                 message: i18n.t('settings.importDataConfirm'),
+                usePopupDialog: true,
                 onCancel: () {
                   setState(() {
                     _showImportDataDialog = false;
@@ -620,7 +621,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final exported =
           widget.onExportData == null
               ? await _exportDataWithPicker(i18n)
-              : await widget.onExportData!();
+              : await _exportDataWithCallback();
       if (exported && mounted) {
         _showMessage(i18n.t('settings.dataExported'));
       }
@@ -635,6 +636,13 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     }
+  }
+
+  Future<bool> _exportDataWithCallback() async {
+    setState(() {
+      _dataTransferState = DataTransferState.exporting;
+    });
+    return widget.onExportData!();
   }
 
   Future<void> _importData() async {
@@ -864,6 +872,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (targetPath == null) {
       return false;
+    }
+    if (mounted) {
+      setState(() {
+        _dataTransferState = DataTransferState.exporting;
+      });
     }
     return widget.libraryRepository.exportDataTo(targetPath);
   }

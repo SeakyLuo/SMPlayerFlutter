@@ -130,6 +130,11 @@ class _AlbumsToolbarState extends State<_AlbumsToolbar> {
             icon: FluentIcons.multiselect_ltr_24_regular,
             label: widget.i18n.t('common.multiSelect'),
             active: widget.multiSelect,
+            activeMatchesHover: true,
+            tooltip:
+                widget.multiSelect
+                    ? widget.i18n.t('common.exitMultiSelectTooltip')
+                    : null,
             onPressed: widget.onToggleMultiSelect,
           ),
           Builder(

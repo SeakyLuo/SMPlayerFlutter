@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -162,16 +161,18 @@ Future<void> showMenuFlyout(
 
   entry = OverlayEntry(
     builder:
-        (overlayContext) => _MenuFlyoutOverlay(
-          items: items,
-          itemsListenable: itemsListenable,
-          anchorContext: context,
-          positionContext: overlay.context,
-          requestedPosition: resolvedPosition,
-          hasExplicitPosition: hasExplicitPosition,
-          avoidPlayerBar: avoidPlayerBar,
-          scrollRoot: scrollRoot,
-          onClose: close,
+        (overlayContext) => Positioned.fill(
+          child: _MenuFlyoutOverlay(
+            items: items,
+            itemsListenable: itemsListenable,
+            anchorContext: context,
+            positionContext: overlay.context,
+            requestedPosition: resolvedPosition,
+            hasExplicitPosition: hasExplicitPosition,
+            avoidPlayerBar: avoidPlayerBar,
+            scrollRoot: scrollRoot,
+            onClose: close,
+          ),
         ),
   );
   _openMenuFlyoutClosers.add(close);
@@ -221,7 +222,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   late List<_MenuFlyoutPanelState> _panels;
   final _focusNode = FocusNode(debugLabel: 'MenuFlyoutOverlay');
   ScrollPosition? _anchorScrollPosition;
-  var _globalPointerRouteAttached = false;
 
   @override
   void initState() {
@@ -237,7 +237,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       if (mounted) {
         _focusNode.requestFocus();
         _attachAnchorScrollListener();
-        _attachGlobalPointerRoute();
       }
     });
   }
@@ -261,7 +260,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _detachGlobalPointerRoute();
     _anchorScrollPosition?.removeListener(_requestPositionUpdate);
     _focusNode.dispose();
     super.dispose();
@@ -318,12 +316,10 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
             final panels = _resolvedPanels(context, size, boundaryBottom);
             return Stack(
               children: [
-                Positioned.fill(
-                  child: Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: (_) => widget.onClose(),
-                    child: const SizedBox.expand(),
-                  ),
+                ModalBarrier(
+                  color: Colors.transparent,
+                  dismissible: true,
+                  onDismiss: widget.onClose,
                 ),
                 for (var index = 0; index < panels.length; index++)
                   _MenuFlyoutPanel(
@@ -354,9 +350,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       return size.height - _menuFlyoutMargin;
     }
     final playerTop = size.height - _menuFlyoutPlayerBarHeight;
-    if (widget.requestedPosition.dy >= playerTop) {
-      return size.height - _menuFlyoutMargin;
-    }
     return playerTop - _menuFlyoutMargin;
   }
 
@@ -378,93 +371,6 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       return;
     }
     setState(() {});
-  }
-
-  void _attachGlobalPointerRoute() {
-    if (_globalPointerRouteAttached) {
-      return;
-    }
-    GestureBinding.instance.pointerRouter.addGlobalRoute(
-      _handleGlobalPointerEvent,
-    );
-    _globalPointerRouteAttached = true;
-  }
-
-  void _detachGlobalPointerRoute() {
-    if (!_globalPointerRouteAttached) {
-      return;
-    }
-    GestureBinding.instance.pointerRouter.removeGlobalRoute(
-      _handleGlobalPointerEvent,
-    );
-    _globalPointerRouteAttached = false;
-  }
-
-  void _handleGlobalPointerEvent(PointerEvent event) {
-    if (event is! PointerDownEvent || !mounted) {
-      return;
-    }
-    if (_containsGlobalPosition(event.position)) {
-      return;
-    }
-    widget.onClose();
-  }
-
-  bool _containsGlobalPosition(Offset globalPosition) {
-    final renderObject = context.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.attached) {
-      return false;
-    }
-    final localPosition = renderObject.globalToLocal(globalPosition);
-    final size = _viewConstrainedSize(context, renderObject.size);
-    final boundaryBottom = _boundaryBottom(size);
-    final panels = _resolvedPanels(context, size, boundaryBottom);
-    for (var index = 0; index < panels.length; index += 1) {
-      if (_panelHitRect(
-        context: context,
-        panel: panels[index],
-        depth: index,
-        size: size,
-        boundaryBottom: boundaryBottom,
-      ).contains(localPosition)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Size _viewConstrainedSize(BuildContext context, Size constraintSize) {
-    final view = View.of(context);
-    final viewSize = view.physicalSize / view.devicePixelRatio;
-    return Size(
-      math.min(constraintSize.width, viewSize.width),
-      math.min(constraintSize.height, viewSize.height),
-    );
-  }
-
-  Rect _panelHitRect({
-    required BuildContext context,
-    required _MenuFlyoutPanelState panel,
-    required int depth,
-    required Size size,
-    required double boundaryBottom,
-  }) {
-    final width = _menuFlyoutPanelWidth(
-      context,
-      panel.items,
-    ).clamp(0.0, size.width - _menuFlyoutMargin * 2);
-    final maxHeight = (boundaryBottom - panel.position.dy - _menuFlyoutMargin)
-        .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
-    final itemsContentHeight = _menuFlyoutItemsContentHeight(panel.items);
-    final scrollable =
-        (depth > 0 || widget.scrollRoot) && itemsContentHeight > maxHeight;
-    final height = scrollable ? maxHeight : _menuFlyoutItemsHeight(panel.items);
-    return Rect.fromLTWH(
-      panel.position.dx,
-      panel.position.dy,
-      width.toDouble(),
-      height.toDouble(),
-    );
   }
 
   List<_MenuFlyoutPanelState> _resolvedPanels(
@@ -918,10 +824,16 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
     if (item.separator) {
       return MouseRegion(
         onEnter: (_) => widget.onPassiveItemEntered(),
-        child: const SizedBox(
+        child: SizedBox(
           height: _menuFlyoutSeparatorHeight,
           child: Center(
-            child: Divider(height: 1, thickness: 1, indent: 8, endIndent: 8),
+            child: Divider(
+              height: 1,
+              thickness: 1,
+              indent: 8,
+              endIndent: 8,
+              color: MenuFlyoutThemeColors.of(context).separator,
+            ),
           ),
         ),
       );
@@ -1269,6 +1181,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
     required this.disabledText,
     required this.hoverSurface,
     required this.checked,
+    required this.separator,
   });
 
   final Color surface;
@@ -1279,6 +1192,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
   final Color disabledText;
   final Color hoverSurface;
   final Color checked;
+  final Color separator;
 
   static const light = MenuFlyoutThemeColors(
     surface: Color(0x48ffffff),
@@ -1289,6 +1203,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
     disabledText: Color(0x751f252b),
     hoverSurface: GlobalUI.selectedBgColorDay,
     checked: Color(0xff0063b1),
+    separator: Color(0x5c5b697a),
   );
 
   static const dark = MenuFlyoutThemeColors(
@@ -1300,6 +1215,7 @@ class MenuFlyoutThemeColors extends ThemeExtension<MenuFlyoutThemeColors> {
     disabledText: Color(0x8fffffff),
     hoverSurface: GlobalUI.selectedBgColorNight,
     checked: Colors.white,
+    separator: Color(0x52ffffff),
   );
 
   static MenuFlyoutThemeColors of(BuildContext context) {

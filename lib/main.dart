@@ -288,8 +288,10 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
       builder: (context, child) {
         return SmPlayerI18nScope(
           i18n: i18n,
-          child: TouchContextMenuAdapter(
-            child: child ?? const SizedBox.shrink(),
+          child: Overlay.wrap(
+            child: TouchContextMenuAdapter(
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },

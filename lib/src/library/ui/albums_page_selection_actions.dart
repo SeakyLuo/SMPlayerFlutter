@@ -17,9 +17,9 @@ extension _AlbumsPageSelectionActions on _AlbumsPageState {
     _scrollAlbumsToTop();
   }
 
-  void _enterMultiSelect() {
+  void _toggleMultiSelect() {
     setState(() {
-      _selection.enterMultiSelect();
+      _selection.toggleMultiSelect();
     });
   }
 

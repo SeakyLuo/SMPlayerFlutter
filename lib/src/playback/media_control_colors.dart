@@ -2,6 +2,74 @@ part of 'media_control.dart';
 
 enum MediaControlCoverWashMode { linear, radial }
 
+class MediaControlSliderColors {
+  const MediaControlSliderColors({
+    required this.progressActive,
+    required this.progressInactive,
+    required this.progressThumb,
+    required this.progressThumbShadow,
+    required this.volumeActive,
+    required this.volumeInactive,
+    required this.volumeThumb,
+  });
+
+  final Color progressActive;
+  final Color progressInactive;
+  final Color progressThumb;
+  final BoxShadow progressThumbShadow;
+  final Color volumeActive;
+  final Color volumeInactive;
+  final Color volumeThumb;
+
+  static const light = MediaControlSliderColors(
+    progressActive: MediaControlColors.accent,
+    progressInactive: Color(0x2e5b697a),
+    progressThumb: MediaControlColors.accent,
+    progressThumbShadow: BoxShadow(
+      color: Color(0x52445870),
+      offset: Offset(0, 1),
+      blurRadius: 8,
+    ),
+    volumeActive: Color(0xeb0078d7),
+    volumeInactive: Color(0x2e323e4e),
+    volumeThumb: MediaControlColors.accent,
+  );
+
+  static const dark = MediaControlSliderColors(
+    progressActive: Color(0xdbffffff),
+    progressInactive: Color(0x33ffffff),
+    progressThumb: Colors.white,
+    progressThumbShadow: BoxShadow(
+      color: Color(0x61000000),
+      offset: Offset(0, 1),
+      blurRadius: 8,
+    ),
+    volumeActive: Color(0xdbffffff),
+    volumeInactive: Color(0x2ecbd5e1),
+    volumeThumb: Colors.white,
+  );
+
+  static const volumeThumbShadow = BoxShadow(
+    color: Color(0x47000000),
+    offset: Offset(0, 1),
+    blurRadius: 4,
+  );
+
+  static MediaControlSliderColors forBrightness(Brightness brightness) {
+    return switch (brightness) {
+      Brightness.light => light,
+      Brightness.dark => dark,
+    };
+  }
+
+  static MediaControlSliderColors forNight(bool night) {
+    return switch (night) {
+      true => dark,
+      false => light,
+    };
+  }
+}
+
 class MediaControlColors {
   const MediaControlColors._();
 

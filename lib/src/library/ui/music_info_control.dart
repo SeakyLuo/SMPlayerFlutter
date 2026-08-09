@@ -92,6 +92,17 @@ class MusicInfoControl extends StatelessWidget {
         _MusicDialogCommandBar(
           showBusy: saving,
           children: [
+            if (propertiesDirty)
+              _MusicDialogCommandButton(
+                iconWidget: const _ElectronIcon(
+                  _ElectronIconName.undo,
+                  size: 20,
+                ),
+                label: i18n.t('common.reset'),
+                commandBar: true,
+                disabled: loading || saving,
+                onPressed: onReset,
+              ),
             if (onPlay != null)
               _MusicDialogCommandButton(
                 iconWidget: _ElectronIcon(
@@ -111,17 +122,6 @@ class MusicInfoControl extends StatelessWidget {
               disabled: loading || saving,
               onPressed: onSave,
             ),
-            if (propertiesDirty)
-              _MusicDialogCommandButton(
-                iconWidget: const _ElectronIcon(
-                  _ElectronIconName.undo,
-                  size: 20,
-                ),
-                label: i18n.t('common.reset'),
-                commandBar: true,
-                disabled: loading || saving,
-                onPressed: onReset,
-              ),
           ],
         ),
         Expanded(

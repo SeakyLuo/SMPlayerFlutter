@@ -76,21 +76,28 @@ class _MainNavigationViewTitle extends StatelessWidget {
         width: double.infinity,
         child:
             collapsed
-                ? Center(
-                  child:
-                      canGoBack
-                          ? _NavigationIconButton(
-                            key: const ValueKey(
-                              'MainNavigationView.BackButton',
-                            ),
-                            icon: FluentIcons.arrow_left_24_regular,
-                            tooltip: backLabel,
-                            onPressed: onGoBack ?? () {},
-                            collapsedContext: true,
-                            onTooltipRequested: onTooltipRequested,
-                            onTooltipDismissed: onTooltipDismissed,
-                          )
-                          : const SizedBox.shrink(),
+                ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _WindowDragRegion(
+                      onWindowDragStart: onWindowDragStart,
+                      onWindowDragEnd: onWindowDragEnd,
+                      onTap: onTitlebarTap,
+                      child: const SizedBox.expand(),
+                    ),
+                    if (canGoBack)
+                      Center(
+                        child: _NavigationIconButton(
+                          key: const ValueKey('MainNavigationView.BackButton'),
+                          icon: FluentIcons.arrow_left_24_regular,
+                          tooltip: backLabel,
+                          onPressed: onGoBack ?? () {},
+                          collapsedContext: true,
+                          onTooltipRequested: onTooltipRequested,
+                          onTooltipDismissed: onTooltipDismissed,
+                        ),
+                      ),
+                  ],
                 )
                 : Row(
                   children: [
@@ -169,17 +176,11 @@ class _WindowDragRegion extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (event) {
-          if (event.buttons == 1) {
-            onWindowDragStart?.call();
-          }
-        },
-        onPointerUp: (_) => onWindowDragEnd?.call(),
-        onPointerCancel: (_) => onWindowDragEnd?.call(),
-        child: Align(alignment: Alignment.centerLeft, child: child),
-      ),
+      onPanStart:
+          onWindowDragStart == null ? null : (_) => onWindowDragStart!(),
+      onPanEnd: onWindowDragEnd == null ? null : (_) => onWindowDragEnd!(),
+      onPanCancel: onWindowDragEnd,
+      child: Align(alignment: Alignment.centerLeft, child: child),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -17,6 +18,7 @@ import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
@@ -229,6 +231,8 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
     required this.onClearNowPlaying,
+    required this.onQuickPlay,
+    required this.onRandomPlay,
     required this.onAddToNowPlaying,
     required this.onGetPreferenceLevel,
     required this.onUndoPreference,
@@ -267,6 +271,8 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final Future<void> Function(List<int>, bool) onToggleFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
   final VoidCallback onClearNowPlaying;
+  final VoidCallback onQuickPlay;
+  final VoidCallback onRandomPlay;
   final ValueChanged<LibrarySong> onAddToNowPlaying;
   final Future<String?> Function(int) onGetPreferenceLevel;
   final Future<void> Function(int) onUndoPreference;
@@ -315,6 +321,8 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   Future<void> Function(String, List<int>) get onCreatePlaylist =>
       widget.onCreatePlaylist;
   VoidCallback get onClearNowPlaying => widget.onClearNowPlaying;
+  VoidCallback get onQuickPlay => widget.onQuickPlay;
+  VoidCallback get onRandomPlay => widget.onRandomPlay;
   ValueChanged<LibrarySong> get onAddToNowPlaying => widget.onAddToNowPlaying;
   Future<String?> Function(int) get onGetPreferenceLevel =>
       widget.onGetPreferenceLevel;
@@ -467,6 +475,19 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
     }
   }
 
+  Future<void> _confirmClearNowPlaying(BuildContext context) async {
+    final confirmed = await showPopupConfirmDialog(
+      context: context,
+      title: i18n.t('nowPlaying.clearNowPlaying'),
+      message: i18n.t('nowPlaying.clearNowPlayingConfirm'),
+      confirmLabel: i18n.t('common.clear'),
+      i18n: i18n,
+    );
+    if (confirmed) {
+      onClearNowPlaying();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = ImmersiveModeThemeColors.of(context);
@@ -490,45 +511,6 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       color: panelStyle.color,
       gradient: panelGradient,
     );
-    if (songs.isEmpty) {
-      return DecoratedBox(
-        decoration: decoration,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(fullScreen ? 0 : 18),
-          child: GlassContainer(
-            key: const ValueKey('ImmersiveMode.QueuePanelGlass'),
-            useOwnLayer: true,
-            quality: GlassQuality.minimal,
-            shape: LiquidRoundedRectangle(borderRadius: fullScreen ? 0 : 18),
-            settings: LiquidGlassSettings(
-              blur: 46,
-              thickness: 20,
-              refractiveIndex: 1.06,
-              saturation: 1.65,
-              chromaticAberration: 0,
-              lightIntensity: 0.1,
-              ambientStrength: 0.08,
-              glowIntensity: 0.04,
-              glassColor: panelStyle.color,
-              standardOpacityMultiplier: 0.35,
-            ),
-            clipBehavior: Clip.hardEdge,
-            allowElevation: false,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    key: const ValueKey('ImmersiveMode.QueuePanelBackground'),
-                    decoration: backgroundDecoration,
-                  ),
-                ),
-                ImmersiveModeQueueEmptyState(loading: loading),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
     return DecoratedBox(
       decoration: decoration,
       child: ClipRRect(
@@ -603,28 +585,31 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                             ],
                           ),
                         ),
-                        ImmersiveModeQueueHeaderActionButton(
-                          key: const ValueKey(
-                            'ImmersiveMode.QueueSavePlaylistButton',
+                        if (songs.isNotEmpty) ...[
+                          ImmersiveModeQueueHeaderActionButton(
+                            key: const ValueKey(
+                              'ImmersiveMode.QueueSavePlaylistButton',
+                            ),
+                            tooltip: i18n.t('nowPlaying.savePlaylist'),
+                            icon: FluentIcons.add_20_regular,
+                            onPressed: () {
+                              unawaited(_saveQueueAsPlaylist(context));
+                            },
                           ),
-                          tooltip: i18n.t('nowPlaying.savePlaylist'),
-                          icon: FluentIcons.add_20_regular,
-                          onPressed: () {
-                            unawaited(_saveQueueAsPlaylist(context));
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        ImmersiveModeQueueHeaderActionButton(
-                          key: const ValueKey(
-                            'ImmersiveMode.QueueClearNowPlayingButton',
+                          const SizedBox(width: 8),
+                          ImmersiveModeQueueHeaderActionButton(
+                            key: const ValueKey(
+                              'ImmersiveMode.QueueClearNowPlayingButton',
+                            ),
+                            tooltip: i18n.t('nowPlaying.clearNowPlaying'),
+                            icon: FluentIcons.delete_20_regular,
+                            onPressed: () {
+                              unawaited(_confirmClearNowPlaying(context));
+                            },
                           ),
-                          tooltip: i18n.t('nowPlaying.clearNowPlaying'),
-                          icon: FluentIcons.dismiss_20_regular,
-                          onPressed: onClearNowPlaying,
-                        ),
-                        const SizedBox(width: 8),
+                          const SizedBox(width: 8),
+                        ],
                         ImmersiveModeQueueCloseButton(
-                          fullScreen: fullScreen,
                           tooltip: i18n.t('common.close'),
                           onPressed: onClose,
                         ),
@@ -634,7 +619,12 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                   Expanded(
                     child:
                         songs.isEmpty
-                            ? ImmersiveModeQueueEmptyState(loading: loading)
+                            ? ImmersiveModeQueueEmptyState(
+                              i18n: i18n,
+                              loading: loading,
+                              onQuickPlay: onQuickPlay,
+                              onRandomPlay: onRandomPlay,
+                            )
                             : _buildQueueList(context),
                   ),
                 ],
@@ -1051,25 +1041,19 @@ class ImmersiveModeQueueHeaderActionButton extends StatelessWidget {
 class ImmersiveModeQueueCloseButton extends StatelessWidget {
   const ImmersiveModeQueueCloseButton({
     super.key,
-    required this.fullScreen,
     required this.tooltip,
     required this.onPressed,
   });
 
-  final bool fullScreen;
   final String tooltip;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final narrow = MediaQuery.sizeOf(context).width <= 800;
     return ImmersiveModeQueueHeaderActionButton(
       key: const ValueKey('ImmersiveMode.QueueCloseButton'),
       tooltip: tooltip,
-      icon:
-          fullScreen || narrow
-              ? FluentIcons.chevron_down_20_regular
-              : FluentIcons.chevron_right_20_regular,
+      icon: FluentIcons.dismiss_20_regular,
       onPressed: onPressed,
     );
   }
@@ -1131,14 +1115,80 @@ List<int> insertImmersiveModeQueueEntries(
 }
 
 class ImmersiveModeQueueEmptyState extends StatelessWidget {
-  const ImmersiveModeQueueEmptyState({super.key, required this.loading});
+  const ImmersiveModeQueueEmptyState({
+    super.key,
+    required this.i18n,
+    required this.loading,
+    required this.onQuickPlay,
+    required this.onRandomPlay,
+  });
 
+  final SmPlayerI18n i18n;
   final bool loading;
+  final VoidCallback onQuickPlay;
+  final VoidCallback onRandomPlay;
 
   @override
   Widget build(BuildContext context) {
-    return loading
-        ? const SmPlayerLoadingState(compact: true)
-        : const SizedBox.shrink();
+    if (loading) {
+      return const SmPlayerLoadingState(compact: true);
+    }
+    final colors = ImmersiveModeThemeColors.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              i18n.t('nowPlaying.queueEmpty'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                SmPlayerTextIconButton(
+                  key: const ValueKey(
+                    'ImmersiveMode.QueueEmptyQuickPlayButton',
+                  ),
+                  label: i18n.t('nowPlaying.quickPlay'),
+                  icon: FluentIcons.play_20_regular,
+                  onPressed: onQuickPlay,
+                  minWidth: 118,
+                  height: 42,
+                  horizontalPadding: 16,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  borderRadius: 10,
+                ),
+                SmPlayerTextIconButton(
+                  key: const ValueKey(
+                    'ImmersiveMode.QueueEmptyRandomPlayButton',
+                  ),
+                  label: i18n.t('nowPlaying.randomPlay'),
+                  iconWidget: const ShuffleIcon(),
+                  onPressed: onRandomPlay,
+                  minWidth: 118,
+                  height: 42,
+                  horizontalPadding: 16,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  borderRadius: 10,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -44,6 +44,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   required List<LibraryFolder> folders,
   required int randomLimit,
   required ValueChanged<List<int>> onPlaySongs,
+  bool includeQuickPlay = true,
   FutureOr<void> Function()? onQuickPlay,
 }) {
   void playSongs(List<LibrarySong> sourceSongs) {
@@ -65,16 +66,18 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   final playablePlaylists =
       playlists.where((playlist) => playlist.songIds.isNotEmpty).toList();
   final items = <MenuFlyoutItem>[
-    MenuFlyoutItem(
-      key: 'quick',
-      text: i18n.t('nowPlaying.quickPlay'),
-      onPressed: onQuickPlay ?? () => playSongs(librarySongs),
-    ),
+    if (includeQuickPlay)
+      MenuFlyoutItem(
+        key: 'quick',
+        text: i18n.t('nowPlaying.quickPlay'),
+        onPressed: onQuickPlay ?? () => playSongs(librarySongs),
+      ),
   ];
 
   if (songs.isNotEmpty) {
     items.addAll([
-      const MenuFlyoutItem.separator(key: 'now-playing-separator'),
+      if (items.isNotEmpty)
+        const MenuFlyoutItem.separator(key: 'now-playing-separator'),
       MenuFlyoutItem(
         key: 'now-playing',
         text: i18n.t('common.nowPlaying'),
@@ -88,7 +91,8 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   }
 
   items.addAll([
-    const MenuFlyoutItem.separator(key: 'shuffle-library-separator'),
+    if (items.isNotEmpty)
+      const MenuFlyoutItem.separator(key: 'shuffle-library-separator'),
     MenuFlyoutItem(
       key: 'library',
       text: i18n.t('random.musicLibrary'),

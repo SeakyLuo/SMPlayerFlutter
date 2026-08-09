@@ -250,7 +250,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   onRemoveRecentSearch: _removeRecentSearch,
                   onClearRecentSearches: _clearRecentSearches,
                   onChangeAlbumSort: _changeAlbumSort,
-                  onToggleMultiSelect: _enterMultiSelect,
+                  onToggleMultiSelect: _toggleMultiSelect,
                 ),
               const _AlbumsProgress(key: ValueKey('Albums.Progress')),
               const Expanded(child: SmPlayerLoadingState(compact: true)),
@@ -364,7 +364,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                     onRemoveRecentSearch: _removeRecentSearch,
                     onClearRecentSearches: _clearRecentSearches,
                     onChangeAlbumSort: _changeAlbumSort,
-                    onToggleMultiSelect: _enterMultiSelect,
+                    onToggleMultiSelect: _toggleMultiSelect,
                   ),
                 if (_processing)
                   const _AlbumsProgress(key: ValueKey('Albums.Progress')),
@@ -457,7 +457,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                           onRemoveRecentSearch: _removeRecentSearch,
                           onClearRecentSearches: _clearRecentSearches,
                           onChangeAlbumSort: _changeAlbumSort,
-                          onToggleMultiSelect: _enterMultiSelect,
+                          onToggleMultiSelect: _toggleMultiSelect,
                         ),
                       if (_processing)
                         const _AlbumsProgress(key: ValueKey('Albums.Progress')),

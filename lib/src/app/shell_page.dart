@@ -19,6 +19,7 @@ import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_navigation_host.dart';
 import 'package:smplayer_flutter/src/app/shell_immersive_mode_sync_host.dart';
+import 'package:smplayer_flutter/src/app/shell_immersive_mode_overlay_host.dart';
 import 'package:smplayer_flutter/src/app/shell_overlay_host.dart';
 import 'package:smplayer_flutter/src/app/shell_player_host.dart';
 import 'package:smplayer_flutter/src/app/shell_titlebar_host.dart';
@@ -124,6 +125,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _isMinimalNavigationOpen = false;
   var _isNavigationSearchHistoryOpen = false;
   var _navigationSearchDismissEpoch = 0;
+  var _isImmersiveModeOverlayVisible = false;
   late var _isMiniMode = widget.initialDisplayMode == SmPlayerDisplayMode.mini;
   var _isWindowVisible = true;
   late var _isWindowFullScreen =
@@ -430,6 +432,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 });
               }
             },
+            onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,
+            isWindowFullScreen: _isWindowFullScreen,
+            onEnterMiniMode: _enterMiniMode,
+            onToggleDesktopLyrics: _toggleDesktopLyricsFromPlatform,
             onExitImmersiveMode: _exitImmersiveMode,
             onNavigate: _navigateTo,
           ),
@@ -451,7 +457,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             child: widget.child ?? const SizedBox.shrink(),
           ),
           ShellImmersiveModeSyncHost(
-            visible: layout.isImmersiveModeRoute,
+            visible:
+                layout.isImmersiveModeRoute || _isImmersiveModeOverlayVisible,
             mediaControlController: _mediaControlController,
             resolvePlayerSong: _resolvePlayerSong,
             scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
@@ -591,63 +598,65 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onClose: _closeDesktopWindow,
           ),
           ShellNavigationPlayerBackdrop(
-            visible: !layout.isImmersiveModeRoute,
+            visible:
+                !layout.isImmersiveModeRoute && !_isImmersiveModeOverlayVisible,
             layout: layout,
             colors: shellColors,
           ),
-          ShellPlayerHost(
-            layout: layout,
-            mediaControlController: _mediaControlController,
-            settingsController: _settingsController,
-            isWindowFullScreen: _isWindowFullScreen,
-            playerDialogNotifier: _playerDialogNotifier,
-            resolvePlayerSong: _resolvePlayerSong,
-            playbackSongIds: _playbackSongIds,
-            isPlaybackQueueEmpty: _isPlaybackQueueEmpty,
-            scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
-            ensurePlayerArtworkResolved: _ensurePlayerArtworkResolved,
-            syncDesktopFeatures: _syncDesktopFeatures,
-            desktopLyricsForSong: _desktopLyricsForSong,
-            onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
-            onPrevious: _playPreviousFromCurrentQueue,
-            onForcePrevious: () {
-              _playPreviousFromCurrentQueue(forcePrevious: true);
-            },
-            onNext: _playNextFromCurrentQueue,
-            onToggleShuffle: _toggleShufflePlayback,
-            onToggleDesktopLyrics: _toggleDesktopLyricsFromPlatform,
-            onToggleFavorite: _togglePlayerFavorite,
-            onQuickPlay: _quickPlayLibrary,
-            onOpenNowPlaying: () {
-              _navigateTo(immersiveModeRoutePath);
-            },
-            onArtworkError: _refreshPlayerArtworkAfterError,
-            onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,
-            onEnterMiniMode: _enterMiniMode,
-            onOpenVoiceAssistant:
-                supportsVoiceAssistant() ? _showVoiceAssistantDialog : null,
-            onAddToNowPlaying: _addPlayerSongToNowPlaying,
-            onCreatePlaylist: (ref, song, name) {
-              createPlaylistWithSongs(
-                context: context,
-                ref: ref,
-                i18n: context.smPlayerI18n,
-                playlists:
-                    ref
-                        .read(libraryContentDataProvider)
-                        .valueOrNull
-                        ?.playlists ??
-                    const [],
-                defaultName: name,
-                songIds: [song.id],
-              );
-            },
-            onAddToPlaylist: (ref, song, playlistId) {
-              _addPlayerSongToPlaylist(ref, song, playlistId);
-            },
-            onRevealPath: _revealPath,
-            onNavigate: _navigateTo,
-          ),
+          if (!_isImmersiveModeOverlayVisible)
+            ShellPlayerHost(
+              layout: layout,
+              mediaControlController: _mediaControlController,
+              settingsController: _settingsController,
+              isWindowFullScreen: _isWindowFullScreen,
+              playerDialogNotifier: _playerDialogNotifier,
+              resolvePlayerSong: _resolvePlayerSong,
+              playbackSongIds: _playbackSongIds,
+              isPlaybackQueueEmpty: _isPlaybackQueueEmpty,
+              scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
+              ensurePlayerArtworkResolved: _ensurePlayerArtworkResolved,
+              syncDesktopFeatures: _syncDesktopFeatures,
+              desktopLyricsForSong: _desktopLyricsForSong,
+              onTogglePlayPause: _togglePlayPauseFromCurrentQueue,
+              onPrevious: _playPreviousFromCurrentQueue,
+              onForcePrevious: () {
+                _playPreviousFromCurrentQueue(forcePrevious: true);
+              },
+              onNext: _playNextFromCurrentQueue,
+              onToggleShuffle: _toggleShufflePlayback,
+              onToggleDesktopLyrics: _toggleDesktopLyricsFromPlatform,
+              onToggleFavorite: _togglePlayerFavorite,
+              onQuickPlay: _quickPlayLibrary,
+              onOpenNowPlaying: () {
+                _navigateTo(immersiveModeRoutePath);
+              },
+              onArtworkError: _refreshPlayerArtworkAfterError,
+              onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,
+              onEnterMiniMode: _enterMiniMode,
+              onOpenVoiceAssistant:
+                  supportsVoiceAssistant() ? _showVoiceAssistantDialog : null,
+              onAddToNowPlaying: _addPlayerSongToNowPlaying,
+              onCreatePlaylist: (ref, song, name) {
+                createPlaylistWithSongs(
+                  context: context,
+                  ref: ref,
+                  i18n: context.smPlayerI18n,
+                  playlists:
+                      ref
+                          .read(libraryContentDataProvider)
+                          .valueOrNull
+                          ?.playlists ??
+                      const [],
+                  defaultName: name,
+                  songIds: [song.id],
+                );
+              },
+              onAddToPlaylist: (ref, song, playlistId) {
+                _addPlayerSongToPlaylist(ref, song, playlistId);
+              },
+              onRevealPath: _revealPath,
+              onNavigate: _navigateTo,
+            ),
           ShellDesktopLyricsHost(
             layout: layout,
             mediaControlController: _mediaControlController,
@@ -667,6 +676,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onOpenSettings: () {
               _navigateTo('/settings#desktop-lyrics');
             },
+          ),
+          ShellImmersiveModeOverlayHost(
+            visible: _isImmersiveModeOverlayVisible,
           ),
           ShellOverlayHost(
             playerDialogNotifier: _playerDialogNotifier,

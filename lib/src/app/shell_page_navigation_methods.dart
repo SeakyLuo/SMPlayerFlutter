@@ -16,6 +16,14 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
             : _routeMemory[target] ?? target);
     final currentPath = widget.currentPath ?? _currentPath;
     final targetPath = _pathFromLocation(restoredTarget);
+    if (targetPath == immersiveModeRoutePath &&
+        currentPath != immersiveModeRoutePath) {
+      setState(() {
+        _isImmersiveModeOverlayVisible = true;
+      });
+      _closeNavigationOverlay();
+      return;
+    }
     final isImmersiveTransition =
         currentPath == '/immersive-mode' || targetPath == '/immersive-mode';
     setState(() {
@@ -70,6 +78,12 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
 
   void _exitImmersiveMode() {
     _closeNavigationOverlay();
+    if (_isImmersiveModeOverlayVisible) {
+      setState(() {
+        _isImmersiveModeOverlayVisible = false;
+      });
+      return;
+    }
     final targetLocation = _previousLocationBeforeImmersiveMode();
     if (targetLocation == null) {
       return;
@@ -173,6 +187,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
         currentPath == '/immersive-mode' ? nowPlayingRoutePath : currentPath;
     setState(() {
       _isMiniMode = true;
+      _isImmersiveModeOverlayVisible = false;
       if (currentPath == '/immersive-mode') {
         _currentPath = exitTarget;
       }
