@@ -53,6 +53,7 @@ class FlutterWindow : public Win32Window {
   void DestroyDesktopLyricsWindow();
   void PaintDesktopLyricsWindow();
   bool UpdateDesktopLyricsPanelVisibility(POINT point);
+  bool UpdateDesktopLyricsButtonHover(POINT point);
   void DismissNativeSplash();
   void PaintNativeSplash();
   static LRESULT CALLBACK DesktopLyricsWindowProc(HWND hwnd, UINT message,
@@ -94,6 +95,7 @@ class FlutterWindow : public Win32Window {
   bool desktop_lyrics_playing_ = false;
   bool desktop_lyrics_panel_visible_ = false;
   bool desktop_lyrics_tracking_mouse_leave_ = false;
+  std::string desktop_lyrics_hovered_button_command_;
   bool desktop_lyrics_stroke_enabled_ = false;
   std::wstring desktop_lyrics_label_previous_ = L"Previous";
   std::wstring desktop_lyrics_label_next_ = L"Next";

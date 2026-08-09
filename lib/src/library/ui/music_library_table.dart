@@ -701,9 +701,10 @@ class _WideSongRowState extends State<_WideSongRow> {
                             duration: const Duration(milliseconds: 120),
                             child: IconButton(
                               tooltip: widget.i18n.t('common.favorite'),
-                              icon: const Icon(
-                                FluentIcons.heart_16_filled,
+                              icon: const SmPlayerFavoriteIcon(
+                                favorite: true,
                                 size: 18,
+                                animate: false,
                               ),
                               color: colors.favorite,
                               onPressed: widget.onToggleFavorite,
@@ -723,10 +724,8 @@ class _WideSongRowState extends State<_WideSongRow> {
                                   widget.song.favorite
                                       ? widget.i18n.t('context.removeFavorite')
                                       : widget.i18n.t('context.addFavorite'),
-                              icon: Icon(
-                                widget.song.favorite
-                                    ? FluentIcons.heart_20_filled
-                                    : FluentIcons.heart_20_regular,
+                              icon: SmPlayerFavoriteIcon(
+                                favorite: widget.song.favorite,
                                 size: 18,
                               ),
                               active: widget.song.favorite,

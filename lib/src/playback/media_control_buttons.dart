@@ -51,11 +51,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
   Widget build(BuildContext context) {
     final size = widget.buttonSize ?? (widget.primary ? 56.0 : 36.0);
     final padding = widget.padding ?? (widget.primary ? 14.0 : 6.0);
-    final favoriteIcon =
-        widget.icon == _favoriteOutlineIcon ||
-        widget.icon == _favoriteFilledIcon;
-    final iconSize =
-        widget.iconSize ?? size - padding * 2 - (favoriteIcon ? 2 : 0);
+    final iconSize = widget.iconSize ?? size - padding * 2;
     final colors = MediaControlThemeColors.of(context);
     final hovered = !widget.disabled && _hovered;
     final hoverBackground = colors.buttonActiveBackground;
@@ -290,138 +286,14 @@ class _PlayerButtonIcon extends StatelessWidget {
       );
     }
     if (icon == _favoriteOutlineIcon || icon == _favoriteFilledIcon) {
-      return _FavoritePulseIcon(
+      return SmPlayerFavoriteIcon(
         favorite: icon == _favoriteFilledIcon,
         color: resolvedColor,
+        pulseColor: MediaControlColors.favorite,
         size: size,
       );
     }
     return Icon(icon, color: resolvedColor, size: size);
-  }
-}
-
-class _FavoritePulseIcon extends StatefulWidget {
-  const _FavoritePulseIcon({
-    required this.favorite,
-    required this.color,
-    required this.size,
-  });
-
-  final bool favorite;
-  final Color color;
-  final double size;
-
-  @override
-  State<_FavoritePulseIcon> createState() => _FavoritePulseIconState();
-}
-
-class _FavoritePulseIconState extends State<_FavoritePulseIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _heartScale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-      value: 1,
-    );
-    _heartScale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1,
-          end: 0.78,
-        ).chain(CurveTween(curve: Curves.easeInCubic)),
-        weight: 18,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.78,
-          end: 1.18,
-        ).chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 47,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.18,
-          end: 1,
-        ).chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 35,
-      ),
-    ]).animate(_controller);
-  }
-
-  @override
-  void didUpdateWidget(covariant _FavoritePulseIcon oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!oldWidget.favorite && widget.favorite) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final pulseProgress = _controller.value;
-        return Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            if (widget.favorite)
-              Opacity(
-                opacity: (1 - pulseProgress) * 0.26,
-                child: Transform.scale(
-                  scale: 0.72 + pulseProgress * 0.93,
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      color: MediaControlColors.favorite,
-                      shape: BoxShape.circle,
-                    ),
-                    child: SizedBox.square(dimension: widget.size),
-                  ),
-                ),
-              ),
-            Transform.scale(
-              scale: _heartScale.value,
-              child: Transform.translate(
-                offset: const Offset(0.5, -1.5),
-                child: child,
-              ),
-            ),
-          ],
-        );
-      },
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        child:
-            widget.favorite
-                ? CustomPaint(
-                  key: const ValueKey('MediaControl.FavoriteFilledIcon'),
-                  painter: _FavoriteFilledIconPainter(widget.color),
-                  size: Size.square(widget.size),
-                )
-                : CustomPaint(
-                  key: const ValueKey('MediaControl.FavoriteOutlineIcon'),
-                  painter: _FavoriteOutlineIconPainter(widget.color),
-                  size: Size.square(widget.size),
-                ),
-      ),
-    );
   }
 }
 
@@ -699,130 +571,6 @@ class _VoiceAssistantIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _VoiceAssistantIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
-class _FavoriteOutlineIconPainter extends CustomPainter {
-  const _FavoriteOutlineIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.45 * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-    final path =
-        Path()
-          ..moveTo(20.8 * scale, 7.6 * scale)
-          ..cubicTo(
-            18.8 * scale,
-            5.6 * scale,
-            15.6 * scale,
-            5.6 * scale,
-            13.6 * scale,
-            7.6 * scale,
-          )
-          ..lineTo(12 * scale, 9.2 * scale)
-          ..lineTo(10.4 * scale, 7.6 * scale)
-          ..cubicTo(
-            8.4 * scale,
-            5.6 * scale,
-            5.2 * scale,
-            5.6 * scale,
-            3.2 * scale,
-            7.6 * scale,
-          )
-          ..cubicTo(
-            1.2 * scale,
-            9.6 * scale,
-            1.2 * scale,
-            12.8 * scale,
-            3.2 * scale,
-            14.8 * scale,
-          )
-          ..lineTo(12 * scale, 22 * scale)
-          ..lineTo(20.8 * scale, 14.8 * scale)
-          ..cubicTo(
-            22.8 * scale,
-            12.8 * scale,
-            22.8 * scale,
-            9.6 * scale,
-            20.8 * scale,
-            7.6 * scale,
-          );
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _FavoriteOutlineIconPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
-class _FavoriteFilledIconPainter extends CustomPainter {
-  const _FavoriteFilledIconPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide / 24;
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill;
-    final path =
-        Path()
-          ..moveTo(20.8 * scale, 7.6 * scale)
-          ..cubicTo(
-            18.8 * scale,
-            5.6 * scale,
-            15.6 * scale,
-            5.6 * scale,
-            13.6 * scale,
-            7.6 * scale,
-          )
-          ..lineTo(12 * scale, 9.2 * scale)
-          ..lineTo(10.4 * scale, 7.6 * scale)
-          ..cubicTo(
-            8.4 * scale,
-            5.6 * scale,
-            5.2 * scale,
-            5.6 * scale,
-            3.2 * scale,
-            7.6 * scale,
-          )
-          ..cubicTo(
-            1.2 * scale,
-            9.6 * scale,
-            1.2 * scale,
-            12.8 * scale,
-            3.2 * scale,
-            14.8 * scale,
-          )
-          ..lineTo(12 * scale, 22 * scale)
-          ..lineTo(20.8 * scale, 14.8 * scale)
-          ..cubicTo(
-            22.8 * scale,
-            12.8 * scale,
-            22.8 * scale,
-            9.6 * scale,
-            20.8 * scale,
-            7.6 * scale,
-          )
-          ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _FavoriteFilledIconPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

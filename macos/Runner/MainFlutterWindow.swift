@@ -648,9 +648,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     let panel = ensureDesktopLyricsPanel(bounds: state["bounds"] as? String)
     configureDesktopLyricsPanel(panel)
     desktopLyricsView?.apply(state: state)
-    panel.ignoresMouseEvents = false
     panel.isMovableByWindowBackground = false
     panel.orderFront(nil)
+    desktopLyricsView?.refreshMouseInteraction()
   }
 
   private func ensureDesktopLyricsPanel(bounds rawBounds: String?) -> NSPanel {
@@ -697,6 +697,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     guard let panel = desktopLyricsPanel else {
       return
     }
+    desktopLyricsView?.resetMouseInteraction()
+    panel.ignoresMouseEvents = true
     panel.orderOut(nil)
   }
 
@@ -734,6 +736,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     }
     panel.setFrame(resolveDesktopLyricsFrame(nil), display: true)
     sendDesktopLyricsBounds()
+    desktopLyricsView?.refreshMouseInteraction()
   }
 
   private func resolveDesktopLyricsFrame(_ rawBounds: String?) -> NSRect {
@@ -976,10 +979,13 @@ private final class DesktopLyricsNativeView: NSView {
   private let glassView = NSVisualEffectView()
   private var state = [String: Any]()
   private var isPanelVisible = false
+  private var hoveredButtonCommand: String?
   private var trackingArea: NSTrackingArea?
   private var lyricsTextStartedAt = Date()
   private var previousLyricsText = ""
   private var scrollTimer: Timer?
+  private var globalMouseMonitor: Any?
+  private var localMouseMonitor: Any?
   var onCommand: ((String) -> Void)?
 
   override init(frame frameRect: NSRect) {
@@ -994,10 +1000,20 @@ private final class DesktopLyricsNativeView: NSView {
 
   deinit {
     scrollTimer?.invalidate()
+    if let globalMouseMonitor {
+      NSEvent.removeMonitor(globalMouseMonitor)
+    }
+    if let localMouseMonitor {
+      NSEvent.removeMonitor(localMouseMonitor)
+    }
   }
 
   override var isOpaque: Bool {
     return false
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    return bounds.contains(point) ? self : nil
   }
 
   override func updateTrackingAreas() {
@@ -1027,6 +1043,19 @@ private final class DesktopLyricsNativeView: NSView {
     needsDisplay = true
   }
 
+  func refreshMouseInteraction() {
+    guard let window, window.isVisible else {
+      return
+    }
+    let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+    updatePanelVisibility(at: point)
+    updateButtonHover(at: point)
+  }
+
+  func resetMouseInteraction() {
+    setPanelVisible(false)
+  }
+
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
     guard !bounds.isEmpty else {
@@ -1043,19 +1072,19 @@ private final class DesktopLyricsNativeView: NSView {
   }
 
   override func mouseEntered(with event: NSEvent) {
-    updatePanelVisibility(at: convert(event.locationInWindow, from: nil))
+    let point = convert(event.locationInWindow, from: nil)
+    updatePanelVisibility(at: point)
+    updateButtonHover(at: point)
   }
 
   override func mouseExited(with event: NSEvent) {
-    if isPanelVisible {
-      isPanelVisible = false
-      updateGlassSurface()
-      needsDisplay = true
-    }
+    setPanelVisible(false)
   }
 
   override func mouseMoved(with event: NSEvent) {
-    updatePanelVisibility(at: convert(event.locationInWindow, from: nil))
+    let point = convert(event.locationInWindow, from: nil)
+    updatePanelVisibility(at: point)
+    updateButtonHover(at: point)
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -1068,6 +1097,7 @@ private final class DesktopLyricsNativeView: NSView {
     }
     if (state["locked"] as? Bool) != true && draggableRect().contains(point) {
       window?.performDrag(with: event)
+      refreshMouseInteraction()
     }
   }
 
@@ -1083,6 +1113,21 @@ private final class DesktopLyricsNativeView: NSView {
     glassView.layer?.masksToBounds = true
     glassView.layer?.zPosition = -1
     addSubview(glassView, positioned: .below, relativeTo: nil)
+    installMouseMonitors()
+  }
+
+  private func installMouseMonitors() {
+    globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) {
+      [weak self] _ in
+      DispatchQueue.main.async {
+        self?.refreshMouseInteraction()
+      }
+    }
+    localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) {
+      [weak self] event in
+      self?.refreshMouseInteraction()
+      return event
+    }
   }
 
   private func updatePanelVisibility(at point: NSPoint) {
@@ -1090,11 +1135,33 @@ private final class DesktopLyricsNativeView: NSView {
       isPanelVisible
       ? cardRect().contains(point)
       : lyricHitRect().contains(point)
-    if isPanelVisible == nextPanelVisible {
+    setPanelVisible(nextPanelVisible)
+  }
+
+  private func setPanelVisible(_ visible: Bool) {
+    window?.ignoresMouseEvents = !visible
+    if isPanelVisible == visible {
       return
     }
-    isPanelVisible = nextPanelVisible
+    isPanelVisible = visible
+    if !visible {
+      hoveredButtonCommand = nil
+    }
     updateGlassSurface()
+    needsDisplay = true
+  }
+
+  private func updateButtonHover(at point: NSPoint) {
+    let nextCommand =
+      isPanelVisible
+      ? desktopLyricsButtons().first(where: {
+        !$0.command.isEmpty && $0.rect.contains(point)
+      })?.command
+      : nil
+    if hoveredButtonCommand == nextCommand {
+      return
+    }
+    hoveredButtonCommand = nextCommand
     needsDisplay = true
   }
 
@@ -1359,12 +1426,29 @@ private final class DesktopLyricsNativeView: NSView {
       if button.command.isEmpty {
         continue
       }
-      let path = NSBezierPath(roundedRect: button.rect, xRadius: 5, yRadius: 5)
+      let iconButton = button.symbolName != nil
+      let radius: CGFloat = iconButton ? 7 : 5
+      let path = NSBezierPath(
+        roundedRect: button.rect,
+        xRadius: radius,
+        yRadius: radius)
+      let hovered = hoveredButtonCommand == button.command
       if (state["nightMode"] as? Bool) == false {
-        NSColor.white.withAlphaComponent(0.38).setFill()
-        NSColor(calibratedWhite: 0, alpha: 0.08).setStroke()
+        let fillAlpha: CGFloat =
+          iconButton ? (hovered ? 0.60 : 0.24) : (hovered ? 0.68 : 0.38)
+        let strokeAlpha: CGFloat =
+          hovered ? (iconButton ? 0.14 : 0.18) : 0
+        NSColor.white.withAlphaComponent(fillAlpha).setFill()
+        NSColor(calibratedWhite: 0, alpha: strokeAlpha).setStroke()
       } else {
-        NSColor(calibratedRed: 0.02, green: 0.04, blue: 0.06, alpha: 0.22).setFill()
+        let fillAlpha: CGFloat =
+          iconButton ? (hovered ? 0.58 : 0.12) : (hovered ? 0.76 : 0.22)
+        NSColor(
+          calibratedRed: hovered ? 0.16 : 0.02,
+          green: hovered ? 0.20 : 0.04,
+          blue: hovered ? 0.25 : 0.06,
+          alpha: fillAlpha
+        ).setFill()
         NSColor.clear.setStroke()
       }
       path.fill()
@@ -1375,13 +1459,26 @@ private final class DesktopLyricsNativeView: NSView {
   }
 
   private func drawButtonContent(_ button: DesktopLyricsButton) {
+    let iconButton = button.symbolName != nil
     let color =
       (state["nightMode"] as? Bool) == false
-      ? NSColor(calibratedWhite: 0.12, alpha: 0.76)
-      : NSColor.white.withAlphaComponent(0.94)
-    if let symbolName = button.symbolName,
-       let image = systemSymbol(named: symbolName, color: color) {
-      let side: CGFloat = 16
+      ? NSColor(calibratedWhite: 0.12, alpha: iconButton ? 0.68 : 0.76)
+      : NSColor.white.withAlphaComponent(iconButton ? 0.86 : 0.94)
+    if let symbolName = button.symbolName {
+      let weight: NSFont.Weight =
+        button.command == "previous" ||
+        button.command == "next" ||
+        button.command == "disable"
+        ? .regular
+        : .medium
+      guard let image = systemSymbol(
+        named: symbolName,
+        color: color,
+        weight: weight
+      ) else {
+        return
+      }
+      let side: CGFloat = button.command == "disable" ? 11 : 15
       let imageRect = NSRect(
         x: button.rect.midX - side / 2,
         y: button.rect.midY - side / 2,
@@ -1398,7 +1495,16 @@ private final class DesktopLyricsNativeView: NSView {
       .paragraphStyle: paragraph,
       .foregroundColor: color,
     ]
-    drawString(button.label, in: button.rect.insetBy(dx: 2, dy: 5), attributes: attributes)
+    let attributedLabel = NSAttributedString(
+      string: button.label,
+      attributes: attributes)
+    let labelHeight = ceil(attributedLabel.size().height)
+    let labelRect = NSRect(
+      x: button.rect.minX + 2,
+      y: button.rect.midY - labelHeight / 2,
+      width: button.rect.width - 4,
+      height: labelHeight)
+    attributedLabel.draw(in: labelRect)
   }
 
   private func desktopLyricsButtons() -> [DesktopLyricsButton] {
@@ -1410,14 +1516,14 @@ private final class DesktopLyricsNativeView: NSView {
       ? String(format: "+%.1fs", offsetSeconds)
       : offsetSeconds < 0 ? String(format: "%.1fs", offsetSeconds) : "0s"
     var specs = [
-      DesktopLyricsButton(command: "previous", label: "", symbolName: "backward.end.fill", width: 26, rect: .zero),
+      DesktopLyricsButton(command: "previous", label: "", symbolName: "backward.end", width: 26, rect: .zero),
       DesktopLyricsButton(
         command: "play-pause",
         label: "",
-        symbolName: playing ? "pause.fill" : "play.fill",
+        symbolName: playing ? "pause" : "play",
         width: 26,
         rect: .zero),
-      DesktopLyricsButton(command: "next", label: "", symbolName: "forward.end.fill", width: 26, rect: .zero),
+      DesktopLyricsButton(command: "next", label: "", symbolName: "forward.end", width: 26, rect: .zero),
       DesktopLyricsButton(command: "", label: "", symbolName: nil, width: 9, rect: .zero),
       DesktopLyricsButton(command: "offset:-100", label: "-0.1s", symbolName: nil, width: 42, rect: .zero),
       DesktopLyricsButton(command: "offset:100", label: "+0.1s", symbolName: nil, width: 42, rect: .zero),
@@ -1426,10 +1532,10 @@ private final class DesktopLyricsNativeView: NSView {
       DesktopLyricsButton(
         command: "toggle-lock",
         label: "",
-        symbolName: locked ? "lock.fill" : "lock.open.fill",
+        symbolName: locked ? "lock" : "lock.open",
         width: 26,
         rect: .zero),
-      DesktopLyricsButton(command: "open-settings", label: "", symbolName: "gearshape.fill", width: 26, rect: .zero),
+      DesktopLyricsButton(command: "open-settings", label: "", symbolName: "gearshape", width: 26, rect: .zero),
     ]
     if !locked {
       specs.append(DesktopLyricsButton(command: "disable", label: "", symbolName: "xmark", width: 26, rect: .zero))
@@ -1511,9 +1617,13 @@ private final class DesktopLyricsNativeView: NSView {
     return defaultValue
   }
 
-  private func systemSymbol(named name: String, color: NSColor) -> NSImage? {
+  private func systemSymbol(
+    named name: String,
+    color: NSColor,
+    weight: NSFont.Weight
+  ) -> NSImage? {
     if #available(macOS 11.0, *) {
-      let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+      let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: weight)
       return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
         .withSymbolConfiguration(configuration)?
         .tint(color: color)

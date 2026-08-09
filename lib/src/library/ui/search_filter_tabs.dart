@@ -119,6 +119,8 @@ class _SearchFilterTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = SearchPageThemeColors.of(context);
+    final headerSurface = ShellThemeColors.of(context).workspaceSolidSurface;
+    Color opaqueSurface(Color color) => Color.alphaBlend(color, headerSurface);
     final foreground =
         selected
             ? colors.appBarTabActiveText
@@ -131,17 +133,18 @@ class _SearchFilterTab extends StatelessWidget {
         commandText: foreground,
         commandTextHover:
             selected ? colors.appBarTabActiveText : colors.appBarTabHoverText,
-        control:
-            selected ? colors.appBarTabActiveSurface : colors.appBarTabSurface,
+        control: opaqueSurface(
+          selected ? colors.appBarTabActiveSurface : colors.appBarTabSurface,
+        ),
         controlHover:
             selected
-                ? colors.appBarTabActiveSurface
-                : colors.appBarTabHoverSurface,
+                ? opaqueSurface(colors.appBarTabActiveSurface)
+                : opaqueSurface(colors.appBarTabHoverSurface),
         controlHoverBorder:
             selected
                 ? colors.appBarTabActiveBorder
                 : colors.appBarTabHoverBorder,
-        controlActive: colors.appBarTabActiveSurface,
+        controlActive: opaqueSurface(colors.appBarTabActiveSurface),
         controlBorder:
             selected ? colors.appBarTabActiveBorder : colors.appBarTabBorder,
         accentStrong: colors.appBarTabActiveText,

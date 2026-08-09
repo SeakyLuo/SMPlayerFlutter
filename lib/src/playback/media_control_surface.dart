@@ -299,7 +299,8 @@ class MediaControlButtons extends StatelessWidget {
     final progressHeight = navMinimal || condensed ? 28.0 : 36.0;
     final progressTextWidth = navMinimal || condensed ? 42.0 : 44.0;
     final progressTextSize = navMinimal || condensed ? 12.0 : 13.0;
-    final progressGap = navMinimal || condensed ? 8.0 : 12.0;
+    const progressGap = 8.0;
+    final progressHorizontalInset = navMinimal || condensed ? 0.0 : 18.0;
     final navMinimalTopRowHeight =
         navMinimal
             ? condensed
@@ -398,56 +399,62 @@ class MediaControlButtons extends StatelessWidget {
                   child: SizedBox(
                     width: progressWidth,
                     height: progressHeight,
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          key: const ValueKey(
-                            'MediaControl.ProgressElapsedColumn',
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: progressHorizontalInset,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            key: const ValueKey(
+                              'MediaControl.ProgressElapsedColumn',
+                            ),
+                            width: progressTextWidth,
+                            child: Text(
+                              formatDuration(progressSeconds),
+                              style: TextStyle(
+                                fontSize: progressTextSize,
+                              ).copyWith(color: textMuted),
+                            ),
                           ),
-                          width: progressTextWidth,
-                          child: Text(
-                            formatDuration(progressSeconds),
-                            style: TextStyle(
-                              fontSize: progressTextSize,
-                            ).copyWith(color: textMuted),
+                          SizedBox(width: progressGap),
+                          Expanded(
+                            child:
+                                isLoading
+                                    ? const _MediaProgressLoading()
+                                    : _MediaProgressSlider(
+                                      value: progressValue,
+                                      max: progressMax,
+                                      disabled:
+                                          disabled || durationSeconds <= 0,
+                                      onChanged: onSeekChange,
+                                      onChangeStart: (_) {
+                                        onSeekBegin();
+                                      },
+                                      onChangeEnd: onSeekEnd,
+                                      activeTrackColor: sliderActiveColor,
+                                      inactiveTrackColor: sliderInactiveColor,
+                                      thumbColor: sliderThumbColor,
+                                      thumbShadow: sliderThumbShadow,
+                                      overlayColor: sliderOverlayColor,
+                                    ),
                           ),
-                        ),
-                        SizedBox(width: progressGap),
-                        Expanded(
-                          child:
-                              isLoading
-                                  ? const _MediaProgressLoading()
-                                  : _MediaProgressSlider(
-                                    value: progressValue,
-                                    max: progressMax,
-                                    disabled: disabled || durationSeconds <= 0,
-                                    onChanged: onSeekChange,
-                                    onChangeStart: (_) {
-                                      onSeekBegin();
-                                    },
-                                    onChangeEnd: onSeekEnd,
-                                    activeTrackColor: sliderActiveColor,
-                                    inactiveTrackColor: sliderInactiveColor,
-                                    thumbColor: sliderThumbColor,
-                                    thumbShadow: sliderThumbShadow,
-                                    overlayColor: sliderOverlayColor,
-                                  ),
-                        ),
-                        SizedBox(width: progressGap),
-                        SizedBox(
-                          key: const ValueKey(
-                            'MediaControl.ProgressDurationColumn',
+                          SizedBox(width: progressGap),
+                          SizedBox(
+                            key: const ValueKey(
+                              'MediaControl.ProgressDurationColumn',
+                            ),
+                            width: progressTextWidth,
+                            child: Text(
+                              formatDuration(durationSeconds),
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                fontSize: progressTextSize,
+                              ).copyWith(color: textMuted),
+                            ),
                           ),
-                          width: progressTextWidth,
-                          child: Text(
-                            formatDuration(durationSeconds),
-                            textAlign: TextAlign.end,
-                            style: TextStyle(
-                              fontSize: progressTextSize,
-                            ).copyWith(color: textMuted),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

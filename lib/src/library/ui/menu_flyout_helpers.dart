@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
@@ -258,7 +259,11 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       MenuFlyoutItem(
         key: '$key-favorites',
         text: i18n.t('common.myFavorites'),
-        icon: FluentIcons.heart_20_regular,
+        iconWidget: const SmPlayerFavoriteIcon(
+          favorite: false,
+          size: 18,
+          animate: false,
+        ),
         disabled: songIds.isEmpty,
         onPressed: onToggleFavorite,
       ),

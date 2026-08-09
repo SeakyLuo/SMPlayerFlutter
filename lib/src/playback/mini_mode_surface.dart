@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/shell_widgets.dart';
+import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
@@ -892,7 +893,7 @@ class _MiniModeButton extends StatefulWidget {
 }
 
 class _MiniModeButtonState extends State<_MiniModeButton> {
-  static const _favoriteAccent = Color(0xffff1d1d);
+  static const _favoriteAccent = SmPlayerFavoriteIcon.activeColor;
   static const _electronActiveGlassColor = Color(0x2effffff);
   static const _electronHoverGlassColor = Color(0x33ffffff);
 
@@ -1073,6 +1074,16 @@ class _MiniModeIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (icon == _MiniModeIconName.heart ||
+        icon == _MiniModeIconName.heartFilled) {
+      return SmPlayerFavoriteIcon(
+        key: const ValueKey('MiniMode.Icon.Favorite'),
+        favorite: icon == _MiniModeIconName.heartFilled,
+        size: size,
+        color: color,
+        pulseColor: _MiniModeButtonState._favoriteAccent,
+      );
+    }
     final mediaControlIcon = _miniModeMediaControlIcon(icon);
     if (mediaControlIcon != null) {
       return MediaControlIconGlyph(
@@ -1155,8 +1166,6 @@ IconData? _miniModeMediaControlIcon(_MiniModeIconName icon) {
     _MiniModeIconName.listPlayback => mediaControlPlaybackModeIcon(
       PlaybackMode.once,
     ),
-    _MiniModeIconName.heart => mediaControlFavoriteIcon(false),
-    _MiniModeIconName.heartFilled => mediaControlFavoriteIcon(true),
     _MiniModeIconName.voice => mediaControlVoiceIcon,
     _MiniModeIconName.repeat => mediaControlPlaybackModeIcon(
       PlaybackMode.repeat,
@@ -1169,7 +1178,10 @@ IconData? _miniModeMediaControlIcon(_MiniModeIconName icon) {
     _MiniModeIconName.volumeLow => playerVolumeIcon(20, false),
     _MiniModeIconName.volumeMedium => playerVolumeIcon(50, false),
     _MiniModeIconName.volume => playerVolumeIcon(80, false),
-    _MiniModeIconName.dice || _MiniModeIconName.arrowLeft => null,
+    _MiniModeIconName.dice ||
+    _MiniModeIconName.arrowLeft ||
+    _MiniModeIconName.heart ||
+    _MiniModeIconName.heartFilled => null,
   };
 }
 
@@ -1223,10 +1235,6 @@ class _MiniModeIconPainter extends CustomPainter {
         _drawRepeat(canvas, stroke, false);
       case _MiniModeIconName.repeatOne:
         _drawRepeat(canvas, stroke, true);
-      case _MiniModeIconName.heart:
-        canvas.drawPath(_heartOutlinePath(), stroke);
-      case _MiniModeIconName.heartFilled:
-        canvas.drawPath(_heartFilledPath(), fill);
       case _MiniModeIconName.voice:
         _drawVoice(canvas, stroke);
       case _MiniModeIconName.volume:
@@ -1240,6 +1248,8 @@ class _MiniModeIconPainter extends CustomPainter {
       case _MiniModeIconName.play:
       case _MiniModeIconName.pause:
       case _MiniModeIconName.shuffle:
+      case _MiniModeIconName.heart:
+      case _MiniModeIconName.heartFilled:
         break;
     }
     canvas.restore();
@@ -1414,23 +1424,6 @@ class _MiniModeIconPainter extends CustomPainter {
       false,
       stroke,
     );
-  }
-
-  Path _heartOutlinePath() {
-    return Path()
-      ..moveTo(20.8, 7.6)
-      ..cubicTo(18.8, 5.6, 15.6, 5.6, 13.6, 7.6)
-      ..lineTo(12, 9.2)
-      ..lineTo(10.4, 7.6)
-      ..cubicTo(8.4, 5.6, 5.2, 5.6, 3.2, 7.6)
-      ..cubicTo(1.2, 9.6, 1.2, 12.8, 3.2, 14.8)
-      ..lineTo(12, 22)
-      ..lineTo(20.8, 14.8)
-      ..cubicTo(22.8, 12.8, 22.8, 9.6, 20.8, 7.6);
-  }
-
-  Path _heartFilledPath() {
-    return _heartOutlinePath()..close();
   }
 
   void _drawPolyline(Canvas canvas, Paint paint, List<Offset> points) {

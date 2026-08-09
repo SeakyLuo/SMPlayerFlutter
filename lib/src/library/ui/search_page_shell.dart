@@ -15,6 +15,20 @@ class _SearchPageSurface extends StatelessWidget {
   }
 }
 
+class _SearchHeaderSurface extends StatelessWidget {
+  const _SearchHeaderSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: ShellThemeColors.of(context).workspaceSolidSurface,
+      child: child,
+    );
+  }
+}
+
 class _SearchResultToolbarDelegate extends SliverPersistentHeaderDelegate {
   const _SearchResultToolbarDelegate({required this.child});
 
@@ -34,16 +48,7 @@ class _SearchResultToolbarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final colors = SearchPageThemeColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: const [0, 0.78, 1],
-          colors: colors.resultToolbarGradient,
-        ),
-      ),
+    return _SearchHeaderSurface(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           _searchPageHorizontalInset,

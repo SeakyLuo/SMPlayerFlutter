@@ -33,6 +33,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
             : 84.0;
     final actionButtonSize = compact ? 32.0 : 38.0;
     final actionIconSize = compact ? 14.0 : 20.0;
+    final shuffleIconSize = compact ? 13.0 : 18.0;
     return ConstrainedBox(
       key: ValueKey('Artists.AlbumHeader.${album.name}'),
       constraints: BoxConstraints(minHeight: headerMinHeight),
@@ -98,7 +99,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
                           IconButton(
                             key: ValueKey('Artists.AlbumShuffle.${album.name}'),
                             tooltip: i18n.t('nowPlaying.randomPlay'),
-                            icon: ShuffleIcon(size: actionIconSize),
+                            icon: ShuffleIcon(size: shuffleIconSize),
                             constraints: BoxConstraints.tightFor(
                               width: actionButtonSize,
                               height: actionButtonSize,

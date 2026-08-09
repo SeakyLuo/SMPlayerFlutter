@@ -1,6 +1,223 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'svg_icon.dart';
+
+class SmPlayerFavoriteIcon extends StatefulWidget {
+  static const activeColor = Color(0xffff1d1d);
+
+  const SmPlayerFavoriteIcon({
+    super.key,
+    required this.favorite,
+    this.size = 20,
+    this.color,
+    this.pulseColor,
+    this.animate = true,
+  });
+
+  final bool favorite;
+  final double size;
+  final Color? color;
+  final Color? pulseColor;
+  final bool animate;
+
+  @override
+  State<SmPlayerFavoriteIcon> createState() => _SmPlayerFavoriteIconState();
+}
+
+class _SmPlayerFavoriteIconState extends State<SmPlayerFavoriteIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool? _displayFavorite;
+
+  bool get _resolvedFavorite => _displayFavorite ?? widget.favorite;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayFavorite = widget.favorite;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 440),
+      value: 1,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant SmPlayerFavoriteIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.favorite != widget.favorite) {
+      _displayFavorite = widget.favorite;
+      if (widget.animate && widget.favorite && !_controller.isAnimating) {
+        _controller.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inheritedColor =
+        IconTheme.of(context).color ??
+        DefaultTextStyle.of(context).style.color!;
+    final color =
+        _resolvedFavorite
+            ? SmPlayerFavoriteIcon.activeColor
+            : widget.color ?? inheritedColor;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) {
+        if (widget.animate && !_resolvedFavorite) {
+          setState(() {
+            _displayFavorite = true;
+          });
+          _controller.forward(from: 0);
+        }
+      },
+      onPointerCancel: (_) {
+        if (_resolvedFavorite != widget.favorite) {
+          setState(() {
+            _displayFavorite = widget.favorite;
+          });
+          _controller.value = 1;
+        }
+      },
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final pulseProgress = _controller.value;
+          final heartScale = _favoriteJellyScale(pulseProgress);
+          return SizedBox.square(
+            dimension: widget.size,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                if (widget.animate && pulseProgress < 1)
+                  _FavoriteRipple(
+                    progress: pulseProgress,
+                    color:
+                        widget.pulseColor ?? SmPlayerFavoriteIcon.activeColor,
+                    size: widget.size,
+                  ),
+                Transform(
+                  alignment: Alignment.center,
+                  transform:
+                      Matrix4.identity()
+                        ..scaleByDouble(heartScale.dx, heartScale.dy, 1, 1),
+                  child: child,
+                ),
+              ],
+            ),
+          );
+        },
+        child: AnimatedSwitcher(
+          duration:
+              widget.animate
+                  ? const Duration(milliseconds: 140)
+                  : Duration.zero,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: Icon(
+            _resolvedFavorite
+                ? FluentIcons.heart_20_filled
+                : FluentIcons.heart_20_regular,
+            key: ValueKey(_resolvedFavorite),
+            size: widget.size,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteRipple extends StatelessWidget {
+  const _FavoriteRipple({
+    required this.progress,
+    required this.color,
+    required this.size,
+  });
+
+  final double progress;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        _ring(progress: _interval(progress, 0, 0.72), opacity: 0.36),
+        _ring(progress: _interval(progress, 0.2, 1), opacity: 0.22),
+      ],
+    );
+  }
+
+  Widget _ring({required double progress, required double opacity}) {
+    final easedProgress = Curves.easeOutCubic.transform(progress);
+    final ringOpacity = Curves.easeOutCubic.transform(1 - progress) * opacity;
+    return Opacity(
+      opacity: ringOpacity,
+      child: Transform.scale(
+        scale: 0.58 + easedProgress * 1.2,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 1.5),
+          ),
+          child: SizedBox.square(dimension: size),
+        ),
+      ),
+    );
+  }
+}
+
+double _interval(double progress, double begin, double end) {
+  return ((progress - begin) / (end - begin)).clamp(0, 1);
+}
+
+Offset _favoriteJellyScale(double progress) {
+  if (progress < 0.16) {
+    return _favoriteScaleLerp(
+      const Offset(1, 1),
+      const Offset(1.08, 0.9),
+      progress / 0.16,
+    );
+  }
+  if (progress < 0.46) {
+    return _favoriteScaleLerp(
+      const Offset(1.08, 0.9),
+      const Offset(0.94, 1.16),
+      (progress - 0.16) / 0.3,
+    );
+  }
+  if (progress < 0.72) {
+    return _favoriteScaleLerp(
+      const Offset(0.94, 1.16),
+      const Offset(1.06, 0.96),
+      (progress - 0.46) / 0.26,
+    );
+  }
+  return _favoriteScaleLerp(
+    const Offset(1.06, 0.96),
+    const Offset(1, 1),
+    (progress - 0.72) / 0.28,
+  );
+}
+
+Offset _favoriteScaleLerp(Offset begin, Offset end, double progress) {
+  return Offset.lerp(begin, end, Curves.easeInOutCubic.transform(progress))!;
+}
 
 class SmPlayerPlayIcon extends StatelessWidget {
   const SmPlayerPlayIcon({super.key, this.size = 21, this.color});
