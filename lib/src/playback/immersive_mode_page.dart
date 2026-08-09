@@ -25,7 +25,6 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_app_bar.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_control_panel.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_more_menu.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_multi_select_bar.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_scaffold.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_stage.dart';
@@ -167,13 +166,11 @@ class ImmersiveModePage extends ConsumerStatefulWidget {
   ConsumerState<ImmersiveModePage> createState() => _ImmersiveModePageState();
 }
 
-class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
+class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
+    with SingleTickerProviderStateMixin {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
   var _isPlaylistOpen = false;
-  var _isPlayerBarRaised = true;
-  var _isMoreMenuOpen = false;
-  Timer? _playerBarHideTimer;
   SongDialogMode? _dialogMode;
   int? _artworkLookupSongId;
   int? _resolvedArtworkSongId;
@@ -183,10 +180,17 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   var _lyricsRefreshRevision = 0;
   late int _currentClockMinute;
   Timer? _clockMinuteTimer;
+  late final AnimationController _entranceController;
+  var _tickerModeEnabled = false;
 
   @override
   void initState() {
     super.initState();
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+      reverseDuration: const Duration(milliseconds: 400),
+    );
     _currentClockMinute = getCurrentClockMinute();
     _clockMinuteTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) {
@@ -196,40 +200,36 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
         _currentClockMinute = getCurrentClockMinute();
       });
     });
-    _schedulePlayerBarHide();
   }
 
   @override
   void dispose() {
+    _entranceController.dispose();
     _clockMinuteTimer?.cancel();
-    _playerBarHideTimer?.cancel();
     _queueController.dispose();
     super.dispose();
   }
 
-  void _exitImmersiveMode(SmPlayerShellActions? shellActions) {
-    shellActions?.onExitImmersiveMode?.call();
-  }
-
-  void _raisePlayerBar() {
-    _playerBarHideTimer?.cancel();
-    if (!_isPlayerBarRaised) {
-      setState(() {
-        _isPlayerBarRaised = true;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tickerModeEnabled = TickerMode.valuesOf(context).enabled;
+    if (tickerModeEnabled && !_tickerModeEnabled) {
+      _entranceController.value = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _entranceController.forward();
       });
     }
+    _tickerModeEnabled = tickerModeEnabled;
   }
 
-  void _schedulePlayerBarHide() {
-    _playerBarHideTimer?.cancel();
-    _playerBarHideTimer = Timer(const Duration(seconds: 5), () {
-      if (!mounted || _isMoreMenuOpen || _dialogMode != null) {
-        return;
-      }
-      setState(() {
-        _isPlayerBarRaised = false;
-      });
-    });
+  void _exitImmersiveMode(SmPlayerShellActions? shellActions) {
+    unawaited(_animateExit(shellActions));
+  }
+
+  Future<void> _animateExit(SmPlayerShellActions? shellActions) async {
+    await _entranceController.reverse();
+    shellActions?.onExitImmersiveMode?.call();
   }
 
   @override
@@ -246,6 +246,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       loading:
           () => ImmersiveModeScaffold(
             coverColor: _coverColor,
+            entranceAnimation: _entranceController,
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.loading'),
@@ -259,6 +260,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       error:
           (_, _) => ImmersiveModeScaffold(
             coverColor: _coverColor,
+            entranceAnimation: _entranceController,
             child: Center(
               child: Text(
                 i18n.t('nowPlaying.noActiveTrack'),
@@ -334,6 +336,12 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
               onClearNowPlaying: () {
                 _replaceQueue(const []);
               },
+              onQuickPlay: () {
+                unawaited(_quickPlay(snapshot));
+              },
+              onRandomPlay: () {
+                _playSongIds(snapshot.songs.map((song) => song.id).toList());
+              },
               onAddToNowPlaying: (song) {
                 _addSongToNowPlaying(song, queueSongIds);
               },
@@ -363,7 +371,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
           return Positioned(
             top: 56,
             right: 24,
-            bottom: 132,
+            bottom: 24,
             width: min(viewportWidth * 0.4, 520),
             child: KeyedSubtree(
               key: const ValueKey('ImmersiveMode.QueuePopoverHost'),
@@ -378,67 +386,60 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
             bottom: 0,
             left: 0,
             height: immersiveModePlayerHeight,
-            child: AnimatedOpacity(
-              key: const ValueKey('ImmersiveMode.PlayerBarOpacity'),
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.ease,
-              opacity: _isPlayerBarRaised ? 1 : 0,
-              child: AnimatedSlide(
-                key: const ValueKey('ImmersiveMode.PlayerBarSlide'),
-                duration: const Duration(milliseconds: 260),
-                curve: const Cubic(0.2, 0, 0, 1),
-                offset:
-                    _isPlayerBarRaised
-                        ? Offset.zero
-                        : const Offset(0, immersiveModePlayerIdleSlideOffset),
-                child: ImmersiveModeControlPanel(
-                  song: currentSong,
-                  state: mediaControlState,
-                  disabled: currentSong == null,
-                  i18n: i18n,
-                  night: immersiveNightActive,
-                  onPrevious: () {
-                    _playPreviousFromQueue(queueSongs);
-                  },
-                  onNext: () {
-                    _playNextFromQueue(queueSongs);
-                  },
-                  onTogglePlayPause: () {
-                    _togglePlayPauseFromQueue(queueSongs);
-                  },
-                  onToggleShuffle: _toggleShufflePlayback,
-                  onToggleFavorite:
-                      currentSong == null
-                          ? null
-                          : () {
-                            unawaited(
-                              _toggleSongsFavorite([
-                                currentSong.id,
-                              ], !currentSong.favorite),
-                            );
-                          },
-                  onOpenVoiceAssistant: shellActions?.onOpenVoiceAssistant,
-                  onClose: () {
-                    _exitImmersiveMode(shellActions);
-                  },
-                  onMoreClick: (buttonContext) {
-                    unawaited(
-                      _showMoreMenu(
-                        buttonContext,
-                        currentSong,
-                        snapshot,
-                        queueSongIds,
-                        customPlaylists,
-                        recentSongs: recentSongs,
-                        shellActions: shellActions,
-                        isCompact:
-                            viewportWidth <=
-                            immersiveModeImmersiveCompactBreakpoint,
-                      ),
-                    );
-                  },
-                ),
-              ),
+            child: ImmersiveModeControlPanel(
+              key: const ValueKey('ImmersiveMode.PlayerBar'),
+              song: currentSong,
+              state: mediaControlState,
+              disabled: currentSong == null,
+              i18n: i18n,
+              night: immersiveNightActive,
+              onPrevious: () {
+                _playPreviousFromQueue(queueSongs);
+              },
+              onNext: () {
+                _playNextFromQueue(queueSongs);
+              },
+              onTogglePlayPause: () {
+                _togglePlayPauseFromQueue(queueSongs);
+              },
+              onQuickPlay: () {
+                unawaited(_quickPlay(snapshot));
+              },
+              onToggleShuffle: _toggleShufflePlayback,
+              onToggleFavorite:
+                  currentSong == null
+                      ? null
+                      : () {
+                        unawaited(
+                          _toggleSongsFavorite([
+                            currentSong.id,
+                          ], !currentSong.favorite),
+                        );
+                      },
+              desktopLyricsEnabled: settings.desktopLyricsEnabled,
+              onToggleDesktopLyrics: shellActions?.onToggleDesktopLyrics,
+              onOpenVoiceAssistant: shellActions?.onOpenVoiceAssistant,
+              onToggleWindowFullScreen: shellActions?.onToggleWindowFullScreen,
+              isWindowFullScreen: shellActions?.isWindowFullScreen ?? false,
+              onEnterMiniMode: shellActions?.onEnterMiniMode,
+              onClose: () {
+                _exitImmersiveMode(shellActions);
+              },
+              onMoreClick: (buttonContext) {
+                unawaited(
+                  _showMoreMenu(
+                    buttonContext,
+                    currentSong,
+                    snapshot,
+                    queueSongIds,
+                    recentSongs: recentSongs,
+                    shellActions: shellActions,
+                    isCompact:
+                        viewportWidth <=
+                        immersiveModeImmersiveCompactBreakpoint,
+                  ),
+                );
+              },
             ),
           );
         }
@@ -447,149 +448,132 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
           artworkPath: displayArtworkPath,
           coverColor: _coverColor,
           night: immersiveNightActive,
-          child: MouseRegion(
-            onEnter: (_) {
-              _raisePlayerBar();
-            },
-            onHover: (_) {
-              _raisePlayerBar();
-            },
-            onExit: (_) {
-              _schedulePlayerBarHide();
-            },
-            child: Builder(
-              builder: (context) {
-                final viewportWidth = MediaQuery.sizeOf(context).width;
-                final queueLayer = buildQueueLayer(viewportWidth);
-                final playerBarLayer = buildPlayerBarLayer(viewportWidth);
-                final compactPlayerBarUnderQueue =
-                    viewportWidth <= immersiveModeImmersiveCompactBreakpoint;
-                return Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Padding(
-                        padding: immersiveModeContentPadding(viewportWidth),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final compact =
-                                viewportWidth <=
-                                immersiveModeLayoutCompactBreakpoint;
-                            return ImmersiveModeStage(
-                              song: currentSong,
-                              artworkPath: displayArtworkPath,
-                              mediaControlState: mediaControlState,
-                              i18n: i18n,
-                              refreshRevision: _lyricsRefreshRevision,
-                              onSeekAndPlay:
-                                  ref
-                                      .read(mediaControlControllerProvider)
-                                      .onSeekAndPlay,
-                              compact: compact,
-                            );
-                          },
-                        ),
+          entranceAnimation: _entranceController,
+          child: Builder(
+            builder: (context) {
+              final viewportWidth = MediaQuery.sizeOf(context).width;
+              final queueLayer = buildQueueLayer(viewportWidth);
+              final playerBarLayer = buildPlayerBarLayer(viewportWidth);
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: immersiveModeContentPadding(viewportWidth),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact =
+                              viewportWidth <=
+                              immersiveModeLayoutCompactBreakpoint;
+                          return ImmersiveModeStage(
+                            song: currentSong,
+                            artworkPath: displayArtworkPath,
+                            mediaControlState: mediaControlState,
+                            i18n: i18n,
+                            refreshRevision: _lyricsRefreshRevision,
+                            onSeekAndPlay:
+                                ref
+                                    .read(mediaControlControllerProvider)
+                                    .onSeekAndPlay,
+                            compact: compact,
+                            entranceAnimation: _entranceController,
+                          );
+                        },
                       ),
                     ),
-                    ImmersiveModeAppBar(
-                      i18n: i18n,
-                      playlistOpen: _isPlaylistOpen,
-                      onClose: () {
-                        _exitImmersiveMode(shellActions);
-                      },
-                      onTogglePlaylist: () {
-                        final dialogWasOpen = _dialogMode != null;
-                        setState(() {
-                          _dialogMode = null;
-                          _isPlaylistOpen = !_isPlaylistOpen;
-                        });
-                        if (dialogWasOpen) {
-                          _schedulePlayerBarHide();
-                        }
-                      },
+                  ),
+                  ImmersiveModeAppBar(
+                    i18n: i18n,
+                    playlistOpen: _isPlaylistOpen,
+                    onClose: () {
+                      _exitImmersiveMode(shellActions);
+                    },
+                    onTogglePlaylist: () {
+                      setState(() {
+                        _dialogMode = null;
+                        _isPlaylistOpen = !_isPlaylistOpen;
+                      });
+                    },
+                  ),
+                  playerBarLayer,
+                  queueLayer,
+                  ImmersiveModeMultiSelectCommandBar(
+                    i18n: i18n,
+                    songs: queueSongs,
+                    songIds: queueSongIds,
+                    playlists: customPlaylists,
+                    defaultNewPlaylistName: getDefaultNewPlaylistName(
+                      i18n,
+                      snapshot.playlists,
                     ),
-                    if (compactPlayerBarUnderQueue) playerBarLayer,
-                    queueLayer,
-                    if (!compactPlayerBarUnderQueue) playerBarLayer,
-                    ImmersiveModeMultiSelectCommandBar(
-                      i18n: i18n,
-                      songs: queueSongs,
-                      songIds: queueSongIds,
-                      playlists: customPlaylists,
-                      defaultNewPlaylistName: getDefaultNewPlaylistName(
-                        i18n,
-                        snapshot.playlists,
-                      ),
-                      hideMultiSelectCommandBarAfterOperation:
-                          snapshot.hideMultiSelectCommandBarAfterOperation,
-                      selection: _selection,
-                      currentQueueSongIds: () {
-                        return _currentQueueSongIds(queueSongIds);
-                      },
-                      onToggleFavorite: _toggleSongsFavorite,
-                      onAddToPlaylist: _addSongsToPlaylist,
-                      onPlay: _playQueueSongIds,
-                      onReplaceQueue: _replaceQueue,
-                      onRemoveSelectedQueueIndexes: (
+                    hideMultiSelectCommandBarAfterOperation:
+                        snapshot.hideMultiSelectCommandBarAfterOperation,
+                    selection: _selection,
+                    currentQueueSongIds: () {
+                      return _currentQueueSongIds(queueSongIds);
+                    },
+                    onToggleFavorite: _toggleSongsFavorite,
+                    onAddToPlaylist: _addSongsToPlaylist,
+                    onPlay: _playQueueSongIds,
+                    onReplaceQueue: _replaceQueue,
+                    onRemoveSelectedQueueIndexes: (
+                      selectedIndexes,
+                      nextSongIds,
+                    ) {
+                      _removeSelectedQueueIndexes(
+                        queueSongIds,
                         selectedIndexes,
                         nextSongIds,
-                      ) {
-                        _removeSelectedQueueIndexes(
-                          queueSongIds,
-                          selectedIndexes,
-                          nextSongIds,
-                        );
-                      },
-                      onSelectionChanged: () {
-                        setState(() {});
-                      },
+                      );
+                    },
+                    onSelectionChanged: () {
+                      setState(() {});
+                    },
+                  ),
+                  if (noticeText != null)
+                    Positioned(
+                      right: 76,
+                      bottom: immersiveModePlayerHeight + 14,
+                      left: 76,
+                      child: ImmersiveModeErrorBanner(message: noticeText),
                     ),
-                    if (noticeText != null)
-                      Positioned(
-                        right: 76,
-                        bottom: immersiveModePlayerHeight + 14,
-                        left: 76,
-                        child: ImmersiveModeErrorBanner(message: noticeText),
-                      ),
-                    if (currentSong != null && _dialogMode != null)
-                      MusicDialog(
-                        song: currentSong,
-                        initialMode: _dialogMode!,
-                        currentTrackId: mediaControlState.track.id,
-                        isPlaying: mediaControlState.isPlaying,
-                        queueSongIds: queueSongIds,
-                        canPause:
-                            mediaControlState.isPlaying &&
-                            mediaControlState.track.id == currentSong.id,
-                        onPlay:
-                            ref
-                                .read(mediaControlControllerProvider)
-                                .onTogglePlayPause,
-                        onPlayTrack: (trackId, nextQueueSongIds) {
-                          final song = songsById[trackId] ?? currentSong;
+                  if (currentSong != null && _dialogMode != null)
+                    MusicDialog(
+                      song: currentSong,
+                      initialMode: _dialogMode!,
+                      currentTrackId: mediaControlState.track.id,
+                      isPlaying: mediaControlState.isPlaying,
+                      queueSongIds: queueSongIds,
+                      canPause:
+                          mediaControlState.isPlaying &&
+                          mediaControlState.track.id == currentSong.id,
+                      onPlay:
                           ref
                               .read(mediaControlControllerProvider)
-                              .playTrack(
-                                mediaControlTrackForSong(song, i18n),
-                                durationSeconds: song.duration.toDouble(),
-                                queueIndex: nextQueueSongIds.indexOf(trackId),
-                              );
-                          _replaceQueue(nextQueueSongIds);
-                        },
-                        onReveal: _revealPath,
-                        onClose: () {
-                          setState(() {
-                            _dialogMode = null;
-                          });
-                          _schedulePlayerBarHide();
-                        },
-                        onSaved: () {
-                          _handleMusicDialogSaved(currentSong);
-                        },
-                      ),
-                  ],
-                );
-              },
-            ),
+                              .onTogglePlayPause,
+                      onPlayTrack: (trackId, nextQueueSongIds) {
+                        final song = songsById[trackId] ?? currentSong;
+                        ref
+                            .read(mediaControlControllerProvider)
+                            .playTrack(
+                              mediaControlTrackForSong(song, i18n),
+                              durationSeconds: song.duration.toDouble(),
+                              queueIndex: nextQueueSongIds.indexOf(trackId),
+                            );
+                        _replaceQueue(nextQueueSongIds);
+                      },
+                      onReveal: _revealPath,
+                      onClose: () {
+                        setState(() {
+                          _dialogMode = null;
+                        });
+                      },
+                      onSaved: () {
+                        _handleMusicDialogSaved(currentSong);
+                      },
+                    ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -719,49 +703,145 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
     BuildContext buttonContext,
     LibrarySong? currentSong,
     LibraryContentData snapshot,
-    List<int> queueSongIds,
-    List<MultiSelectCommandBarPlaylist> customPlaylists, {
+    List<int> queueSongIds, {
     required List<LibrarySong> recentSongs,
     required SmPlayerShellActions? shellActions,
     required bool isCompact,
   }) async {
-    await showImmersiveModeMoreMenu(
-      context: context,
-      ref: ref,
-      buttonContext: buttonContext,
-      currentSong: currentSong,
-      snapshot: snapshot,
-      queueSongIds: queueSongIds,
-      customPlaylists: customPlaylists,
-      recentSongs: recentSongs,
-      shellActions: shellActions,
+    final mediaController = ref.read(mediaControlControllerProvider);
+    final settings = smPlayerGlobalSettingsSnapshot;
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final queueSongs = [
+      for (final songId in queueSongIds)
+        if (songsById[songId] case final song?) song,
+    ];
+    await showMediaControlMoreMenu(
+      context: buttonContext,
+      i18n: context.smPlayerI18n,
+      isMuted: mediaController.state.isMuted,
+      volumeValue: mediaController.state.volume,
+      desktopLyricsEnabled: settings.desktopLyricsEnabled,
+      onToggleDesktopLyrics: shellActions?.onToggleDesktopLyrics,
+      alwaysShowQuickPlay: true,
+      randomPlayDisabled: queueSongIds.isEmpty && snapshot.songs.isEmpty,
+      randomPlaySubmenu: buildShuffleMenuFlyoutItems(
+        i18n: context.smPlayerI18n,
+        songs: queueSongs,
+        librarySongs: snapshot.songs,
+        recentSongs: recentSongs,
+        playlists: snapshot.playlists,
+        folders: snapshot.folders,
+        randomLimit: nowPlayingQuickPlayLimit,
+        onPlaySongs: _playSongIds,
+        includeQuickPlay: false,
+      ),
+      onVolumeChange: mediaController.onVolumeChange,
+      onToggleMute: mediaController.onToggleMute,
       isCompact: isCompact,
       onQuickPlay: () {
         unawaited(_quickPlay(snapshot));
       },
-      onPlaySongs: _playSongIds,
-      onToggleShuffle: _toggleShufflePlayback,
-      onCreatePlaylist: _createPlaylist,
-      onAddSongsToPlaylist: _addSongsToPlaylist,
-      onAddSongToNowPlaying: (song) {
-        _addSongToNowPlaying(song, queueSongIds);
-      },
-      onToggleSongsFavorite: _toggleSongsFavorite,
-      onSetSongPreference: _setSongPreference,
-      onOpenMusicDialog: _openMusicDialog,
-      onPlayArtist: _playArtist,
-      onPlayAlbum: _playAlbum,
-      onMenuOpenChanged: (open) {
-        setState(() {
-          _isMoreMenuOpen = open;
-          if (open) {
-            _isPlayerBarRaised = true;
-          }
-        });
-      },
-      onSchedulePlayerBarHide: _schedulePlayerBarHide,
-      hasDialogOpen: () => _dialogMode != null,
-      isMounted: () => mounted,
+      onToggleFavorite:
+          currentSong == null
+              ? mediaController.onToggleFavorite
+              : () {
+                unawaited(
+                  _toggleSongsFavorite([currentSong.id], !currentSong.favorite),
+                );
+              },
+      onToggleWindowFullScreen: shellActions?.onToggleWindowFullScreen,
+      isWindowFullScreen: shellActions?.isWindowFullScreen ?? false,
+      onEnterMiniMode: shellActions?.onEnterMiniMode,
+      showFavoriteWhenUnavailable: true,
+      currentSong: currentSong,
+      nowPlayingSongIds: queueSongIds,
+      playlists: snapshot.playlists,
+      onResolvePreferenceLevel:
+          currentSong == null
+              ? null
+              : () => _getSongPreferenceLevel(currentSong.id),
+      onAddToNowPlaying:
+          currentSong == null
+              ? null
+              : () => _addSongToNowPlaying(currentSong, queueSongIds),
+      onCreatePlaylist:
+          currentSong == null
+              ? null
+              : (name) {
+                unawaited(_createPlaylist(name, [currentSong.id]));
+              },
+      onAddToPlaylist:
+          currentSong == null
+              ? null
+              : (playlistId) {
+                unawaited(_addSongsToPlaylist(playlistId, [currentSong.id]));
+              },
+      onUndoPreference:
+          currentSong == null
+              ? null
+              : () {
+                unawaited(_undoSongPreference(currentSong.id));
+              },
+      onSetPreference:
+          currentSong == null
+              ? null
+              : (level) {
+                unawaited(
+                  _setSongPreference(currentSong.id, currentSong.title, level),
+                );
+              },
+      onPlayArtist:
+          currentSong == null
+              ? null
+              : () => _playArtist(currentSong, snapshot.songs),
+      onPlayAlbum:
+          currentSong == null
+              ? null
+              : () => _playAlbum(currentSong, snapshot.songs),
+      onSeeArtist:
+          currentSong == null ||
+                  shellActions?.onExitImmersiveMode == null ||
+                  shellActions?.onNavigate == null
+              ? null
+              : () {
+                final artist = primaryImmersiveModeArtist(
+                  currentSong,
+                  context.smPlayerI18n,
+                );
+                shellActions!.onExitImmersiveMode!();
+                shellActions.onNavigate!(
+                  '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                );
+              },
+      onSeeAlbum:
+          currentSong == null ||
+                  shellActions?.onExitImmersiveMode == null ||
+                  shellActions?.onNavigate == null
+              ? null
+              : () {
+                final album = displayImmersiveModeAlbum(
+                  currentSong,
+                  context.smPlayerI18n,
+                );
+                shellActions!.onExitImmersiveMode!();
+                shellActions.onNavigate!(
+                  '/albums?album=${Uri.encodeQueryComponent(album)}',
+                );
+              },
+      onSeeMusicInfo:
+          currentSong == null
+              ? null
+              : () => _openMusicDialog(SongDialogMode.properties),
+      onSeeLyrics:
+          currentSong == null
+              ? null
+              : () => _openMusicDialog(SongDialogMode.lyrics),
+      onSeeAlbumArt:
+          currentSong == null
+              ? null
+              : () => _openMusicDialog(SongDialogMode.albumArt),
+      onSeeLocal:
+          currentSong == null ? null : () => _revealPath(currentSong.path),
     );
   }
 
@@ -832,6 +912,33 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
         randomLimit: nowPlayingQuickPlayLimit,
       ),
     );
+  }
+
+  void _playAlbum(LibrarySong currentSong, List<LibrarySong> songs) {
+    final targetAlbum = displayImmersiveModeAlbum(
+      currentSong,
+      context.smPlayerI18n,
+    );
+    _playSongIds([
+      for (final song in songs)
+        if (displayImmersiveModeAlbum(song, context.smPlayerI18n) ==
+            targetAlbum)
+          song.id,
+    ]);
+  }
+
+  void _playArtist(LibrarySong currentSong, List<LibrarySong> songs) {
+    final currentArtists = artists_model.getSongArtists(currentSong);
+    final targetArtists =
+        currentArtists.isEmpty ? [currentSong.artist] : currentArtists;
+    _playSongIds([
+      for (final song in songs)
+        if ((artists_model.getSongArtists(song).isEmpty
+                ? [song.artist]
+                : artists_model.getSongArtists(song))
+            .any(targetArtists.contains))
+          song.id,
+    ]);
   }
 
   bool _playNextFromQueue(List<LibrarySong> queueSongs) {
@@ -919,39 +1026,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
       (song) => song.id == mediaControlState.track.id,
     );
     return trackIndex == -1 ? 0 : trackIndex;
-  }
-
-  void _playAlbum(LibrarySong currentSong, List<LibrarySong> songs) {
-    final targetAlbum = displayImmersiveModeAlbum(
-      currentSong,
-      context.smPlayerI18n,
-    );
-    final songIds =
-        songs
-            .where(
-              (song) =>
-                  displayImmersiveModeAlbum(song, context.smPlayerI18n) ==
-                  targetAlbum,
-            )
-            .map((song) => song.id)
-            .toList();
-    _playSongIds(songIds);
-  }
-
-  void _playArtist(LibrarySong currentSong, List<LibrarySong> songs) {
-    final currentArtists = artists_model.getSongArtists(currentSong);
-    final targetArtists =
-        currentArtists.isEmpty ? [currentSong.artist] : currentArtists;
-    final songIds =
-        songs
-            .where((song) {
-              final songArtists = artists_model.getSongArtists(song);
-              final artists = songArtists.isEmpty ? [song.artist] : songArtists;
-              return artists.any(targetArtists.contains);
-            })
-            .map((song) => song.id)
-            .toList();
-    _playSongIds(songIds);
   }
 
   void _replaceQueue(List<int> songIds) {
@@ -1194,11 +1268,8 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage> {
   }
 
   void _openMusicDialog(SongDialogMode mode) {
-    _playerBarHideTimer?.cancel();
     setState(() {
       _isPlaylistOpen = false;
-      _isMoreMenuOpen = false;
-      _isPlayerBarRaised = true;
       _dialogMode = mode;
     });
   }

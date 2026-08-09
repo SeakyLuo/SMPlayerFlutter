@@ -36,6 +36,9 @@ class _RecentSearchesPage extends ConsumerWidget {
               icon: FluentIcons.multiselect_ltr_20_regular,
               label: i18n.t('albums.multiSelect'),
               active: multiSelect,
+              activeMatchesHover: true,
+              tooltip:
+                  multiSelect ? i18n.t('common.exitMultiSelectTooltip') : null,
               disabled: entries.isEmpty,
               onPressed: onToggleMultiSelect,
             ),

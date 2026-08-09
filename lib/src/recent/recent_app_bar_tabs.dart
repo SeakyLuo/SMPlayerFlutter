@@ -107,6 +107,13 @@ class _RecentAppBarTabButton extends StatelessWidget {
         child: SmPlayerTextIconButton(
           label: label,
           active: active,
+          activeHoverSurface:
+              active
+                  ? _recentActiveTabHoverSurface(
+                    context,
+                    colors.appBarTabActiveSurface,
+                  )
+                  : null,
           onPressed: onPressed,
           minWidth: 0,
           height: 34,

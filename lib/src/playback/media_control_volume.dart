@@ -178,9 +178,9 @@ class _VolumeSliderState extends State<VolumeSlider> {
     if (widget.disabled && _tooltipActive) {
       _tooltipTimer?.cancel();
       _tooltipActive = false;
-      _removeTooltipOverlay();
+      _scheduleTooltipOverlayUpdate();
     } else if (_tooltipActive) {
-      _tooltipOverlayEntry?.markNeedsBuild();
+      _scheduleTooltipOverlayUpdate();
     }
   }
 
@@ -429,6 +429,19 @@ class _VolumeSliderState extends State<VolumeSlider> {
   void _removeTooltipOverlay() {
     _tooltipOverlayEntry?.remove();
     _tooltipOverlayEntry = null;
+  }
+
+  void _scheduleTooltipOverlayUpdate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (widget.disabled || !_tooltipActive) {
+        _removeTooltipOverlay();
+        return;
+      }
+      _tooltipOverlayEntry?.markNeedsBuild();
+    });
   }
 }
 

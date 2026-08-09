@@ -15,6 +15,9 @@ class MediaControlSurface extends StatefulWidget {
     required this.durationSeconds,
     required this.previousButtonRestartsTrack,
     required this.onTogglePlayPause,
+    this.playButtonDisabled,
+    this.playButtonTooltip,
+    this.onPlayButtonPressed,
     required this.onPrevious,
     this.onForcePrevious,
     required this.onNext,
@@ -56,7 +59,10 @@ class MediaControlSurface extends StatefulWidget {
   final double progressSeconds;
   final double durationSeconds;
   final bool previousButtonRestartsTrack;
+  final bool? playButtonDisabled;
+  final String? playButtonTooltip;
   final VoidCallback onTogglePlayPause;
+  final VoidCallback? onPlayButtonPressed;
   final VoidCallback onPrevious;
   final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
@@ -125,13 +131,16 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
           progressMax: progressMax,
           durationSeconds: widget.durationSeconds,
           progressSideOverflow: widget.progressSideOverflow,
+          playButtonDisabled: widget.playButtonDisabled,
+          playButtonTooltip: widget.playButtonTooltip,
           sliderActiveColor: widget.sliderActiveColor,
           sliderInactiveColor: widget.sliderInactiveColor,
           sliderThumbColor: widget.sliderThumbColor,
           sliderThumbShadow: widget.sliderThumbShadow,
           sliderOverlayColor: widget.sliderOverlayColor,
           previousButtonRestartsTrack: widget.previousButtonRestartsTrack,
-          onTogglePlayPause: widget.onTogglePlayPause,
+          onTogglePlayPause:
+              widget.onPlayButtonPressed ?? widget.onTogglePlayPause,
           onPrevious: widget.onPrevious,
           onForcePrevious: widget.onForcePrevious,
           onNext: widget.onNext,
@@ -213,6 +222,8 @@ class MediaControlButtons extends StatelessWidget {
     required this.progressMax,
     required this.durationSeconds,
     required this.progressSideOverflow,
+    this.playButtonDisabled,
+    this.playButtonTooltip,
     this.sliderActiveColor,
     this.sliderInactiveColor,
     this.sliderThumbColor,
@@ -238,6 +249,8 @@ class MediaControlButtons extends StatelessWidget {
   final double progressMax;
   final double durationSeconds;
   final double progressSideOverflow;
+  final bool? playButtonDisabled;
+  final String? playButtonTooltip;
   final Color? sliderActiveColor;
   final Color? sliderInactiveColor;
   final Color? sliderThumbColor;
@@ -256,8 +269,10 @@ class MediaControlButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = _mediaControlI18n(context);
     final textMuted = MediaControlColors.textMutedFor(context);
+    final resolvedPlayButtonDisabled = playButtonDisabled ?? disabled;
     final playTitle =
-        isPlaying ? i18n.t('player.pause') : i18n.t('player.play');
+        playButtonTooltip ??
+        (isPlaying ? i18n.t('player.pause') : i18n.t('player.play'));
     final previousTitle =
         previousButtonRestartsTrack
             ? i18n.t('player.restartCurrentTrackHoldPrevious')
@@ -319,6 +334,7 @@ class MediaControlButtons extends StatelessWidget {
                 padding: 6,
                 iconSize: 21,
                 disabled: disabled,
+                showDisabledSurface: false,
                 onPressed: onPrevious,
                 onLongPress:
                     previousButtonRestartsTrack ? onForcePrevious : null,
@@ -341,7 +357,7 @@ class MediaControlButtons extends StatelessWidget {
                     padding: primaryPadding,
                     iconSize: primaryIconSize,
                     loading: isLoading,
-                    disabled: disabled,
+                    disabled: resolvedPlayButtonDisabled,
                     onPressed: onTogglePlayPause,
                   ),
                 ),
@@ -355,6 +371,7 @@ class MediaControlButtons extends StatelessWidget {
                 padding: 6,
                 iconSize: 21,
                 disabled: disabled,
+                showDisabledSurface: false,
                 onPressed: onNext,
               ),
             ],

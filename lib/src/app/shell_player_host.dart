@@ -7,10 +7,13 @@ import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    as artists_model;
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
+import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 
 typedef ShellPlayerDialog = ({LibrarySong song, SongDialogMode mode});
@@ -164,11 +167,69 @@ class ShellPlayerHost extends StatelessWidget {
                   progressSeconds: mediaControlState.progressSeconds,
                   durationSeconds: mediaControlState.durationSeconds,
                 );
+                final librarySongs = snapshot?.songs ?? const <LibrarySong>[];
+                final ValueChanged<List<int>>? playSongs =
+                    snapshot == null
+                        ? null
+                        : (songIds) {
+                          if (songIds.isEmpty) {
+                            return;
+                          }
+                          replaceNowPlayingQueueAndPlayIndex(
+                            ref: ref,
+                            snapshot: snapshot,
+                            i18n: i18n,
+                            songIds: songIds,
+                            queueIndex: 0,
+                            mediaController: mediaControlController,
+                          );
+                        };
                 return MediaControl(
                   track: mediaControlState.track,
                   currentSong: currentSong,
                   nowPlayingSongIds: snapshot?.nowPlaying.songIds ?? const [],
+                  librarySongs: librarySongs,
+                  recentSongs: recentSongs,
                   playlists: snapshot?.playlists ?? const [],
+                  folders: snapshot?.folders ?? const [],
+                  onPlaySongs: playSongs,
+                  onPlayArtist:
+                      currentSong == null || playSongs == null
+                          ? null
+                          : () {
+                            final currentArtists = artists_model.getSongArtists(
+                              currentSong,
+                            );
+                            final targetArtists =
+                                currentArtists.isEmpty
+                                    ? [currentSong.artist]
+                                    : currentArtists;
+                            playSongs([
+                              for (final song in librarySongs)
+                                if ((artists_model.getSongArtists(song).isEmpty
+                                        ? [song.artist]
+                                        : artists_model.getSongArtists(song))
+                                    .any(targetArtists.contains))
+                                  song.id,
+                            ]);
+                          },
+                  onPlayAlbum:
+                      currentSong == null || playSongs == null
+                          ? null
+                          : () {
+                            final album =
+                                currentSong.album.isEmpty
+                                    ? i18n.t('common.albumUnknown')
+                                    : currentSong.album;
+                            playSongs([
+                              for (final song in librarySongs)
+                                if ((song.album.isEmpty
+                                        ? i18n.t('common.albumUnknown')
+                                        : song.album) ==
+                                    album)
+                                  song.id,
+                            ]);
+                          },
                   disabled: isPlaybackQueueEmpty(snapshot),
                   isPlaying: mediaControlState.isPlaying,
                   volume: mediaControlState.volume,

@@ -1,14 +1,23 @@
 part of 'media_control.dart';
 
-class _PlayerTrack extends StatefulWidget {
-  const _PlayerTrack({
+typedef MediaControlTrackSquareBuilder =
+    Widget Function(BuildContext context, bool active, double size);
+
+class MediaControlTrackInfo extends StatefulWidget {
+  const MediaControlTrackInfo({
+    super.key,
     required this.track,
     required this.artworkPath,
     required this.disabled,
-    required this.onOpenNowPlaying,
+    required this.onPressed,
     this.compact = false,
     this.currentLyricsLine,
     this.onArtworkError,
+    this.squareBuilder,
+    this.tooltip,
+    this.showTrackCopy = true,
+    this.showSurfaceFeedback = true,
+    this.decorateSquareAsArtwork = true,
   });
 
   final MediaControlTrack track;
@@ -17,13 +26,18 @@ class _PlayerTrack extends StatefulWidget {
   final bool compact;
   final String? currentLyricsLine;
   final VoidCallback? onArtworkError;
-  final VoidCallback onOpenNowPlaying;
+  final VoidCallback onPressed;
+  final MediaControlTrackSquareBuilder? squareBuilder;
+  final String? tooltip;
+  final bool showTrackCopy;
+  final bool showSurfaceFeedback;
+  final bool decorateSquareAsArtwork;
 
   @override
-  State<_PlayerTrack> createState() => _PlayerTrackState();
+  State<MediaControlTrackInfo> createState() => _MediaControlTrackInfoState();
 }
 
-class _PlayerTrackState extends State<_PlayerTrack> {
+class _MediaControlTrackInfoState extends State<MediaControlTrackInfo> {
   var _hovered = false;
   var _focused = false;
 
@@ -49,11 +63,16 @@ class _PlayerTrackState extends State<_PlayerTrack> {
         widget.compact
             ? double.infinity
             : min(360.0, MediaQuery.sizeOf(context).width * 0.24);
-    final trackPadding =
-        widget.compact
-            ? const EdgeInsets.fromLTRB(0, 8, 10, 8)
-            : const EdgeInsets.fromLTRB(8, 8, 12, 8);
     final artworkSize = widget.compact ? 68.0 : 72.0;
+    final showTrackCopy = widget.showTrackCopy && widget.track.id != null;
+    final trackPadding =
+        showTrackCopy
+            ? widget.compact
+                ? const EdgeInsets.fromLTRB(0, 1, 9, 1)
+                : const EdgeInsets.fromLTRB(8, 8, 12, 8)
+            : widget.compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.all(8);
     final preferredArtworkGap = widget.compact ? 12.0 : 14.0;
     final button = TextButton(
       style: TextButton.styleFrom(
@@ -70,23 +89,31 @@ class _PlayerTrackState extends State<_PlayerTrack> {
           BorderSide(color: Colors.transparent),
         ),
       ),
-      onPressed: widget.disabled ? null : widget.onOpenNowPlaying,
+      onPressed: widget.disabled ? null : widget.onPressed,
       child: AnimatedContainer(
         key: const ValueKey('MediaControl.TrackHoverSurface'),
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
         padding: trackPadding,
         decoration: BoxDecoration(
-          color: trackActive ? trackHoverBackground : Colors.transparent,
+          color:
+              widget.showSurfaceFeedback && trackActive
+                  ? trackHoverBackground
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: trackActive ? trackHoverBorder : Colors.transparent,
+            color:
+                widget.showSurfaceFeedback && trackActive
+                    ? trackHoverBorder
+                    : Colors.transparent,
           ),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final artworkGap =
-                widget.compact
+                !showTrackCopy
+                    ? 0.0
+                    : widget.compact
                     ? min(
                       preferredArtworkGap,
                       max(0.0, constraints.maxWidth - artworkSize),
@@ -94,133 +121,147 @@ class _PlayerTrackState extends State<_PlayerTrack> {
                     : preferredArtworkGap;
             return Row(
               mainAxisSize:
-                  widget.compact ? MainAxisSize.max : MainAxisSize.min,
+                  widget.compact && showTrackCopy
+                      ? MainAxisSize.max
+                      : MainAxisSize.min,
               children: [
                 Container(
+                  key: const ValueKey('MediaControl.TrackSquare'),
                   width: artworkSize,
                   height: artworkSize,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: MediaControlColors.artworkShadow,
-                        offset: Offset(0, 10),
-                        blurRadius: 24,
-                      ),
-                    ],
+                    boxShadow:
+                        widget.decorateSquareAsArtwork
+                            ? const [
+                              BoxShadow(
+                                color: MediaControlColors.artworkShadow,
+                                offset: Offset(0, 10),
+                                blurRadius: 24,
+                              ),
+                            ]
+                            : null,
                   ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _PlayerArtwork(
-                        artworkPath: widget.artworkPath,
-                        onError: widget.onArtworkError,
-                      ),
-                      AnimatedOpacity(
-                        key: const ValueKey('MediaControl.ArtworkOverlay'),
-                        duration: const Duration(milliseconds: 140),
-                        opacity: overlayVisible ? 1 : 0,
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xff0c1118,
-                              ).withValues(alpha: 0.44),
+                  child:
+                      widget.squareBuilder?.call(
+                        context,
+                        trackActive,
+                        artworkSize,
+                      ) ??
+                      Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _PlayerArtwork(
+                            artworkPath: widget.artworkPath,
+                            onError: widget.onArtworkError,
+                          ),
+                          AnimatedOpacity(
+                            key: const ValueKey('MediaControl.ArtworkOverlay'),
+                            duration: const Duration(milliseconds: 140),
+                            opacity: overlayVisible ? 1 : 0,
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xff0c1118,
+                                  ).withValues(alpha: 0.44),
+                                ),
+                                child: const SmPlayerFullscreenIcon(
+                                  color: Colors.white,
+                                  size: 36,
+                                  strokeWidth: 2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Color(0x57000000),
+                                      offset: Offset(0, 2),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            child: const SmPlayerFullscreenIcon(
-                              color: Colors.white,
-                              size: 36,
-                              strokeWidth: 2,
-                              shadows: [
-                                Shadow(
-                                  color: Color(0x57000000),
-                                  offset: Offset(0, 2),
-                                  blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                ),
+                if (showTrackCopy) ...[
+                  SizedBox(width: artworkGap),
+                  Flexible(
+                    child: ConstrainedBox(
+                      key: const ValueKey('MediaControl.TrackCopy'),
+                      constraints: BoxConstraints(
+                        minWidth: widget.compact ? 0 : 120,
+                        maxWidth: trackCopyMaxWidth,
+                      ),
+                      child: IntrinsicWidth(
+                        child: SizedBox(
+                          height: artworkSize,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Tooltip(
+                                message: widget.track.title,
+                                child: Text(
+                                  widget.track.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: textStrong,
+                                    fontSize: widget.compact ? 15 : 17,
+                                    fontWeight: FontWeight.w600,
+                                    fontVariations: const [
+                                      FontVariation.weight(650),
+                                    ],
+                                    height: 1.08,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: widget.compact ? 4 : 5),
+                              Tooltip(
+                                message: widget.track.artist,
+                                child: Text(
+                                  widget.track.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: textMuted,
+                                    fontSize: widget.compact ? 12 : 14,
+                                    fontWeight: FontWeight.w500,
+                                    fontVariations: const [
+                                      FontVariation.weight(520),
+                                    ],
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ),
+                              if (lyricsText != null) ...[
+                                SizedBox(height: widget.compact ? 4 : 5),
+                                Tooltip(
+                                  message: lyricsText,
+                                  child: _PlayerTrackLyrics(
+                                    line: lyricsText,
+                                    compact: widget.compact,
+                                    color: textMuted,
+                                  ),
                                 ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: artworkGap),
-                Flexible(
-                  child: ConstrainedBox(
-                    key: const ValueKey('MediaControl.TrackCopy'),
-                    constraints: BoxConstraints(
-                      minWidth: widget.compact ? 0 : 120,
-                      maxWidth: trackCopyMaxWidth,
-                    ),
-                    child: IntrinsicWidth(
-                      child: SizedBox(
-                        height: artworkSize,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Tooltip(
-                              message: widget.track.title,
-                              child: Text(
-                                widget.track.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: textStrong,
-                                  fontSize: widget.compact ? 15 : 17,
-                                  fontWeight: FontWeight.w600,
-                                  fontVariations: const [
-                                    FontVariation.weight(650),
-                                  ],
-                                  height: 1.08,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: widget.compact ? 4 : 5),
-                            Tooltip(
-                              message: widget.track.artist,
-                              child: Text(
-                                widget.track.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: textMuted,
-                                  fontSize: widget.compact ? 12 : 14,
-                                  fontWeight: FontWeight.w500,
-                                  fontVariations: const [
-                                    FontVariation.weight(520),
-                                  ],
-                                  height: 1.1,
-                                ),
-                              ),
-                            ),
-                            if (lyricsText != null) ...[
-                              SizedBox(height: widget.compact ? 4 : 5),
-                              Tooltip(
-                                message: lyricsText,
-                                child: _PlayerTrackLyrics(
-                                  line: lyricsText,
-                                  compact: widget.compact,
-                                  color: textMuted,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             );
           },
         ),
       ),
     );
-    return MouseRegion(
+    final interactive = MouseRegion(
       cursor:
           widget.disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
       onEnter: (_) {
@@ -242,6 +283,10 @@ class _PlayerTrackState extends State<_PlayerTrack> {
         child: button,
       ),
     );
+    if (widget.tooltip == null) {
+      return interactive;
+    }
+    return Tooltip(message: widget.tooltip!, child: interactive);
   }
 }
 

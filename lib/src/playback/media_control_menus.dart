@@ -68,26 +68,127 @@ List<MenuFlyoutItem> buildPlaybackModeMenuFlyoutItems({
   ];
 }
 
-List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
+Future<void> showMediaControlMoreMenu({
+  required BuildContext context,
   required SmPlayerI18n i18n,
-  required bool disabled,
-  required int? trackId,
-  required PlaybackMode mode,
   required bool isMuted,
   required int volumeValue,
   bool desktopLyricsEnabled = false,
   VoidCallback? onToggleDesktopLyrics,
   required VoidCallback onQuickPlay,
+  bool alwaysShowQuickPlay = false,
+  List<MenuFlyoutItem>? randomPlaySubmenu,
+  bool randomPlayDisabled = false,
   required ValueChanged<int> onVolumeChange,
   required VoidCallback onToggleMute,
-  required VoidCallback onToggleShuffle,
-  required VoidCallback onToggleRepeat,
-  required VoidCallback onToggleRepeatOne,
   required VoidCallback onToggleFavorite,
-  required VoidCallback onOpenNowPlaying,
-  required VoidCallback onToggleWindowFullScreen,
+  VoidCallback? onToggleWindowFullScreen,
   required bool isWindowFullScreen,
-  required VoidCallback onEnterMiniMode,
+  VoidCallback? onEnterMiniMode,
+  bool isCompact = false,
+  LibrarySong? currentSong,
+  List<int> nowPlayingSongIds = const [],
+  List<LibraryPlaylist> playlists = const [],
+  String? preferenceLevel,
+  FutureOr<String?> Function()? onResolvePreferenceLevel,
+  VoidCallback? onAddToNowPlaying,
+  ValueChanged<String>? onCreatePlaylist,
+  ValueChanged<int>? onAddToPlaylist,
+  VoidCallback? onUndoPreference,
+  ValueChanged<String>? onSetPreference,
+  VoidCallback? onPlayArtist,
+  VoidCallback? onPlayAlbum,
+  bool showFavoriteWhenUnavailable = false,
+  VoidCallback? onSeeArtist,
+  VoidCallback? onSeeAlbum,
+  VoidCallback? onSeeMusicInfo,
+  VoidCallback? onSeeLyrics,
+  VoidCallback? onSeeAlbumArt,
+  FutureOr<void> Function()? onSeeLocal,
+}) async {
+  if (!context.mounted) {
+    return;
+  }
+
+  List<MenuFlyoutItem> buildItems(String? resolvedPreferenceLevel) {
+    return _buildPlayerMoreMenuItems(
+      i18n: i18n,
+      isMuted: isMuted,
+      volumeValue: volumeValue,
+      desktopLyricsEnabled: desktopLyricsEnabled,
+      onToggleDesktopLyrics: onToggleDesktopLyrics,
+      onQuickPlay: onQuickPlay,
+      alwaysShowQuickPlay: alwaysShowQuickPlay,
+      randomPlaySubmenu: randomPlaySubmenu,
+      randomPlayDisabled: randomPlayDisabled,
+      onVolumeChange: onVolumeChange,
+      onToggleMute: onToggleMute,
+      onToggleFavorite: onToggleFavorite,
+      onToggleWindowFullScreen: onToggleWindowFullScreen,
+      isWindowFullScreen: isWindowFullScreen,
+      onEnterMiniMode: onEnterMiniMode,
+      isCompact: isCompact,
+      currentSong: currentSong,
+      nowPlayingSongIds: nowPlayingSongIds,
+      playlists: playlists,
+      preferenceLevel: resolvedPreferenceLevel,
+      onAddToNowPlaying: onAddToNowPlaying,
+      onCreatePlaylist: onCreatePlaylist,
+      onAddToPlaylist: onAddToPlaylist,
+      onUndoPreference: onUndoPreference,
+      onSetPreference: onSetPreference,
+      onPlayArtist: onPlayArtist,
+      onPlayAlbum: onPlayAlbum,
+      showFavoriteWhenUnavailable: showFavoriteWhenUnavailable,
+      onSeeArtist: onSeeArtist,
+      onSeeAlbum: onSeeAlbum,
+      onSeeMusicInfo: onSeeMusicInfo,
+      onSeeLyrics: onSeeLyrics,
+      onSeeAlbumArt: onSeeAlbumArt,
+      onSeeLocal: onSeeLocal,
+    );
+  }
+
+  final itemsNotifier = ValueNotifier<List<MenuFlyoutItem>>(
+    buildItems(preferenceLevel),
+  );
+  var menuClosed = false;
+  if (onResolvePreferenceLevel != null) {
+    unawaited(
+      Future.sync(onResolvePreferenceLevel).then((resolvedPreferenceLevel) {
+        if (!menuClosed) {
+          itemsNotifier.value = buildItems(resolvedPreferenceLevel);
+        }
+      }),
+    );
+  }
+  await showMenuFlyout(
+    context,
+    position: _menuFlyoutPositionAboveAnchor(context),
+    avoidPlayerBar: false,
+    items: itemsNotifier.value,
+    itemsListenable: itemsNotifier,
+  );
+  menuClosed = true;
+  itemsNotifier.dispose();
+}
+
+List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
+  required SmPlayerI18n i18n,
+  required bool isMuted,
+  required int volumeValue,
+  bool desktopLyricsEnabled = false,
+  VoidCallback? onToggleDesktopLyrics,
+  required VoidCallback onQuickPlay,
+  bool alwaysShowQuickPlay = false,
+  List<MenuFlyoutItem>? randomPlaySubmenu,
+  bool randomPlayDisabled = false,
+  required ValueChanged<int> onVolumeChange,
+  required VoidCallback onToggleMute,
+  required VoidCallback onToggleFavorite,
+  VoidCallback? onToggleWindowFullScreen,
+  required bool isWindowFullScreen,
+  VoidCallback? onEnterMiniMode,
   bool isCompact = false,
   LibrarySong? currentSong,
   List<int> nowPlayingSongIds = const [],
@@ -98,35 +199,50 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   ValueChanged<int>? onAddToPlaylist,
   VoidCallback? onUndoPreference,
   ValueChanged<String>? onSetPreference,
-  required VoidCallback onSeeArtist,
-  required VoidCallback onSeeAlbum,
-  required VoidCallback onSeeMusicInfo,
-  required VoidCallback onSeeLyrics,
-  required VoidCallback onSeeAlbumArt,
-  required FutureOr<void> Function() onSeeLocal,
+  VoidCallback? onPlayArtist,
+  VoidCallback? onPlayAlbum,
+  bool showFavoriteWhenUnavailable = false,
+  VoidCallback? onSeeArtist,
+  VoidCallback? onSeeAlbum,
+  VoidCallback? onSeeMusicInfo,
+  VoidCallback? onSeeLyrics,
+  VoidCallback? onSeeAlbumArt,
+  FutureOr<void> Function()? onSeeLocal,
 }) {
   final items = [
-    MenuFlyoutItem(
-      key: 'quick-play',
-      text: i18n.t('nowPlaying.quickPlay'),
-      icon: _playIcon,
-      onPressed: onQuickPlay,
-    ),
-    if (isCompact) ...[
+    if (currentSong != null || alwaysShowQuickPlay)
       MenuFlyoutItem(
-        key: 'playback-mode',
-        text:
-            '${i18n.t('player.playbackMode')}: ${_playbackModeName(i18n, mode)}',
-        icon: _playbackModeIcon(mode),
-        usePlaylistIcon: mode == PlaybackMode.once,
-        submenu: buildPlaybackModeMenuFlyoutItems(
-          i18n: i18n,
-          mode: mode,
-          onToggleShuffle: onToggleShuffle,
-          onToggleRepeat: onToggleRepeat,
-          onToggleRepeatOne: onToggleRepeatOne,
-        ),
+        key: 'quick-play',
+        text: i18n.t('nowPlaying.quickPlay'),
+        icon: _playIcon,
+        onPressed: onQuickPlay,
       ),
+    if (randomPlaySubmenu != null)
+      MenuFlyoutItem(
+        key: 'random-play',
+        text: i18n.t('nowPlaying.randomPlay'),
+        useShuffleIcon: true,
+        disabled: randomPlayDisabled,
+        submenu: randomPlaySubmenu,
+      ),
+    if (onPlayArtist != null)
+      MenuFlyoutItem(
+        key: 'play-artist',
+        text: i18n.t('detail.playArtist'),
+        icon: FluentIcons.people_24_regular,
+        onPressed: onPlayArtist,
+      ),
+    if (onPlayAlbum != null)
+      MenuFlyoutItem(
+        key: 'play-album',
+        text: i18n.t('detail.playAlbum'),
+        useAlbumIcon: true,
+        onPressed: onPlayAlbum,
+      ),
+    if ((currentSong != null || alwaysShowQuickPlay) &&
+        (isCompact || currentSong != null))
+      const MenuFlyoutItem.separator(key: 'play-actions-separator'),
+    if (isCompact) ...[
       if (onToggleDesktopLyrics != null)
         MenuFlyoutItem(
           key: 'desktop-lyrics',
@@ -149,21 +265,22 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           onVolumeChange: onVolumeChange,
         ),
       ),
-      MenuFlyoutItem(
-        key: 'player-favorite',
-        text:
-            currentSong?.favorite == true
-                ? i18n.t('player.unlike')
-                : i18n.t('player.like'),
-        icon:
-            currentSong?.favorite == true
-                ? FluentIcons.heart_20_filled
-                : FluentIcons.heart_20_regular,
-        iconColor:
-            currentSong?.favorite == true ? const Color(0xffd13438) : null,
-        disabled: currentSong == null,
-        onPressed: onToggleFavorite,
-      ),
+      if (currentSong != null || showFavoriteWhenUnavailable)
+        MenuFlyoutItem(
+          key: 'player-favorite',
+          text:
+              currentSong?.favorite == true
+                  ? i18n.t('player.unlike')
+                  : i18n.t('player.like'),
+          icon:
+              currentSong?.favorite == true
+                  ? FluentIcons.heart_20_filled
+                  : FluentIcons.heart_20_regular,
+          iconColor:
+              currentSong?.favorite == true ? const Color(0xffd13438) : null,
+          disabled: currentSong == null,
+          onPressed: currentSong == null ? null : onToggleFavorite,
+        ),
     ],
   ];
 
@@ -220,61 +337,69 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       text: i18n.t('context.view'),
       icon: FluentIcons.eye_20_regular,
       submenu: [
-        MenuFlyoutItem(
-          key: 'see-artist',
-          text: i18n.t('context.seeArtist'),
-          icon: FluentIcons.people_20_regular,
-          onPressed: onSeeArtist,
-        ),
-        MenuFlyoutItem(
-          key: 'see-album',
-          text: i18n.t('context.seeAlbum'),
-          useAlbumIcon: true,
-          onPressed: onSeeAlbum,
-        ),
-        MenuFlyoutItem(
-          key: 'see-music-info',
-          text: i18n.t('context.seeMusicInfo'),
-          icon: FluentIcons.info_20_regular,
-          onPressed: onSeeMusicInfo,
-        ),
-        MenuFlyoutItem(
-          key: 'see-lyrics',
-          text: i18n.t('context.seeLyrics'),
-          icon: FluentIcons.comment_text_20_regular,
-          onPressed: onSeeLyrics,
-        ),
-        MenuFlyoutItem(
-          key: 'see-album-art',
-          text: i18n.t('context.seeAlbumArt'),
-          icon: FluentIcons.image_20_regular,
-          onPressed: onSeeAlbumArt,
-        ),
-        MenuFlyoutItem(
-          key: 'see-local-file',
-          text: i18n.t('context.seeLocalFile'),
-          icon: FluentIcons.hard_drive_20_regular,
-          pendingText: i18n.t('context.openingLocal'),
-          onPressed: onSeeLocal,
-        ),
+        if (onSeeArtist != null)
+          MenuFlyoutItem(
+            key: 'see-artist',
+            text: i18n.t('context.seeArtist'),
+            icon: FluentIcons.people_20_regular,
+            onPressed: onSeeArtist,
+          ),
+        if (onSeeAlbum != null)
+          MenuFlyoutItem(
+            key: 'see-album',
+            text: i18n.t('context.seeAlbum'),
+            useAlbumIcon: true,
+            onPressed: onSeeAlbum,
+          ),
+        if (onSeeMusicInfo != null)
+          MenuFlyoutItem(
+            key: 'see-music-info',
+            text: i18n.t('context.seeMusicInfo'),
+            icon: FluentIcons.info_20_regular,
+            onPressed: onSeeMusicInfo,
+          ),
+        if (onSeeLyrics != null)
+          MenuFlyoutItem(
+            key: 'see-lyrics',
+            text: i18n.t('context.seeLyrics'),
+            icon: FluentIcons.comment_text_20_regular,
+            onPressed: onSeeLyrics,
+          ),
+        if (onSeeAlbumArt != null)
+          MenuFlyoutItem(
+            key: 'see-album-art',
+            text: i18n.t('context.seeAlbumArt'),
+            icon: FluentIcons.image_20_regular,
+            onPressed: onSeeAlbumArt,
+          ),
+        if (onSeeLocal != null)
+          MenuFlyoutItem(
+            key: 'see-local-file',
+            text: i18n.t('context.seeLocalFile'),
+            icon: FluentIcons.hard_drive_20_regular,
+            pendingText: i18n.t('context.openingLocal'),
+            onPressed: onSeeLocal,
+          ),
       ],
     ),
-    MenuFlyoutItem(
-      key: isWindowFullScreen ? 'exit-full-screen' : 'full-screen',
-      text:
-          isWindowFullScreen
-              ? i18n.t('nowPlaying.exitFullScreenItem')
-              : i18n.t('nowPlaying.fullScreen'),
-      useFullscreenIcon: !isWindowFullScreen,
-      useExitFullscreenIcon: isWindowFullScreen,
-      onPressed: onToggleWindowFullScreen,
-    ),
-    MenuFlyoutItem(
-      key: 'mini-mode',
-      text: i18n.t('player.miniMode'),
-      icon: FluentIcons.picture_in_picture_20_regular,
-      onPressed: onEnterMiniMode,
-    ),
+    if (onToggleWindowFullScreen != null)
+      MenuFlyoutItem(
+        key: isWindowFullScreen ? 'exit-full-screen' : 'full-screen',
+        text:
+            isWindowFullScreen
+                ? i18n.t('nowPlaying.exitFullScreenItem')
+                : i18n.t('nowPlaying.fullScreen'),
+        useFullscreenIcon: !isWindowFullScreen,
+        useExitFullscreenIcon: isWindowFullScreen,
+        onPressed: onToggleWindowFullScreen,
+      ),
+    if (onEnterMiniMode != null)
+      MenuFlyoutItem(
+        key: 'mini-mode',
+        text: i18n.t('player.miniMode'),
+        icon: FluentIcons.picture_in_picture_20_regular,
+        onPressed: onEnterMiniMode,
+      ),
   ]);
 
   return items;

@@ -70,6 +70,14 @@ class PageSelectionController<T> {
     _save();
   }
 
+  void toggleMultiSelect() {
+    if (_state.multiSelect) {
+      cancel();
+    } else {
+      enterMultiSelect();
+    }
+  }
+
   void cancel() {
     _state = PageSelectionState<T>(multiSelect: false, selectedItems: <T>{});
     _save();

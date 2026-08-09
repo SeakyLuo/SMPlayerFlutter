@@ -468,6 +468,7 @@ class CommandBarButton extends StatefulWidget {
     this.useShuffleIcon = false,
     this.active = false,
     this.activeSurface = true,
+    this.activeMatchesHover = false,
     this.canOverflow = true,
     this.disabled = false,
     this.overflowSubmenu = const [],
@@ -479,6 +480,7 @@ class CommandBarButton extends StatefulWidget {
     this.onOverflowPressedWithContext,
     this.onPressed,
     this.onPressedWithContext,
+    this.tooltip,
   });
 
   final IconData? icon;
@@ -487,6 +489,7 @@ class CommandBarButton extends StatefulWidget {
   final String label;
   final bool active;
   final bool activeSurface;
+  final bool activeMatchesHover;
   final bool canOverflow;
   final bool disabled;
   final List<MenuFlyoutItem> overflowSubmenu;
@@ -499,6 +502,7 @@ class CommandBarButton extends StatefulWidget {
   onOverflowPressedWithContext;
   final VoidCallback? onPressed;
   final FutureOr<void> Function(BuildContext context)? onPressedWithContext;
+  final String? tooltip;
 
   @override
   State<CommandBarButton> createState() => _CommandBarButtonState();
@@ -516,9 +520,10 @@ class _CommandBarButtonState extends State<CommandBarButton> {
         label: widget.label,
         active: widget.active,
         activeSurface: widget.activeSurface,
+        activeMatchesHover: widget.activeMatchesHover,
         disabled: widget.disabled,
         showLabel: widget.showLabel,
-        tooltip: widget.showLabel ? null : widget.label,
+        tooltip: widget.tooltip ?? (widget.showLabel ? null : widget.label),
         minWidth: widget.minWidth ?? style.minWidth,
         maxWidth: widget.maxWidth ?? style.maxWidth,
         height: style.minHeight,

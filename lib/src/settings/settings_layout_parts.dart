@@ -638,7 +638,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
         navLabel: title,
         ariaLabel: title,
         width: 480,
-        height: 240,
+        height: 210,
         onClose: busy ? () {} : onCancel,
         navChildren: [Expanded(child: PopupDialogTitle(title))],
         footer: PopupDialogActions(
@@ -655,7 +655,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
             ),
           ],
         ),
-        child: PopupDialogMessageContent(message: message),
+        child: _SettingsConfirmMessageContent(message: message),
       );
     }
     return RemoveDialog(
@@ -667,6 +667,34 @@ class _ConfirmSettingsDialog extends StatelessWidget {
       submitting: busy,
       onCancel: onCancel,
       onConfirm: onConfirm,
+    );
+  }
+}
+
+class _SettingsConfirmMessageContent extends StatelessWidget {
+  const _SettingsConfirmMessageContent({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = PopupDialogColors.resolve(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 4, 32, 0),
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Text(
+          message,
+          textAlign: TextAlign.start,
+          style: TextStyle(
+            color: colors.text,
+            fontSize: 16,
+            height: 1.45,
+            fontWeight: FontWeight.w500,
+            fontVariations: const [FontVariation.weight(540)],
+          ),
+        ),
+      ),
     );
   }
 }

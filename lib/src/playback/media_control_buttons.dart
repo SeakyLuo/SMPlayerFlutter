@@ -15,6 +15,7 @@ class _PlayerIconButton extends StatefulWidget {
     this.favorite = false,
     this.loading = false,
     this.showLongPressProgress = true,
+    this.showDisabledSurface = true,
     this.buttonSize,
     this.padding,
     this.iconSize,
@@ -33,6 +34,7 @@ class _PlayerIconButton extends StatefulWidget {
   final bool favorite;
   final bool loading;
   final bool showLongPressProgress;
+  final bool showDisabledSurface;
   final double? buttonSize;
   final double? padding;
   final double? iconSize;
@@ -49,19 +51,22 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
   Widget build(BuildContext context) {
     final size = widget.buttonSize ?? (widget.primary ? 56.0 : 36.0);
     final padding = widget.padding ?? (widget.primary ? 14.0 : 6.0);
-    final iconSize = widget.iconSize ?? size - padding * 2;
+    final favoriteIcon =
+        widget.icon == _favoriteOutlineIcon ||
+        widget.icon == _favoriteFilledIcon;
+    final iconSize =
+        widget.iconSize ?? size - padding * 2 - (favoriteIcon ? 2 : 0);
     final colors = MediaControlThemeColors.of(context);
     final hovered = !widget.disabled && _hovered;
     final hoverBackground = colors.buttonActiveBackground;
     final transparentHoverBackground = hoverBackground.withValues(alpha: 0);
-    final transparentFavoriteHoverBackground = colors
-        .favoriteActiveHoverBackground
-        .withValues(alpha: 0);
     final color =
         widget.disabled
             ? widget.primary
                 ? colors.disabledPrimaryIconColor
-                : colors.buttonForeground
+                : widget.showDisabledSurface
+                ? colors.buttonForeground
+                : colors.textMuted
             : widget.favorite
             ? MediaControlColors.favorite
             : widget.primary
@@ -73,15 +78,17 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
         widget.disabled
             ? widget.primary
                 ? colors.disabledPrimaryButtonSurface
-                : MediaControlColors.disabledButtonSurface
+                : widget.showDisabledSurface
+                ? MediaControlColors.disabledButtonSurface
+                : transparentHoverBackground
             : widget.primary
             ? hovered
                 ? colors.primaryButtonHover
                 : MediaControlColors.accent
             : widget.favorite
             ? hovered
-                ? colors.favoriteActiveHoverBackground
-                : transparentFavoriteHoverBackground
+                ? hoverBackground
+                : transparentHoverBackground
             : widget.active
             ? colors.buttonActiveBackground
             : hovered
@@ -234,10 +241,14 @@ class _PlayerButtonIcon extends StatelessWidget {
       );
     }
     if (icon == _listPlaybackIcon) {
-      return SmPlayerPlaylistIcon(
-        size: size,
-        color: resolvedColor,
-        strokeWidth: 1.25,
+      return Transform.translate(
+        key: const ValueKey('MediaControl.PlaybackModeIconAlignment'),
+        offset: const Offset(-0.5, -1),
+        child: SmPlayerPlaylistIcon(
+          size: size,
+          color: resolvedColor,
+          strokeWidth: 1.25,
+        ),
       );
     }
     if (icon == _shuffleIcon) {
@@ -278,21 +289,139 @@ class _PlayerButtonIcon extends StatelessWidget {
         color: resolvedColor,
       );
     }
-    if (icon == _favoriteOutlineIcon) {
-      return CustomPaint(
-        key: const ValueKey('MediaControl.FavoriteOutlineIcon'),
-        painter: _FavoriteOutlineIconPainter(resolvedColor),
-        size: Size.square(size),
-      );
-    }
-    if (icon == _favoriteFilledIcon) {
-      return CustomPaint(
-        key: const ValueKey('MediaControl.FavoriteFilledIcon'),
-        painter: _FavoriteFilledIconPainter(resolvedColor),
-        size: Size.square(size),
+    if (icon == _favoriteOutlineIcon || icon == _favoriteFilledIcon) {
+      return _FavoritePulseIcon(
+        favorite: icon == _favoriteFilledIcon,
+        color: resolvedColor,
+        size: size,
       );
     }
     return Icon(icon, color: resolvedColor, size: size);
+  }
+}
+
+class _FavoritePulseIcon extends StatefulWidget {
+  const _FavoritePulseIcon({
+    required this.favorite,
+    required this.color,
+    required this.size,
+  });
+
+  final bool favorite;
+  final Color color;
+  final double size;
+
+  @override
+  State<_FavoritePulseIcon> createState() => _FavoritePulseIconState();
+}
+
+class _FavoritePulseIconState extends State<_FavoritePulseIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _heartScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+      value: 1,
+    );
+    _heartScale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1,
+          end: 0.78,
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.78,
+          end: 1.18,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 47,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.18,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 35,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FavoritePulseIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.favorite && widget.favorite) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final pulseProgress = _controller.value;
+        return Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            if (widget.favorite)
+              Opacity(
+                opacity: (1 - pulseProgress) * 0.26,
+                child: Transform.scale(
+                  scale: 0.72 + pulseProgress * 0.93,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: MediaControlColors.favorite,
+                      shape: BoxShape.circle,
+                    ),
+                    child: SizedBox.square(dimension: widget.size),
+                  ),
+                ),
+              ),
+            Transform.scale(
+              scale: _heartScale.value,
+              child: Transform.translate(
+                offset: const Offset(0.5, -1.5),
+                child: child,
+              ),
+            ),
+          ],
+        );
+      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child:
+            widget.favorite
+                ? CustomPaint(
+                  key: const ValueKey('MediaControl.FavoriteFilledIcon'),
+                  painter: _FavoriteFilledIconPainter(widget.color),
+                  size: Size.square(widget.size),
+                )
+                : CustomPaint(
+                  key: const ValueKey('MediaControl.FavoriteOutlineIcon'),
+                  painter: _FavoriteOutlineIconPainter(widget.color),
+                  size: Size.square(widget.size),
+                ),
+      ),
+    );
   }
 }
 

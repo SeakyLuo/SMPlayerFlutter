@@ -40,10 +40,15 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             icon: FluentIcons.multiselect_ltr_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'multiSelect'),
             active: _selection.multiSelect,
+            activeMatchesHover: true,
+            tooltip:
+                _selection.multiSelect
+                    ? i18n.t('common.exitMultiSelectTooltip')
+                    : null,
             disabled: visibleSongs.isEmpty,
             onPressed: () {
               _updateState(() {
-                _selection.enterMultiSelect();
+                _selection.toggleMultiSelect();
               });
             },
           ),
@@ -124,7 +129,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           disabled: visibleSongs.isEmpty,
           onPressed: () {
             _updateState(() {
-              _selection.enterMultiSelect();
+              _selection.toggleMultiSelect();
             });
           },
         ),

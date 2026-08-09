@@ -185,6 +185,16 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
         _MusicDialogCommandBar(
           showBusy: widget.showBusy,
           children: [
+            _MusicDialogCommandButton(
+              iconWidget: const _ElectronIcon(
+                _ElectronIconName.trash,
+                size: 20,
+              ),
+              label: i18n.t('playlists.delete'),
+              commandBar: true,
+              disabled: widget.loading || widget.saving,
+              onPressed: widget.onRequestDelete,
+            ),
             _ArtworkSourceButton(
               disabled: widget.loading || widget.saving,
               onChangeArtwork: widget.onChangeArtwork,
@@ -209,16 +219,6 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
                 disabled: widget.loading || widget.saving,
                 onPressed: widget.onResetArtwork,
               ),
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(
-                _ElectronIconName.trash,
-                size: 20,
-              ),
-              label: i18n.t('playlists.delete'),
-              commandBar: true,
-              disabled: widget.loading || widget.saving,
-              onPressed: widget.onRequestDelete,
-            ),
           ],
         ),
         Expanded(

@@ -1,9 +1,13 @@
 part of 'local_page.dart';
 
 extension _LocalPageSelectionActions on _LocalPageState {
-  void _enableMultiSelect() {
+  void _toggleMultiSelect() {
     _updateLocalPageState(() {
-      _multiSelect = true;
+      if (_multiSelect) {
+        _clearMultiSelectStatus();
+      } else {
+        _multiSelect = true;
+      }
     });
   }
 
