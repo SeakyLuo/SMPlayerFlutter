@@ -461,27 +461,11 @@ String getLocalSongQuickJumpBasisName(
 }
 
 String getLocalTextQuickJumpBucket(String value) {
-  final trimmed = value.trim();
-  if (trimmed.isEmpty) {
-    return '#';
-  }
-
-  final first = trimmed.substring(0, 1).toUpperCase();
-  return RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
+  return getArtistQuickJumpBucket(value);
 }
 
 int compareLocalText(String left, String right) {
-  final leftBucketIndex = artistQuickJumpKeys.indexOf(
-    getLocalTextQuickJumpBucket(left),
-  );
-  final rightBucketIndex = artistQuickJumpKeys.indexOf(
-    getLocalTextQuickJumpBucket(right),
-  );
-  if (leftBucketIndex != rightBucketIndex) {
-    return leftBucketIndex.compareTo(rightBucketIndex);
-  }
-
-  return left.toLowerCase().compareTo(right.toLowerCase());
+  return compareArtistText(left, right);
 }
 
 String displayArtistsWithoutI18n(LibrarySong song) {
