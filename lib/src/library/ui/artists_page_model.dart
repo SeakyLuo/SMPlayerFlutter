@@ -527,12 +527,33 @@ int compareArtistText(String left, String right) {
   }
 
   final pinyinCompare = _compareNaturalText(
-    _pinyinCompareKey(left),
-    _pinyinCompareKey(right),
+    _baseCollationKey(_pinyinCompareKey(left)),
+    _baseCollationKey(_pinyinCompareKey(right)),
   );
   return pinyinCompare != 0
       ? pinyinCompare
-      : _compareNaturalText(left.toLowerCase(), right.toLowerCase());
+      : _compareNaturalText(_baseCollationKey(left), _baseCollationKey(right));
+}
+
+int compareLocaleText(String left, String right) {
+  final cjkCompare = _localeCjkGroup(left).compareTo(_localeCjkGroup(right));
+  if (cjkCompare != 0) {
+    return cjkCompare;
+  }
+
+  final keyCompare = _localeCompareKey(
+    left,
+  ).compareTo(_localeCompareKey(right));
+  if (keyCompare != 0) {
+    return keyCompare;
+  }
+
+  final accentCompare = _accentPriority(left).compareTo(_accentPriority(right));
+  if (accentCompare != 0) {
+    return accentCompare;
+  }
+
+  return _casePriority(left).compareTo(_casePriority(right));
 }
 
 bool _isCjkUnifiedIdeograph(String value) {
@@ -558,6 +579,66 @@ String _pinyinCompareKey(String value) {
     }
   }
   return buffer.toString().toLowerCase();
+}
+
+String _localeCompareKey(String value) {
+  final buffer = StringBuffer();
+  for (final rune in value.runes) {
+    final character = String.fromCharCode(rune);
+    if (_isCjkUnifiedIdeograph(character)) {
+      buffer.write(
+        PinyinHelper.getPinyinE(
+          character,
+          separator: '',
+          defPinyin: character,
+          format: PinyinFormat.WITHOUT_TONE,
+        ),
+      );
+    } else {
+      buffer.write(_foldLatinFirstChar(character));
+    }
+  }
+  return buffer.toString().toLowerCase();
+}
+
+String _baseCollationKey(String value) {
+  final buffer = StringBuffer();
+  for (final rune in value.runes) {
+    buffer.write(_foldLatinFirstChar(String.fromCharCode(rune)));
+  }
+  return buffer.toString().toLowerCase();
+}
+
+int _localeCjkGroup(String value) {
+  final trimmed = value.trim();
+  return trimmed.isNotEmpty && _isCjkUnifiedIdeograph(trimmed.substring(0, 1))
+      ? 0
+      : 1;
+}
+
+int _accentPriority(String value) {
+  for (final rune in value.runes) {
+    final character = String.fromCharCode(rune);
+    if (_foldLatinFirstChar(character) != character) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int _casePriority(String value) {
+  for (final rune in value.runes) {
+    final character = String.fromCharCode(rune);
+    if (character.toLowerCase() == character &&
+        character.toUpperCase() != character) {
+      return 0;
+    }
+    if (character.toUpperCase() == character &&
+        character.toLowerCase() != character) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int _compareNaturalText(String left, String right) {
