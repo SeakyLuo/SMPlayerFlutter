@@ -272,10 +272,11 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
               currentSong?.favorite == true
                   ? i18n.t('player.unlike')
                   : i18n.t('player.like'),
-          icon:
-              currentSong?.favorite == true
-                  ? FluentIcons.heart_20_filled
-                  : FluentIcons.heart_20_regular,
+          iconWidget: SmPlayerFavoriteIcon(
+            favorite: currentSong?.favorite == true,
+            size: 18,
+            animate: false,
+          ),
           iconColor:
               currentSong?.favorite == true ? const Color(0xffd13438) : null,
           disabled: currentSong == null,

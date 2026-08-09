@@ -399,7 +399,19 @@ class _DesktopLyricsIconButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
-      color: Colors.white,
+      style: IconButton.styleFrom(
+        foregroundColor: Colors.white,
+        overlayColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      ).copyWith(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused)) {
+            return const Color(0x85506274);
+          }
+          return Colors.transparent;
+        }),
+      ),
       onPressed: onPressed,
       icon:
           icon == Icons.play_arrow_rounded
@@ -427,6 +439,16 @@ class _DesktopLyricsTextButton extends StatelessWidget {
           foregroundColor: Colors.white,
           visualDensity: VisualDensity.compact,
           minimumSize: const Size(46, 34),
+          overlayColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+        ).copyWith(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return const Color(0x85506274);
+            }
+            return Colors.transparent;
+          }),
         ),
         onPressed: onPressed,
         child: Text(label),

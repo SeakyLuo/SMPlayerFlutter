@@ -270,6 +270,11 @@ void apply_desktop_lyrics_style(bool night_mode) {
       "border-radius: 5px;"
       "padding: 3px 8px;"
       "}"
+      "#desktop-lyrics-card button:hover {"
+      "background: " +
+      (night_mode ? "rgba(68, 82, 98, 0.98)" : "rgba(202, 214, 228, 1.0)") +
+      ";"
+      "}"
       "#desktop-lyrics-meta { color: " +
       text_color +
       "; opacity: 0.72; }";

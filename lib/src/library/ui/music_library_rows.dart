@@ -471,12 +471,7 @@ class _MusicLibraryRowActions extends StatelessWidget {
                       song.favorite
                           ? i18n.t('context.removeFavorite')
                           : i18n.t('context.addFavorite'),
-                  icon: Icon(
-                    song.favorite
-                        ? FluentIcons.heart_20_filled
-                        : FluentIcons.heart_20_regular,
-                    size: 18,
-                  ),
+                  icon: SmPlayerFavoriteIcon(favorite: song.favorite, size: 18),
                   active: song.favorite,
                   onPressed: onToggleFavorite,
                 ),

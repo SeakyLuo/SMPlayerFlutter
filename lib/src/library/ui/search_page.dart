@@ -153,11 +153,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         routePath: '/search',
         title: title,
         content: const SizedBox.shrink(),
-        bottomContent: _SearchFilterTabs(
-          i18n: i18n,
-          activeFilter: _activeFilter,
-          results: results,
-          onChanged: _changeFilter,
+        bottomContent: _SearchHeaderSurface(
+          child: _SearchFilterTabs(
+            i18n: i18n,
+            activeFilter: _activeFilter,
+            results: results,
+            onChanged: _changeFilter,
+          ),
         ),
       );
     });

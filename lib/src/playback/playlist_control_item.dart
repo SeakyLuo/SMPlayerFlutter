@@ -52,6 +52,8 @@ class PlaylistControlItemColors {
 
 const _queueItemSwipeLimit = 108.0;
 const _queueItemSwipeOpenTrigger = 58.0;
+const _queueActionSize = 32.0;
+const _queueActionGap = 8.0;
 
 class PlaylistControlItem extends StatefulWidget {
   const PlaylistControlItem({
@@ -319,7 +321,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 (widget.onPlayNextClick == null ? 0 : 1) +
                 (widget.onRemoveFromListClick == null ? 0 : 1);
             final compactCollapsedActionsWidth =
-                34.0 * compactCollapsedActionCount;
+                _queueActionSize * compactCollapsedActionCount +
+                _queueActionGap * (compactCollapsedActionCount - 1);
             final stableCompactTrailingWidth = max(
               12.0 + compactCollapsedActionsWidth,
               (compactVariant ? 12.0 : 18.0) + durationWidth,
@@ -415,18 +418,26 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   ] else if (stableCompactTrailing) ...[
                     SizedBox(
                       width: stableCompactTrailingWidth,
+                      height: _queueActionSize,
                       child: Stack(
-                        alignment: Alignment.centerRight,
+                        clipBehavior: Clip.none,
                         children: [
-                          Align(
-                            alignment: Alignment.centerRight,
+                          Positioned(
+                            top: 0,
+                            right:
+                                compactVariant && actionCompactCollapsed
+                                    ? -_queueActionSize / 2
+                                    : 0,
+                            bottom: 0,
                             child: queueActions(
                               compactCollapsed: actionCompactCollapsed,
                             ),
                           ),
                           if (!hideDurationForNarrowHover)
-                            Align(
-                              alignment: Alignment.centerRight,
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
                               child: duration(),
                             ),
                         ],
@@ -1026,8 +1037,8 @@ class _QueueActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actionSize = compactVariant ? 34.0 : 32.0;
-    final actionRadius = compactVariant ? 8.0 : 10.0;
+    const actionSize = _queueActionSize;
+    const actionRadius = 10.0;
     final showPrimaryActions = !compactVariant || showCompactPrimaryActions;
     final compactEssentialActionsOnly = compactVariant && compactCollapsed;
     Widget hoverAction(Widget child, {bool? visible}) {
@@ -1061,12 +1072,7 @@ class _QueueActions extends StatelessWidget {
               icon:
                   favoriteLoading
                       ? const _QueueActionSpinner()
-                      : Icon(
-                        favorite
-                            ? FluentIcons.heart_20_filled
-                            : FluentIcons.heart_20_regular,
-                        size: 18,
-                      ),
+                      : SmPlayerFavoriteIcon(favorite: favorite, size: 18),
               foregroundColor:
                   favoriteLoading || favorite
                       ? _PlaylistControlItemColors.favorite
@@ -1089,12 +1095,7 @@ class _QueueActions extends StatelessWidget {
             icon:
                 favoriteLoading
                     ? const _QueueActionSpinner()
-                    : Icon(
-                      favorite
-                          ? FluentIcons.heart_20_filled
-                          : FluentIcons.heart_20_regular,
-                      size: 18,
-                    ),
+                    : SmPlayerFavoriteIcon(favorite: favorite, size: 18),
             foregroundColor:
                 favoriteLoading || favorite
                     ? _PlaylistControlItemColors.favorite
@@ -1186,15 +1187,12 @@ class _QueueActions extends StatelessWidget {
           compactVariant && !showCompactPrimaryActions && !compactCollapsed
               ? MainAxisAlignment.center
               : MainAxisAlignment.start,
-      children:
-          compactVariant
-              ? actionChildren
-              : [
-                for (var index = 0; index < actionChildren.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 8),
-                  actionChildren[index],
-                ],
-              ],
+      children: [
+        for (var index = 0; index < actionChildren.length; index++) ...[
+          if (index > 0) const SizedBox(width: _queueActionGap),
+          actionChildren[index],
+        ],
+      ],
     );
     if (!compactVariant) {
       return KeyedSubtree(
@@ -1202,17 +1200,10 @@ class _QueueActions extends StatelessWidget {
         child: actions,
       );
     }
-    final compactCollapsedActionCount =
-        1 +
-        (onPlayNextClick == null ? 0 : 1) +
-        (onRemoveFromListClick == null ? 0 : 1);
+    final actionCount = actionChildren.length;
     final expandedWidth =
-        compactCollapsed
-            ? 34.0 * compactCollapsedActionCount
-            : showCompactPrimaryActions
-            ? 136.0
-            : 76.0;
-    final collapsedWidth = compactCollapsed ? 34.0 : expandedWidth;
+        _queueActionSize * actionCount + _queueActionGap * (actionCount - 1);
+    final collapsedWidth = compactCollapsed ? _queueActionSize : expandedWidth;
     final actionsWidth = showHoverActions ? expandedWidth : collapsedWidth;
     return Transform.translate(
       offset: const Offset(0, 0.5),

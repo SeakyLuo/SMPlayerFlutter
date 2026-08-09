@@ -932,6 +932,7 @@ void FlutterWindow::HideDesktopLyricsWindow() {
   if (desktop_lyrics_window_) {
     desktop_lyrics_panel_visible_ = false;
     desktop_lyrics_tracking_mouse_leave_ = false;
+    desktop_lyrics_hovered_button_command_.clear();
     desktop_lyrics_buttons_.clear();
     ::ShowWindow(desktop_lyrics_window_, SW_HIDE);
     ::KillTimer(desktop_lyrics_window_, 1);
@@ -956,8 +957,26 @@ bool FlutterWindow::UpdateDesktopLyricsPanelVisibility(POINT point) {
   }
   desktop_lyrics_panel_visible_ = next_panel_visible;
   if (!next_panel_visible) {
+    desktop_lyrics_hovered_button_command_.clear();
     desktop_lyrics_buttons_.clear();
   }
+  return true;
+}
+
+bool FlutterWindow::UpdateDesktopLyricsButtonHover(POINT point) {
+  std::string next_command;
+  if (desktop_lyrics_panel_visible_) {
+    for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
+      if (!button.command.empty() && ::PtInRect(&button.bounds, point)) {
+        next_command = button.command;
+        break;
+      }
+    }
+  }
+  if (desktop_lyrics_hovered_button_command_ == next_command) {
+    return false;
+  }
+  desktop_lyrics_hovered_button_command_ = next_command;
   return true;
 }
 
@@ -1076,6 +1095,8 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
       static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.22 : 0.08) * 255);
   const BYTE button_background_alpha =
       static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.16 : 0.38) * 255);
+  const BYTE button_hover_background_alpha =
+      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.72 : 0.96) * 255);
 
   RECT card = rect;
   ::InflateRect(&card, -scaled_metric(8), -scaled_metric(8));
@@ -1279,16 +1300,22 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
                                                    : RGB(42, 48, 58));
     HBRUSH button_brush = ::CreateSolidBrush(
         desktop_lyrics_night_mode_ ? RGB(6, 10, 16) : RGB(255, 255, 255));
+    HBRUSH button_hover_brush = ::CreateSolidBrush(
+        desktop_lyrics_night_mode_ ? RGB(42, 52, 64) : RGB(222, 230, 240));
     for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
       if (button.command.empty()) {
         continue;
       }
-      ::FillRect(hdc, &button.bounds, button_brush);
+      const bool hovered =
+          button.command == desktop_lyrics_hovered_button_command_;
+      ::FillRect(hdc, &button.bounds,
+                 hovered ? button_hover_brush : button_brush);
       ::SelectObject(hdc, button.icon ? icon_font : button_font);
       RECT label_rect = button.bounds;
       ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
+    ::DeleteObject(button_hover_brush);
     ::DeleteObject(button_brush);
     ::SelectObject(hdc, old_button_font);
     ::DeleteObject(icon_font);
@@ -1317,11 +1344,17 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
         desktop_lyrics_night_mode_
             ? (pixel[0] == 16 && pixel[1] == 10 && pixel[2] == 6)
             : (pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255);
+    const bool button_hover_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 64 && pixel[1] == 52 && pixel[2] == 42)
+            : (pixel[0] == 240 && pixel[1] == 230 && pixel[2] == 222);
     BYTE alpha = 255;
     if (card_background) {
       alpha = card_background_alpha;
     } else if (card_border) {
       alpha = card_border_alpha;
+    } else if (button_hover_background) {
+      alpha = button_hover_background_alpha;
     } else if (button_background) {
       alpha = button_background_alpha;
     }
@@ -1370,9 +1403,16 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
     case WM_MOUSEMOVE:
       {
         POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        if (window->UpdateDesktopLyricsPanelVisibility(point)) {
+        const bool panel_changed =
+            window->UpdateDesktopLyricsPanelVisibility(point);
+        const bool hover_changed = window->UpdateDesktopLyricsButtonHover(point);
+        if (panel_changed || hover_changed) {
           window->PaintDesktopLyricsWindow();
         }
+        ::SetCursor(::LoadCursor(
+            nullptr, window->desktop_lyrics_hovered_button_command_.empty()
+                         ? IDC_ARROW
+                         : IDC_HAND));
       }
       if (!window->desktop_lyrics_tracking_mouse_leave_) {
         TRACKMOUSEEVENT track_mouse_event = {};
@@ -1387,6 +1427,7 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
     case WM_MOUSELEAVE:
       if (window->desktop_lyrics_panel_visible_) {
         window->desktop_lyrics_panel_visible_ = false;
+        window->desktop_lyrics_hovered_button_command_.clear();
         window->desktop_lyrics_buttons_.clear();
         window->PaintDesktopLyricsWindow();
       }
@@ -1427,6 +1468,7 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
         } else if (window->desktop_lyrics_panel_visible_) {
           window->desktop_lyrics_panel_visible_ = false;
           window->desktop_lyrics_tracking_mouse_leave_ = false;
+          window->desktop_lyrics_hovered_button_command_.clear();
           window->desktop_lyrics_buttons_.clear();
         }
       }
