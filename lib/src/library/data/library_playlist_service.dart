@@ -123,7 +123,7 @@ class LibraryPlaylistService {
         sortCriterion: _fromStoredPlaylistSortCriterion(
           row['criterion'] as int,
         ),
-        isBuiltIn: id == myFavoritesId,
+        isBuiltIn: id == myFavoritesId || id == nowPlayingId,
       );
     }).toList();
   }

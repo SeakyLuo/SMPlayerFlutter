@@ -5,6 +5,7 @@ import 'package:lpinyin/lpinyin.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_time_codec.dart';
 import '../data/library_models.dart';
+import 'artist_text_sort_key.dart';
 import 'menu_flyout.dart';
 import 'song_display_helpers.dart' as song_display;
 
@@ -515,24 +516,23 @@ String _foldLatinFirstChar(String value) {
   return folded[value.toUpperCase()] ?? value;
 }
 
-int compareArtistText(String left, String right) {
-  final leftBucketIndex = artistQuickJumpKeys.indexOf(
-    getArtistQuickJumpBucket(left),
+ArtistTextSortKey buildArtistTextSortKey(String value) {
+  return ArtistTextSortKey(
+    bucketIndex: artistQuickJumpKeys.indexOf(getArtistQuickJumpBucket(value)),
+    pinyinKey: _baseCollationKey(_pinyinCompareKey(value)),
+    baseKey: _baseCollationKey(value),
   );
-  final rightBucketIndex = artistQuickJumpKeys.indexOf(
-    getArtistQuickJumpBucket(right),
-  );
-  if (leftBucketIndex != rightBucketIndex) {
-    return leftBucketIndex.compareTo(rightBucketIndex);
-  }
+}
 
-  final pinyinCompare = _compareNaturalText(
-    _baseCollationKey(_pinyinCompareKey(left)),
-    _baseCollationKey(_pinyinCompareKey(right)),
+int compareArtistTextSortKeys(ArtistTextSortKey left, ArtistTextSortKey right) {
+  return left.compareTo(right);
+}
+
+int compareArtistText(String left, String right) {
+  return compareArtistTextSortKeys(
+    buildArtistTextSortKey(left),
+    buildArtistTextSortKey(right),
   );
-  return pinyinCompare != 0
-      ? pinyinCompare
-      : _compareNaturalText(_baseCollationKey(left), _baseCollationKey(right));
 }
 
 int compareLocaleText(String left, String right) {
@@ -639,45 +639,6 @@ int _casePriority(String value) {
     }
   }
   return 0;
-}
-
-int _compareNaturalText(String left, String right) {
-  final leftParts = _naturalTextParts(left);
-  final rightParts = _naturalTextParts(right);
-  final length =
-      leftParts.length < rightParts.length
-          ? leftParts.length
-          : rightParts.length;
-
-  for (var index = 0; index < length; index += 1) {
-    final leftPart = leftParts[index];
-    final rightPart = rightParts[index];
-    final leftNumber = int.tryParse(leftPart);
-    final rightNumber = int.tryParse(rightPart);
-    if (leftNumber != null && rightNumber != null) {
-      final numberCompare = leftNumber.compareTo(rightNumber);
-      if (numberCompare != 0) {
-        return numberCompare;
-      }
-      final lengthCompare = leftPart.length.compareTo(rightPart.length);
-      if (lengthCompare != 0) {
-        return lengthCompare;
-      }
-    } else {
-      final textCompare = leftPart.compareTo(rightPart);
-      if (textCompare != 0) {
-        return textCompare;
-      }
-    }
-  }
-
-  return leftParts.length.compareTo(rightParts.length);
-}
-
-List<String> _naturalTextParts(String value) {
-  return RegExp(
-    r'\d+|\D+',
-  ).allMatches(value).map((match) => match.group(0)!).toList();
 }
 
 List<String> getSongArtists(LibrarySong song) {

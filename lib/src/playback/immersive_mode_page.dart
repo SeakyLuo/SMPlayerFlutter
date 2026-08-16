@@ -238,7 +238,17 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
     final recentSongs =
         ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
         const <RecentLibrarySong>[];
-    final mediaControlState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          track: controller.state.track,
+          selectedQueueIndex: controller.state.selectedQueueIndex,
+          isPlaying: controller.state.isPlaying,
+          playbackNoticeKey: controller.state.playbackNoticeKey,
+          durationSeconds: controller.state.durationSeconds,
+        ),
+      ),
+    );
     final shellActions = ref.watch(smPlayerShellActionsProvider);
     final i18n = context.smPlayerI18n;
 
@@ -278,11 +288,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                 .whereType<LibrarySong>()
                 .toList();
         final queueSongIds = queueSongs.map((song) => song.id).toList();
-        final currentSong = _resolveCurrentSong(mediaControlState, songsById);
+        final currentSong = _resolveCurrentSong(
+          mediaState.track,
+          mediaState.durationSeconds,
+          songsById,
+        );
         _ensureResolvedArtwork(currentSong);
         final displayArtworkPath = _displayArtworkPath(currentSong);
         _ensureCoverColor(displayArtworkPath);
-        final noticeKey = mediaControlState.playbackNoticeKey;
+        final noticeKey = mediaState.playbackNoticeKey;
         final noticeText = noticeKey == null ? null : i18n.t(noticeKey);
         final customPlaylists = _customPlaylists(snapshot.playlists);
         final settings = smPlayerGlobalSettingsSnapshot;
@@ -303,8 +317,10 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               i18n: i18n,
               songs: queueSongs,
               songIds: queueSongIds,
-              mediaControlState: mediaControlState,
-              loading: mediaControlState.track.isLoading,
+              currentTrackId: mediaState.track.id,
+              selectedQueueIndex: mediaState.selectedQueueIndex,
+              isPlaying: mediaState.isPlaying,
+              loading: mediaState.track.isLoading,
               selection: _selection,
               scrollController: _queueController,
               playlists: customPlaylists,
@@ -389,7 +405,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
             child: ImmersiveModeControlPanel(
               key: const ValueKey('ImmersiveMode.PlayerBar'),
               song: currentSong,
-              state: mediaControlState,
               disabled: currentSong == null,
               i18n: i18n,
               night: immersiveNightActive,
@@ -464,18 +479,26 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                           final compact =
                               viewportWidth <=
                               immersiveModeLayoutCompactBreakpoint;
-                          return ImmersiveModeStage(
-                            song: currentSong,
-                            artworkPath: displayArtworkPath,
-                            mediaControlState: mediaControlState,
-                            i18n: i18n,
-                            refreshRevision: _lyricsRefreshRevision,
-                            onSeekAndPlay:
-                                ref
-                                    .read(mediaControlControllerProvider)
-                                    .onSeekAndPlay,
-                            compact: compact,
-                            entranceAnimation: _entranceController,
+                          return Consumer(
+                            builder: (context, ref, child) {
+                              final mediaControlState =
+                                  ref
+                                      .watch(mediaControlControllerProvider)
+                                      .state;
+                              return ImmersiveModeStage(
+                                song: currentSong,
+                                artworkPath: displayArtworkPath,
+                                mediaControlState: mediaControlState,
+                                i18n: i18n,
+                                refreshRevision: _lyricsRefreshRevision,
+                                onSeekAndPlay:
+                                    ref
+                                        .read(mediaControlControllerProvider)
+                                        .onSeekAndPlay,
+                                compact: compact,
+                                entranceAnimation: _entranceController,
+                              );
+                            },
                           );
                         },
                       ),
@@ -540,12 +563,12 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                     MusicDialog(
                       song: currentSong,
                       initialMode: _dialogMode!,
-                      currentTrackId: mediaControlState.track.id,
-                      isPlaying: mediaControlState.isPlaying,
+                      currentTrackId: mediaState.track.id,
+                      isPlaying: mediaState.isPlaying,
                       queueSongIds: queueSongIds,
                       canPause:
-                          mediaControlState.isPlaying &&
-                          mediaControlState.track.id == currentSong.id,
+                          mediaState.isPlaying &&
+                          mediaState.track.id == currentSong.id,
                       onPlay:
                           ref
                               .read(mediaControlControllerProvider)
@@ -581,10 +604,11 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   LibrarySong? _resolveCurrentSong(
-    MediaControlState mediaControlState,
+    MediaControlTrack track,
+    double durationSeconds,
     Map<int, LibrarySong> songsById,
   ) {
-    final trackId = mediaControlState.track.id;
+    final trackId = track.id;
     if (trackId == null) {
       return null;
     }
@@ -592,7 +616,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
     if (librarySong != null) {
       return librarySong;
     }
-    final track = mediaControlState.track;
     return LibrarySong(
       id: trackId,
       path: '',
@@ -600,7 +623,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       artist: track.artist,
       artists: const [],
       album: '',
-      duration: mediaControlState.durationSeconds.round(),
+      duration: durationSeconds.round(),
       playCount: 0,
       lyricsOffsetMs: 0,
       dateAdded: '',

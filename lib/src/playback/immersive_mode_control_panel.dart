@@ -6,7 +6,6 @@ import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
@@ -15,7 +14,6 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
   const ImmersiveModeControlPanel({
     super.key,
     required this.song,
-    required this.state,
     required this.disabled,
     required this.i18n,
     required this.night,
@@ -36,7 +34,6 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
   });
 
   final LibrarySong? song;
-  final MediaControlState state;
   final bool disabled;
   final SmPlayerI18n i18n;
   final bool night;
@@ -57,6 +54,18 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          track: controller.state.track,
+          isPlaying: controller.state.isPlaying,
+          volume: controller.state.volume,
+          isMuted: controller.state.isMuted,
+          mode: controller.state.mode,
+          durationSeconds: controller.state.durationSeconds,
+        ),
+      ),
+    );
     final controller = ref.read(mediaControlControllerProvider);
     final artworkPath = resolvePlayerArtworkPath(state.track, song);
     return LayoutBuilder(
@@ -103,7 +112,7 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
               volume: state.volume,
               isMuted: state.isMuted,
               mode: state.mode,
-              progressSeconds: state.progressSeconds,
+              progressSeconds: controller.state.progressSeconds,
               durationSeconds: resolvePlayerDurationSeconds(
                 state.durationSeconds,
                 song,
@@ -154,7 +163,7 @@ class ImmersiveModeControlPanel extends ConsumerWidget {
             volume: state.volume,
             isMuted: state.isMuted,
             mode: state.mode,
-            progressSeconds: state.progressSeconds,
+            progressSeconds: controller.state.progressSeconds,
             durationSeconds: resolvePlayerDurationSeconds(
               state.durationSeconds,
               song,

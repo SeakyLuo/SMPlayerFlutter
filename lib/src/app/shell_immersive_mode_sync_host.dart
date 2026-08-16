@@ -4,6 +4,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
 typedef ShellImmersiveModeSync =
     void Function({
@@ -43,36 +44,41 @@ class ShellImmersiveModeSyncHost extends ConsumerWidget {
     if (!visible) {
       return const SizedBox.shrink();
     }
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedBuilder(
-          animation: mediaControlController,
-          builder: (context, _) {
-            final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-            scheduleRestorePlaybackTrack(snapshot);
-            final mediaControlState = mediaControlController.state;
-            final currentSong = resolvePlayerSong(mediaControlState, snapshot);
-            ensurePlayerArtworkResolved(currentSong, ref);
-            final recentSongs =
-                ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-                const <LibrarySong>[];
-            final i18n =
-                ref.watch(smPlayerI18nProvider).valueOrNull ??
-                const SmPlayerI18n(
-                  locale: smPlayerFallbackLocale,
-                  messages: {},
-                );
-            syncDesktopFeatures(
-              i18n: i18n,
-              snapshot: snapshot,
-              recentSongs: recentSongs,
-              mediaControlState: mediaControlState,
-              currentSong: currentSong,
-            );
-            return const SizedBox.shrink();
-          },
+    ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          track: controller.state.track,
+          selectedQueueIndex: controller.state.selectedQueueIndex,
+          isPlaying: controller.state.isPlaying,
+          volume: controller.state.volume,
+          isMuted: controller.state.isMuted,
+          mode: controller.state.mode,
+          progressSecond: controller.state.progressSeconds.round(),
+          durationSeconds: controller.state.durationSeconds,
+          playbackStatus: controller.state.playbackStatus,
         ),
       ),
+    );
+    final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+    scheduleRestorePlaybackTrack(snapshot);
+    final mediaControlState = mediaControlController.state;
+    final currentSong = resolvePlayerSong(mediaControlState, snapshot);
+    ensurePlayerArtworkResolved(currentSong, ref);
+    final recentSongs =
+        ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+        const <LibrarySong>[];
+    final i18n =
+        ref.watch(smPlayerI18nProvider).valueOrNull ??
+        const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
+    syncDesktopFeatures(
+      i18n: i18n,
+      snapshot: snapshot,
+      recentSongs: recentSongs,
+      mediaControlState: mediaControlState,
+      currentSong: currentSong,
+    );
+    return Positioned.fill(
+      child: IgnorePointer(child: const SizedBox.shrink()),
     );
   }
 }

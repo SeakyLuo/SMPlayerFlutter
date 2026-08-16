@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -13,10 +14,11 @@ import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/lyrics/lyric_text_resolver.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-class MiniModeSurface extends StatefulWidget {
+class MiniModeSurface extends ConsumerStatefulWidget {
   const MiniModeSurface({
     super.key,
     required this.state,
@@ -75,10 +77,10 @@ class MiniModeSurface extends StatefulWidget {
   final VoidCallback? onWindowDragEnd;
 
   @override
-  State<MiniModeSurface> createState() => _MiniModeSurfaceState();
+  ConsumerState<MiniModeSurface> createState() => _MiniModeSurfaceState();
 }
 
-class _MiniModeSurfaceState extends State<MiniModeSurface> {
+class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
   static const _animationDuration = Duration(milliseconds: 180);
 
   Timer? _controlsHideTimer;
@@ -150,6 +152,14 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    final playbackProgress = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          progressSeconds: controller.state.progressSeconds,
+          durationSeconds: controller.state.durationSeconds,
+        ),
+      ),
+    );
     final i18n = widget.i18n;
     final currentSong = widget.currentSong;
     final artworkPath = currentSong?.thumbnailPath ?? state.track.artworkUrl;
@@ -162,17 +172,19 @@ class _MiniModeSurfaceState extends State<MiniModeSurface> {
             ? i18n.t('common.artistUnknown')
             : state.track.artist;
     final effectiveDuration =
-        state.durationSeconds > 0
-            ? state.durationSeconds
+        playbackProgress.durationSeconds > 0
+            ? playbackProgress.durationSeconds
             : currentSong?.duration.toDouble() ?? 0;
     final duration = effectiveDuration <= 0 ? 1.0 : effectiveDuration;
     final displayProgressSeconds =
-        _isProgressSeeking ? _draftProgressSeconds : state.progressSeconds;
+        _isProgressSeeking
+            ? _draftProgressSeconds
+            : playbackProgress.progressSeconds;
     final progress = displayProgressSeconds.clamp(0, duration).toDouble();
     final lyricLine = resolvePlayerLyricLine(
       lyrics: _lyrics,
       song: currentSong,
-      progressSeconds: state.progressSeconds,
+      progressSeconds: playbackProgress.progressSeconds,
       durationSeconds: effectiveDuration,
     );
     final emptyTrack = state.track.id == null;
@@ -664,29 +676,142 @@ class _MiniModeLyricsStrip extends StatelessWidget {
   }
 }
 
-class _MiniModeLyricText extends StatelessWidget {
+class _MiniModeLyricText extends StatefulWidget {
   const _MiniModeLyricText(this.text);
 
   final String text;
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      key: ValueKey(text),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: Color(0xefffffff),
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        height: 17 / 13,
-        shadows: [
-          Shadow(offset: Offset(0, 1), blurRadius: 5, color: Color(0xb8000000)),
-        ],
-      ),
+  State<_MiniModeLyricText> createState() => _MiniModeLyricTextState();
+}
+
+class _MiniModeLyricTextState extends State<_MiniModeLyricText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  String? _measuredText;
+  double? _measuredScaledFontSize;
+  TextDirection? _measuredDirection;
+  double _measuredTextWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      animationBehavior: AnimationBehavior.preserve,
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniModeLyricText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      color: Color(0xefffffff),
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 17 / 13,
+      shadows: [
+        Shadow(offset: Offset(0, 1), blurRadius: 5, color: Color(0xb8000000)),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textDirection = Directionality.of(context);
+        final textScaler = MediaQuery.textScalerOf(context);
+        final textWidth = _textWidth(style, textDirection, textScaler);
+        final overflowDistance = max(0.0, textWidth - constraints.maxWidth);
+        if (overflowDistance == 0) {
+          _controller.stop();
+          return Text(
+            widget.text,
+            key: ValueKey(widget.text),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: style,
+          );
+        }
+
+        _controller.duration = Duration(
+          seconds: min(8, max(3, (overflowDistance / 44).round() + 2)),
+        );
+
+        if (!_controller.isAnimating) {
+          _controller.forward();
+        }
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final progress = _controller.value;
+              final scrollProgress =
+                  progress <= 0.16
+                      ? 0.0
+                      : progress >= 0.84
+                      ? 1.0
+                      : Curves.easeInOut.transform((progress - 0.16) / 0.68);
+              return Transform.translate(
+                offset: Offset(-overflowDistance * scrollProgress, 0),
+                child: child,
+              );
+            },
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: 1,
+              child: SizedBox(
+                width: textWidth,
+                child: Text(
+                  widget.text,
+                  key: ValueKey(widget.text),
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                  textAlign: TextAlign.left,
+                  style: style,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  double _textWidth(
+    TextStyle style,
+    TextDirection textDirection,
+    TextScaler textScaler,
+  ) {
+    final scaledFontSize = textScaler.scale(style.fontSize!);
+    if (_measuredText == widget.text &&
+        _measuredScaledFontSize == scaledFontSize &&
+        _measuredDirection == textDirection) {
+      return _measuredTextWidth;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(text: widget.text, style: style),
+      maxLines: 1,
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout();
+    _measuredText = widget.text;
+    _measuredScaledFontSize = scaledFontSize;
+    _measuredDirection = textDirection;
+    _measuredTextWidth = painter.width;
+    return _measuredTextWidth;
   }
 }
 

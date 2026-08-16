@@ -195,61 +195,56 @@ class _MediaControlTrackInfoState extends State<MediaControlTrackInfo> {
                         minWidth: widget.compact ? 0 : 120,
                         maxWidth: trackCopyMaxWidth,
                       ),
-                      child: IntrinsicWidth(
-                        child: SizedBox(
-                          height: artworkSize,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Tooltip(
-                                message: widget.track.title,
-                                child: Text(
-                                  widget.track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: textStrong,
-                                    fontSize: widget.compact ? 15 : 17,
-                                    fontWeight: FontWeight.w600,
-                                    fontVariations: const [
-                                      FontVariation.weight(650),
-                                    ],
-                                    height: 1.08,
-                                  ),
+                      child: SizedBox(
+                        height: artworkSize,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Tooltip(
+                              message: widget.track.title,
+                              child: Text(
+                                widget.track.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: textStrong,
+                                  fontSize: widget.compact ? 15 : 17,
+                                  fontWeight: FontWeight.w600,
+                                  fontVariations: const [
+                                    FontVariation.weight(650),
+                                  ],
+                                  height: 1.08,
                                 ),
                               ),
+                            ),
+                            SizedBox(height: widget.compact ? 4 : 5),
+                            Tooltip(
+                              message: widget.track.artist,
+                              child: Text(
+                                widget.track.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: textMuted,
+                                  fontSize: widget.compact ? 12 : 14,
+                                  fontWeight: FontWeight.w500,
+                                  fontVariations: const [
+                                    FontVariation.weight(520),
+                                  ],
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                            if (lyricsText != null) ...[
                               SizedBox(height: widget.compact ? 4 : 5),
-                              Tooltip(
-                                message: widget.track.artist,
-                                child: Text(
-                                  widget.track.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: textMuted,
-                                    fontSize: widget.compact ? 12 : 14,
-                                    fontWeight: FontWeight.w500,
-                                    fontVariations: const [
-                                      FontVariation.weight(520),
-                                    ],
-                                    height: 1.1,
-                                  ),
-                                ),
+                              _PlayerTrackLyrics(
+                                line: lyricsText,
+                                compact: widget.compact,
+                                color: textMuted,
                               ),
-                              if (lyricsText != null) ...[
-                                SizedBox(height: widget.compact ? 4 : 5),
-                                Tooltip(
-                                  message: lyricsText,
-                                  child: _PlayerTrackLyrics(
-                                    line: lyricsText,
-                                    compact: widget.compact,
-                                    color: textMuted,
-                                  ),
-                                ),
-                              ],
                             ],
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -290,7 +285,7 @@ class _MediaControlTrackInfoState extends State<MediaControlTrackInfo> {
   }
 }
 
-class _PlayerTrackLyrics extends StatelessWidget {
+class _PlayerTrackLyrics extends StatefulWidget {
   const _PlayerTrackLyrics({
     required this.line,
     required this.compact,
@@ -302,40 +297,208 @@ class _PlayerTrackLyrics extends StatelessWidget {
   final Color color;
 
   @override
+  State<_PlayerTrackLyrics> createState() => _PlayerTrackLyricsState();
+}
+
+class _PlayerTrackLyricsState extends State<_PlayerTrackLyrics>
+    with TickerProviderStateMixin {
+  late final AnimationController _scrollController;
+  late final AnimationController _lineController;
+  String? _previousLine;
+  String? _measuredLine;
+  bool? _measuredCompact;
+  double? _measuredScaledFontSize;
+  TextDirection? _measuredDirection;
+  double _measuredLineWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = AnimationController(
+      vsync: this,
+      animationBehavior: AnimationBehavior.preserve,
+    );
+    _lineController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+      animationBehavior: AnimationBehavior.preserve,
+      value: 1,
+    )..addStatusListener((status) {
+      if (status == AnimationStatus.completed && _previousLine != null) {
+        setState(() {
+          _previousLine = null;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlayerTrackLyrics oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.line != widget.line || oldWidget.compact != widget.compact) {
+      _previousLine = oldWidget.line;
+      _scrollController.reset();
+      _lineController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _lineController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      key: const ValueKey('MediaControl.CurrentLyricsContainer'),
-      height: 17,
-      child: ClipRect(
-        child: TweenAnimationBuilder<double>(
-          key: ValueKey(line),
-          tween: Tween<double>(begin: 1, end: 0),
-          duration: const Duration(milliseconds: 240),
-          curve: const Cubic(0.22, 1, 0.36, 1),
-          builder: (context, offsetY, child) {
-            return FractionalTranslation(
-              translation: Offset(0, offsetY),
-              child: child,
-            );
-          },
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              line,
-              key: const ValueKey('MediaControl.CurrentLyricsLine'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: compact ? 12 : 13,
-                fontWeight: FontWeight.w500,
-                fontVariations: const [FontVariation.weight(560)],
-                height: 17 / (compact ? 12 : 13),
-              ),
-            ),
+    final style = TextStyle(
+      color: widget.color,
+      fontSize: widget.compact ? 12 : 13,
+      fontWeight: FontWeight.w500,
+      fontVariations: const [FontVariation.weight(560)],
+      height: 17 / (widget.compact ? 12 : 13),
+    );
+    return RepaintBoundary(
+      child: SizedBox(
+        key: const ValueKey('MediaControl.CurrentLyricsContainer'),
+        height: 17,
+        child: ClipRect(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final textDirection = Directionality.of(context);
+              final textScaler = MediaQuery.textScalerOf(context);
+              final lineWidth = _lineWidth(style, textDirection, textScaler);
+              final overflowDistance = max(
+                0.0,
+                lineWidth - constraints.maxWidth,
+              );
+              final currentLine =
+                  overflowDistance == 0
+                      ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          widget.line,
+                          key: const ValueKey('MediaControl.CurrentLyricsLine'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: style,
+                        ),
+                      )
+                      : _buildScrollingLine(
+                        lineWidth: lineWidth,
+                        overflowDistance: overflowDistance,
+                        style: style,
+                      );
+              if (overflowDistance == 0) {
+                _scrollController.stop();
+              }
+              return AnimatedBuilder(
+                animation: _lineController,
+                builder: (context, child) {
+                  final progress = const Cubic(
+                    0.22,
+                    1,
+                    0.36,
+                    1,
+                  ).transform(_lineController.value);
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (_previousLine case final previousLine?)
+                        FractionalTranslation(
+                          translation: Offset(0, -progress),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              previousLine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: style,
+                            ),
+                          ),
+                        ),
+                      FractionalTranslation(
+                        translation: Offset(0, 1 - progress),
+                        child: currentLine,
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildScrollingLine({
+    required double lineWidth,
+    required double overflowDistance,
+    required TextStyle style,
+  }) {
+    _scrollController.duration = Duration(
+      seconds: min(8, max(3, (overflowDistance / 44).round() + 2)),
+    );
+    if (!_scrollController.isAnimating) {
+      _scrollController.forward();
+    }
+    return AnimatedBuilder(
+      animation: _scrollController,
+      builder: (context, child) {
+        final progress = _scrollController.value;
+        final scrollProgress =
+            progress <= 0.16
+                ? 0.0
+                : progress >= 0.84
+                ? 1.0
+                : Curves.easeInOut.transform((progress - 0.16) / 0.68);
+        return Transform.translate(
+          offset: Offset(-overflowDistance * scrollProgress, 0),
+          child: child,
+        );
+      },
+      child: Align(
+        alignment: Alignment.centerLeft,
+        widthFactor: 1,
+        child: SizedBox(
+          width: lineWidth,
+          child: Text(
+            widget.line,
+            key: const ValueKey('MediaControl.CurrentLyricsLine'),
+            maxLines: 1,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _lineWidth(
+    TextStyle style,
+    TextDirection textDirection,
+    TextScaler textScaler,
+  ) {
+    final scaledFontSize = textScaler.scale(style.fontSize!);
+    if (_measuredLine == widget.line &&
+        _measuredCompact == widget.compact &&
+        _measuredScaledFontSize == scaledFontSize &&
+        _measuredDirection == textDirection) {
+      return _measuredLineWidth;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(text: widget.line, style: style),
+      maxLines: 1,
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout();
+    _measuredLine = widget.line;
+    _measuredCompact = widget.compact;
+    _measuredScaledFontSize = scaledFontSize;
+    _measuredDirection = textDirection;
+    _measuredLineWidth = painter.width;
+    return _measuredLineWidth;
   }
 }

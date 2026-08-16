@@ -258,7 +258,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
                                   : i18n.t('player.mute'),
                           icon: playerVolumeIcon(_liveVolumeValue, isMuted),
                           active: isMuted,
-                          disabled: disabled,
+                          disabled: false,
                           onPressed: onToggleMute,
                         ),
                         SizedBox(width: volumeRowGap),
@@ -270,7 +270,7 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
                                 'MediaControl.WideVolumeSlider',
                               ),
                               value: volumeValue,
-                              disabled: disabled,
+                              disabled: false,
                               activeTrackColor:
                                   volumeSliderActiveColor ??
                                   MediaControlColors.accent,

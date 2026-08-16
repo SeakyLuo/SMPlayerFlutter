@@ -71,6 +71,7 @@ part 'artist_album_title_link.dart';
 part 'album_artwork.dart';
 part 'artists_colors.dart';
 part 'artists_page_actions.dart';
+part 'artists_page_data.dart';
 part 'artists_summary_format.dart';
 
 const _artistsBackdropSaturate120 = ColorFilter.matrix([
@@ -196,7 +197,14 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
-    final mediaState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
 
     if (i18nValue.isLoading) {
       return const _ArtistsPagePanel(child: SmPlayerLoadingState());
@@ -285,15 +293,20 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             ),
           ),
       data: (rawSnapshot) {
-        final snapshot = applyLibraryFavoriteOverrides(
-          rawSnapshot,
-          const {},
-          songOverrides,
+        final libraryData = ref.watch(
+          _artistsLibraryDataProvider((
+            snapshot: rawSnapshot,
+            songOverrides: songOverrides,
+            i18n: i18n,
+          )),
         );
-        final artistGroups = buildArtistGroups(snapshot.songs, i18n);
-        final sortedArtistGroups = sortArtists(
-          artistGroups,
-          _artistSortCriterion,
+        final snapshot = libraryData.snapshot;
+        final artistGroups = libraryData.artistGroups;
+        final sortedArtistGroups = ref.watch(
+          _sortedArtistGroupsProvider((
+            artistGroups: artistGroups,
+            criterion: _artistSortCriterion,
+          )),
         );
         final visibleArtists =
             _reverseArtistDisplayOrder
@@ -403,7 +416,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
             selectedArtistSongIds
                 .where((songId) => _selection.selectedItems.contains(songId))
                 .toList();
-        final songsById = {for (final song in snapshot.songs) song.id: song};
+        final songsById = libraryData.songsById;
         final customLibraryPlaylists =
             snapshot.playlists
                 .where((playlist) => !playlist.isBuiltIn)
@@ -548,7 +561,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     searchHistoryEntries: artistSearchHistoryEntries,
                     selectedArtistSongIds: selectedArtistSongIds,
                     customPlaylists: customPlaylists,
-                    selectedTrackId: mediaState.track.id,
+                    selectedTrackId: mediaState.trackId,
                     isPlaying: mediaState.isPlaying,
                     onSearchChanged: (value) {
                       setState(() {
@@ -713,7 +726,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
               MusicDialog(
                 song: dialog.song,
                 initialMode: dialog.mode,
-                currentTrackId: mediaState.track.id,
+                currentTrackId: mediaState.trackId,
                 isPlaying: mediaState.isPlaying,
                 queueSongIds: dialog.queueSongIds,
                 onPlay:
@@ -749,7 +762,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final artistGroups = buildArtistGroups(snapshot.songs, i18n);
+    final artistGroups = _readArtistGroups(snapshot, i18n);
     final suggestions = searchArtists(artistGroups, query);
     final exactMatches =
         artistGroups.where((artist) => artist.name == query).toList();

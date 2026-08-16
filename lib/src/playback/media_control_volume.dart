@@ -133,8 +133,8 @@ class VolumeSlider extends StatefulWidget {
 }
 
 class _VolumeSliderState extends State<VolumeSlider> {
-  final _sliderHostKey = GlobalKey();
   final _tooltipLayerLink = LayerLink();
+  var _sliderSize = Size.zero;
   late var _liveValue = clampVolumeValue(widget.value).toDouble();
   late var _lastEmittedValue = clampVolumeValue(widget.value);
   OverlayEntry? _tooltipOverlayEntry;
@@ -260,13 +260,13 @@ class _VolumeSliderState extends State<VolumeSlider> {
     );
 
     final sliderHost = SizedBox(
-      key: _sliderHostKey,
       height:
           widget.orientation == VolumeSliderOrientation.vertical
               ? widget.verticalHeight
               : _volumeSliderHorizontalHeight,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          _sliderSize = constraints.biggest;
           return Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.center,
@@ -387,9 +387,6 @@ class _VolumeSliderState extends State<VolumeSlider> {
     }
     _tooltipOverlayEntry = OverlayEntry(
       builder: (overlayContext) {
-        final renderBox =
-            _sliderHostKey.currentContext?.findRenderObject() as RenderBox?;
-        final sliderSize = renderBox?.size ?? Size.zero;
         return Positioned.fill(
           child: IgnorePointer(
             child: CompositedTransformFollower(
@@ -400,14 +397,14 @@ class _VolumeSliderState extends State<VolumeSlider> {
               child: UnconstrainedBox(
                 alignment: Alignment.topLeft,
                 child: SizedBox(
-                  width: sliderSize.width,
-                  height: sliderSize.height,
+                  width: _sliderSize.width,
+                  height: _sliderSize.height,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       _buildTooltip(
                         overlayContext,
-                        sliderSize,
+                        _sliderSize,
                         _liveValue.round(),
                       ),
                     ],
@@ -545,6 +542,7 @@ class _VolumeSliderTooltip extends StatelessWidget {
       fontSize: 13,
       fontWeight: FontWeight.w700,
       height: 1.15,
+      decoration: TextDecoration.none,
     );
     if (orientation == VolumeSliderOrientation.vertical) {
       final centerY = _volumeSliderVerticalThumbCenterY(

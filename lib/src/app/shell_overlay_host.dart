@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_player_host.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -110,6 +111,7 @@ class ShellOverlayHost extends ConsumerWidget {
             onCancel: onDismissStartupArtistSplitReview,
             onApply: onApplyStartupArtistSplits,
           ),
+        const AppNotificationHost(),
       ],
     );
   }

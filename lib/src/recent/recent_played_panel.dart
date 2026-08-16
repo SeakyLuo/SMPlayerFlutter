@@ -10,7 +10,8 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.multiSelect,
     required this.selectedSongIds,
     required this.selectedCollectionKeys,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.isPlaying,
     required this.onPlaySongs,
     required this.onPlaySong,
     required this.onToggleSongSelection,
@@ -37,7 +38,8 @@ class _RecentPlayedPanel extends StatelessWidget {
   final bool multiSelect;
   final Set<int> selectedSongIds;
   final Set<String> selectedCollectionKeys;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final bool isPlaying;
   final ValueChanged<List<int>> onPlaySongs;
   final void Function(
     LibrarySong song,
@@ -71,7 +73,8 @@ class _RecentPlayedPanel extends StatelessWidget {
         queueSongIds: songs.map((song) => song.id).toList(),
         selectedSongIds: selectedSongIds,
         multiSelect: multiSelect,
-        mediaControlState: mediaControlState,
+        currentTrackId: currentTrackId,
+        isPlaying: isPlaying,
         getTimelineDate: (song) => (song as RecentLibrarySong).playedAt,
         getDetailLabel:
             (song) =>

@@ -30,7 +30,6 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/playing_wave.dart';
@@ -203,7 +202,14 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
-    final mediaControlState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
 
     if (i18nValue.isLoading) {
       return const _RecentPagePanel(child: SmPlayerLoadingState());
@@ -377,7 +383,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                             multiSelect: _multiSelect,
                             selectedSongIds: _selectedSongIds,
                             selectedCollectionKeys: _selectedCollectionKeys,
-                            mediaControlState: mediaControlState,
+                            currentTrackId: mediaState.trackId,
+                            isPlaying: mediaState.isPlaying,
                             onFilterChanged: (filter) {
                               setState(() {
                                 _activePlayedFilter = filter;
@@ -419,7 +426,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                             customPlaylists: customPlaylists,
                             selectedSongIds: _selectedSongIds,
                             multiSelect: _multiSelect,
-                            mediaControlState: mediaControlState,
+                            currentTrackId: mediaState.trackId,
+                            isPlaying: mediaState.isPlaying,
                             onToggleMultiSelect: () {
                               setState(() {
                                 _multiSelect = !_multiSelect;
@@ -594,8 +602,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                     MusicDialog(
                       song: dialog.song,
                       initialMode: dialog.mode,
-                      currentTrackId: mediaControlState.track.id,
-                      isPlaying: mediaControlState.isPlaying,
+                      currentTrackId: mediaState.trackId,
+                      isPlaying: mediaState.isPlaying,
                       queueSongIds: dialog.queueSongIds,
                       onPlay:
                           ref

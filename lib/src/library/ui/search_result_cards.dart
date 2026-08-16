@@ -175,15 +175,13 @@ class _SearchResultCardState extends State<_SearchResultCard> {
                   ),
                 ),
               if (isArtist && _hovered && !widget.multiSelect)
-                Positioned.fill(
-                  left: 14,
-                  right: null,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 30),
-                      child: _SearchCardPlayButton(onPressed: widget.onPlay),
-                    ),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  width: 64,
+                  height: 64,
+                  child: Center(
+                    child: _SearchCardPlayButton(onPressed: widget.onPlay),
                   ),
                 ),
               if (!isArtist && _hovered && !widget.multiSelect)

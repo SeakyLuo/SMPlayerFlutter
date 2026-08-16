@@ -24,7 +24,6 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
@@ -122,7 +121,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final recentSongs =
         ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
         const <RecentLibrarySong>[];
-    final mediaControlState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          selectedQueueIndex: controller.state.selectedQueueIndex,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
     final shellActions = ref.watch(smPlayerShellActionsProvider);
     final i18n = context.smPlayerI18n;
 
@@ -160,7 +167,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             visibleQueueIndexes
                 .where((index) => _selection.isSelected(index))
                 .toList();
-        final currentSong = _resolveCurrentSong(mediaControlState, queueSongs);
+        final currentSong = _resolveCurrentSong(
+          mediaState.trackId,
+          mediaState.selectedQueueIndex,
+          queueSongs,
+        );
         final folders =
             snapshot.folders
                 .map(
@@ -238,7 +249,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     icon: FluentIcons.music_note_2_20_regular,
                     disabled: currentSong == null,
                     onPressed: () {
-                      _locateCurrent(queueSongs, mediaControlState);
+                      _locateCurrent(
+                        queueSongs,
+                        mediaState.trackId,
+                        mediaState.selectedQueueIndex,
+                      );
                     },
                   ),
                   if (addQueueToItem != null)
@@ -450,7 +465,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             label: i18n.t('nowPlaying.locateCurrent'),
                             disabled: currentSong == null,
                             onPressed: () {
-                              _locateCurrent(queueSongs, mediaControlState);
+                              _locateCurrent(
+                                queueSongs,
+                                mediaState.trackId,
+                                mediaState.selectedQueueIndex,
+                              );
                             },
                           ),
                           CommandBarButton(
@@ -515,9 +534,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       visibleEntries: visibleEntries,
                       searchQuery: widget.searchQuery,
                       scrollController: _listController,
-                      selectedQueueIndex: mediaControlState.selectedQueueIndex,
-                      selectedTrackId: mediaControlState.track.id,
-                      isPlaying: mediaControlState.isPlaying,
+                      selectedQueueIndex: mediaState.selectedQueueIndex,
+                      selectedTrackId: mediaState.trackId,
+                      isPlaying: mediaState.isPlaying,
                       selectionMode: _selection.multiSelect,
                       isSelected: _selection.isSelected,
                       onReorderVisible: (oldIndex, newIndex) {
@@ -586,8 +605,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                 MusicDialog(
                   song: dialog.song,
                   initialMode: dialog.mode,
-                  currentTrackId: mediaControlState.track.id,
-                  isPlaying: mediaControlState.isPlaying,
+                  currentTrackId: mediaState.trackId,
+                  isPlaying: mediaState.isPlaying,
                   queueSongIds: dialog.queueSongIds,
                   onPlay:
                       ref
@@ -1002,17 +1021,17 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 
   LibrarySong? _resolveCurrentSong(
-    MediaControlState mediaControlState,
+    int? trackId,
+    int? selectedQueueIndex,
     List<LibrarySong> queueSongs,
   ) {
-    final queueIndex = mediaControlState.selectedQueueIndex;
+    final queueIndex = selectedQueueIndex;
     if (queueIndex != null &&
         queueIndex >= 0 &&
         queueIndex < queueSongs.length) {
       return queueSongs[queueIndex];
     }
 
-    final trackId = mediaControlState.track.id;
     if (trackId == null) {
       return null;
     }
@@ -1216,11 +1235,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   void _locateCurrent(
     List<LibrarySong> queueSongs,
-    MediaControlState mediaControlState,
+    int? trackId,
+    int? selectedQueueIndex,
   ) {
     final index =
-        mediaControlState.selectedQueueIndex ??
-        queueSongs.indexWhere((song) => song.id == mediaControlState.track.id);
+        selectedQueueIndex ??
+        queueSongs.indexWhere((song) => song.id == trackId);
     if (index < 0) {
       return;
     }

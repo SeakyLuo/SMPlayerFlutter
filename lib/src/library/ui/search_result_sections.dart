@@ -47,7 +47,8 @@ class _SearchResultSection extends StatelessWidget {
     required this.i18n,
     required this.activeFilter,
     required this.showCount,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.isPlaying,
     required this.selection,
     required this.playlists,
     required this.nowPlayingSongIds,
@@ -89,7 +90,8 @@ class _SearchResultSection extends StatelessWidget {
   final SmPlayerI18n i18n;
   final SearchFilterKey activeFilter;
   final bool showCount;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final bool isPlaying;
   final PageSelectionController<String> selection;
   final List<MultiSelectCommandBarPlaylist> playlists;
   final List<int> nowPlayingSongIds;
@@ -246,10 +248,8 @@ class _SearchResultSection extends StatelessWidget {
           PlaylistControlItem(
             key: ValueKey('search-song-${songs[index].id}'),
             song: songs[index],
-            current: songs[index].id == mediaControlState.track.id,
-            playing:
-                songs[index].id == mediaControlState.track.id &&
-                mediaControlState.isPlaying,
+            current: songs[index].id == currentTrackId,
+            playing: songs[index].id == currentTrackId && isPlaying,
             selected: selection.isSelected(_songSelectionKey(songs[index])),
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
@@ -458,7 +458,6 @@ class _SearchResultSection extends StatelessWidget {
     LibrarySong song,
     List<int> queueSongIds,
   ) async {
-    final mediaState = mediaControlState;
     final preferenceLevel = await onGetSongPreferenceLevel(song);
     if (!context.mounted) {
       return;
@@ -470,9 +469,9 @@ class _SearchResultSection extends StatelessWidget {
         i18n: i18n,
         songId: song.id,
         isFavorite: song.favorite,
-        isCurrentTrack: song.id == mediaState.track.id,
-        isPlaying: mediaState.isPlaying,
-        currentTrackId: mediaState.track.id,
+        isCurrentTrack: song.id == currentTrackId,
+        isPlaying: isPlaying,
+        currentTrackId: currentTrackId,
         songPath: song.path,
         playlists: playlists,
         preferenceLevel: preferenceLevel,

@@ -454,6 +454,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
               navigationVisible: layout.isNavigationPaneVisible,
             ),
             onNavigationMenuPressed: _toggleNavigationPane,
+            suspended: _isImmersiveModeOverlayVisible,
             child: widget.child ?? const SizedBox.shrink(),
           ),
           ShellImmersiveModeSyncHost(

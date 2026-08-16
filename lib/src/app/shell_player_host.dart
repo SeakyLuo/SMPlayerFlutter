@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -114,77 +115,73 @@ class ShellPlayerHost extends StatelessWidget {
       height: SmPlayerShellMetrics.playerHeight,
       child: SizedBox.expand(
         key: SmPlayerShellKeys.reservedPlayer,
-        child: AnimatedBuilder(
-          animation: mediaControlController,
-          builder: (context, _) {
+        child: Consumer(
+          builder: (context, ref, _) {
+            ref.watch(
+              mediaControlControllerProvider.select(
+                (controller) => (
+                  track: controller.state.track,
+                  selectedQueueIndex: controller.state.selectedQueueIndex,
+                  disabled: controller.state.disabled,
+                  isPlaying: controller.state.isPlaying,
+                  playbackStatus: controller.state.playbackStatus,
+                  volume: controller.state.volume,
+                  isMuted: controller.state.isMuted,
+                  mode: controller.state.mode,
+                  durationSeconds: controller.state.durationSeconds,
+                  isProgressSeeking: controller.state.isProgressSeeking,
+                  playbackNoticeKey: controller.state.playbackNoticeKey,
+                  restartThresholdReached:
+                      controller.state.progressSeconds >
+                      previousTrackRestartThresholdSeconds,
+                ),
+              ),
+            );
             final mediaControlState = mediaControlController.state;
-            return Consumer(
-              builder: (context, ref, _) {
-                final snapshot =
-                    ref.watch(libraryContentDataProvider).valueOrNull;
-                scheduleRestorePlaybackTrack(snapshot);
-                final currentSong = resolvePlayerSong(
-                  mediaControlState,
-                  snapshot,
-                );
-                final playbackIds =
-                    snapshot == null
-                        ? const <int>[]
-                        : playbackSongIds(snapshot);
-                final previousButtonRestartsTrack =
-                    playbackIds.isNotEmpty &&
-                    shouldRestartCurrentTrackForPrevious(
-                      progressSeconds: mediaControlState.progressSeconds,
-                      queueLength: playbackIds.length,
-                      restartAfterThresholdEnabled:
-                          settingsController
-                              .snapshot
-                              .previousButtonRestartsTrack,
-                    );
-                ensurePlayerArtworkResolved(currentSong, ref);
-                final i18n =
-                    ref.watch(smPlayerI18nProvider).valueOrNull ??
-                    const SmPlayerI18n(
-                      locale: smPlayerFallbackLocale,
-                      messages: {},
-                    );
-                final recentSongs =
-                    ref
-                        .watch(recentPageDataProvider)
-                        .valueOrNull
-                        ?.recentSongs ??
-                    const <RecentLibrarySong>[];
-                syncDesktopFeatures(
-                  i18n: i18n,
-                  snapshot: snapshot,
-                  recentSongs: recentSongs,
-                  mediaControlState: mediaControlState,
-                  currentSong: currentSong,
-                );
-                final playerLyricsLine = resolvePlayerLyricLine(
-                  lyrics: desktopLyricsForSong(currentSong),
-                  song: currentSong,
+            final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+            scheduleRestorePlaybackTrack(snapshot);
+            final currentSong = resolvePlayerSong(mediaControlState, snapshot);
+            final playbackIds =
+                snapshot == null ? const <int>[] : playbackSongIds(snapshot);
+            final previousButtonRestartsTrack =
+                playbackIds.isNotEmpty &&
+                shouldRestartCurrentTrackForPrevious(
                   progressSeconds: mediaControlState.progressSeconds,
-                  durationSeconds: mediaControlState.durationSeconds,
+                  queueLength: playbackIds.length,
+                  restartAfterThresholdEnabled:
+                      settingsController.snapshot.previousButtonRestartsTrack,
                 );
-                final librarySongs = snapshot?.songs ?? const <LibrarySong>[];
-                final ValueChanged<List<int>>? playSongs =
-                    snapshot == null
-                        ? null
-                        : (songIds) {
-                          if (songIds.isEmpty) {
-                            return;
-                          }
-                          replaceNowPlayingQueueAndPlayIndex(
-                            ref: ref,
-                            snapshot: snapshot,
-                            i18n: i18n,
-                            songIds: songIds,
-                            queueIndex: 0,
-                            mediaController: mediaControlController,
-                          );
-                        };
-                return MediaControl(
+            ensurePlayerArtworkResolved(currentSong, ref);
+            final i18n =
+                ref.watch(smPlayerI18nProvider).valueOrNull ??
+                const SmPlayerI18n(
+                  locale: smPlayerFallbackLocale,
+                  messages: {},
+                );
+            final recentSongs =
+                ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+                const <RecentLibrarySong>[];
+            final librarySongs = snapshot?.songs ?? const <LibrarySong>[];
+            final ValueChanged<List<int>>? playSongs =
+                snapshot == null
+                    ? null
+                    : (songIds) {
+                      if (songIds.isEmpty) {
+                        return;
+                      }
+                      replaceNowPlayingQueueAndPlayIndex(
+                        ref: ref,
+                        snapshot: snapshot,
+                        i18n: i18n,
+                        songIds: songIds,
+                        queueIndex: 0,
+                        mediaController: mediaControlController,
+                      );
+                    };
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                MediaControl(
                   track: mediaControlState.track,
                   currentSong: currentSong,
                   nowPlayingSongIds: snapshot?.nowPlaying.songIds ?? const [],
@@ -239,7 +236,19 @@ class ShellPlayerHost extends StatelessWidget {
                   durationSeconds: mediaControlState.durationSeconds,
                   previousButtonRestartsTrack: previousButtonRestartsTrack,
                   playbackNoticeKey: mediaControlState.playbackNoticeKey,
-                  currentLyricsLine: playerLyricsLine,
+                  leadingBuilder:
+                      (context, compact) => _ShellPlayerTrackInfo(
+                        currentSong: currentSong,
+                        compact: compact,
+                        desktopLyricsForSong: desktopLyricsForSong,
+                        onArtworkError:
+                            currentSong == null
+                                ? null
+                                : () {
+                                  onArtworkError(currentSong, ref);
+                                },
+                        onPressed: onOpenNowPlaying,
+                      ),
                   onTogglePlayPause: onTogglePlayPause,
                   onPrevious: onPrevious,
                   onForcePrevious: onForcePrevious,
@@ -396,12 +405,102 @@ class ShellPlayerHost extends StatelessWidget {
                           : () {
                             onRevealPath(currentSong.path);
                           },
-                );
-              },
+                ),
+                _ShellPlayerDesktopSync(
+                  mediaControlController: mediaControlController,
+                  i18n: i18n,
+                  snapshot: snapshot,
+                  recentSongs: recentSongs,
+                  currentSong: currentSong,
+                  syncDesktopFeatures: syncDesktopFeatures,
+                ),
+              ],
             );
           },
         ),
       ),
     );
+  }
+}
+
+class _ShellPlayerTrackInfo extends ConsumerWidget {
+  const _ShellPlayerTrackInfo({
+    required this.currentSong,
+    required this.compact,
+    required this.desktopLyricsForSong,
+    required this.onArtworkError,
+    required this.onPressed,
+  });
+
+  final LibrarySong? currentSong;
+  final bool compact;
+  final LyricsSnapshot? Function(LibrarySong? song) desktopLyricsForSong;
+  final VoidCallback? onArtworkError;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          track: controller.state.track,
+          progressSeconds: controller.state.progressSeconds,
+          durationSeconds: controller.state.durationSeconds,
+        ),
+      ),
+    );
+    final lyricsLine = resolvePlayerLyricLine(
+      lyrics: desktopLyricsForSong(currentSong),
+      song: currentSong,
+      progressSeconds: playback.progressSeconds,
+      durationSeconds: playback.durationSeconds,
+    );
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: MediaControlTrackInfo(
+        track: playback.track,
+        artworkPath: resolvePlayerArtworkPath(playback.track, currentSong),
+        currentLyricsLine: lyricsLine,
+        onArtworkError: onArtworkError,
+        disabled: playback.track.id == null,
+        compact: compact,
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _ShellPlayerDesktopSync extends ConsumerWidget {
+  const _ShellPlayerDesktopSync({
+    required this.mediaControlController,
+    required this.i18n,
+    required this.snapshot,
+    required this.recentSongs,
+    required this.currentSong,
+    required this.syncDesktopFeatures,
+  });
+
+  final MediaControlController mediaControlController;
+  final SmPlayerI18n i18n;
+  final LibraryContentData? snapshot;
+  final List<RecentLibrarySong> recentSongs;
+  final LibrarySong? currentSong;
+  final ShellDesktopSync syncDesktopFeatures;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => controller.state.progressSeconds.round(),
+      ),
+    );
+    syncDesktopFeatures(
+      i18n: i18n,
+      snapshot: snapshot,
+      recentSongs: recentSongs,
+      mediaControlState: mediaControlController.state,
+      currentSong: currentSong,
+    );
+    return const SizedBox.shrink();
   }
 }

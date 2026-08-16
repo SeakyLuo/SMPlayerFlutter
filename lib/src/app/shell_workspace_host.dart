@@ -11,6 +11,7 @@ class ShellWorkspaceHost extends StatelessWidget {
     required this.pageStorageBucket,
     required this.navigationMenuLabel,
     required this.onNavigationMenuPressed,
+    required this.suspended,
     required this.child,
   });
 
@@ -18,6 +19,7 @@ class ShellWorkspaceHost extends StatelessWidget {
   final PageStorageBucket pageStorageBucket;
   final String navigationMenuLabel;
   final VoidCallback onNavigationMenuPressed;
+  final bool suspended;
   final Widget child;
 
   @override
@@ -37,13 +39,17 @@ class ShellWorkspaceHost extends StatelessWidget {
       child: PageStorage(bucket: pageStorageBucket, child: child),
     );
     final windowHeight = MediaQuery.sizeOf(context).height;
+    final workspaceContent = ExcludeSemantics(
+      excluding: suspended,
+      child: TickerMode(enabled: !suspended, child: workspace),
+    );
     if (layout.isImmersiveModeRoute) {
       return Positioned(
         left: 0,
         top: layout.workspaceTop,
         right: 0,
         height: windowHeight,
-        child: workspace,
+        child: workspaceContent,
       );
     }
     return AnimatedPositioned(
@@ -57,7 +63,7 @@ class ShellWorkspaceHost extends StatelessWidget {
           SmPlayerShellMetrics.playerHeight +
           SmPlayerShellMetrics.playerTopRadius -
           layout.workspaceTop,
-      child: workspace,
+      child: workspaceContent,
     );
   }
 }

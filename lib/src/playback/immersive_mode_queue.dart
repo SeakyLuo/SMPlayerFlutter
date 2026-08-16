@@ -21,7 +21,6 @@ import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
@@ -210,7 +209,9 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.i18n,
     required this.songs,
     required this.songIds,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.selectedQueueIndex,
+    required this.isPlaying,
     required this.loading,
     required this.selection,
     required this.scrollController,
@@ -250,7 +251,9 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final SmPlayerI18n i18n;
   final List<LibrarySong> songs;
   final List<int> songIds;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final int? selectedQueueIndex;
+  final bool isPlaying;
   final bool loading;
   final PageSelectionController<int> selection;
   final ScrollController scrollController;
@@ -296,7 +299,9 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   SmPlayerI18n get i18n => widget.i18n;
   List<LibrarySong> get songs => widget.songs;
   List<int> get songIds => widget.songIds;
-  MediaControlState get mediaControlState => widget.mediaControlState;
+  int? get currentTrackId => widget.currentTrackId;
+  int? get selectedQueueIndex => widget.selectedQueueIndex;
+  bool get isPlaying => widget.isPlaying;
   bool get loading => widget.loading;
   PageSelectionController<int> get selection => widget.selection;
   ScrollController get scrollController => widget.scrollController;
@@ -361,13 +366,13 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   }
 
   int? _currentQueueIndex() {
-    final selectedQueueIndex = mediaControlState.selectedQueueIndex;
+    final selectedQueueIndex = this.selectedQueueIndex;
     if (selectedQueueIndex != null &&
         selectedQueueIndex >= 0 &&
         selectedQueueIndex < songs.length) {
       return selectedQueueIndex;
     }
-    final trackId = mediaControlState.track.id;
+    final trackId = currentTrackId;
     final trackIndex = songs.indexWhere((song) => song.id == trackId);
     return trackIndex == -1 ? null : trackIndex;
   }
@@ -645,9 +650,9 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       itemBuilder: (context, index) {
         final song = songs[index];
         final current =
-            mediaControlState.selectedQueueIndex == null
-                ? song.id == mediaControlState.track.id
-                : index == mediaControlState.selectedQueueIndex;
+            selectedQueueIndex == null
+                ? song.id == currentTrackId
+                : index == selectedQueueIndex;
         final dropPosition =
             _dropIndicator?.queueIndex == index
                 ? _dropIndicator?.position
@@ -656,7 +661,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           key: ValueKey('now-playing-full-row-${song.id}-$index'),
           song: song,
           current: current,
-          playing: current && mediaControlState.isPlaying,
+          playing: current && isPlaying,
           selected: selection.isSelected(index),
           selectionMode: selection.multiSelect,
           dropPosition: dropPosition,
@@ -862,7 +867,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
     LibrarySong song,
     int queueIndex,
   ) async {
-    final currentTrackId = mediaControlState.track.id;
+    final currentTrackId = this.currentTrackId;
     final menuFolders =
         folders
             .map(
@@ -880,7 +885,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         songId: song.id,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
-        isPlaying: mediaControlState.isPlaying,
+        isPlaying: isPlaying,
         currentTrackId: currentTrackId,
         nowPlayingSongIds: songIds,
         currentPlaylistName: i18n.t('common.nowPlaying'),

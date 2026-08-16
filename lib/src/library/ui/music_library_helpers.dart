@@ -1,5 +1,161 @@
 part of 'music_library_page.dart';
 
+class _MusicLibraryViewCache {
+  _MusicLibraryViewCache._(
+    this._sourceSongs,
+    this._favoriteOverrides,
+    this._songOverrides,
+    this._i18n,
+  ) : _sortCache = _MusicLibrarySortCache(
+        applyFavoriteOverridesToSongs(
+          _sourceSongs,
+          _favoriteOverrides,
+          _songOverrides,
+        ),
+        _i18n,
+      );
+
+  final List<LibrarySong> _sourceSongs;
+  final Map<int, bool> _favoriteOverrides;
+  final Map<int, LibrarySong> _songOverrides;
+  final SmPlayerI18n _i18n;
+  final _MusicLibrarySortCache _sortCache;
+
+  static _MusicLibraryViewCache resolve({
+    required _MusicLibraryViewCache? current,
+    required List<LibrarySong> sourceSongs,
+    required Map<int, bool> favoriteOverrides,
+    required Map<int, LibrarySong> songOverrides,
+    required SmPlayerI18n i18n,
+  }) {
+    if (current != null &&
+        identical(current._sourceSongs, sourceSongs) &&
+        identical(current._favoriteOverrides, favoriteOverrides) &&
+        identical(current._songOverrides, songOverrides) &&
+        identical(current._i18n, i18n)) {
+      return current;
+    }
+    return _MusicLibraryViewCache._(
+      sourceSongs,
+      favoriteOverrides,
+      songOverrides,
+      i18n,
+    );
+  }
+
+  List<LibrarySong> songsFor(
+    MusicLibrarySortCriterion criterion,
+    MusicLibrarySortDirection direction,
+  ) {
+    return _sortCache.songsFor(criterion, direction);
+  }
+
+  Map<String, int> quickJumpMapFor(
+    MusicLibrarySortCriterion criterion,
+    MusicLibrarySortDirection direction,
+  ) {
+    return _sortCache.quickJumpMapFor(criterion, direction);
+  }
+}
+
+class _MusicLibrarySortCache {
+  _MusicLibrarySortCache(List<LibrarySong> songs, this._i18n)
+    : _entries =
+          songs.map((song) => _MusicLibrarySortEntry(song, _i18n)).toList();
+
+  final SmPlayerI18n _i18n;
+  final List<_MusicLibrarySortEntry> _entries;
+  final Map<MusicLibrarySortCriterion, List<LibrarySong>> _ascending = {};
+  final Map<MusicLibrarySortCriterion, List<LibrarySong>> _descending = {};
+  final Map<
+    ({
+      MusicLibrarySortCriterion criterion,
+      MusicLibrarySortDirection direction,
+    }),
+    Map<String, int>
+  >
+  _quickJumpMaps = {};
+
+  List<LibrarySong> songsFor(
+    MusicLibrarySortCriterion criterion,
+    MusicLibrarySortDirection direction,
+  ) {
+    final ascending = _ascending.putIfAbsent(criterion, () {
+      final sortedEntries =
+          _entries.toList()
+            ..sort((left, right) => left.compareTo(right, criterion));
+      return List.unmodifiable(sortedEntries.map((entry) => entry.song));
+    });
+    if (direction == MusicLibrarySortDirection.ascending) {
+      return ascending;
+    }
+    return _descending.putIfAbsent(
+      criterion,
+      () => List.unmodifiable(ascending.reversed),
+    );
+  }
+
+  Map<String, int> quickJumpMapFor(
+    MusicLibrarySortCriterion criterion,
+    MusicLibrarySortDirection direction,
+  ) {
+    return _quickJumpMaps.putIfAbsent(
+      (criterion: criterion, direction: direction),
+      () =>
+          _buildQuickJumpMap(songsFor(criterion, direction), criterion, _i18n),
+    );
+  }
+}
+
+class _MusicLibrarySortEntry {
+  _MusicLibrarySortEntry(this.song, this._i18n);
+
+  final LibrarySong song;
+  final SmPlayerI18n _i18n;
+
+  late final ArtistTextSortKey _titleKey = buildArtistTextSortKey(song.title);
+  late final ArtistTextSortKey _artistKey = buildArtistTextSortKey(
+    _displayArtists(song, _i18n),
+  );
+  late final ArtistTextSortKey _albumKey = buildArtistTextSortKey(song.album);
+  late final DateTime _dateAdded = _parseDate(song.dateAdded);
+
+  int compareTo(
+    _MusicLibrarySortEntry other,
+    MusicLibrarySortCriterion criterion,
+  ) {
+    final primaryCompare = switch (criterion) {
+      MusicLibrarySortCriterion.artist => compareArtistTextSortKeys(
+        _artistKey,
+        other._artistKey,
+      ),
+      MusicLibrarySortCriterion.album => compareArtistTextSortKeys(
+        _albumKey,
+        other._albumKey,
+      ),
+      MusicLibrarySortCriterion.duration => song.duration.compareTo(
+        other.song.duration,
+      ),
+      MusicLibrarySortCriterion.playCount => song.playCount.compareTo(
+        other.song.playCount,
+      ),
+      MusicLibrarySortCriterion.dateAdded => _dateAdded.compareTo(
+        other._dateAdded,
+      ),
+      MusicLibrarySortCriterion.title => compareArtistTextSortKeys(
+        _titleKey,
+        other._titleKey,
+      ),
+    };
+    if (primaryCompare != 0) {
+      return primaryCompare;
+    }
+
+    final titleCompare = compareArtistTextSortKeys(_titleKey, other._titleKey);
+    return titleCompare != 0 ? titleCompare : song.id.compareTo(other.song.id);
+  }
+}
+
 Map<String, int> _buildQuickJumpMap(
   List<LibrarySong> songs,
   MusicLibrarySortCriterion criterion,
@@ -45,35 +201,6 @@ String _quickJumpValue(
     case MusicLibrarySortCriterion.title:
       return song.title;
   }
-}
-
-int _compareSongs(
-  LibrarySong left,
-  LibrarySong right,
-  MusicLibrarySortCriterion criterion,
-  SmPlayerI18n i18n,
-) {
-  switch (criterion) {
-    case MusicLibrarySortCriterion.artist:
-      return _compareText(
-        _displayArtists(left, i18n),
-        _displayArtists(right, i18n),
-      );
-    case MusicLibrarySortCriterion.album:
-      return _compareText(left.album, right.album);
-    case MusicLibrarySortCriterion.duration:
-      return left.duration.compareTo(right.duration);
-    case MusicLibrarySortCriterion.playCount:
-      return left.playCount.compareTo(right.playCount);
-    case MusicLibrarySortCriterion.dateAdded:
-      return _parseDate(left.dateAdded).compareTo(_parseDate(right.dateAdded));
-    case MusicLibrarySortCriterion.title:
-      return _compareText(left.title, right.title);
-  }
-}
-
-int _compareText(String left, String right) {
-  return compareArtistText(left, right);
 }
 
 String _displayArtists(LibrarySong song, SmPlayerI18n i18n) {

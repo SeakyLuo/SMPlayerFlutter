@@ -22,9 +22,14 @@ import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
 import '../data/library_time_codec.dart';
 import '../data/library_providers.dart';
+import 'artist_text_sort_key.dart';
 import 'artwork_floating_action_button.dart';
 import 'artists_page_model.dart'
-    show compareArtistText, getArtistQuickJumpBucket, getSongArtists;
+    show
+        buildArtistTextSortKey,
+        compareArtistTextSortKeys,
+        getArtistQuickJumpBucket,
+        getSongArtists;
 import 'command_bar.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
@@ -113,6 +118,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   var _quickJumpPanelOpen = false;
   String? _quickJumpPinnedKey;
   var _scrollOffset = 0.0;
+  var _compactLayout = false;
   final _columnWidths = {..._defaultColumnWidths};
   final _scrollController = ScrollController();
   final _selection = PageSelectionController<int>.stored('music-library');
@@ -120,6 +126,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   MusicDialogEntry? _musicDialog;
+  _MusicLibraryViewCache? _viewCache;
 
   @override
   void initState() {
@@ -243,17 +250,26 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           );
         }
 
-        final songs = applyFavoriteOverridesToSongs(
-          snapshot.songs,
-          favoriteOverrides,
-          songOverrides,
+        final viewCache = _MusicLibraryViewCache.resolve(
+          current: _viewCache,
+          sourceSongs: snapshot.songs,
+          favoriteOverrides: favoriteOverrides,
+          songOverrides: songOverrides,
+          i18n: i18n,
         );
-        final sortedSongs = _sortSongs(songs, i18n);
-        final mediaState = ref.watch(mediaControlControllerProvider).state;
-        final quickJumpMap = _buildQuickJumpMap(
-          sortedSongs,
+        _viewCache = viewCache;
+        final sortedSongs = viewCache.songsFor(_sortCriterion, _sortDirection);
+        final mediaState = ref.watch(
+          mediaControlControllerProvider.select(
+            (controller) => (
+              trackId: controller.state.track.id,
+              isPlaying: controller.state.isPlaying,
+            ),
+          ),
+        );
+        final quickJumpMap = viewCache.quickJumpMapFor(
           _sortCriterion,
-          i18n,
+          _sortDirection,
         );
 
         return SmPlayerI18nScope(
@@ -262,6 +278,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             builder: (context, constraints) {
               final colors = _LibraryPalette.of(context);
               final compact = constraints.maxWidth < 720;
+              _compactLayout = compact;
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
                 context,
               );
@@ -384,7 +401,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                         _selection
                                                             .selectedItems,
                                                     selectedTrackId:
-                                                        mediaState.track.id,
+                                                        mediaState.trackId,
                                                     isPlaying:
                                                         mediaState.isPlaying,
                                                     multiSelect:
@@ -456,7 +473,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                         _selection
                                                             .selectedItems,
                                                     selectedTrackId:
-                                                        mediaState.track.id,
+                                                        mediaState.trackId,
                                                     isPlaying:
                                                         mediaState.isPlaying,
                                                     multiSelect:
@@ -553,17 +570,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                 MusicDialog(
                                   song: dialog.song,
                                   initialMode: dialog.mode,
-                                  currentTrackId:
-                                      ref
-                                          .watch(mediaControlControllerProvider)
-                                          .state
-                                          .track
-                                          .id,
-                                  isPlaying:
-                                      ref
-                                          .watch(mediaControlControllerProvider)
-                                          .state
-                                          .isPlaying,
+                                  currentTrackId: mediaState.trackId,
+                                  isPlaying: mediaState.isPlaying,
                                   queueSongIds: dialog.queueSongIds,
                                   onPlay:
                                       ref
@@ -632,25 +640,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     );
   }
 
-  List<LibrarySong> _sortSongs(List<LibrarySong> songs, SmPlayerI18n i18n) {
-    final direction =
-        _sortDirection == MusicLibrarySortDirection.ascending ? 1 : -1;
-    final sorted = songs.toList();
-    sorted.sort((left, right) {
-      final result = _compareSongs(left, right, _sortCriterion, i18n);
-      return direction *
-          (result != 0
-              ? result
-              : (_compareText(left.title, right.title) != 0
-                  ? _compareText(left.title, right.title)
-                  : left.id.compareTo(right.id)));
-    });
-    return sorted;
-  }
-
   void _toggleSort(MusicLibrarySortCriterion criterion) {
+    final criterionChanged = _sortCriterion != criterion;
     setState(() {
-      if (_sortCriterion == criterion) {
+      if (!criterionChanged) {
         _sortDirection =
             _sortDirection == MusicLibrarySortDirection.ascending
                 ? MusicLibrarySortDirection.descending
@@ -660,7 +653,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         _sortDirection = MusicLibrarySortDirection.ascending;
       }
     });
-    ref.read(libraryRepositoryProvider).updateMusicLibrarySort(criterion);
+    if (criterionChanged) {
+      unawaited(
+        ref.read(libraryRepositoryProvider).updateMusicLibrarySort(criterion),
+      );
+    }
   }
 
   void _resizeColumn(_LibraryColumn column, double deltaX) {
@@ -673,9 +670,18 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   }
 
   void _handleScroll() {
-    setState(() {
-      _scrollOffset = _scrollController.offset;
-    });
+    final nextOffset = _scrollController.offset;
+    final rowHeight =
+        _compactLayout ? _compactVirtualRowHeight : _wideVirtualRowHeight;
+    final rowChanged =
+        (_scrollOffset / rowHeight).floor() != (nextOffset / rowHeight).floor();
+    if (rowChanged) {
+      setState(() {
+        _scrollOffset = nextOffset;
+      });
+    } else {
+      _scrollOffset = nextOffset;
+    }
   }
 
   bool _handleUserScroll(UserScrollNotification notification) {
