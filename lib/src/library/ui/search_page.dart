@@ -31,7 +31,6 @@ import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
-import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
@@ -169,7 +168,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
-    final mediaControlState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
     final i18n =
         ref.watch(smPlayerI18nProvider).value ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
@@ -339,7 +345,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 i18n: i18n,
                                 activeFilter: _activeFilter,
                                 showCount: snapshot.showCount,
-                                mediaControlState: mediaControlState,
+                                currentTrackId: mediaState.trackId,
+                                isPlaying: mediaState.isPlaying,
                                 selection: _selection,
                                 playlists: _customPlaylists(snapshot.playlists),
                                 nowPlayingSongIds: snapshot.nowPlaying.songIds,
@@ -544,8 +551,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   MusicDialog(
                     song: dialog.song,
                     initialMode: dialog.mode,
-                    currentTrackId: mediaControlState.track.id,
-                    isPlaying: mediaControlState.isPlaying,
+                    currentTrackId: mediaState.trackId,
+                    isPlaying: mediaState.isPlaying,
                     queueSongIds: dialog.queueSongIds,
                     onPlay:
                         ref

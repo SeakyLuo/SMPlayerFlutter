@@ -28,7 +28,7 @@ extension _ArtistsPageActions on _ArtistsPageState {
     });
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final artistGroups = buildArtistGroups(snapshot.songs, i18n);
+    final artistGroups = _readArtistGroups(snapshot, i18n);
     final exactMatches =
         artistGroups.where((artist) => artist.name == query).toList();
     final suggestions = searchArtists(artistGroups, query);

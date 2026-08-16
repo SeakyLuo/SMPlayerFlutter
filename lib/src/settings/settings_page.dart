@@ -81,6 +81,7 @@ class SettingsPage extends StatefulWidget {
     this.onScanLibrary,
     this.librarySongs = const [],
     this.onRequestSmartArtistFix,
+    this.onArtistDataChanged,
     this.onImportData,
     this.onDataImported,
     this.onExportData,
@@ -107,6 +108,7 @@ class SettingsPage extends StatefulWidget {
   final SettingsScanLibraryCallback? onScanLibrary;
   final List<LibrarySong> librarySongs;
   final VoidCallback? onRequestSmartArtistFix;
+  final FutureOr<void> Function()? onArtistDataChanged;
   final FutureOr<bool> Function()? onImportData;
   final FutureOr<void> Function()? onDataImported;
   final FutureOr<bool> Function()? onExportData;
@@ -733,6 +735,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     try {
       await widget.libraryRepository.applyArtistSplits(splits);
+      await widget.onArtistDataChanged?.call();
       if (!mounted) {
         return;
       }
@@ -917,6 +920,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     await widget.libraryRepository.applyArtistSplits(splits);
+    await widget.onArtistDataChanged?.call();
     if (!mounted) {
       return;
     }

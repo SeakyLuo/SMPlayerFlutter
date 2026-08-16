@@ -170,6 +170,7 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Stack(
+                clipBehavior: Clip.none,
                 children: [
                   _FolderArtwork(
                     dropTarget: dropTarget,

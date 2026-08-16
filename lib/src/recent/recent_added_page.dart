@@ -8,7 +8,8 @@ class _RecentAddedPage extends StatelessWidget {
     required this.customPlaylists,
     required this.selectedSongIds,
     required this.multiSelect,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.isPlaying,
     required this.onToggleMultiSelect,
     required this.onPlaySong,
     required this.onToggleSelection,
@@ -24,7 +25,8 @@ class _RecentAddedPage extends StatelessWidget {
   final List<MultiSelectCommandBarPlaylist> customPlaylists;
   final Set<int> selectedSongIds;
   final bool multiSelect;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final bool isPlaying;
   final VoidCallback onToggleMultiSelect;
   final void Function(
     LibrarySong song,
@@ -77,7 +79,8 @@ class _RecentAddedPage extends StatelessWidget {
             queueSongIds: songs.map((song) => song.id).toList(),
             selectedSongIds: selectedSongIds,
             multiSelect: multiSelect,
-            mediaControlState: mediaControlState,
+            currentTrackId: currentTrackId,
+            isPlaying: isPlaying,
             getTimelineDate: (song) => song.dateAdded,
             getDetailLabel: (song) => formatRecentDateTime(song.dateAdded),
             onPlaySong: onPlaySong,

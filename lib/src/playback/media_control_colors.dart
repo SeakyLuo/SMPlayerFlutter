@@ -36,17 +36,17 @@ class MediaControlSliderColors {
   );
 
   static const dark = MediaControlSliderColors(
-    progressActive: Color(0xdbffffff),
+    progressActive: MediaControlColors.accent,
     progressInactive: Color(0x33ffffff),
-    progressThumb: Colors.white,
+    progressThumb: MediaControlColors.accent,
     progressThumbShadow: BoxShadow(
       color: Color(0x61000000),
       offset: Offset(0, 1),
       blurRadius: 8,
     ),
-    volumeActive: Color(0xdbffffff),
+    volumeActive: MediaControlColors.accent,
     volumeInactive: Color(0x2ecbd5e1),
-    volumeThumb: Colors.white,
+    volumeThumb: MediaControlColors.accent,
   );
 
   static const volumeThumbShadow = BoxShadow(

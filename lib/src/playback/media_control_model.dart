@@ -198,6 +198,8 @@ class MediaControlState {
 }
 
 class MediaControlController extends ChangeNotifier {
+  static const _progressNotifyIntervalSeconds = 0.20;
+
   MediaControlController([
     MediaControlState? initialState,
     ValueChanged<PlaybackSettingsUpdate>? onPlaybackSettingsUpdate,
@@ -407,6 +409,11 @@ class MediaControlController extends ChangeNotifier {
     final nextProgress = progressSeconds.clamp(0, nextDuration).toDouble();
     if (_state.progressSeconds == nextProgress &&
         _state.durationSeconds == nextDuration) {
+      return;
+    }
+    if (_state.durationSeconds == nextDuration &&
+        (nextProgress - _state.progressSeconds).abs() <
+            _progressNotifyIntervalSeconds) {
       return;
     }
 

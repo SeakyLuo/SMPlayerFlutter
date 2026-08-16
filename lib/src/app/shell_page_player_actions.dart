@@ -2,44 +2,53 @@ part of 'shell_page.dart';
 
 extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
   Widget _buildMiniModeHost() {
-    return AnimatedBuilder(
-      animation: _mediaControlController,
-      builder: (context, _) {
-        return Consumer(
-          builder: (context, ref, _) {
-            final mediaControlState = _mediaControlController.state;
-            final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-            final recentSongs =
-                ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-                const <RecentLibrarySong>[];
-            _scheduleRestorePlaybackTrack(snapshot);
-            final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
-            _ensurePlayerArtworkResolved(currentSong, ref);
-            final settings = _settingsController.snapshot;
-            final playbackSongIds =
-                snapshot == null ? const <int>[] : _playbackSongIds(snapshot);
-            final previousButtonRestartsTrack =
-                playbackSongIds.isNotEmpty &&
-                shouldRestartCurrentTrackForPrevious(
-                  progressSeconds: mediaControlState.progressSeconds,
-                  queueLength: playbackSongIds.length,
-                  restartAfterThresholdEnabled:
-                      settings.previousButtonRestartsTrack,
-                );
-            final i18n =
-                ref.watch(smPlayerI18nProvider).valueOrNull ??
-                const SmPlayerI18n(
-                  locale: smPlayerFallbackLocale,
-                  messages: {},
-                );
-            _syncDesktopFeatures(
-              i18n: i18n,
-              snapshot: snapshot,
-              recentSongs: recentSongs,
-              mediaControlState: mediaControlState,
-              currentSong: currentSong,
+    return Consumer(
+      builder: (context, ref, _) {
+        ref.watch(
+          mediaControlControllerProvider.select(
+            (controller) => (
+              track: controller.state.track,
+              selectedQueueIndex: controller.state.selectedQueueIndex,
+              disabled: controller.state.disabled,
+              isPlaying: controller.state.isPlaying,
+              playbackStatus: controller.state.playbackStatus,
+              volume: controller.state.volume,
+              isMuted: controller.state.isMuted,
+              mode: controller.state.mode,
+              durationSeconds: controller.state.durationSeconds,
+              isProgressSeeking: controller.state.isProgressSeeking,
+              restartThresholdReached:
+                  controller.state.progressSeconds >
+                  previousTrackRestartThresholdSeconds,
+            ),
+          ),
+        );
+        final mediaControlState = _mediaControlController.state;
+        final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+        final recentSongs =
+            ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+            const <RecentLibrarySong>[];
+        _scheduleRestorePlaybackTrack(snapshot);
+        final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
+        _ensurePlayerArtworkResolved(currentSong, ref);
+        final settings = _settingsController.snapshot;
+        final playbackSongIds =
+            snapshot == null ? const <int>[] : _playbackSongIds(snapshot);
+        final previousButtonRestartsTrack =
+            playbackSongIds.isNotEmpty &&
+            shouldRestartCurrentTrackForPrevious(
+              progressSeconds: mediaControlState.progressSeconds,
+              queueLength: playbackSongIds.length,
+              restartAfterThresholdEnabled:
+                  settings.previousButtonRestartsTrack,
             );
-            return MiniModeSurface(
+        final i18n =
+            ref.watch(smPlayerI18nProvider).valueOrNull ??
+            const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            MiniModeSurface(
               state: mediaControlState,
               i18n: i18n,
               currentSong: currentSong,
@@ -80,8 +89,25 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
                       : null,
               onWindowDragStart: _startWindowDrag,
               onWindowDragEnd: _stopWindowDrag,
-            );
-          },
+            ),
+            Consumer(
+              builder: (context, ref, _) {
+                ref.watch(
+                  mediaControlControllerProvider.select(
+                    (controller) => controller.state.progressSeconds.round(),
+                  ),
+                );
+                _syncDesktopFeatures(
+                  i18n: i18n,
+                  snapshot: snapshot,
+                  recentSongs: recentSongs,
+                  mediaControlState: _mediaControlController.state,
+                  currentSong: currentSong,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
         );
       },
     );

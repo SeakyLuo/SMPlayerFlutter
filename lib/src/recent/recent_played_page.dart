@@ -14,7 +14,8 @@ class _RecentPlayedPage extends ConsumerWidget {
     required this.multiSelect,
     required this.selectedSongIds,
     required this.selectedCollectionKeys,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.isPlaying,
     required this.onFilterChanged,
     required this.onToggleMultiSelect,
     required this.onClearSelection,
@@ -42,7 +43,8 @@ class _RecentPlayedPage extends ConsumerWidget {
   final bool multiSelect;
   final Set<int> selectedSongIds;
   final Set<String> selectedCollectionKeys;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final bool isPlaying;
   final ValueChanged<RecentPlayedFilter> onFilterChanged;
   final VoidCallback onToggleMultiSelect;
   final VoidCallback onClearSelection;
@@ -126,7 +128,8 @@ class _RecentPlayedPage extends ConsumerWidget {
             multiSelect: multiSelect,
             selectedSongIds: selectedSongIds,
             selectedCollectionKeys: selectedCollectionKeys,
-            mediaControlState: mediaControlState,
+            currentTrackId: currentTrackId,
+            isPlaying: isPlaying,
             onPlaySongs: onPlaySongs,
             onPlaySong: onPlaySong,
             onToggleSongSelection: onToggleSongSelection,

@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -20,6 +21,7 @@ import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/hold_release_action.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
 part 'media_control_frame.dart';
@@ -103,7 +105,7 @@ double resolvePlayerDurationSeconds(
 typedef MediaControlLeadingBuilder =
     Widget Function(BuildContext context, bool compact);
 
-class MediaControl extends StatelessWidget {
+class MediaControl extends StatefulWidget {
   const MediaControl({
     super.key,
     required this.track,
@@ -224,6 +226,123 @@ class MediaControl extends StatelessWidget {
   final ValueChanged<BuildContext>? onMoreClick;
 
   @override
+  State<MediaControl> createState() => _MediaControlState();
+}
+
+class _MediaControlState extends State<MediaControl> {
+  List<MenuFlyoutItem>? _randomPlaySubmenu;
+  List<int>? _cachedNowPlayingSongIds;
+  List<LibrarySong>? _cachedLibrarySongs;
+  List<LibrarySong>? _cachedRecentSongs;
+  List<LibraryPlaylist>? _cachedPlaylists;
+  List<LibraryFolder>? _cachedFolders;
+  bool? _cachedCanPlaySongs;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cachedLibrarySongs = null;
+  }
+
+  MediaControlTrack get track => widget.track;
+  LibrarySong? get currentSong => widget.currentSong;
+  List<int> get nowPlayingSongIds => widget.nowPlayingSongIds;
+  List<LibrarySong> get librarySongs => widget.librarySongs;
+  List<LibrarySong> get recentSongs => widget.recentSongs;
+  List<LibraryPlaylist> get playlists => widget.playlists;
+  List<LibraryFolder> get folders => widget.folders;
+  ValueChanged<List<int>>? get onPlaySongs => widget.onPlaySongs;
+  VoidCallback? get onPlayArtist => widget.onPlayArtist;
+  VoidCallback? get onPlayAlbum => widget.onPlayAlbum;
+  bool get disabled => widget.disabled;
+  bool get isPlaying => widget.isPlaying;
+  int get volume => widget.volume;
+  bool get isMuted => widget.isMuted;
+  PlaybackMode get mode => widget.mode;
+  double get progressSeconds => widget.progressSeconds;
+  double get durationSeconds => widget.durationSeconds;
+  bool get previousButtonRestartsTrack => widget.previousButtonRestartsTrack;
+  String? get playbackNoticeKey => widget.playbackNoticeKey;
+  String? get currentLyricsLine => widget.currentLyricsLine;
+  VoidCallback get onTogglePlayPause => widget.onTogglePlayPause;
+  VoidCallback get onPrevious => widget.onPrevious;
+  VoidCallback? get onForcePrevious => widget.onForcePrevious;
+  VoidCallback get onNext => widget.onNext;
+  ValueChanged<double> get onSeek => widget.onSeek;
+  VoidCallback get onBeginSeek => widget.onBeginSeek;
+  VoidCallback get onEndSeek => widget.onEndSeek;
+  ValueChanged<int> get onVolumeChange => widget.onVolumeChange;
+  VoidCallback get onToggleMute => widget.onToggleMute;
+  VoidCallback get onToggleShuffle => widget.onToggleShuffle;
+  VoidCallback get onToggleRepeat => widget.onToggleRepeat;
+  VoidCallback get onToggleRepeatOne => widget.onToggleRepeatOne;
+  VoidCallback get onToggleFavorite => widget.onToggleFavorite;
+  bool get desktopLyricsEnabled => widget.desktopLyricsEnabled;
+  VoidCallback? get onToggleDesktopLyrics => widget.onToggleDesktopLyrics;
+  VoidCallback get onQuickPlay => widget.onQuickPlay;
+  VoidCallback get onOpenNowPlaying => widget.onOpenNowPlaying;
+  VoidCallback? get onToggleWindowFullScreen => widget.onToggleWindowFullScreen;
+  bool get isWindowFullScreen => widget.isWindowFullScreen;
+  VoidCallback? get onEnterMiniMode => widget.onEnterMiniMode;
+  VoidCallback? get onOpenVoiceAssistant => widget.onOpenVoiceAssistant;
+  String? get preferenceLevel => widget.preferenceLevel;
+  FutureOr<String?> Function()? get onResolvePreferenceLevel =>
+      widget.onResolvePreferenceLevel;
+  VoidCallback? get onAddToNowPlaying => widget.onAddToNowPlaying;
+  ValueChanged<String>? get onCreatePlaylist => widget.onCreatePlaylist;
+  ValueChanged<int>? get onAddToPlaylist => widget.onAddToPlaylist;
+  VoidCallback? get onUndoPreference => widget.onUndoPreference;
+  ValueChanged<String>? get onSetPreference => widget.onSetPreference;
+  VoidCallback? get onSeeArtist => widget.onSeeArtist;
+  VoidCallback? get onSeeAlbum => widget.onSeeAlbum;
+  VoidCallback? get onSeeMusicInfo => widget.onSeeMusicInfo;
+  VoidCallback? get onSeeLyrics => widget.onSeeLyrics;
+  VoidCallback? get onSeeAlbumArt => widget.onSeeAlbumArt;
+  VoidCallback? get onSeeLocal => widget.onSeeLocal;
+  VoidCallback? get onArtworkError => widget.onArtworkError;
+  MediaControlLeadingBuilder? get leadingBuilder => widget.leadingBuilder;
+  ValueChanged<BuildContext>? get onMoreClick => widget.onMoreClick;
+
+  List<MenuFlyoutItem>? _resolveRandomPlaySubmenu(BuildContext context) {
+    final canPlaySongs = onPlaySongs != null;
+    if (!identical(_cachedNowPlayingSongIds, nowPlayingSongIds) ||
+        !identical(_cachedLibrarySongs, librarySongs) ||
+        !identical(_cachedRecentSongs, recentSongs) ||
+        !identical(_cachedPlaylists, playlists) ||
+        !identical(_cachedFolders, folders) ||
+        _cachedCanPlaySongs != canPlaySongs) {
+      _cachedNowPlayingSongIds = nowPlayingSongIds;
+      _cachedLibrarySongs = librarySongs;
+      _cachedRecentSongs = recentSongs;
+      _cachedPlaylists = playlists;
+      _cachedFolders = folders;
+      _cachedCanPlaySongs = canPlaySongs;
+      final songsById = {for (final song in librarySongs) song.id: song};
+      final queueSongs = [
+        for (final songId in nowPlayingSongIds)
+          if (songsById[songId] case final song?) song,
+      ];
+      _randomPlaySubmenu =
+          onPlaySongs == null
+              ? null
+              : buildShuffleMenuFlyoutItems(
+                i18n: _mediaControlI18n(context),
+                songs: queueSongs,
+                librarySongs: librarySongs,
+                recentSongs: recentSongs,
+                playlists: playlists,
+                folders: folders,
+                randomLimit: quickPlayDefaultLimit,
+                onPlaySongs: (songIds) {
+                  widget.onPlaySongs!(songIds);
+                },
+                includeQuickPlay: false,
+              );
+    }
+    return _randomPlaySubmenu;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final artworkPath = resolvePlayerArtworkPath(track, currentSong);
     final effectiveDurationSeconds = resolvePlayerDurationSeconds(
@@ -252,25 +371,7 @@ class MediaControl extends StatelessWidget {
         final sliderColors = MediaControlSliderColors.forBrightness(
           Theme.of(context).brightness,
         );
-        final songsById = {for (final song in librarySongs) song.id: song};
-        final queueSongs = [
-          for (final songId in nowPlayingSongIds)
-            if (songsById[songId] case final song?) song,
-        ];
-        final randomPlaySubmenu =
-            onPlaySongs == null
-                ? null
-                : buildShuffleMenuFlyoutItems(
-                  i18n: _mediaControlI18n(context),
-                  songs: queueSongs,
-                  librarySongs: librarySongs,
-                  recentSongs: recentSongs,
-                  playlists: playlists,
-                  folders: folders,
-                  randomLimit: quickPlayDefaultLimit,
-                  onPlaySongs: onPlaySongs!,
-                  includeQuickPlay: false,
-                );
+        final randomPlaySubmenu = _resolveRandomPlaySubmenu(context);
 
         return SizedBox(
           height: SmPlayerShellMetrics.playerHeight,

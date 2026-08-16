@@ -6,7 +6,8 @@ class _RecentSongGrid extends StatelessWidget {
     required this.queueSongIds,
     required this.selectedSongIds,
     required this.multiSelect,
-    required this.mediaControlState,
+    required this.currentTrackId,
+    required this.isPlaying,
     required this.getTimelineDate,
     required this.getDetailLabel,
     required this.onPlaySong,
@@ -22,7 +23,8 @@ class _RecentSongGrid extends StatelessWidget {
   final List<int> queueSongIds;
   final Set<int> selectedSongIds;
   final bool multiSelect;
-  final MediaControlState mediaControlState;
+  final int? currentTrackId;
+  final bool isPlaying;
   final String Function(LibrarySong song) getTimelineDate;
   final String Function(LibrarySong song) getDetailLabel;
   final void Function(
@@ -130,12 +132,10 @@ class _RecentSongGrid extends StatelessWidget {
                                       selected: selectedSongIds.contains(
                                         song.id,
                                       ),
-                                      current:
-                                          song.id == mediaControlState.track.id,
+                                      current: song.id == currentTrackId,
                                       playing:
-                                          song.id ==
-                                              mediaControlState.track.id &&
-                                          mediaControlState.isPlaying,
+                                          song.id == currentTrackId &&
+                                          isPlaying,
                                       multiSelect: multiSelect,
                                       metrics: metrics,
                                       onPlayTrack: () {

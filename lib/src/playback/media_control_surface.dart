@@ -102,15 +102,6 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
 
   @override
   Widget build(BuildContext context) {
-    final progressSeconds =
-        _isProgressSeeking ? _draftProgressSeconds : widget.progressSeconds;
-    final progressMax =
-        widget.durationSeconds > 0 ? widget.durationSeconds : 0.0;
-    final progressValue =
-        widget.disabled || progressMax <= 0
-            ? 0.0
-            : progressSeconds.clamp(0, progressMax).toDouble();
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final narrow = widget.includeUtility && constraints.maxWidth <= 452;
@@ -126,9 +117,8 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
           isPlaying: widget.isPlaying,
           condensed: condensed,
           navMinimal: widget.navMinimal,
-          progressSeconds: progressValue,
-          progressValue: progressValue,
-          progressMax: progressMax,
+          progressSeconds: _draftProgressSeconds,
+          isProgressSeeking: _isProgressSeeking,
           durationSeconds: widget.durationSeconds,
           progressSideOverflow: widget.progressSideOverflow,
           playButtonDisabled: widget.playButtonDisabled,
@@ -149,10 +139,10 @@ class _MediaControlSurfaceState extends State<MediaControlSurface> {
               _draftProgressSeconds = value;
             });
           },
-          onSeekBegin: () {
+          onSeekBegin: (progressSeconds) {
             setState(() {
               _isProgressSeeking = true;
-              _draftProgressSeconds = progressValue;
+              _draftProgressSeconds = progressSeconds;
             });
             widget.onBeginSeek();
           },
@@ -218,8 +208,7 @@ class MediaControlButtons extends StatelessWidget {
     required this.condensed,
     required this.navMinimal,
     required this.progressSeconds,
-    required this.progressValue,
-    required this.progressMax,
+    required this.isProgressSeeking,
     required this.durationSeconds,
     required this.progressSideOverflow,
     this.playButtonDisabled,
@@ -245,8 +234,7 @@ class MediaControlButtons extends StatelessWidget {
   final bool condensed;
   final bool navMinimal;
   final double progressSeconds;
-  final double progressValue;
-  final double progressMax;
+  final bool isProgressSeeking;
   final double durationSeconds;
   final double progressSideOverflow;
   final bool? playButtonDisabled;
@@ -262,7 +250,7 @@ class MediaControlButtons extends StatelessWidget {
   final VoidCallback? onForcePrevious;
   final VoidCallback onNext;
   final ValueChanged<double> onSeekChange;
-  final VoidCallback onSeekBegin;
+  final ValueChanged<double> onSeekBegin;
   final ValueChanged<double> onSeekEnd;
 
   @override
@@ -381,84 +369,111 @@ class MediaControlButtons extends StatelessWidget {
         if (navMinimalTransportOffset > 0)
           SizedBox(height: navMinimalTransportOffset),
         if (centerGap > 0) SizedBox(height: centerGap),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final progressWidth =
-                constraints.maxWidth + progressSideOverflow * 2;
-            return SizedBox(
-              key: const ValueKey('MediaControl.ProgressRow'),
-              height: progressHeight,
-              child: OverflowBox(
-                alignment: Alignment.centerLeft,
-                minWidth: progressWidth,
-                maxWidth: progressWidth,
-                minHeight: progressHeight,
-                maxHeight: progressHeight,
-                child: Transform.translate(
-                  offset: Offset(-progressSideOverflow, 0),
-                  child: SizedBox(
-                    width: progressWidth,
-                    height: progressHeight,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: progressHorizontalInset,
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            key: const ValueKey(
-                              'MediaControl.ProgressElapsedColumn',
-                            ),
-                            width: progressTextWidth,
-                            child: Text(
-                              formatDuration(progressSeconds),
-                              style: TextStyle(
-                                fontSize: progressTextSize,
-                              ).copyWith(color: textMuted),
-                            ),
+        Consumer(
+          builder: (context, ref, _) {
+            final playbackProgress = ref.watch(
+              mediaControlControllerProvider.select(
+                (controller) => (
+                  progressSeconds: controller.state.progressSeconds,
+                  durationSeconds: controller.state.durationSeconds,
+                ),
+              ),
+            );
+            final progressMax =
+                playbackProgress.durationSeconds > 0
+                    ? playbackProgress.durationSeconds
+                    : durationSeconds > 0
+                    ? durationSeconds
+                    : 0.0;
+            final liveProgressSeconds =
+                isProgressSeeking
+                    ? progressSeconds
+                    : playbackProgress.progressSeconds;
+            final progressValue =
+                disabled || progressMax <= 0
+                    ? 0.0
+                    : liveProgressSeconds.clamp(0, progressMax).toDouble();
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final progressWidth =
+                    constraints.maxWidth + progressSideOverflow * 2;
+                return SizedBox(
+                  key: const ValueKey('MediaControl.ProgressRow'),
+                  height: progressHeight,
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: progressWidth,
+                    maxWidth: progressWidth,
+                    minHeight: progressHeight,
+                    maxHeight: progressHeight,
+                    child: Transform.translate(
+                      offset: Offset(-progressSideOverflow, 0),
+                      child: SizedBox(
+                        width: progressWidth,
+                        height: progressHeight,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: progressHorizontalInset,
                           ),
-                          SizedBox(width: progressGap),
-                          Expanded(
-                            child:
-                                isLoading
-                                    ? const _MediaProgressLoading()
-                                    : _MediaProgressSlider(
-                                      value: progressValue,
-                                      max: progressMax,
-                                      disabled:
-                                          disabled || durationSeconds <= 0,
-                                      onChanged: onSeekChange,
-                                      onChangeStart: (_) {
-                                        onSeekBegin();
-                                      },
-                                      onChangeEnd: onSeekEnd,
-                                      activeTrackColor: sliderActiveColor,
-                                      inactiveTrackColor: sliderInactiveColor,
-                                      thumbColor: sliderThumbColor,
-                                      thumbShadow: sliderThumbShadow,
-                                      overlayColor: sliderOverlayColor,
-                                    ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                key: const ValueKey(
+                                  'MediaControl.ProgressElapsedColumn',
+                                ),
+                                width: progressTextWidth,
+                                child: Text(
+                                  formatDuration(progressValue),
+                                  style: TextStyle(
+                                    fontSize: progressTextSize,
+                                  ).copyWith(color: textMuted),
+                                ),
+                              ),
+                              SizedBox(width: progressGap),
+                              Expanded(
+                                child:
+                                    isLoading
+                                        ? const _MediaProgressLoading()
+                                        : _MediaProgressSlider(
+                                          value: progressValue,
+                                          max: progressMax,
+                                          disabled:
+                                              disabled || progressMax <= 0,
+                                          onChanged: onSeekChange,
+                                          onChangeStart: (value) {
+                                            onSeekBegin(value);
+                                          },
+                                          onChangeEnd: onSeekEnd,
+                                          activeTrackColor: sliderActiveColor,
+                                          inactiveTrackColor:
+                                              sliderInactiveColor,
+                                          thumbColor: sliderThumbColor,
+                                          thumbShadow: sliderThumbShadow,
+                                          overlayColor: sliderOverlayColor,
+                                        ),
+                              ),
+                              SizedBox(width: progressGap),
+                              SizedBox(
+                                key: const ValueKey(
+                                  'MediaControl.ProgressDurationColumn',
+                                ),
+                                width: progressTextWidth,
+                                child: Text(
+                                  formatDuration(progressMax),
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontSize: progressTextSize,
+                                  ).copyWith(color: textMuted),
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(width: progressGap),
-                          SizedBox(
-                            key: const ValueKey(
-                              'MediaControl.ProgressDurationColumn',
-                            ),
-                            width: progressTextWidth,
-                            child: Text(
-                              formatDuration(durationSeconds),
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                fontSize: progressTextSize,
-                              ).copyWith(color: textMuted),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         ),

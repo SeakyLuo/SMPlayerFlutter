@@ -93,6 +93,7 @@ class FlutterWindow : public Win32Window {
   bool desktop_lyrics_loading_ = false;
   bool desktop_lyrics_night_mode_ = true;
   bool desktop_lyrics_playing_ = false;
+  bool desktop_lyrics_scrolling_ = false;
   bool desktop_lyrics_panel_visible_ = false;
   bool desktop_lyrics_tracking_mouse_leave_ = false;
   std::string desktop_lyrics_hovered_button_command_;

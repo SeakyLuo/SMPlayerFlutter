@@ -165,7 +165,7 @@ void _jumpToArtistKeyForArtistsPage(
 void _scrollToArtistForArtistsPage(_ArtistsPageState state, String artistName) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final i18n = state.ref.read(smPlayerI18nProvider).valueOrNull!;
-  final artistGroups = buildArtistGroups(snapshot.songs, i18n);
+  final artistGroups = state._readArtistGroups(snapshot, i18n);
   final artistIndex = artistGroups.indexWhere(
     (artist) => artist.name == artistName,
   );

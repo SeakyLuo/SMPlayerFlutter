@@ -14,6 +14,9 @@ const appNotificationDuration = Duration(seconds: 2);
 const _appNotificationRadius = 8.0;
 
 _AppNotificationController? _currentNotification;
+final _notificationPresentation = ValueNotifier<_AppNotificationPresentation?>(
+  null,
+);
 
 enum AppNotificationClosedReason { hide, action, timeout }
 
@@ -142,20 +145,38 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
   _currentNotification?.close(AppNotificationClosedReason.hide);
 
   final controller = _AppNotificationController();
-  final overlay = Overlay.of(context, rootOverlay: true);
   final resolvedActions =
       actions ??
       (actionLabel == null || onAction == null
           ? const <AppNotificationAction>[]
           : [AppNotificationAction(label: actionLabel, onPressed: onAction)]);
-  final hasAction = resolvedActions.isNotEmpty;
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder:
-        (context) => _AppNotificationOverlay(
-          message: message,
-          actions: resolvedActions,
-          bottomAligned: hasAction,
+  _notificationPresentation.value = _AppNotificationPresentation(
+    controller: controller,
+    message: message,
+    actions: resolvedActions,
+  );
+
+  _currentNotification = controller;
+  controller.startTimer(duration);
+  return controller.closed;
+}
+
+class AppNotificationHost extends StatelessWidget {
+  const AppNotificationHost({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<_AppNotificationPresentation?>(
+      valueListenable: _notificationPresentation,
+      builder: (context, presentation, _) {
+        if (presentation == null) {
+          return const SizedBox.shrink();
+        }
+        final controller = presentation.controller;
+        return _AppNotificationOverlay(
+          message: presentation.message,
+          actions: presentation.actions,
+          bottomAligned: presentation.actions.isNotEmpty,
           runningActionIndex: controller.runningActionIndex,
           onHoverChanged: (hovered) {
             if (hovered) {
@@ -168,26 +189,33 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
             controller.close(AppNotificationClosedReason.hide);
           },
           onAction: (actionIndex) async {
-            final action = resolvedActions[actionIndex];
+            final action = presentation.actions[actionIndex];
             controller.setRunning(actionIndex);
             await SchedulerBinding.instance.endOfFrame;
             await Future<void>.sync(action.onPressed);
             controller.close(AppNotificationClosedReason.action);
           },
-        ),
-  );
+        );
+      },
+    );
+  }
+}
 
-  controller.attach(entry);
-  _currentNotification = controller;
-  overlay.insert(entry);
-  controller.startTimer(duration);
-  return controller.closed;
+class _AppNotificationPresentation {
+  const _AppNotificationPresentation({
+    required this.controller,
+    required this.message,
+    required this.actions,
+  });
+
+  final _AppNotificationController controller;
+  final String message;
+  final List<AppNotificationAction> actions;
 }
 
 class _AppNotificationController {
   final closedCompleter = Completer<AppNotificationClosedReason>();
   final runningActionIndex = ValueNotifier<int?>(null);
-  OverlayEntry? entry;
   Timer? timer;
   Duration _remainingDuration = Duration.zero;
   DateTime? _timeoutAt;
@@ -195,10 +223,6 @@ class _AppNotificationController {
   bool _timerPaused = false;
 
   Future<AppNotificationClosedReason> get closed => closedCompleter.future;
-
-  void attach(OverlayEntry overlayEntry) {
-    entry = overlayEntry;
-  }
 
   void startTimer(Duration duration) {
     _remainingDuration = duration;
@@ -254,8 +278,9 @@ class _AppNotificationController {
     isClosed = true;
     timer?.cancel();
     _timeoutAt = null;
-    entry?.remove();
-    entry = null;
+    if (_notificationPresentation.value?.controller == this) {
+      _notificationPresentation.value = null;
+    }
     runningActionIndex.dispose();
     if (_currentNotification == this) {
       _currentNotification = null;

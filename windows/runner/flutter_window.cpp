@@ -129,12 +129,13 @@ std::wstring EncodableString(const flutter::EncodableMap& map, const char* key) 
   return value == nullptr ? std::wstring() : Utf16FromUtf8(*value);
 }
 
-HICON CreateTaskbarGlyphIcon(const wchar_t* glyph) {
-  constexpr int kIconSize = 32;
+HICON CreateTaskbarGlyphIcon(const wchar_t* glyph, COLORREF color) {
+  const int icon_width = ::GetSystemMetrics(SM_CXICON);
+  const int icon_height = ::GetSystemMetrics(SM_CYICON);
   BITMAPV5HEADER bitmap_header = {};
   bitmap_header.bV5Size = sizeof(BITMAPV5HEADER);
-  bitmap_header.bV5Width = kIconSize;
-  bitmap_header.bV5Height = -kIconSize;
+  bitmap_header.bV5Width = icon_width;
+  bitmap_header.bV5Height = -icon_height;
   bitmap_header.bV5Planes = 1;
   bitmap_header.bV5BitCount = 32;
   bitmap_header.bV5Compression = BI_BITFIELDS;
@@ -151,23 +152,26 @@ HICON CreateTaskbarGlyphIcon(const wchar_t* glyph) {
   HDC memory_dc = ::CreateCompatibleDC(screen_dc);
   HGDIOBJ old_bitmap = ::SelectObject(memory_dc, color_bitmap);
 
-  HFONT font = ::CreateFontW(-22, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                             CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                             DEFAULT_PITCH | FF_DONTCARE,
-                             L"Segoe MDL2 Assets");
+  HFONT font = ::CreateFontW(
+      -MulDiv(22, icon_height, 32), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+      ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+      L"Segoe MDL2 Assets");
   HGDIOBJ old_font = ::SelectObject(memory_dc, font);
   ::SetBkMode(memory_dc, TRANSPARENT);
   ::SetTextColor(memory_dc, RGB(255, 255, 255));
-  RECT rect{0, 0, kIconSize, kIconSize};
+  RECT rect{0, 0, icon_width, icon_height};
   ::DrawTextW(memory_dc, glyph, -1, &rect,
               DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
   auto* pixels = static_cast<uint32_t*>(bits);
-  for (int index = 0; index < kIconSize * kIconSize; index += 1) {
-    if ((pixels[index] & 0x00ffffff) != 0) {
-      pixels[index] |= 0xff000000;
-    }
+  const uint32_t blue = GetBValue(color);
+  const uint32_t green = GetGValue(color);
+  const uint32_t red = GetRValue(color);
+  for (int index = 0; index < icon_width * icon_height; index += 1) {
+    const uint32_t coverage = pixels[index] & 0xff;
+    pixels[index] = coverage << 24 | red * coverage / 255 << 16 |
+                    green * coverage / 255 << 8 | blue * coverage / 255;
   }
 
   ::SelectObject(memory_dc, old_font);
@@ -175,7 +179,10 @@ HICON CreateTaskbarGlyphIcon(const wchar_t* glyph) {
   ::SelectObject(memory_dc, old_bitmap);
   ::DeleteDC(memory_dc);
 
-  HBITMAP mask_bitmap = ::CreateBitmap(kIconSize, kIconSize, 1, 1, nullptr);
+  const int mask_stride = ((icon_width + 15) / 16) * 2;
+  std::vector<unsigned char> mask_pixels(mask_stride * icon_height, 0);
+  HBITMAP mask_bitmap = ::CreateBitmap(icon_width, icon_height, 1, 1,
+                                       mask_pixels.data());
   ICONINFO icon_info = {};
   icon_info.fIcon = TRUE;
   icon_info.hbmColor = color_bitmap;
@@ -569,17 +576,19 @@ void FlutterWindow::EnsureTaskbarToolbar() {
     }
   }
 
+  const COLORREF icon_color =
+      IsDarkModePreferred() ? RGB(245, 248, 252) : RGB(32, 38, 46);
   if (taskbar_previous_icon_ == nullptr) {
-    taskbar_previous_icon_ = CreateTaskbarGlyphIcon(L"\xE100");
+    taskbar_previous_icon_ = CreateTaskbarGlyphIcon(L"\xE100", icon_color);
   }
   if (taskbar_play_icon_ == nullptr) {
-    taskbar_play_icon_ = CreateTaskbarGlyphIcon(L"\xE102");
+    taskbar_play_icon_ = CreateTaskbarGlyphIcon(L"\xE102", icon_color);
   }
   if (taskbar_pause_icon_ == nullptr) {
-    taskbar_pause_icon_ = CreateTaskbarGlyphIcon(L"\xE103");
+    taskbar_pause_icon_ = CreateTaskbarGlyphIcon(L"\xE103", icon_color);
   }
   if (taskbar_next_icon_ == nullptr) {
-    taskbar_next_icon_ = CreateTaskbarGlyphIcon(L"\xE101");
+    taskbar_next_icon_ = CreateTaskbarGlyphIcon(L"\xE101", icon_color);
   }
   if (taskbar_previous_icon_ == nullptr || taskbar_play_icon_ == nullptr ||
       taskbar_pause_icon_ == nullptr || taskbar_next_icon_ == nullptr) {
@@ -915,13 +924,14 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
         kDesktopLyricsWindowClass, L"Desktop Lyrics", WS_POPUP, bounds.left,
         bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top,
         nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
-    ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
+    ::SetTimer(desktop_lyrics_window_, 1, 100, nullptr);
   }
 
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
                      SWP_NOOWNERZORDER);
-  ::SetTimer(desktop_lyrics_window_, 1, 33, nullptr);
+  ::SetTimer(desktop_lyrics_window_, 1,
+             desktop_lyrics_scrolling_ ? 33 : 100, nullptr);
   if (!::IsWindowVisible(desktop_lyrics_window_)) {
     ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
   }
@@ -1076,8 +1086,16 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   bitmap_info.bmiHeader.biCompression = BI_RGB;
   void* bits = nullptr;
   HBITMAP bitmap = ::CreateDIBSection(screen_dc, &bitmap_info, DIB_RGB_COLORS,
-                                      &bits, nullptr, 0);
+                                       &bits, nullptr, 0);
   HGDIOBJ old_bitmap = ::SelectObject(hdc, bitmap);
+
+  void* text_mask_bits = nullptr;
+  HDC text_mask_dc = ::CreateCompatibleDC(screen_dc);
+  HBITMAP text_mask_bitmap = ::CreateDIBSection(
+      screen_dc, &bitmap_info, DIB_RGB_COLORS, &text_mask_bits, nullptr, 0);
+  HGDIOBJ old_text_mask_bitmap =
+      ::SelectObject(text_mask_dc, text_mask_bitmap);
+  HBRUSH text_mask_clear_brush = ::CreateSolidBrush(RGB(0, 0, 0));
 
   HBRUSH transparent_brush = ::CreateSolidBrush(RGB(0, 0, 0));
   ::FillRect(hdc, &rect, transparent_brush);
@@ -1097,6 +1115,104 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
       static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.16 : 0.38) * 255);
   const BYTE button_hover_background_alpha =
       static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.72 : 0.96) * 255);
+
+  auto* pixels = static_cast<unsigned char*>(bits);
+  std::vector<bool> premultiplied_pixels(width * height, false);
+  auto background_alpha = [&](const unsigned char* pixel) {
+    if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
+      return static_cast<BYTE>(0);
+    }
+    const bool card_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 18 && pixel[1] == 12 && pixel[2] == 8)
+            : (pixel[0] == 255 && pixel[1] == 250 && pixel[2] == 245);
+    const bool card_border =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 255 && pixel[1] == 254 && pixel[2] == 253)
+            : (pixel[0] == 42 && pixel[1] == 23 && pixel[2] == 15);
+    const bool button_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 16 && pixel[1] == 10 && pixel[2] == 6)
+            : (pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255);
+    const bool button_hover_background =
+        desktop_lyrics_night_mode_
+            ? (pixel[0] == 64 && pixel[1] == 52 && pixel[2] == 42)
+            : (pixel[0] == 240 && pixel[1] == 230 && pixel[2] == 222);
+    if (card_background) {
+      return card_background_alpha;
+    }
+    if (card_border) {
+      return card_border_alpha;
+    }
+    if (button_hover_background) {
+      return button_hover_background_alpha;
+    }
+    if (button_background) {
+      return button_background_alpha;
+    }
+    return static_cast<BYTE>(255);
+  };
+  auto premultiply_pixel = [&](int index) {
+    if (premultiplied_pixels[index]) {
+      return;
+    }
+    unsigned char* pixel = pixels + index * 4;
+    const BYTE alpha = background_alpha(pixel);
+    pixel[0] = static_cast<unsigned char>(pixel[0] * alpha / 255);
+    pixel[1] = static_cast<unsigned char>(pixel[1] * alpha / 255);
+    pixel[2] = static_cast<unsigned char>(pixel[2] * alpha / 255);
+    pixel[3] = alpha;
+    premultiplied_pixels[index] = true;
+  };
+  auto draw_alpha_text = [&](const std::wstring& text, RECT target,
+                             UINT format) {
+    RECT clip_bounds;
+    ::GetClipBox(hdc, &clip_bounds);
+    RECT mask_bounds;
+    if (!::IntersectRect(&mask_bounds, &target, &clip_bounds)) {
+      return;
+    }
+
+    ::FillRect(text_mask_dc, &mask_bounds, text_mask_clear_brush);
+    const int saved_mask_dc = ::SaveDC(text_mask_dc);
+    ::IntersectClipRect(text_mask_dc, clip_bounds.left, clip_bounds.top,
+                        clip_bounds.right, clip_bounds.bottom);
+    ::SelectObject(text_mask_dc, ::GetCurrentObject(hdc, OBJ_FONT));
+    ::SetBkMode(text_mask_dc, TRANSPARENT);
+    ::SetTextColor(text_mask_dc, RGB(255, 255, 255));
+    RECT mask_target = target;
+    ::DrawTextW(text_mask_dc, text.c_str(), -1, &mask_target, format);
+    ::RestoreDC(text_mask_dc, saved_mask_dc);
+
+    const COLORREF text_color = ::GetTextColor(hdc);
+    const unsigned char source_blue = GetBValue(text_color);
+    const unsigned char source_green = GetGValue(text_color);
+    const unsigned char source_red = GetRValue(text_color);
+    auto* mask_pixels = static_cast<unsigned char*>(text_mask_bits);
+    for (int y = mask_bounds.top; y < mask_bounds.bottom; y += 1) {
+      for (int x = mask_bounds.left; x < mask_bounds.right; x += 1) {
+        const int index = y * width + x;
+        const unsigned char coverage = mask_pixels[index * 4];
+        if (coverage == 0) {
+          continue;
+        }
+        premultiply_pixel(index);
+        unsigned char* pixel = pixels + index * 4;
+        const int inverse_coverage = 255 - coverage;
+        pixel[0] = static_cast<unsigned char>(
+            source_blue * coverage / 255 +
+            pixel[0] * inverse_coverage / 255);
+        pixel[1] = static_cast<unsigned char>(
+            source_green * coverage / 255 +
+            pixel[1] * inverse_coverage / 255);
+        pixel[2] = static_cast<unsigned char>(
+            source_red * coverage / 255 +
+            pixel[2] * inverse_coverage / 255);
+        pixel[3] = static_cast<unsigned char>(
+            coverage + pixel[3] * inverse_coverage / 255);
+      }
+    }
+  };
 
   RECT card = rect;
   ::InflateRect(&card, -scaled_metric(8), -scaled_metric(8));
@@ -1123,7 +1239,7 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     HFONT meta_font = ::CreateFontW(
         -scaled_metric(12), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
         desktop_lyrics_font_family_.c_str());
     HFONT old_meta_font = static_cast<HFONT>(::SelectObject(hdc, meta_font));
     ::SetBkMode(hdc, TRANSPARENT);
@@ -1137,8 +1253,8 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     RECT meta_rect{card.left + scaled_metric(18), card.top + scaled_metric(10),
                    card.right - scaled_metric(18),
                    card.top + scaled_metric(28)};
-    ::DrawTextW(hdc, meta_text.c_str(), -1, &meta_rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    draw_alpha_text(meta_text, meta_rect,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     ::SelectObject(hdc, old_meta_font);
     ::DeleteObject(meta_font);
 
@@ -1195,7 +1311,7 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   const int font_height = -scaled_metric(desktop_lyrics_font_size_);
   HFONT lyrics_font = ::CreateFontW(
       font_height, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-      OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+      OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
       DEFAULT_PITCH | FF_DONTCARE, desktop_lyrics_font_family_.c_str());
   HFONT old_font = static_cast<HFONT>(::SelectObject(hdc, lyrics_font));
   ::SetBkMode(hdc, TRANSPARENT);
@@ -1247,15 +1363,20 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
           }
           RECT stroke_rect = target;
           ::OffsetRect(&stroke_rect, dx, dy);
-          ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &stroke_rect,
-                      format);
+          draw_alpha_text(desktop_lyrics_text_, stroke_rect, format);
         }
       }
     }
     ::SetTextColor(hdc, desktop_lyrics_text_color_);
-    ::DrawTextW(hdc, desktop_lyrics_text_.c_str(), -1, &target, format);
+    draw_alpha_text(desktop_lyrics_text_, target, format);
   };
-  if (lyric_size.cx > text_width) {
+  const bool lyrics_scrolling = lyric_size.cx > text_width;
+  if (desktop_lyrics_scrolling_ != lyrics_scrolling) {
+    desktop_lyrics_scrolling_ = lyrics_scrolling;
+    ::SetTimer(desktop_lyrics_window_, 1, lyrics_scrolling ? 33 : 100,
+               nullptr);
+  }
+  if (lyrics_scrolling) {
     const int distance = lyric_size.cx - text_width;
     const int duration_ms =
         std::min(12000, std::max(5000, ((distance / scaled_metric(28)) + 4) *
@@ -1288,11 +1409,12 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     HFONT button_font = ::CreateFontW(
         -scaled_metric(11), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     HFONT icon_font = ::CreateFontW(
         -scaled_metric(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        L"Segoe MDL2 Assets");
     HFONT old_button_font =
         static_cast<HFONT>(::SelectObject(hdc, button_font));
     ::SetBkMode(hdc, TRANSPARENT);
@@ -1312,8 +1434,9 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
                  hovered ? button_hover_brush : button_brush);
       ::SelectObject(hdc, button.icon ? icon_font : button_font);
       RECT label_rect = button.bounds;
-      ::DrawTextW(hdc, button.label.c_str(), -1, &label_rect,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+      draw_alpha_text(button.label, label_rect,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE |
+                          DT_END_ELLIPSIS);
     }
     ::DeleteObject(button_hover_brush);
     ::DeleteObject(button_brush);
@@ -1325,43 +1448,11 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   ::SelectObject(hdc, old_font);
   ::DeleteObject(lyrics_font);
 
-  auto* pixels = static_cast<unsigned char*>(bits);
   for (int index = 0; index < width * height; index += 1) {
-    unsigned char* pixel = pixels + index * 4;
-    if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
-      pixel[3] = 0;
+    if (premultiplied_pixels[index]) {
       continue;
     }
-    const bool card_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 18 && pixel[1] == 12 && pixel[2] == 8)
-            : (pixel[0] == 255 && pixel[1] == 250 && pixel[2] == 245);
-    const bool card_border =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 255 && pixel[1] == 254 && pixel[2] == 253)
-            : (pixel[0] == 42 && pixel[1] == 23 && pixel[2] == 15);
-    const bool button_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 16 && pixel[1] == 10 && pixel[2] == 6)
-            : (pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255);
-    const bool button_hover_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 64 && pixel[1] == 52 && pixel[2] == 42)
-            : (pixel[0] == 240 && pixel[1] == 230 && pixel[2] == 222);
-    BYTE alpha = 255;
-    if (card_background) {
-      alpha = card_background_alpha;
-    } else if (card_border) {
-      alpha = card_border_alpha;
-    } else if (button_hover_background) {
-      alpha = button_hover_background_alpha;
-    } else if (button_background) {
-      alpha = button_background_alpha;
-    }
-    pixel[0] = static_cast<unsigned char>(pixel[0] * alpha / 255);
-    pixel[1] = static_cast<unsigned char>(pixel[1] * alpha / 255);
-    pixel[2] = static_cast<unsigned char>(pixel[2] * alpha / 255);
-    pixel[3] = alpha;
+    premultiply_pixel(index);
   }
 
   RECT window_rect;
@@ -1377,6 +1468,10 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
                         hdc, &source, 0, &blend, ULW_ALPHA);
 
   ::SelectObject(hdc, old_bitmap);
+  ::DeleteObject(text_mask_clear_brush);
+  ::SelectObject(text_mask_dc, old_text_mask_bitmap);
+  ::DeleteObject(text_mask_bitmap);
+  ::DeleteDC(text_mask_dc);
   ::DeleteObject(bitmap);
   ::DeleteDC(hdc);
   ::ReleaseDC(nullptr, screen_dc);
@@ -1458,21 +1553,26 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
       return 0;
     case WM_TIMER:
       {
+        bool repaint = window->desktop_lyrics_scrolling_;
         POINT cursor_position;
         RECT window_rect;
         if (::GetCursorPos(&cursor_position) &&
             ::GetWindowRect(hwnd, &window_rect) &&
             ::PtInRect(&window_rect, cursor_position)) {
           ::ScreenToClient(hwnd, &cursor_position);
-          window->UpdateDesktopLyricsPanelVisibility(cursor_position);
+          repaint |=
+              window->UpdateDesktopLyricsPanelVisibility(cursor_position);
         } else if (window->desktop_lyrics_panel_visible_) {
           window->desktop_lyrics_panel_visible_ = false;
           window->desktop_lyrics_tracking_mouse_leave_ = false;
           window->desktop_lyrics_hovered_button_command_.clear();
           window->desktop_lyrics_buttons_.clear();
+          repaint = true;
+        }
+        if (repaint) {
+          window->PaintDesktopLyricsWindow();
         }
       }
-      window->PaintDesktopLyricsWindow();
       return 0;
     case WM_PAINT:
       {

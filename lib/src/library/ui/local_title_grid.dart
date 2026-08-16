@@ -451,6 +451,22 @@ class _FolderChainItem extends StatefulWidget {
 
 class _FolderChainItemState extends State<_FolderChainItem> {
   var _hovered = false;
+  final _tooltipAnchorKey = GlobalKey();
+  OverlayEntry? _tooltipOverlayEntry;
+
+  @override
+  void didUpdateWidget(_FolderChainItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.path != widget.item.path) {
+      _removeTooltipOverlay();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeTooltipOverlay();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -458,50 +474,60 @@ class _FolderChainItemState extends State<_FolderChainItem> {
     final active = _hovered || widget.isOpen;
     final segment = Builder(
       builder: (segmentContext) {
-        final pathButton = Tooltip(
-          message: widget.item.name,
-          child: Listener(
-            key: ValueKey('FolderChain.Path.${widget.item.path}'),
-            behavior: HitTestBehavior.opaque,
-            onPointerDown: (event) {
-              if (event.buttons == kSecondaryMouseButton) {
-                widget.onOpenFolderMenu?.call(widget.item.path, event.position);
-              }
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap:
-                  widget.item.isCurrentItem
-                      ? () {
-                        if (!widget.shouldIgnoreTap()) {
-                          widget.onCurrentFolderClick();
-                        }
-                      }
-                      : () {
-                        if (!widget.shouldIgnoreTap()) {
-                          widget.onOpenFolder(widget.item.path);
-                        }
-                      },
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: widget.compact ? 36 : 32,
-                ),
-                child: Padding(
-                  padding:
-                      widget.compact
-                          ? const EdgeInsets.symmetric(horizontal: 6)
-                          : const EdgeInsets.fromLTRB(10, 0, 8, 0),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textStrong,
-                        fontSize: widget.compact ? 14 : 13,
-                        fontWeight: FontWeight.w600,
-                        height: 1,
+        final pathButton = MouseRegion(
+          onEnter: (_) => _showTooltipOverlay(),
+          onExit: (_) => _removeTooltipOverlay(),
+          child: KeyedSubtree(
+            key: _tooltipAnchorKey,
+            child: Semantics(
+              tooltip: widget.item.name,
+              child: Listener(
+                key: ValueKey('FolderChain.Path.${widget.item.path}'),
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
+                  if (event.buttons == kSecondaryMouseButton) {
+                    widget.onOpenFolderMenu?.call(
+                      widget.item.path,
+                      event.position,
+                    );
+                  }
+                },
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap:
+                      widget.item.isCurrentItem
+                          ? () {
+                            if (!widget.shouldIgnoreTap()) {
+                              widget.onCurrentFolderClick();
+                            }
+                          }
+                          : () {
+                            if (!widget.shouldIgnoreTap()) {
+                              widget.onOpenFolder(widget.item.path);
+                            }
+                          },
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: widget.compact ? 36 : 32,
+                    ),
+                    child: Padding(
+                      padding:
+                          widget.compact
+                              ? const EdgeInsets.symmetric(horizontal: 6)
+                              : const EdgeInsets.fromLTRB(10, 0, 8, 0),
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Text(
+                          widget.item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textStrong,
+                            fontSize: widget.compact ? 14 : 13,
+                            fontWeight: FontWeight.w600,
+                            height: 1,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -577,5 +603,76 @@ class _FolderChainItemState extends State<_FolderChainItem> {
       },
     );
     return segment;
+  }
+
+  void _showTooltipOverlay() {
+    if (_tooltipOverlayEntry != null) {
+      return;
+    }
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final anchorBox =
+        _tooltipAnchorKey.currentContext!.findRenderObject()! as RenderBox;
+    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
+    final anchorOrigin = overlayBox.globalToLocal(
+      anchorBox.localToGlobal(Offset.zero),
+    );
+    _tooltipOverlayEntry = OverlayEntry(
+      builder:
+          (context) => _FolderChainTooltipOverlay(
+            message: widget.item.name,
+            anchor: anchorOrigin & anchorBox.size,
+          ),
+    );
+    overlay.insert(_tooltipOverlayEntry!);
+  }
+
+  void _removeTooltipOverlay() {
+    _tooltipOverlayEntry?.remove();
+    _tooltipOverlayEntry = null;
+  }
+}
+
+class _FolderChainTooltipOverlay extends StatelessWidget {
+  const _FolderChainTooltipOverlay({
+    required this.message,
+    required this.anchor,
+  });
+
+  final String message;
+  final Rect anchor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = TooltipTheme.of(context);
+    return Positioned(
+      top: anchor.bottom + 8,
+      left: anchor.center.dx - 120,
+      width: 240,
+      child: IgnorePointer(
+        child: Center(
+          child: DecoratedBox(
+            decoration:
+                theme.decoration ??
+                BoxDecoration(
+                  color: const Color(0xe6616161),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+            child: Padding(
+              padding:
+                  theme.padding ??
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(
+                message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    theme.textStyle ??
+                    const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

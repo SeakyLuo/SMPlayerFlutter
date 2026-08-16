@@ -134,6 +134,7 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   var _lyricsDragMoved = false;
   var _lyricsDragPendingDeltaY = 0.0;
   var _scrollActiveAfterBuild = false;
+  int? _lastActiveIndex;
   int? _previewIndex;
   Timer? _restoreTimer;
 
@@ -152,7 +153,15 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
     }
     final lines = _displayLines();
     final activeIndex = lines.indexWhere((line) => line.active);
-    if (!_previewing && activeIndex >= 0) {
+
+    final layoutChanged =
+        oldWidget.compact != widget.compact ||
+        oldWidget.midCompact != widget.midCompact ||
+        oldWidget.anchorOffset != widget.anchorOffset;
+    if (!_previewing &&
+        activeIndex >= 0 &&
+        (activeIndex != _lastActiveIndex || layoutChanged)) {
+      _lastActiveIndex = activeIndex;
       _scrollActiveLineIntoView();
     }
   }
@@ -183,6 +192,7 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
       _dragging = false;
       _lyricsDragMoved = false;
       _lyricsDragPendingDeltaY = 0;
+      _lastActiveIndex = null;
       _previewIndex = null;
     });
     final lyrics = await ref
@@ -257,6 +267,7 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
       }
       final activeIndex = _displayLines().indexWhere((line) => line.active);
       if (activeIndex >= 0) {
+        _lastActiveIndex = activeIndex;
         final didScroll = _scrollToIndex(activeIndex);
         if (!didScroll && attempt < 3) {
           _scrollActiveLineIntoView(attempt + 1);

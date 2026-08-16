@@ -324,7 +324,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       currentSortMode,
       i18n,
     );
-    final mediaState = ref.watch(mediaControlControllerProvider).state;
+    final mediaState = ref.watch(
+      mediaControlControllerProvider.select(
+        (controller) => (
+          trackId: controller.state.track.id,
+          isPlaying: controller.state.isPlaying,
+        ),
+      ),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -551,7 +558,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 songsById: songsById,
                                 selectedFolderPaths: _selectedFolderPaths,
                                 selectedSongIds: _selectedSongIds,
-                                selectedTrackId: mediaState.track.id,
+                                selectedTrackId: mediaState.trackId,
                                 isPlaying: mediaState.isPlaying,
                                 multiSelect: _multiSelect,
                                 isCompactLayout: isCompactLayout,
@@ -854,10 +861,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                   folder: dialog.folder,
                   result: dialog.result,
                   songs: snapshot.songs,
-                  selectedTrackId: mediaState.track.id,
+                  selectedTrackId: mediaState.trackId,
                   isPlaying: mediaState.isPlaying,
                   onPlay: (songId) {
-                    if (songId == mediaState.track.id) {
+                    if (songId == mediaState.trackId) {
                       ref
                           .read(mediaControlControllerProvider)
                           .onTogglePlayPause();
@@ -891,7 +898,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                 MusicDialog(
                   song: dialog.song,
                   initialMode: dialog.mode,
-                  currentTrackId: mediaState.track.id,
+                  currentTrackId: mediaState.trackId,
                   isPlaying: mediaState.isPlaying,
                   queueSongIds: dialog.queueSongIds,
                   onPlay:
