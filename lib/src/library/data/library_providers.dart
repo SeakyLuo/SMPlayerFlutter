@@ -99,6 +99,7 @@ void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
   deletedNotifier.state = {...deletedNotifier.state}..remove(playlist.id);
   overrideNotifier.state = {...overrideNotifier.state, playlist.id: playlist};
+  ref.invalidate(recentPageDataProvider);
 }
 
 void removeLibraryPlaylistOverride(WidgetRef ref, int playlistId) {
@@ -106,6 +107,7 @@ void removeLibraryPlaylistOverride(WidgetRef ref, int playlistId) {
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
   overrideNotifier.state = {...overrideNotifier.state}..remove(playlistId);
   deletedNotifier.state = {...deletedNotifier.state, playlistId};
+  ref.invalidate(recentPageDataProvider);
 }
 
 LibraryContentData applyLibraryFavoriteOverrides(

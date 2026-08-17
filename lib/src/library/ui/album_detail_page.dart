@@ -137,18 +137,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 onTogglePlayPause:
                     ref.read(mediaControlControllerProvider).onTogglePlayPause,
                 onAddSongToPlaylist: (playlistId, songId) {
-                  unawaited(
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .addSongToPlaylist(playlistId, songId),
-                  );
+                  unawaited(addSongsToPlaylist(ref, playlistId, [songId]));
                 },
                 onAddSongsToPlaylist: (playlistId, songIds) {
-                  unawaited(
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .addSongsToPlaylist(playlistId, songIds),
-                  );
+                  unawaited(addSongsToPlaylist(ref, playlistId, songIds));
                 },
                 onToggleFavorite: (songId, favorite) {
                   unawaited(setSongsFavorite(ref, [songId], favorite));

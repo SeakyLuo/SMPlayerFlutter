@@ -80,16 +80,6 @@ NowPlayingSnapshot _copyNowPlayingWithSongIds(
   return NowPlayingSnapshot(playlistId: snapshot.playlistId, songIds: songIds);
 }
 
-List<LibraryPlaylist> _insertCustomPlaylistFirst(
-  List<LibraryPlaylist> playlists,
-  LibraryPlaylist playlist,
-) {
-  final index = playlists.indexWhere((item) => !item.isBuiltIn);
-  final nextPlaylists = playlists.toList();
-  nextPlaylists.insert(index == -1 ? nextPlaylists.length : index, playlist);
-  return nextPlaylists;
-}
-
 LibraryContentData _copySnapshotWithPlaylists(
   LibraryContentData snapshot,
   List<LibraryPlaylist> playlists, {

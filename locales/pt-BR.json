@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Adicionado \"{title}\" ao {target}",
   "notification.songsAddedTo": "{count} músicas adicionadas a {target}",
   "notification.playNext": "A próxima música será \"{title}\"",
+  "notification.nowPlayingUpdated": "A lista Em reprodução foi atualizada",
   "notification.playbackStalled": "A reprodução está travada, tentando retomar.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

@@ -324,7 +324,8 @@ extension _LocalPageContextMenus on _LocalPageState {
         showDelete: showDelete,
         showHideFile: true,
         onPlay: () => _playTrack(song.id, queueSongIds),
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () => _playNext(song.id),
         onAddToNowPlaying: () => _addSongsToNowPlaying([song.id]),
         onCreatePlaylist: () {

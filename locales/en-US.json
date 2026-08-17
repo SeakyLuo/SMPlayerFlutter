@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Added \"{title}\" to {target}",
   "notification.songsAddedTo": "Added {count} songs to {target}",
   "notification.playNext": "\"{title}\" will play next",
+  "notification.nowPlayingUpdated": "Updated the Now Playing list",
   "notification.playbackStalled": "Playback got stuck. Trying to recover.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

@@ -1177,7 +1177,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+    await createPlaylistAndSync(ref, name, songIds);
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {

@@ -1,10 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
+
+var _replaceQueueRevision = 0;
 
 List<int> currentNowPlayingSongIds(WidgetRef ref, LibraryContentData snapshot) {
   return effectiveNowPlayingSongIds(ref, snapshot.nowPlaying.songIds);
@@ -72,20 +76,60 @@ Future<void> replaceNowPlayingQueueAndPlayIndex({
   MediaControlController? mediaController,
   double progressSeconds = 0,
   bool autoplay = true,
-}) {
+}) async {
+  final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final MediaControlController controller =
+      mediaController ?? ref.read(mediaControlControllerProvider);
+  final previousMediaState = controller.state;
+  final queueOverrideController = ref.read(
+    nowPlayingQueueOverrideProvider.notifier,
+  );
+  final repository = ref.read(libraryRepositoryProvider);
   final nextSongIds = songIds.toList();
-  final persistQueue = setNowPlayingQueue(ref, nextSongIds);
+  final queueChanged = !listEquals(previousSongIds, nextSongIds);
+  final replaceRevision = queueChanged ? ++_replaceQueueRevision : 0;
+  if (queueChanged) {
+    hideAppNotification();
+  }
+  queueOverrideController.state = nextSongIds;
+  final persistQueue = repository.replaceNowPlaying(nextSongIds);
   playQueueIndexFromSongs(
     ref: ref,
     songs: snapshot.songs,
     i18n: i18n,
     songIds: nextSongIds,
     queueIndex: queueIndex,
-    mediaController: mediaController,
+    mediaController: controller,
     progressSeconds: progressSeconds,
     autoplay: autoplay,
   );
-  return persistQueue;
+  await persistQueue;
+  if (!queueChanged ||
+      replaceRevision != _replaceQueueRevision ||
+      !listEquals(queueOverrideController.state, nextSongIds)) {
+    return;
+  }
+
+  showUndoableAppNotification(
+    i18n: i18n,
+    message: i18n.t('notification.nowPlayingUpdated'),
+    onUndo: () async {
+      queueOverrideController.state = previousSongIds;
+      final restoreQueue = repository.replaceNowPlaying(previousSongIds);
+      if (previousMediaState.track.id == null) {
+        controller.clearTrack();
+      } else {
+        controller.playTrack(
+          previousMediaState.track,
+          durationSeconds: previousMediaState.durationSeconds,
+          queueIndex: previousMediaState.selectedQueueIndex,
+          progressSeconds: previousMediaState.progressSeconds,
+          autoplay: previousMediaState.isPlaying,
+        );
+      }
+      await restoreQueue;
+    },
+  );
 }
 
 void playQueueIndex({

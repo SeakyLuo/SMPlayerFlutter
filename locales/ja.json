@@ -199,6 +199,7 @@
   "notification.songAddedTo": "{target}に「{title}」を追加",
   "notification.songsAddedTo": "{count}曲を{target}に追加しました",
   "notification.playNext": "次の曲は「{title}」です",
+  "notification.nowPlayingUpdated": "再生中リストを更新しました",
   "notification.playbackStalled": "再生が停止しているため、再開しようとしています。",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

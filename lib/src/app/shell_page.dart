@@ -385,6 +385,20 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         _refreshPlayerLyricsAfterSave(event.songId);
       }
     });
+    ref.listen(libraryContentDataProvider, (previous, next) {
+      final snapshot = next.valueOrNull;
+      final trackId = _mediaControlController.state.track.id;
+      if (snapshot == null || trackId == null) {
+        return;
+      }
+      final song =
+          snapshot.songs.where((song) => song.id == trackId).firstOrNull;
+      if (song != null) {
+        _mediaControlController.updateTrackMetadata(
+          mediaControlTrackForSong(song, context.smPlayerI18n),
+        );
+      }
+    });
     final currentLocation = widget.currentLocation ?? currentPath;
     final layout = ShellLayoutState.resolve(
       currentPath: currentPath,
@@ -574,9 +588,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onReorderPlaylists: (playlistIds) {
               unawaited(
-                ref
-                    .read(libraryRepositoryProvider)
-                    .reorderPlaylists(playlistIds),
+                _reorderPlaylistsFromNavigation(
+                  ref: ref,
+                  playlistIds: playlistIds,
+                ),
               );
             },
             onPlaylistRandomPlay: (playlistId) {

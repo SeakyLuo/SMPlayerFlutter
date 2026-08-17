@@ -116,18 +116,10 @@ class MyFavoritesPage extends ConsumerWidget {
             onTogglePlayPause:
                 ref.read(mediaControlControllerProvider).onTogglePlayPause,
             onAddSongToPlaylist: (playlistId, songId) {
-              unawaited(
-                ref
-                    .read(libraryRepositoryProvider)
-                    .addSongToPlaylist(playlistId, songId),
-              );
+              unawaited(addSongsToPlaylist(ref, playlistId, [songId]));
             },
             onAddSongsToPlaylist: (playlistId, songIds) {
-              unawaited(
-                ref
-                    .read(libraryRepositoryProvider)
-                    .addSongsToPlaylist(playlistId, songIds),
-              );
+              unawaited(addSongsToPlaylist(ref, playlistId, songIds));
             },
             onRemoveSongs: (songIds) async {
               await setSongsFavorite(ref, songIds, false);

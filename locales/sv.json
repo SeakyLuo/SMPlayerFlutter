@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Lade till \"{title}\" till {target}",
   "notification.songsAddedTo": "Lade till {count} låtar till {target}",
   "notification.playNext": "Nästa låt blir \"{title}\"",
+  "notification.nowPlayingUpdated": "Listan Spelas nu har uppdaterats",
   "notification.playbackStalled": "Uppspelningen har fastnat, försöker återuppta.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

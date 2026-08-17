@@ -199,6 +199,7 @@
   "notification.songAddedTo": "\"{title}\" toegevoegd aan {target}",
   "notification.songsAddedTo": "{count} nummers toegevoegd aan {target}",
   "notification.playNext": "Het volgende nummer zal \"{title}\" zijn",
+  "notification.nowPlayingUpdated": "De lijst Nu afspelen is bijgewerkt",
   "notification.playbackStalled": "Het afspelen loopt vast en probeert te hervatten.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

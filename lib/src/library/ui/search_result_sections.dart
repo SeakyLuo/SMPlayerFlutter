@@ -484,7 +484,7 @@ class _SearchResultSection extends StatelessWidget {
         onPlay: () {
           onPlaySongs([song.id]);
         },
-        onPause: onTogglePlayPause,
+        onTogglePlayPause: onTogglePlayPause,
         onPlayNext: () {
           onPlayNext(song);
         },

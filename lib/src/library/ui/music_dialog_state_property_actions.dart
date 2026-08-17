@@ -95,7 +95,7 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
         return;
       }
       _applyProperties(nextProperties);
-      patchLibrarySongOverride(ref, _songWithProperties(nextProperties));
+      _syncSongMutation(_songWithProperties(nextProperties), i18n);
       _notifySaved();
       _showMessage(i18n.t('song.propertiesUpdated'));
     } catch (_) {

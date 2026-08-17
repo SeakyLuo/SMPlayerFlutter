@@ -814,7 +814,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           _selection.selectSingle(song.id);
           _playSongIds([song.id]);
         },
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () {
           _playNext(song.id);
         },

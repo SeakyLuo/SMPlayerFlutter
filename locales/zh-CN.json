@@ -199,6 +199,7 @@
   "notification.songAddedTo": "已添加“{title}”到 {target}",
   "notification.songsAddedTo": "已添加 {count} 首歌曲到 {target}",
   "notification.playNext": "下一首将播放“{title}”",
+  "notification.nowPlayingUpdated": "已更新正在播放列表",
   "notification.playbackStalled": "播放卡住了，正在尝试恢复。",
   "notification.playbackNoFileAccess": "没有权限读取这个音频文件，请在设置中重新选择音乐文件夹。",
   "notification.authorizeFileAccess": "去授权",

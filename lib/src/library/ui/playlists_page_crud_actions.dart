@@ -69,9 +69,12 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
 
   void _renamePlaylistWithoutReload(LibraryPlaylist playlist, String name) {
     _patchLocalPlaylist(_copyPlaylistWithName(playlist, name));
-    unawaited(
-      ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name),
-    );
+    unawaited(_persistPlaylistRename(playlist.id, name));
+  }
+
+  Future<void> _persistPlaylistRename(int playlistId, String name) async {
+    await ref.read(libraryRepositoryProvider).renamePlaylist(playlistId, name);
+    ref.invalidate(recentPageDataProvider);
   }
 
   Future<void> _addSongsToPlaylistWithoutReload(

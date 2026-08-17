@@ -81,6 +81,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
         _originalArtworkMissing = false;
         _artworkRecommendation = null;
       });
+      _syncSongMutation(_songWithArtwork(_displayArtworkUrl), i18n);
       _notifySaved();
       _showMessage(i18n.t('song.albumArtSaved'));
     } catch (_) {
@@ -124,6 +125,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
         _showArtworkDeleteConfirm = false;
       });
       _loadArtworkRecommendation();
+      _syncSongMutation(_songWithArtwork(''), i18n);
       _notifySaved();
       _showMessage(i18n.t('song.albumArtDeleted'));
     } catch (_) {

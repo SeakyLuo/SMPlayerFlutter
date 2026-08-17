@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Добавлен \"{title}\" в {target}.",
   "notification.songsAddedTo": "Добавлено {count} песен в {target}.",
   "notification.playNext": "Следующей песней будет «{title}».",
+  "notification.nowPlayingUpdated": "Список воспроизведения обновлён",
   "notification.playbackStalled": "Воспроизведение зависло, пытаюсь возобновить.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

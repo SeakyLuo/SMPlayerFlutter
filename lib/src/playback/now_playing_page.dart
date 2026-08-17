@@ -902,7 +902,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         onPlay: () {
           _playQueueTrack(song, queueSongIds, queueIndex);
         },
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: null,
         onAddToNowPlaying: () {
           final before = queueSongIds.toList();
@@ -1101,29 +1102,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     List<LibraryPlaylist> playlists,
     Map<int, LibrarySong> songsById,
   ) async {
-    final i18n = context.smPlayerI18n;
-    await addSongsToPlaylist(ref, playlistId, songIds);
-    if (!mounted) {
-      return;
-    }
-    final targetPlaylist = playlists.firstWhere(
-      (playlist) => playlist.id == playlistId,
-    );
-    _showUndo(
-      songIds.length == 1
-          ? i18n.t('notification.songAddedTo', {
-            'title': songsById[songIds.first]!.title,
-            'target': targetPlaylist.name,
-          })
-          : i18n.t('notification.songsAddedTo', {
-            'count': songIds.length,
-            'target': targetPlaylist.name,
-          }),
-      () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .removeSongsFromPlaylist(playlistId, songIds);
-      },
+    await addSongsToPlaylistWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      playlistId: playlistId,
+      songIds: songIds,
     );
   }
 

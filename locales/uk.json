@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Додано \"{title}\" до {target}",
   "notification.songsAddedTo": "Додано {count} пісень до {target}",
   "notification.playNext": "Наступною піснею буде \"{title}\"",
+  "notification.nowPlayingUpdated": "Список відтворення оновлено",
   "notification.playbackStalled": "Відтворення зупинилося, спроба відновити.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

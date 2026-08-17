@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Menambahkan \"{title}\" ke {target}",
   "notification.songsAddedTo": "{count} lagu ditambahkan ke {target}",
   "notification.playNext": "Lagu selanjutnya adalah \"{title}\"",
+  "notification.nowPlayingUpdated": "Daftar Sedang Diputar telah diperbarui",
   "notification.playbackStalled": "Pemutaran terhenti, mencoba melanjutkan.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

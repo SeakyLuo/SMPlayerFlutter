@@ -63,8 +63,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   var _appBarSearchOpen = false;
   List<int>? _previewPlaylistIds;
   List<int>? _committedPlaylistIds;
-  final _playlistOverrides = <int, LibraryPlaylist>{};
-  final _deletedPlaylistIds = <int>{};
   List<int>? _nowPlayingSongIdsOverride;
   List<int>? _dragStartPlaylistIds;
   int? _draggingPlaylistId;
