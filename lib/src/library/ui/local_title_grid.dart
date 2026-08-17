@@ -451,7 +451,7 @@ class _FolderChainItem extends StatefulWidget {
 
 class _FolderChainItemState extends State<_FolderChainItem> {
   var _hovered = false;
-  final _tooltipAnchorKey = GlobalKey();
+  final _tooltipLayerLink = LayerLink();
   OverlayEntry? _tooltipOverlayEntry;
 
   @override
@@ -477,8 +477,8 @@ class _FolderChainItemState extends State<_FolderChainItem> {
         final pathButton = MouseRegion(
           onEnter: (_) => _showTooltipOverlay(),
           onExit: (_) => _removeTooltipOverlay(),
-          child: KeyedSubtree(
-            key: _tooltipAnchorKey,
+          child: CompositedTransformTarget(
+            link: _tooltipLayerLink,
             child: Semantics(
               tooltip: widget.item.name,
               child: Listener(
@@ -610,20 +610,26 @@ class _FolderChainItemState extends State<_FolderChainItem> {
       return;
     }
     final overlay = Overlay.of(context, rootOverlay: true);
-    final anchorBox =
-        _tooltipAnchorKey.currentContext!.findRenderObject()! as RenderBox;
-    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
-    final anchorOrigin = overlayBox.globalToLocal(
-      anchorBox.localToGlobal(Offset.zero),
-    );
-    _tooltipOverlayEntry = OverlayEntry(
+    final entry = OverlayEntry(
       builder:
-          (context) => _FolderChainTooltipOverlay(
-            message: widget.item.name,
-            anchor: anchorOrigin & anchorBox.size,
+          (context) => Positioned.fill(
+            child: IgnorePointer(
+              child: CompositedTransformFollower(
+                link: _tooltipLayerLink,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.bottomCenter,
+                followerAnchor: Alignment.topLeft,
+                offset: const Offset(-120, 8),
+                child: UnconstrainedBox(
+                  alignment: Alignment.topLeft,
+                  child: _FolderChainTooltipOverlay(message: widget.item.name),
+                ),
+              ),
+            ),
           ),
     );
-    overlay.insert(_tooltipOverlayEntry!);
+    _tooltipOverlayEntry = entry;
+    overlay.insert(entry);
   }
 
   void _removeTooltipOverlay() {
@@ -633,42 +639,34 @@ class _FolderChainItemState extends State<_FolderChainItem> {
 }
 
 class _FolderChainTooltipOverlay extends StatelessWidget {
-  const _FolderChainTooltipOverlay({
-    required this.message,
-    required this.anchor,
-  });
+  const _FolderChainTooltipOverlay({required this.message});
 
   final String message;
-  final Rect anchor;
 
   @override
   Widget build(BuildContext context) {
     final theme = TooltipTheme.of(context);
-    return Positioned(
-      top: anchor.bottom + 8,
-      left: anchor.center.dx - 120,
+    return SizedBox(
       width: 240,
-      child: IgnorePointer(
-        child: Center(
-          child: DecoratedBox(
-            decoration:
-                theme.decoration ??
-                BoxDecoration(
-                  color: const Color(0xe6616161),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-            child: Padding(
-              padding:
-                  theme.padding ??
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                message,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    theme.textStyle ??
-                    const TextStyle(color: Colors.white, fontSize: 12),
+      child: Center(
+        child: DecoratedBox(
+          decoration:
+              theme.decoration ??
+              BoxDecoration(
+                color: const Color(0xe6616161),
+                borderRadius: BorderRadius.circular(4),
               ),
+          child: Padding(
+            padding:
+                theme.padding ??
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              message,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  theme.textStyle ??
+                  const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
         ),

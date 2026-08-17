@@ -49,6 +49,7 @@ class PlaybackRuntimeSettings {
 
 class PlaybackSettingsUpdate {
   const PlaybackSettingsUpdate({
+    this.lastMusicId,
     this.lastMusicIndex,
     this.volume,
     this.isMuted,
@@ -56,6 +57,7 @@ class PlaybackSettingsUpdate {
     this.musicProgress,
   });
 
+  final int? lastMusicId;
   final int? lastMusicIndex;
   final int? volume;
   final bool? isMuted;
@@ -282,6 +284,15 @@ class MediaControlController extends ChangeNotifier {
       ),
     );
     notifyListeners();
+    if (track.id != null) {
+      _onPlaybackSettingsUpdate?.call(
+        PlaybackSettingsUpdate(
+          lastMusicId: track.id,
+          lastMusicIndex: queueIndex,
+          musicProgress: nextProgress,
+        ),
+      );
+    }
   }
 
   void onTogglePlayPause() {

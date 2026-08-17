@@ -23,75 +23,86 @@ class SmPlayerSplashScreen extends StatelessWidget {
           circularTrackColor: colors.progressTrack,
         ),
       ),
-      home: Builder(
-        builder: (context) {
-          final appName = SmPlayerSplashAppName.resolve(
-            locale ?? PlatformDispatcher.instance.locale,
-          );
-          return Scaffold(
-            backgroundColor: colors.background,
-            body: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [colors.background, colors.backgroundAlt],
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 132,
-                      height: 132,
-                      decoration: BoxDecoration(
-                        color: colors.logoPlate,
-                        borderRadius: BorderRadius.circular(32),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.logoShadow,
-                            blurRadius: 42,
-                            offset: const Offset(0, 24),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Image.asset(
-                          'assets/branding/app-icon.png',
-                          width: 86,
-                          height: 86,
-                          filterQuality: FilterQuality.high,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    Text(
-                      appName,
-                      style: TextStyle(
-                        color: colors.title,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: 144,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          minHeight: 3,
-                          backgroundColor: colors.progressTrack,
-                          color: colors.accent,
-                        ),
-                      ),
+      home: SmPlayerSplashView(brightness: resolvedBrightness, locale: locale),
+    );
+  }
+}
+
+class SmPlayerSplashView extends StatelessWidget {
+  const SmPlayerSplashView({super.key, this.brightness, this.locale});
+
+  final Brightness? brightness;
+  final Locale? locale;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedBrightness =
+        brightness ?? PlatformDispatcher.instance.platformBrightness;
+    final colors = SmPlayerSplashColors.resolve(resolvedBrightness);
+    final appName = SmPlayerSplashAppName.resolve(
+      locale ?? PlatformDispatcher.instance.locale,
+    );
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [colors.background, colors.backgroundAlt],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 132,
+                height: 132,
+                decoration: BoxDecoration(
+                  color: colors.logoPlate,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.logoShadow,
+                      blurRadius: 42,
+                      offset: const Offset(0, 24),
                     ),
                   ],
                 ),
+                child: Center(
+                  child: Image.asset(
+                    'assets/branding/app-icon.png',
+                    width: 86,
+                    height: 86,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 26),
+              Text(
+                appName,
+                style: TextStyle(
+                  color: colors.title,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: 144,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    backgroundColor: colors.progressTrack,
+                    color: colors.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

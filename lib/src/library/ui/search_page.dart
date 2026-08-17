@@ -26,6 +26,7 @@ import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/search_artist_card.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;

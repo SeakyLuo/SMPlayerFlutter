@@ -167,6 +167,7 @@ class LibrarySettingsService {
         '''
         UPDATE Settings
         SET
+          LastMusicId = ?,
           LastMusicIndex = ?,
           Volume = ?,
           IsMuted = ?,
@@ -175,6 +176,7 @@ class LibrarySettingsService {
         WHERE Id = ?
       ''',
         [
+          next.lastMusicId,
           next.lastMusicIndex,
           next.volume,
           _boolValue(next.isMuted),
@@ -409,6 +411,7 @@ class LibrarySettingsService {
       searchFoldersCriterion: _searchSortFromValue(
         row['SearchFoldersCriterion'] as int,
       ),
+      lastMusicId: row['LastMusicId'] as int,
       lastMusicIndex: row['LastMusicIndex'] as int,
       volume: (row['Volume'] as num).round(),
       isMuted: (row['IsMuted'] as int) != 0,

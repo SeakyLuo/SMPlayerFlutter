@@ -206,13 +206,17 @@ class _HiddenStorageItemRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: OutlinedButton(
                   style: ButtonStyle(
-                    minimumSize: WidgetStateProperty.all(const Size(0, 32)),
-                    padding: WidgetStateProperty.all(
-                      const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: WidgetStateProperty.all(const Size(64, 38)),
+                    maximumSize: WidgetStateProperty.all(
+                      const Size(double.infinity, 38),
                     ),
+                    padding: WidgetStateProperty.all(
+                      const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: WidgetStateProperty.all(
                       RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     side: WidgetStateProperty.all(
@@ -221,7 +225,8 @@ class _HiddenStorageItemRow extends StatelessWidget {
                       ),
                     ),
                     backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.hovered)) {
+                      if (states.contains(WidgetState.hovered) ||
+                          states.contains(WidgetState.focused)) {
                         return _HiddenFoldersColors.surfaceControlHoverFor(
                           brightness,
                         );
@@ -229,13 +234,20 @@ class _HiddenStorageItemRow extends StatelessWidget {
                       return _HiddenFoldersColors.surfaceControlFor(brightness);
                     }),
                     foregroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.hovered)) {
+                      if (states.contains(WidgetState.hovered) ||
+                          states.contains(WidgetState.focused)) {
                         return colors.accentStrong;
                       }
                       return colors.textStrong;
                     }),
                     textStyle: WidgetStateProperty.all(
-                      const TextStyle(fontSize: 13),
+                      const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
                     ),
                   ),
                   onPressed: () => onResume(item),

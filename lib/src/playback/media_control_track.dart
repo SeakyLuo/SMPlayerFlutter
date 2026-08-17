@@ -301,10 +301,8 @@ class _PlayerTrackLyrics extends StatefulWidget {
 }
 
 class _PlayerTrackLyricsState extends State<_PlayerTrackLyrics>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _scrollController;
-  late final AnimationController _lineController;
-  String? _previousLine;
   String? _measuredLine;
   bool? _measuredCompact;
   double? _measuredScaledFontSize;
@@ -318,34 +316,19 @@ class _PlayerTrackLyricsState extends State<_PlayerTrackLyrics>
       vsync: this,
       animationBehavior: AnimationBehavior.preserve,
     );
-    _lineController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-      animationBehavior: AnimationBehavior.preserve,
-      value: 1,
-    )..addStatusListener((status) {
-      if (status == AnimationStatus.completed && _previousLine != null) {
-        setState(() {
-          _previousLine = null;
-        });
-      }
-    });
   }
 
   @override
   void didUpdateWidget(covariant _PlayerTrackLyrics oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.line != widget.line || oldWidget.compact != widget.compact) {
-      _previousLine = oldWidget.line;
       _scrollController.reset();
-      _lineController.forward(from: 0);
     }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _lineController.dispose();
     super.dispose();
   }
 
@@ -392,39 +375,7 @@ class _PlayerTrackLyricsState extends State<_PlayerTrackLyrics>
               if (overflowDistance == 0) {
                 _scrollController.stop();
               }
-              return AnimatedBuilder(
-                animation: _lineController,
-                builder: (context, child) {
-                  final progress = const Cubic(
-                    0.22,
-                    1,
-                    0.36,
-                    1,
-                  ).transform(_lineController.value);
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (_previousLine case final previousLine?)
-                        FractionalTranslation(
-                          translation: Offset(0, -progress),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              previousLine,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: style,
-                            ),
-                          ),
-                        ),
-                      FractionalTranslation(
-                        translation: Offset(0, 1 - progress),
-                        child: currentLine,
-                      ),
-                    ],
-                  );
-                },
-              );
+              return currentLine;
             },
           ),
         ),

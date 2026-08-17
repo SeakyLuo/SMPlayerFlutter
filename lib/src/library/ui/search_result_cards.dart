@@ -107,8 +107,21 @@ class _SearchResultCardState extends State<_SearchResultCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SearchPageThemeColors.of(context);
     final isArtist = widget.type == SearchResultType.artists;
+    if (isArtist) {
+      return SearchArtistCard(
+        title: widget.card.title,
+        subtitle: widget.card.subtitle,
+        artworkPath: widget.card.artworkUrl,
+        selected: widget.selected,
+        multiSelect: widget.multiSelect,
+        playTooltip: context.smPlayerI18n.t('context.play'),
+        onOpen: widget.onOpen,
+        onPlay: widget.onPlay,
+        onToggleSelection: widget.onToggleSelection,
+        onOpenContextMenu: widget.onOpenContextMenu,
+      );
+    }
     final artworkFile =
         widget.card.artworkUrl.isEmpty ? null : File(widget.card.artworkUrl);
 
@@ -132,59 +145,24 @@ class _SearchResultCardState extends State<_SearchResultCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: double.infinity,
-          constraints: BoxConstraints(minHeight: isArtist ? 86 : 0),
-          padding:
-              isArtist
-                  ? const EdgeInsets.symmetric(horizontal: 14, vertical: 11)
-                  : const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _cardSurface(isArtist),
-            border:
-                isArtist
-                    ? Border.all(
-                      color:
-                          widget.selected
-                              ? colors.accentSelectedBorder
-                              : Colors.transparent,
-                    )
-                    : null,
-            borderRadius: BorderRadius.circular(isArtist ? 10 : 14),
-            boxShadow: _cardShadow(isArtist),
+            color: _cardSurface(),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: _cardShadow(),
           ),
           child: Stack(
             children: [
-              if (isArtist)
-                _SearchCompactCardBody(
-                  title: widget.card.title,
-                  subtitle: widget.card.subtitle,
-                  artwork: _SearchCardArtwork(
-                    file: artworkFile,
-                    size: 64,
-                    radius: 8,
-                    elevated: _hovered,
-                  ),
-                )
-              else
-                _SearchGridCardBody(
-                  title: widget.card.title,
-                  subtitle: widget.card.subtitle,
-                  artwork: _SearchCardArtwork(
-                    file: artworkFile,
-                    size: 156,
-                    radius: 12,
-                  ),
+              _SearchGridCardBody(
+                title: widget.card.title,
+                subtitle: widget.card.subtitle,
+                artwork: _SearchCardArtwork(
+                  file: artworkFile,
+                  size: 156,
+                  radius: 12,
                 ),
-              if (isArtist && _hovered && !widget.multiSelect)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: 64,
-                  height: 64,
-                  child: Center(
-                    child: _SearchCardPlayButton(onPressed: widget.onPlay),
-                  ),
-                ),
-              if (!isArtist && _hovered && !widget.multiSelect)
+              ),
+              if (_hovered && !widget.multiSelect)
                 Positioned(
                   top: 116,
                   right: 8,
@@ -192,8 +170,8 @@ class _SearchResultCardState extends State<_SearchResultCard> {
                 ),
               if (widget.multiSelect || widget.selected)
                 Positioned(
-                  top: isArtist ? 9 : 8,
-                  right: isArtist ? 9 : 8,
+                  top: 8,
+                  right: 8,
                   child: _SearchSelectionMark(selected: widget.selected),
                 ),
             ],
@@ -203,30 +181,18 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     );
   }
 
-  Color _cardSurface(bool isArtist) {
+  Color _cardSurface() {
     final colors = SearchPageThemeColors.of(context);
     if (widget.selected) {
       return colors.cardSelected;
     }
     if (_hovered) {
-      return isArtist ? colors.cardHover : colors.panel;
+      return colors.panel;
     }
     return Colors.transparent;
   }
 
-  List<BoxShadow>? _cardShadow(bool isArtist) {
-    if (isArtist) {
-      if (!widget.selected && !_hovered) {
-        return null;
-      }
-      return const [
-        BoxShadow(
-          color: Color(0x141e2a3a),
-          blurRadius: 30,
-          offset: Offset(0, 14),
-        ),
-      ];
-    }
+  List<BoxShadow>? _cardShadow() {
     if (!widget.selected) {
       return null;
     }
@@ -237,54 +203,6 @@ class _SearchResultCardState extends State<_SearchResultCard> {
         offset: Offset(0, 10),
       ),
     ];
-  }
-}
-
-class _SearchCompactCardBody extends StatelessWidget {
-  const _SearchCompactCardBody({
-    required this.title,
-    required this.subtitle,
-    required this.artwork,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget artwork;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SearchPageThemeColors.of(context);
-    return Row(
-      children: [
-        artwork,
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.textStrong,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.textMuted, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -335,39 +253,19 @@ class _SearchCardArtwork extends StatelessWidget {
     required this.file,
     required this.size,
     required this.radius,
-    this.elevated = false,
   });
 
   final File? file;
   final double size;
   final double radius;
-  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      transform: elevated ? Matrix4.translationValues(0, -1, 0) : null,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow:
-            elevated
-                ? const [
-                  BoxShadow(
-                    color: Color(0x33322d3f),
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
-                  ),
-                ]
-                : null,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: SizedBox.square(
-          dimension: size,
-          child: SongArtwork(artworkPath: file?.path),
-        ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox.square(
+        dimension: size,
+        child: SongArtwork(artworkPath: file?.path),
       ),
     );
   }

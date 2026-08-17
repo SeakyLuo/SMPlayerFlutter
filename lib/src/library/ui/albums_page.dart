@@ -36,6 +36,7 @@ import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
 
 part 'albums_page_model.dart';
+part 'albums_page_data.dart';
 part 'albums_grid_delegate.dart';
 part 'albums_toolbar.dart';
 part 'albums_app_bar_actions.dart';
@@ -266,18 +267,21 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             ),
           ),
       data: (rawSnapshot) {
-        final snapshot = applyLibraryFavoriteOverrides(
-          rawSnapshot,
-          const {},
-          songOverrides,
+        final libraryData = ref.watch(
+          _albumsLibraryDataProvider((
+            snapshot: rawSnapshot,
+            songOverrides: songOverrides,
+            i18n: i18n,
+          )),
         );
+        final snapshot = libraryData.snapshot;
+        final albums = libraryData.albums;
         if (_syncedAlbumsSort != snapshot.albumsSort) {
           _sortCriterion = snapshot.albumsSort;
           _syncedAlbumsSort = snapshot.albumsSort;
           _reverseDisplayOrder = false;
         }
 
-        final albums = buildAlbumViews(snapshot.songs, i18n);
         if (!_targetApplied && widget.targetAlbumName != null) {
           _targetApplied = true;
           final target = Uri.decodeComponent(widget.targetAlbumName!);
@@ -287,29 +291,29 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           }
         }
 
-        final baseVisibleAlbums =
-            _searchQuery.trim().isEmpty
-                ? sortAlbums(albums, _sortCriterion)
-                : searchAlbums(albums, _searchQuery);
-        final visibleAlbums =
-            _reverseDisplayOrder
-                ? baseVisibleAlbums.reversed.toList()
-                : baseVisibleAlbums;
-        final albumQuickJumpMap = buildAlbumQuickJumpMap(visibleAlbums);
+        final visibleData = ref.watch(
+          _visibleAlbumsProvider((
+            albums: albums,
+            criterion: _sortCriterion,
+            searchQuery: _searchQuery,
+            reverse: _reverseDisplayOrder,
+          )),
+        );
+        final visibleAlbums = visibleData.albums;
+        final albumQuickJumpMap = visibleData.quickJumpMap;
         final selectedAlbums =
             visibleAlbums
                 .where((album) => _selection.isSelected(album.name))
                 .toList();
         final selectedSongIds =
             selectedAlbums.expand((album) => album.songIds).toList();
-        final songsById = {for (final song in snapshot.songs) song.id: song};
-        final albumSearchSuggestions =
-            _searchDraft.trim().isEmpty
-                ? const <String>[]
-                : searchAlbums(
-                  albums,
-                  _searchDraft,
-                ).take(8).map((album) => album.name).toList();
+        final songsById = libraryData.songsById;
+        final albumSearchSuggestions = ref.watch(
+          _albumSearchSuggestionsProvider((
+            albums: albums,
+            searchDraft: _searchDraft,
+          )),
+        );
         final albumSearchHistoryEntries = latestSearchHistoryEntries(
           snapshot.recentSearches,
           SearchHistoryType.albums,

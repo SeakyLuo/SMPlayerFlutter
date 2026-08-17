@@ -238,6 +238,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
 
   Future<void> _closeDesktopWindowAfterPersistingDisplayMode() async {
     await Future.wait([
+      _settingsController.waitForPendingPlaybackSettings(),
       _settingsController.waitForPendingDisplayModeState(),
       _settingsController.waitForPendingViewState(),
     ]);
@@ -438,8 +439,12 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
 
     final settings = _settingsController.snapshot;
-    final restoredIndex = settings.lastMusicIndex.clamp(0, songIds.length - 1);
     final songsById = {for (final song in snapshot.songs) song.id: song};
+    final savedSongIndex = songIds.indexOf(settings.lastMusicId);
+    final restoredIndex =
+        savedSongIndex >= 0
+            ? savedSongIndex
+            : settings.lastMusicIndex.clamp(0, songIds.length - 1);
     final restoredSong = songsById[songIds[restoredIndex]];
     if (restoredSong == null) {
       return;
