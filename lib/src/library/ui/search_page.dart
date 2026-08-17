@@ -933,7 +933,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+    await createPlaylistAndSync(ref, name, songIds);
   }
 
   void _openMusicDialog(

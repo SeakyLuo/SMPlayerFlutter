@@ -60,34 +60,12 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
     int playlistId,
     List<int> songIds,
   ) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final targetPlaylist = snapshot.playlists.firstWhere(
-      (playlist) => playlist.id == playlistId,
-    );
-    final i18n = context.smPlayerI18n;
-    await ref
-        .read(libraryRepositoryProvider)
-        .addSongsToPlaylist(playlistId, songIds);
-    _showUndoNotification(
-      songIds.length == 1
-          ? i18n.t('notification.songAddedTo', {
-            'title': songsById[songIds.first]!.title,
-            'target': targetPlaylist.name,
-          })
-          : i18n.t('notification.songsAddedTo', {
-            'count': songIds.length,
-            'target': targetPlaylist.name,
-          }),
-      () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .removeSongsFromPlaylist(playlistId, songIds);
-      },
+    await addSongsToPlaylistWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      playlistId: playlistId,
+      songIds: songIds,
     );
   }
 

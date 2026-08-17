@@ -357,7 +357,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required List<int> nowPlayingSongIds,
   required List<MultiSelectCommandBarPlaylist> playlists,
   required VoidCallback onPlay,
-  required VoidCallback onPause,
+  required VoidCallback onTogglePlayPause,
   VoidCallback? onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
@@ -405,14 +405,14 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         key: 'pause',
         text: i18n.t('context.pause'),
         icon: FluentIcons.pause_20_regular,
-        onPressed: onPause,
+        onPressed: onTogglePlayPause,
       )
     else
       MenuFlyoutItem(
         key: 'play',
         text: i18n.t('context.play'),
         icon: FluentIcons.play_20_regular,
-        onPressed: onPlay,
+        onPressed: isCurrentTrack ? onTogglePlayPause : onPlay,
       ),
   ];
 

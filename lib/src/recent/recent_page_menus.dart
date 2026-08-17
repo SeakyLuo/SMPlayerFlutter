@@ -49,7 +49,8 @@ extension _RecentPageMenus on _RecentPageState {
         onPlay: () {
           _playSong(song, queueSongIds, queueSongIds.indexOf(song.id));
         },
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () {
           _playNext(song.id);
         },

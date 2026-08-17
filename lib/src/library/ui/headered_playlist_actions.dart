@@ -207,10 +207,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       return;
     }
 
-    final playlist = await ref
-        .read(libraryRepositoryProvider)
-        .createPlaylist(name, songIds);
-    _patchLocalPlaylist(playlist);
+    await createPlaylistAndSync(ref, name, songIds);
   }
 
   void _openMusicDialog(

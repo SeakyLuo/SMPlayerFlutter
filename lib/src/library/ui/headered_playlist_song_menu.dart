@@ -64,7 +64,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             _currentVisibleSongs().map((item) => item.id).toList(),
           );
         },
-        onPause: () {
+        onTogglePlayPause: () {
           widget.onTogglePlayPause?.call();
         },
         onPlayNext: () {

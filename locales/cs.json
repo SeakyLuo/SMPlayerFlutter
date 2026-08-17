@@ -199,6 +199,7 @@
   "notification.songAddedTo": "Přidáno \"{title}\" k {target}",
   "notification.songsAddedTo": "{count} skladeb přidáno do {target}",
   "notification.playNext": "Další skladba bude \"{title}\"",
+  "notification.nowPlayingUpdated": "Seznam Právě hraje byl aktualizován",
   "notification.playbackStalled": "Přehrávání se zaseklo, pokouší se obnovit.",
   "notification.playbackNoFileAccess": "No permission to read this audio file. Re-select the music folder in Settings.",
   "notification.authorizeFileAccess": "Authorize",

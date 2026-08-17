@@ -580,7 +580,8 @@ Future<void> _showSongContextMenuForArtistsPage(
       onPlay: () {
         state._moveToMusicOrPlay(song.id);
       },
-      onPause: state.ref.read(mediaControlControllerProvider).onTogglePlayPause,
+      onTogglePlayPause:
+          state.ref.read(mediaControlControllerProvider).onTogglePlayPause,
       onPlayNext: () {
         state._playNext(song.id);
       },
@@ -596,10 +597,7 @@ Future<void> _showSongContextMenuForArtistsPage(
         unawaited(_requestSongContextPlaylistForArtistsPage(state, i18n, song));
       },
       onCreatePlaylist: () async {
-        await state.ref.read(libraryRepositoryProvider).createPlaylist(
-          song.title,
-          [song.id],
-        );
+        await createPlaylistAndSync(state.ref, song.title, [song.id]);
       },
       onAddToPlaylist: (playlistId) {
         addSongsToPlaylistWithUndo(
@@ -687,9 +685,7 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   if (name == null) {
     return;
   }
-  await state.ref.read(libraryRepositoryProvider).createPlaylist(name, [
-    song.id,
-  ]);
+  await createPlaylistAndSync(state.ref, name, [song.id]);
 }
 
 void _showSongAddToMenuForArtistsPage(

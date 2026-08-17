@@ -29,6 +29,7 @@ import 'library_page_actions.dart'
     show
         addSongsToNowPlayingWithUndo,
         addSongsToPlaylistWithUndo,
+        createPlaylistAndSync,
         hideSongFileWithUndo,
         moveSongToFolderWithUndo,
         requestLocalMoveConflictResolution,

@@ -80,9 +80,11 @@ Future<void> addSongsToPlaylist(
     await setSongsFavorite(ref, songIds, true);
     return;
   }
+  final playlist = _playlistForMutation(ref, snapshot, playlistId);
   await ref
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
+  _patchPlaylistSongsAdded(ref, playlist, songIds);
 }
 
 Future<void> addSongsToPlaylistWithUndo({
@@ -98,9 +100,7 @@ Future<void> addSongsToPlaylistWithUndo({
   }
   final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  final playlist = snapshot.playlists.firstWhere(
-    (playlist) => playlist.id == playlistId,
-  );
+  final playlist = _playlistForMutation(ref, snapshot, playlistId);
   if (useSingleSongCall && songIds.length == 1) {
     if (playlistId == snapshot.favoritePlaylistId) {
       await setSongsFavorite(ref, songIds, true);
@@ -108,6 +108,7 @@ Future<void> addSongsToPlaylistWithUndo({
       await ref
           .read(libraryRepositoryProvider)
           .addSongToPlaylist(playlistId, songIds.first);
+      _patchPlaylistSongsAdded(ref, playlist, songIds);
     }
   } else {
     await addSongsToPlaylist(ref, playlistId, songIds);
@@ -131,9 +132,64 @@ Future<void> addSongsToPlaylistWithUndo({
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
+        final currentSnapshot = await _readLibraryContentData(ref);
+        final currentPlaylist = _playlistForMutation(
+          ref,
+          currentSnapshot,
+          playlistId,
+        );
+        _patchPlaylistSongsRemoved(ref, currentPlaylist, songIds);
       }
     },
   );
+}
+
+LibraryPlaylist _playlistForMutation(
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  int playlistId,
+) {
+  return ref.read(libraryPlaylistOverridesProvider)[playlistId] ??
+      snapshot.playlists.firstWhere((playlist) => playlist.id == playlistId);
+}
+
+void _patchPlaylistSongsAdded(
+  WidgetRef ref,
+  LibraryPlaylist playlist,
+  List<int> songIds,
+) {
+  final existingSongIds = playlist.songIds.toSet();
+  final nextSongIds = [
+    ...playlist.songIds,
+    for (final songId in songIds)
+      if (existingSongIds.add(songId)) songId,
+  ];
+  _patchPlaylistMutation(
+    ref,
+    playlist.copyWith(songCount: nextSongIds.length, songIds: nextSongIds),
+  );
+}
+
+void _patchPlaylistSongsRemoved(
+  WidgetRef ref,
+  LibraryPlaylist playlist,
+  List<int> songIds,
+) {
+  final removedSongIds = songIds.toSet();
+  final nextSongIds =
+      playlist.songIds
+          .where((songId) => !removedSongIds.contains(songId))
+          .toList();
+  _patchPlaylistMutation(
+    ref,
+    playlist.copyWith(songCount: nextSongIds.length, songIds: nextSongIds),
+  );
+}
+
+void _patchPlaylistMutation(WidgetRef ref, LibraryPlaylist playlist) {
+  patchLibraryPlaylistOverride(ref, playlist);
+  ref.invalidate(libraryContentDataProvider);
+  invalidateLibraryMutationData(ref);
 }
 
 Future<void> setSongsFavorite(
@@ -247,7 +303,19 @@ Future<void> createPlaylistWithSongs({
     return;
   }
 
-  await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+  await createPlaylistAndSync(ref, name, songIds);
+}
+
+Future<LibraryPlaylist> createPlaylistAndSync(
+  WidgetRef ref,
+  String name,
+  List<int> songIds,
+) async {
+  final playlist = await ref
+      .read(libraryRepositoryProvider)
+      .createPlaylist(name, songIds);
+  _patchPlaylistMutation(ref, playlist);
+  return playlist;
 }
 
 Future<void> requestDeleteSongFromDisk({

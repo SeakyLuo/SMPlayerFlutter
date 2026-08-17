@@ -75,17 +75,34 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
   }
 
   void _notifySaved() {
+    ref.invalidate(libraryContentDataProvider);
+    ref.invalidate(recentPageDataProvider);
     widget.onSaved?.call();
   }
 
+  void _syncSongMutation(LibrarySong song, SmPlayerI18n i18n) {
+    patchLibrarySongOverride(ref, song);
+    ref
+        .read(mediaControlControllerProvider)
+        .updateTrackMetadata(mediaControlTrackForSong(song, i18n));
+  }
+
   LibrarySong _songWithProperties(SongPropertiesSnapshot properties) {
-    return widget.song.copyWith(
+    final song =
+        ref.read(librarySongOverridesProvider)[widget.song.id] ?? widget.song;
+    return song.copyWith(
       title: properties.title,
       artist: properties.artist,
       artists: properties.artists,
       album: properties.album,
       playCount: properties.playCount,
     );
+  }
+
+  LibrarySong _songWithArtwork(String thumbnailPath) {
+    final song =
+        ref.read(librarySongOverridesProvider)[widget.song.id] ?? widget.song;
+    return song.copyWith(thumbnailPath: thumbnailPath);
   }
 
   void _scrollLyricsToTop() {

@@ -329,4 +329,12 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
       },
     );
   }
+
+  Future<void> _reorderPlaylistsFromNavigation({
+    required WidgetRef ref,
+    required List<int> playlistIds,
+  }) async {
+    await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
+    ref.invalidate(libraryContentDataProvider);
+  }
 }

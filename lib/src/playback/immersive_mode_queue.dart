@@ -907,7 +907,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         onPlay: () {
           onPlayTrack(song, songIds, queueIndex);
         },
-        onPause: onTogglePlayPause,
+        onTogglePlayPause: onTogglePlayPause,
         onPlayNext: null,
         onAddToNowPlaying: () {
           onAddToNowPlaying(song);

@@ -162,7 +162,6 @@ class _HeaderedPlaylistControlState
   var _scrollTop = 0.0;
   var _headerCollapsed = false;
   final _pendingFavoriteSongIds = <int>{};
-  final _localPlaylistOverrides = <int, LibraryPlaylist>{};
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final VoidCallback _clearAppBarPortalOwner;
@@ -222,6 +221,8 @@ class _HeaderedPlaylistControlState
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(libraryPlaylistOverridesProvider);
+    ref.watch(libraryDeletedPlaylistIdsProvider);
     return _buildBody(context);
   }
 
@@ -237,32 +238,11 @@ class _HeaderedPlaylistControlState
   }
 
   List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
-    if (_localPlaylistOverrides.isEmpty) {
-      return playlists;
-    }
-    var effectivePlaylists =
-        playlists
-            .map((playlist) => _localPlaylistOverrides[playlist.id] ?? playlist)
-            .toList();
-    final playlistIds =
-        effectivePlaylists.map((playlist) => playlist.id).toSet();
-    for (final playlist in _localPlaylistOverrides.values) {
-      if (playlistIds.contains(playlist.id)) {
-        continue;
-      }
-      effectivePlaylists = _insertCustomPlaylistFirst(
-        effectivePlaylists,
-        playlist,
-      );
-      playlistIds.add(playlist.id);
-    }
-    return effectivePlaylists;
-  }
-
-  void _patchLocalPlaylist(LibraryPlaylist playlist) {
-    _updateState(() {
-      _localPlaylistOverrides[playlist.id] = playlist;
-    });
+    return applyLibraryPlaylistOverridesToPlaylists(
+      playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+    );
   }
 
   void _handleScroll() {
@@ -282,14 +262,4 @@ class _HeaderedPlaylistControlState
       _headerCollapsed = nextHeaderCollapsed;
     });
   }
-}
-
-List<LibraryPlaylist> _insertCustomPlaylistFirst(
-  List<LibraryPlaylist> playlists,
-  LibraryPlaylist playlist,
-) {
-  final index = playlists.indexWhere((item) => !item.isBuiltIn);
-  final nextPlaylists = playlists.toList();
-  nextPlaylists.insert(index == -1 ? nextPlaylists.length : index, playlist);
-  return nextPlaylists;
 }
