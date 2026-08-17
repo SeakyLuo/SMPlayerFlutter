@@ -69,7 +69,13 @@ class SettingsController extends ChangeNotifier {
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     final snapshot = _snapshot;
     notifyListeners();
-    unawaited(_persistPlaybackSettings(update, snapshot));
+    _playbackSettingsWriteQueue = _playbackSettingsWriteQueue
+        .catchError((_) {})
+        .then((_) => _persistPlaybackSettings(update, snapshot));
+  }
+
+  Future<void> waitForPendingPlaybackSettings() async {
+    await _playbackSettingsWriteQueue;
   }
 
   Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {

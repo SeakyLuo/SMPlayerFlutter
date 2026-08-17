@@ -365,11 +365,15 @@ class _RecentArtistList extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final artist = group.items[index];
                           final key = 'artists:${artist.name}';
-                          return _ArtistRow(
-                            artist: artist,
-                            imagePath: artist.artworkUrl,
+                          return SearchArtistCard(
+                            title: artist.name,
+                            subtitle: formatRecentDateTime(artist.playedAt),
+                            artworkPath: artist.artworkUrl,
                             selected: selectedKeys.contains(key),
                             multiSelect: multiSelect,
+                            playTooltip: context.smPlayerI18n.t(
+                              'nowPlaying.randomPlay',
+                            ),
                             onOpen: () {
                               if (multiSelect) {
                                 onToggleSelection(key);
@@ -378,9 +382,10 @@ class _RecentArtistList extends StatelessWidget {
                               }
                             },
                             onPlay: () => onPlay(artist),
-                            onOpenContextMenu: (position) {
-                              onOpenContextMenu(position, artist);
-                            },
+                            onToggleSelection: () => onToggleSelection(key),
+                            onOpenContextMenu:
+                                (position) =>
+                                    onOpenContextMenu(position, artist),
                           );
                         },
                       ),
@@ -483,110 +488,6 @@ class _RecentTimeGroupHeader extends StatelessWidget {
             color: _RecentColors.textMuted,
             fontSize: 13,
             fontVariations: [FontVariation('wght', 720)],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ArtistRow extends StatelessWidget {
-  const _ArtistRow({
-    required this.artist,
-    required this.imagePath,
-    required this.selected,
-    required this.multiSelect,
-    required this.onOpen,
-    required this.onPlay,
-    required this.onOpenContextMenu,
-  });
-
-  final RecentArtistView artist;
-  final String imagePath;
-  final bool selected;
-  final bool multiSelect;
-  final VoidCallback onOpen;
-  final VoidCallback onPlay;
-  final ValueChanged<Offset> onOpenContextMenu;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedStyle = SelectedCollectionCardStyle.forBrightness(
-      Theme.of(context).brightness,
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onSecondaryTapDown: (details) {
-          onOpenContextMenu(details.globalPosition);
-        },
-        onTap: onOpen,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: selected ? selectedStyle.background : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: selected ? Border.all(color: selectedStyle.border) : null,
-            boxShadow: selected ? [selectedStyle.shadow] : null,
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(9),
-                child: SizedBox.square(
-                  dimension: 52,
-                  child: SongArtwork(artworkPath: imagePath),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      artist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color:
-                            selected
-                                ? selectedStyle.foreground
-                                : _RecentColors.textStrong,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatRecentDateTime(artist.playedAt),
-                      style: TextStyle(
-                        color:
-                            selected
-                                ? selectedStyle.muted
-                                : _RecentColors.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (multiSelect)
-                Icon(
-                  selected
-                      ? FluentIcons.checkmark_circle_20_filled
-                      : FluentIcons.circle_20_regular,
-                  color:
-                      selected ? _RecentColors.accent : _RecentColors.textMuted,
-                )
-              else
-                IconButton(
-                  tooltip: context.smPlayerI18n.t('nowPlaying.randomPlay'),
-                  icon: const SmPlayerPlayIcon(),
-                  onPressed: onPlay,
-                ),
-            ],
           ),
         ),
       ),

@@ -110,6 +110,7 @@ class SettingsSnapshot {
     required this.searchSongsCriterion,
     required this.searchPlaylistsCriterion,
     required this.searchFoldersCriterion,
+    required this.lastMusicId,
     required this.lastMusicIndex,
     required this.volume,
     required this.isMuted,
@@ -164,6 +165,7 @@ class SettingsSnapshot {
       searchSongsCriterion = SearchSortCriterion.defaultCriterion,
       searchPlaylistsCriterion = SearchSortCriterion.defaultCriterion,
       searchFoldersCriterion = SearchSortCriterion.defaultCriterion,
+      lastMusicId = 0,
       lastMusicIndex = -1,
       volume = 50,
       isMuted = false,
@@ -216,6 +218,7 @@ class SettingsSnapshot {
   final SearchSortCriterion searchSongsCriterion;
   final SearchSortCriterion searchPlaylistsCriterion;
   final SearchSortCriterion searchFoldersCriterion;
+  final int lastMusicId;
   final int lastMusicIndex;
   final int volume;
   final bool isMuted;
@@ -277,6 +280,7 @@ class SettingsSnapshot {
     SearchSortCriterion? searchSongsCriterion,
     SearchSortCriterion? searchPlaylistsCriterion,
     SearchSortCriterion? searchFoldersCriterion,
+    int? lastMusicId,
     int? lastMusicIndex,
     int? volume,
     bool? isMuted,
@@ -344,6 +348,7 @@ class SettingsSnapshot {
           searchPlaylistsCriterion ?? this.searchPlaylistsCriterion,
       searchFoldersCriterion:
           searchFoldersCriterion ?? this.searchFoldersCriterion,
+      lastMusicId: lastMusicId ?? this.lastMusicId,
       lastMusicIndex: lastMusicIndex ?? this.lastMusicIndex,
       volume: volume ?? this.volume,
       isMuted: isMuted ?? this.isMuted,
@@ -515,6 +520,7 @@ extension PlaybackSettingsUpdateApply on SettingsSnapshot {
             ? update.musicProgress
             : 0.0;
     return copyWith(
+      lastMusicId: update.lastMusicId,
       lastMusicIndex: update.lastMusicIndex,
       volume: update.volume,
       isMuted: update.isMuted,

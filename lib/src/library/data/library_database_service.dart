@@ -17,6 +17,7 @@ class LibraryDatabaseService {
       CREATE TABLE IF NOT EXISTS Settings (
         Id INTEGER PRIMARY KEY AUTOINCREMENT,
         RootPath TEXT DEFAULT '',
+        LastMusicId INTEGER DEFAULT 0,
         LastMusicIndex INTEGER DEFAULT -1,
         Mode INTEGER DEFAULT 0,
         Volume REAL DEFAULT 50,
@@ -402,6 +403,7 @@ class LibraryDatabaseService {
   void _ensureLibrarySchemaColumns(Database db) {
     _addColumnsIfMissing(db, 'Settings', {
       'RootPath': "TEXT DEFAULT ''",
+      'LastMusicId': 'INTEGER DEFAULT 0',
       'LastMusicIndex': 'INTEGER DEFAULT -1',
       'Mode': 'INTEGER DEFAULT 0',
       'Volume': 'REAL DEFAULT 50',
