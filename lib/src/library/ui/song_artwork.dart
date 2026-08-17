@@ -26,16 +26,30 @@ class SongArtwork extends StatelessWidget {
     }
 
     final file = File(path);
-    if (!file.existsSync()) {
-      return fallback;
-    }
-
-    return Image.file(
-      file,
-      fit: fit,
-      errorBuilder: (_, _, _) {
-        onError?.call();
-        return fallback;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+        final cacheWidth =
+            constraints.hasBoundedWidth && constraints.maxWidth > 0
+                ? (constraints.maxWidth * devicePixelRatio).ceil()
+                : null;
+        final cacheHeight =
+            cacheWidth == null &&
+                    constraints.hasBoundedHeight &&
+                    constraints.maxHeight > 0
+                ? (constraints.maxHeight * devicePixelRatio).ceil()
+                : null;
+        return Image.file(
+          file,
+          fit: fit,
+          cacheWidth: cacheWidth,
+          cacheHeight: cacheHeight,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) {
+            onError?.call();
+            return fallback;
+          },
+        );
       },
     );
   }

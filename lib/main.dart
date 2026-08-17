@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/app/app_window_state_model.dart';
 import 'package:smplayer_flutter/src/app/splash_screen.dart';
 import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
@@ -26,24 +27,74 @@ Future<void> main(List<String> args) async {
   if (Platform.isWindows) {
     JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
   }
-  const repository = LibraryRepository();
-  final settingsSnapshot = await repository.initializeSettingsSnapshot();
-  final settingsController = SettingsController(settingsSnapshot, repository);
-  final settings = settingsController.snapshot;
-  runApp(
-    SmPlayerRoot(
-      initialLocation: resolveRestoredPage(settings.lastPage),
-      initialSettingsController: settingsController,
-      initialExternalFilePaths: externalAudioPathsFromArgs(args),
-      initialExternalCommands: externalAppCommandsFromArgs(args),
-    ),
-  );
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    unawaited(dismissNativeSplash());
-  });
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    unawaited(_initializeDesktopWindow(settings));
+  runApp(SmPlayerBootstrap(args: args));
+}
+
+class SmPlayerBootstrap extends StatefulWidget {
+  const SmPlayerBootstrap({super.key, required this.args});
+
+  final List<String> args;
+
+  @override
+  State<SmPlayerBootstrap> createState() => _SmPlayerBootstrapState();
+}
+
+class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
+  _SmPlayerStartupState? _startupState;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(dismissNativeSplash());
+    });
+    unawaited(_initialize());
   }
+
+  Future<void> _initialize() async {
+    const repository = LibraryRepository();
+    final settingsSnapshot = await repository.initializeSettingsSnapshot();
+    final settingsController = SettingsController(settingsSnapshot, repository);
+    final settings = settingsController.snapshot;
+    final initialLocation = resolveRestoredPage(settings.lastPage);
+    if (!mounted) {
+      settingsController.dispose();
+      return;
+    }
+    setState(() {
+      _startupState = _SmPlayerStartupState(
+        initialLocation: initialLocation,
+        settingsController: settingsController,
+      );
+    });
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      unawaited(_initializeDesktopWindow(settings));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final startupState = _startupState;
+    if (startupState == null) {
+      return const SmPlayerSplashScreen();
+    }
+    return SmPlayerRoot(
+      initialLocation: startupState.initialLocation,
+      initialSettingsController: startupState.settingsController,
+      initialExternalFilePaths: externalAudioPathsFromArgs(widget.args),
+      initialExternalCommands: externalAppCommandsFromArgs(widget.args),
+    );
+  }
+}
+
+class _SmPlayerStartupState {
+  const _SmPlayerStartupState({
+    required this.initialLocation,
+    required this.settingsController,
+  });
+
+  final String initialLocation;
+  final SettingsController settingsController;
 }
 
 class SmPlayerRoot extends StatefulWidget {
@@ -144,6 +195,7 @@ class SmPlayerApp extends ConsumerStatefulWidget {
 class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   Timer? _nightModeTimer;
   late PreferredLanguage _lastPreferredLanguage;
+  var _initialDatabaseSnapshotLoaded = false;
 
   @override
   void initState() {
@@ -206,6 +258,11 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    final libraryValue = ref.watch(libraryContentDataProvider);
+    if (!_initialDatabaseSnapshotLoaded &&
+        (libraryValue.hasValue || libraryValue.hasError)) {
+      _initialDatabaseSnapshotLoaded = true;
+    }
     final settings = widget.settingsController.snapshot;
     final lightTheme = buildSmPlayerTheme(
       settings,
@@ -217,14 +274,14 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
         isAppNightMode(settings) ? Brightness.dark : lightTheme.brightness;
     final i18n = i18nValue.valueOrNull;
 
+    if (i18n == null || !_initialDatabaseSnapshotLoaded) {
+      return SmPlayerSplashScreen(brightness: brightness);
+    }
+
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title:
-          i18n?.t('app.shell') ??
-          SmPlayerSplashAppName.resolve(
-            WidgetsBinding.instance.platformDispatcher.locale,
-          ),
-      locale: i18n == null ? null : smPlayerLocaleFromName(i18n.locale),
+      title: i18n.t('app.shell'),
+      locale: smPlayerLocaleFromName(i18n.locale),
       supportedLocales: smPlayerSupportedLocales,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -236,9 +293,6 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
       themeMode: themeMode,
       routerConfig: widget.router,
       builder: (context, child) {
-        if (i18n == null) {
-          return SmPlayerSplashView(brightness: brightness);
-        }
         return SmPlayerI18nScope(
           i18n: i18n,
           child: TouchContextMenuAdapter(

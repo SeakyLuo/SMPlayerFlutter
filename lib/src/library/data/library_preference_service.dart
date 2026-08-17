@@ -10,11 +10,16 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart'
         PreferenceSectionKey,
         PreferenceSettingsSnapshot;
 
+import 'library_database_service.dart';
+
 const _activeState = 1;
 const _inactiveState = 0;
 
 class LibraryPreferenceService {
-  const LibraryPreferenceService();
+  const LibraryPreferenceService({required LibraryDatabaseService database})
+    : _database = database;
+
+  final LibraryDatabaseService _database;
 
   Future<void> addPreferenceItem(
     File databaseFile,
@@ -119,7 +124,7 @@ class LibraryPreferenceService {
       return PreferenceSettingsSnapshot.defaults();
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
       final setting = _ensurePreferenceSetting(db);
       final rows = db.select(
