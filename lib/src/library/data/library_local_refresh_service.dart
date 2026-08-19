@@ -111,10 +111,10 @@ class LibraryLocalRefreshService {
         db,
       );
       final preparedFolderCount =
-          countScannableFolders(rootPath, hiddenPaths.folderPaths) + 1;
+          await countScannableFolders(rootPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
       int folderProgressMax() => max(preparedFolderCount, checkedFolderCount);
-      final scannedPaths = findScannableAudioFiles(
+      final scannedPaths = await findScannableAudioFiles(
         rootPath,
         hiddenFolderPaths: hiddenPaths.folderPaths,
         hiddenFilePaths: hiddenPaths.filePaths,
@@ -281,6 +281,9 @@ class LibraryLocalRefreshService {
         final possibleSplits = <ArtistSplitResultItem>[];
         final mergeSuggestions = <ArtistSplitResultItem>[];
         for (final entry in scannedPaths.indexed) {
+          if (entry.$1 > 0 && entry.$1 % 8 == 0) {
+            await Future<void>.delayed(Duration.zero);
+          }
           final writtenCount = entry.$1 + 1;
           final scannedSong = scannedSongs[entry.$1];
           onProgress?.call(
@@ -389,10 +392,10 @@ class LibraryLocalRefreshService {
         db,
       );
       final preparedFolderCount =
-          countScannableFolders(folderPath, hiddenPaths.folderPaths) + 1;
+          await countScannableFolders(folderPath, hiddenPaths.folderPaths) + 1;
       var checkedFolderCount = 0;
       int folderProgressMax() => max(preparedFolderCount, checkedFolderCount);
-      final scannedPaths = findScannableAudioFiles(
+      final scannedPaths = await findScannableAudioFiles(
         folderPath,
         hiddenFolderPaths: hiddenPaths.folderPaths,
         hiddenFilePaths: hiddenPaths.filePaths,
@@ -617,6 +620,9 @@ class LibraryLocalRefreshService {
         final possibleSplits = <ArtistSplitResultItem>[];
         final mergeSuggestions = <ArtistSplitResultItem>[];
         for (final entry in scannedPaths.indexed) {
+          if (entry.$1 > 0 && entry.$1 % 8 == 0) {
+            await Future<void>.delayed(Duration.zero);
+          }
           final writtenCount = entry.$1 + 1;
           final scannedSong = scannedSongs[entry.$1];
           onProgress?.call(

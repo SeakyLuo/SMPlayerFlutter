@@ -22,7 +22,7 @@ extension _LocalPageFolderActions on _LocalPageState {
     final repository = ref.read(libraryRepositoryProvider);
     final name = await _requestFolderName(
       i18n: i18n,
-      defaultName: '',
+      defaultName: _nextFolderName(parent.relativePath, nodes, i18n),
       validate: (value) {
         return _folderNameValidationError(
           parent.relativePath,
@@ -195,6 +195,25 @@ extension _LocalPageFolderActions on _LocalPageState {
 
   Future<void> _revealSong(LibrarySong song) async {
     await ref.read(localPageRevealItemInFolderProvider)(song.path);
+  }
+
+  String _nextFolderName(
+    String parentRelativePath,
+    Map<String, FolderNode> nodes,
+    SmPlayerI18n i18n,
+  ) {
+    final baseName = i18n.t('local.newFolderName');
+    if (!_folderPathExists(parentRelativePath, baseName, nodes)) {
+      return baseName;
+    }
+
+    var index = 1;
+    var nextName = '$baseName ($index)';
+    while (_folderPathExists(parentRelativePath, nextName, nodes)) {
+      index += 1;
+      nextName = '$baseName ($index)';
+    }
+    return nextName;
   }
 
   bool _folderPathExists(

@@ -109,6 +109,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   String? _localOperationTitle;
   LocalFolderScanCancellation? _scanCancellation;
   var _refreshFolderRunning = false;
+  final _scanProgressClock = Stopwatch()..start();
+  var _lastScanProgressUpdateMs = -100;
   MusicDialogEntry? _musicDialog;
   var _rootScanRunning = false;
   var _pickingLibraryRoot = false;

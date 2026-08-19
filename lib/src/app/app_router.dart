@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/library_detail_transition_page.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
@@ -103,17 +104,23 @@ GoRouter createSmPlayerRouter({
             routes: [
               GoRoute(
                 path: '/albums',
-                pageBuilder:
-                    (context, state) => _smPlayerBranchPage(
+                pageBuilder: (context, state) {
+                  final albumName = state.uri.queryParameters['album'];
+                  if (albumName == null) {
+                    return _smPlayerBranchPage(
                       state: state,
                       settingsController: settingsController,
-                      child:
-                          state.uri.queryParameters['album'] == null
-                              ? const AlbumsPage()
-                              : AlbumDetailPage(
-                                albumName: state.uri.queryParameters['album']!,
-                              ),
-                    ),
+                      child: const AlbumsPage(),
+                    );
+                  }
+                  return _smPlayerDetailBranchPage(
+                    context: context,
+                    state: state,
+                    settingsController: settingsController,
+                    pageKey: ValueKey('AlbumDetail.$albumName'),
+                    child: AlbumDetailPage(albumName: albumName),
+                  );
+                },
               ),
             ],
           ),
@@ -208,16 +215,18 @@ GoRouter createSmPlayerRouter({
               ),
               GoRoute(
                 path: '/playlists/:playlistId',
-                pageBuilder:
-                    (context, state) => _smPlayerBranchPage(
-                      state: state,
-                      settingsController: settingsController,
-                      child: PlaylistsPage(
-                        selectedPlaylistId: int.parse(
-                          state.pathParameters['playlistId']!,
-                        ),
-                      ),
+                pageBuilder: (context, state) {
+                  final playlistId = state.pathParameters['playlistId']!;
+                  return _smPlayerDetailBranchPage(
+                    context: context,
+                    state: state,
+                    settingsController: settingsController,
+                    pageKey: ValueKey('PlaylistDetail.$playlistId'),
+                    child: PlaylistsPage(
+                      selectedPlaylistId: int.parse(playlistId),
                     ),
+                  );
+                },
               ),
             ],
           ),
@@ -370,6 +379,24 @@ Page<void> _smPlayerBranchPage({
 }) {
   return NoTransitionPage<void>(
     key: state.pageKey,
+    child: _LibraryRootGate(
+      path: state.uri.path,
+      settingsController: settingsController,
+      child: child,
+    ),
+  );
+}
+
+Page<void> _smPlayerDetailBranchPage({
+  required BuildContext context,
+  required GoRouterState state,
+  required SettingsController? settingsController,
+  required LocalKey pageKey,
+  required Widget child,
+}) {
+  return smPlayerLibraryDetailPage(
+    context: context,
+    key: pageKey,
     child: _LibraryRootGate(
       path: state.uri.path,
       settingsController: settingsController,

@@ -150,6 +150,10 @@ class _CommandBarState extends State<CommandBar> {
                                 measuredMoreWidth: _measuredMoreWidth,
                               ).clamp(0.0, maxWidth).toDouble()
                               : maxWidth;
+                      final moreButtonWidth =
+                          (_measuredMoreWidth ?? style.iconOnlyOuterWidth)
+                              .clamp(0.0, toolbarWidth)
+                              .toDouble();
                       final measurementLayer = Positioned(
                         left: -100000,
                         top: 0,
@@ -187,9 +191,12 @@ class _CommandBarState extends State<CommandBar> {
                       );
 
                       Widget moreButton() {
-                        return _CommandBarMoreButton(
-                          label: widget.overflowLabel ?? 'More',
-                          items: overflowMenuItems,
+                        return SizedBox(
+                          width: moreButtonWidth,
+                          child: _CommandBarMoreButton(
+                            label: widget.overflowLabel ?? 'More',
+                            items: overflowMenuItems,
+                          ),
                         );
                       }
 
@@ -316,6 +323,10 @@ class _CommandBarState extends State<CommandBar> {
                       includeMoreButton: overflowMenuItems.isNotEmpty,
                       measuredMoreWidth: _measuredMoreWidth,
                     ).clamp(0.0, maxWidth).toDouble();
+                final moreButtonWidth =
+                    (_measuredMoreWidth ?? style.iconOnlyOuterWidth)
+                        .clamp(0.0, toolbarWidth)
+                        .toDouble();
                 final measurementLayer = Positioned(
                   left: -100000,
                   top: 0,
@@ -352,9 +363,12 @@ class _CommandBarState extends State<CommandBar> {
                 );
 
                 Widget moreButton() {
-                  return _CommandBarMoreButton(
-                    label: widget.overflowLabel ?? 'More',
-                    items: overflowMenuItems,
+                  return SizedBox(
+                    width: moreButtonWidth,
+                    child: _CommandBarMoreButton(
+                      label: widget.overflowLabel ?? 'More',
+                      items: overflowMenuItems,
+                    ),
                   );
                 }
 
