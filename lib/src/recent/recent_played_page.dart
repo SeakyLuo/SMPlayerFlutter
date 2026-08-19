@@ -89,10 +89,13 @@ class _RecentPlayedPage extends ConsumerWidget {
     return Column(
       spacing: 4,
       children: [
-        _RecentPlayedFilterBar(
-          i18n: i18n,
-          activeFilter: filter,
-          onChanged: onFilterChanged,
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: _RecentPlayedFilterBar(
+            i18n: i18n,
+            activeFilter: filter,
+            onChanged: onFilterChanged,
+          ),
         ),
         CommandBar(
           overflowLabel: i18n.t('player.more'),
@@ -109,7 +112,7 @@ class _RecentPlayedPage extends ConsumerWidget {
               onPressed: onToggleMultiSelect,
             ),
             CommandBarButton(
-              icon: FluentIcons.dismiss_20_regular,
+              icon: FluentIcons.broom_20_regular,
               label: i18n.t('recent.clearHistory'),
               disabled: playedCount == 0,
               onPressed: () {

@@ -66,6 +66,7 @@ class PlaylistControlItem extends StatefulWidget {
     required this.onPlayTrack,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
+    this.onActivateRow,
     this.onPlayNextClick,
     this.onRemoveFromListClick,
     this.showAlbum = true,
@@ -97,6 +98,7 @@ class PlaylistControlItem extends StatefulWidget {
   final bool selected;
   final bool selectionMode;
   final VoidCallback onPlayTrack;
+  final VoidCallback? onActivateRow;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onPlayNextClick;
@@ -145,6 +147,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     }
     if (_swipeOffset != 0) {
       _resetSwipe();
+      return;
+    }
+    if (widget.onActivateRow case final onActivateRow?) {
+      onActivateRow();
       return;
     }
     if (widget.current) {
@@ -782,7 +788,7 @@ class _QueueArtwork extends StatelessWidget {
                     current && playing
                         ? const SmPlayerPauseIcon(size: 17, color: Colors.white)
                         : const SmPlayerPlayIcon(size: 17, color: Colors.white),
-                onPressed: current && playing ? onTogglePlayPause : onPlayTrack,
+                onPressed: current ? onTogglePlayPause : onPlayTrack,
               ),
             ),
           ),

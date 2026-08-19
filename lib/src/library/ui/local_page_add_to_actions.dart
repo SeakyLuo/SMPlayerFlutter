@@ -85,7 +85,13 @@ extension _LocalPageAddToActions on _LocalPageState {
       return;
     }
 
-    await createPlaylistAndSync(ref, name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: i18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   Future<String?> _requestPlaylistName({

@@ -904,14 +904,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             song: song,
           );
         },
-        onHide: () {
-          hideSongFileWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            song: song,
-          );
-        },
         onSeeArtist: () {
           final artists = getSongArtists(song);
           final artist =
@@ -1129,13 +1121,23 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
 
   void _playNext(int songId) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     final insertIndex = insertIndexAfterCurrentOccurrence(
       ref.read(mediaControlControllerProvider).state,
       queueSongIds,
     );
     queueSongIds.insert(insertIndex, songId);
     setNowPlayingQueue(ref, queueSongIds);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: songsById[songId]!.title,
+      onUndo: () {
+        setNowPlayingQueue(ref, previousSongIds);
+      },
+    );
   }
 
   void _addNextAndPlay(int songId) {

@@ -286,11 +286,11 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           _playTrack(snapshot, i18n, trackId, queueSongIds);
         },
         onMoveToMusicOrPlay: (songId) {
-          _playTrack(
-            snapshot,
-            i18n,
-            songId,
-            songs.map((song) => song.id).toList(),
+          insertOrPlayNowPlayingSong(
+            ref: ref,
+            snapshot: snapshot,
+            i18n: i18n,
+            songId: songId,
           );
         },
         onPlayNext: (songId) {

@@ -18,6 +18,7 @@ class PlaylistControlEntry {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onOpenContextMenu,
+    this.onActivateRow,
     this.logicalIndex,
     this.showAlbum = false,
     this.variant = PlaylistControlItemVariant.standard,
@@ -65,6 +66,7 @@ class PlaylistControlEntry {
   final String? favoriteLabel;
   final String? moreLabel;
   final VoidCallback onPlayTrack;
+  final VoidCallback? onActivateRow;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onToggleFavoriteClick;
@@ -176,6 +178,7 @@ class PlaylistControl extends StatelessWidget {
       favoriteLabel: entry.favoriteLabel,
       moreLabel: entry.moreLabel,
       onPlayTrack: entry.onPlayTrack,
+      onActivateRow: entry.onActivateRow,
       onTogglePlayPause: entry.onTogglePlayPause,
       onToggleSelection: entry.onToggleSelection,
       onToggleFavoriteClick: entry.onToggleFavoriteClick,

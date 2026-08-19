@@ -204,9 +204,12 @@ class AppNotificationHost extends StatelessWidget {
           onAction: (actionIndex) async {
             final action = presentation.actions[actionIndex];
             controller.setRunning(actionIndex);
-            await SchedulerBinding.instance.endOfFrame;
-            await Future<void>.sync(action.onPressed);
-            controller.close(AppNotificationClosedReason.action);
+            try {
+              await SchedulerBinding.instance.endOfFrame;
+              await Future<void>.sync(action.onPressed);
+            } finally {
+              controller.close(AppNotificationClosedReason.action);
+            }
           },
         );
       },

@@ -613,6 +613,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onJumpToArtistKey: _jumpToArtistKey,
                     onPlaySongs: _playShuffledSongIds,
                     onPlayTrack: _playTrackInQueue,
+                    onPlaySong: _moveToMusicOrPlay,
                     onTogglePlayPause:
                         ref
                             .read(mediaControlControllerProvider)

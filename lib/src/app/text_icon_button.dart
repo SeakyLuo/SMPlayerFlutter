@@ -154,6 +154,22 @@ class _SmPlayerTextIconButtonInteractionState
   }
 
   @override
+  void didUpdateWidget(_SmPlayerTextIconButtonInteraction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tooltip == widget.tooltip) {
+      return;
+    }
+    _removeTooltipOverlay();
+    if (widget.tooltip != null && (_hovered || _focused)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showTooltipOverlay();
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final config = widget.configuration;
     final colors =
@@ -367,6 +383,7 @@ class _SmPlayerTextIconButtonInteractionState
 
   void _updateTooltipOverlay() {
     if (widget.tooltip == null) {
+      _removeTooltipOverlay();
       return;
     }
     if (_hovered || _focused) {
@@ -390,10 +407,11 @@ class _SmPlayerTextIconButtonInteractionState
     final anchorOrigin = overlayBox.globalToLocal(
       anchorBox.localToGlobal(Offset.zero),
     );
+    final message = widget.tooltip!;
     _tooltipOverlayEntry = OverlayEntry(
       builder:
           (overlayContext) => _SmPlayerTextIconButtonTooltipOverlay(
-            message: widget.tooltip!,
+            message: message,
             anchor: anchorOrigin & anchorBox.size,
           ),
     );

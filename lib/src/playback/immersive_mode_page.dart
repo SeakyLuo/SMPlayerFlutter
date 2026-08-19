@@ -365,7 +365,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onUndoPreference: _undoSongPreference,
               onSetPreference: _setSongPreference,
               onDeleteSongFromDisk: _deleteSongFromDisk,
-              onHideSongFile: (song) => _hideSongFile(song, queueSongIds),
               onMoveSongToFolder: _moveSongToFolder,
               onOpenSongDialog: _openMusicDialog,
               onRevealSong: _revealPath,
@@ -756,7 +755,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
         folders: snapshot.folders,
         randomLimit: nowPlayingQuickPlayLimit,
         onPlaySongs: _playSongIds,
-        includeQuickPlay: false,
       ),
       onVolumeChange: mediaController.onVolumeChange,
       onToggleMute: mediaController.onToggleMute,
@@ -1177,7 +1175,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await createPlaylistAndSync(ref, name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
@@ -1244,39 +1248,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       ref: ref,
       i18n: context.smPlayerI18n,
       song: song,
-    );
-  }
-
-  Future<void> _hideSongFile(LibrarySong song, List<int> queueSongIds) async {
-    final removedEntries = immersiveModeQueueEntriesForSong(
-      queueSongIds,
-      song.id,
-    );
-    await ref.read(libraryRepositoryProvider).hideSong(song.id);
-    ref.invalidate(libraryContentDataProvider);
-    _replaceQueue([
-      for (final songId in queueSongIds)
-        if (songId != song.id) songId,
-    ]);
-    if (!mounted) {
-      return;
-    }
-    _showUndo(
-      context.smPlayerI18n.t('notification.hiddenStorageItem', {
-        'name': song.title,
-      }),
-      () async {
-        await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(libraryContentDataProvider);
-        final snapshot =
-            await ref.read(libraryRepositoryProvider).getLibraryContentData();
-        final currentQueueSongIds =
-            ref.read(nowPlayingQueueOverrideProvider) ??
-            snapshot.nowPlaying.songIds;
-        _replaceQueue(
-          insertImmersiveModeQueueEntries(currentQueueSongIds, removedEntries),
-        );
-      },
     );
   }
 

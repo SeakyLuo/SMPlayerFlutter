@@ -28,8 +28,11 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
         .createPlaylist(name, songIds);
     _addLocalPlaylist(playlist);
     if (context.mounted) {
-      _persistLastPlaylist(playlist.id);
-      context.go('/playlists/${playlist.id}');
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: i18n,
+        playlist: playlist,
+      );
     }
   }
 
@@ -170,5 +173,12 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
           playlist.songIds,
         );
     _addLocalPlaylist(duplicatedPlaylist);
+    if (mounted) {
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: context.smPlayerI18n,
+        playlist: duplicatedPlaylist,
+      );
+    }
   }
 }

@@ -28,12 +28,22 @@ extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
   }
 
   void _playNext(LibraryContentData snapshot, int songId) {
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     final currentIndex = currentQueueIndexForPlaybackOccurrence(
       ref.read(mediaControlControllerProvider).state,
       queueSongIds,
     );
     queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
     _patchNowPlaying(queueSongIds);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: songsById[songId]!.title,
+      onUndo: () {
+        _patchNowPlaying(previousSongIds);
+      },
+    );
   }
 }

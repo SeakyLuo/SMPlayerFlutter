@@ -85,7 +85,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             ),
           if (widget.canClear)
             CommandBarButton(
-              icon: FluentIcons.dismiss_circle_20_regular,
+              icon: FluentIcons.broom_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'clear'),
               disabled: visibleSongs.isEmpty,
               onPressed: () {
@@ -163,7 +163,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           MenuFlyoutItem(
             key: 'clear',
             text: captionForHeaderedPlaylist(i18n, 'clear'),
-            icon: FluentIcons.dismiss_circle_20_regular,
+            icon: FluentIcons.broom_20_regular,
             disabled: visibleSongs.isEmpty,
             onPressed: () {
               unawaited(_requestClear(i18n));

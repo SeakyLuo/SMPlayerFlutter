@@ -123,16 +123,15 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
                 },
                 onMoveToMusicOrPlay: (songId) {
-                  _playTrack(
-                    ref,
-                    snapshot,
-                    i18n,
-                    songId,
-                    albumSongs.map((song) => song.id).toList(),
+                  insertOrPlayNowPlayingSong(
+                    ref: ref,
+                    snapshot: snapshot,
+                    i18n: i18n,
+                    songId: songId,
                   );
                 },
                 onPlayNext: (songId) {
-                  _playNext(ref, snapshot, songId);
+                  _playNext(context, ref, snapshot, songId);
                 },
                 onTogglePlayPause:
                     ref.read(mediaControlControllerProvider).onTogglePlayPause,
@@ -288,12 +287,27 @@ void _playTrack(
   );
 }
 
-void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+void _playNext(
+  BuildContext context,
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  int songId,
+) {
+  final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final queueSongIds = previousSongIds.toList();
   final insertIndex = insertIndexAfterCurrentOccurrence(
     ref.read(mediaControlControllerProvider).state,
     queueSongIds,
   );
   queueSongIds.insert(insertIndex, songId);
   setNowPlayingQueue(ref, queueSongIds);
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  showPlayNextUndoNotification(
+    context: context,
+    i18n: context.smPlayerI18n,
+    songTitle: songsById[songId]!.title,
+    onUndo: () {
+      setNowPlayingQueue(ref, previousSongIds);
+    },
+  );
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -20,6 +21,20 @@ List<int> notFavoriteSongIds(
 
 bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
   return songIds.any((songId) => !songsById[songId]!.favorite);
+}
+
+void showPlayNextUndoNotification({
+  required BuildContext context,
+  required SmPlayerI18n i18n,
+  required String songTitle,
+  required VoidCallback onUndo,
+}) {
+  showUndoableNotification(
+    context: context,
+    i18n: i18n,
+    message: i18n.t('notification.playNext', {'title': songTitle}),
+    onUndo: onUndo,
+  );
 }
 
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
@@ -299,23 +314,55 @@ Future<void> createPlaylistWithSongs({
     playlists: playlists,
     defaultName: defaultName,
   );
-  if (name == null) {
+  if (name == null || !context.mounted) {
     return;
   }
 
-  await createPlaylistAndSync(ref, name, songIds);
+  await createPlaylistAndSync(
+    context: context,
+    ref: ref,
+    i18n: i18n,
+    name: name,
+    songIds: songIds,
+  );
 }
 
-Future<LibraryPlaylist> createPlaylistAndSync(
-  WidgetRef ref,
-  String name,
-  List<int> songIds,
-) async {
+Future<LibraryPlaylist> createPlaylistAndSync({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required String name,
+  required List<int> songIds,
+}) async {
   final playlist = await ref
       .read(libraryRepositoryProvider)
       .createPlaylist(name, songIds);
   _patchPlaylistMutation(ref, playlist);
+  if (context.mounted) {
+    showPlaylistCreatedNotification(
+      context: context,
+      i18n: i18n,
+      playlist: playlist,
+    );
+  }
   return playlist;
+}
+
+void showPlaylistCreatedNotification({
+  required BuildContext context,
+  required SmPlayerI18n i18n,
+  required LibraryPlaylist playlist,
+}) {
+  final router = GoRouter.of(context);
+  showAppNotification(
+    context: context,
+    message: i18n.t('notification.playlistCreated', {'name': playlist.name}),
+    duration: undoableNotificationDuration,
+    actionLabel: i18n.t('context.view'),
+    onAction: () {
+      router.go('/playlists/${playlist.id}');
+    },
+  );
 }
 
 Future<void> requestDeleteSongFromDisk({
@@ -365,11 +412,6 @@ Future<void> requestDeleteSongFromDisk({
         .read(libraryRepositoryProvider)
         .commitDeleteSongFromDisk(pendingDelete.id);
   }
-}
-
-Future<void> hideSongFile(WidgetRef ref, int songId) async {
-  await ref.read(libraryRepositoryProvider).hideSong(songId);
-  ref.invalidate(libraryContentDataProvider);
 }
 
 Future<void> hideSongFileWithUndo({

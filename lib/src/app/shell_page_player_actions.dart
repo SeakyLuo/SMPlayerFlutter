@@ -244,12 +244,15 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     final playlist = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
-    await _settingsController.saveViewState(lastPlaylistId: playlist.id);
     patchLibraryPlaylistOverride(ref, playlist);
     if (!mounted) {
       return;
     }
-    _navigateTo('/playlists/${playlist.id}');
+    showPlaylistCreatedNotification(
+      context: context,
+      i18n: i18n,
+      playlist: playlist,
+    );
   }
 
   Future<void> _duplicatePlaylistFromNavigation({
@@ -269,6 +272,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
           playlist.songIds,
         );
     patchLibraryPlaylistOverride(ref, duplicate);
+    if (mounted) {
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: context.smPlayerI18n,
+        playlist: duplicate,
+      );
+    }
   }
 
   Future<void> _renamePlaylistFromNavigation({

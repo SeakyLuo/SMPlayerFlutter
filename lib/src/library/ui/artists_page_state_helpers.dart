@@ -313,13 +313,11 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
   final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
   setNowPlayingQueue(state.ref, nextSongIds);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  showUndoableNotification(
+  showPlayNextUndoNotification(
     context: state.context,
     i18n: state.context.smPlayerI18n,
-    message: state.context.smPlayerI18n.t('notification.playNext', {
-      'title': songsById[songId]!.title,
-    }),
-    onUndo: () async {
+    songTitle: songsById[songId]!.title,
+    onUndo: () {
       setNowPlayingQueue(state.ref, previousSongIds);
     },
   );
@@ -327,24 +325,11 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
 
 void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final queueSongIds = currentNowPlayingSongIds(state.ref, snapshot);
-  var queueIndex = queueSongIds.indexOf(songId);
-  if (queueIndex == -1) {
-    final currentIndex = currentQueueIndexForPlaybackOccurrence(
-      mediaState,
-      queueSongIds,
-    );
-    queueIndex = currentIndex == -1 ? queueSongIds.length : currentIndex + 1;
-    queueSongIds.insert(queueIndex, songId);
-  }
-
-  replaceNowPlayingQueueAndPlayIndex(
+  insertOrPlayNowPlayingSong(
     ref: state.ref,
     snapshot: snapshot,
     i18n: state.context.smPlayerI18n,
-    songIds: queueSongIds,
-    queueIndex: queueIndex,
+    songId: songId,
   );
 }
 
@@ -597,7 +582,13 @@ Future<void> _showSongContextMenuForArtistsPage(
         unawaited(_requestSongContextPlaylistForArtistsPage(state, i18n, song));
       },
       onCreatePlaylist: () async {
-        await createPlaylistAndSync(state.ref, song.title, [song.id]);
+        await createPlaylistAndSync(
+          context: state.context,
+          ref: state.ref,
+          i18n: i18n,
+          name: song.title,
+          songIds: [song.id],
+        );
       },
       onAddToPlaylist: (playlistId) {
         addSongsToPlaylistWithUndo(
@@ -685,7 +676,13 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   if (name == null) {
     return;
   }
-  await createPlaylistAndSync(state.ref, name, [song.id]);
+  await createPlaylistAndSync(
+    context: state.context,
+    ref: state.ref,
+    i18n: i18n,
+    name: name,
+    songIds: [song.id],
+  );
 }
 
 void _showSongAddToMenuForArtistsPage(

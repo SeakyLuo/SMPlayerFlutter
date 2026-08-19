@@ -389,6 +389,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                         .toList(),
                                   );
                                 },
+                                onPlaySong: (song) {
+                                  insertOrPlayNowPlayingSong(
+                                    ref: ref,
+                                    snapshot: snapshot,
+                                    i18n: i18n,
+                                    songId: song.id,
+                                  );
+                                },
                                 onTogglePlayPause:
                                     ref
                                         .read(mediaControlControllerProvider)
@@ -922,7 +930,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _playNext(LibrarySong song) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     queueSongIds.remove(song.id);
     final insertIndex = insertIndexAfterCurrentOccurrence(
       ref.read(mediaControlControllerProvider).state,
@@ -930,10 +939,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
     queueSongIds.insert(insertIndex, song.id);
     setNowPlayingQueue(ref, queueSongIds);
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: song.title,
+      onUndo: () {
+        setNowPlayingQueue(ref, previousSongIds);
+      },
+    );
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await createPlaylistAndSync(ref, name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   void _openMusicDialog(
