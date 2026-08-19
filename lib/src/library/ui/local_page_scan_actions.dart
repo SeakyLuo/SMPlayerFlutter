@@ -151,9 +151,15 @@ extension _LocalPageScanActions on _LocalPageState {
   }
 
   void _setScanProgress(LocalFolderRefreshProgress progress) {
-    if (!mounted) {
+    if (!mounted || _scanCancellation == null) {
       return;
     }
+    final elapsedMs = _scanProgressClock.elapsedMilliseconds;
+    final stageChanged = _refreshProgress?.stage != progress.stage;
+    if (!stageChanged && elapsedMs - _lastScanProgressUpdateMs < 100) {
+      return;
+    }
+    _lastScanProgressUpdateMs = elapsedMs;
     _updateLocalPageState(() {
       _refreshProgress = progress;
     });
@@ -172,6 +178,11 @@ extension _LocalPageScanActions on _LocalPageState {
       confirmText: i18n.t('local.updateFolderProgressStopConfirm'),
     );
     if (confirmed) {
+      _updateLocalPageState(() {
+        _refreshProgress = null;
+        _localOperationTitle = null;
+        _scanCancellation = null;
+      });
       cancellation.cancel();
     }
   }

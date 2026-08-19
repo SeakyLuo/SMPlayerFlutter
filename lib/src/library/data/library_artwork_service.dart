@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -267,7 +268,9 @@ class LibraryArtworkService {
   }
 
   Future<String> cacheSongArtwork(String filePath) async {
-    final picture = await _id3TagService.readFirstPicture(filePath);
+    final picture = await Isolate.run(
+      () => _id3TagService.readFirstPicture(filePath),
+    );
     if (picture != null && _isLikelyImage(picture.data)) {
       return _writeArtworkCacheBytes(
         picture.data,

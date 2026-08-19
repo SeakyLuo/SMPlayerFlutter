@@ -1,5 +1,6 @@
 import 'dart:convert' show ascii;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -70,17 +71,25 @@ class LibraryAudioMetadataService {
     String filePath, {
     required CacheSongArtwork cacheSongArtwork,
   }) async {
-    final dateAdded = await _readFileCreationDateIso(filePath);
-    final properties = await _id3TagService.readSongTagProperties(filePath);
-    final duration = await _readAudioDurationSeconds(filePath);
+    final parsed = await Isolate.run(
+      () => _readAudioFileMetadataProperties(filePath),
+    );
     final thumbnailPath = await cacheSongArtwork(filePath);
     return AudioFileMetadata(
-      properties: properties,
-      duration: duration,
+      properties: parsed.properties,
+      duration: parsed.duration,
       thumbnailPath: thumbnailPath,
-      dateAdded: dateAdded,
+      dateAdded: parsed.dateAdded,
     );
   }
+}
+
+Future<({String dateAdded, Id3SongTagProperties properties, int duration})>
+_readAudioFileMetadataProperties(String filePath) async {
+  final dateAdded = await _readFileCreationDateIso(filePath);
+  final properties = await _id3TagService.readSongTagProperties(filePath);
+  final duration = await _readAudioDurationSeconds(filePath);
+  return (dateAdded: dateAdded, properties: properties, duration: duration);
 }
 
 Future<String> _readFileCreationDateIso(String filePath) async {

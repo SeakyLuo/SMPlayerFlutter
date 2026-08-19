@@ -64,23 +64,23 @@ class LocalMovedAudioFile {
   final String newPath;
 }
 
-List<String> findScannableAudioFiles(
+Future<List<String>> findScannableAudioFiles(
   String folderPath, {
   List<String> hiddenFolderPaths = const [],
   List<String> hiddenFilePaths = const [],
   LocalFolderScanCancellation? cancellation,
   void Function(String folderPath)? onFolder,
-}) {
+}) async {
   final audioFiles = <String>[];
   final hiddenFolderKeys =
       hiddenFolderPaths.map(localScanPathComparisonKey).toList();
   final hiddenFileKeys =
       hiddenFilePaths.map(localScanPathComparisonKey).toSet();
 
-  void walk(Directory directory) {
+  Future<void> walk(Directory directory) async {
     cancellation?.throwIfCanceled();
     onFolder?.call(directory.path);
-    for (final entry in directory.listSync(followLinks: false)) {
+    await for (final entry in directory.list(followLinks: false)) {
       cancellation?.throwIfCanceled();
       if (entry is Link) {
         continue;
@@ -90,7 +90,7 @@ List<String> findScannableAudioFiles(
             _isHiddenFolderPath(entry.path, hiddenFolderKeys)) {
           continue;
         }
-        walk(entry);
+        await walk(entry);
         continue;
       }
       if (entry is! File) {
@@ -106,17 +106,20 @@ List<String> findScannableAudioFiles(
     }
   }
 
-  walk(Directory(folderPath));
+  await walk(Directory(folderPath));
   return audioFiles;
 }
 
-int countScannableFolders(String folderPath, List<String> hiddenFolderPaths) {
+Future<int> countScannableFolders(
+  String folderPath,
+  List<String> hiddenFolderPaths,
+) async {
   final hiddenFolderKeys =
       hiddenFolderPaths.map(localScanPathComparisonKey).toList();
 
-  int walk(Directory directory) {
+  Future<int> walk(Directory directory) async {
     var count = 0;
-    for (final entry in directory.listSync(followLinks: false)) {
+    await for (final entry in directory.list(followLinks: false)) {
       if (entry is Link) {
         continue;
       }
@@ -127,7 +130,7 @@ int countScannableFolders(String folderPath, List<String> hiddenFolderPaths) {
           _isHiddenFolderPath(entry.path, hiddenFolderKeys)) {
         continue;
       }
-      count += 1 + walk(entry);
+      count += 1 + await walk(entry);
     }
     return count;
   }

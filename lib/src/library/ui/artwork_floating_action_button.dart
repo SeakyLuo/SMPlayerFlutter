@@ -51,21 +51,30 @@ class _ArtworkFloatingActionButtonState
           scale: widget.onPressed != null && _hovered ? widget.hoverScale : 1,
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOutCubic,
-          child: GlassIconButton(
-            size: widget.size,
-            iconSize: widget.iconSize ?? widget.size * 0.46,
-            useOwnLayer: true,
-            quality: GlassQuality.minimal,
-            settings: artworkOverlayGlassSettings,
-            glowColor: artworkOverlayGlowColor,
-            glowRadius: widget.size * artworkOverlayGlowRadiusFactor,
-            onPressed: widget.onPressed,
-            icon: IconTheme(
-              data: IconThemeData(
-                color: widget.onPressed == null ? Colors.white54 : Colors.white,
-                size: widget.iconSize ?? widget.size * 0.46,
+          child: Container(
+            foregroundDecoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: artworkOverlayBorderColor),
               ),
-              child: widget.icon,
+            ),
+            child: GlassIconButton(
+              size: widget.size,
+              iconSize: widget.iconSize ?? widget.size * 0.46,
+              useOwnLayer: true,
+              quality: GlassQuality.minimal,
+              settings: artworkOverlayGlassSettings,
+              glowColor: artworkOverlayGlowColor,
+              glowRadius: widget.size * artworkOverlayGlowRadiusFactor,
+              onPressed: widget.onPressed,
+              icon: IconTheme(
+                data: IconThemeData(
+                  color:
+                      widget.onPressed == null ? Colors.white54 : Colors.white,
+                  size: widget.iconSize ?? widget.size * 0.46,
+                ),
+                child: widget.icon,
+              ),
             ),
           ),
         ),
