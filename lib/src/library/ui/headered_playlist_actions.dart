@@ -117,12 +117,16 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     }
   }
 
-  void _showUndoRemoveSongs(List<int> songIds) {
+  void _showUndoRemoveSongs(
+    List<int> songIds, {
+    Map<int, LibrarySong>? originalSongsById,
+  }) {
     if (songIds.isEmpty) {
       return;
     }
     final i18n = context.smPlayerI18n;
-    final songsById = {for (final song in widget.songs) song.id: song};
+    final songsById =
+        originalSongsById ?? {for (final song in widget.songs) song.id: song};
     if (widget.type == HeaderedPlaylistType.favorites) {
       _showUndoNotification(
         () async {
@@ -207,7 +211,13 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       return;
     }
 
-    await createPlaylistAndSync(ref, name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: i18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   void _openMusicDialog(
@@ -279,7 +289,10 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       confirmText: captionForHeaderedPlaylist(i18n, 'clear'),
     );
     if (confirmed) {
-      widget.onClear?.call();
+      final songsById = {for (final song in widget.songs) song.id: song};
+      final songIds = widget.songs.map((song) => song.id).toList();
+      await widget.onClear?.call();
+      _showUndoRemoveSongs(songIds, originalSongsById: songsById);
     }
   }
 

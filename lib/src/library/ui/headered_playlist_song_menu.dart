@@ -140,17 +140,6 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             ),
           );
         },
-        showHideFile: true,
-        onHide: () {
-          unawaited(
-            hideSongFileWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              song: song,
-            ),
-          );
-        },
         onSeeArtist: () {
           widget.onArtistClick?.call(_displayArtist(song, i18n));
         },

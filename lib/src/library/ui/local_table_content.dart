@@ -48,6 +48,7 @@ class LocalTableContent extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -95,6 +96,7 @@ class LocalTableContent extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
@@ -139,6 +141,7 @@ class LocalTableContent extends StatelessWidget {
         onToggleFolderSelection: onToggleFolderSelection,
         onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
         onPlayTrack: onPlayTrack,
+        onPlaySong: onPlaySong,
         onTogglePlayPause: onTogglePlayPause,
         onToggleSongSelection: onToggleSongSelection,
         onPlayNext: onPlayNext,
@@ -536,9 +539,7 @@ class LocalTableContent extends StatelessWidget {
                         : FluentIcons.play_20_regular,
                   ),
                   onPressed:
-                      current
-                          ? onTogglePlayPause
-                          : () => onPlayTrack(song.id, compactQueueSongIds),
+                      current ? onTogglePlayPause : () => onPlaySong(song.id),
                 ),
                 IconButton(
                   tooltip: i18n.t('context.addToPlaylist'),
@@ -727,7 +728,7 @@ class LocalTableContent extends StatelessWidget {
                             onPressed:
                                 current
                                     ? onTogglePlayPause
-                                    : () => onPlayTrack(song.id, queueSongIds),
+                                    : () => onPlaySong(song.id),
                           ),
                           Builder(
                             builder:

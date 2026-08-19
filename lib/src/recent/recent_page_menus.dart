@@ -124,14 +124,6 @@ extension _RecentPageMenus on _RecentPageState {
             song: song,
           );
         },
-        onHide: () {
-          hideSongFileWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            song: song,
-          );
-        },
         onSeeArtist: () {
           context.go(
             '/artists?artist=${Uri.encodeQueryComponent(displayArtists(song, i18n))}',

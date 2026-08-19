@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
-import 'package:smplayer_flutter/src/app/shell_actions.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -24,9 +21,8 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
-import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
@@ -49,15 +45,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   MusicDialogEntry? _songDialog;
-
-  void _openImmersiveMode(SmPlayerShellActions? shellActions) {
-    final navigate = shellActions?.onNavigate;
-    if (navigate != null) {
-      navigate(immersiveModeRoutePath);
-      return;
-    }
-    context.go(immersiveModeRoutePath);
-  }
 
   @override
   void initState() {
@@ -130,7 +117,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         ),
       ),
     );
-    final shellActions = ref.watch(smPlayerShellActionsProvider);
     final i18n = context.smPlayerI18n;
 
     return snapshotValue.when(
@@ -266,18 +252,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   MenuFlyoutItem(
                     key: 'now-playing-appbar-clear-queue',
                     text: i18n.t('nowPlaying.clearQueue'),
-                    icon: FluentIcons.delete_20_regular,
+                    icon: FluentIcons.broom_20_regular,
                     onPressed: () {
                       _clearQueue(queueSongIds);
-                    },
-                  ),
-                  MenuFlyoutItem(
-                    key: 'now-playing-appbar-play-mode',
-                    text: i18n.t('nowPlaying.playMode'),
-                    useFullscreenIcon: true,
-                    disabled: currentSong == null,
-                    onPressed: () {
-                      _openImmersiveMode(shellActions);
                     },
                   ),
                   MenuFlyoutItem(
@@ -337,6 +314,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           visible: _selection.multiSelect,
           bottomInset: multiSelectCommandBarShellBottomInset,
           selectedCount: selectedVisibleSongIds.length,
+          showPlay: false,
           playlists: customPlaylists,
           addToSongIds: selectedVisibleSongIds,
           nowPlayingSongIds: queueSongIds,
@@ -378,12 +356,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               ),
             );
           },
-          onPlay:
-              selectedVisibleSongIds.isEmpty
-                  ? null
-                  : () {
-                    _playSongIds(selectedVisibleSongIds);
-                  },
           onRemove:
               selectedVisibleSongIds.isEmpty
                   ? null
@@ -498,18 +470,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             },
                           ),
                           CommandBarButton(
-                            icon: FluentIcons.delete_20_regular,
+                            icon: FluentIcons.broom_20_regular,
                             label: i18n.t('nowPlaying.clearQueue'),
                             onPressed: () {
                               _clearQueue(queueSongIds);
-                            },
-                          ),
-                          CommandBarButton(
-                            iconWidget: const SmPlayerFullscreenIcon(),
-                            label: i18n.t('nowPlaying.playMode'),
-                            disabled: currentSong == null,
-                            onPressed: () {
-                              _openImmersiveMode(shellActions);
                             },
                           ),
                           CommandBarButton(
@@ -965,9 +929,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             song: song,
           );
         },
-        onHide: () {
-          unawaited(_hideQueueSongFileWithUndo(song, queueSongIds));
-        },
         onMoveToFolder: (folderPath) {
           unawaited(
             moveSongToFolderWithUndo(
@@ -1069,7 +1030,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       folders: snapshot.folders,
       randomLimit: quickPlayLimit,
       onPlaySongs: _playSongIds,
-      onQuickPlay: () => _quickPlay(snapshot),
     );
   }
 
@@ -1168,37 +1128,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     showMenuFlyout(context, position: position, items: addToItem!.submenu);
   }
 
-  Future<void> _hideQueueSongFileWithUndo(
-    LibrarySong song,
-    List<int> queueSongIds,
-  ) async {
-    final removedEntries = _queueEntriesForSong(queueSongIds, song.id);
-    await ref.read(libraryRepositoryProvider).hideSong(song.id);
-    ref.invalidate(libraryContentDataProvider);
-    _replaceQueue([
-      for (final songId in queueSongIds)
-        if (songId != song.id) songId,
-    ]);
-    if (!mounted) {
-      return;
-    }
-    _showUndo(
-      context.smPlayerI18n.t('notification.hiddenStorageItem', {
-        'name': song.title,
-      }),
-      () async {
-        await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(libraryContentDataProvider);
-        final snapshot =
-            await ref.read(libraryRepositoryProvider).getLibraryContentData();
-        final currentQueueSongIds =
-            ref.read(nowPlayingQueueOverrideProvider) ??
-            snapshot.nowPlaying.songIds;
-        _replaceQueue(_insertQueueEntries(currentQueueSongIds, removedEntries));
-      },
-    );
-  }
-
   Future<void> _revealPath(String targetPath) async {
     await revealItemInFolder(targetPath);
   }
@@ -1262,32 +1191,6 @@ String _displayPathName(String path) {
   final normalized = path.replaceAll('\\', '/');
   final index = normalized.lastIndexOf('/');
   return index >= 0 ? normalized.substring(index + 1) : normalized;
-}
-
-List<({int index, int songId})> _queueEntriesForSong(
-  List<int> queueSongIds,
-  int songId,
-) {
-  return [
-    for (var index = 0; index < queueSongIds.length; index += 1)
-      if (queueSongIds[index] == songId) (index: index, songId: songId),
-  ];
-}
-
-List<int> _insertQueueEntries(
-  List<int> queueSongIds,
-  List<({int index, int songId})> entries,
-) {
-  var nextQueueSongIds = queueSongIds.toList();
-  for (final entry in entries) {
-    final index = max(0, min(entry.index, nextQueueSongIds.length));
-    nextQueueSongIds = [
-      ...nextQueueSongIds.take(index),
-      entry.songId,
-      ...nextQueueSongIds.skip(index),
-    ];
-  }
-  return nextQueueSongIds;
 }
 
 class _NowPlayingPagePanel extends StatelessWidget {

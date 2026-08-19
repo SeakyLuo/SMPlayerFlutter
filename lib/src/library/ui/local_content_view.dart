@@ -48,6 +48,7 @@ class LocalContentView extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -101,6 +102,7 @@ class LocalContentView extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
@@ -136,6 +138,7 @@ class LocalContentView extends StatelessWidget {
               onToggleFolderSelection: onToggleFolderSelection,
               onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
               onPlayTrack: onPlayTrack,
+              onPlaySong: onPlaySong,
               onTogglePlayPause: onTogglePlayPause,
               onToggleSongSelection: onToggleSongSelection,
               onPlayNext: onPlayNext,
@@ -178,6 +181,7 @@ class LocalContentView extends StatelessWidget {
       folderQueueSongIds: folderQueueSongIds,
       i18n: i18n,
       onPlayTrack: onPlayTrack,
+      onPlaySong: onPlaySong,
       onTogglePlayPause: onTogglePlayPause,
       onToggleSongSelection: onToggleSongSelection,
       onPlayNext: onPlayNext,

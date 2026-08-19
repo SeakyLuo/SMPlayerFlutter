@@ -37,6 +37,7 @@ class _CompactArtistsPage extends StatelessWidget {
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onToggleFavorite,
@@ -91,6 +92,7 @@ class _CompactArtistsPage extends StatelessWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
@@ -125,6 +127,7 @@ class _CompactArtistsPage extends StatelessWidget {
         selectedTrackId: selectedTrackId,
         isPlaying: isPlaying,
         onPlayTrack: onPlayTrack,
+        onPlaySong: onPlaySong,
         onTogglePlayPause: onTogglePlayPause,
         onPlayNext: onPlayNext,
         onToggleFavorite: onToggleFavorite,

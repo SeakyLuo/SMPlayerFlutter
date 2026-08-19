@@ -45,8 +45,6 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   required List<LibraryFolder> folders,
   required int randomLimit,
   required ValueChanged<List<int>> onPlaySongs,
-  bool includeQuickPlay = true,
-  FutureOr<void> Function()? onQuickPlay,
 }) {
   void playSongs(List<LibrarySong> sourceSongs) {
     onPlaySongs(_randomLibrary(sourceSongs, randomLimit));
@@ -66,25 +64,30 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
           .toList();
   final playablePlaylists =
       playlists.where((playlist) => playlist.songIds.isNotEmpty).toList();
-  final items = <MenuFlyoutItem>[
-    if (includeQuickPlay)
-      MenuFlyoutItem(
-        key: 'quick',
-        text: i18n.t('nowPlaying.quickPlay'),
-        onPressed: onQuickPlay ?? () => playSongs(librarySongs),
-      ),
-  ];
+  final favoriteSongs = librarySongs.where((song) => song.favorite).toList();
+  final items = <MenuFlyoutItem>[];
 
   if (songs.isNotEmpty) {
-    items.addAll([
-      if (items.isNotEmpty)
-        const MenuFlyoutItem.separator(key: 'now-playing-separator'),
+    if (items.isNotEmpty) {
+      items.add(const MenuFlyoutItem.separator(key: 'now-playing-separator'));
+    }
+    items.add(
       MenuFlyoutItem(
         key: 'now-playing',
         text: i18n.t('common.nowPlaying'),
         onPressed: () => playAllSongs(songs),
       ),
-    ]);
+    );
+  }
+
+  if (favoriteSongs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'my-favorites',
+        text: i18n.t('common.myFavorites'),
+        onPressed: () => playSongs(favoriteSongs),
+      ),
+    );
   }
 
   if (librarySongs.isEmpty) {
@@ -514,7 +517,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'hide-file',
         text: i18n.t('context.hideFile'),
-        icon: FluentIcons.dismiss_20_regular,
+        icon: FluentIcons.eye_off_20_regular,
         onPressed: onHide,
       ),
     );

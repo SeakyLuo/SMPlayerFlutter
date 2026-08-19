@@ -336,7 +336,6 @@ class _MediaControlState extends State<MediaControl> {
                 onPlaySongs: (songIds) {
                   widget.onPlaySongs!(songIds);
                 },
-                includeQuickPlay: false,
               );
     }
     return _randomPlaySubmenu;
@@ -555,7 +554,6 @@ class _MediaControlState extends State<MediaControl> {
                 folders: folders,
                 randomLimit: quickPlayDefaultLimit,
                 onPlaySongs: onPlaySongs!,
-                includeQuickPlay: false,
               ),
       onVolumeChange: onVolumeChange,
       onToggleMute: onToggleMute,

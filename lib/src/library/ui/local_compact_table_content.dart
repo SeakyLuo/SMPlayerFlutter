@@ -45,6 +45,7 @@ class LocalCompactTableContent extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -91,6 +92,7 @@ class LocalCompactTableContent extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
@@ -445,7 +447,7 @@ class LocalCompactTableContent extends StatelessWidget {
                       onPressed:
                           current
                               ? onTogglePlayPause
-                              : () => onPlayTrack(song.id, queueIds),
+                              : () => onPlaySong(song.id),
                     ),
                     Builder(
                       builder:

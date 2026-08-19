@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -164,14 +165,71 @@ class MultiSelectCommandBar extends StatelessWidget {
                     final resolvedRightBleed = rightBleed ?? horizontalBleed;
                     final commandBarWidth =
                         hostWidth + resolvedLeftBleed + resolvedRightBleed;
+                    final compactPhone = commandBarWidth <= 520;
+                    final hasAddToTargets = _hasAddToTargets(
+                      i18n: i18n,
+                      songIds: addToSongIds,
+                      nowPlayingSongIds: nowPlayingSongIds,
+                      playlists: playlists,
+                      includeNowPlaying: includeNowPlayingInAddTo,
+                      includeFavorites: includeFavoritesInAddTo,
+                      currentPlaylistName: currentPlaylistName,
+                      excludePlaylistName: excludePlaylistName,
+                      onAddToNowPlaying: onAddToNowPlaying,
+                      onToggleFavorite: onToggleFavorite,
+                      onCreatePlaylist: onCreatePlaylist,
+                      onAddToPlaylist: onAddToPlaylist,
+                    );
+                    final fullActionWidths = <double>[
+                      _multiSelectActionNaturalWidth(
+                        context,
+                        i18n.t('common.cancel'),
+                      ),
+                      1,
+                      if (showPlay && onPlay != null)
+                        _multiSelectActionNaturalWidth(
+                          context,
+                          i18n.t('albums.playSelected'),
+                        ),
+                      if (showAddTo && hasAddToTargets)
+                        _multiSelectActionNaturalWidth(
+                          context,
+                          i18n.t('albums.addSelectedTo'),
+                          minWidth: 92,
+                          horizontalPadding: 9,
+                        ),
+                      if (onRemove != null)
+                        _multiSelectActionNaturalWidth(
+                          context,
+                          removeLabel ?? i18n.t('context.removeFromList'),
+                        ),
+                      for (final action in extraActions)
+                        _multiSelectActionNaturalWidth(context, action.text),
+                      1,
+                      _multiSelectActionNaturalWidth(
+                        context,
+                        i18n.t('albums.selectAll'),
+                      ),
+                      _multiSelectActionNaturalWidth(
+                        context,
+                        i18n.t('albums.reverseSelection'),
+                      ),
+                      _multiSelectActionNaturalWidth(
+                        context,
+                        i18n.t('albums.clearSelection'),
+                      ),
+                    ];
+                    final fullActionsFit =
+                        _multiSelectActionsWidth(fullActionWidths, 9) <=
+                        commandBarWidth - 26 - 18 - 154 - 18;
                     final compactSelection =
                         commandBarWidth <=
-                        multiSelectCommandBarCompactBreakpoint;
-                    final compactPhone = commandBarWidth <= 520;
+                            multiSelectCommandBarCompactBreakpoint ||
+                        !fullActionsFit;
 
                     List<MenuFlyoutItem> moreItems(BuildContext anchorContext) {
                       return [
-                        if (onRemove != null)
+                        if (compactPhone && onRemove != null)
                           MenuFlyoutItem(
                             key: 'remove-selected',
                             text:
@@ -183,25 +241,28 @@ class MultiSelectCommandBar extends StatelessWidget {
                               hideIfNeeded();
                             },
                           ),
-                        for (final action in extraActions)
-                          MenuFlyoutItem(
-                            key: action.key,
-                            text: action.text,
-                            icon: action.icon,
-                            disabled: action.disabled,
-                            onPressed: () {
-                              action.onPressedWithContext?.call(
-                                    anchorContext,
-                                  ) ??
-                                  action.onPressed();
-                              if (action.hideAfterClick) {
-                                hideIfNeeded();
-                              }
-                            },
+                        if (compactPhone)
+                          for (final action in extraActions)
+                            MenuFlyoutItem(
+                              key: action.key,
+                              text: action.text,
+                              icon: action.icon,
+                              disabled: action.disabled,
+                              onPressed: () {
+                                action.onPressedWithContext?.call(
+                                      anchorContext,
+                                    ) ??
+                                    action.onPressed();
+                                if (action.hideAfterClick) {
+                                  hideIfNeeded();
+                                }
+                              },
+                            ),
+                        if (compactPhone &&
+                            (onRemove != null || extraActions.isNotEmpty))
+                          const MenuFlyoutItem.separator(
+                            key: 'command-separator',
                           ),
-                        const MenuFlyoutItem.separator(
-                          key: 'command-separator',
-                        ),
                         MenuFlyoutItem(
                           key: 'select-all',
                           text: i18n.t('albums.selectAll'),
@@ -217,7 +278,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                         MenuFlyoutItem(
                           key: 'clear-selection',
                           text: i18n.t('albums.clearSelection'),
-                          icon: FluentIcons.dismiss_circle_20_regular,
+                          icon: FluentIcons.broom_20_regular,
                           onPressed: onClearSelection,
                         ),
                       ];
@@ -241,20 +302,6 @@ class MultiSelectCommandBar extends StatelessWidget {
                             : compactSelection
                             ? 12.0
                             : 18.0;
-                    final hasAddToTargets = _hasAddToTargets(
-                      i18n: i18n,
-                      songIds: addToSongIds,
-                      nowPlayingSongIds: nowPlayingSongIds,
-                      playlists: playlists,
-                      includeNowPlaying: includeNowPlayingInAddTo,
-                      includeFavorites: includeFavoritesInAddTo,
-                      currentPlaylistName: currentPlaylistName,
-                      excludePlaylistName: excludePlaylistName,
-                      onAddToNowPlaying: onAddToNowPlaying,
-                      onToggleFavorite: onToggleFavorite,
-                      onCreatePlaylist: onCreatePlaylist,
-                      onAddToPlaylist: onAddToPlaylist,
-                    );
                     final actions = <Widget>[
                       _MultiSelectAction(
                         icon: FluentIcons.dismiss_20_regular,
@@ -355,7 +402,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                           onPressed: onReverseSelection,
                         ),
                         _MultiSelectAction(
-                          icon: FluentIcons.dismiss_circle_20_regular,
+                          icon: FluentIcons.broom_20_regular,
                           label: i18n.t('albums.clearSelection'),
                           preserveLabel: true,
                           style: style,
@@ -399,6 +446,60 @@ class MultiSelectCommandBar extends StatelessWidget {
                           },
                         ),
                     ];
+                    final visibleActionWidths =
+                        compactPhone
+                            ? <double>[
+                              40,
+                              if (showPlay && onPlay != null) 88,
+                              if (showAddTo && hasAddToTargets) 88,
+                              40,
+                            ]
+                            : compactSelection
+                            ? <double>[
+                              _multiSelectActionNaturalWidth(
+                                context,
+                                i18n.t('common.cancel'),
+                              ),
+                              1,
+                              if (showPlay && onPlay != null)
+                                _multiSelectActionNaturalWidth(
+                                  context,
+                                  i18n.t('albums.playSelected'),
+                                ),
+                              if (showAddTo && hasAddToTargets)
+                                _multiSelectActionNaturalWidth(
+                                  context,
+                                  i18n.t('albums.addSelectedTo'),
+                                  minWidth: 92,
+                                  horizontalPadding: 9,
+                                ),
+                              if (onRemove != null)
+                                _multiSelectActionNaturalWidth(
+                                  context,
+                                  removeLabel ??
+                                      i18n.t('context.removeFromList'),
+                                ),
+                              for (final action in extraActions)
+                                _multiSelectActionNaturalWidth(
+                                  context,
+                                  action.text,
+                                ),
+                              44,
+                            ]
+                            : fullActionWidths;
+                    final actionAreaWidth =
+                        commandBarWidth -
+                        (compactPhone
+                            ? 10 + 12 + 96 + 8
+                            : compactSelection
+                            ? 12 + 18 + 112 + 12
+                            : 18 + 26 + 154 + 18);
+                    final visibleActionsFit =
+                        _multiSelectActionsWidth(
+                          visibleActionWidths,
+                          actionGap,
+                        ) <=
+                        actionAreaWidth;
 
                     final surface = DecoratedBox(
                       decoration: BoxDecoration(
@@ -566,7 +667,7 @@ class MultiSelectCommandBar extends StatelessWidget {
                                             children: _withGaps(
                                               actions,
                                               actionGap,
-                                              flexible: true,
+                                              flexible: !visibleActionsFit,
                                             ),
                                           ),
                                         ),
@@ -689,8 +790,8 @@ class _MultiSelectAction extends StatelessWidget {
     this.hideLabel = false,
     this.minWidth = 72,
     this.maxWidth,
-    this.trailingIcon,
     this.preserveLabel = false,
+    this.horizontalPadding = 12,
   });
 
   final IconData icon;
@@ -699,16 +800,14 @@ class _MultiSelectAction extends StatelessWidget {
   final bool hideLabel;
   final double minWidth;
   final double? maxWidth;
-  final IconData? trailingIcon;
   final bool preserveLabel;
+  final double horizontalPadding;
   final _MultiSelectCommandBarStyle style;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final showLabel = !hideLabel;
-    final trailingIcon = this.trailingIcon;
-
     return Opacity(
       opacity: disabled ? 0.46 : 1,
       child: _MultiSelectActionShadow(
@@ -717,28 +816,45 @@ class _MultiSelectAction extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final canShowLabel = showLabel && constraints.maxWidth >= 40;
-            final canShowTrailing =
-                canShowLabel &&
-                trailingIcon != null &&
-                constraints.maxWidth >= 46;
             final resolvedMaxWidth =
                 canShowLabel ? maxWidth ?? double.infinity : 40.0;
+            final controlWidthLimit = math.min(
+              constraints.maxWidth,
+              resolvedMaxWidth,
+            );
+            final reservedWidth = horizontalPadding * 2 + 16 + 7;
+            final labelPainter = TextPainter(
+              text: TextSpan(
+                text: label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontVariations: [FontVariation.weight(640)],
+                ),
+              ),
+              maxLines: 1,
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+              locale: Localizations.maybeLocaleOf(context),
+            )..layout();
+            final labelTruncated =
+                canShowLabel &&
+                controlWidthLimit.isFinite &&
+                labelPainter.width >
+                    math.max(0, controlWidthLimit - reservedWidth);
             return SmPlayerTextIconButtonTheme(
               colors: _multiSelectTextIconButtonColors(style),
               child: SmPlayerTextIconButton(
                 label: label,
+                tooltip: labelTruncated ? label : null,
                 iconWidget: _multiSelectActionIcon(icon),
-                trailingIconWidget:
-                    canShowTrailing
-                        ? _multiSelectActionIcon(trailingIcon)
-                        : null,
                 showLabel: canShowLabel,
                 disabled: disabled,
                 onPressed: onPressed,
                 minWidth: canShowLabel ? minWidth : 40,
                 maxWidth: hideLabel ? 40 : resolvedMaxWidth,
                 height: 36,
-                horizontalPadding: canShowLabel ? 12 : 0,
+                horizontalPadding: canShowLabel ? horizontalPadding : 0,
                 iconSize: 16,
                 iconGap: 7,
                 opacityWhenDisabled: 1,
@@ -887,13 +1003,10 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
             icon: FluentIcons.add_20_regular,
             label: i18n.t('albums.addSelectedTo'),
             disabled: !widget.enabled,
-            minWidth: widget.compactPhone ? 40 : 126,
+            minWidth: widget.compactPhone ? 40 : 92,
             maxWidth: widget.compactPhone ? 88 : null,
-            trailingIcon:
-                widget.compactPhone
-                    ? null
-                    : FluentIcons.chevron_down_20_regular,
             preserveLabel: !widget.compactPhone,
+            horizontalPadding: widget.compactPhone ? 12 : 9,
             style: widget.style,
             onPressed: () {
               final menuSongIds =
@@ -991,6 +1104,33 @@ class _MultiSelectSeparator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(width: 1, height: height, color: style.separator);
   }
+}
+
+double _multiSelectActionNaturalWidth(
+  BuildContext context,
+  String label, {
+  double minWidth = 72,
+  double horizontalPadding = 12,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        fontVariations: [FontVariation.weight(640)],
+      ),
+    ),
+    maxLines: 1,
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    locale: Localizations.maybeLocaleOf(context),
+  )..layout();
+  return math.max(minWidth, horizontalPadding * 2 + 16 + 7 + painter.width);
+}
+
+double _multiSelectActionsWidth(List<double> widths, double gap) {
+  return widths.reduce((sum, width) => sum + width) + gap * (widths.length - 1);
 }
 
 List<Widget> _withGaps(

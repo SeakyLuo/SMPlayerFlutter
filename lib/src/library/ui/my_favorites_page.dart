@@ -102,16 +102,15 @@ class MyFavoritesPage extends ConsumerWidget {
               _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
             },
             onMoveToMusicOrPlay: (songId) {
-              _playTrack(
-                ref,
-                snapshot,
-                i18n,
-                songId,
-                songs.map((song) => song.id).toList(),
+              insertOrPlayNowPlayingSong(
+                ref: ref,
+                snapshot: snapshot,
+                i18n: i18n,
+                songId: songId,
               );
             },
             onPlayNext: (songId) {
-              _playNext(ref, snapshot, songId);
+              _playNext(context, ref, snapshot, songId);
             },
             onTogglePlayPause:
                 ref.read(mediaControlControllerProvider).onTogglePlayPause,
@@ -124,9 +123,9 @@ class MyFavoritesPage extends ConsumerWidget {
             onRemoveSongs: (songIds) async {
               await setSongsFavorite(ref, songIds, false);
             },
-            onClear: () {
+            onClear: () async {
               final songIds = songs.map((song) => song.id).toList();
-              unawaited(setSongsFavorite(ref, songIds, false));
+              await setSongsFavorite(ref, songIds, false);
             },
             onSetPreferred: (level) async {
               await ref
@@ -181,14 +180,29 @@ void _playTrack(
   );
 }
 
-void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+void _playNext(
+  BuildContext context,
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  int songId,
+) {
+  final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final queueSongIds = previousSongIds.toList();
   final currentIndex = currentQueueIndexForPlaybackOccurrence(
     ref.read(mediaControlControllerProvider).state,
     queueSongIds,
   );
   queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
   setNowPlayingQueue(ref, queueSongIds);
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  showPlayNextUndoNotification(
+    context: context,
+    i18n: context.smPlayerI18n,
+    songTitle: songsById[songId]!.title,
+    onUndo: () {
+      setNowPlayingQueue(ref, previousSongIds);
+    },
+  );
 }
 
 class _FavoritesPagePanel extends StatelessWidget {

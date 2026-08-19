@@ -69,6 +69,7 @@ class _SearchResultSection extends StatelessWidget {
     required this.onPlaySongs,
     required this.onPlayCard,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onAddSongsToNowPlaying,
@@ -114,6 +115,7 @@ class _SearchResultSection extends StatelessWidget {
   final ValueChanged<List<int>> onPlaySongs;
   final ValueChanged<SearchResult> onPlayCard;
   final void Function(LibrarySong, int) onPlayTrack;
+  final ValueChanged<LibrarySong> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<LibrarySong> onPlayNext;
   final Future<void> Function(List<int>) onAddSongsToNowPlaying;
@@ -255,8 +257,11 @@ class _SearchResultSection extends StatelessWidget {
             variant: PlaylistControlItemVariant.headeredPlaylist,
             playNextLabel: i18n.t('context.playNext'),
             removeLabel: i18n.t('nowPlaying.remove'),
-            onPlayTrack: () {
+            onActivateRow: () {
               onPlayTrack(songs[index], index);
+            },
+            onPlayTrack: () {
+              onPlaySong(songs[index]);
             },
             onTogglePlayPause: onTogglePlayPause,
             onToggleSelection: () {
@@ -518,7 +523,6 @@ class _SearchResultSection extends StatelessWidget {
         onDelete: () {
           onDeleteSong(song);
         },
-        onHide: () {},
         onSeeArtist: () {
           final artist = song_display.primaryDisplayArtist(
             song,

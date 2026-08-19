@@ -33,6 +33,7 @@ class LocalTreeView extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -67,6 +68,7 @@ class LocalTreeView extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
@@ -130,6 +132,7 @@ class LocalTreeView extends StatelessWidget {
                         onPlay:
                             () =>
                                 onPlayTrack(rows[index].song!.id, queueSongIds),
+                        onPlayButton: () => onPlaySong(rows[index].song!.id),
                         onTogglePlayPause: onTogglePlayPause,
                         onToggleSelection:
                             () => onToggleSongSelection(rows[index].song!.id),

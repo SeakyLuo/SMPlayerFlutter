@@ -202,10 +202,8 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                widget.folder.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              _OverflowTooltipText(
+                text: widget.folder.name,
                 style: TextStyle(
                   color:
                       widget.selected
@@ -345,10 +343,8 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
               const _FolderListIcon(),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  widget.folder.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: _OverflowTooltipText(
+                  text: widget.folder.name,
                   style: TextStyle(
                     color:
                         widget.selected
@@ -472,6 +468,37 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
 }
 
 enum LocalFolderCardVariant { grid, list }
+
+class _OverflowTooltipText extends StatelessWidget {
+  const _OverflowTooltipText({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.maybeLocaleOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final label = Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        );
+        return painter.didExceedMaxLines
+            ? Tooltip(message: text, child: label)
+            : label;
+      },
+    );
+  }
+}
 
 class _FolderListInfoText extends StatelessWidget {
   const _FolderListInfoText({

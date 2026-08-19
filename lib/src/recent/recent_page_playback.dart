@@ -60,10 +60,11 @@ extension _RecentPagePlaybackActions on _RecentPageState {
 
   void _playNext(int songId) {
     final snapshot = ref.read(recentPageDataProvider).value!;
-    final queueSongIds = effectiveNowPlayingSongIds(
+    final previousSongIds = effectiveNowPlayingSongIds(
       ref,
       snapshot.nowPlaying.songIds,
     );
+    final queueSongIds = previousSongIds.toList();
     final insertIndex = insertIndexAfterCurrentOccurrence(
       ref.read(mediaControlControllerProvider).state,
       queueSongIds,
@@ -71,5 +72,15 @@ extension _RecentPagePlaybackActions on _RecentPageState {
     queueSongIds.insert(insertIndex, songId);
     setNowPlayingQueue(ref, queueSongIds);
     ref.invalidate(recentPageDataProvider);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: songsById[songId]!.title,
+      onUndo: () {
+        setNowPlayingQueue(ref, previousSongIds);
+        ref.invalidate(recentPageDataProvider);
+      },
+    );
   }
 }

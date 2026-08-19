@@ -226,3 +226,25 @@ int insertIndexAfterCurrentOccurrence(
   );
   return currentIndex == -1 ? songIds.length : currentIndex + 1;
 }
+
+void insertOrPlayNowPlayingSong({
+  required WidgetRef ref,
+  required LibraryContentData snapshot,
+  required SmPlayerI18n i18n,
+  required int songId,
+}) {
+  final mediaState = ref.read(mediaControlControllerProvider).state;
+  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+  var queueIndex = queueSongIds.indexOf(songId);
+  if (queueIndex == -1) {
+    queueIndex = insertIndexAfterCurrentOccurrence(mediaState, queueSongIds);
+    queueSongIds.insert(queueIndex, songId);
+  }
+  replaceNowPlayingQueueAndPlayIndex(
+    ref: ref,
+    snapshot: snapshot,
+    i18n: i18n,
+    songIds: queueSongIds,
+    queueIndex: queueIndex,
+  );
+}

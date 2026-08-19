@@ -34,7 +34,8 @@ import 'library_page_actions.dart'
         moveSongToFolderWithUndo,
         requestLocalMoveConflictResolution,
         requestDeleteSongFromDisk,
-        setSongsFavoriteWithUndo;
+        setSongsFavoriteWithUndo,
+        showPlayNextUndoNotification;
 import 'local_folder_model.dart';
 import 'local_content_view.dart';
 import 'local_i18n_counts.dart';
@@ -524,16 +525,6 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                 : null,
                         onPressed: _toggleMultiSelect,
                       ),
-                      if (_multiSelect)
-                        CommandBarButton(
-                          icon: FluentIcons.delete_24_regular,
-                          label: i18n.t('context.deleteFromDisk'),
-                          disabled: selectedLocalItemCount == 0,
-                          onPressed:
-                              () => _showMessage(
-                                i18n.t('context.deleteFromDisk'),
-                              ),
-                        ),
                     ],
                   ),
                   SizedBox(height: isCompactLayout ? 8 : 16),
@@ -648,6 +639,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                                   );
                                 },
                                 onPlayTrack: _playTrack,
+                                onPlaySong: _playSongImmediately,
                                 onTogglePlayPause:
                                     () =>
                                         ref

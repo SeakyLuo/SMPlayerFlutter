@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_overlay_glass.dart';
+import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 
 const smPlayerPlayingWaveSaturate150 = ColorFilter.matrix([
   1.3935,
@@ -84,8 +87,8 @@ class SmPlayerPlayingWaveGlass extends StatelessWidget {
               child: SizedBox.square(
                 dimension: dimension,
                 child: SmPlayerPlayingWaveBars(
-                  keyPrefix: keyPrefix,
                   playing: playing,
+                  keyPrefix: keyPrefix,
                 ),
               ),
             ),
@@ -96,7 +99,7 @@ class SmPlayerPlayingWaveGlass extends StatelessWidget {
   }
 }
 
-class SmPlayerPlayingWaveBars extends StatefulWidget {
+class SmPlayerPlayingWaveBars extends ConsumerStatefulWidget {
   const SmPlayerPlayingWaveBars({
     super.key,
     required this.playing,
@@ -109,47 +112,98 @@ class SmPlayerPlayingWaveBars extends StatefulWidget {
   final String keyPrefix;
 
   @override
-  State<SmPlayerPlayingWaveBars> createState() =>
+  ConsumerState<SmPlayerPlayingWaveBars> createState() =>
       _SmPlayerPlayingWaveBarsState();
 }
 
-class _SmPlayerPlayingWaveBarsState extends State<SmPlayerPlayingWaveBars>
+typedef _PlayingWavePlayback =
+    ({int? trackId, double progressSeconds, bool seeking, bool userSeeking});
+
+class _SmPlayerPlayingWaveBarsState
+    extends ConsumerState<SmPlayerPlayingWaveBars>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final ProviderSubscription<_PlayingWavePlayback> _playbackSubscription;
+  late _PlayingWavePlayback _playback;
+  var _hasAnimated = false;
 
+  static const _period = Duration(milliseconds: 800);
+  static const _periodMilliseconds = 800.0;
   static const _staticHeights = [7.0, 12.0, 15.0, 9.0];
-  static const _delays = [0.0, 120 / 780, 240 / 780, 360 / 780];
+  static const _delays = [0.0, 0.25, 0.5, 0.75];
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 780),
+    _controller = AnimationController(vsync: this, duration: _period);
+    final playbackProvider = mediaControlControllerProvider.select(
+      (controller) => (
+        trackId: controller.state.track.id,
+        progressSeconds: controller.state.progressSeconds,
+        seeking: controller.state.playbackStatus == PlaybackStatus.seeking,
+        userSeeking: controller.state.isProgressSeeking,
+      ),
     );
-    if (widget.playing) {
-      _controller.repeat();
+    _playback = ref.read(playbackProvider);
+    _hasAnimated = _playback.trackId != null;
+    if (_hasAnimated) {
+      _controller.value = _phaseFor(_playback.progressSeconds);
     }
+    _playbackSubscription = ref.listenManual(
+      playbackProvider,
+      (_, playback) => _syncPlaybackPosition(playback),
+    );
+    _syncPlaying(widget.playing);
   }
 
   @override
   void didUpdateWidget(SmPlayerPlayingWaveBars oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.playing == oldWidget.playing) {
-      return;
-    }
-    if (widget.playing) {
-      _controller.repeat();
-    } else {
-      _controller.stop();
-      _controller.value = 0;
+    if (widget.playing != oldWidget.playing) {
+      _syncPlaying(widget.playing);
     }
   }
 
   @override
   void dispose() {
+    _playbackSubscription.close();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _syncPlaybackPosition(_PlayingWavePlayback playback) {
+    final trackChanged = playback.trackId != _playback.trackId;
+    final seekStarted = playback.seeking && !_playback.seeking;
+    final userSeekMoved =
+        playback.userSeeking &&
+        playback.progressSeconds != _playback.progressSeconds;
+    _playback = playback;
+    if (!trackChanged && !seekStarted && !userSeekMoved) {
+      return;
+    }
+    _hasAnimated = playback.trackId != null;
+    if (_hasAnimated) {
+      _controller.value = _phaseFor(playback.progressSeconds);
+      if (widget.playing) {
+        _controller.repeat();
+      }
+    } else {
+      _controller.stop();
+      setState(() {});
+    }
+  }
+
+  void _syncPlaying(bool playing) {
+    if (playing) {
+      _hasAnimated = true;
+      _controller.repeat();
+    } else {
+      _controller.stop();
+    }
+  }
+
+  static double _phaseFor(double progressSeconds) {
+    return (progressSeconds * 1000 % _periodMilliseconds) / _periodMilliseconds;
   }
 
   @override
@@ -167,7 +221,7 @@ class _SmPlayerPlayingWaveBarsState extends State<SmPlayerPlayingWaveBars>
                 key: ValueKey('${widget.keyPrefix}.Bar.$index'),
                 color: widget.color,
                 height:
-                    widget.playing
+                    _hasAnimated
                         ? _animatedHeight(_controller.value, _delays[index])
                         : _staticHeights[index],
               ),

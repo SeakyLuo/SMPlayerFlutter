@@ -396,24 +396,15 @@ class _PreferenceSectionHeaderActions extends StatelessWidget {
                     ),
                   ),
                 if (showClearInvalid)
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      minimumSize: const Size(0, 28),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      foregroundColor: colors.textStrong,
-                      side: BorderSide(color: colors.cardBorder),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    onPressed: onClearInvalid,
-                    child: Text(
-                      i18n.t('preferences.clearInvalid'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  SmPlayerTextIconButtonTheme(
+                    colors: _settingsActionButtonColors(colors, primary: false),
+                    child: SmPlayerTextIconButton(
+                      label: i18n.t('preferences.clearInvalid'),
+                      onPressed: onClearInvalid,
+                      height: 30,
+                      horizontalPadding: 10,
+                      borderRadius: 8,
+                      fontSize: 12,
                     ),
                   ),
               ],
@@ -558,29 +549,21 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 140),
                           opacity: showRemove ? 1 : 0,
-                          child: Focus(
-                            onFocusChange: (focused) {
-                              setState(() {
-                                _removeFocused = focused;
-                              });
-                            },
-                            child: IconButton(
-                              tooltip: i18n.t('playlists.removeSelected'),
-                              icon: const Icon(FluentIcons.dismiss_20_regular),
-                              iconSize: 14,
-                              padding: EdgeInsets.zero,
-                              constraints: BoxConstraints.tightFor(
-                                width: compact ? 28 : 30,
-                                height: compact ? 28 : 30,
-                              ),
-                              style: IconButton.styleFrom(
-                                side: BorderSide(color: colors.cardBorder),
-                                backgroundColor: colors.buttonSurface,
-                                foregroundColor: colors.textMuted,
-                              ),
-                              onPressed: () {
-                                widget.onRemoveItem(item);
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Focus(
+                              onFocusChange: (focused) {
+                                setState(() {
+                                  _removeFocused = focused;
+                                });
                               },
+                              child: _PreferenceRemoveButton(
+                                tooltip: i18n.t('playlists.removeSelected'),
+                                compact: compact,
+                                onPressed: () {
+                                  widget.onRemoveItem(item);
+                                },
+                              ),
                             ),
                           ),
                         ),
@@ -615,6 +598,82 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreferenceRemoveButton extends StatefulWidget {
+  const _PreferenceRemoveButton({
+    required this.tooltip,
+    required this.compact,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final bool compact;
+  final VoidCallback onPressed;
+
+  @override
+  State<_PreferenceRemoveButton> createState() =>
+      _PreferenceRemoveButtonState();
+}
+
+class _PreferenceRemoveButtonState extends State<_PreferenceRemoveButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SettingsPageColors.of(context);
+    final size = widget.compact ? 28.0 : 34.0;
+    final foreground = _hovered ? colors.accentStrong : colors.textMuted;
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: AnimatedSlide(
+        offset: Offset(0, _hovered ? -1 / size : 0),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: _hovered ? colors.accentHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            tooltip: widget.tooltip,
+            icon: const Icon(FluentIcons.dismiss_20_regular),
+            iconSize: widget.compact ? 15 : 18,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: size, height: size),
+            style: IconButton.styleFrom(
+              minimumSize: Size.square(size),
+              fixedSize: Size.square(size),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              backgroundColor: Colors.transparent,
+              foregroundColor: foreground,
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: widget.onPressed,
+          ),
         ),
       ),
     );

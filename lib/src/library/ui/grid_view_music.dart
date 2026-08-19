@@ -37,6 +37,7 @@ class LocalGridViewMusic extends StatelessWidget {
     required this.folderQueueSongIds,
     required this.i18n,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -63,6 +64,7 @@ class LocalGridViewMusic extends StatelessWidget {
   final List<int> folderQueueSongIds;
   final SmPlayerI18n i18n;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
@@ -112,6 +114,8 @@ class LocalGridViewMusic extends StatelessWidget {
                                 currentSongs[index].id,
                                 folderQueueSongIds,
                               ),
+                          onPlayButton:
+                              () => onPlaySong(currentSongs[index].id),
                           onTogglePlayPause: onTogglePlayPause,
                           onToggleSelection:
                               () =>
@@ -157,6 +161,7 @@ class LocalGridViewMusic extends StatelessWidget {
                       ),
                       i18n: i18n,
                       onPlay: () => onPlayTrack(song.id, folderQueueSongIds),
+                      onPlayButton: () => onPlaySong(song.id),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
                       onAddSong: (position) => onAddSong(song, position),
@@ -251,6 +256,7 @@ class LocalSongGridItem extends StatefulWidget {
     required this.detailLabel,
     required this.i18n,
     required this.onPlay,
+    required this.onPlayButton,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onAddSong,
@@ -265,6 +271,7 @@ class LocalSongGridItem extends StatefulWidget {
   final String? detailLabel;
   final SmPlayerI18n i18n;
   final VoidCallback onPlay;
+  final VoidCallback onPlayButton;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final ValueChanged<Offset> onAddSong;
@@ -304,7 +311,8 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
         widget.detailLabel ?? getLocalDisplayArtists(widget.song, widget.i18n);
     final artistsLabel = getLocalDisplayArtists(widget.song, widget.i18n);
     final albumLabel = displayAlbum(widget.song, widget.i18n);
-    final foregroundColor = localColors.textMuted;
+    final foregroundColor =
+        widget.current ? localColors.accentStrong : localColors.textMuted;
     return LocalHoverRegion(
       builder: (context, hovered, focused) {
         final actionsVisible = !widget.multiSelect && (hovered || focused);
@@ -385,6 +393,9 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                       if (widget.current && !hovered && !focused)
                         Positioned.fill(
                           child: SmPlayerPlayingWaveGlass(
+                            key: ValueKey(
+                              'LocalGridSong.Playing.${widget.song.id}',
+                            ),
                             playing: widget.playing,
                             dimension: 48,
                             keyPrefix:
@@ -418,7 +429,7 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                                   onPressed:
                                       widget.current
                                           ? widget.onTogglePlayPause
-                                          : widget.onPlay,
+                                          : widget.onPlayButton,
                                 ),
                                 const SizedBox(width: 10),
                                 RoundSongAction(
@@ -438,18 +449,21 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          widget.song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color:
-                                widget.current
-                                    ? localColors.accentStrong
-                                    : localColors.textStrong,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            height: 1.35,
+                        child: Tooltip(
+                          message: widget.song.title,
+                          child: Text(
+                            widget.song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color:
+                                  widget.current
+                                      ? localColors.accentStrong
+                                      : localColors.textStrong,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
                           ),
                         ),
                       ),
@@ -628,6 +642,7 @@ class CompactLocalSongRow extends StatelessWidget {
     required this.selectionMode,
     required this.i18n,
     required this.onPlay,
+    required this.onPlayButton,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onPlayNext,
@@ -643,6 +658,7 @@ class CompactLocalSongRow extends StatelessWidget {
   final bool selectionMode;
   final SmPlayerI18n i18n;
   final VoidCallback onPlay;
+  final VoidCallback onPlayButton;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback onPlayNext;
@@ -668,7 +684,8 @@ class CompactLocalSongRow extends StatelessWidget {
               ? i18n.t('context.removeFavorite')
               : i18n.t('context.addFavorite'),
       moreLabel: i18n.t('player.more'),
-      onPlayTrack: onPlay,
+      onActivateRow: onPlay,
+      onPlayTrack: onPlayButton,
       onTogglePlayPause: onTogglePlayPause,
       onToggleSelection: onToggleSelection,
       onPlayNextClick: onPlayNext,

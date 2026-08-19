@@ -13,6 +13,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required this.onPlaySongs,
     required this.onOpenAlbumMenu,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onToggleFavorite,
@@ -32,6 +33,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
   final VoidCallback onPlaySongs;
   final ValueChanged<Offset> onOpenAlbumMenu;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
@@ -173,8 +175,11 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel: i18n.t('common.favorite'),
       moreLabel: i18n.t('player.more'),
-      onPlayTrack: () {
+      onActivateRow: () {
         onPlayTrack(song.id, queueSongIds);
+      },
+      onPlayTrack: () {
+        onPlaySong(song.id);
       },
       onTogglePlayPause: onTogglePlayPause,
       onToggleSelection: () {

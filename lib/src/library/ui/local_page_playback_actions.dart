@@ -76,15 +76,34 @@ extension _LocalPagePlaybackActions on _LocalPageState {
     });
   }
 
+  void _playSongImmediately(int songId) {
+    insertOrPlayNowPlayingSong(
+      ref: ref,
+      snapshot: ref.read(libraryContentDataProvider).value!,
+      i18n: context.smPlayerI18n,
+      songId: songId,
+    );
+  }
+
   void _playNext(int songId) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     final insertIndex = insertIndexAfterCurrentOccurrence(
       ref.read(mediaControlControllerProvider).state,
       queueSongIds,
     );
     queueSongIds.insert(insertIndex, songId);
     setNowPlayingQueue(ref, queueSongIds);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: songsById[songId]!.title,
+      onUndo: () {
+        setNowPlayingQueue(ref, previousSongIds);
+      },
+    );
   }
 
   void _jumpToSongKey(

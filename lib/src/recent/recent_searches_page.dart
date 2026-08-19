@@ -43,7 +43,7 @@ class _RecentSearchesPage extends ConsumerWidget {
               onPressed: onToggleMultiSelect,
             ),
             CommandBarButton(
-              icon: FluentIcons.dismiss_20_regular,
+              icon: FluentIcons.broom_20_regular,
               label: i18n.t('recent.clearHistory'),
               disabled: entries.isEmpty,
               onPressed: () {

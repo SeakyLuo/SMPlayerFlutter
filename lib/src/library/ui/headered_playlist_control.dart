@@ -130,7 +130,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   final HeaderedPlaylistSongsHandler? onRemoveSongs;
   final ValueChanged<String>? onRename;
   final VoidCallback? onDelete;
-  final VoidCallback? onClear;
+  final FutureOr<void> Function()? onClear;
   final VoidCallback? onEditArtwork;
   final FutureOr<void> Function(String level)? onSetPreferred;
   final HeaderedPlaylistSortHandler? onSortSongs;

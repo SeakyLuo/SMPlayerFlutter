@@ -307,6 +307,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       favoriteLoading:
           widget.type == HeaderedPlaylistType.favorites &&
           _pendingFavoriteSongIds.contains(song.id),
+      onActivateRow: () {
+        widget.onPlayTrack(song.id, queueSongIds);
+      },
       onPlayTrack: () {
         _playSong(song, queueSongIds);
       },
