@@ -5,7 +5,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     final generation = ++_loadGeneration;
     final songId = widget.song.id;
     final repository = ref.read(libraryRepositoryProvider);
-    setState(() {
+    _updateState(() {
       _loading = true;
       _lyricsLoading = true;
       _artworkLoading = true;
@@ -35,7 +35,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         return;
       }
 
-      setState(() {
+      _updateState(() {
         _applyProperties(properties);
         _loading = false;
       });
@@ -57,7 +57,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         return;
       }
 
-      setState(() {
+      _updateState(() {
         _lyrics = lyrics;
         _lyricsRawText = lyrics.rawText;
         _originalLyricsText = lyrics.rawText;
@@ -66,7 +66,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       });
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
-        setState(() {
+        _updateState(() {
           _lyricsLoading = false;
         });
         _showMessage(i18n.t('song.getLyricsFailed'));
@@ -85,7 +85,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         return;
       }
 
-      setState(() {
+      _updateState(() {
         _displayArtworkUrl = artwork.artworkUrl;
         _originalDisplayArtworkUrl = artwork.artworkUrl;
         _artworkMissing =
@@ -98,7 +98,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       await _loadArtworkRecommendation();
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
-        setState(() {
+        _updateState(() {
           _artworkLoading = false;
         });
       }
@@ -121,7 +121,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     if (snapshot.artworkUrl.isEmpty) {
       return;
     }
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = snapshot.artworkUrl;
       _originalDisplayArtworkUrl = snapshot.artworkUrl;
     });
@@ -152,14 +152,14 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     final candidates = _getAlbumArtRecommendationCandidates(widget.song, songs);
     if (candidates.isEmpty) {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _artworkRecommendation = null;
         });
       }
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _artworkRecommendationLoading = true;
     });
     final snapshots = await ref
@@ -174,7 +174,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       return;
     }
     if (!_artworkMissing) {
-      setState(() {
+      _updateState(() {
         _artworkRecommendationLoading = false;
       });
       return;
@@ -188,7 +188,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       if (snapshot.source != SongArtworkSource.none &&
           snapshot.sourcePath.isNotEmpty &&
           snapshot.sourceUrl.isNotEmpty) {
-        setState(() {
+        _updateState(() {
           _artworkRecommendation = AlbumArtRecommendation(
             song: candidate.song,
             artworkUrl: snapshot.artworkUrl,
@@ -202,7 +202,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       }
     }
 
-    setState(() {
+    _updateState(() {
       _artworkRecommendation = null;
       _artworkRecommendationLoading = false;
     });

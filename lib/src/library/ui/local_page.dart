@@ -144,6 +144,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
+    ref.watch(recentSearchesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {

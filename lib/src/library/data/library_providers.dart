@@ -15,13 +15,143 @@ final recentPageDataProvider = FutureProvider<RecentPageData>((ref) {
   return ref.watch(libraryRepositoryProvider).getRecentPageData();
 });
 
+final recentSongsProvider =
+    NotifierProvider<RecentSongsNotifier, List<RecentLibrarySong>>(
+      RecentSongsNotifier.new,
+    );
+
+class RecentSongsNotifier extends Notifier<List<RecentLibrarySong>> {
+  static const _limit = 500;
+
+  @override
+  List<RecentLibrarySong> build() {
+    return ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+        const [];
+  }
+
+  void recordPlayed(LibrarySong song, {required String playedAt}) {
+    state =
+        [
+          RecentLibrarySong.fromSong(song, playedAt: playedAt),
+          ...state.where((item) => item.id != song.id),
+        ].take(_limit).toList();
+  }
+}
+
 final shellNavigationDataProvider = FutureProvider<ShellNavigationData>((ref) {
   return ref.watch(libraryRepositoryProvider).getShellNavigationData();
 });
 
-final recentSearchesProvider = FutureProvider<List<SearchHistoryEntry>>((ref) {
-  return ref.watch(libraryRepositoryProvider).getRecentSearches();
-});
+final recentSearchesProvider =
+    AsyncNotifierProvider<RecentSearchesNotifier, List<SearchHistoryEntry>>(
+      RecentSearchesNotifier.new,
+    );
+
+class RecentSearchesNotifier extends AsyncNotifier<List<SearchHistoryEntry>> {
+  @override
+  Future<List<SearchHistoryEntry>> build() {
+    return ref.watch(libraryRepositoryProvider).getRecentSearches();
+  }
+
+  Future<void> record(SearchHistoryEntry entry) async {
+    final entries = await future;
+    state = AsyncData([
+      entry,
+      ...entries.where(
+        (item) =>
+            item.type != entry.type ||
+            item.query.toLowerCase() != entry.query.toLowerCase(),
+      ),
+    ]);
+  }
+
+  Future<void> remove(Iterable<int> entryIds) async {
+    final ids = entryIds.toSet();
+    final entries = await future;
+    state = AsyncData(
+      entries.where((entry) => !ids.contains(entry.id)).toList(),
+    );
+  }
+
+  Future<void> restore(Iterable<SearchHistoryEntry> restoredEntries) async {
+    final restored = restoredEntries.toList();
+    final restoredKeys =
+        restored
+            .map((entry) => (entry.type, entry.query.toLowerCase()))
+            .toSet();
+    final entries = [
+      ...restored,
+      ...(await future).where(
+        (entry) =>
+            !restoredKeys.contains((entry.type, entry.query.toLowerCase())),
+      ),
+    ];
+    entries.sort((left, right) {
+      final timeCompare = int.parse(
+        right.searchedAt,
+      ).compareTo(int.parse(left.searchedAt));
+      return timeCompare != 0 ? timeCompare : right.id.compareTo(left.id);
+    });
+    state = AsyncData(entries);
+  }
+
+  Future<void> clear() async {
+    await future;
+    state = const AsyncData([]);
+  }
+}
+
+final recentBrowsesProvider =
+    AsyncNotifierProvider<RecentBrowsesNotifier, List<RecentBrowseEntry>>(
+      RecentBrowsesNotifier.new,
+    );
+
+class RecentBrowsesNotifier extends AsyncNotifier<List<RecentBrowseEntry>> {
+  static const _limit = 500;
+
+  @override
+  Future<List<RecentBrowseEntry>> build() async {
+    return (await ref.watch(recentPageDataProvider.future)).recentBrowses;
+  }
+
+  Future<void> record(RecentBrowseEntry entry) async {
+    final entries = await future;
+    state = AsyncData(
+      [
+        entry,
+        ...entries.where(
+          (item) => item.type != entry.type || item.itemId != entry.itemId,
+        ),
+      ].take(_limit).toList(),
+    );
+  }
+
+  Future<void> remove(Iterable<int> entryIds) async {
+    final ids = entryIds.toSet();
+    final entries = await future;
+    state = AsyncData(
+      entries.where((entry) => !ids.contains(entry.id)).toList(),
+    );
+  }
+
+  Future<void> restore(Iterable<RecentBrowseEntry> restoredEntries) async {
+    final restored = restoredEntries.toList();
+    final restoredKeys =
+        restored.map((entry) => (entry.type, entry.itemId)).toSet();
+    final entries = [
+      ...restored,
+      ...(await future).where(
+        (entry) => !restoredKeys.contains((entry.type, entry.itemId)),
+      ),
+    ]..sort((left, right) => right.id.compareTo(left.id));
+    state = AsyncData(entries);
+  }
+
+  Future<void> clear() async {
+    await future;
+    state = const AsyncData([]);
+  }
+}
 
 final librarySongCountProvider = FutureProvider<int>((ref) {
   return ref.watch(libraryRepositoryProvider).getLibrarySongCount();
@@ -68,13 +198,6 @@ void notifyLyricsSaved(WidgetRef ref, int songId) {
     revision: (notifier.state?.revision ?? 0) + 1,
     songId: songId,
   );
-}
-
-void invalidateRecentSearchData(WidgetRef ref) {
-  ref.invalidate(libraryContentDataProvider);
-  ref.invalidate(recentPageDataProvider);
-  ref.invalidate(shellNavigationDataProvider);
-  ref.invalidate(recentSearchesProvider);
 }
 
 void patchLibraryFavoriteOverrides(

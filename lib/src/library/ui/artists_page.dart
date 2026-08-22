@@ -72,6 +72,7 @@ part 'artist_album_title_link.dart';
 part 'album_artwork.dart';
 part 'artists_colors.dart';
 part 'artists_page_actions.dart';
+part 'artists_page_browse_history.dart';
 part 'artists_page_data.dart';
 part 'artists_summary_format.dart';
 
@@ -119,6 +120,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   String? _pendingOpenedArtistRoute;
   String? _notifiedMissingTargetArtistName;
   String? _locatedArtistName;
+  String? _recordedBrowseArtistName;
   var _locateArtistPulse = 0;
   var _artistScrollTop = 0.0;
   String? _artistQuickJumpPinnedKey;
@@ -164,10 +166,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     _artistListController.dispose();
     _artistDetailController.dispose();
     super.dispose();
-  }
-
-  void _clearAppBarPortalOwner() {
-    _clearArtistsAppBarPortalOwner(this);
   }
 
   void _syncAppBarPortal({
@@ -365,6 +363,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   (artist) => artist.name == targetArtistName,
                 )
                 : null;
+        if (targetArtist != null) {
+          _recordBrowseAfterFrame(targetArtist.name);
+        }
         if (!targetArtistAvailable &&
             !visibleArtists.any(
               (artist) => artist.name == _selectedArtistName,
@@ -383,7 +384,8 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   _artistSearch,
                 ).take(8).map((artist) => artist.name).toList();
         final artistSearchHistoryEntries = latestSearchHistoryEntries(
-          snapshot.recentSearches,
+          ref.watch(recentSearchesProvider).valueOrNull ??
+              snapshot.recentSearches,
           SearchHistoryType.artists,
         );
         final matchingSelectedArtists =
@@ -756,10 +758,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     );
   }
 
-  void _openArtistDetail(String artistName) {
-    _openArtistDetailForArtistsPage(this, artistName);
-  }
-
   void _submitArtistSearch() {
     final query = _artistSearch.trim();
     if (query.isEmpty) {
@@ -776,12 +774,15 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         exactMatches.isNotEmpty
             ? exactMatches.first
             : (suggestions.isEmpty ? null : suggestions.first);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(query, SearchHistoryType.artists)
-          .then((_) {
-            invalidateRecentSearchData(ref);
+          .then((entry) {
+            if (entry != null) {
+              return recentSearches.record(entry);
+            }
           }),
     );
     if (targetArtist != null) {
@@ -790,10 +791,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       });
       _openArtistDetail(targetArtist.name);
     }
-  }
-
-  void _updateArtistsPageState(VoidCallback update) {
-    setState(update);
   }
 }
 

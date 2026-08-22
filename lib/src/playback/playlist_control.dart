@@ -25,6 +25,7 @@ class PlaylistControlEntry {
     this.colors,
     this.showCompactPrimaryActions = false,
     this.collapseCompactPrimaryActions = false,
+    this.overlayCompactActions = false,
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
@@ -55,6 +56,7 @@ class PlaylistControlEntry {
   final PlaylistControlItemColors? colors;
   final bool showCompactPrimaryActions;
   final bool collapseCompactPrimaryActions;
+  final bool overlayCompactActions;
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
@@ -167,6 +169,7 @@ class PlaylistControl extends StatelessWidget {
       colors: entry.colors,
       showCompactPrimaryActions: entry.showCompactPrimaryActions,
       collapseCompactPrimaryActions: entry.collapseCompactPrimaryActions,
+      overlayCompactActions: entry.overlayCompactActions,
       compactDurationWidth: entry.compactDurationWidth,
       compactTrailingPadding: entry.compactTrailingPadding,
       showFavoriteAction: entry.showFavoriteAction,

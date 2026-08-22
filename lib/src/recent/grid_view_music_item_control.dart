@@ -7,7 +7,7 @@ const _recentSongHoverActionsReservedWidth =
     _recentSongActionButtonSize * 2 +
     _recentSongActionsSpacing +
     _recentSongActionsRightInset;
-const _recentSongArtistLineHoverReserveWidth =
+const _recentSongActionOverlayWidth =
     _recentSongHoverActionsReservedWidth + _recentSongActionButtonSize;
 
 class _GridViewMusicItemControl extends StatefulWidget {
@@ -46,9 +46,39 @@ class _GridViewMusicItemControl extends StatefulWidget {
       _GridViewMusicItemControlState();
 }
 
-class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
+class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _hoverActionsController;
   var _hovered = false;
   var _suppressNextTileTap = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hoverActionsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+      reverseDuration: const Duration(milliseconds: 180),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _GridViewMusicItemControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.multiSelect != widget.multiSelect) {
+      if (widget.multiSelect) {
+        _hoverActionsController.reverse();
+      } else if (_hovered) {
+        _hoverActionsController.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _hoverActionsController.dispose();
+    super.dispose();
+  }
 
   void _suppressTileTapForLink() {
     _suppressNextTileTap = true;
@@ -76,18 +106,26 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
   Widget build(BuildContext context) {
     final colors = _RecentSongTileColors.of(context);
     final active = widget.selected || _hovered;
-    final showHoverActions = active && !widget.multiSelect;
+    final activeSurface = Color.alphaBlend(
+      colors.activeSurface,
+      Theme.of(context).scaffoldBackgroundColor,
+    );
+    final showHoverActions = _hovered && !widget.multiSelect;
     final textColor = widget.current ? colors.currentText : colors.textStrong;
     final artistColor = widget.current ? colors.currentMuted : colors.textMuted;
     final detailColor = widget.current ? colors.currentSoft : colors.textSoft;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
+        if (!widget.multiSelect) {
+          _hoverActionsController.forward();
+        }
         setState(() {
           _hovered = true;
         });
       },
       onExit: (_) {
+        _hoverActionsController.reverse();
         setState(() {
           _hovered = false;
         });
@@ -104,10 +142,11 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.ease,
+          clipBehavior: Clip.antiAlias,
           height: widget.metrics.tileExtent,
           padding: widget.metrics.padding,
           decoration: BoxDecoration(
-            color: active ? colors.activeSurface : colors.inactiveSurface,
+            color: active ? activeSurface : colors.inactiveSurface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: active ? colors.activeShadow : const [],
           ),
@@ -120,196 +159,264 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl> {
                   : null,
           child: Stack(
             children: [
-              Row(
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      SizedBox.square(
-                        key: ValueKey('RecentSong.Artwork.${widget.song.id}'),
-                        dimension: widget.metrics.artworkSize,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: active ? colors.artworkShadow : const [],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: colors.artworkSurface,
-                              ),
-                              child: _RecentSongArtwork(song: widget.song),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (widget.multiSelect || widget.selected)
-                        Positioned(
-                          top: -6,
-                          right: -6,
+              AnimatedBuilder(
+                animation: _hoverActionsController,
+                child: Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        SizedBox.square(
+                          key: ValueKey('RecentSong.Artwork.${widget.song.id}'),
+                          dimension: widget.metrics.artworkSize,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: _RecentColors.accent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: colors.selectionMarkBorder,
-                                width: 2,
-                              ),
-                              boxShadow: colors.selectionMarkShadow,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow:
+                                  active ? colors.artworkShadow : const [],
                             ),
-                            child: SizedBox.square(
-                              dimension: 30,
-                              child:
-                                  widget.selected
-                                      ? const Icon(
-                                        FluentIcons.checkmark_16_regular,
-                                        color: Colors.white,
-                                        size: 17,
-                                      )
-                                      : null,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colors.artworkSurface,
+                                ),
+                                child: _RecentSongArtwork(song: widget.song),
+                              ),
                             ),
                           ),
-                        )
-                      else if (_hovered)
-                        Positioned.fill(
-                          child: Center(
-                            child: Builder(
-                              builder:
-                                  (buttonContext) =>
-                                      ArtworkFloatingActionButton(
-                                        tooltip: context.smPlayerI18n.t(
-                                          'context.addToPlaylist',
-                                        ),
-                                        size: 48,
-                                        iconSize: 19,
-                                        icon: const Icon(
-                                          FluentIcons.add_20_regular,
+                        ),
+                        if (widget.multiSelect || widget.selected)
+                          Positioned(
+                            top: -6,
+                            right: -6,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: _RecentColors.accent,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colors.selectionMarkBorder,
+                                  width: 2,
+                                ),
+                                boxShadow: colors.selectionMarkShadow,
+                              ),
+                              child: SizedBox.square(
+                                dimension: 30,
+                                child:
+                                    widget.selected
+                                        ? const Icon(
+                                          FluentIcons.checkmark_16_regular,
                                           color: Colors.white,
-                                          size: 19,
+                                          size: 17,
+                                        )
+                                        : null,
+                              ),
+                            ),
+                          )
+                        else if (_hovered)
+                          Positioned.fill(
+                            child: Center(
+                              child: Builder(
+                                builder:
+                                    (buttonContext) =>
+                                        ArtworkFloatingActionButton(
+                                          tooltip: context.smPlayerI18n.t(
+                                            'context.addToPlaylist',
+                                          ),
+                                          size: 48,
+                                          iconSize: 19,
+                                          icon: const Icon(
+                                            FluentIcons.add_20_regular,
+                                            color: Colors.white,
+                                            size: 19,
+                                          ),
+                                          onPressed: () {
+                                            final box =
+                                                buttonContext.findRenderObject()
+                                                    as RenderBox;
+                                            widget.onOpenAddToMenu(
+                                              box.localToGlobal(
+                                                Offset(0, box.size.height + 8),
+                                              ),
+                                            );
+                                          },
                                         ),
-                                        onPressed: () {
-                                          final box =
-                                              buttonContext.findRenderObject()
-                                                  as RenderBox;
-                                          widget.onOpenAddToMenu(
-                                            box.localToGlobal(
-                                              Offset(0, box.size.height + 8),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                            ),
-                          ),
-                        ),
-                      if (widget.current && !_hovered && !widget.multiSelect)
-                        Positioned.fill(
-                          child: SmPlayerPlayingWaveGlass(
-                            playing: widget.playing,
-                            dimension: 48,
-                            keyPrefix: 'RecentSong.Playing.${widget.song.id}',
-                          ),
-                        ),
-                    ],
-                  ),
-                  SizedBox(width: widget.metrics.copyGap),
-                  Expanded(
-                    child: SizedBox.expand(
-                      child: Padding(
-                        padding: widget.metrics.copyPadding,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.song.title,
-                              maxLines: widget.detailLabel.isEmpty ? 2 : 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 15,
-                                height: 1.32,
-                                fontVariations: const [
-                                  FontVariation('wght', 650),
-                                ],
                               ),
                             ),
-                            SizedBox(height: widget.metrics.copyLineGap),
-                            AnimatedPadding(
-                              duration: const Duration(milliseconds: 120),
-                              curve: Curves.ease,
-                              padding: EdgeInsets.only(
-                                right:
-                                    showHoverActions
-                                        ? _recentSongArtistLineHoverReserveWidth
-                                        : 0,
+                          ),
+                        if (widget.current && !_hovered && !widget.multiSelect)
+                          Positioned.fill(
+                            child: SmPlayerPlayingWaveGlass(
+                              playing: widget.playing,
+                              dimension: 48,
+                              keyPrefix: 'RecentSong.Playing.${widget.song.id}',
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(width: widget.metrics.copyGap),
+                    Expanded(
+                      child: SizedBox.expand(
+                        child: Padding(
+                          padding: widget.metrics.copyPadding,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.song.title,
+                                maxLines: widget.detailLabel.isEmpty ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 15,
+                                  height: 1.32,
+                                  fontVariations: const [
+                                    FontVariation('wght', 650),
+                                  ],
+                                ),
                               ),
-                              child: _RecentSongArtistLink(
+                              SizedBox(height: widget.metrics.copyLineGap),
+                              _RecentSongArtistLink(
                                 song: widget.song,
                                 foregroundColor: artistColor,
                                 hoverColor: colors.currentText,
                                 onPointerDown: _suppressTileTapForLink,
                                 onPointerUp: _releaseTileTapSuppression,
                               ),
-                            ),
-                            if (widget.detailLabel.isNotEmpty) ...[
-                              SizedBox(height: widget.metrics.copyLineGap),
-                              Text(
-                                widget.detailLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: detailColor,
-                                  fontSize: 12,
-                                  height: 1.25,
+                              if (widget.detailLabel.isNotEmpty) ...[
+                                SizedBox(height: widget.metrics.copyLineGap),
+                                Text(
+                                  widget.detailLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: detailColor,
+                                    fontSize: 12,
+                                    height: 1.25,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                builder: (context, child) {
+                  final progress = Curves.easeOut.transform(
+                    _hoverActionsController.value,
+                  );
+                  return ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (bounds) {
+                      final fadeStart = ((bounds.width -
+                                  _recentSongActionOverlayWidth * progress) /
+                              bounds.width)
+                          .clamp(0.0, 1.0);
+                      final fadeEnd = ((bounds.width -
+                                  (_recentSongActionOverlayWidth - 28) *
+                                      progress) /
+                              bounds.width)
+                          .clamp(0.0, 1.0);
+                      return LinearGradient(
+                        colors: const [
+                          Colors.white,
+                          Colors.white,
+                          Colors.transparent,
+                          Colors.transparent,
+                        ],
+                        stops: [0, fadeStart, fadeEnd, 1],
+                      ).createShader(bounds);
+                    },
+                    child: child,
+                  );
+                },
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: AnimatedBuilder(
+                  animation: _hoverActionsController,
+                  child: SizedBox(
+                    width: _recentSongActionOverlayWidth,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          right: _recentSongActionsRightInset,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: _recentSongActionsSpacing,
+                          children: [
+                            _RecentSongActionButton(
+                              tooltip: context.smPlayerI18n.t(
+                                'context.playNext',
+                              ),
+                              icon: const SmPlayerPlayNextIcon(size: 18),
+                              onPressed: widget.onPlayNext,
+                            ),
+                            Builder(
+                              builder:
+                                  (buttonContext) => _RecentSongActionButton(
+                                    tooltip: context.smPlayerI18n.t(
+                                      'player.more',
+                                    ),
+                                    icon: const Icon(
+                                      FluentIcons.more_horizontal_20_regular,
+                                      size: 18,
+                                    ),
+                                    onPressed: () {
+                                      final box =
+                                          buttonContext.findRenderObject()
+                                              as RenderBox;
+                                      widget.onOpenMoreMenu(
+                                        box.localToGlobal(
+                                          Offset(0, box.size.height + 8),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
-              if (showHoverActions)
-                Positioned(
-                  top:
-                      (widget.metrics.tileExtent -
-                          _recentSongActionButtonSize) /
-                      2,
-                  right: _recentSongActionsRightInset,
-                  child: Row(
-                    spacing: _recentSongActionsSpacing,
-                    children: [
-                      _RecentSongActionButton(
-                        tooltip: context.smPlayerI18n.t('context.playNext'),
-                        icon: const SmPlayerPlayNextIcon(size: 18),
-                        onPressed: widget.onPlayNext,
-                      ),
-                      Builder(
-                        builder:
-                            (buttonContext) => _RecentSongActionButton(
-                              tooltip: context.smPlayerI18n.t('player.more'),
-                              icon: const Icon(
-                                FluentIcons.more_horizontal_20_regular,
-                                size: 18,
+                  builder: (context, child) {
+                    final rawProgress = _hoverActionsController.value;
+                    final progress = Curves.easeOutCubic.transform(rawProgress);
+                    final opacity = const Interval(
+                      0.12,
+                      1,
+                      curve: Curves.easeOut,
+                    ).transform(rawProgress);
+                    return IgnorePointer(
+                      ignoring: !showHoverActions,
+                      child: SizedBox(
+                        width: _recentSongActionOverlayWidth * progress,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            alignment: Alignment.centerRight,
+                            minWidth: _recentSongActionOverlayWidth,
+                            maxWidth: _recentSongActionOverlayWidth,
+                            child: Opacity(
+                              opacity: opacity,
+                              child: Transform.translate(
+                                offset: Offset(10 * (1 - progress), 0),
+                                child: child,
                               ),
-                              onPressed: () {
-                                final box =
-                                    buttonContext.findRenderObject()
-                                        as RenderBox;
-                                widget.onOpenMoreMenu(
-                                  box.localToGlobal(
-                                    Offset(0, box.size.height + 8),
-                                  ),
-                                );
-                              },
                             ),
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
+              ),
             ],
           ),
         ),

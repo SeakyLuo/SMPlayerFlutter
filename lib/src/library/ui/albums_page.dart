@@ -82,6 +82,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
 
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -315,7 +319,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           )),
         );
         final albumSearchHistoryEntries = latestSearchHistoryEntries(
-          snapshot.recentSearches,
+          ref.watch(recentSearchesProvider).valueOrNull ??
+              snapshot.recentSearches,
           SearchHistoryType.albums,
         );
         final customPlaylists =

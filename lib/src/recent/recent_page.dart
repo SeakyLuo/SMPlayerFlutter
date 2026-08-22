@@ -42,6 +42,8 @@ import 'recent_search_list.dart';
 
 part 'recent_added_page.dart';
 part 'recent_played_page.dart';
+part 'recent_browses_page.dart';
+part 'recent_browse_list.dart';
 part 'recent_searches_page.dart';
 part 'recent_page_selection.dart';
 part 'recent_page_playback.dart';
@@ -58,11 +60,10 @@ part 'recent_keep_alive_page.dart';
 part 'recent_timeline.dart';
 part 'recent_theme.dart';
 
-enum RecentTab { added, played, searches }
+enum RecentTab { added, played, browsed, searches }
 
 enum RecentPlayedFilter { songs, artists, albums, playlists }
 
-const _recentMinimalContentBreakpoint = 656.0;
 const _recentMinimalPageHorizontalPadding = 8.0;
 const _recentPlayedFilterRadius = 999.0;
 const _recentCollectionTileWidth = 180.0;
@@ -98,6 +99,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
   var _recentPlayedTimelineLabel = '';
   final _selectedSongIds = <int>{};
   final _selectedCollectionKeys = <String>{};
+  final _selectedBrowseIds = <int>{};
   final _selectedSearchIds = <int>{};
   MusicDialogEntry? _musicDialog;
   final _appBarPortalOwner = Object();
@@ -160,11 +162,12 @@ class _RecentPageState extends ConsumerState<RecentPage>
     required String title,
     required int addedCount,
     required int playedCount,
+    required int browsedCount,
     required int searchesCount,
     required bool showCount,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$searchesCount:$showCount';
+        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$browsedCount:$searchesCount:$showCount';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -191,6 +194,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
           i18n: i18n,
           addedCount: addedCount,
           playedCount: playedCount,
+          browsedCount: browsedCount,
           searchesCount: searchesCount,
           showCount: showCount,
           onChanged: _switchTab,
@@ -223,6 +227,9 @@ class _RecentPageState extends ConsumerState<RecentPage>
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
+    final recentSongs = ref.watch(recentSongsProvider);
+    final recentSearchesValue = ref.watch(recentSearchesProvider);
+    final recentBrowsesValue = ref.watch(recentBrowsesProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (
@@ -253,6 +260,10 @@ class _RecentPageState extends ConsumerState<RecentPage>
             ),
           ),
       data: (snapshot) {
+        final recentSearches =
+            recentSearchesValue.valueOrNull ?? snapshot.recentSearches;
+        final recentBrowses =
+            recentBrowsesValue.valueOrNull ?? snapshot.recentBrowses;
         final recentAddedSongs =
             snapshot.songs.toList()..sort(
               (left, right) =>
@@ -275,16 +286,22 @@ class _RecentPageState extends ConsumerState<RecentPage>
           i18n,
         );
         final recentPlayedCount =
-            snapshot.recentSongs.length +
+            recentSongs.length +
             snapshot.recentPlaylists.length +
             snapshot.recentAlbums.length +
             snapshot.recentArtists.length;
+        final recentBrowseViews = buildRecentBrowseViews(
+          recentBrowses,
+          snapshot.songs,
+          snapshot.playlists,
+          i18n,
+        );
         final visibleSongs =
             _activeTab == RecentTab.added
                 ? addedSongs
                 : _activeTab == RecentTab.played &&
                     _activePlayedFilter == RecentPlayedFilter.songs
-                ? snapshot.recentSongs
+                ? recentSongs
                 : const <LibrarySong>[];
         final selectedVisibleSongIds =
             visibleSongs
@@ -292,16 +309,24 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 .map((song) => song.id)
                 .toList();
         final selectedSearchIds =
-            snapshot.recentSearches
+            recentSearches
                 .where((entry) => _selectedSearchIds.contains(entry.id))
                 .map((entry) => entry.id)
                 .toList();
+        final selectedBrowseIds =
+            recentBrowseViews
+                .where((view) => _selectedBrowseIds.contains(view.entry.id))
+                .map((view) => view.entry.id)
+                .toList();
         final selectedCount =
-            _activeTab == RecentTab.searches
+            _activeTab == RecentTab.browsed
+                ? selectedBrowseIds.length
+                : _activeTab == RecentTab.searches
                 ? selectedSearchIds.length
-                : _activePlayedFilter == RecentPlayedFilter.songs
-                ? selectedVisibleSongIds.length
-                : _selectedCollectionKeys.length;
+                : _activeTab == RecentTab.played &&
+                    _activePlayedFilter != RecentPlayedFilter.songs
+                ? _selectedCollectionKeys.length
+                : selectedVisibleSongIds.length;
         final selectedOperationSongIds =
             _activeTab == RecentTab.played &&
                     _activePlayedFilter != RecentPlayedFilter.songs
@@ -324,9 +349,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 .toList();
         return _RecentPagePanel(
           child: LayoutBuilder(
-            builder: (context, constraints) {
-              final useAppBarTabs =
-                  constraints.maxWidth < _recentMinimalContentBreakpoint;
+            builder: (context, _) {
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
                 context,
               );
@@ -337,7 +360,8 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 title: i18n.t('common.recent'),
                 addedCount: addedSongs.length,
                 playedCount: recentPlayedCount,
-                searchesCount: snapshot.recentSearches.length,
+                browsedCount: recentBrowseViews.length,
+                searchesCount: recentSearches.length,
                 showCount: snapshot.showCount,
               );
 
@@ -347,25 +371,19 @@ class _RecentPageState extends ConsumerState<RecentPage>
                   Column(
                     spacing: 4,
                     children: [
-                      if (useAppBarTabs && !useWorkspaceAppBar)
-                        _RecentAppBarTabs(
-                          controller: _tabController,
-                          i18n: i18n,
-                          addedCount: addedSongs.length,
-                          playedCount: recentPlayedCount,
-                          searchesCount: snapshot.recentSearches.length,
-                          showCount: snapshot.showCount,
-                          onChanged: _switchTab,
-                        )
-                      else if (!useWorkspaceAppBar)
-                        _RecentTabs(
-                          controller: _tabController,
-                          i18n: i18n,
-                          addedCount: addedSongs.length,
-                          playedCount: recentPlayedCount,
-                          searchesCount: snapshot.recentSearches.length,
-                          showCount: snapshot.showCount,
-                          onChanged: _switchTab,
+                      if (!useWorkspaceAppBar)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 26, bottom: 10),
+                          child: _RecentAppBarTabs(
+                            controller: _tabController,
+                            i18n: i18n,
+                            addedCount: addedSongs.length,
+                            playedCount: recentPlayedCount,
+                            browsedCount: recentBrowseViews.length,
+                            searchesCount: recentSearches.length,
+                            showCount: snapshot.showCount,
+                            onChanged: _switchTab,
+                          ),
                         ),
                       Expanded(
                         child: TabBarView(
@@ -402,7 +420,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                               active: _activeTab == RecentTab.played,
                               child: _RecentPlayedPage(
                                 filter: _activePlayedFilter,
-                                songs: snapshot.recentSongs,
+                                songs: recentSongs,
                                 playlists: recentPlaylistViews,
                                 albums: recentAlbumViews,
                                 artists: recentArtistViews,
@@ -452,9 +470,43 @@ class _RecentPageState extends ConsumerState<RecentPage>
                               ),
                             ),
                             _RecentKeepAlivePage(
+                              active: _activeTab == RecentTab.browsed,
+                              child: _RecentBrowsesPage(
+                                entries: recentBrowseViews,
+                                allEntryIds:
+                                    recentBrowses
+                                        .map((entry) => entry.id)
+                                        .toList(),
+                                i18n: i18n,
+                                multiSelect: _multiSelect,
+                                selectedEntryIds: _selectedBrowseIds,
+                                onOpen: _openRecentBrowse,
+                                onToggleMultiSelect: () {
+                                  setState(() {
+                                    _multiSelect = !_multiSelect;
+                                    _clearSelection();
+                                  });
+                                },
+                                onClearSelection: () {
+                                  setState(_clearSelection);
+                                },
+                                onToggleSelection: _toggleBrowseSelection,
+                                onRemove: (entryId) {
+                                  unawaited(
+                                    _removeRecentBrowsesWithUndo([entryId]),
+                                  );
+                                },
+                                onClear: (entryIds) {
+                                  unawaited(
+                                    _removeRecentBrowsesWithUndo(entryIds),
+                                  );
+                                },
+                              ),
+                            ),
+                            _RecentKeepAlivePage(
                               active: _activeTab == RecentTab.searches,
                               child: _RecentSearchesPage(
-                                entries: snapshot.recentSearches,
+                                entries: recentSearches,
                                 i18n: i18n,
                                 multiSelect: _multiSelect,
                                 selectedEntryIds: _selectedSearchIds,
@@ -484,12 +536,16 @@ class _RecentPageState extends ConsumerState<RecentPage>
                   MultiSelectCommandBar(
                     visible: _multiSelect,
                     bottomInset: multiSelectCommandBarShellBottomInset,
-                    leftBleed: useAppBarTabs ? 8 : 24,
-                    rightBleed: useAppBarTabs ? 8 : 18,
+                    leftBleed: 8,
+                    rightBleed: 8,
                     selectedCount: selectedCount,
                     playlists: customPlaylists,
-                    showPlay: _activeTab != RecentTab.searches,
-                    showAddTo: _activeTab != RecentTab.searches,
+                    showPlay:
+                        _activeTab != RecentTab.searches &&
+                        _activeTab != RecentTab.browsed,
+                    showAddTo:
+                        _activeTab != RecentTab.searches &&
+                        _activeTab != RecentTab.browsed,
                     addToSongIds: selectedOperationSongIds,
                     nowPlayingSongIds: snapshot.nowPlaying.songIds,
                     includeNowPlayingInAddTo: true,
@@ -589,12 +645,18 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                     selectedSearchIds,
                                   ),
                                 );
+                              } else if (_activeTab == RecentTab.browsed) {
+                                unawaited(
+                                  _removeRecentBrowsesWithUndo(
+                                    selectedBrowseIds,
+                                  ),
+                                );
                               } else {
                                 ref
                                     .read(libraryRepositoryProvider)
                                     .removeRecentPlayed(selectedVisibleSongIds);
+                                ref.invalidate(recentPageDataProvider);
                               }
-                              ref.invalidate(recentPageDataProvider);
                               setState(() {
                                 _hideAfterOperation(
                                   snapshot
@@ -605,22 +667,24 @@ class _RecentPageState extends ConsumerState<RecentPage>
                     onSelectAll: () {
                       setState(() {
                         _selectAll(
-                          snapshot,
+                          recentSearches,
                           visibleSongs,
                           recentPlaylistViews,
                           recentAlbumViews,
                           recentArtistViews,
+                          recentBrowseViews,
                         );
                       });
                     },
                     onReverseSelection: () {
                       setState(() {
                         _reverseSelection(
-                          snapshot,
+                          recentSearches,
                           visibleSongs,
                           recentPlaylistViews,
                           recentAlbumViews,
                           recentArtistViews,
+                          recentBrowseViews,
                         );
                       });
                     },

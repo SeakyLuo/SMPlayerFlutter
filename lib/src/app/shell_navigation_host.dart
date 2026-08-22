@@ -181,7 +181,9 @@ class _ShellNavigationContent extends ConsumerWidget {
         ref.watch(smPlayerI18nProvider).value ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
     final recentSearches =
-        snapshot?.recentSearches ?? const <SearchHistoryEntry>[];
+        ref.watch(recentSearchesProvider).valueOrNull ??
+        snapshot?.recentSearches ??
+        const <SearchHistoryEntry>[];
     final playlists =
         snapshot == null
             ? const <LibraryPlaylist>[]

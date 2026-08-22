@@ -43,6 +43,7 @@ import 'song_artwork.dart';
 import '../../platform/desktop_feature_service.dart';
 
 part 'music_library_table.dart';
+part 'music_library_row_overlays.dart';
 part 'music_library_rows.dart';
 part 'music_library_quick_jump.dart';
 part 'music_library_helpers.dart';
@@ -277,11 +278,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final colors = _LibraryPalette.of(context);
-              final compact = constraints.maxWidth < 720;
-              _compactLayout = compact;
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
                 context,
               );
+              final compact = constraints.maxWidth < 720 && useWorkspaceAppBar;
+              _compactLayout = compact;
               _syncAppBarPortal(
                 showPortal: true,
                 routePath: '/songs',
@@ -360,7 +361,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                     compact ? 10 : 14,
                                   ),
                                   child: Padding(
-                                    padding: EdgeInsets.all(compact ? 4 : 10),
+                                    padding:
+                                        compact
+                                            ? EdgeInsets.zero
+                                            : const EdgeInsets.all(10),
                                     child: Row(
                                       children: [
                                         if (!compact)
@@ -550,20 +554,6 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                   width: 10,
                                   child: _MusicLibraryTableScrollbar(
                                     controller: _scrollController,
-                                  ),
-                                ),
-                              if (compact && !useWorkspaceAppBar)
-                                Positioned(
-                                  top: 10,
-                                  right: 10,
-                                  child: _CompactQuickJumpButton(
-                                    active: _quickJumpPanelOpen,
-                                    onPressed: () {
-                                      setState(() {
-                                        _quickJumpPanelOpen =
-                                            !_quickJumpPanelOpen;
-                                      });
-                                    },
                                   ),
                                 ),
                               if (_musicDialog case final dialog?)
@@ -1160,6 +1150,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       i18n: context.smPlayerI18n,
       songIds: queueSongIds,
       queueIndex: queueIndex,
+      showQueueUpdatedNotification: false,
     );
   }
 

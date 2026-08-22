@@ -493,6 +493,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       songIds: nextQueue,
       queueIndex: insertIndex,
       mediaController: _mediaControlController,
+      showQueueUpdatedNotification: false,
     );
     _navigateTo('/now-playing');
     await _desktopFeatureService.showWindow();
@@ -619,7 +620,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     String value,
     SearchHistoryType type, {
     LibraryRepository? repository,
-    VoidCallback? onRecentSearchRecorded,
   }) {
     final nextSearchText = value.trim();
     setState(() {
@@ -633,12 +633,11 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           repository ??
           widget.settingsRepository ??
           ref.read(libraryRepositoryProvider);
+      final recentSearches = ref.read(recentSearchesProvider.notifier);
       unawaited(
         searchRepository.addRecentSearch(nextSearchText, type).then((entry) {
-          if (onRecentSearchRecorded != null) {
-            onRecentSearchRecorded();
-          } else {
-            _invalidateRecentSearchData();
+          if (entry != null) {
+            return recentSearches.record(entry);
           }
         }),
       );
@@ -651,10 +650,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     setState(() {
       _searchText = '';
     });
-  }
-
-  void _invalidateRecentSearchData() {
-    invalidateRecentSearchData(ref);
   }
 
   Future<void> _showVoiceAssistantDialog(

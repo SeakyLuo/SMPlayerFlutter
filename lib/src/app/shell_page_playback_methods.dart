@@ -397,10 +397,14 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
                 .where((song) => song.id == activeTrackId)
                 .firstOrNull;
         if (song != null) {
-          patchLibrarySongOverride(
-            ref,
-            song.copyWith(playCount: song.playCount + 1),
-          );
+          final playedSong = song.copyWith(playCount: song.playCount + 1);
+          patchLibrarySongOverride(ref, playedSong);
+          ref
+              .read(recentSongsProvider.notifier)
+              .recordPlayed(
+                playedSong,
+                playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
+              );
         }
       } finally {
         if (_finishingAudioTrackId == activeTrackId) {

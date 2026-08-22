@@ -95,6 +95,8 @@ class MenuFlyoutItem {
 
 enum MenuFlyoutLayer { defaultLayer, dialog }
 
+enum MenuFlyoutAnchorPlacement { below, above }
+
 final _openMenuFlyoutClosers = <VoidCallback>{};
 
 void closeOpenMenuFlyouts() {
@@ -112,6 +114,7 @@ Future<void> showMenuFlyout(
   required List<MenuFlyoutItem> items,
   ValueListenable<List<MenuFlyoutItem>>? itemsListenable,
   Offset? position,
+  MenuFlyoutAnchorPlacement anchorPlacement = MenuFlyoutAnchorPlacement.below,
   bool avoidPlayerBar = true,
   bool scrollRoot = false,
   MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
@@ -169,6 +172,7 @@ Future<void> showMenuFlyout(
             positionContext: overlay.context,
             requestedPosition: resolvedPosition,
             hasExplicitPosition: hasExplicitPosition,
+            anchorPlacement: anchorPlacement,
             avoidPlayerBar: avoidPlayerBar,
             scrollRoot: scrollRoot,
             onClose: close,
@@ -198,6 +202,7 @@ class _MenuFlyoutOverlay extends StatefulWidget {
     required this.positionContext,
     required this.requestedPosition,
     required this.hasExplicitPosition,
+    required this.anchorPlacement,
     required this.avoidPlayerBar,
     required this.scrollRoot,
     required this.onClose,
@@ -209,6 +214,7 @@ class _MenuFlyoutOverlay extends StatefulWidget {
   final BuildContext positionContext;
   final Offset requestedPosition;
   final bool hasExplicitPosition;
+  final MenuFlyoutAnchorPlacement anchorPlacement;
   final bool avoidPlayerBar;
   final bool scrollRoot;
   final VoidCallback onClose;
@@ -222,6 +228,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   late List<_MenuFlyoutPanelState> _panels;
   final _focusNode = FocusNode(debugLabel: 'MenuFlyoutOverlay');
   ScrollPosition? _anchorScrollPosition;
+  var _positionUpdateScheduled = false;
 
   @override
   void initState() {
@@ -367,10 +374,19 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }
 
   void _requestPositionUpdate() {
-    if (!mounted) {
+    if (!mounted || _positionUpdateScheduled) {
       return;
     }
-    setState(() {});
+    _positionUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _positionUpdateScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _panels = _panels.take(1).toList();
+      });
+    });
   }
 
   List<_MenuFlyoutPanelState> _resolvedPanels(
@@ -402,16 +418,33 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   Offset _resolvedRequestedPosition() {
     if (widget.hasExplicitPosition) {
       if (!widget.anchorContext.mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
         return widget.requestedPosition;
       }
       final renderObject = widget.anchorContext.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
         return widget.requestedPosition;
       }
-      final positionBox =
-          widget.positionContext.findRenderObject() as RenderBox;
+      final positionObject = widget.positionContext.findRenderObject();
+      if (positionObject is! RenderBox || !positionObject.attached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
+        return widget.requestedPosition;
+      }
       final anchorTop =
-          renderObject.localToGlobal(Offset.zero, ancestor: positionBox).dy;
+          renderObject.localToGlobal(Offset.zero, ancestor: positionObject).dy;
       if (widget.requestedPosition.dy < anchorTop) {
         return Offset(
           widget.requestedPosition.dx,
@@ -437,11 +470,26 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       });
       return widget.requestedPosition;
     }
-    final positionBox = widget.positionContext.findRenderObject() as RenderBox;
-    return renderObject.localToGlobal(
-      Offset(0, renderObject.size.height + 4),
-      ancestor: positionBox,
-    );
+    final positionObject = widget.positionContext.findRenderObject();
+    if (positionObject is! RenderBox || !positionObject.attached) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onClose();
+        }
+      });
+      return widget.requestedPosition;
+    }
+    final anchorOffset = switch (widget.anchorPlacement) {
+      MenuFlyoutAnchorPlacement.below => Offset(
+        0,
+        renderObject.size.height + 4,
+      ),
+      MenuFlyoutAnchorPlacement.above => Offset(
+        0,
+        -_menuFlyoutItemsHeight(_panels.first.items) - 8,
+      ),
+    };
+    return renderObject.localToGlobal(anchorOffset, ancestor: positionObject);
   }
 
   void _clearSubmenusAfter(int depth) {

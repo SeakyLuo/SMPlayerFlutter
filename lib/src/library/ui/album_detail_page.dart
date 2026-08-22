@@ -28,6 +28,28 @@ class AlbumDetailPage extends ConsumerStatefulWidget {
 
 class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   var _showArtworkDialog = false;
+  String? _recordedBrowseAlbum;
+
+  void _recordBrowseAfterFrame(String albumName) {
+    if (_recordedBrowseAlbum == albumName) {
+      return;
+    }
+    _recordedBrowseAlbum = albumName;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _recordedBrowseAlbum != albumName) {
+        return;
+      }
+      unawaited(_recordBrowse(albumName));
+    });
+  }
+
+  Future<void> _recordBrowse(String albumName) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.album, albumName);
+    await recentBrowses.record(entry);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +105,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             );
           }
 
+          _recordBrowseAfterFrame(routeAlbumName);
+
           final mediaControl = ref.watch(
             mediaControlControllerProvider.select(
               (controller) => (
@@ -102,11 +126,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             children: [
               HeaderedPlaylistControl(
                 type: HeaderedPlaylistType.album,
-                routeLocation:
-                    Uri(
-                      path: '/albums',
-                      queryParameters: {'album': routeAlbumName},
-                    ).toString(),
+                routeLocation: GoRouterState.of(context).uri.toString(),
                 title: routeAlbumName,
                 songs: albumSongs,
                 selectedTrackId: mediaControl.trackId,

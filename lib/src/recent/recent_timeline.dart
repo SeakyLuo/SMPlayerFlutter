@@ -71,7 +71,7 @@ class _RecentTimelineScrollViewState<T>
 
   @override
   Widget build(BuildContext context) {
-    final active = TickerMode.of(context);
+    final active = TickerMode.valuesOf(context).enabled;
     if (active && !_active) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

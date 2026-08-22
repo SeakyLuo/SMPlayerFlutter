@@ -69,14 +69,40 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   Offset? _playlistDragAnchorOffset;
   final _playlistCardContexts = <int, BuildContext>{};
   int? _lastPersistedPlaylistId;
+  int? _recordedBrowsePlaylistId;
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
 
   @override
   void initState() {
     super.initState();
     _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+  }
+
+  void _recordBrowseAfterFrame(int playlistId) {
+    if (_recordedBrowsePlaylistId == playlistId) {
+      return;
+    }
+    _recordedBrowsePlaylistId = playlistId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _recordedBrowsePlaylistId != playlistId) {
+        return;
+      }
+      unawaited(_recordBrowse(playlistId));
+    });
+  }
+
+  Future<void> _recordBrowse(int playlistId) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.playlist, '$playlistId');
+    await recentBrowses.record(entry);
   }
 
   @override
@@ -221,6 +247,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 .firstOrNull;
         if (widget.selectedPlaylistId != null && selectedPlaylist != null) {
           _persistLastPlaylist(selectedPlaylist.id);
+          _recordBrowseAfterFrame(selectedPlaylist.id);
           return _buildDetail(context, ref, i18n, snapshot, selectedPlaylist);
         }
 
@@ -261,7 +288,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       i18n: i18n,
       child: HeaderedPlaylistControl(
         key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
-        routeLocation: '/playlists/${selectedPlaylist.id}',
+        routeLocation: GoRouterState.of(context).uri.toString(),
         type:
             selectedPlaylist.isBuiltIn
                 ? HeaderedPlaylistType.favorites
@@ -447,7 +474,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             ? const <String>[]
             : _playlistSearchSuggestions(customPlaylists, songsById);
     final searchHistoryEntries = latestSearchHistoryEntries(
-      snapshot.recentSearches,
+      ref.watch(recentSearchesProvider).valueOrNull ?? snapshot.recentSearches,
       SearchHistoryType.playlists,
     );
     final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);

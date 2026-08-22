@@ -55,6 +55,11 @@ const _releaseNoteTexts = {
     zh: '尝试引入液态玻璃。',
     i18nKey: 'releaseNotes.tryLiquidGlass',
   ),
+  'randomPlayMenuScopes': _ReleaseNoteText(
+    en:
+        'Added source icons to the Random Play menu and moved Current Artist and Current Album into it.',
+    zh: '随机播放菜单增加了来源图标，并将“当前歌手”和“当前专辑”整合到菜单中。',
+  ),
   'modernUi': _ReleaseNoteText(
     en: 'Changed to a more modern UI.',
     zh: '改成了更加现代的 UI。',
@@ -412,7 +417,7 @@ const _releaseNoteTexts = {
 };
 
 const _releaseNoteDefinitions = [
-  _ReleaseNoteDefinition('3.1.0', ['tryLiquidGlass']),
+  _ReleaseNoteDefinition('3.1.0', ['tryLiquidGlass', 'randomPlayMenuScopes']),
   _ReleaseNoteDefinition('3.0.0', [
     'architectureFeedback',
     'modernUi',

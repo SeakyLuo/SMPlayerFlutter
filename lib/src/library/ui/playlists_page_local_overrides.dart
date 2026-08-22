@@ -10,7 +10,7 @@ extension _PlaylistsPageLocalOverrides on _PlaylistsPageState {
   }
 
   void _removeLocalPlaylist(int playlistId) {
-    setState(() {
+    _updateState(() {
       _committedPlaylistIds =
           _committedPlaylistIds
               ?.where(

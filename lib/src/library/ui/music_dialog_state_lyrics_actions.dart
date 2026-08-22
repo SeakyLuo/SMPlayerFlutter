@@ -13,7 +13,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     final i18n = context.smPlayerI18n;
     final nextRawText = _currentLyricsRawText;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -35,7 +35,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -91,7 +91,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
           label: i18n.t('song.discardChanges'),
           onPressed: () {
             if (mounted && songId == widget.song.id) {
-              setState(() {
+              _updateState(() {
                 _lyricsRawText = _originalLyricsText;
                 _lyricsController.text =
                     _showLyricsTimestamps
@@ -112,7 +112,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     required bool refreshLatestLyrics,
   }) async {
     final i18n = context.smPlayerI18n;
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -127,7 +127,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
         _originalLyricsText = rawLyrics;
         _lyrics = _lyricsWithRawText(_lyrics, rawLyrics);
         widget.onSaved?.call();
-        setState(() {});
+        _updateState(() {});
       }
       notifyLyricsSaved(ref, songId);
       if (refreshLatestLyrics) {
@@ -146,7 +146,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -160,7 +160,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
     final beforeText = _lyricsController.text;
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -210,7 +210,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -224,7 +224,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -248,14 +248,14 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
       _lyricsController.text =
           _showLyricsTimestamps ? rawText : _stripLyricsTimestamps(rawText);
       _scrollLyricsToTop();
-      setState(() {});
+      _updateState(() {});
     } catch (_) {
       if (mounted) {
         _showMessage(i18n.t('song.importLyricsFailed'));
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }

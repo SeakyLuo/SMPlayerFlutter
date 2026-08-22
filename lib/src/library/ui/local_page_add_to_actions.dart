@@ -84,6 +84,9 @@ extension _LocalPageAddToActions on _LocalPageState {
     if (name == null) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
     await createPlaylistAndSync(
       context: context,

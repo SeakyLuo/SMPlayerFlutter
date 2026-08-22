@@ -466,7 +466,7 @@ void _showPlaybackModeMenu(
 }) {
   showMenuFlyout(
     context,
-    position: _menuFlyoutPositionAboveAnchor(context),
+    anchorPlacement: MenuFlyoutAnchorPlacement.above,
     avoidPlayerBar: false,
     items: buildPlaybackModeMenuFlyoutItems(
       i18n: i18n,
@@ -476,11 +476,6 @@ void _showPlaybackModeMenu(
       onToggleRepeatOne: onToggleRepeatOne,
     ),
   );
-}
-
-Offset _menuFlyoutPositionAboveAnchor(BuildContext context) {
-  final box = context.findRenderObject() as RenderBox;
-  return box.localToGlobal(const Offset(0, -8));
 }
 
 class _CompactMediaProgressRow extends StatefulWidget {
