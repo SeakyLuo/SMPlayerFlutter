@@ -391,6 +391,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           },
         );
         final showsInlineTitle = !WorkspaceNavigationAppBarScope.of(context);
+        final trailingAlignmentInset = localPageScrollbarGutter(
+          isCompactLayout,
+        );
         return LocalPageScaffold(
           child: Stack(
             clipBehavior: Clip.none,
@@ -398,136 +401,147 @@ class _LocalPageState extends ConsumerState<LocalPage> {
               Column(
                 children: [
                   if (showsInlineTitle) ...[
-                    LocalTitleGrid(
-                      songs: snapshot.songs,
-                      folders: snapshot.folders,
-                      i18n: i18n,
-                      rootPath: snapshot.rootPath,
-                      currentRelativePath: widget.currentRelativePath,
-                      onHiddenFoldersListButtonClick:
-                          () => context.go('/hidden-folders'),
-                      onCurrentFolderClick: _scrollCurrentFolderToTop,
-                      onOpenFolder: _openFolder,
-                      onWillAcceptDrop:
-                          (targetRelativePath, payload) =>
-                              isLocalMoveTargetFolder(
-                                payload: payload,
-                                targetFolder: nodes[targetRelativePath]!,
-                                nodes: nodes,
-                                songsById: songsById,
-                              ),
-                      onAcceptDrop: (targetRelativePath, payload) {
-                        _moveLocalItemsToFolder(
-                          songIds: payload.songIds,
-                          folderPaths: payload.folderPaths,
-                          targetFolderPath: nodes[targetRelativePath]!.path,
-                        );
-                        setState(_clearMultiSelectStatus);
-                      },
-                      onOpenFolderMenu:
-                          (targetRelativePath, position) =>
-                              _showFolderChainMenu(
-                                position: position,
-                                folder: nodes[targetRelativePath]!,
-                                nodes: nodes,
-                                songsById: songsById,
-                                playlists: customPlaylists,
-                                snapshot: snapshot,
-                                i18n: i18n,
-                              ),
+                    Padding(
+                      padding: EdgeInsets.only(right: trailingAlignmentInset),
+                      child: LocalTitleGrid(
+                        songs: snapshot.songs,
+                        folders: snapshot.folders,
+                        i18n: i18n,
+                        rootPath: snapshot.rootPath,
+                        currentRelativePath: widget.currentRelativePath,
+                        onHiddenFoldersListButtonClick:
+                            () => context.go('/hidden-folders'),
+                        onCurrentFolderClick: _scrollCurrentFolderToTop,
+                        onOpenFolder: _openFolder,
+                        onWillAcceptDrop:
+                            (targetRelativePath, payload) =>
+                                isLocalMoveTargetFolder(
+                                  payload: payload,
+                                  targetFolder: nodes[targetRelativePath]!,
+                                  nodes: nodes,
+                                  songsById: songsById,
+                                ),
+                        onAcceptDrop: (targetRelativePath, payload) {
+                          _moveLocalItemsToFolder(
+                            songIds: payload.songIds,
+                            folderPaths: payload.folderPaths,
+                            targetFolderPath: nodes[targetRelativePath]!.path,
+                          );
+                          setState(_clearMultiSelectStatus);
+                        },
+                        onOpenFolderMenu:
+                            (targetRelativePath, position) =>
+                                _showFolderChainMenu(
+                                  position: position,
+                                  folder: nodes[targetRelativePath]!,
+                                  nodes: nodes,
+                                  songsById: songsById,
+                                  playlists: customPlaylists,
+                                  snapshot: snapshot,
+                                  i18n: i18n,
+                                ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                   ],
-                  CommandBar(
-                    contentSizing: CommandBarContentSizing.intrinsic,
-                    overflowReserve: isCompactLayout ? 44 : 0,
-                    overflowLabel: i18n.t('player.more'),
-                    overflowItems:
-                        isCompactLayout
-                            ? [
-                              MenuFlyoutItem(
-                                key: 'hidden-folders',
-                                text: i18n.t('local.viewHiddenFolders'),
-                                icon: FluentIcons.folder_prohibited_20_regular,
-                                onPressed: () => context.go('/hidden-folders'),
+                  Padding(
+                    padding: EdgeInsets.only(right: trailingAlignmentInset),
+                    child: CommandBar(
+                      contentSizing: CommandBarContentSizing.intrinsic,
+                      overflowReserve: isCompactLayout ? 44 : 0,
+                      overflowLabel: i18n.t('player.more'),
+                      overflowItems:
+                          isCompactLayout
+                              ? [
+                                MenuFlyoutItem(
+                                  key: 'hidden-folders',
+                                  text: i18n.t('local.viewHiddenFolders'),
+                                  icon:
+                                      FluentIcons.folder_prohibited_20_regular,
+                                  onPressed:
+                                      () => context.go('/hidden-folders'),
+                                ),
+                              ]
+                              : const [],
+                      content: Text(
+                        formatFolderCardStats(
+                          i18n,
+                          childFolders.length,
+                          currentSongs.length,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontVariations: const [FontVariation.weight(650)],
+                        ),
+                      ),
+                      children: [
+                        CommandBarButton(
+                          iconWidget: const ShuffleIcon(),
+                          useShuffleIcon: true,
+                          label: i18n.t('nowPlaying.randomPlay'),
+                          overflowSubmenu:
+                              visibleSongIds.isNotEmpty && hasSubfolderSongs
+                                  ? _localShuffleMenuItems(
+                                    currentNode,
+                                    visibleSongIds,
+                                    i18n,
+                                  )
+                                  : const [],
+                          onPressedWithContext:
+                              (buttonContext) => _playShuffledFromToolbar(
+                                buttonContext,
+                                currentNode,
+                                visibleSongIds,
+                                hasSubfolderSongs,
+                                i18n,
                               ),
-                            ]
-                            : const [],
-                    content: Text(
-                      formatFolderCardStats(
-                        i18n,
-                        childFolders.length,
-                        currentSongs.length,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        fontVariations: const [FontVariation.weight(650)],
-                      ),
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.arrow_sync_24_regular,
+                          label:
+                              isCompactLayout
+                                  ? i18n.t('local.updateFolderShort')
+                                  : i18n.t('local.updateFolder'),
+                          onPressed: () => _refreshFolder(currentNode, i18n),
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.arrow_sort_24_regular,
+                          label: i18n.t('common.sort'),
+                          overflowSubmenu: _localSortMenuItems(
+                            currentNode,
+                            i18n,
+                          ),
+                          onPressedWithContext:
+                              (context) =>
+                                  _showSortMenu(context, i18n, currentNode),
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.add_24_regular,
+                          label: i18n.t('local.newFolder'),
+                          onPressed:
+                              () => _createFolder(
+                                parent: currentNode,
+                                nodes: nodes,
+                                rootPath: snapshot.rootPath,
+                                i18n: i18n,
+                              ),
+                        ),
+                        CommandBarButton(
+                          icon: FluentIcons.multiselect_ltr_24_regular,
+                          label: i18n.t('albums.multiSelect'),
+                          active: _multiSelect,
+                          activeMatchesHover: true,
+                          tooltip:
+                              _multiSelect
+                                  ? i18n.t('common.exitMultiSelectTooltip')
+                                  : null,
+                          onPressed: _toggleMultiSelect,
+                        ),
+                      ],
                     ),
-                    children: [
-                      CommandBarButton(
-                        iconWidget: const ShuffleIcon(),
-                        useShuffleIcon: true,
-                        label: i18n.t('nowPlaying.randomPlay'),
-                        overflowSubmenu:
-                            visibleSongIds.isNotEmpty && hasSubfolderSongs
-                                ? _localShuffleMenuItems(
-                                  currentNode,
-                                  visibleSongIds,
-                                  i18n,
-                                )
-                                : const [],
-                        onPressedWithContext:
-                            (buttonContext) => _playShuffledFromToolbar(
-                              buttonContext,
-                              currentNode,
-                              visibleSongIds,
-                              hasSubfolderSongs,
-                              i18n,
-                            ),
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.arrow_sync_24_regular,
-                        label:
-                            isCompactLayout
-                                ? i18n.t('local.updateFolderShort')
-                                : i18n.t('local.updateFolder'),
-                        onPressed: () => _refreshFolder(currentNode, i18n),
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.arrow_sort_24_regular,
-                        label: i18n.t('common.sort'),
-                        overflowSubmenu: _localSortMenuItems(currentNode, i18n),
-                        onPressedWithContext:
-                            (context) =>
-                                _showSortMenu(context, i18n, currentNode),
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.add_24_regular,
-                        label: i18n.t('local.newFolder'),
-                        onPressed:
-                            () => _createFolder(
-                              parent: currentNode,
-                              nodes: nodes,
-                              rootPath: snapshot.rootPath,
-                              i18n: i18n,
-                            ),
-                      ),
-                      CommandBarButton(
-                        icon: FluentIcons.multiselect_ltr_24_regular,
-                        label: i18n.t('albums.multiSelect'),
-                        active: _multiSelect,
-                        activeMatchesHover: true,
-                        tooltip:
-                            _multiSelect
-                                ? i18n.t('common.exitMultiSelectTooltip')
-                                : null,
-                        onPressed: _toggleMultiSelect,
-                      ),
-                    ],
                   ),
                   SizedBox(height: isCompactLayout ? 8 : 16),
                   Expanded(
@@ -536,7 +550,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                       scrollable: true,
                       compact: isCompactLayout,
                       bottomPadding:
-                          _multiSelect ? multiSelectCommandBarScrollSpacer : 18,
+                          _multiSelect ? multiSelectCommandBarScrollSpacer : 28,
                       child:
                           childFolders.isEmpty && currentSongs.isEmpty
                               ? buildLocalPageEmptyContent(

@@ -207,7 +207,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final transparentHover = colors.hover.withValues(alpha: 0);
     final rowHovered = _hovered;
     final rowBackgroundColor =
-        multiSelectSelected || widget.selected
+        multiSelectSelected
+            ? colors.hover
+            : widget.current
+            ? colors.current
+            : widget.selected
             ? colors.hover
             : rowHovered
             ? colors.hover
@@ -1376,7 +1380,7 @@ class _PlaylistControlItemColors {
 
   static const border = Color(0x297e8b9a);
   static const hover = SmPlayerInteractionColors.hoverSurface;
-  static const current = Color(0x1f0078d7);
+  static const current = Color(0xffe1effa);
   static const selectedInset = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const currentMuted = Color(0xff0063b1);
@@ -1387,7 +1391,7 @@ class _PlaylistControlItemColors {
   static const nightBorder = Color(0x1fd6e0ec);
   static const nightHover = GlobalUI.hoverBgColorNight;
   static const nightHoverBorder = GlobalUI.hoverBorderColorNight;
-  static const nightCurrent = Color(0x2e0078d7);
+  static const nightCurrent = Color(0xff142f46);
   static const nightCurrentForeground = Color(0xff459de2);
   static const nightCurrentMuted = Color(0xc276b5dc);
   static const nightTextStrong = Color(0xf0f6f9fc);

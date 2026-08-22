@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-const _libraryDetailEnterDuration = Duration(milliseconds: 240);
+const _libraryDetailEnterDuration = Duration(milliseconds: 260);
 const _libraryDetailExitDuration = Duration(milliseconds: 200);
-const _libraryDetailEnterOffset = 18.0;
 
 Page<void> smPlayerLibraryDetailPage({
   required BuildContext context,
@@ -21,30 +20,12 @@ Page<void> smPlayerLibraryDetailPage({
       if (MediaQuery.disableAnimationsOf(context)) {
         return child;
       }
-      final direction =
-          Directionality.of(context) == TextDirection.ltr ? 1.0 : -1.0;
       final curvedAnimation = CurvedAnimation(
         parent: animation,
-        curve: Curves.easeOutCubic,
+        curve: Curves.easeInOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      final offsetAnimation = Tween<double>(
-        begin: _libraryDetailEnterOffset * direction,
-        end: 0,
-      ).animate(curvedAnimation);
-
-      return FadeTransition(
-        opacity: curvedAnimation,
-        child: AnimatedBuilder(
-          animation: offsetAnimation,
-          builder:
-              (context, child) => Transform.translate(
-                offset: Offset(offsetAnimation.value, 0),
-                child: child,
-              ),
-          child: child,
-        ),
-      );
+      return FadeTransition(opacity: curvedAnimation, child: child);
     },
     child: child,
   );

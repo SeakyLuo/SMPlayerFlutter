@@ -605,6 +605,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             layout: layout,
             windowControlsLight: _lastWindowControlsLight,
             isWindowMaximized: _isWindowMaximized,
+            onPaneToggle: _toggleNavigationPane,
             onGoBack: _goBack,
             onWindowDragStart: _startWindowDrag,
             onWindowDragEnd: _stopWindowDrag,

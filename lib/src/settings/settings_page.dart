@@ -371,7 +371,6 @@ class _SettingsPageState extends State<SettingsPage> {
               _ConfirmSettingsDialog(
                 title: i18n.t('settings.importData'),
                 message: i18n.t('settings.importDataConfirm'),
-                usePopupDialog: true,
                 onCancel: () {
                   setState(() {
                     _showImportDataDialog = false;
@@ -387,7 +386,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 message: i18n.t('settings.smartMultiArtistFixMessage'),
                 confirmText: i18n.t('settings.smartMultiArtistFixConfirm'),
                 busy: _smartArtistFixRunning,
-                usePopupDialog: true,
                 onCancel: () {
                   if (_smartArtistFixRunning) {
                     return;

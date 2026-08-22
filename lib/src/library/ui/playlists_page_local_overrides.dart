@@ -21,8 +21,11 @@ extension _PlaylistsPageLocalOverrides on _PlaylistsPageState {
     removeLibraryPlaylistOverride(ref, playlistId);
   }
 
-  LibraryContentData _applyLocalSnapshotOverrides(LibraryContentData snapshot) {
-    if (_nowPlayingSongIdsOverride == null) {
+  LibraryContentData _applyLocalSnapshotOverrides(
+    LibraryContentData snapshot,
+    List<int>? nowPlayingSongIdsOverride,
+  ) {
+    if (nowPlayingSongIdsOverride == null) {
       return snapshot;
     }
     return _copySnapshotWithPlaylists(
@@ -30,7 +33,7 @@ extension _PlaylistsPageLocalOverrides on _PlaylistsPageState {
       snapshot.playlists,
       nowPlaying: _copyNowPlayingWithSongIds(
         snapshot.nowPlaying,
-        _nowPlayingSongIdsOverride!,
+        nowPlayingSongIdsOverride,
       ),
     );
   }

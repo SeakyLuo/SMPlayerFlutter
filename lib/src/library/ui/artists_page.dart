@@ -27,6 +27,7 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
 import 'artists_page_model.dart';
+import 'artists_navigation_provider.dart';
 import 'artwork_floating_action_button.dart';
 import 'command_bar.dart';
 import 'menu_flyout.dart';
@@ -174,6 +175,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     required String routePath,
     required Widget content,
     required String compactTitle,
+    String? titleTooltip,
     required String layoutSignature,
     required int searchSuggestionCount,
     required int searchHistoryCount,
@@ -185,6 +187,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       routePath: routePath,
       content: content,
       compactTitle: compactTitle,
+      titleTooltip: titleTooltip,
       layoutSignature: layoutSignature,
       searchSuggestionCount: searchSuggestionCount,
       searchHistoryCount: searchHistoryCount,
@@ -194,6 +197,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
   @override
   Widget build(BuildContext context) {
+    _listenForArtistsListRequests(this);
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
@@ -529,6 +533,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onChangeArtistSort: _changeArtistSort,
                   ),
                   compactTitle: compactAppBarTitle,
+                  titleTooltip: compact ? compactSelectedArtist?.name : null,
                   layoutSignature:
                       compact
                           ? 'compact:${compactSelectedArtist?.name ?? ''}'

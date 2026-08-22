@@ -22,6 +22,8 @@ class _SearchAlbumArtPreviewDialog extends StatelessWidget {
       ariaLabel: card.title,
       width: 560,
       height: 620,
+      fullScreenOnNarrow: false,
+      closeOnBackdrop: true,
       onClose: onClose,
       navChildren: [
         Expanded(

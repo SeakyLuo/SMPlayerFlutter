@@ -21,9 +21,16 @@ extension _RecentPagePlaybackActions on _RecentPageState {
       return;
     }
 
-    final songs = ref.read(recentPageDataProvider).value?.songs ?? const [];
-    final songsById = {for (final song in songs) song.id: song};
-    _playSong(songsById[songIds.first]!, songIds, 0);
+    final snapshot = ref.read(recentPageDataProvider).value!;
+    replaceNowPlayingQueueAndPlayIndexFromSongs(
+      ref: ref,
+      songs: snapshot.songs,
+      persistedSongIds: snapshot.nowPlaying.songIds,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: 0,
+    );
+    ref.invalidate(recentPageDataProvider);
   }
 
   void _playShuffledSongIds(List<int> songIds) {

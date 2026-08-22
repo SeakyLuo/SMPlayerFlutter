@@ -14,6 +14,19 @@ bool _isArtistsPageCompactWorkspace(BuildContext context) {
   return _artistsPageWorkspaceWidth(context) <= 720;
 }
 
+void _listenForArtistsListRequests(_ArtistsPageState state) {
+  state.ref.listen(artistsListRequestProvider, (_, _) {
+    if (state._selectedArtistName.isEmpty) {
+      return;
+    }
+    // ignore: invalid_use_of_protected_member
+    state.setState(() {
+      state._selectedArtistName = '';
+      state._selection.cancel();
+    });
+  });
+}
+
 void _clearArtistsAppBarPortalOwner(_ArtistsPageState state) {
   clearWorkspaceAppBarPortalOwnerAfterDispose(
     state._appBarPortalNotifier,
@@ -27,13 +40,14 @@ void _syncArtistsAppBarPortal(
   required String routePath,
   required Widget content,
   required String compactTitle,
+  String? titleTooltip,
   required String layoutSignature,
   required int searchSuggestionCount,
   required int searchHistoryCount,
   Widget? bottomContent,
 }) {
   final signature =
-      '$showPortal:$routePath:$layoutSignature:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
+      '$showPortal:$routePath:$layoutSignature:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$titleTooltip:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }
@@ -55,6 +69,7 @@ void _syncArtistsAppBarPortal(
       routePath: routePath,
       content: content,
       title: compactTitle.isEmpty ? null : compactTitle,
+      titleTooltip: titleTooltip,
       bottomContent: bottomContent,
       replacesTitle: state._appBarSearchOpen,
     );

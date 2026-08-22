@@ -65,46 +65,10 @@ class _AlbumArtLibraryPickerDialogState
     _loadSnapshots();
   }
 
-  void _commitSearch([String? value]) {
-    final query = (value ?? _query).trim();
-    if (query.isNotEmpty) {
-      unawaited(
-        ref
-            .read(libraryRepositoryProvider)
-            .addRecentSearch(query, SearchHistoryType.sidebar)
-            .then((_) {
-              ref.invalidate(libraryContentDataProvider);
-            }),
-      );
-    }
+  void _commitSearch() {
     setState(() {
       _searchFocused = false;
     });
-  }
-
-  void _selectRecentSearch(SearchHistoryEntry entry) {
-    setState(() {
-      _query = entry.query;
-    });
-    _commitSearch(entry.query);
-  }
-
-  void _removeRecentSearch(int entryId) {
-    unawaited(
-      ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
-        _,
-      ) {
-        ref.invalidate(libraryContentDataProvider);
-      }),
-    );
-  }
-
-  void _clearRecentSearches() {
-    unawaited(
-      ref.read(libraryRepositoryProvider).clearRecentSearches().then((_) {
-        ref.invalidate(libraryContentDataProvider);
-      }),
-    );
   }
 
   Future<void> _loadSnapshots() async {
@@ -200,14 +164,6 @@ class _AlbumArtLibraryPickerDialogState
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     final choices = _choices;
     final selectedChoice = _selectedChoice;
-    final recentSearches =
-        latestSearchHistoryEntries(
-          ref.watch(libraryContentDataProvider).valueOrNull?.recentSearches ??
-              const <SearchHistoryEntry>[],
-          SearchHistoryType.sidebar,
-        ).toList();
-    final showRecentSearches = _searchFocused && recentSearches.isNotEmpty;
-
     return Focus(
       focusNode: _pickerFocusNode,
       autofocus: true,
@@ -348,69 +304,6 @@ class _AlbumArtLibraryPickerDialogState
                   ),
                 ],
               ),
-              if (showRecentSearches)
-                Positioned.fill(
-                  child: Listener(
-                    key: const ValueKey(
-                      'AlbumArtLibraryPicker.SearchHistoryDismissLayer',
-                    ),
-                    behavior: HitTestBehavior.translucent,
-                    onPointerDown: (_) {
-                      setState(() {
-                        _searchFocused = false;
-                      });
-                    },
-                  ),
-                ),
-              if (showRecentSearches)
-                Positioned(
-                  top: 48,
-                  left: 0,
-                  right: 0,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: SearchHistoryPanel<SearchHistoryEntry>(
-                      panelKey: const ValueKey(
-                        'AlbumArtLibraryPicker.SearchHistoryPanel',
-                      ),
-                      includeBorderInset: true,
-                      useElectronPanelStyle: true,
-                      title: i18n.t('sidebar.recentSearches'),
-                      clearLabel: i18n.t('common.clear'),
-                      items: [
-                        for (final entry in recentSearches)
-                          SearchHistoryPanelItem(
-                            key: entry.id.toString(),
-                            label: entry.query,
-                            value: entry,
-                          ),
-                      ],
-                      onClear: _clearRecentSearches,
-                      onSelect: (item) {
-                        _selectRecentSearch(item.value);
-                      },
-                      onRemove: (item) {
-                        _removeRecentSearch(item.value.id);
-                      },
-                      getRemoveLabel:
-                          (item) => i18n.t('sidebar.removeRecentSearch', {
-                            'query': item.value.query,
-                          }),
-                      itemKeyBuilder:
-                          (item) => ValueKey(
-                            'AlbumArtLibraryPicker.SearchHistoryItem.${item.key}',
-                          ),
-                      selectKeyBuilder:
-                          (item) => ValueKey(
-                            'AlbumArtLibraryPicker.SearchHistorySelect.${item.key}',
-                          ),
-                      removeKeyBuilder:
-                          (item) => ValueKey(
-                            'AlbumArtLibraryPicker.SearchHistoryRemove.${item.key}',
-                          ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
