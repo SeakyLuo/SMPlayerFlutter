@@ -3,7 +3,7 @@ part of 'albums_page.dart';
 extension _AlbumsPageSelectionActions on _AlbumsPageState {
   void _changeAlbumSort(AlbumSortCriterion criterion) {
     _showProcessing();
-    setState(() {
+    _updateState(() {
       if (criterion == AlbumSortCriterion.reverse) {
         _reverseDisplayOrder = !_reverseDisplayOrder;
       } else {
@@ -18,13 +18,13 @@ extension _AlbumsPageSelectionActions on _AlbumsPageState {
   }
 
   void _toggleMultiSelect() {
-    setState(() {
+    _updateState(() {
       _selection.toggleMultiSelect();
     });
   }
 
   void _toggleAlbumSelection(String albumName) {
-    setState(() {
+    _updateState(() {
       _selection.toggle(albumName);
     });
   }
@@ -32,13 +32,13 @@ extension _AlbumsPageSelectionActions on _AlbumsPageState {
   void _hideSelectionAfterOperation(
     bool hideMultiSelectCommandBarAfterOperation,
   ) {
-    setState(() {
+    _updateState(() {
       _selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
     });
   }
 
   void _openAlbum(String albumName) {
-    setState(() {
+    _updateState(() {
       _searchDraft = albumName;
       _searchQuery = albumName;
       _selection.clearSelection();

@@ -74,7 +74,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           text: i18n.t('context.select'),
           icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () {
-            setState(() {
+            _updateState(() {
               _selection.enterMultiSelect();
               _selection.selectSingle(album.name);
             });
@@ -90,7 +90,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
               if (!mounted) {
                 return;
               }
-              setState(() {
+              _updateState(() {
                 _albumArtPreview = album;
               });
             });

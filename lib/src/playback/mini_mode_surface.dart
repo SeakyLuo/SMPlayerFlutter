@@ -1171,10 +1171,9 @@ void _showMiniModePlaybackModeMenu(
   required VoidCallback onToggleRepeat,
   required VoidCallback onToggleRepeatOne,
 }) {
-  final box = context.findRenderObject() as RenderBox;
   showMenuFlyout(
     context,
-    position: box.localToGlobal(const Offset(0, -8)),
+    anchorPlacement: MenuFlyoutAnchorPlacement.above,
     avoidPlayerBar: false,
     items: buildPlaybackModeMenuFlyoutItems(
       i18n: i18n,

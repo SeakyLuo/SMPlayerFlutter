@@ -158,9 +158,7 @@ class ShellPlayerHost extends StatelessWidget {
                   locale: smPlayerFallbackLocale,
                   messages: {},
                 );
-            final recentSongs =
-                ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-                const <RecentLibrarySong>[];
+            final recentSongs = ref.watch(recentSongsProvider);
             final librarySongs = snapshot?.songs ?? const <LibrarySong>[];
             final ValueChanged<List<int>>? playSongs =
                 snapshot == null

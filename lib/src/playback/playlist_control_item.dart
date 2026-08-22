@@ -85,6 +85,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.colors,
     this.showCompactPrimaryActions = false,
     this.collapseCompactPrimaryActions = false,
+    this.overlayCompactActions = false,
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
@@ -119,6 +120,7 @@ class PlaylistControlItem extends StatefulWidget {
   final PlaylistControlItemColors? colors;
   final bool showCompactPrimaryActions;
   final bool collapseCompactPrimaryActions;
+  final bool overlayCompactActions;
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
@@ -206,15 +208,19 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
     final rowHovered = _hovered;
+    final opaqueHover = Color.alphaBlend(
+      colors.hover,
+      Theme.of(context).scaffoldBackgroundColor,
+    );
     final rowBackgroundColor =
         multiSelectSelected
-            ? colors.hover
+            ? opaqueHover
             : widget.current
             ? colors.current
             : widget.selected
-            ? colors.hover
+            ? opaqueHover
             : rowHovered
-            ? colors.hover
+            ? opaqueHover
             : transparentHover;
     final rowHeight =
         compactVariant
@@ -240,8 +246,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       onSecondaryTapDown: (details) {
         widget.onOpenContextMenu(details.globalPosition);
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+      child: Container(
         height: rowHeight,
         margin: EdgeInsets.zero,
         decoration: BoxDecoration(
@@ -305,16 +310,23 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 (headeredPlaylist && compact) ||
                 standardCompact;
             final hideFavoriteForCompact =
+                !widget.overlayCompactActions &&
                 compact &&
                 (compactVariant
                     ? constraints.maxWidth <= 800
                     : constraints.maxWidth <= 720);
+            final overlayCompactActions =
+                widget.overlayCompactActions && compactVariant;
             final hideDurationForNarrowHover =
                 (actionCompactCollapsed || standardCompact) &&
-                hoverActionsVisible;
+                hoverActionsVisible &&
+                !overlayCompactActions;
             final showInlineActions = showActionSlot;
             final stableCompactTrailing =
-                showInlineActions && compact && actionCompactCollapsed;
+                showInlineActions &&
+                compact &&
+                actionCompactCollapsed &&
+                !overlayCompactActions;
             final durationWidth =
                 compactVariant
                     ? widget.compactDurationWidth ??
@@ -337,6 +349,19 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               12.0 + compactCollapsedActionsWidth,
               (compactVariant ? 12.0 : 18.0) + durationWidth,
             );
+            final overlayActionCount =
+                1 +
+                (widget.showFavoriteAction &&
+                        !hideFavoriteForCompact &&
+                        widget.onToggleFavoriteClick != null
+                    ? 1
+                    : 0) +
+                (widget.onAddToPlaylistClick == null ? 0 : 1) +
+                (widget.onPlayNextClick == null ? 0 : 1) +
+                (widget.onRemoveFromListClick == null ? 0 : 1);
+            final overlayActionsWidth =
+                _queueActionSize * overlayActionCount +
+                _queueActionGap * (overlayActionCount - 1);
             final artwork = _QueueArtwork(
               song: widget.song,
               current: widget.current,
@@ -387,7 +412,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               );
             }
 
-            return Padding(
+            final rowContent = Padding(
               padding: rowPadding,
               child: Row(
                 children: [
@@ -453,7 +478,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         ],
                       ),
                     ),
-                  ] else if (showInlineActions) ...[
+                  ] else if (showInlineActions && !overlayCompactActions) ...[
                     const SizedBox(width: 12),
                     queueActions(compactCollapsed: actionCompactCollapsed),
                   ],
@@ -480,6 +505,64 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   ],
                 ],
               ),
+            );
+            if (!overlayCompactActions) {
+              return rowContent;
+            }
+            final overlayMaskColor = Color.alphaBlend(
+              rowBackgroundColor,
+              Theme.of(context).scaffoldBackgroundColor,
+            );
+            return Stack(
+              children: [
+                rowContent,
+                Positioned(
+                  top: baseRowPadding.top,
+                  right: baseRowPadding.right,
+                  bottom: baseRowPadding.bottom,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(
+                      end: hoverActionsVisible ? overlayActionsWidth : 0,
+                    ),
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOut,
+                    child: SizedBox(
+                      width: overlayActionsWidth,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              overlayMaskColor.withValues(alpha: 0),
+                              overlayMaskColor,
+                              overlayMaskColor,
+                            ],
+                            stops: [0, 28 / overlayActionsWidth, 1],
+                          ),
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: queueActions(compactCollapsed: false),
+                        ),
+                      ),
+                    ),
+                    builder:
+                        (context, width, child) => IgnorePointer(
+                          ignoring: !hoverActionsVisible,
+                          child: SizedBox(
+                            width: width,
+                            child: ClipRect(
+                              child: OverflowBox(
+                                alignment: Alignment.centerRight,
+                                minWidth: overlayActionsWidth,
+                                maxWidth: overlayActionsWidth,
+                                child: child,
+                              ),
+                            ),
+                          ),
+                        ),
+                  ),
+                ),
+              ],
             );
           },
         ),

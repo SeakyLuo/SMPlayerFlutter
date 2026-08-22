@@ -58,22 +58,14 @@ class _RecentSongGrid extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final minimal = constraints.maxWidth < _recentMinimalContentBreakpoint;
-        final rowRightPadding = minimal ? 0.0 : _recentSongGridRowRightPadding;
-        final gridWidth = constraints.maxWidth - rowRightPadding;
-        final metrics = _RecentSongTileMetrics.forWidth(
-          gridWidth,
-          viewportWidth: MediaQuery.sizeOf(context).width,
-        );
+        final gridWidth = constraints.maxWidth;
+        const metrics = _recentSongTileMetrics;
         final columns = ((gridWidth + _recentSongTileColumnGap) /
                 (_recentSongTileWidth + _recentSongTileColumnGap))
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
-          trailingEdgeOffset:
-              minimal
-                  ? _recentMinimalPageHorizontalPadding
-                  : _recentWideScrollbarTrailingOffset,
+          trailingEdgeOffset: _recentMinimalPageHorizontalPadding,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,
@@ -108,72 +100,66 @@ class _RecentSongGrid extends StatelessWidget {
                         ),
                       ),
                     ),
-                    SliverPadding(
-                      padding: EdgeInsets.only(right: rowRightPadding),
-                      sliver: SliverGrid.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          mainAxisExtent: metrics.rowExtent,
-                          crossAxisSpacing: _recentSongTileColumnGap,
-                          mainAxisSpacing: 0,
-                        ),
-                        itemCount: group.items.length,
-                        itemBuilder: (context, index) {
-                          final song = group.items[index];
-                          return LayoutBuilder(
-                            builder:
-                                (context, constraints) => Align(
-                                  alignment: Alignment.topCenter,
-                                  child: SizedBox(
-                                    width: constraints.maxWidth,
-                                    child: _GridViewMusicItemControl(
-                                      song: song,
-                                      detailLabel: getDetailLabel(song),
-                                      selected: selectedSongIds.contains(
-                                        song.id,
-                                      ),
-                                      current: song.id == currentTrackId,
-                                      playing:
-                                          song.id == currentTrackId &&
-                                          isPlaying,
-                                      multiSelect: multiSelect,
-                                      metrics: metrics,
-                                      onPlayTrack: () {
-                                        onPlaySong(
-                                          song,
-                                          queueSongIds,
-                                          queueSongIds.indexOf(song.id),
-                                        );
-                                      },
-                                      onToggleSelection: () {
-                                        onToggleSelection(song.id);
-                                      },
-                                      onOpenAddToMenu: (position) {
-                                        onOpenAddToMenu(position, song);
-                                      },
-                                      onPlayNext: () {
-                                        onPlayNext(song.id);
-                                      },
-                                      onOpenMoreMenu: (position) {
-                                        onOpenMoreMenu(
-                                          position,
-                                          song,
-                                          queueSongIds,
-                                        );
-                                      },
-                                      onOpenContextMenu: (position) {
-                                        onOpenContextMenu(
-                                          position,
-                                          song,
-                                          queueSongIds,
-                                        );
-                                      },
-                                    ),
+                    SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisExtent: metrics.rowExtent,
+                        crossAxisSpacing: _recentSongTileColumnGap,
+                        mainAxisSpacing: 0,
+                      ),
+                      itemCount: group.items.length,
+                      itemBuilder: (context, index) {
+                        final song = group.items[index];
+                        return LayoutBuilder(
+                          builder:
+                              (context, constraints) => Align(
+                                alignment: Alignment.topCenter,
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: _GridViewMusicItemControl(
+                                    song: song,
+                                    detailLabel: getDetailLabel(song),
+                                    selected: selectedSongIds.contains(song.id),
+                                    current: song.id == currentTrackId,
+                                    playing:
+                                        song.id == currentTrackId && isPlaying,
+                                    multiSelect: multiSelect,
+                                    metrics: metrics,
+                                    onPlayTrack: () {
+                                      onPlaySong(
+                                        song,
+                                        queueSongIds,
+                                        queueSongIds.indexOf(song.id),
+                                      );
+                                    },
+                                    onToggleSelection: () {
+                                      onToggleSelection(song.id);
+                                    },
+                                    onOpenAddToMenu: (position) {
+                                      onOpenAddToMenu(position, song);
+                                    },
+                                    onPlayNext: () {
+                                      onPlayNext(song.id);
+                                    },
+                                    onOpenMoreMenu: (position) {
+                                      onOpenMoreMenu(
+                                        position,
+                                        song,
+                                        queueSongIds,
+                                      );
+                                    },
+                                    onOpenContextMenu: (position) {
+                                      onOpenContextMenu(
+                                        position,
+                                        song,
+                                        queueSongIds,
+                                      );
+                                    },
                                   ),
                                 ),
-                          );
-                        },
-                      ),
+                              ),
+                        );
+                      },
                     ),
                   ],
                   const SliverToBoxAdapter(child: SizedBox(height: 92)),
@@ -186,7 +172,15 @@ class _RecentSongGrid extends StatelessWidget {
 }
 
 const _recentSongGridTimeGroupHeaderExtent = 36.0;
-const _recentSongGridRowRightPadding = 8.0;
+const _recentSongTileMetrics = _RecentSongTileMetrics(
+  rowExtent: 88,
+  tileExtent: 78,
+  artworkSize: 78,
+  padding: EdgeInsets.zero,
+  copyGap: 10,
+  copyLineGap: 3,
+  copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
+);
 
 class _RecentSongTileMetrics {
   const _RecentSongTileMetrics({
@@ -206,43 +200,6 @@ class _RecentSongTileMetrics {
   final double copyGap;
   final double copyLineGap;
   final EdgeInsets copyPadding;
-
-  static _RecentSongTileMetrics forWidth(
-    double width, {
-    required double viewportWidth,
-  }) {
-    if (viewportWidth <= 520 || width < _recentMinimalContentBreakpoint) {
-      return const _RecentSongTileMetrics(
-        rowExtent: 88,
-        tileExtent: 78,
-        artworkSize: 78,
-        padding: EdgeInsets.zero,
-        copyGap: 10,
-        copyLineGap: 3,
-        copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
-      );
-    }
-    if (width <= 520) {
-      return const _RecentSongTileMetrics(
-        rowExtent: 104,
-        tileExtent: 92,
-        artworkSize: 92,
-        padding: EdgeInsets.zero,
-        copyGap: 10,
-        copyLineGap: 3,
-        copyPadding: EdgeInsets.fromLTRB(0, 4, 0, 4),
-      );
-    }
-    return const _RecentSongTileMetrics(
-      rowExtent: 136,
-      tileExtent: 116,
-      artworkSize: 116,
-      padding: EdgeInsets.zero,
-      copyGap: 12,
-      copyLineGap: 5,
-      copyPadding: EdgeInsets.fromLTRB(0, 8, 0, 10),
-    );
-  }
 }
 
 class _RecentSongTileColors {

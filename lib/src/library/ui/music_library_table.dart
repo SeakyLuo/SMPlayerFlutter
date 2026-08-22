@@ -944,7 +944,12 @@ class _InlineRouteTextState extends State<_InlineRouteText> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _hovered ? colors.accentStrong : colors.routeText,
+              color:
+                  _hovered
+                      ? colors.currentForeground
+                      : widget.current
+                      ? colors.currentMuted
+                      : colors.textMuted,
               fontSize: 14,
               height: 1.35,
             ),

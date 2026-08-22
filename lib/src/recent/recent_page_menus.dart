@@ -349,16 +349,17 @@ extension _RecentPageMenus on _RecentPageState {
   }
 
   Future<void> _removeRecentSearchesWithUndo(List<int> entryIds) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     final entryIdSet = entryIds.toSet();
     final entries =
         ref
-            .read(recentPageDataProvider)
+            .read(recentSearchesProvider)
             .value!
-            .recentSearches
             .where((entry) => entryIdSet.contains(entry.id))
             .toList();
-    await ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    invalidateRecentSearchData(ref);
+    await repository.removeRecentSearches(entryIds);
+    await recentSearches.remove(entryIds);
     if (!mounted) {
       return;
     }
@@ -367,10 +368,34 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),
       onUndo: () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .restoreRecentSearches(entries);
-        invalidateRecentSearchData(ref);
+        await repository.restoreRecentSearches(entries);
+        await recentSearches.restore(entries);
+      },
+    );
+  }
+
+  Future<void> _removeRecentBrowsesWithUndo(List<int> entryIds) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entryIdSet = entryIds.toSet();
+    final entries =
+        ref
+            .read(recentBrowsesProvider)
+            .value!
+            .where((entry) => entryIdSet.contains(entry.id))
+            .toList();
+    await repository.removeRecentBrowses(entryIds);
+    await recentBrowses.remove(entryIds);
+    if (!mounted) {
+      return;
+    }
+    showUndoableNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: context.smPlayerI18n.t('notification.operationDone'),
+      onUndo: () async {
+        await repository.restoreRecentBrowses(entryIds);
+        await recentBrowses.restore(entries);
       },
     );
   }

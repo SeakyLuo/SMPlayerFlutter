@@ -164,7 +164,7 @@ Future<void> showMediaControlMoreMenu({
   }
   await showMenuFlyout(
     context,
-    position: _menuFlyoutPositionAboveAnchor(context),
+    anchorPlacement: MenuFlyoutAnchorPlacement.above,
     avoidPlayerBar: false,
     items: itemsNotifier.value,
     itemsListenable: itemsNotifier,
@@ -209,6 +209,28 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   VoidCallback? onSeeAlbumArt,
   FutureOr<void> Function()? onSeeLocal,
 }) {
+  final currentScopeItems = <MenuFlyoutItem>[
+    if (onPlayArtist != null)
+      MenuFlyoutItem(
+        key: 'random-current-artist',
+        text: i18n.t('random.currentArtist'),
+        icon: FluentIcons.people_20_regular,
+        onPressed: onPlayArtist,
+      ),
+    if (onPlayAlbum != null)
+      MenuFlyoutItem(
+        key: 'random-current-album',
+        text: i18n.t('random.currentAlbum'),
+        useAlbumIcon: true,
+        onPressed: onPlayAlbum,
+      ),
+  ];
+  final mergedRandomPlaySubmenu = <MenuFlyoutItem>[
+    ...currentScopeItems,
+    if (currentScopeItems.isNotEmpty && randomPlaySubmenu?.isNotEmpty == true)
+      const MenuFlyoutItem.separator(key: 'random-current-separator'),
+    ...?randomPlaySubmenu,
+  ];
   final items = [
     if (currentSong != null || alwaysShowQuickPlay)
       MenuFlyoutItem(
@@ -217,27 +239,13 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         icon: _playIcon,
         onPressed: onQuickPlay,
       ),
-    if (randomPlaySubmenu != null)
+    if (mergedRandomPlaySubmenu.isNotEmpty)
       MenuFlyoutItem(
         key: 'random-play',
         text: i18n.t('nowPlaying.randomPlay'),
         useShuffleIcon: true,
-        disabled: randomPlayDisabled,
-        submenu: randomPlaySubmenu,
-      ),
-    if (onPlayArtist != null)
-      MenuFlyoutItem(
-        key: 'play-artist',
-        text: i18n.t('detail.playArtist'),
-        icon: FluentIcons.people_24_regular,
-        onPressed: onPlayArtist,
-      ),
-    if (onPlayAlbum != null)
-      MenuFlyoutItem(
-        key: 'play-album',
-        text: i18n.t('detail.playAlbum'),
-        useAlbumIcon: true,
-        onPressed: onPlayAlbum,
+        disabled: randomPlayDisabled && currentScopeItems.isEmpty,
+        submenu: mergedRandomPlaySubmenu,
       ),
     if ((currentSong != null || alwaysShowQuickPlay) &&
         (isCompact || currentSong != null))

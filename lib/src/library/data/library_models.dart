@@ -16,6 +16,8 @@ enum AlbumSortCriterion { defaultSort, name, artist, reverse }
 
 enum SearchHistoryType { sidebar, artists, albums, songs, playlists, folders }
 
+enum RecentBrowseType { song, artist, album, playlist }
+
 enum LocalFolderSortCriterion { title, artist, album, reverse }
 
 enum PlaylistSortCriterion {
@@ -350,6 +352,20 @@ class SearchHistoryEntry {
   final String searchedAt;
 }
 
+class RecentBrowseEntry {
+  const RecentBrowseEntry({
+    required this.id,
+    required this.type,
+    required this.itemId,
+    required this.browsedAt,
+  });
+
+  final int id;
+  final RecentBrowseType type;
+  final String itemId;
+  final String browsedAt;
+}
+
 List<SearchHistoryEntry> latestSearchHistoryEntries(
   Iterable<SearchHistoryEntry> entries,
   SearchHistoryType type, {
@@ -560,6 +576,7 @@ class RecentPageData {
     required this.recentAlbums,
     required this.recentArtists,
     required this.recentSearches,
+    this.recentBrowses = const [],
     required this.playlists,
     required this.favoritePlaylistId,
     required this.nowPlaying,
@@ -573,6 +590,7 @@ class RecentPageData {
   final List<RecentAlbumPlayback> recentAlbums;
   final List<RecentArtistPlayback> recentArtists;
   final List<SearchHistoryEntry> recentSearches;
+  final List<RecentBrowseEntry> recentBrowses;
   final List<LibraryPlaylist> playlists;
   final int favoritePlaylistId;
   final NowPlayingSnapshot nowPlaying;

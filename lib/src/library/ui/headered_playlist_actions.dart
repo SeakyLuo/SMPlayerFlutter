@@ -210,6 +210,9 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     if (name == null) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
     await createPlaylistAndSync(
       context: context,

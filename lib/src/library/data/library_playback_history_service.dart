@@ -161,20 +161,52 @@ class LibraryPlaybackHistoryService {
     }
   }
 
-  Future<void> recordPlaylistPlayed(File databaseFile, int playlistId) async {
-    await _recordPlayed(
+  Future<RecentPlaylistPlayback> recordPlaylistPlayed(
+    File databaseFile,
+    int playlistId,
+  ) async {
+    final record = await _recordPlayed(
       databaseFile,
       playlistId.toString(),
       _recentRecordTypePlaylist,
     );
+    return RecentPlaylistPlayback(
+      id: record.id,
+      playlistId: playlistId,
+      playedAt: record.playedAt,
+    );
   }
 
-  Future<void> recordAlbumPlayed(File databaseFile, String album) async {
-    await _recordPlayed(databaseFile, album, _recentRecordTypeAlbum);
+  Future<RecentAlbumPlayback> recordAlbumPlayed(
+    File databaseFile,
+    String album,
+  ) async {
+    final record = await _recordPlayed(
+      databaseFile,
+      album,
+      _recentRecordTypeAlbum,
+    );
+    return RecentAlbumPlayback(
+      id: record.id,
+      album: album,
+      playedAt: record.playedAt,
+    );
   }
 
-  Future<void> recordArtistPlayed(File databaseFile, String artist) async {
-    await _recordPlayed(databaseFile, artist, _recentRecordTypeArtist);
+  Future<RecentArtistPlayback> recordArtistPlayed(
+    File databaseFile,
+    String artist,
+  ) async {
+    final record = await _recordPlayed(
+      databaseFile,
+      artist,
+      _recentRecordTypeArtist,
+    );
+    return RecentArtistPlayback(
+      id: record.id,
+      artist: artist,
+      playedAt: record.playedAt,
+    );
   }
 
   void cleanupInvalidRecentPlayed(Database db) {
@@ -327,17 +359,18 @@ class LibraryPlaybackHistoryService {
     return NowPlayingSnapshot(playlistId: fallbackPlaylistId, songIds: songIds);
   }
 
-  Future<void> _recordPlayed(File databaseFile, String itemId, int type) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
-
+  Future<({int id, String playedAt})> _recordPlayed(
+    File databaseFile,
+    String itemId,
+    int type,
+  ) async {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
       try {
-        _recordRecentItemPlayed(db, itemId, type);
+        final record = _recordRecentItemPlayed(db, itemId, type);
         db.execute('COMMIT');
+        return record;
       } on Object {
         db.execute('ROLLBACK');
         rethrow;
@@ -347,7 +380,12 @@ class LibraryPlaybackHistoryService {
     }
   }
 
-  void _recordRecentItemPlayed(Database db, String itemId, int type) {
+  ({int id, String playedAt}) _recordRecentItemPlayed(
+    Database db,
+    String itemId,
+    int type,
+  ) {
+    final playedAt = LibraryTimeCodec.nowUnixMillisecondsString();
     db.execute(
       '''
       UPDATE RecentRecord
@@ -365,10 +403,12 @@ class LibraryPlaybackHistoryService {
       [
         type,
         itemId,
-        LibraryTimeCodec.nowUnixMillisecondsString(),
+        playedAt,
         _activeState,
       ],
     );
+    final id = db.select('SELECT last_insert_rowid() AS id').single['id'] as int;
+    return (id: id, playedAt: playedAt);
   }
 
   List<int> _readNowPlayingSongIdsByPath(Database db, File nowPlayingFile) {

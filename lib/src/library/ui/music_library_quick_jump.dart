@@ -255,56 +255,6 @@ class _QuickJumpPanel extends StatelessWidget {
   }
 }
 
-class _CompactQuickJumpButton extends StatelessWidget {
-  const _CompactQuickJumpButton({
-    required this.active,
-    required this.onPressed,
-  });
-
-  final bool active;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _LibraryQuickJumpPanelColors.of(context);
-    return Tooltip(
-      message: '#-Z',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const ValueKey('MusicLibrary.QuickJumpToggle'),
-          borderRadius: BorderRadius.circular(10),
-          hoverColor: colors.toggleHover,
-          focusColor: colors.toggleHover,
-          highlightColor: colors.toggleHover,
-          onTap: onPressed,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: active ? colors.toggleHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: Center(
-                child: Text(
-                  '#-Z',
-                  style: TextStyle(
-                    color: colors.headerText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 List<String> _quickJumpKeysForDirection(MusicLibrarySortDirection direction) {
   return direction == MusicLibrarySortDirection.descending
       ? _quickJumpKeys.reversed.toList()

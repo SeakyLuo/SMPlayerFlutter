@@ -7,7 +7,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _applyProperties(originalProperties);
     });
     _showMessage(context.smPlayerI18n.t('song.propertiesReset'));
@@ -23,7 +23,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
             ? _originalLyricsText
             : _stripLyricsTimestamps(_originalLyricsText);
     _scrollLyricsToTop();
-    setState(() {});
+    _updateState(() {});
     _showMessage(context.smPlayerI18n.t('song.lyricsReset'));
   }
 
@@ -31,7 +31,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
     if (_artworkSourcePath.isEmpty) {
       return;
     }
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = _originalDisplayArtworkUrl;
       _artworkSourcePath = '';
       _artworkMissing = _originalArtworkMissing;
@@ -45,7 +45,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
 
   void _toggleLyricsTimestamps(bool checked) {
     final rawText = _currentLyricsRawText;
-    setState(() {
+    _updateState(() {
       _lyricsRawText = rawText;
       _showLyricsTimestamps = checked;
       _lyricsController.text =
@@ -54,7 +54,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _applyAlbumArtRecommendation(AlbumArtRecommendation recommendation) {
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = recommendation.sourceUrl;
       _artworkSourcePath = recommendation.sourcePath;
       _artworkMissing = false;
@@ -64,7 +64,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _applyAlbumArtLibraryChoice(AlbumArtLibraryChoice choice) {
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = choice.sourceUrl;
       _artworkSourcePath = choice.sourcePath;
       _artworkMissing = false;
@@ -75,7 +75,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _addArtistCell() {
-    setState(() {
+    _updateState(() {
       final controller = TextEditingController();
       controller.addListener(_handleEditorChanged);
       _artistControllers.add(controller);
@@ -83,7 +83,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _removeArtistCell(int index) {
-    setState(() {
+    _updateState(() {
       final controller = _artistControllers.removeAt(index);
       controller.dispose();
     });

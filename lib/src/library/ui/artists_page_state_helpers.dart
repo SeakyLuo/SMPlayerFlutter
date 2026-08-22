@@ -82,12 +82,15 @@ void _recordLoadingArtistSearchForArtistsPage(_ArtistsPageState state) {
     return;
   }
 
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .addRecentSearch(query, SearchHistoryType.artists)
-        .then((_) {
-          invalidateRecentSearchData(state.ref);
+        .then((entry) {
+          if (entry != null) {
+            return recentSearches.record(entry);
+          }
         }),
   );
 }
@@ -106,29 +109,32 @@ void _removeArtistRecentSearchForArtistsPage(
   _ArtistsPageState state,
   int entryId,
 ) {
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .removeRecentSearches([entryId])
         .then((_) {
-          invalidateRecentSearchData(state.ref);
+          return recentSearches.remove([entryId]);
         }),
   );
 }
 
 void _clearArtistRecentSearchesForArtistsPage(_ArtistsPageState state) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final entryIds =
-      snapshot.recentSearches
+      state.ref
+          .read(recentSearchesProvider)
+          .value!
           .where((entry) => entry.type == SearchHistoryType.artists)
           .map((entry) => entry.id)
           .toList();
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .removeRecentSearches(entryIds)
         .then((_) {
-          invalidateRecentSearchData(state.ref);
+          return recentSearches.remove(entryIds);
         }),
   );
 }
@@ -142,6 +148,7 @@ void _openArtistDetailForArtistsPage(
     state._selectedArtistName = artistName;
     state._selection.cancel();
   });
+  state._recordBrowseAfterFrame(artistName);
   if (_isArtistsPageCompactWorkspace(state.context)) {
     state._pendingOpenedArtistRoute = artistName;
     state.context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
@@ -676,23 +683,24 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   SmPlayerI18n i18n,
   LibrarySong song,
 ) async {
+  final context = state.context;
   await Future<void>.delayed(Duration.zero);
-  if (!state.mounted) {
+  if (!context.mounted) {
     return;
   }
   final name = await showSmPlayerInputDialog(
-    context: state.context,
+    context: context,
     i18n: i18n,
     title: i18n.t('playlists.newName'),
     defaultValue: song.title,
     placeholder: i18n.t('playlists.namePlaceholder'),
     confirmText: i18n.t('common.confirm'),
   );
-  if (name == null) {
+  if (name == null || !context.mounted) {
     return;
   }
   await createPlaylistAndSync(
-    context: state.context,
+    context: context,
     ref: state.ref,
     i18n: i18n,
     name: name,

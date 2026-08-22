@@ -130,6 +130,10 @@ class MusicDialog extends ConsumerStatefulWidget {
 class _MusicDialogState extends ConsumerState<MusicDialog> {
   static const maxArtistCells = 6;
 
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
+
   late var _mode = widget.initialMode;
   var _loading = true;
   var _lyricsLoading = true;
@@ -154,6 +158,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   AlbumArtRecommendation? _artworkRecommendation;
   var _libraryArtworkPickerOpen = false;
   var _loadGeneration = 0;
+  int? _scheduledBrowseSongId;
   var _dependenciesInitialized = false;
   final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');
 
@@ -182,6 +187,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   void initState() {
     super.initState();
     _addControllerListeners();
+    _recordBrowseAfterFrame(widget.song.id);
   }
 
   @override
@@ -218,8 +224,32 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
     if (oldWidget.song.id != widget.song.id) {
       _mode = widget.initialMode;
+      _recordBrowseAfterFrame(widget.song.id);
       _loadSong();
     }
+  }
+
+  void _recordBrowseAfterFrame(int songId) {
+    if (_scheduledBrowseSongId == songId) {
+      return;
+    }
+    _scheduledBrowseSongId = songId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          widget.song.id != songId ||
+          _scheduledBrowseSongId != songId) {
+        return;
+      }
+      unawaited(_recordBrowse(songId));
+    });
+  }
+
+  Future<void> _recordBrowse(int songId) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.song, '$songId');
+    await recentBrowses.record(entry);
   }
 
   void _addControllerListeners() {

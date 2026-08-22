@@ -613,8 +613,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.onConfirm,
     this.confirmText,
     this.busy = false,
-    this.usePopupDialog = false,
-  });
+  }) : usePopupDialog = false;
 
   final String title;
   final String message;

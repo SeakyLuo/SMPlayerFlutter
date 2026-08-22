@@ -8,7 +8,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     var sourceName = '';
@@ -30,7 +30,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _displayArtworkUrl = preparedPath;
         _artworkSourcePath = preparedPath;
         _artworkMissing = false;
@@ -47,7 +47,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -64,7 +64,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -74,7 +74,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _originalDisplayArtworkUrl = _displayArtworkUrl;
         _artworkSourcePath = '';
         _artworkMissing = false;
@@ -90,7 +90,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -104,7 +104,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
@@ -114,7 +114,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _displayArtworkUrl = '';
         _originalDisplayArtworkUrl = '';
         _artworkSourcePath = '';
@@ -134,7 +134,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }

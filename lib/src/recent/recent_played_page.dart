@@ -86,17 +86,13 @@ class _RecentPlayedPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final narrow = MediaQuery.sizeOf(context).width <= 520;
     return Column(
       spacing: 4,
       children: [
-        Padding(
-          padding: EdgeInsets.only(top: narrow ? 0 : 12),
-          child: _RecentPlayedFilterBar(
-            i18n: i18n,
-            activeFilter: filter,
-            onChanged: onFilterChanged,
-          ),
+        _RecentPlayedFilterBar(
+          i18n: i18n,
+          activeFilter: filter,
+          onChanged: onFilterChanged,
         ),
         CommandBar(
           overflowLabel: i18n.t('player.more'),

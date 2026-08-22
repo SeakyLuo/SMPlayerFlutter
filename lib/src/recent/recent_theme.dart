@@ -17,8 +17,6 @@ class _RecentColors {
   static const playedFilterActiveBorder = Color(0x6b0078d7);
   static const playedFilterActiveSurface = Color(0x240078d7);
   static const playedFilterActiveRing = SmPlayerInteractionColors.hoverSurface;
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
   static const nightText = Color(0xfff6f9fc);
   static const nightMuted = Color(0xadcbd5e1);
   static const nightSubtle = Color(0x75cbd5e1);

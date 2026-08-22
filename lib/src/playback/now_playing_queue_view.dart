@@ -160,6 +160,8 @@ class NowPlayingQueueView extends StatelessWidget {
               ? PlaylistControlItemVariant.compact
               : PlaylistControlItemVariant.standard,
       collapseCompactPrimaryActions: compactQueueLayout,
+      showCompactPrimaryActions: compactQueueLayout,
+      overlayCompactActions: compactQueueLayout,
       compactDurationWidth:
           compactQueueLayout ? _nowPlayingQueueCompactDurationWidth : null,
       compactTrailingPadding:

@@ -23,6 +23,16 @@ extension _RecentPageSelection on _RecentPageState {
     });
   }
 
+  void _toggleBrowseSelection(int entryId) {
+    setState(() {
+      if (_selectedBrowseIds.contains(entryId)) {
+        _selectedBrowseIds.remove(entryId);
+      } else {
+        _selectedBrowseIds.add(entryId);
+      }
+    });
+  }
+
   void _toggleCollectionSelection(String key) {
     setState(() {
       if (_selectedCollectionKeys.contains(key)) {
@@ -36,20 +46,28 @@ extension _RecentPageSelection on _RecentPageState {
   void _clearSelection() {
     _selectedSongIds.clear();
     _selectedCollectionKeys.clear();
+    _selectedBrowseIds.clear();
     _selectedSearchIds.clear();
   }
 
   void _selectAll(
-    RecentPageData snapshot,
+    List<SearchHistoryEntry> recentSearches,
     List<LibrarySong> visibleSongs,
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
+    List<RecentBrowseView> browses,
   ) {
+    if (_activeTab == RecentTab.browsed) {
+      _selectedBrowseIds
+        ..clear()
+        ..addAll(browses.map((view) => view.entry.id));
+      return;
+    }
     if (_activeTab == RecentTab.searches) {
       _selectedSearchIds
         ..clear()
-        ..addAll(snapshot.recentSearches.map((entry) => entry.id));
+        ..addAll(recentSearches.map((entry) => entry.id));
       return;
     }
     if (_activeTab == RecentTab.played &&
@@ -65,18 +83,30 @@ extension _RecentPageSelection on _RecentPageState {
   }
 
   void _reverseSelection(
-    RecentPageData snapshot,
+    List<SearchHistoryEntry> recentSearches,
     List<LibrarySong> visibleSongs,
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
+    List<RecentBrowseView> browses,
   ) {
+    if (_activeTab == RecentTab.browsed) {
+      final current = _selectedBrowseIds.toSet();
+      _selectedBrowseIds
+        ..clear()
+        ..addAll(
+          browses
+              .where((view) => !current.contains(view.entry.id))
+              .map((view) => view.entry.id),
+        );
+      return;
+    }
     if (_activeTab == RecentTab.searches) {
       final current = _selectedSearchIds.toSet();
       _selectedSearchIds
         ..clear()
         ..addAll(
-          snapshot.recentSearches
+          recentSearches
               .where((entry) => !current.contains(entry.id))
               .map((entry) => entry.id),
         );

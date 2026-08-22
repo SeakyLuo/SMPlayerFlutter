@@ -503,7 +503,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 value,
                 type,
                 repository: ref.read(libraryRepositoryProvider),
-                onRecentSearchRecorded: _invalidateRecentSearchData,
               );
             },
             onRecentSearchSelected: _openSearchWithoutRecording,
@@ -519,21 +518,23 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onItemInvoked: _navigateTo,
             onRecentSearchRemove: (entryId) {
+              final recentSearches = ref.read(recentSearchesProvider.notifier);
               unawaited(
                 ref
                     .read(libraryRepositoryProvider)
                     .removeRecentSearches([entryId])
                     .then((_) {
-                      _invalidateRecentSearchData();
+                      return recentSearches.remove([entryId]);
                     }),
               );
             },
             onRecentSearchesClear: () {
+              final recentSearches = ref.read(recentSearchesProvider.notifier);
               unawaited(
                 ref.read(libraryRepositoryProvider).clearRecentSearches().then((
                   _,
                 ) {
-                  _invalidateRecentSearchData();
+                  return recentSearches.clear();
                 }),
               );
             },

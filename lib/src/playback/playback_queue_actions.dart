@@ -76,6 +76,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndex({
   MediaControlController? mediaController,
   double progressSeconds = 0,
   bool autoplay = true,
+  bool showQueueUpdatedNotification = true,
 }) async {
   await replaceNowPlayingQueueAndPlayIndexFromSongs(
     ref: ref,
@@ -87,6 +88,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndex({
     mediaController: mediaController,
     progressSeconds: progressSeconds,
     autoplay: autoplay,
+    showQueueUpdatedNotification: showQueueUpdatedNotification,
   );
 }
 
@@ -100,6 +102,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
   MediaControlController? mediaController,
   double progressSeconds = 0,
   bool autoplay = true,
+  bool showQueueUpdatedNotification = true,
 }) async {
   final previousSongIds = effectiveNowPlayingSongIds(ref, persistedSongIds);
   final MediaControlController controller =
@@ -128,7 +131,8 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
     autoplay: autoplay,
   );
   await persistQueue;
-  if (!queueChanged ||
+  if (!showQueueUpdatedNotification ||
+      !queueChanged ||
       replaceRevision != _replaceQueueRevision ||
       !listEquals(queueOverrideController.state, nextSongIds)) {
     return;
@@ -270,5 +274,6 @@ void insertOrPlayNowPlayingSong({
     i18n: i18n,
     songIds: queueSongIds,
     queueIndex: queueIndex,
+    showQueueUpdatedNotification: false,
   );
 }

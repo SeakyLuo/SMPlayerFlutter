@@ -105,9 +105,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   @override
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
-    final recentSongs =
-        ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-        const <RecentLibrarySong>[];
+    final recentSongs = ref.watch(recentSongsProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (

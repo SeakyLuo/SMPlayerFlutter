@@ -60,7 +60,7 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _previewPlaylistIds = nextIds;
     });
   }
@@ -83,7 +83,7 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
   }
 
   void _clearPlaylistDrag() {
-    setState(() {
+    _updateState(() {
       _draggingPlaylistId = null;
       _previewPlaylistIds = null;
       _dragStartPlaylistIds = null;

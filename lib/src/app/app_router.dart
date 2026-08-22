@@ -431,6 +431,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
         path == '/artists' && uri.queryParameters.containsKey('artist');
+    final isRecentBrowseOrigin =
+        uri.queryParameters['origin'] == 'recentBrowse';
+    final isRecentBrowseDetailRoute =
+        isRecentBrowseOrigin &&
+        (isPlaylistDetailRoute || isAlbumDetailRoute || isArtistDetailRoute);
     final windowWidth = MediaQuery.sizeOf(context).width;
     final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
       windowWidth,
@@ -447,6 +452,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         workspaceWidth <= SmPlayerShellMetrics.navigationMinimalBreakpoint;
     final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
+        isRecentBrowseDetailRoute ||
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
         isCompactArtistDetailRoute ||
@@ -493,6 +499,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         context.go(target);
       },
       onGoBack: () {
+        if (isRecentBrowseDetailRoute) {
+          context.go('/recent');
+          return;
+        }
+
         if (isPlaylistDetailRoute) {
           context.go('/playlists');
           return;

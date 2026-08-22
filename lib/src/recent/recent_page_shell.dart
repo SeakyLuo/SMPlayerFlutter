@@ -7,22 +7,14 @@ class _RecentPagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final minimal = constraints.maxWidth < _recentMinimalContentBreakpoint;
-        return Padding(
-          padding:
-              minimal
-                  ? const EdgeInsets.fromLTRB(
-                    _recentMinimalPageHorizontalPadding,
-                    6,
-                    _recentMinimalPageHorizontalPadding,
-                    0,
-                  )
-                  : const EdgeInsets.fromLTRB(24, 24, 18, 0),
-          child: SizedBox.expand(child: child),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _recentMinimalPageHorizontalPadding,
+        6,
+        _recentMinimalPageHorizontalPadding,
+        0,
+      ),
+      child: SizedBox.expand(child: child),
     );
   }
 }
@@ -34,8 +26,6 @@ class _RecentCommandBarTimelineLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final minimal =
-        MediaQuery.sizeOf(context).width < _recentMinimalContentBreakpoint;
     final color =
         Theme.of(context).brightness == Brightness.dark
             ? _RecentColors.nightText
@@ -43,7 +33,7 @@ class _RecentCommandBarTimelineLabel extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 120),
       child: SizedBox(
-        height: minimal ? 24 : 29,
+        height: 24,
         child:
             label.isEmpty
                 ? const SizedBox.shrink()
@@ -52,7 +42,7 @@ class _RecentCommandBarTimelineLabel extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: color,
-                    fontSize: minimal ? 18 : 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

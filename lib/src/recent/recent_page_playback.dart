@@ -3,6 +3,40 @@ part of 'recent_page.dart';
 // ignore_for_file: invalid_use_of_protected_member
 
 extension _RecentPagePlaybackActions on _RecentPageState {
+  void _openRecentBrowse(RecentBrowseView view) {
+    final target = view.entry.itemId;
+    switch (view.entry.type) {
+      case RecentBrowseType.song:
+        setState(() {
+          _musicDialog = (
+            song: view.song!,
+            mode: SongDialogMode.properties,
+            queueSongIds: [view.song!.id],
+          );
+        });
+        return;
+      case RecentBrowseType.artist:
+        context.go(
+          Uri(
+            path: '/artists',
+            queryParameters: {'artist': target, 'origin': 'recentBrowse'},
+          ).toString(),
+        );
+        return;
+      case RecentBrowseType.album:
+        context.go(
+          Uri(
+            path: '/albums',
+            queryParameters: {'album': target, 'origin': 'recentBrowse'},
+          ).toString(),
+        );
+        return;
+      case RecentBrowseType.playlist:
+        context.go('/playlists/$target?origin=recentBrowse');
+        return;
+    }
+  }
+
   void _playSong(LibrarySong song, List<int> queueSongIds, [int? queueIndex]) {
     final snapshot = ref.read(recentPageDataProvider).value!;
     setNowPlayingQueue(ref, queueSongIds);

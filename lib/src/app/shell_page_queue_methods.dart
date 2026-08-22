@@ -84,6 +84,16 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     if (nextIndex == null) {
       return false;
     }
+    if (automatic && nextIndex == currentIndex) {
+      unawaited(
+        _audioPlayer.seek(Duration.zero).then((_) => _audioPlayer.play()),
+      );
+      _syncingAudioPlayer = true;
+      _mediaControlController.syncPlaybackProgress(0);
+      _mediaControlController.setPlaybackActive(true);
+      _syncingAudioPlayer = false;
+      return true;
+    }
 
     return _playQueueIndex(snapshot, playbackSongIds, nextIndex);
   }

@@ -25,9 +25,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         );
         final mediaControlState = _mediaControlController.state;
         final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-        final recentSongs =
-            ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-            const <RecentLibrarySong>[];
+        final recentSongs = ref.watch(recentSongsProvider);
         _scheduleRestorePlaybackTrack(snapshot);
         final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
         _ensurePlayerArtworkResolved(currentSong, ref);
@@ -245,7 +243,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
     patchLibraryPlaylistOverride(ref, playlist);
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
     showPlaylistCreatedNotification(

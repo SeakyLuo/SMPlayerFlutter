@@ -67,14 +67,92 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   final favoriteSongs = librarySongs.where((song) => song.favorite).toList();
   final items = <MenuFlyoutItem>[];
 
+  if (librarySongs.isNotEmpty) {
+    items.addAll([
+      MenuFlyoutItem(
+        key: 'library',
+        text: i18n.t('random.musicLibrary'),
+        icon: FluentIcons.library_20_regular,
+        onPressed: () => playSongs(librarySongs),
+      ),
+      MenuFlyoutItem(
+        key: 'artist',
+        text: i18n.t('common.artist'),
+        icon: FluentIcons.people_20_regular,
+        onPressed: () => onPlaySongs(_randomArtist(librarySongs, randomLimit)),
+      ),
+      MenuFlyoutItem(
+        key: 'album',
+        text: i18n.t('common.album'),
+        useAlbumIcon: true,
+        onPressed: () => onPlaySongs(_randomAlbum(librarySongs, randomLimit)),
+      ),
+    ]);
+  }
+
+  if (playableFolders.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'folder',
+        text: i18n.t('random.localFolder'),
+        icon: FluentIcons.hard_drive_20_regular,
+        onPressed: () {
+          onPlaySongs(
+            _randomFolder(librarySongs, playableFolders, randomLimit),
+          );
+        },
+      ),
+    );
+  }
+
+  if (librarySongs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'recent-added',
+        text: i18n.t('common.recentAdded'),
+        icon: FluentIcons.calendar_add_20_regular,
+        onPressed:
+            () => onPlaySongs(_randomRecentAdded(librarySongs, randomLimit)),
+      ),
+    );
+  }
+
+  if (recentSongs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'recent-played',
+        text: i18n.t('random.recentPlayed'),
+        icon: FluentIcons.history_20_regular,
+        onPressed: () => onPlaySongs(_shuffleSongIds(recentSongs)),
+      ),
+    );
+  }
+
+  if (librarySongs.length > randomLimit) {
+    items.addAll([
+      MenuFlyoutItem(
+        key: 'most-played',
+        text: i18n.t('random.mostPlayed'),
+        icon: FluentIcons.arrow_trending_20_regular,
+        onPressed:
+            () => onPlaySongs(_randomMostPlayed(librarySongs, randomLimit)),
+      ),
+      MenuFlyoutItem(
+        key: 'least-played',
+        text: i18n.t('random.leastPlayed'),
+        icon: FluentIcons.arrow_trending_down_20_regular,
+        onPressed:
+            () => onPlaySongs(_randomLeastPlayed(librarySongs, randomLimit)),
+      ),
+    ]);
+  }
+
   if (songs.isNotEmpty) {
-    if (items.isNotEmpty) {
-      items.add(const MenuFlyoutItem.separator(key: 'now-playing-separator'));
-    }
     items.add(
       MenuFlyoutItem(
         key: 'now-playing',
         text: i18n.t('common.nowPlaying'),
+        icon: FluentIcons.music_note_2_20_regular,
         onPressed: () => playAllSongs(songs),
       ),
     );
@@ -85,40 +163,18 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'my-favorites',
         text: i18n.t('common.myFavorites'),
+        icon: FluentIcons.heart_20_regular,
         onPressed: () => playSongs(favoriteSongs),
       ),
     );
   }
-
-  if (librarySongs.isEmpty) {
-    return items;
-  }
-
-  items.addAll([
-    if (items.isNotEmpty)
-      const MenuFlyoutItem.separator(key: 'shuffle-library-separator'),
-    MenuFlyoutItem(
-      key: 'library',
-      text: i18n.t('random.musicLibrary'),
-      onPressed: () => playSongs(librarySongs),
-    ),
-    MenuFlyoutItem(
-      key: 'artist',
-      text: i18n.t('common.artist'),
-      onPressed: () => onPlaySongs(_randomArtist(librarySongs, randomLimit)),
-    ),
-    MenuFlyoutItem(
-      key: 'album',
-      text: i18n.t('common.album'),
-      onPressed: () => onPlaySongs(_randomAlbum(librarySongs, randomLimit)),
-    ),
-  ]);
 
   if (playablePlaylists.isNotEmpty) {
     items.add(
       MenuFlyoutItem(
         key: 'playlist',
         text: i18n.t('common.playlist'),
+        icon: FluentIcons.apps_list_detail_20_regular,
         onPressed: () {
           onPlaySongs(
             _randomPlaylist(librarySongs, playablePlaylists, randomLimit),
@@ -126,57 +182,6 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
         },
       ),
     );
-  }
-
-  if (playableFolders.isNotEmpty) {
-    items.add(
-      MenuFlyoutItem(
-        key: 'folder',
-        text: i18n.t('random.localFolder'),
-        onPressed: () {
-          onPlaySongs(
-            _randomFolder(librarySongs, playableFolders, randomLimit),
-          );
-        },
-      ),
-    );
-  }
-
-  items.add(
-    MenuFlyoutItem(
-      key: 'recent-added',
-      text: i18n.t('common.recentAdded'),
-      onPressed:
-          () => onPlaySongs(_randomRecentAdded(librarySongs, randomLimit)),
-    ),
-  );
-
-  if (recentSongs.isNotEmpty) {
-    items.add(
-      MenuFlyoutItem(
-        key: 'recent-played',
-        text: i18n.t('random.recentPlayed'),
-        onPressed: () => onPlaySongs(_shuffleSongIds(recentSongs)),
-      ),
-    );
-  }
-
-  if (librarySongs.length > randomLimit) {
-    items.addAll([
-      const MenuFlyoutItem.separator(key: 'shuffle-history-separator'),
-      MenuFlyoutItem(
-        key: 'most-played',
-        text: i18n.t('random.mostPlayed'),
-        onPressed:
-            () => onPlaySongs(_randomMostPlayed(librarySongs, randomLimit)),
-      ),
-      MenuFlyoutItem(
-        key: 'least-played',
-        text: i18n.t('random.leastPlayed'),
-        onPressed:
-            () => onPlaySongs(_randomLeastPlayed(librarySongs, randomLimit)),
-      ),
-    ]);
   }
 
   return items;
