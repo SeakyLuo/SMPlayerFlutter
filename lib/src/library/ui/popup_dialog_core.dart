@@ -14,6 +14,7 @@ class PopupDialog extends StatefulWidget {
     this.afterNav,
     this.footer,
     this.closeOnBackdrop = false,
+    this.fullScreenOnNarrow = true,
     this.width = 780,
     this.height = 760,
     this.horizontalInset = 48,
@@ -33,6 +34,7 @@ class PopupDialog extends StatefulWidget {
   final Widget? footer;
   final VoidCallback onClose;
   final bool closeOnBackdrop;
+  final bool fullScreenOnNarrow;
   final double width;
   final double height;
   final double horizontalInset;
@@ -131,6 +133,7 @@ class _PopupDialogState extends State<PopupDialog> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final mobile =
+                        widget.fullScreenOnNarrow &&
                         constraints.maxWidth <= popupDialogMobileBreakpoint;
                     final dialogWidth =
                         mobile

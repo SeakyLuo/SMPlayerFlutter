@@ -77,7 +77,31 @@ Future<void> replaceNowPlayingQueueAndPlayIndex({
   double progressSeconds = 0,
   bool autoplay = true,
 }) async {
-  final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+  await replaceNowPlayingQueueAndPlayIndexFromSongs(
+    ref: ref,
+    songs: snapshot.songs,
+    persistedSongIds: snapshot.nowPlaying.songIds,
+    i18n: i18n,
+    songIds: songIds,
+    queueIndex: queueIndex,
+    mediaController: mediaController,
+    progressSeconds: progressSeconds,
+    autoplay: autoplay,
+  );
+}
+
+Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
+  required WidgetRef ref,
+  required List<LibrarySong> songs,
+  required List<int> persistedSongIds,
+  required SmPlayerI18n i18n,
+  required List<int> songIds,
+  required int queueIndex,
+  MediaControlController? mediaController,
+  double progressSeconds = 0,
+  bool autoplay = true,
+}) async {
+  final previousSongIds = effectiveNowPlayingSongIds(ref, persistedSongIds);
   final MediaControlController controller =
       mediaController ?? ref.read(mediaControlControllerProvider);
   final previousMediaState = controller.state;
@@ -95,7 +119,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndex({
   final persistQueue = repository.replaceNowPlaying(nextSongIds);
   playQueueIndexFromSongs(
     ref: ref,
-    songs: snapshot.songs,
+    songs: songs,
     i18n: i18n,
     songIds: nextSongIds,
     queueIndex: queueIndex,

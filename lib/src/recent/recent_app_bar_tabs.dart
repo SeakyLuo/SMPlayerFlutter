@@ -28,46 +28,51 @@ class _RecentAppBarTabs extends StatelessWidget {
         final hideCount =
             constraints.maxWidth <= 520 ||
             MediaQuery.sizeOf(context).width <= 520;
-        return SizedBox(
-          height: 40,
-          child: TabBar(
-            controller: controller,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            padding: EdgeInsets.zero,
-            labelPadding: const EdgeInsets.only(right: 24),
-            dividerHeight: 0,
-            indicatorSize: TabBarIndicatorSize.label,
-            indicator: const UnderlineTabIndicator(
-              borderSide: BorderSide(color: _RecentColors.accent, width: 3),
-              borderRadius: BorderRadius.all(Radius.circular(999)),
-              insets: EdgeInsets.only(left: 6, right: 6, bottom: 1),
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: IntrinsicWidth(
+            child: SizedBox(
+              height: 40,
+              child: TabBar(
+                controller: controller,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                padding: EdgeInsets.zero,
+                labelPadding: const EdgeInsets.only(right: 24),
+                dividerHeight: 0,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicator: const UnderlineTabIndicator(
+                  borderSide: BorderSide(color: _RecentColors.accent, width: 3),
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  insets: EdgeInsets.only(left: 6, right: 6, bottom: 1),
+                ),
+                labelColor: colors.appBarTabActiveText,
+                unselectedLabelColor: colors.appBarTabText,
+                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+                splashFactory: NoSplash.splashFactory,
+                onTap: (index) => onChanged(RecentTab.values[index]),
+                tabs: [
+                  _RecentAppBarTab(
+                    key: const ValueKey('RecentPage.AppBarTab.added'),
+                    label: i18n.t('recent.added'),
+                    count: addedCount,
+                    showCount: showCount && !hideCount,
+                  ),
+                  _RecentAppBarTab(
+                    key: const ValueKey('RecentPage.AppBarTab.played'),
+                    label: i18n.t('recent.played'),
+                    count: playedCount,
+                    showCount: showCount && !hideCount,
+                  ),
+                  _RecentAppBarTab(
+                    key: const ValueKey('RecentPage.AppBarTab.searches'),
+                    label: i18n.t('recent.searches'),
+                    count: searchesCount,
+                    showCount: showCount && !hideCount,
+                  ),
+                ],
+              ),
             ),
-            labelColor: colors.appBarTabActiveText,
-            unselectedLabelColor: colors.appBarTabText,
-            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            splashFactory: NoSplash.splashFactory,
-            onTap: (index) => onChanged(RecentTab.values[index]),
-            tabs: [
-              _RecentAppBarTab(
-                key: const ValueKey('RecentPage.AppBarTab.added'),
-                label: i18n.t('recent.added'),
-                count: addedCount,
-                showCount: showCount && !hideCount,
-              ),
-              _RecentAppBarTab(
-                key: const ValueKey('RecentPage.AppBarTab.played'),
-                label: i18n.t('recent.played'),
-                count: playedCount,
-                showCount: showCount && !hideCount,
-              ),
-              _RecentAppBarTab(
-                key: const ValueKey('RecentPage.AppBarTab.searches'),
-                label: i18n.t('recent.searches'),
-                count: searchesCount,
-                showCount: showCount && !hideCount,
-              ),
-            ],
           ),
         );
       },

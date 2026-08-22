@@ -4,11 +4,7 @@ part of 'playlists_page.dart';
 
 extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
   void _patchNowPlaying(List<int> songIds) {
-    final patchedSongIds = songIds.toList();
-    setState(() {
-      _nowPlayingSongIdsOverride = patchedSongIds;
-    });
-    setNowPlayingQueue(ref, patchedSongIds);
+    setNowPlayingQueue(ref, songIds);
   }
 
   void _playTrack(
@@ -17,8 +13,7 @@ extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
     int trackId,
     List<int> queueSongIds,
   ) {
-    _patchNowPlaying(queueSongIds);
-    playQueueIndex(
+    replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
       snapshot: snapshot,
       i18n: i18n,

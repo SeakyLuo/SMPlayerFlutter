@@ -157,14 +157,7 @@ class _FavoriteRipple extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-        _ring(progress: _interval(progress, 0, 0.72), opacity: 0.36),
-        _ring(progress: _interval(progress, 0.2, 1), opacity: 0.22),
-      ],
-    );
+    return _ring(progress: _interval(progress, 0, 0.72), opacity: 0.36);
   }
 
   Widget _ring({required double progress, required double opacity}) {

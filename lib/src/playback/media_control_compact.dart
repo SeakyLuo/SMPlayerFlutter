@@ -316,16 +316,22 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   utilitySize * utilityButtonCount +
                   utilityGap * (utilityButtonCount - 1) +
                   utilityControlOuterSlack;
-              final transportWidth = narrow ? 176.0 : 208.0;
-              final leadingWidth = (constraints.maxWidth - transportWidth) / 2;
+              final transportWidth = narrow ? 160.0 : 192.0;
+              final transportOpticalOffset = narrow ? 6.0 : 10.0;
+              final leadingWidth =
+                  (constraints.maxWidth - transportWidth) / 2 +
+                  transportOpticalOffset;
 
               return Stack(
                 fit: StackFit.expand,
                 children: [
                   Center(
-                    child: SizedBox(
-                      width: transportWidth,
-                      child: transportControls,
+                    child: Transform.translate(
+                      offset: Offset(transportOpticalOffset, 0),
+                      child: SizedBox(
+                        width: transportWidth,
+                        child: transportControls,
+                      ),
                     ),
                   ),
                   Align(

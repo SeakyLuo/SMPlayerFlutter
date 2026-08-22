@@ -38,9 +38,8 @@ extension _SettingsPageSections on _SettingsPageState {
                 ),
               ),
               const SizedBox(width: 12),
-              SizedBox(
-                width: 52,
-                height: 42,
+              SizedBox.square(
+                dimension: 42,
                 child: _SettingsIconButton(
                   icon: FluentIcons.folder_24_regular,
                   tooltip: i18n.t('common.folders'),
@@ -175,7 +174,7 @@ extension _SettingsPageSections on _SettingsPageState {
             ],
           ),
           if (_showLyricsBatchOptions)
-            _LyricsBatchOptionsDialog(
+            _LyricsBatchOptionsPanel(
               overwrite: _lyricsBatchOverwrite,
               onOverwriteChanged: (checked) {
                 setState(() {

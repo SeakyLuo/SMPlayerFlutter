@@ -58,12 +58,9 @@ class _ArtistDetailHeader extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            _ArtistsOverflowTooltipText(
                               key: const ValueKey('Artists.DetailHeader.Title'),
-                              artist.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textScaler: TextScaler.noScaling,
+                              text: artist.name,
                               style: TextStyle(
                                 color: _ArtistsColors.textStrongFor(brightness),
                                 fontSize: 28,

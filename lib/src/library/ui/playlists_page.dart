@@ -63,7 +63,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   var _appBarSearchOpen = false;
   List<int>? _previewPlaylistIds;
   List<int>? _committedPlaylistIds;
-  List<int>? _nowPlayingSongIdsOverride;
   List<int>? _dragStartPlaylistIds;
   int? _draggingPlaylistId;
   var _playlistDragAccepted = false;
@@ -183,6 +182,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
     final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final nowPlayingSongIdsOverride = ref.watch(
+      nowPlayingQueueOverrideProvider,
+    );
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const SmPlayerLoadingState();
@@ -211,6 +213,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             playlistOverrides,
             deletedPlaylistIds,
           ),
+          nowPlayingSongIdsOverride,
         );
         final selectedPlaylist =
             snapshot.playlists

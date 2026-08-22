@@ -19,6 +19,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_navigation_provider.dart';
 import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
@@ -460,8 +461,9 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       settingsController: settingsController,
       settingsRepository: repository,
       onNavigate: (target) {
-        if (target == '/artists' && isCompactArtistDetailRoute) {
-          context.go('/artists');
+        if (target == '/artists' && path == '/artists') {
+          ref.read(artistsListRequestProvider.notifier).state += 1;
+          navigationShell.goBranch(1, initialLocation: true);
           return;
         }
         if (target == '/albums' && isCompactAlbumDetailRoute) {
