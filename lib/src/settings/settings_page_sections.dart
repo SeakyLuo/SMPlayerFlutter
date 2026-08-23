@@ -174,7 +174,7 @@ extension _SettingsPageSections on _SettingsPageState {
             ],
           ),
           if (_showLyricsBatchOptions)
-            _LyricsBatchOptionsPanel(
+            _LyricsBatchOptionsDialog(
               overwrite: _lyricsBatchOverwrite,
               onOverwriteChanged: (checked) {
                 setState(() {

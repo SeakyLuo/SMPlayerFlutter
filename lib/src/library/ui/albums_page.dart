@@ -526,9 +526,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                           _openAlbum(album.name);
                                         },
                                         onPlayAlbum: () {
-                                          ref
-                                              .read(libraryRepositoryProvider)
-                                              .recordAlbumPlayed(album.name);
+                                          unawaited(
+                                            recordRecentAlbumPlayback(
+                                              ref,
+                                              album.name,
+                                            ),
+                                          );
                                           _playSongIds(album.songIds);
                                         },
                                         onAddAlbum: (position) {

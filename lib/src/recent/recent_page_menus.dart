@@ -3,6 +3,15 @@ part of 'recent_page.dart';
 // ignore_for_file: invalid_use_of_protected_member
 
 extension _RecentPageMenus on _RecentPageState {
+  List<LibraryPlaylist> _currentPlaylists(RecentPageData snapshot) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      snapshot.playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
+    );
+  }
+
   Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
@@ -28,6 +37,7 @@ extension _RecentPageMenus on _RecentPageState {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
@@ -63,12 +73,13 @@ extension _RecentPageMenus on _RecentPageState {
           );
         },
         onCreatePlaylist: () async {
+          final currentPlaylists = _currentPlaylists(snapshot);
           await createPlaylistWithSongs(
             context: context,
             ref: ref,
             i18n: i18n,
-            playlists: snapshot.playlists,
-            defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+            playlists: currentPlaylists,
+            defaultName: getNextPlaylistName(song.title, currentPlaylists),
             songIds: [song.id],
           );
         },
@@ -201,12 +212,13 @@ extension _RecentPageMenus on _RecentPageState {
       },
       onCreatePlaylist: () async {
         final snapshot = ref.read(recentPageDataProvider).value!;
+        final currentPlaylists = _currentPlaylists(snapshot);
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(title, snapshot.playlists),
+          playlists: currentPlaylists,
+          defaultName: getNextPlaylistName(title, currentPlaylists),
           songIds: songIds,
         );
       },
@@ -277,12 +289,13 @@ extension _RecentPageMenus on _RecentPageState {
                 );
               },
       onCreatePlaylist: () async {
+        final currentPlaylists = _currentPlaylists(snapshot);
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(artist.name, snapshot.playlists),
+          playlists: currentPlaylists,
+          defaultName: getNextPlaylistName(artist.name, currentPlaylists),
           songIds: songIds,
         );
       },
@@ -307,7 +320,7 @@ extension _RecentPageMenus on _RecentPageState {
           useShuffleIcon: true,
           onPressed: () {
             _recordRecentCollectionPlayed(
-              (repository) => repository.recordArtistPlayed(artist.name),
+              () => recordRecentArtistPlayback(ref, artist.name),
             );
             _playShuffledSongIds(songIds);
           },
@@ -401,8 +414,16 @@ extension _RecentPageMenus on _RecentPageState {
   }
 
   Future<void> _removeRecentPlayedWithUndo(List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).removeRecentPlayed(songIds);
-    ref.invalidate(recentPageDataProvider);
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSongs = ref.read(recentSongsProvider.notifier);
+    final songIdSet = songIds.toSet();
+    final removedSongs =
+        ref
+            .read(recentSongsProvider)
+            .where((song) => songIdSet.contains(song.id))
+            .toList();
+    await repository.removeRecentPlayed(songIds);
+    recentSongs.remove(songIds);
     if (!mounted) {
       return;
     }
@@ -411,8 +432,8 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),
       onUndo: () async {
-        await ref.read(libraryRepositoryProvider).restoreRecentPlayed(songIds);
-        ref.invalidate(recentPageDataProvider);
+        await repository.restoreRecentPlayed(songIds);
+        recentSongs.restore(removedSongs);
       },
     );
   }

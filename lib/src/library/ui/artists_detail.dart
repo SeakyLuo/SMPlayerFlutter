@@ -114,7 +114,12 @@ class _ArtistsDetail extends StatelessWidget {
                     albumVirtualWindow.startIndex,
                     albumVirtualWindow.endIndex,
                   );
-                  final detailBottomPadding = responsive ? 18.0 : 30.0;
+                  final detailBottomPadding =
+                      multiSelect
+                          ? multiSelectCommandBarScrollSpacer
+                          : responsive
+                          ? 18.0
+                          : 30.0;
                   return ScrollConfiguration(
                     key: const ValueKey('Artists.DetailScrollConfiguration'),
                     behavior: ScrollConfiguration.of(

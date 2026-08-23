@@ -231,6 +231,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           rawSnapshot,
           const {},
           songOverrides,
+          ref.watch(libraryPlaylistOverridesProvider),
+          ref.watch(libraryDeletedPlaylistIdsProvider),
+          ref.watch(libraryPlaylistOrderProvider),
         );
         final normalizedQuery = query.toLowerCase();
         final searchFolderPath = _searchFolderPath(
@@ -899,7 +902,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _playCard(SearchResultType type, SearchResult card) {
     if (type == SearchResultType.artists) {
-      ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
+      unawaited(recordRecentArtistPlayback(ref, card.title));
     }
     _playSongIds(shuffleSearchSongIds(card.songIds));
   }

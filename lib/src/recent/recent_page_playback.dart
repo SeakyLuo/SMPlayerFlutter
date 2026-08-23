@@ -71,20 +71,14 @@ extension _RecentPagePlaybackActions on _RecentPageState {
     _playSongIds(songIds.toList()..shuffle());
   }
 
-  void _recordRecentCollectionPlayed(
-    Future<void> Function(LibraryRepository repository) record,
-  ) {
+  void _recordRecentCollectionPlayed(Future<void> Function() record) {
     unawaited(_recordRecentCollectionPlayedAsync(record));
   }
 
   Future<void> _recordRecentCollectionPlayedAsync(
-    Future<void> Function(LibraryRepository repository) record,
+    Future<void> Function() record,
   ) async {
-    await record(ref.read(libraryRepositoryProvider));
-    if (!mounted) {
-      return;
-    }
-    ref.invalidate(recentPageDataProvider);
+    await record();
   }
 
   String _routeForSearchHistory(SearchHistoryEntry entry) {

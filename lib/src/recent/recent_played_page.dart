@@ -57,10 +57,7 @@ class _RecentPlayedPage extends ConsumerWidget {
   onPlaySong;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<String> onToggleCollectionSelection;
-  final void Function(
-    Future<void> Function(LibraryRepository repository) record,
-  )
-  onRecordCollectionPlayed;
+  final void Function(Future<void> Function() record) onRecordCollectionPlayed;
   final Future<void> Function(
     Offset position,
     LibrarySong song,
@@ -148,19 +145,19 @@ class _RecentPlayedPage extends ConsumerWidget {
               context.go('/playlists/$playlistId');
             },
             onRecordPlaylistPlayed: (playlistId) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordPlaylistPlayed(playlistId),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentPlaylistPlayback(ref, playlistId);
+              });
             },
             onRecordAlbumPlayed: (albumName) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordAlbumPlayed(albumName),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentAlbumPlayback(ref, albumName);
+              });
             },
             onRecordArtistPlayed: (artistName) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordArtistPlayed(artistName),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentArtistPlayback(ref, artistName);
+              });
             },
             onOpenSongContextMenu: (position, song, queueSongIds) {
               onOpenSongContextMenu(
@@ -206,6 +203,11 @@ class _RecentPlayedPage extends ConsumerWidget {
   }
 
   Future<void> _confirmClearHistory(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSongs = ref.read(recentSongsProvider.notifier);
+    final recentCollections = ref.read(
+      recentPlayedCollectionsProvider.notifier,
+    );
     final confirmed = await showPopupConfirmDialog(
       context: context,
       title: i18n.t('common.confirm'),
@@ -216,8 +218,11 @@ class _RecentPlayedPage extends ConsumerWidget {
     if (!confirmed) {
       return;
     }
-    ref.read(libraryRepositoryProvider).clearRecentPlayed();
-    ref.invalidate(recentPageDataProvider);
-    onClearSelection();
+    await repository.clearRecentPlayed();
+    recentSongs.clear();
+    await recentCollections.clear();
+    if (context.mounted) {
+      onClearSelection();
+    }
   }
 }

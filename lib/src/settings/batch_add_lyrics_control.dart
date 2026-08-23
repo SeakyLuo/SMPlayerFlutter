@@ -1,7 +1,7 @@
 part of 'settings_page.dart';
 
-class _LyricsBatchOptionsPanel extends StatelessWidget {
-  const _LyricsBatchOptionsPanel({
+class _LyricsBatchOptionsDialog extends StatelessWidget {
+  const _LyricsBatchOptionsDialog({
     required this.overwrite,
     required this.onOverwriteChanged,
     required this.onStart,
@@ -16,46 +16,20 @@ class _LyricsBatchOptionsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.progressPanelSurface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.progressPanelBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            i18n.t('settings.lyricsBatchWriteStrategy'),
-            style: TextStyle(
-              color: colors.textStrong,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 9),
-          ToggleSettingRow(
-            label: i18n.t('settings.lyricsBatchOverwriteToggle'),
-            checked: overwrite,
-            onChange: onOverwriteChanged,
-          ),
-          const SizedBox(height: 9),
-          SettingsButtonRow(
-            children: [
-              SettingsActionButton(
-                primary: true,
-                onClick: onStart,
-                child: Text(i18n.t('common.start')),
-              ),
-              SettingsActionButton(
-                onClick: onCancel,
-                child: Text(i18n.t('common.cancel')),
-              ),
-            ],
-          ),
-        ],
+    return RemoveDialog(
+      title: i18n.t('settings.batchAddLyrics'),
+      message: '',
+      confirmText: i18n.t('common.start'),
+      destructive: false,
+      onCancel: onCancel,
+      onConfirm: onStart,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: ToggleSettingRow(
+          label: i18n.t('settings.lyricsBatchOverwriteToggle'),
+          checked: overwrite,
+          onChange: onOverwriteChanged,
+        ),
       ),
     );
   }

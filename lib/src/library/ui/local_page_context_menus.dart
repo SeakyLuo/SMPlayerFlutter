@@ -310,6 +310,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: mediaState.track.id == song.id,
         isPlaying: mediaState.isPlaying,

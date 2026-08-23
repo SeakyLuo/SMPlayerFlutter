@@ -473,6 +473,7 @@ class _SearchResultSection extends StatelessWidget {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: isPlaying,

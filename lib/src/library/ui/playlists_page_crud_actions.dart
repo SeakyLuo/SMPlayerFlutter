@@ -77,7 +77,6 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
 
   Future<void> _persistPlaylistRename(int playlistId, String name) async {
     await ref.read(libraryRepositoryProvider).renamePlaylist(playlistId, name);
-    ref.invalidate(recentPageDataProvider);
   }
 
   Future<void> _addSongsToPlaylistWithoutReload(

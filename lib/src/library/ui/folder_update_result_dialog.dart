@@ -110,7 +110,7 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
           tab: FolderUpdateResultTab.artists,
           label: i18n.t('local.refreshArtistUpdatesTab'),
           count: _artistUpdateCount,
-          icon: FluentIcons.people_20_regular,
+          icon: FluentIcons.people_24_regular,
         ),
     ];
 

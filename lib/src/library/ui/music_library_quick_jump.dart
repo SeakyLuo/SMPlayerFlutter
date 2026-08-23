@@ -255,6 +255,94 @@ class _QuickJumpPanel extends StatelessWidget {
   }
 }
 
+class _AnimatedQuickJumpPanel extends StatelessWidget {
+  const _AnimatedQuickJumpPanel({
+    required this.visible,
+    required this.activeKey,
+    required this.keys,
+    required this.enabledKeys,
+    required this.targetName,
+    required this.basisName,
+    required this.i18n,
+    required this.underWorkspaceAppBar,
+    required this.onDismiss,
+    required this.onJump,
+  });
+
+  final bool visible;
+  final String activeKey;
+  final List<String> keys;
+  final Set<String> enabledKeys;
+  final String targetName;
+  final String basisName;
+  final SmPlayerI18n i18n;
+  final bool underWorkspaceAppBar;
+  final VoidCallback onDismiss;
+  final ValueChanged<String> onJump;
+
+  @override
+  Widget build(BuildContext context) {
+    final animationsDisabled = MediaQuery.disableAnimationsOf(context);
+    return Positioned.fill(
+      child: AnimatedSwitcher(
+        duration:
+            animationsDisabled
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+        reverseDuration:
+            animationsDisabled
+                ? Duration.zero
+                : const Duration(milliseconds: 140),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -0.035),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          );
+        },
+        child:
+            visible
+                ? SizedBox.expand(
+                  key: const ValueKey('MusicLibrary.QuickJumpOverlay.visible'),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: GestureDetector(
+                          key: const ValueKey(
+                            'MusicLibrary.QuickJumpDismissBarrier',
+                          ),
+                          behavior: HitTestBehavior.translucent,
+                          onTap: onDismiss,
+                        ),
+                      ),
+                      _QuickJumpPanel(
+                        activeKey: activeKey,
+                        keys: keys,
+                        enabledKeys: enabledKeys,
+                        targetName: targetName,
+                        basisName: basisName,
+                        i18n: i18n,
+                        underWorkspaceAppBar: underWorkspaceAppBar,
+                        onJump: onJump,
+                      ),
+                    ],
+                  ),
+                )
+                : const SizedBox.expand(
+                  key: ValueKey('MusicLibrary.QuickJumpOverlay.hidden'),
+                ),
+      ),
+    );
+  }
+}
+
 List<String> _quickJumpKeysForDirection(MusicLibrarySortDirection direction) {
   return direction == MusicLibrarySortDirection.descending
       ? _quickJumpKeys.reversed.toList()

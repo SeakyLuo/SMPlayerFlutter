@@ -214,7 +214,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
       MenuFlyoutItem(
         key: 'random-current-artist',
         text: i18n.t('random.currentArtist'),
-        icon: FluentIcons.people_20_regular,
+        icon: FluentIcons.people_24_regular,
         onPressed: onPlayArtist,
       ),
     if (onPlayAlbum != null)
@@ -350,7 +350,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           MenuFlyoutItem(
             key: 'see-artist',
             text: i18n.t('context.seeArtist'),
-            icon: FluentIcons.people_20_regular,
+            icon: FluentIcons.people_24_regular,
             onPressed: onSeeArtist,
           ),
         if (onSeeAlbum != null)
@@ -385,7 +385,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
           MenuFlyoutItem(
             key: 'see-local-file',
             text: i18n.t('context.seeLocalFile'),
-            icon: FluentIcons.hard_drive_20_regular,
+            icon: FluentIcons.hard_drive_24_regular,
             pendingText: i18n.t('context.openingLocal'),
             onPressed: onSeeLocal,
           ),

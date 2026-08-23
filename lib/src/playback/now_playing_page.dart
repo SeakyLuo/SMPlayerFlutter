@@ -106,6 +106,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final recentSongs = ref.watch(recentSongsProvider);
+    ref.watch(libraryPlaylistOverridesProvider);
+    ref.watch(libraryDeletedPlaylistIdsProvider);
+    ref.watch(libraryPlaylistOrderProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (
@@ -168,7 +171,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                 )
                 .toList();
         final customPlaylists =
-            snapshot.playlists
+            _effectivePlaylists(snapshot.playlists)
                 .where((playlist) => !playlist.isBuiltIn)
                 .map(
                   (playlist) => MultiSelectCommandBarPlaylist(
@@ -202,10 +205,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                 context: context,
                 ref: ref,
                 i18n: i18n,
-                playlists: snapshot.playlists,
+                playlists: _effectivePlaylists(snapshot.playlists),
                 defaultName: getDefaultNewPlaylistName(
                   i18n,
-                  snapshot.playlists,
+                  _effectivePlaylists(snapshot.playlists),
                 ),
                 songIds: queueSongIds,
               ),
@@ -216,7 +219,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               _addSongsToPlaylistWithUndo(
                 playlistId,
                 queueSongIds,
-                snapshot.playlists,
+                _effectivePlaylists(snapshot.playlists),
                 songsById,
               ),
             );
@@ -335,10 +338,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                 context: context,
                 ref: ref,
                 i18n: i18n,
-                playlists: snapshot.playlists,
+                playlists: _effectivePlaylists(snapshot.playlists),
                 defaultName: getDefaultNewPlaylistName(
                   i18n,
-                  snapshot.playlists,
+                  _effectivePlaylists(snapshot.playlists),
                 ),
                 songIds: selectedVisibleSongIds,
               ),
@@ -349,7 +352,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               _addSongsToPlaylistWithUndo(
                 playlistId,
                 selectedVisibleSongIds,
-                snapshot.playlists,
+                _effectivePlaylists(snapshot.playlists),
                 songsById,
               ),
             );
@@ -527,7 +530,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           buttonContext,
                           song,
                           customPlaylists,
-                          snapshot.playlists,
+                          _effectivePlaylists(snapshot.playlists),
                           songsById,
                         );
                       },
@@ -553,7 +556,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                             queueIndex,
                             customPlaylists,
                             folders,
-                            snapshot.playlists,
+                            _effectivePlaylists(snapshot.playlists),
                             songsById,
                           ),
                         );
@@ -636,7 +639,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     _playSongIds(
       quickPlaySongIds(
         songs: snapshot.songs,
-        playlists: snapshot.playlists,
+        playlists: _effectivePlaylists(snapshot.playlists),
         folders: snapshot.folders,
         preferences: preferences,
         randomLimit: quickPlayLimit,
@@ -839,6 +842,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
@@ -1024,7 +1028,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       songs: queueSongs,
       librarySongs: snapshot.songs,
       recentSongs: recentSongs,
-      playlists: snapshot.playlists,
+      playlists: _effectivePlaylists(snapshot.playlists),
       folders: snapshot.folders,
       randomLimit: quickPlayLimit,
       onPlaySongs: _playSongIds,
@@ -1073,7 +1077,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final before = queueSongIds.toList();
     _replaceQueue(const []);
     _showUndo(
-      context.smPlayerI18n.t('nowPlaying.clearQueue'),
+      context.smPlayerI18n.t('notification.nowPlayingCleared'),
       () => _replaceQueue(before),
     );
   }
@@ -1141,6 +1145,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         }
         await action();
       },
+    );
+  }
+
+  List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
     );
   }
 

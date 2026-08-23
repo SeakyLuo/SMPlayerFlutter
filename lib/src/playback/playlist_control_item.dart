@@ -90,6 +90,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
     this.favoriteAsHoverAction = false,
+    this.keepFavoriteActionInCompact = false,
     this.favoriteLoading = false,
   });
 
@@ -125,6 +126,7 @@ class PlaylistControlItem extends StatefulWidget {
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
+  final bool keepFavoriteActionInCompact;
   final bool favoriteLoading;
 
   @override
@@ -310,6 +312,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 (headeredPlaylist && compact) ||
                 standardCompact;
             final hideFavoriteForCompact =
+                !widget.keepFavoriteActionInCompact &&
                 !widget.overlayCompactActions &&
                 compact &&
                 (compactVariant
@@ -389,6 +392,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 showFavoriteAction:
                     widget.showFavoriteAction && !hideFavoriteForCompact,
                 favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                keepFavoriteActionInCompact: widget.keepFavoriteActionInCompact,
                 favoriteLoading: widget.favoriteLoading,
                 favoriteHoverVisible: hoverActionsVisible,
                 onAddToPlaylistClick: widget.onAddToPlaylistClick,
@@ -742,29 +746,8 @@ class _QueueDuration extends StatelessWidget {
       return SizedBox(
         key: const ValueKey('PlaylistControlItem.Duration'),
         width: width,
-        child: Text(
-          formatDuration(song.duration.toDouble()),
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.visible,
-          textAlign: TextAlign.end,
-          style: TextStyle(
-            color: color,
-            fontSize: 14,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-      );
-    }
-    return SizedBox(
-      key: const ValueKey('PlaylistControlItem.Duration'),
-      width: width,
-      child: OverflowBox(
-        alignment: Alignment.centerRight,
-        minWidth: 0,
-        maxWidth: max(width, 50),
-        child: SizedBox(
-          width: max(width, 50),
+        child: Align(
+          alignment: Alignment.centerRight,
           child: Text(
             formatDuration(song.duration.toDouble()),
             maxLines: 1,
@@ -773,8 +756,35 @@ class _QueueDuration extends StatelessWidget {
             textAlign: TextAlign.end,
             style: TextStyle(
               color: color,
-              fontSize: 13,
+              fontSize: 14,
               fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      key: const ValueKey('PlaylistControlItem.Duration'),
+      width: width,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: OverflowBox(
+          alignment: Alignment.centerRight,
+          minWidth: 0,
+          maxWidth: max(width, 50),
+          child: SizedBox(
+            width: max(width, 50),
+            child: Text(
+              formatDuration(song.duration.toDouble()),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ),
@@ -1093,6 +1103,7 @@ class _QueueActions extends StatelessWidget {
     this.onToggleFavoriteClick,
     required this.showFavoriteAction,
     required this.favoriteAsHoverAction,
+    required this.keepFavoriteActionInCompact,
     required this.favoriteLoading,
     required this.favoriteHoverVisible,
     this.onAddToPlaylistClick,
@@ -1117,6 +1128,7 @@ class _QueueActions extends StatelessWidget {
   final VoidCallback? onToggleFavoriteClick;
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
+  final bool keepFavoriteActionInCompact;
   final bool favoriteLoading;
   final bool favoriteHoverVisible;
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
@@ -1155,7 +1167,7 @@ class _QueueActions extends StatelessWidget {
     final actionChildren = [
       if (showFavoriteAction &&
           showPrimaryActions &&
-          !compactEssentialActionsOnly &&
+          (!compactEssentialActionsOnly || keepFavoriteActionInCompact) &&
           onToggleFavoriteClick != null)
         if (favoriteAsHoverAction)
           hoverAction(

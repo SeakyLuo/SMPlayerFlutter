@@ -203,8 +203,6 @@ void _patchPlaylistSongsRemoved(
 
 void _patchPlaylistMutation(WidgetRef ref, LibraryPlaylist playlist) {
   patchLibraryPlaylistOverride(ref, playlist);
-  ref.invalidate(libraryContentDataProvider);
-  invalidateLibraryMutationData(ref);
 }
 
 Future<void> setSongsFavorite(

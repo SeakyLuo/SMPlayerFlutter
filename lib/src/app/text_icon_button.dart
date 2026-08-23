@@ -142,32 +142,8 @@ class _SmPlayerTextIconButtonInteraction extends StatefulWidget {
 
 class _SmPlayerTextIconButtonInteractionState
     extends State<_SmPlayerTextIconButtonInteraction> {
-  final _tooltipAnchorKey = GlobalKey();
   var _hovered = false;
   var _focused = false;
-  OverlayEntry? _tooltipOverlayEntry;
-
-  @override
-  void dispose() {
-    _removeTooltipOverlay();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(_SmPlayerTextIconButtonInteraction oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.tooltip == widget.tooltip) {
-      return;
-    }
-    _removeTooltipOverlay();
-    if (widget.tooltip != null && (_hovered || _focused)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showTooltipOverlay();
-        }
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -358,7 +334,8 @@ class _SmPlayerTextIconButtonInteractionState
         ),
       ),
     );
-    return KeyedSubtree(key: _tooltipAnchorKey, child: button);
+    final tooltip = widget.tooltip;
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 
   void _setHovered(bool hovered) {
@@ -368,7 +345,6 @@ class _SmPlayerTextIconButtonInteractionState
     setState(() {
       _hovered = hovered;
     });
-    _updateTooltipOverlay();
   }
 
   void _setFocused(bool focused) {
@@ -378,109 +354,6 @@ class _SmPlayerTextIconButtonInteractionState
     setState(() {
       _focused = focused;
     });
-    _updateTooltipOverlay();
-  }
-
-  void _updateTooltipOverlay() {
-    if (widget.tooltip == null) {
-      _removeTooltipOverlay();
-      return;
-    }
-    if (_hovered || _focused) {
-      _showTooltipOverlay();
-    } else {
-      _removeTooltipOverlay();
-    }
-  }
-
-  void _showTooltipOverlay() {
-    if (_tooltipOverlayEntry != null) {
-      return;
-    }
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) {
-      return;
-    }
-    final anchorBox =
-        _tooltipAnchorKey.currentContext!.findRenderObject()! as RenderBox;
-    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
-    final anchorOrigin = overlayBox.globalToLocal(
-      anchorBox.localToGlobal(Offset.zero),
-    );
-    final message = widget.tooltip!;
-    _tooltipOverlayEntry = OverlayEntry(
-      builder:
-          (overlayContext) => _SmPlayerTextIconButtonTooltipOverlay(
-            message: message,
-            anchor: anchorOrigin & anchorBox.size,
-          ),
-    );
-    overlay.insert(_tooltipOverlayEntry!);
-  }
-
-  void _removeTooltipOverlay() {
-    _tooltipOverlayEntry?.remove();
-    _tooltipOverlayEntry = null;
-  }
-}
-
-class _SmPlayerTextIconButtonTooltipOverlay extends StatelessWidget {
-  const _SmPlayerTextIconButtonTooltipOverlay({
-    required this.message,
-    required this.anchor,
-  });
-
-  final String message;
-  final Rect anchor;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark ? const Color(0xf5222222) : const Color(0xfafdfdfd);
-    final border = dark ? const Color(0x5cffffff) : const Color(0x3d1f2a36);
-    final foreground = dark ? const Color(0xffffffff) : const Color(0xff1f252b);
-    return Positioned(
-      top: anchor.bottom + 8,
-      left: anchor.center.dx - 120,
-      width: 240,
-      child: IgnorePointer(
-        child: Center(
-          child: DecoratedBox(
-            key: const ValueKey('SmPlayerTextIconButton.Tooltip'),
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: border),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x26000000),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 240),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                child: Text(
-                  message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

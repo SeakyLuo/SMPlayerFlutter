@@ -133,6 +133,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
   await persistQueue;
   if (!showQueueUpdatedNotification ||
       !queueChanged ||
+      previousSongIds.isEmpty ||
       replaceRevision != _replaceQueueRevision ||
       !listEquals(queueOverrideController.state, nextSongIds)) {
     return;

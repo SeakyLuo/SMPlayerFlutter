@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/app_interaction_colors.dart';
+import '../../app/app_surface_colors.dart';
 import '../../app/auto_hide_scrollbar_visibility.dart';
 import '../../app/loading_state.dart';
 import '../../app/smplayer_vector_icons.dart';
@@ -208,6 +209,9 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
+    final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
+    final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final playlistOrder = ref.watch(libraryPlaylistOrderProvider);
 
     if (i18nValue.isLoading) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
@@ -228,6 +232,12 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             ),
           ),
       data: (snapshot) {
+        final playlists = applyLibraryPlaylistOverridesToPlaylists(
+          snapshot.playlists,
+          playlistOverrides,
+          deletedPlaylistIds,
+          playlistOrder,
+        );
         if (_snapshotSortCriterion != snapshot.sortCriterion) {
           _snapshotSortCriterion = snapshot.sortCriterion;
           _sortCriterion = snapshot.sortCriterion;
@@ -304,7 +314,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                 });
               }
               final customPlaylists =
-                  snapshot.playlists
+                  playlists
                       .where((playlist) => !playlist.isBuiltIn)
                       .map(
                         (playlist) => MultiSelectCommandBarPlaylist(
@@ -588,22 +598,9 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                       ),
                     ),
                   ),
-                  if (compact && _quickJumpPanelOpen)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        key: const ValueKey(
-                          'MusicLibrary.QuickJumpDismissBarrier',
-                        ),
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          setState(() {
-                            _quickJumpPanelOpen = false;
-                          });
-                        },
-                      ),
-                    ),
-                  if (compact && _quickJumpPanelOpen)
-                    _QuickJumpPanel(
+                  if (compact)
+                    _AnimatedQuickJumpPanel(
+                      visible: _quickJumpPanelOpen,
                       activeKey: activeQuickJumpKey,
                       keys: _quickJumpKeysForDirection(_sortDirection),
                       enabledKeys: quickJumpMap.keys.toSet(),
@@ -614,6 +611,11 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                       ),
                       i18n: i18n,
                       underWorkspaceAppBar: useWorkspaceAppBar,
+                      onDismiss: () {
+                        setState(() {
+                          _quickJumpPanelOpen = false;
+                        });
+                      },
                       onJump: (key) {
                         _jumpToKey(quickJumpMap, key, compact);
                         setState(() {
@@ -779,6 +781,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final snapshot = ref.read(libraryContentDataProvider).value!;
+    final libraryPlaylists = _effectiveLibraryPlaylists(snapshot.playlists);
     final mediaState = ref.read(mediaControlControllerProvider).state;
     final currentTrackId = mediaState.track.id;
     final preferenceLevel = await ref
@@ -793,6 +796,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
@@ -824,8 +828,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
             context: context,
             ref: ref,
             i18n: i18n,
-            playlists: snapshot.playlists,
-            defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+            playlists: libraryPlaylists,
+            defaultName: getNextPlaylistName(song.title, libraryPlaylists),
             songIds: [song.id],
           );
         },
@@ -938,6 +942,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   ) {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final snapshot = ref.read(libraryContentDataProvider).value!;
+    final libraryPlaylists = _effectiveLibraryPlaylists(snapshot.playlists);
     final selectedSongIds = selectedSongs.map((song) => song.id).toList();
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
@@ -971,10 +976,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
+          playlists: libraryPlaylists,
           defaultName: getNextPlaylistName(
             i18n.t('common.songs'),
-            snapshot.playlists,
+            libraryPlaylists,
           ),
           songIds: selectedSongIds,
         );
@@ -1007,6 +1012,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   ) async {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final snapshot = ref.read(libraryContentDataProvider).value!;
+    final libraryPlaylists = _effectiveLibraryPlaylists(snapshot.playlists);
     final item = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: [song.id],
@@ -1017,7 +1023,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         isNowPlayingContext: false,
       ),
       includeFavorites: !song.favorite,
-      defaultPlaylistName: getNextPlaylistName(song.title, snapshot.playlists),
+      defaultPlaylistName: getNextPlaylistName(song.title, libraryPlaylists),
       onAddToNowPlaying: () {
         unawaited(
           addSongsToNowPlayingWithUndo(
@@ -1047,8 +1053,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+          playlists: libraryPlaylists,
+          defaultName: getNextPlaylistName(song.title, libraryPlaylists),
           songIds: [song.id],
         );
       },
@@ -1151,6 +1157,17 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
       songIds: queueSongIds,
       queueIndex: queueIndex,
       showQueueUpdatedNotification: false,
+    );
+  }
+
+  List<LibraryPlaylist> _effectiveLibraryPlaylists(
+    List<LibraryPlaylist> playlists,
+  ) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
     );
   }
 

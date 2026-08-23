@@ -72,13 +72,13 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'library',
         text: i18n.t('random.musicLibrary'),
-        icon: FluentIcons.library_20_regular,
+        icon: FluentIcons.library_24_regular,
         onPressed: () => playSongs(librarySongs),
       ),
       MenuFlyoutItem(
         key: 'artist',
         text: i18n.t('common.artist'),
-        icon: FluentIcons.people_20_regular,
+        icon: FluentIcons.people_24_regular,
         onPressed: () => onPlaySongs(_randomArtist(librarySongs, randomLimit)),
       ),
       MenuFlyoutItem(
@@ -95,7 +95,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'folder',
         text: i18n.t('random.localFolder'),
-        icon: FluentIcons.hard_drive_20_regular,
+        icon: FluentIcons.hard_drive_24_regular,
         onPressed: () {
           onPlaySongs(
             _randomFolder(librarySongs, playableFolders, randomLimit),
@@ -110,7 +110,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'recent-added',
         text: i18n.t('common.recentAdded'),
-        icon: FluentIcons.calendar_add_20_regular,
+        icon: FluentIcons.clock_24_regular,
         onPressed:
             () => onPlaySongs(_randomRecentAdded(librarySongs, randomLimit)),
       ),
@@ -122,7 +122,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'recent-played',
         text: i18n.t('random.recentPlayed'),
-        icon: FluentIcons.history_20_regular,
+        icon: FluentIcons.clock_24_regular,
         onPressed: () => onPlaySongs(_shuffleSongIds(recentSongs)),
       ),
     );
@@ -133,14 +133,14 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'most-played',
         text: i18n.t('random.mostPlayed'),
-        icon: FluentIcons.arrow_trending_20_regular,
+        icon: FluentIcons.clock_24_regular,
         onPressed:
             () => onPlaySongs(_randomMostPlayed(librarySongs, randomLimit)),
       ),
       MenuFlyoutItem(
         key: 'least-played',
         text: i18n.t('random.leastPlayed'),
-        icon: FluentIcons.arrow_trending_down_20_regular,
+        icon: FluentIcons.clock_24_regular,
         onPressed:
             () => onPlaySongs(_randomLeastPlayed(librarySongs, randomLimit)),
       ),
@@ -152,7 +152,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'now-playing',
         text: i18n.t('common.nowPlaying'),
-        icon: FluentIcons.music_note_2_20_regular,
+        icon: FluentIcons.music_note_2_24_regular,
         onPressed: () => playAllSongs(songs),
       ),
     );
@@ -163,7 +163,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'my-favorites',
         text: i18n.t('common.myFavorites'),
-        icon: FluentIcons.heart_20_regular,
+        icon: FluentIcons.heart_24_regular,
         onPressed: () => playSongs(favoriteSongs),
       ),
     );
@@ -174,7 +174,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'playlist',
         text: i18n.t('common.playlist'),
-        icon: FluentIcons.apps_list_detail_20_regular,
+        usePlaylistIcon: true,
         onPressed: () {
           onPlaySongs(
             _randomPlaylist(librarySongs, playablePlaylists, randomLimit),
@@ -227,6 +227,8 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   required List<MultiSelectCommandBarPlaylist> playlists,
   bool includeNowPlaying = false,
   bool includeFavorites = false,
+  bool favoritesDisabled = false,
+  bool favoritesSelected = false,
   String? defaultPlaylistName,
   String? currentPlaylistName,
   String? excludePlaylistName,
@@ -267,12 +269,12 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       MenuFlyoutItem(
         key: '$key-favorites',
         text: i18n.t('common.myFavorites'),
-        iconWidget: const SmPlayerFavoriteIcon(
-          favorite: false,
+        iconWidget: SmPlayerFavoriteIcon(
+          favorite: favoritesSelected,
           size: 18,
           animate: false,
         ),
-        disabled: songIds.isEmpty,
+        disabled: songIds.isEmpty || favoritesDisabled,
         onPressed: onToggleFavorite,
       ),
     );
@@ -359,6 +361,7 @@ bool shouldShowNowPlayingAddToTarget({
 List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required SmPlayerI18n i18n,
   required int songId,
+  required String songTitle,
   required bool isFavorite,
   required bool isCurrentTrack,
   required bool isPlaying,
@@ -406,6 +409,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool showMoveToFolder = false,
   bool showAlbumArt = true,
   bool keepViewActionsOpen = false,
+  bool keepFavoritesInAddTo = false,
 }) {
   final items = <MenuFlyoutItem>[
     if (isCurrentTrack && isPlaying)
@@ -419,6 +423,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'play',
         text: i18n.t('context.play'),
+        tooltip: i18n.t('context.playSongTooltip', {'title': songTitle}),
         icon: FluentIcons.play_20_regular,
         onPressed: isCurrentTrack ? onTogglePlayPause : onPlay,
       ),
@@ -429,6 +434,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'play-next',
         text: i18n.t('context.playNext'),
+        tooltip: i18n.t('context.playNextSongTooltip', {'title': songTitle}),
         usePlayNextIcon: true,
         onPressed: onPlayNext,
       ),
@@ -447,10 +453,14 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       isNowPlayingContext: currentPlaylistName == i18n.t('common.nowPlaying'),
     ),
     includeFavorites:
-        currentPlaylistName != i18n.t('common.myFavorites') && !isFavorite,
+        currentPlaylistName != i18n.t('common.myFavorites') &&
+        (!isFavorite || keepFavoritesInAddTo),
+    favoritesDisabled: isFavorite,
+    favoritesSelected: isFavorite,
     defaultPlaylistName: defaultPlaylistName,
     onAddToNowPlaying: onAddToNowPlaying,
-    onToggleFavorite: isFavorite ? null : onToggleFavorite,
+    onToggleFavorite:
+        isFavorite && !keepFavoritesInAddTo ? null : onToggleFavorite,
     onRequestCreatePlaylist: onRequestCreatePlaylist,
     onCreatePlaylist: onCreatePlaylist,
     onCreatePlaylistWithName: onCreatePlaylistWithName,
@@ -535,7 +545,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         MenuFlyoutItem(
           key: 'see-artist',
           text: i18n.t('context.seeArtist'),
-          icon: FluentIcons.people_20_regular,
+          icon: FluentIcons.people_24_regular,
           onPressed: onSeeArtist,
         ),
       );
@@ -576,7 +586,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'see-local',
         text: i18n.t('context.seeLocalFile'),
-        icon: FluentIcons.hard_drive_20_regular,
+        icon: FluentIcons.hard_drive_24_regular,
         pendingText: i18n.t('context.openingLocal'),
         onPressed: onSeeLocal,
       ),

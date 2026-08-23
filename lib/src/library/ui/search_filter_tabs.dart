@@ -193,7 +193,7 @@ class _SearchFilterTabIcon extends StatelessWidget {
     final color = IconTheme.of(context).color;
     return switch (filter) {
       SearchFilterKey.all => const Icon(FluentIcons.grid_20_regular, size: 18),
-      SearchFilterKey.artists => const Icon(FluentIcons.people_20_regular),
+      SearchFilterKey.artists => const Icon(FluentIcons.people_24_regular),
       SearchFilterKey.albums => SmPlayerAlbumIcon(size: 18, color: color),
       SearchFilterKey.songs => const Icon(FluentIcons.music_note_2_20_regular),
       SearchFilterKey.playlists => SmPlayerPlaylistIcon(size: 18, color: color),

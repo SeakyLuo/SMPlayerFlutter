@@ -164,6 +164,8 @@ class LocalGridViewMusic extends StatelessWidget {
                       onPlayButton: () => onPlaySong(song.id),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
+                      onToggleFavorite:
+                          () => onToggleFavorite(song.id, !song.favorite),
                       onAddSong: (position) => onAddSong(song, position),
                       onOpenMenu: (position) => onOpenSongMenu(song, position),
                     ),
@@ -259,6 +261,7 @@ class LocalSongGridItem extends StatefulWidget {
     required this.onPlayButton,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
+    required this.onToggleFavorite,
     required this.onAddSong,
     required this.onOpenMenu,
   });
@@ -274,6 +277,7 @@ class LocalSongGridItem extends StatefulWidget {
   final VoidCallback onPlayButton;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
+  final VoidCallback onToggleFavorite;
   final ValueChanged<Offset> onAddSong;
   final ValueChanged<Offset> onOpenMenu;
 
@@ -431,7 +435,24 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                                           ? widget.onTogglePlayPause
                                           : widget.onPlayButton,
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
+                                RoundSongAction(
+                                  tooltip:
+                                      widget.song.favorite
+                                          ? widget.i18n.t(
+                                            'context.removeFavorite',
+                                          )
+                                          : widget.i18n.t(
+                                            'context.addFavorite',
+                                          ),
+                                  icon: SmPlayerFavoriteIcon(
+                                    favorite: widget.song.favorite,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: widget.onToggleFavorite,
+                                ),
+                                const SizedBox(width: 8),
                                 RoundSongAction(
                                   tooltip: widget.i18n.t(
                                     'context.addToPlaylist',
@@ -676,7 +697,10 @@ class CompactLocalSongRow extends StatelessWidget {
       selectionMode: selectionMode,
       showAlbum: true,
       variant: PlaylistControlItemVariant.compact,
+      showCompactPrimaryActions: true,
       collapseCompactPrimaryActions: true,
+      favoriteAsHoverAction: true,
+      keepFavoriteActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel:

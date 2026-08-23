@@ -47,7 +47,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final narrowSongRows = MediaQuery.sizeOf(context).width <= 1120;
-    final hideFavoriteAction = MediaQuery.sizeOf(context).width <= 800;
     final songRowColors = _ArtistsColors.artistSongRowColors(brightness);
     final sectionRadius = compact ? 8.0 : 10.0;
     final horizontalPadding = 18.0;
@@ -118,7 +117,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                     narrowSongRows: narrowSongRows,
                     songRowTrailingPadding: songRowTrailingPadding,
                     songRowColors: songRowColors,
-                    hideFavoriteAction: hideFavoriteAction,
                   ),
               ],
               itemShellBuilder: (context, index, child) {
@@ -154,7 +152,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required bool narrowSongRows,
     required double songRowTrailingPadding,
     required PlaylistControlItemColors? songRowColors,
-    required bool hideFavoriteAction,
   }) {
     return PlaylistControlEntry(
       key: ValueKey('artist-song-${song.id}'),
@@ -170,7 +167,8 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       collapseCompactPrimaryActions: narrowSongRows,
       compactDurationWidth: narrowSongRows ? 20 : 50,
       compactTrailingPadding: songRowTrailingPadding,
-      showFavoriteAction: !hideFavoriteAction,
+      favoriteAsHoverAction: true,
+      keepFavoriteActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel: i18n.t('common.favorite'),

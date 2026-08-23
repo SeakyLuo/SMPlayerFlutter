@@ -208,6 +208,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
     final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final playlistOrder = ref.watch(libraryPlaylistOrderProvider);
     final nowPlayingSongIdsOverride = ref.watch(
       nowPlayingQueueOverrideProvider,
     );
@@ -238,6 +239,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             songOverrides,
             playlistOverrides,
             deletedPlaylistIds,
+            playlistOrder,
           ),
           nowPlayingSongIdsOverride,
         );
@@ -251,7 +253,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           return _buildDetail(context, ref, i18n, snapshot, selectedPlaylist);
         }
 
-        return _buildGrid(context, i18n, snapshot);
+        return _buildGrid(context, i18n, snapshot, playlistOrder);
       },
     );
   }
@@ -404,9 +406,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               );
         },
         onRecordPlay: () {
-          ref
-              .read(libraryRepositoryProvider)
-              .recordPlaylistPlayed(selectedPlaylist.id);
+          unawaited(recordRecentPlaylistPlayback(ref, selectedPlaylist.id));
         },
         onSortSongs: (songIds, sortCriterion) {
           unawaited(
@@ -440,6 +440,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     BuildContext context,
     SmPlayerI18n i18n,
     LibraryContentData snapshot,
+    List<int>? playlistOrder,
   ) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final customPlaylists =
@@ -456,6 +457,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final orderedIds =
         _previewPlaylistIds ??
         _committedPlaylistIdsFor(customPlaylistIds) ??
+        playlistOrder ??
         customPlaylistIds;
     final playlistById = {
       for (final playlist in customPlaylists) playlist.id: playlist,
@@ -748,13 +750,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                                   onPlay: () {
                                                     if (playlistSongs
                                                         .isNotEmpty) {
-                                                      ref
-                                                          .read(
-                                                            libraryRepositoryProvider,
-                                                          )
-                                                          .recordPlaylistPlayed(
-                                                            playlist.id,
-                                                          );
+                                                      unawaited(
+                                                        recordRecentPlaylistPlayback(
+                                                          ref,
+                                                          playlist.id,
+                                                        ),
+                                                      );
                                                       _playTrack(
                                                         snapshot,
                                                         i18n,

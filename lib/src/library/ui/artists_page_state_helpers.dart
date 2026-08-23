@@ -46,8 +46,9 @@ void _syncArtistsAppBarPortal(
   required int searchHistoryCount,
   Widget? bottomContent,
 }) {
+  final brightness = Theme.of(state.context).brightness;
   final signature =
-      '$showPortal:$routePath:$layoutSignature:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$titleTooltip:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
+      '$showPortal:$routePath:$layoutSignature:$brightness:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$titleTooltip:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }
@@ -362,10 +363,10 @@ void _playShuffledSongIdsForArtistsPage(
   String? albumName,
 }) {
   if (artistName != null) {
-    state.ref.read(libraryRepositoryProvider).recordArtistPlayed(artistName);
+    unawaited(recordRecentArtistPlayback(state.ref, artistName));
   }
   if (albumName != null) {
-    state.ref.read(libraryRepositoryProvider).recordAlbumPlayed(albumName);
+    unawaited(recordRecentAlbumPlayback(state.ref, albumName));
   }
   final queueSongIds = songIds.toList()..shuffle(Random());
   state._playSongIds(queueSongIds);
@@ -568,6 +569,7 @@ Future<void> _showSongContextMenuForArtistsPage(
     items: buildMusicMenuFlyoutItems(
       i18n: i18n,
       songId: song.id,
+      songTitle: song.title,
       isFavorite: song.favorite,
       isCurrentTrack: song.id == currentTrackId,
       isPlaying: mediaState.isPlaying,
