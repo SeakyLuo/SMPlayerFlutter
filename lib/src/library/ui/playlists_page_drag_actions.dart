@@ -79,7 +79,7 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
 
   Future<void> _persistPlaylistOrder(List<int> playlistIds) async {
     await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
-    ref.invalidate(libraryContentDataProvider);
+    setLibraryPlaylistOrder(ref, playlistIds);
   }
 
   void _clearPlaylistDrag() {

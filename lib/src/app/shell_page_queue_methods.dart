@@ -194,8 +194,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     if (songIds.isEmpty) {
       return;
     }
-    final repository = ref.read(libraryRepositoryProvider);
-    await repository.recordPlaylistPlayed(playlistId);
+    await recordRecentPlaylistPlayback(ref, playlistId);
     replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
       snapshot: snapshot,

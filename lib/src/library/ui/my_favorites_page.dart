@@ -45,6 +45,9 @@ class MyFavoritesPage extends ConsumerWidget {
           rawSnapshot,
           favoriteOverrides,
           songOverrides,
+          ref.watch(libraryPlaylistOverridesProvider),
+          ref.watch(libraryDeletedPlaylistIdsProvider),
+          ref.watch(libraryPlaylistOrderProvider),
         );
         final favoritesPlaylist =
             snapshot.playlists

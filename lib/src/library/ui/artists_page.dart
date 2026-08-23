@@ -223,43 +223,46 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         _syncAppBarPortal(
           showPortal: true,
           routePath: '/artists',
-          content: _ArtistsAppBarSearchActions(
-            searchOpen: _appBarSearchOpen,
-            artistSearch: _artistSearch,
-            sortCriterion: _artistSortCriterion,
-            i18n: i18n,
-            searchFocused: _artistSearchFocused,
-            searchSuggestions: const [],
-            searchHistoryEntries: const [],
-            onOpenSearch: () {
-              setState(() {
-                _appBarSearchOpen = true;
-                _artistSearchFocused = true;
-              });
-            },
-            onCloseSearch: () {
-              setState(() {
-                _appBarSearchOpen = false;
-                _artistSearchFocused = false;
-              });
-            },
-            onSearchChanged: (value) {
-              setState(() {
-                _artistSearch = value;
-              });
-            },
-            onSearchFocusChanged: _changeArtistSearchFocus,
-            onSearchSubmitted: _recordLoadingArtistSearch,
-            onClearSearch: () {
-              setState(() {
-                _artistSearch = '';
-              });
-            },
-            onSelectSearchSuggestion: _selectArtistSearchQuery,
-            onRemoveRecentSearch: _removeArtistRecentSearch,
-            onClearRecentSearches: _clearArtistRecentSearches,
-            onChangeArtistSort: _changeArtistSort,
-          ),
+          content:
+              widget.targetArtistName != null
+                  ? const SizedBox.shrink()
+                  : _ArtistsAppBarSearchActions(
+                    searchOpen: _appBarSearchOpen,
+                    artistSearch: _artistSearch,
+                    sortCriterion: _artistSortCriterion,
+                    i18n: i18n,
+                    searchFocused: _artistSearchFocused,
+                    searchSuggestions: const [],
+                    searchHistoryEntries: const [],
+                    onOpenSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = true;
+                        _artistSearchFocused = true;
+                      });
+                    },
+                    onCloseSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = false;
+                        _artistSearchFocused = false;
+                      });
+                    },
+                    onSearchChanged: (value) {
+                      setState(() {
+                        _artistSearch = value;
+                      });
+                    },
+                    onSearchFocusChanged: _changeArtistSearchFocus,
+                    onSearchSubmitted: _recordLoadingArtistSearch,
+                    onClearSearch: () {
+                      setState(() {
+                        _artistSearch = '';
+                      });
+                    },
+                    onSelectSearchSuggestion: _selectArtistSearchQuery,
+                    onRemoveRecentSearch: _removeArtistRecentSearch,
+                    onClearRecentSearches: _clearArtistRecentSearches,
+                    onChangeArtistSort: _changeArtistSort,
+                  ),
           compactTitle: i18n.t('library.allArtists'),
           layoutSignature: 'loading',
           searchSuggestionCount: 0,
@@ -487,53 +490,56 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 _syncAppBarPortal(
                   showPortal: true,
                   routePath: '/artists',
-                  content: _ArtistsAppBarSearchActions(
-                    searchOpen: _appBarSearchOpen,
-                    artistSearch: _artistSearch,
-                    sortCriterion: _artistSortCriterion,
-                    i18n: i18n,
-                    searchFocused: _artistSearchFocused,
-                    searchSuggestions: artistSearchSuggestions,
-                    searchHistoryEntries: artistSearchHistoryEntries,
-                    onOpenSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = true;
-                        _artistSearchFocused = true;
-                      });
-                    },
-                    onCloseSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = false;
-                        _artistSearchFocused = false;
-                      });
-                    },
-                    onSearchChanged: (value) {
-                      setState(() {
-                        _artistSearch = value;
-                      });
-                    },
-                    onSearchFocusChanged: _changeArtistSearchFocus,
-                    onSearchSubmitted: () {
-                      _submitArtistSearch();
-                      setState(() {
-                        _appBarSearchOpen = false;
-                      });
-                    },
-                    onClearSearch: () {
-                      setState(() {
-                        _artistSearch = '';
-                      });
-                    },
-                    onSelectSearchSuggestion: (query) {
-                      _selectArtistSearchQuery(query);
-                      setState(() {
-                        _appBarSearchOpen = false;
-                      });
-                    },
-                    onRemoveRecentSearch: _removeArtistRecentSearch,
-                    onClearRecentSearches: _clearArtistRecentSearches,
-                    onChangeArtistSort: _changeArtistSort,
-                  ),
+                  content:
+                      targetArtist != null
+                          ? const SizedBox.shrink()
+                          : _ArtistsAppBarSearchActions(
+                            searchOpen: _appBarSearchOpen,
+                            artistSearch: _artistSearch,
+                            sortCriterion: _artistSortCriterion,
+                            i18n: i18n,
+                            searchFocused: _artistSearchFocused,
+                            searchSuggestions: artistSearchSuggestions,
+                            searchHistoryEntries: artistSearchHistoryEntries,
+                            onOpenSearch: () {
+                              setState(() {
+                                _appBarSearchOpen = true;
+                                _artistSearchFocused = true;
+                              });
+                            },
+                            onCloseSearch: () {
+                              setState(() {
+                                _appBarSearchOpen = false;
+                                _artistSearchFocused = false;
+                              });
+                            },
+                            onSearchChanged: (value) {
+                              setState(() {
+                                _artistSearch = value;
+                              });
+                            },
+                            onSearchFocusChanged: _changeArtistSearchFocus,
+                            onSearchSubmitted: () {
+                              _submitArtistSearch();
+                              setState(() {
+                                _appBarSearchOpen = false;
+                              });
+                            },
+                            onClearSearch: () {
+                              setState(() {
+                                _artistSearch = '';
+                              });
+                            },
+                            onSelectSearchSuggestion: (query) {
+                              _selectArtistSearchQuery(query);
+                              setState(() {
+                                _appBarSearchOpen = false;
+                              });
+                            },
+                            onRemoveRecentSearch: _removeArtistRecentSearch,
+                            onClearRecentSearches: _clearArtistRecentSearches,
+                            onChangeArtistSort: _changeArtistSort,
+                          ),
                   compactTitle: compactAppBarTitle,
                   titleTooltip: compact ? compactSelectedArtist?.name : null,
                   layoutSignature:

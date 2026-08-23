@@ -343,6 +343,6 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required List<int> playlistIds,
   }) async {
     await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
-    ref.invalidate(libraryContentDataProvider);
+    setLibraryPlaylistOrder(ref, playlistIds);
   }
 }

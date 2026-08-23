@@ -62,9 +62,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           text: i18n.t('nowPlaying.randomPlay'),
           useShuffleIcon: true,
           onPressed: () async {
-            await ref
-                .read(libraryRepositoryProvider)
-                .recordAlbumPlayed(album.name);
+            await recordRecentAlbumPlayback(ref, album.name);
             await _playSongIds(album.songIds, shuffle: true);
           },
         ),

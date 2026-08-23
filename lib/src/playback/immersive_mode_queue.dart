@@ -484,8 +484,18 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       confirmLabel: i18n.t('common.clear'),
       i18n: i18n,
     );
+    if (!context.mounted) {
+      return;
+    }
     if (confirmed) {
+      final before = currentQueueSongIds();
       onClearNowPlaying();
+      showUndoableNotification(
+        context: context,
+        i18n: i18n,
+        message: i18n.t('notification.nowPlayingCleared'),
+        onUndo: () => onReplaceQueue(before),
+      );
     }
   }
 
@@ -879,6 +889,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       return buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: isPlaying,

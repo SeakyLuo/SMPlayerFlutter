@@ -106,10 +106,20 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
   Widget build(BuildContext context) {
     final colors = _RecentSongTileColors.of(context);
     final active = widget.selected || _hovered;
-    final activeSurface = Color.alphaBlend(
+    final selectedSurface = Color.alphaBlend(
       colors.activeSurface,
       Theme.of(context).scaffoldBackgroundColor,
     );
+    final hoverSurface =
+        Theme.of(context).brightness == Brightness.dark
+            ? colors.activeSurface
+            : colors.activeSurface.withValues(alpha: 0.85);
+    final surface =
+        widget.selected
+            ? selectedSurface
+            : _hovered
+            ? hoverSurface
+            : colors.inactiveSurface;
     final showHoverActions = _hovered && !widget.multiSelect;
     final textColor = widget.current ? colors.currentText : colors.textStrong;
     final artistColor = widget.current ? colors.currentMuted : colors.textMuted;
@@ -146,7 +156,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
           height: widget.metrics.tileExtent,
           padding: widget.metrics.padding,
           decoration: BoxDecoration(
-            color: active ? activeSurface : colors.inactiveSurface,
+            color: surface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: active ? colors.activeShadow : const [],
           ),
@@ -539,7 +549,6 @@ class _RecentSongActionButtonState extends State<_RecentSongActionButton> {
           duration: const Duration(milliseconds: 120),
           transform: Matrix4.translationValues(0, _hovered ? -1 : 0, 0),
           child: IconButton(
-            tooltip: widget.tooltip,
             style: ButtonStyle(
               fixedSize: const WidgetStatePropertyAll(
                 Size.square(_recentSongActionButtonSize),

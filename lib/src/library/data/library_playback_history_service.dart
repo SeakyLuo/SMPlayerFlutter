@@ -400,14 +400,10 @@ class LibraryPlaybackHistoryService {
       INSERT INTO RecentRecord (Type, ItemId, Time, State)
       VALUES (?, ?, ?, ?)
     ''',
-      [
-        type,
-        itemId,
-        playedAt,
-        _activeState,
-      ],
+      [type, itemId, playedAt, _activeState],
     );
-    final id = db.select('SELECT last_insert_rowid() AS id').single['id'] as int;
+    final id =
+        db.select('SELECT last_insert_rowid() AS id').single['id'] as int;
     return (id: id, playedAt: playedAt);
   }
 

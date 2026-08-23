@@ -561,7 +561,7 @@ int? _branchRootIndex(String location) {
   };
 }
 
-const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerEletron/issues';
+const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerFlutter/issues';
 const _feedbackEmailAddress = 'luokiss9@qq.com';
 
 const _feedbackEmailSubjects = {

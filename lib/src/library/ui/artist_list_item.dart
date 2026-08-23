@@ -154,10 +154,14 @@ class _ArtistListItemState extends State<_ArtistListItem>
                                   ),
                                   _locateHighlightController.value,
                                 );
-                        return Container(
+                        return AnimatedContainer(
                           key: ValueKey(
                             'Artists.ArtistRow.Decoration.${widget.artist.name}',
                           ),
+                          duration:
+                              MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 120),
                           constraints: const BoxConstraints(minHeight: 62),
                           padding: EdgeInsets.symmetric(
                             horizontal: 6,
@@ -175,6 +179,10 @@ class _ArtistListItemState extends State<_ArtistListItem>
                               color:
                                   widget.active
                                       ? _ArtistsColors.artistRowActiveBorder(
+                                        brightness,
+                                      )
+                                      : _hovered || _focused
+                                      ? _ArtistsColors.artistRowHoverBorder(
                                         brightness,
                                       )
                                       : Colors.transparent,

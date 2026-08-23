@@ -13,6 +13,7 @@ class RemoveDialog extends StatefulWidget {
     required this.onConfirm,
     this.confirmText,
     this.pendingText,
+    this.content,
     this.destructive = true,
     this.submitting = false,
   });
@@ -23,6 +24,7 @@ class RemoveDialog extends StatefulWidget {
   final VoidCallback onConfirm;
   final String? confirmText;
   final String? pendingText;
+  final Widget? content;
   final bool destructive;
   final bool submitting;
 
@@ -114,15 +116,16 @@ class _RemoveDialogState extends State<RemoveDialog> {
                                   ),
                                 ),
                                 const SizedBox(height: 18),
-                                Text(
-                                  widget.message,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: colors.text,
-                                    fontSize: 15,
-                                    height: 1.55,
-                                  ),
-                                ),
+                                widget.content ??
+                                    Text(
+                                      widget.message,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: colors.text,
+                                        fontSize: 15,
+                                        height: 1.55,
+                                      ),
+                                    ),
                                 const SizedBox(height: 20),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,

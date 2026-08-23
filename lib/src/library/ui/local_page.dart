@@ -164,6 +164,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           rawSnapshot,
           const {},
           songOverrides,
+          ref.watch(libraryPlaylistOverridesProvider),
+          ref.watch(libraryDeletedPlaylistIdsProvider),
+          ref.watch(libraryPlaylistOrderProvider),
         );
         return SmPlayerI18nScope(
           i18n: i18n,

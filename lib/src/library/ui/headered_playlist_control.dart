@@ -223,6 +223,7 @@ class _HeaderedPlaylistControlState
   Widget build(BuildContext context) {
     ref.watch(libraryPlaylistOverridesProvider);
     ref.watch(libraryDeletedPlaylistIdsProvider);
+    ref.watch(libraryPlaylistOrderProvider);
     return _buildBody(context);
   }
 
@@ -242,6 +243,7 @@ class _HeaderedPlaylistControlState
       playlists,
       ref.read(libraryPlaylistOverridesProvider),
       ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
     );
   }
 

@@ -83,6 +83,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             rawSnapshot,
             favoriteOverrides,
             songOverrides,
+            ref.watch(libraryPlaylistOverridesProvider),
+            ref.watch(libraryDeletedPlaylistIdsProvider),
+            ref.watch(libraryPlaylistOrderProvider),
           );
           final routeAlbumName = widget.albumName;
           final albumSongs =
@@ -165,9 +168,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   unawaited(setSongsFavorite(ref, [songId], favorite));
                 },
                 onRecordPlay: () {
-                  ref
-                      .read(libraryRepositoryProvider)
-                      .recordAlbumPlayed(routeAlbumName);
+                  unawaited(recordRecentAlbumPlayback(ref, routeAlbumName));
                 },
                 onSetPreferred: (level) async {
                   await ref

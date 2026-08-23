@@ -34,7 +34,9 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
+        keepFavoritesInAddTo: widget.type != HeaderedPlaylistType.favorites,
         isCurrentTrack: widget.selectedTrackId == song.id,
         isPlaying: widget.isPlaying,
         currentTrackId: widget.selectedTrackId,

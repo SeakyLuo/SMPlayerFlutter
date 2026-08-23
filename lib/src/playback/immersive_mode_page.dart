@@ -236,6 +236,9 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final recentSongs = ref.watch(recentSongsProvider);
+    ref.watch(libraryPlaylistOverridesProvider);
+    ref.watch(libraryDeletedPlaylistIdsProvider);
+    ref.watch(libraryPlaylistOrderProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (
@@ -296,7 +299,9 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
         _ensureCoverColor(displayArtworkPath);
         final noticeKey = mediaState.playbackNoticeKey;
         final noticeText = noticeKey == null ? null : i18n.t(noticeKey);
-        final customPlaylists = _customPlaylists(snapshot.playlists);
+        final customPlaylists = _customPlaylists(
+          _effectivePlaylists(snapshot.playlists),
+        );
         final settings = smPlayerGlobalSettingsSnapshot;
         final immersiveNightActive =
             settings.nightMode == NightMode.onMode ||
@@ -322,7 +327,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               selection: _selection,
               scrollController: _queueController,
               playlists: customPlaylists,
-              playlistSnapshots: snapshot.playlists,
+              playlistSnapshots: _effectivePlaylists(snapshot.playlists),
               folders: snapshot.folders,
               onClose: () {
                 setState(() {
@@ -523,7 +528,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                     playlists: customPlaylists,
                     defaultNewPlaylistName: getDefaultNewPlaylistName(
                       i18n,
-                      snapshot.playlists,
+                      _effectivePlaylists(snapshot.playlists),
                     ),
                     hideMultiSelectCommandBarAfterOperation:
                         snapshot.hideMultiSelectCommandBarAfterOperation,
@@ -749,7 +754,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
         songs: queueSongs,
         librarySongs: snapshot.songs,
         recentSongs: recentSongs,
-        playlists: snapshot.playlists,
+        playlists: _effectivePlaylists(snapshot.playlists),
         folders: snapshot.folders,
         randomLimit: nowPlayingQuickPlayLimit,
         onPlaySongs: _playSongIds,
@@ -774,7 +779,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       showFavoriteWhenUnavailable: true,
       currentSong: currentSong,
       nowPlayingSongIds: queueSongIds,
-      playlists: snapshot.playlists,
+      playlists: _effectivePlaylists(snapshot.playlists),
       onResolvePreferenceLevel:
           currentSong == null
               ? null
@@ -925,7 +930,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
     _playQueueSongIds(
       quickPlaySongIds(
         songs: snapshot.songs,
-        playlists: snapshot.playlists,
+        playlists: _effectivePlaylists(snapshot.playlists),
         folders: snapshot.folders,
         preferences: preferences,
         randomLimit: nowPlayingQuickPlayLimit,
@@ -1272,6 +1277,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       i18n: context.smPlayerI18n,
       message: message,
       onUndo: action,
+    );
+  }
+
+  List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
     );
   }
 
