@@ -32,6 +32,7 @@ class GridViewHolder extends ConsumerStatefulWidget {
     this.artworkKey,
     this.selectedMark,
     this.onContextMenu,
+    this.searchQuery = '',
   });
 
   final LibraryPlaylist playlist;
@@ -50,6 +51,7 @@ class GridViewHolder extends ConsumerStatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onPlay;
   final ValueChanged<Offset>? onContextMenu;
+  final String searchQuery;
 
   @override
   ConsumerState<GridViewHolder> createState() => _GridViewHolderState();
@@ -180,6 +182,7 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                 GridArtworkCardContent(
                   title: widget.playlist.name,
                   subtitle: widget.subtitle,
+                  searchQuery: widget.searchQuery,
                   artworkUrls: getPlaylistArtworkDisplayUrls(_artworkUrls),
                   fallback: const DefaultAlbumArtwork(),
                   selectedMark: selectedMark,

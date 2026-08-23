@@ -468,7 +468,7 @@ class _AlbumArtLibraryPickerScrollableListState
 
     return _SongDialogScrollbarHost(
       controller: _controller,
-      right: widget.mobile ? -12 : -5,
+      right: widget.mobile ? -14 : -8.5,
       bottom: 4,
       trackWidth: widget.mobile ? 16 : 9,
       normalThumbLeft: widget.mobile ? 5 : 2,
@@ -478,7 +478,10 @@ class _AlbumArtLibraryPickerScrollableListState
       frameKey: const ValueKey('AlbumArtLibraryPicker.ListFrame'),
       positionKey: const ValueKey('AlbumArtLibraryPicker.Scrollbar.Position'),
       thumbKey: const ValueKey('AlbumArtLibraryPicker.Scrollbar.Thumb'),
-      child: list,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: list,
+      ),
     );
   }
 }
@@ -510,22 +513,34 @@ class _AlbumArtChoiceTileState extends State<_AlbumArtChoiceTile> {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
-    final highlighted = widget.selected || _hovered || _focused;
+    final brightness = Theme.of(context).brightness;
+    final interactive = _hovered || _focused;
     final tileHeight = widget.mobile ? 92.0 : 74.0;
     final artworkSize = widget.mobile ? 84.0 : 64.0;
     final horizontalGap = widget.mobile ? 10.0 : 12.0;
     final selectedBackground =
-        widget.mobile
-            ? Color.alphaBlend(
-              GlobalUI.sourceListMobileSelectedBgColor,
-              colors.surface,
-            )
-            : GlobalUI.sourceListSelectedBgColor;
-    final selectedBorder = GlobalUI.sourceListSelectedBorderColor;
-    final selectedShadow =
-        widget.mobile && highlighted
-            ? GlobalUI.sourceListMobileSelectedShadow
-            : GlobalUI.sourceListSelectedShadow;
+        brightness == Brightness.dark
+            ? GlobalUI.selectedBgColorNight
+            : GlobalUI.selectedBgColorDay;
+    final hoverBackground =
+        brightness == Brightness.dark
+            ? GlobalUI.hoverBgColorNight
+            : GlobalUI.hoverBgColorDay;
+    final selectedBorder = colors.accent.withValues(alpha: 0.56);
+    final hoverBorder =
+        brightness == Brightness.dark
+            ? GlobalUI.hoverBorderColorNight
+            : GlobalUI.hoverBorderColorDay;
+    final selectedShadow = <BoxShadow>[
+      brightness == Brightness.dark
+          ? GlobalUI.selectedShadowNight
+          : GlobalUI.selectedShadowDay,
+    ];
+    final hoverShadow = <BoxShadow>[
+      brightness == Brightness.dark
+          ? GlobalUI.hoverShadowNight
+          : GlobalUI.hoverShadowDay,
+    ];
 
     return Focus(
       key: ValueKey('AlbumArtLibraryPicker.Choice.${widget.choice.song.id}'),
@@ -573,16 +588,28 @@ class _AlbumArtChoiceTileState extends State<_AlbumArtChoiceTile> {
             height: tileHeight,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: highlighted ? selectedBackground : Colors.transparent,
+              color:
+                  widget.selected
+                      ? selectedBackground
+                      : interactive
+                      ? hoverBackground
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(widget.mobile ? 9 : 8),
-              border:
-                  widget.mobile
-                      ? null
-                      : Border.all(
-                        color:
-                            highlighted ? selectedBorder : Colors.transparent,
-                      ),
-              boxShadow: selectedShadow,
+              border: Border.all(
+                color:
+                    widget.selected
+                        ? selectedBorder
+                        : interactive
+                        ? hoverBorder
+                        : Colors.transparent,
+                width: widget.selected ? 1.5 : 1,
+              ),
+              boxShadow:
+                  widget.selected
+                      ? selectedShadow
+                      : interactive
+                      ? hoverShadow
+                      : null,
             ),
             child: Row(
               children: [
@@ -612,7 +639,10 @@ class _AlbumArtChoiceTileState extends State<_AlbumArtChoiceTile> {
                           maxLines: widget.mobile ? 2 : 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: colors.textStrong,
+                            color:
+                                widget.selected
+                                    ? colors.accentStrong
+                                    : colors.textStrong,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             height: 18 / 15,
@@ -642,6 +672,24 @@ class _AlbumArtChoiceTileState extends State<_AlbumArtChoiceTile> {
                     ),
                   ),
                 ),
+                if (widget.selected) ...[
+                  SizedBox(width: widget.mobile ? 8 : 10),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.accent,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: const SizedBox.square(
+                      dimension: 20,
+                      child: Icon(
+                        FluentIcons.checkmark_16_regular,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: widget.mobile ? 6 : 8),
+                ],
               ],
             ),
           ),
@@ -857,72 +905,6 @@ class _ArtworkImageShadowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ArtworkImageShadowPainter oldDelegate) {
     return oldDelegate.size != size || oldDelegate.borderRadius != borderRadius;
-  }
-}
-
-class _ArtworkDeleteConfirm extends StatelessWidget {
-  const _ArtworkDeleteConfirm({
-    required this.message,
-    required this.disabled,
-    required this.onConfirm,
-    required this.onCancel,
-  });
-
-  final String message;
-  final bool disabled;
-  final VoidCallback onConfirm;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    final colors = PopupDialogColors.resolve(context);
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
-
-    return SizedBox(
-      width: 360,
-      child: Container(
-        key: const ValueKey('MusicDialog.ArtworkDeleteConfirm'),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: nightMode ? const Color(0x52582720) : const Color(0xebfff5f2),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color:
-                nightMode ? const Color(0x47ffbca6) : const Color(0x52b0584a),
-          ),
-        ),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          alignment: WrapAlignment.center,
-          children: [
-            Text(
-              key: const ValueKey('MusicDialog.ArtworkDeleteConfirmText'),
-              message,
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            _MusicDialogCommandButton(
-              key: const ValueKey('MusicDialog.ArtworkDeleteConfirmYes'),
-              label: i18n.t('common.yes'),
-              disabled: disabled,
-              onPressed: onConfirm,
-            ),
-            _MusicDialogCommandButton(
-              key: const ValueKey('MusicDialog.ArtworkDeleteConfirmCancel'),
-              label: i18n.t('common.cancel'),
-              disabled: disabled,
-              onPressed: onCancel,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

@@ -28,19 +28,18 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _resetArtwork() {
-    if (_artworkSourcePath.isEmpty) {
+    if (!_artworkDirty) {
       return;
     }
     _updateState(() {
       _displayArtworkUrl = _originalDisplayArtworkUrl;
       _artworkSourcePath = '';
+      _artworkDeletePending = false;
       _artworkMissing = _originalArtworkMissing;
       _artworkRecommendation = null;
       _artworkRecommendationRequestKey = '';
-      _showArtworkDeleteConfirm = false;
     });
     _loadArtworkRecommendation();
-    _showMessage(context.smPlayerI18n.t('song.albumArtReset'));
   }
 
   void _toggleLyricsTimestamps(bool checked) {
@@ -57,9 +56,9 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
     _updateState(() {
       _displayArtworkUrl = recommendation.sourceUrl;
       _artworkSourcePath = recommendation.sourcePath;
+      _artworkDeletePending = false;
       _artworkMissing = false;
       _artworkRecommendation = null;
-      _showArtworkDeleteConfirm = false;
     });
   }
 
@@ -67,9 +66,9 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
     _updateState(() {
       _displayArtworkUrl = choice.sourceUrl;
       _artworkSourcePath = choice.sourcePath;
+      _artworkDeletePending = false;
       _artworkMissing = false;
       _artworkRecommendation = null;
-      _showArtworkDeleteConfirm = false;
       _libraryArtworkPickerOpen = false;
     });
   }

@@ -41,10 +41,17 @@ class _RecentAppBarTabs extends StatelessWidget {
             labelPadding: const EdgeInsets.only(right: 24),
             dividerHeight: 0,
             indicatorSize: TabBarIndicatorSize.label,
-            indicator: const UnderlineTabIndicator(
-              borderSide: BorderSide(color: _RecentColors.accent, width: 3),
-              borderRadius: BorderRadius.all(Radius.circular(999)),
-              insets: EdgeInsets.only(left: 6, right: 6, bottom: 1),
+            indicator: UnderlineTabIndicator(
+              borderSide: const BorderSide(
+                color: _RecentColors.accent,
+                width: 3,
+              ),
+              borderRadius: const BorderRadius.all(Radius.circular(999)),
+              insets: EdgeInsets.only(
+                left: 6,
+                right: 6,
+                bottom: hideCount ? 4 : 1,
+              ),
             ),
             labelColor: colors.appBarTabActiveText,
             unselectedLabelColor: colors.appBarTabText,
@@ -54,24 +61,28 @@ class _RecentAppBarTabs extends StatelessWidget {
             tabs: [
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.added'),
+                compact: hideCount,
                 label: i18n.t('recent.added'),
                 count: addedCount,
                 showCount: showCount && !hideCount,
               ),
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.played'),
+                compact: hideCount,
                 label: i18n.t('recent.played'),
                 count: playedCount,
                 showCount: showCount && !hideCount,
               ),
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.browsed'),
+                compact: hideCount,
                 label: i18n.t('recent.browsed'),
                 count: browsedCount,
                 showCount: showCount && !hideCount,
               ),
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.searches'),
+                compact: hideCount,
                 label: i18n.t('recent.searches'),
                 count: searchesCount,
                 showCount: showCount && !hideCount,
@@ -87,11 +98,13 @@ class _RecentAppBarTabs extends StatelessWidget {
 class _RecentAppBarTab extends StatelessWidget {
   const _RecentAppBarTab({
     super.key,
+    required this.compact,
     required this.label,
     required this.count,
     required this.showCount,
   });
 
+  final bool compact;
   final String label;
   final int count;
   final bool showCount;
@@ -104,8 +117,14 @@ class _RecentAppBarTab extends StatelessWidget {
         label: label,
         count: count,
         showCount: showCount,
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        countStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        labelStyle: TextStyle(
+          fontSize: compact ? 13 : 16,
+          fontWeight: FontWeight.w600,
+        ),
+        countStyle: TextStyle(
+          fontSize: compact ? 12 : 14,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

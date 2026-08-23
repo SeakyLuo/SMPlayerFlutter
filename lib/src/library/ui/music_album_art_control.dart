@@ -9,15 +9,12 @@ class MusicAlbumArtControl extends StatelessWidget {
     required this.artworkUrl,
     required this.artworkDirty,
     required this.recommendation,
-    required this.showDeleteConfirm,
     required this.onApplyRecommendation,
     required this.onChangeArtwork,
     required this.onChooseArtworkFromLibrary,
     required this.onSaveArtwork,
     required this.onResetArtwork,
     required this.onRequestDelete,
-    required this.onConfirmDelete,
-    required this.onCancelDelete,
   });
 
   final LibrarySong song;
@@ -26,20 +23,16 @@ class MusicAlbumArtControl extends StatelessWidget {
   final String artworkUrl;
   final bool artworkDirty;
   final AlbumArtRecommendation? recommendation;
-  final bool showDeleteConfirm;
   final ValueChanged<AlbumArtRecommendation> onApplyRecommendation;
   final VoidCallback onChangeArtwork;
   final VoidCallback onChooseArtworkFromLibrary;
   final VoidCallback onSaveArtwork;
   final VoidCallback onResetArtwork;
   final VoidCallback onRequestDelete;
-  final VoidCallback onConfirmDelete;
-  final VoidCallback onCancelDelete;
 
   @override
   Widget build(BuildContext context) {
     return AlbumArtEditorControl(
-      title: song.title,
       loading: loading,
       saving: saving,
       showBusy: loading || saving,
@@ -48,15 +41,12 @@ class MusicAlbumArtControl extends StatelessWidget {
       recommendation: recommendation,
       songId: song.id,
       fallbackArtwork: true,
-      showDeleteConfirm: showDeleteConfirm,
       onApplyRecommendation: onApplyRecommendation,
       onChangeArtwork: onChangeArtwork,
       onChooseArtworkFromLibrary: onChooseArtworkFromLibrary,
       onSaveArtwork: onSaveArtwork,
       onResetArtwork: artworkDirty ? onResetArtwork : null,
       onRequestDelete: onRequestDelete,
-      onConfirmDelete: onConfirmDelete,
-      onCancelDelete: onCancelDelete,
     );
   }
 }
@@ -64,7 +54,6 @@ class MusicAlbumArtControl extends StatelessWidget {
 class AlbumArtEditorControl extends ConsumerStatefulWidget {
   const AlbumArtEditorControl({
     super.key,
-    required this.title,
     this.loading = false,
     required this.saving,
     required this.showBusy,
@@ -73,18 +62,14 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
     this.recommendation,
     this.songId,
     this.fallbackArtwork = false,
-    required this.showDeleteConfirm,
     this.onApplyRecommendation,
     required this.onChangeArtwork,
     this.onChooseArtworkFromLibrary,
     required this.onSaveArtwork,
     this.onResetArtwork,
     required this.onRequestDelete,
-    required this.onConfirmDelete,
-    required this.onCancelDelete,
   });
 
-  final String title;
   final bool loading;
   final bool saving;
   final bool showBusy;
@@ -93,15 +78,12 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
   final AlbumArtRecommendation? recommendation;
   final int? songId;
   final bool fallbackArtwork;
-  final bool showDeleteConfirm;
   final ValueChanged<AlbumArtRecommendation>? onApplyRecommendation;
   final VoidCallback onChangeArtwork;
   final VoidCallback? onChooseArtworkFromLibrary;
   final VoidCallback onSaveArtwork;
   final VoidCallback? onResetArtwork;
   final VoidCallback onRequestDelete;
-  final VoidCallback onConfirmDelete;
-  final VoidCallback onCancelDelete;
 
   @override
   ConsumerState<AlbumArtEditorControl> createState() =>
@@ -130,6 +112,10 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
   }
 
   void _syncResolvedArtwork() {
+    if (widget.artworkDirty && widget.artworkUrl.isEmpty) {
+      _artworkRequestKey = '';
+      return;
+    }
     final songId = widget.songId;
     final directArtworkFile =
         widget.artworkUrl.isEmpty ? null : File(widget.artworkUrl);
@@ -192,7 +178,7 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
               ),
               label: i18n.t('playlists.delete'),
               commandBar: true,
-              disabled: widget.loading || widget.saving,
+              disabled: widget.loading || widget.saving || !hasArtworkFile,
               onPressed: widget.onRequestDelete,
             ),
             _ArtworkSourceButton(
@@ -294,17 +280,6 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
                                         ),
                                       ),
                                     ),
-                                if (widget.showDeleteConfirm) ...[
-                                  const SizedBox(height: 18),
-                                  _ArtworkDeleteConfirm(
-                                    message: i18n.t('song.removeAlbumArt', {
-                                      'title': widget.title,
-                                    }),
-                                    disabled: widget.loading || widget.saving,
-                                    onConfirm: widget.onConfirmDelete,
-                                    onCancel: widget.onCancelDelete,
-                                  ),
-                                ],
                               ],
                             ),
                           ),

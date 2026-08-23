@@ -25,6 +25,7 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onTimelineLabelChange,
     required this.onOpenSongAddToMenu,
     required this.onOpenSongContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenAlbumAddMenu,
     required this.onOpenArtistContextMenu,
@@ -59,6 +60,7 @@ class _RecentPlayedPanel extends StatelessWidget {
   final void Function(Offset position, LibrarySong song) onOpenSongAddToMenu;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenSongContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
   final void Function(Offset position, RecentAlbumView album)
   onOpenAlbumAddMenu;
@@ -83,6 +85,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onToggleSelection: onToggleSongSelection,
         onOpenAddToMenu: onOpenSongAddToMenu,
         onOpenContextMenu: onOpenSongContextMenu,
+        onToggleFavorite: onToggleFavorite,
         onPlayNext: onPlayNext,
         onOpenMoreMenu: onOpenSongContextMenu,
         onTimelineLabelChange: onTimelineLabelChange,

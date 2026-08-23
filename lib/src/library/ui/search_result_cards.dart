@@ -81,6 +81,7 @@ class _SearchResultCard extends StatefulWidget {
   const _SearchResultCard({
     required this.card,
     required this.type,
+    required this.query,
     required this.selected,
     required this.multiSelect,
     required this.onOpen,
@@ -91,6 +92,7 @@ class _SearchResultCard extends StatefulWidget {
 
   final SearchResult card;
   final SearchResultType type;
+  final String query;
   final bool selected;
   final bool multiSelect;
   final VoidCallback onOpen;
@@ -112,6 +114,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       return SearchArtistCard(
         title: widget.card.title,
         subtitle: widget.card.subtitle,
+        searchQuery: widget.query,
         artworkPath: widget.card.artworkUrl,
         selected: widget.selected,
         multiSelect: widget.multiSelect,
@@ -156,6 +159,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
               _SearchGridCardBody(
                 title: widget.card.title,
                 subtitle: widget.card.subtitle,
+                query: widget.query,
                 artwork: _SearchCardArtwork(
                   file: artworkFile,
                   size: 156,
@@ -210,11 +214,13 @@ class _SearchGridCardBody extends StatelessWidget {
   const _SearchGridCardBody({
     required this.title,
     required this.subtitle,
+    required this.query,
     required this.artwork,
   });
 
   final String title;
   final String subtitle;
+  final String query;
   final Widget artwork;
 
   @override
@@ -225,8 +231,9 @@ class _SearchGridCardBody extends StatelessWidget {
       children: [
         artwork,
         const SizedBox(height: 12),
-        Text(
-          title,
+        SearchMatchText(
+          text: title,
+          query: query,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -237,8 +244,9 @@ class _SearchGridCardBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          subtitle,
+        SearchMatchText(
+          text: subtitle,
+          query: query,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(color: colors.textMuted, fontSize: 12),

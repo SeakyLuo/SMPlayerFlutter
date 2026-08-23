@@ -27,10 +27,10 @@ class LocalPageScaffold extends StatelessWidget {
     return Padding(
       padding:
           compact
-              ? const EdgeInsets.fromLTRB(12, 6, 0, 0)
+              ? const EdgeInsets.fromLTRB(4, 6, 0, 0)
               : underWorkspaceHeader
-              ? const EdgeInsets.fromLTRB(24, 0, 6, 0)
-              : const EdgeInsets.fromLTRB(24, 18, 6, 0),
+              ? const EdgeInsets.fromLTRB(6, 0, 6, 0)
+              : const EdgeInsets.fromLTRB(6, 18, 6, 0),
       child: SizedBox.expand(child: child),
     );
   }
@@ -62,7 +62,7 @@ class LocalPageContentPanel extends StatelessWidget {
         controller: scrollController,
         scrollbarGutter: localPageCompactScrollbarGutter,
         padding: EdgeInsets.fromLTRB(
-          0,
+          8,
           4,
           localPageCompactScrollbarGutter,
           bottomPadding,
@@ -77,7 +77,7 @@ class LocalPageContentPanel extends StatelessWidget {
     return _LocalScrollableContent(
       controller: scrollController,
       scrollbarGutter: localPageWideScrollbarGutter,
-      padding: EdgeInsets.fromLTRB(6, 4, 24, bottomPadding),
+      padding: EdgeInsets.fromLTRB(12, 4, 24, bottomPadding),
       child: child,
     );
   }

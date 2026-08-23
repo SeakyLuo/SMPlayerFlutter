@@ -113,6 +113,10 @@ class LibraryLyricsService {
     return File(filePath).readAsString();
   }
 
+  Future<LyricsSnapshot> getLocalLyricsForPath(String songPath) {
+    return _getSongLyricsByPath(songPath);
+  }
+
   Future<void> saveSongLyrics(
     File databaseFile,
     int songId,

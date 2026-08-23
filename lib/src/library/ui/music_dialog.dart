@@ -109,6 +109,7 @@ class MusicDialog extends ConsumerStatefulWidget {
     this.onPlayTrack,
     this.onReveal,
     this.onSaved,
+    this.initialLyricsMatch,
   });
 
   final LibrarySong song;
@@ -122,6 +123,7 @@ class MusicDialog extends ConsumerStatefulWidget {
   final MusicDialogPlayTrackCallback? onPlayTrack;
   final ValueChanged<String>? onReveal;
   final VoidCallback? onSaved;
+  final String? initialLyricsMatch;
 
   @override
   ConsumerState<MusicDialog> createState() => _MusicDialogState();
@@ -141,7 +143,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _saving = false;
   var _updatingControllers = false;
   var _showLyricsTimestamps = true;
-  var _showArtworkDeleteConfirm = false;
+  var _artworkDeletePending = false;
   var _discardLyricsConfirmOpen = false;
   SongPropertiesSnapshot? _properties;
   SongPropertiesSnapshot? _originalProperties;
@@ -462,7 +464,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 artworkUrl: _displayArtworkUrl,
                 artworkDirty: _artworkDirty,
                 recommendation: _artworkMissing ? _artworkRecommendation : null,
-                showDeleteConfirm: _showArtworkDeleteConfirm,
                 onApplyRecommendation: _applyAlbumArtRecommendation,
                 onChangeArtwork: _changeArtwork,
                 onChooseArtworkFromLibrary: () {
@@ -472,17 +473,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 },
                 onSaveArtwork: _saveArtwork,
                 onResetArtwork: _resetArtwork,
-                onRequestDelete: () {
-                  setState(() {
-                    _showArtworkDeleteConfirm = true;
-                  });
-                },
-                onConfirmDelete: _deleteArtwork,
-                onCancelDelete: () {
-                  setState(() {
-                    _showArtworkDeleteConfirm = false;
-                  });
-                },
+                onRequestDelete: _deleteArtwork,
               ),
             },
           ),

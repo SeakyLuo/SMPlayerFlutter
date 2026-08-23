@@ -27,9 +27,6 @@ class SmPlayerShellWorkspaceKeys {
 
 const _workspaceNavigationAppBarTopRowHeight = 40.0;
 const _workspaceNavigationAppBarBottomPadding = 8.0;
-const _workspaceNavigationAppBarHeight =
-    _workspaceNavigationAppBarTopRowHeight +
-    _workspaceNavigationAppBarBottomPadding;
 
 class SmPlayerWorkspace extends ConsumerStatefulWidget {
   const SmPlayerWorkspace({
@@ -244,6 +241,9 @@ class _WorkspacePageSurface extends StatelessWidget {
         (workspaceAppBarPortal?.replacesTitle == true
             ? ''
             : workspaceAppBarPortal?.title ?? synchronousPortalTitle ?? title);
+    final workspaceAppBarBottomPadding =
+        workspaceAppBarPortal?.bottomPadding ??
+        _workspaceNavigationAppBarBottomPadding;
     final workspaceNavigationAppBar =
         showNavigationAppBar && !overlayNavigationAppBar
             ? _WorkspaceNavigationAppBar(
@@ -268,6 +268,7 @@ class _WorkspacePageSurface extends StatelessWidget {
                       ? null
                       : workspaceAppBarPortal?.content),
               bottomContent: workspaceAppBarPortal?.bottomContent,
+              bottomPadding: workspaceAppBarBottomPadding,
               topInset: 0,
             )
             : null;
@@ -275,7 +276,8 @@ class _WorkspacePageSurface extends StatelessWidget {
         workspaceNavigationAppBar == null
             ? 0.0
             : workspaceAppBarPortal?.bottomContent == null
-            ? _workspaceNavigationAppBarHeight
+            ? _workspaceNavigationAppBarTopRowHeight +
+                workspaceAppBarBottomPadding
             : _workspaceNavigationAppBarTopRowHeight * 2;
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar || localTitleContent != null,
@@ -326,6 +328,7 @@ class _WorkspacePageSurface extends StatelessWidget {
                 titleContent: null,
                 actions: headeredPlaylistCommandBar,
                 bottomContent: null,
+                bottomPadding: _workspaceNavigationAppBarBottomPadding,
                 topInset: navigationAppBarTopInset,
               ),
             ),
@@ -423,6 +426,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
     required this.titleContent,
     required this.actions,
     required this.bottomContent,
+    required this.bottomPadding,
     required this.topInset,
   });
 
@@ -434,6 +438,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
   final Widget? titleContent;
   final Widget? actions;
   final Widget? bottomContent;
+  final double bottomPadding;
   final double topInset;
 
   @override
@@ -515,15 +520,12 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
               height:
                   topInset +
                   _workspaceNavigationAppBarTopRowHeight +
-                  (topInset == 0 ? _workspaceNavigationAppBarBottomPadding : 0),
+                  (topInset == 0 ? bottomPadding : 0),
               child: Column(
                 children: [
                   if (topInset > 0) SizedBox(height: topInset),
                   topRow,
-                  if (topInset == 0)
-                    const SizedBox(
-                      height: _workspaceNavigationAppBarBottomPadding,
-                    ),
+                  if (topInset == 0) SizedBox(height: bottomPadding),
                 ],
               ),
             )

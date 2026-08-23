@@ -4,8 +4,8 @@ const _recentSongActionButtonSize = 32.0;
 const _recentSongActionsSpacing = 4.0;
 const _recentSongActionsRightInset = 8.0;
 const _recentSongHoverActionsReservedWidth =
-    _recentSongActionButtonSize * 2 +
-    _recentSongActionsSpacing +
+    _recentSongActionButtonSize * 3 +
+    _recentSongActionsSpacing * 2 +
     _recentSongActionsRightInset;
 const _recentSongActionOverlayWidth =
     _recentSongHoverActionsReservedWidth + _recentSongActionButtonSize;
@@ -23,6 +23,7 @@ class _GridViewMusicItemControl extends StatefulWidget {
     required this.onToggleSelection,
     required this.onOpenAddToMenu,
     required this.onOpenContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenMoreMenu,
   });
@@ -38,6 +39,7 @@ class _GridViewMusicItemControl extends StatefulWidget {
   final VoidCallback onToggleSelection;
   final ValueChanged<Offset> onOpenAddToMenu;
   final ValueChanged<Offset> onOpenContextMenu;
+  final VoidCallback onToggleFavorite;
   final VoidCallback onPlayNext;
   final ValueChanged<Offset> onOpenMoreMenu;
 
@@ -362,6 +364,18 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                           mainAxisSize: MainAxisSize.min,
                           spacing: _recentSongActionsSpacing,
                           children: [
+                            _RecentSongActionButton(
+                              tooltip: context.smPlayerI18n.t(
+                                widget.song.favorite
+                                    ? 'context.removeFavorite'
+                                    : 'context.addFavorite',
+                              ),
+                              icon: SmPlayerFavoriteIcon(
+                                favorite: widget.song.favorite,
+                                size: 18,
+                              ),
+                              onPressed: widget.onToggleFavorite,
+                            ),
                             _RecentSongActionButton(
                               tooltip: context.smPlayerI18n.t(
                                 'context.playNext',

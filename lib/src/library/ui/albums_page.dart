@@ -23,6 +23,7 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/playback_queue_actions.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
+import 'album_artwork_dialog.dart';
 import 'album_tile.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
@@ -44,7 +45,6 @@ part 'albums_quick_jump.dart';
 part 'albums_progress.dart';
 part 'albums_page_panel.dart';
 part 'albums_empty_state.dart';
-part 'albums_art_preview_dialog.dart';
 part 'albums_colors.dart';
 part 'albums_page_search_actions.dart';
 part 'albums_page_selection_actions.dart';
@@ -661,14 +661,18 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       setState(_selection.cancel);
                     },
                   ),
-                  if (_albumArtPreview != null)
-                    _AlbumArtPreviewDialog(
-                      album: _albumArtPreview!,
-                      i18n: i18n,
+                  if (_albumArtPreview case final album?)
+                    AlbumArtworkDialog(
+                      albumName: album.name,
+                      artworkUrl: album.artworkSong!.thumbnailPath,
+                      songId: album.artworkSong!.id,
                       onClose: () {
                         setState(() {
                           _albumArtPreview = null;
                         });
+                      },
+                      onSaved: () {
+                        ref.invalidate(libraryContentDataProvider);
                       },
                     ),
                 ],

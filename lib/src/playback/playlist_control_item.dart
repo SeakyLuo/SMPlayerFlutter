@@ -12,6 +12,7 @@ import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.d
 import 'package:smplayer_flutter/src/library/ui/artwork_overlay_glass.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show formatDuration;
 import 'package:smplayer_flutter/src/playback/playing_wave.dart';
@@ -92,6 +93,8 @@ class PlaylistControlItem extends StatefulWidget {
     this.favoriteAsHoverAction = false,
     this.keepFavoriteActionInCompact = false,
     this.favoriteLoading = false,
+    this.searchQuery = '',
+    this.showBottomBorder = true,
   });
 
   final LibrarySong song;
@@ -128,6 +131,8 @@ class PlaylistControlItem extends StatefulWidget {
   final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
   final bool favoriteLoading;
+  final String searchQuery;
+  final bool showBottomBorder;
 
   @override
   State<PlaylistControlItem> createState() => _PlaylistControlItemState();
@@ -254,7 +259,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         decoration: BoxDecoration(
           color: rowBackgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border(bottom: BorderSide(color: colors.border)),
+          border:
+              widget.showBottomBorder
+                  ? Border(bottom: BorderSide(color: colors.border))
+                  : null,
           boxShadow:
               defaultColors
                   ? widget.selected || _hovered
@@ -420,15 +428,16 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               padding: rowPadding,
               child: Row(
                 children: [
-                  compactVariant
-                      ? SizedBox(
-                        width: 58,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: artwork,
-                        ),
-                      )
-                      : artwork,
+                  if (compactVariant)
+                    SizedBox(
+                      width: 58,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: artwork,
+                      ),
+                    )
+                  else
+                    artwork,
                   SizedBox(width: artworkGap),
                   Expanded(
                     flex: compact ? 1 : 12,
@@ -437,6 +446,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                           compactVariant ? const Offset(0, 0.83) : Offset.zero,
                       child: _QueueCopy(
                         song: widget.song,
+                        searchQuery: widget.searchQuery,
                         current: widget.current,
                         showAlbum: widget.showAlbum && compact,
                         compactVariant: compactVariant,
@@ -493,6 +503,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       child: _QueueMetadataLink(
                         key: const ValueKey('PlaylistControlItem.AlbumColumn'),
                         text: displayAlbum(widget.song, i18n),
+                        searchQuery: widget.searchQuery,
                         foregroundColor:
                             widget.current
                                 ? colors.currentMuted
@@ -897,6 +908,7 @@ class _QueueArtwork extends StatelessWidget {
 class _QueueCopy extends StatelessWidget {
   const _QueueCopy({
     required this.song,
+    required this.searchQuery,
     required this.current,
     required this.showAlbum,
     required this.compactVariant,
@@ -906,6 +918,7 @@ class _QueueCopy extends StatelessWidget {
   });
 
   final LibrarySong song;
+  final String searchQuery;
   final bool current;
   final bool showAlbum;
   final bool compactVariant;
@@ -919,9 +932,10 @@ class _QueueCopy extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        SearchMatchText(
           key: const ValueKey('PlaylistControlItem.Title'),
-          song.title,
+          text: song.title,
+          query: searchQuery,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -935,6 +949,7 @@ class _QueueCopy extends StatelessWidget {
         const SizedBox(height: 5),
         _QueueMetadata(
           song: song,
+          searchQuery: searchQuery,
           current: current,
           showAlbum: showAlbum,
           onSeeAlbum: onSeeAlbum,
@@ -949,6 +964,7 @@ class _QueueCopy extends StatelessWidget {
 class _QueueMetadata extends StatelessWidget {
   const _QueueMetadata({
     required this.song,
+    required this.searchQuery,
     required this.current,
     required this.showAlbum,
     required this.onSeeAlbum,
@@ -957,6 +973,7 @@ class _QueueMetadata extends StatelessWidget {
   });
 
   final LibrarySong song;
+  final String searchQuery;
   final bool current;
   final bool showAlbum;
   final VoidCallback? onSeeAlbum;
@@ -986,6 +1003,7 @@ class _QueueMetadata extends StatelessWidget {
         Flexible(
           child: _QueueMetadataLink(
             text: artist,
+            searchQuery: searchQuery,
             foregroundColor: color,
             hoverColor: hoverColor,
             onTap:
@@ -1007,6 +1025,7 @@ class _QueueMetadata extends StatelessWidget {
             child: _QueueMetadataLink(
               key: const ValueKey('PlaylistControlItem.InlineAlbum'),
               text: displayAlbum(song, i18n),
+              searchQuery: searchQuery,
               foregroundColor: color,
               hoverColor: hoverColor,
               onTap: onSeeAlbum,
@@ -1030,12 +1049,14 @@ class _QueueMetadataLink extends StatefulWidget {
     required this.foregroundColor,
     required this.hoverColor,
     required this.onTap,
+    this.searchQuery = '',
   });
 
   final String text;
   final Color foregroundColor;
   final Color hoverColor;
   final VoidCallback? onTap;
+  final String searchQuery;
 
   @override
   State<_QueueMetadataLink> createState() => _QueueMetadataLinkState();
@@ -1077,8 +1098,9 @@ class _QueueMetadataLinkState extends State<_QueueMetadataLink> {
         onTap: interactive ? widget.onTap : null,
         child: ColoredBox(
           color: Colors.transparent,
-          child: Text(
-            widget.text,
+          child: SearchMatchText(
+            text: widget.text,
+            query: widget.searchQuery,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: color, fontSize: 13),

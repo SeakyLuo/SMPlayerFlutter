@@ -248,6 +248,31 @@ class LyricsSnapshot {
   final List<LyricsLine> lines;
 }
 
+class LocalLyricsSearchMatch {
+  const LocalLyricsSearchMatch({
+    required this.songId,
+    required this.snippet,
+    required this.contextLines,
+    required this.timestampMs,
+    required this.additionalMatchCount,
+    required this.relevance,
+  });
+
+  final int songId;
+  final String snippet;
+  final List<String> contextLines;
+  final int? timestampMs;
+  final int additionalMatchCount;
+  final int relevance;
+}
+
+class LocalLyricsIndexProgress {
+  const LocalLyricsIndexProgress({required this.current, required this.total});
+
+  final int current;
+  final int total;
+}
+
 enum SongArtworkSource { cached, embedded, shell, none }
 
 class SongArtworkSnapshot {
