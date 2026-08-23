@@ -4,6 +4,7 @@ import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 
 import '../data/library_models.dart';
 import 'selected_collection_card_style.dart';
@@ -39,6 +40,7 @@ class AlbumTile extends StatefulWidget {
     required this.onPlayAlbum,
     required this.onAddAlbum,
     required this.onToggleSelection,
+    this.searchQuery = '',
     this.onOpenContextMenu,
   });
 
@@ -49,6 +51,7 @@ class AlbumTile extends StatefulWidget {
   final VoidCallback onPlayAlbum;
   final ValueChanged<Offset> onAddAlbum;
   final VoidCallback onToggleSelection;
+  final String searchQuery;
   final ValueChanged<Offset>? onOpenContextMenu;
 
   @override
@@ -120,8 +123,9 @@ class _AlbumTileState extends State<AlbumTile> {
                 children: [
                   AlbumArtControl(album: widget.album),
                   const SizedBox(height: 12),
-                  Text(
-                    widget.album.name,
+                  SearchMatchText(
+                    text: widget.album.name,
+                    query: widget.searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -135,8 +139,9 @@ class _AlbumTileState extends State<AlbumTile> {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    widget.album.subtitle ?? widget.album.artist,
+                  SearchMatchText(
+                    text: widget.album.subtitle ?? widget.album.artist,
+                    query: widget.searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

@@ -240,7 +240,7 @@ class _CompactArtistsPage extends StatelessWidget {
                                   itemCount: visibleArtists.length,
                                   itemBuilder: (context, index) {
                                     final artist = visibleArtists[index];
-                                    return _ArtistListItem(
+                                    return ArtistListItem(
                                       artist: artist,
                                       active: false,
                                       i18n: i18n,

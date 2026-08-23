@@ -25,6 +25,7 @@ class _RecentPlayedPage extends ConsumerWidget {
     required this.onToggleCollectionSelection,
     required this.onRecordCollectionPlayed,
     required this.onOpenSongContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenCollectionAddToMenu,
     required this.onOpenArtistContextMenu,
@@ -65,6 +66,7 @@ class _RecentPlayedPage extends ConsumerWidget {
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   )
   onOpenSongContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
   final void Function(
     Offset position,
@@ -167,6 +169,7 @@ class _RecentPlayedPage extends ConsumerWidget {
                 customPlaylists,
               );
             },
+            onToggleFavorite: onToggleFavorite,
             onPlayNext: onPlayNext,
             onOpenSongAddToMenu: (position, song) {
               onOpenCollectionAddToMenu(position, song.title, [

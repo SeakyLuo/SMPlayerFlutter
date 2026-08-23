@@ -175,7 +175,8 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
 
   bool get _lyricsDirty => _currentLyricsRawText != _originalLyricsText;
 
-  bool get _artworkDirty => _artworkSourcePath.isNotEmpty;
+  bool get _artworkDirty =>
+      _artworkSourcePath.isNotEmpty || _artworkDeletePending;
 
   bool get _lyricsCanToggleTimestamps {
     return RegExp(

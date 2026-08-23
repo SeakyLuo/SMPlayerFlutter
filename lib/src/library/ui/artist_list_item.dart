@@ -1,7 +1,8 @@
 part of 'artists_page.dart';
 
-class _ArtistListItem extends StatefulWidget {
-  const _ArtistListItem({
+class ArtistListItem extends StatefulWidget {
+  const ArtistListItem({
+    super.key,
     required this.artist,
     required this.active,
     required this.i18n,
@@ -11,6 +12,7 @@ class _ArtistListItem extends StatefulWidget {
     required this.locateHighlighted,
     required this.locatePulse,
     this.compactNavMinimal = false,
+    this.subtitle,
   });
 
   final ArtistGroup artist;
@@ -22,12 +24,13 @@ class _ArtistListItem extends StatefulWidget {
   final bool locateHighlighted;
   final int locatePulse;
   final bool compactNavMinimal;
+  final String? subtitle;
 
   @override
-  State<_ArtistListItem> createState() => _ArtistListItemState();
+  State<ArtistListItem> createState() => _ArtistListItemState();
 }
 
-class _ArtistListItemState extends State<_ArtistListItem>
+class _ArtistListItemState extends State<ArtistListItem>
     with SingleTickerProviderStateMixin {
   final _focusNode = FocusNode();
   late final AnimationController _locateHighlightController;
@@ -48,7 +51,7 @@ class _ArtistListItemState extends State<_ArtistListItem>
   }
 
   @override
-  void didUpdateWidget(covariant _ArtistListItem oldWidget) {
+  void didUpdateWidget(covariant ArtistListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.locateHighlighted &&
         widget.locatePulse != oldWidget.locatePulse) {
@@ -236,11 +239,12 @@ class _ArtistListItemState extends State<_ArtistListItem>
                                   ),
                                 ),
                                 Text(
-                                  _formatArtistSummary(
-                                    widget.i18n,
-                                    widget.artist.albumCount,
-                                    widget.artist.songs.length,
-                                  ),
+                                  widget.subtitle ??
+                                      _formatArtistSummary(
+                                        widget.i18n,
+                                        widget.artist.albumCount,
+                                        widget.artist.songs.length,
+                                      ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(

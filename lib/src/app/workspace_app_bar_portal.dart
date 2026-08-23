@@ -29,6 +29,7 @@ class WorkspaceAppBarPortalEntry {
     this.title,
     this.titleTooltip,
     this.bottomContent,
+    this.bottomPadding,
     this.replacesTitle = false,
   });
 
@@ -39,6 +40,7 @@ class WorkspaceAppBarPortalEntry {
   final String? title;
   final String? titleTooltip;
   final Widget? bottomContent;
+  final double? bottomPadding;
   final bool replacesTitle;
 }
 

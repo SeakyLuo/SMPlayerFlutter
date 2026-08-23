@@ -51,40 +51,6 @@ class _AlbumsColors {
     return brightness == Brightness.dark ? const Color(0x40dee7f2) : disabled;
   }
 
-  static Color previewBackdropFor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? const Color(0x9e04080d)
-        : const Color(0x61101824);
-  }
-
-  static Color previewDialogSurfaceFor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? const Color(0xfa161c24)
-        : const Color(0xfafafcff);
-  }
-
-  static Color previewDialogBorderFor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? const Color(0x1fdee0ec)
-        : const Color(0xadffffff);
-  }
-
-  static Color previewDialogShadowFor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? const Color(0x7a000000)
-        : const Color(0x2435495f);
-  }
-
-  static Color previewCloseSurfaceFor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? const Color(0x0effffff)
-        : const Color(0x94ffffff);
-  }
-
-  static Color surfaceControlHoverFor(Brightness brightness) {
-    return brightness == Brightness.dark ? const Color(0x290078d7) : accentSoft;
-  }
-
   static const accent = Color(0xff0078d7);
   static const accentStrong = Color(0xff0063b1);
   static const accentSoft = Color(0x1a0078d7);

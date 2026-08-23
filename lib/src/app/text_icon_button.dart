@@ -5,6 +5,10 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
+const smPlayerFilterPillHeight = 36.0;
+const smPlayerFilterPillBarHeight = 44.0;
+const smPlayerFilterPillHorizontalPadding = 18.0;
+
 const _textIconButtonGlassSettings = LiquidGlassSettings(
   blur: 30,
   thickness: 12,

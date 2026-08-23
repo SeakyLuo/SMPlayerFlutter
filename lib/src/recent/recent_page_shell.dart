@@ -1,16 +1,17 @@
 part of 'recent_page.dart';
 
 class _RecentPagePanel extends StatelessWidget {
-  const _RecentPagePanel({required this.child});
+  const _RecentPagePanel({this.topPadding = 6, required this.child});
 
+  final double topPadding;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         _recentMinimalPageHorizontalPadding,
-        6,
+        topPadding,
         _recentMinimalPageHorizontalPadding,
         0,
       ),

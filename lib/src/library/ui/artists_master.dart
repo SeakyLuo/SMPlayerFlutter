@@ -164,7 +164,7 @@ class _ArtistsMaster extends StatelessWidget {
                                     itemCount: visibleArtists.length,
                                     itemBuilder: (context, index) {
                                       final artist = visibleArtists[index];
-                                      return _ArtistListItem(
+                                      return ArtistListItem(
                                         artist: artist,
                                         active:
                                             artist.name == selectedArtistName,

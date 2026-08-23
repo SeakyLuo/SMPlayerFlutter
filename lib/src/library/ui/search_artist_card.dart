@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 
 class SearchArtistCard extends StatefulWidget {
@@ -10,6 +11,7 @@ class SearchArtistCard extends StatefulWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.searchQuery = '',
     required this.artworkPath,
     required this.selected,
     required this.multiSelect,
@@ -22,6 +24,7 @@ class SearchArtistCard extends StatefulWidget {
 
   final String title;
   final String subtitle;
+  final String searchQuery;
   final String artworkPath;
   final bool selected;
   final bool multiSelect;
@@ -102,8 +105,9 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.title,
+                        SearchMatchText(
+                          text: widget.title,
+                          query: widget.searchQuery,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -113,8 +117,9 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          widget.subtitle,
+                        SearchMatchText(
+                          text: widget.subtitle,
+                          query: widget.searchQuery,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

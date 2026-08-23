@@ -14,6 +14,7 @@ class _RecentSongGrid extends StatelessWidget {
     required this.onToggleSelection,
     required this.onOpenAddToMenu,
     required this.onOpenContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenMoreMenu,
     required this.onTimelineLabelChange,
@@ -38,6 +39,7 @@ class _RecentSongGrid extends StatelessWidget {
   final void Function(Offset position, LibrarySong song) onOpenAddToMenu;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
   final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
   onOpenMoreMenu;
@@ -137,6 +139,9 @@ class _RecentSongGrid extends StatelessWidget {
                                     },
                                     onOpenAddToMenu: (position) {
                                       onOpenAddToMenu(position, song);
+                                    },
+                                    onToggleFavorite: () {
+                                      onToggleFavorite(song);
                                     },
                                     onPlayNext: () {
                                       onPlayNext(song.id);

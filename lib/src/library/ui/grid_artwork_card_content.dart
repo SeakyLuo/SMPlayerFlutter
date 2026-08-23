@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 
 class GridArtworkAction {
@@ -30,6 +31,7 @@ class GridArtworkCardContent extends StatelessWidget {
     this.artworkKey,
     this.artworkShadow,
     this.selectedMark,
+    this.searchQuery = '',
   });
 
   final String title;
@@ -43,6 +45,7 @@ class GridArtworkCardContent extends StatelessWidget {
   final Key? artworkKey;
   final BoxShadow? artworkShadow;
   final Widget? selectedMark;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -71,8 +74,9 @@ class GridArtworkCardContent extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: 160,
-              child: Text(
-                title,
+              child: SearchMatchText(
+                text: title,
+                query: searchQuery,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -86,8 +90,9 @@ class GridArtworkCardContent extends StatelessWidget {
             const SizedBox(height: 3),
             SizedBox(
               width: 160,
-              child: Text(
-                subtitle,
+              child: SearchMatchText(
+                text: subtitle,
+                query: searchQuery,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

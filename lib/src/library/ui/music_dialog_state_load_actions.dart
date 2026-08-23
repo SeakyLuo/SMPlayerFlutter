@@ -9,7 +9,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       _loading = true;
       _lyricsLoading = true;
       _artworkLoading = true;
-      _showArtworkDeleteConfirm = false;
+      _artworkDeletePending = false;
       _artworkSourcePath = '';
       _artworkRecommendation = null;
       _artworkRecommendationLoading = false;
@@ -51,7 +51,10 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     try {
       final lyrics = await repository.getSongLyrics(
         songId,
-        mode: LyricsRequestMode.embedded,
+        mode:
+            widget.initialLyricsMatch == null
+                ? LyricsRequestMode.embedded
+                : LyricsRequestMode.local,
       );
       if (!_isActiveLoad(songId, generation)) {
         return;
@@ -64,6 +67,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         _lyricsController.text = lyrics.rawText;
         _lyricsLoading = false;
       });
+      _selectInitialLyricsMatch();
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
         _updateState(() {
@@ -72,6 +76,38 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         _showMessage(i18n.t('song.getLyricsFailed'));
       }
     }
+  }
+
+  void _selectInitialLyricsMatch() {
+    final match = widget.initialLyricsMatch;
+    if (match == null) {
+      return;
+    }
+    final start = _lyricsController.text.toLowerCase().indexOf(
+      match.toLowerCase(),
+    );
+    if (start < 0) {
+      return;
+    }
+    _lyricsController.selection = TextSelection(
+      baseOffset: start,
+      extentOffset: start + match.length,
+    );
+    final textBeforeMatch = _lyricsController.text.substring(0, start);
+    final lineIndex = '\n'.allMatches(textBeforeMatch).length;
+    final lineCount = '\n'.allMatches(_lyricsController.text).length + 1;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_lyricsScrollController.hasClients) {
+        return;
+      }
+      final position = _lyricsScrollController.position;
+      final target = position.maxScrollExtent * lineIndex / lineCount;
+      _lyricsScrollController.animateTo(
+        target.clamp(position.minScrollExtent, position.maxScrollExtent),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Future<void> _loadArtwork(

@@ -365,16 +365,36 @@ class _RecentArtistList extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final artist = group.items[index];
                           final key = 'artists:${artist.name}';
-                          return SearchArtistCard(
-                            title: artist.name,
+                          final artistGroup = ArtistGroup(
+                            name: artist.name,
+                            songs: artist.songs,
+                            albumCount:
+                                artist.songs
+                                    .map(
+                                      (song) => displayAlbum(
+                                        song,
+                                        context.smPlayerI18n,
+                                      ),
+                                    )
+                                    .toSet()
+                                    .length,
+                            artworkSongId:
+                                artist.songs
+                                    .firstWhere(
+                                      (song) =>
+                                          song.thumbnailPath ==
+                                          artist.artworkUrl,
+                                    )
+                                    .id,
+                          );
+                          return ArtistListItem(
+                            artist: artistGroup,
+                            active: selectedKeys.contains(key),
+                            i18n: context.smPlayerI18n,
+                            locateHighlighted: false,
+                            locatePulse: 0,
                             subtitle: formatRecentDateTime(artist.playedAt),
-                            artworkPath: artist.artworkUrl,
-                            selected: selectedKeys.contains(key),
-                            multiSelect: multiSelect,
-                            playTooltip: context.smPlayerI18n.t(
-                              'nowPlaying.randomPlay',
-                            ),
-                            onOpen: () {
+                            onPressed: () {
                               if (multiSelect) {
                                 onToggleSelection(key);
                               } else {
@@ -382,7 +402,6 @@ class _RecentArtistList extends StatelessWidget {
                               }
                             },
                             onPlay: () => onPlay(artist),
-                            onToggleSelection: () => onToggleSelection(key),
                             onOpenContextMenu:
                                 (position) =>
                                     onOpenContextMenu(position, artist),

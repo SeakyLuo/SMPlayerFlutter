@@ -16,6 +16,9 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    hide displayAlbum, displayArtists;
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
@@ -28,7 +31,6 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
-import 'package:smplayer_flutter/src/library/ui/search_artist_card.dart';
 import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -72,7 +74,7 @@ const _recentCollectionColumnGap = 30.0;
 const _recentCollectionRowGap = 26.0;
 const _recentArtistMinColumnWidth = 260.0;
 const _recentArtistColumnGap = 12.0;
-const _recentArtistRowHeight = 86.0;
+const _recentArtistRowHeight = artistRowHeight;
 const _recentArtistRowGap = 2.0;
 const _recentSongTileWidth = 270.0;
 const _recentSongTileColumnGap = 28.0;
@@ -189,6 +191,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
         routePath: routePath,
         title: title,
         replacesTitle: true,
+        bottomPadding: 2,
         content: _RecentAppBarTabs(
           controller: _tabController,
           i18n: i18n,
@@ -367,6 +370,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 )
                 .toList();
         return _RecentPagePanel(
+          topPadding: 0,
           child: LayoutBuilder(
             builder: (context, _) {
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
@@ -428,6 +432,17 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 },
                                 onPlaySong: _playSong,
                                 onPlayNext: _playNext,
+                                onToggleFavorite: (song) {
+                                  unawaited(
+                                    setSongsFavoriteWithUndo(
+                                      context: context,
+                                      ref: ref,
+                                      i18n: i18n,
+                                      songIds: [song.id],
+                                      favorite: !song.favorite,
+                                    ),
+                                  );
+                                },
                                 onToggleSelection: _toggleSongSelection,
                                 onOpenSongAddToMenu: _showCollectionAddToMenu,
                                 onOpenSongContextMenu: _showSongContextMenu,
@@ -475,6 +490,17 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 onPlaySongs: _playSongIds,
                                 onPlaySong: _playSong,
                                 onPlayNext: _playNext,
+                                onToggleFavorite: (song) {
+                                  unawaited(
+                                    setSongsFavoriteWithUndo(
+                                      context: context,
+                                      ref: ref,
+                                      i18n: i18n,
+                                      songIds: [song.id],
+                                      favorite: !song.favorite,
+                                    ),
+                                  );
+                                },
                                 onToggleSongSelection: _toggleSongSelection,
                                 onToggleCollectionSelection:
                                     _toggleCollectionSelection,
