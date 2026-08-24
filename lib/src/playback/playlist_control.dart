@@ -33,6 +33,7 @@ class PlaylistControlEntry {
     this.keepFavoriteActionInCompact = false,
     this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
+    this.favoriteSwipeEnabled = true,
     this.playNextLabel,
     this.removeLabel,
     this.addToPlaylistLabel,
@@ -66,6 +67,7 @@ class PlaylistControlEntry {
   final bool keepFavoriteActionInCompact;
   final bool keepAddToActionInCompact;
   final bool favoriteLoading;
+  final bool favoriteSwipeEnabled;
   final String? playNextLabel;
   final String? removeLabel;
   final String? addToPlaylistLabel;
@@ -181,6 +183,8 @@ class PlaylistControl extends StatelessWidget {
       keepFavoriteActionInCompact: entry.keepFavoriteActionInCompact,
       keepAddToActionInCompact: entry.keepAddToActionInCompact,
       favoriteLoading: entry.favoriteLoading,
+      swipeEnabled: onReorder == null,
+      favoriteSwipeEnabled: entry.favoriteSwipeEnabled,
       playNextLabel: entry.playNextLabel,
       removeLabel: entry.removeLabel,
       addToPlaylistLabel: entry.addToPlaylistLabel,

@@ -20,6 +20,8 @@ class AlbumView extends AlbumTileData {
   });
 
   final List<String> artists;
+
+  String get preferenceId => songs.first.album.trim();
 }
 
 List<AlbumView> buildAlbumViews(List<LibrarySong> songs, SmPlayerI18n i18n) {

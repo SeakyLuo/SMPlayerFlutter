@@ -116,28 +116,29 @@ class SmPlayerTextIconButton extends StatefulWidget {
 class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
   @override
   Widget build(BuildContext context) {
-    if (!widget.tooltipEnabled) {
-      return _SmPlayerTextIconButtonInteraction(configuration: widget);
-    }
-    final tooltip = widget.tooltip ?? (widget.showLabel ? null : widget.label);
-    if (tooltip == null) {
-      return _SmPlayerTextIconButtonInteraction(configuration: widget);
-    }
-    return _SmPlayerTextIconButtonInteraction(
+    final tooltip =
+        widget.tooltipEnabled
+            ? widget.tooltip ?? (widget.showLabel ? null : widget.label)
+            : null;
+    final button = _SmPlayerTextIconButtonInteraction(
       configuration: widget,
-      tooltip: tooltip,
+      semanticTooltip: tooltip,
     );
+    if (tooltip == null) {
+      return button;
+    }
+    return Tooltip(message: tooltip, child: button);
   }
 }
 
 class _SmPlayerTextIconButtonInteraction extends StatefulWidget {
   const _SmPlayerTextIconButtonInteraction({
     required this.configuration,
-    this.tooltip,
+    this.semanticTooltip,
   });
 
   final SmPlayerTextIconButton configuration;
-  final String? tooltip;
+  final String? semanticTooltip;
 
   @override
   State<_SmPlayerTextIconButtonInteraction> createState() =>
@@ -328,7 +329,7 @@ class _SmPlayerTextIconButtonInteractionState
             button: true,
             enabled: enabled,
             label: config.showLabel ? null : config.label,
-            tooltip: widget.tooltip,
+            tooltip: widget.semanticTooltip,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapUp: enabled ? (_) => config.onPressed?.call() : null,
@@ -338,8 +339,7 @@ class _SmPlayerTextIconButtonInteractionState
         ),
       ),
     );
-    final tooltip = widget.tooltip;
-    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
+    return button;
   }
 
   void _setHovered(bool hovered) {

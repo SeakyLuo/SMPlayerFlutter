@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "ignoré",
   "settings.lyricsBatchStarting": "Préparation de la tâche de paroles",
   "settings.lyricsBatchStopped": "L'ajout de paroles s'est arrêté",
+  "settings.lyricsBatchCancelConfirmTitle": "Annuler l’ajout groupé de paroles ?",
+  "settings.lyricsBatchCancelConfirmMessage": "La progression et les résultats de cette tâche seront abandonnés. Les paroles déjà écrites ne seront pas annulées.",
   "settings.lyrics": "Paroles",
   "settings.mode": "mode",
   "settings.musicFolderPlaceholder": "Chemin du dossier racine de la bibliothèque musicale",

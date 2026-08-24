@@ -98,7 +98,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 ..sort(
                   (left, right) => compareArtistText(left.title, right.title),
                 );
-
           if (routeAlbumName.isEmpty || albumSongs.isEmpty) {
             return _AlbumDetailPanel(
               child: _AlbumDetailEmptyState(
@@ -107,6 +106,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
               ),
             );
           }
+          final preferenceAlbumId = song_display.canonicalAlbumName(
+            albumSongs.first,
+          );
 
           _recordBrowseAfterFrame(routeAlbumName);
 
@@ -141,7 +143,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 canEditArtwork: true,
                 canSetPreferred: true,
                 preferenceType: 'album',
-                preferenceItemId: routeAlbumName,
+                preferenceItemId: preferenceAlbumId,
                 onPlayTrack: (trackId, queueSongIds) {
                   _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
                 },
@@ -175,7 +177,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                       .read(libraryRepositoryProvider)
                       .addPreferenceItem(
                         'album',
-                        routeAlbumName,
+                        preferenceAlbumId,
                         getAlbumPreferenceDisplayName(
                           routeAlbumName,
                           albumSongs,

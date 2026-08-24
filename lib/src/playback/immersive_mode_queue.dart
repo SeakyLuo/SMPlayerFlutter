@@ -670,6 +670,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           playing: current && isPlaying,
           selected: selection.isSelected(index),
           selectionMode: selection.multiSelect,
+          swipeEnabled: _draggedQueueIndex == null && dropPosition == null,
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
           collapseCompactPrimaryActions: true,

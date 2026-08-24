@@ -310,6 +310,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       favoriteLoading:
           widget.type == HeaderedPlaylistType.favorites &&
           _pendingFavoriteSongIds.contains(song.id),
+      favoriteSwipeEnabled: widget.type != HeaderedPlaylistType.favorites,
       onActivateRow: () {
         widget.onPlayTrack(song.id, queueSongIds);
       },

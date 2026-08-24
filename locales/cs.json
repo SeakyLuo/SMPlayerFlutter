@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "přeskočeno",
   "settings.lyricsBatchStarting": "Příprava úlohy textů",
   "settings.lyricsBatchStopped": "Přidávání textů bylo zastaveno",
+  "settings.lyricsBatchCancelConfirmTitle": "Zrušit hromadné přidávání textů?",
+  "settings.lyricsBatchCancelConfirmMessage": "Průběh a výsledky této úlohy budou zahozeny. Již zapsané texty nebudou vráceny zpět.",
   "settings.lyrics": "Text písně",
   "settings.mode": "režimu",
   "settings.musicFolderPlaceholder": "Cesta ke kořenové složce hudební knihovny",

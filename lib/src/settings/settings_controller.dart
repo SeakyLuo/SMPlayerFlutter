@@ -29,6 +29,12 @@ class SettingsController extends ChangeNotifier {
 
   SettingsSnapshot get snapshot => _snapshot;
 
+  void restoreSnapshot(SettingsSnapshot snapshot) {
+    _snapshot = snapshot;
+    setSmPlayerGlobalSettingsSnapshot(_snapshot);
+    notifyListeners();
+  }
+
   Future<void> refresh() async {
     final databaseSnapshot = await repository?.getSettingsSnapshot();
     if (databaseSnapshot != null) {

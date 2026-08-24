@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "übersprungen",
   "settings.lyricsBatchStarting": "Textaufgabe vorbereiten",
   "settings.lyricsBatchStopped": "Das Hinzufügen von Liedtexten wurde gestoppt",
+  "settings.lyricsBatchCancelConfirmTitle": "Stapelweise Liedtexte abbrechen?",
+  "settings.lyricsBatchCancelConfirmMessage": "Fortschritt und Ergebnisse dieser Aufgabe werden verworfen. Bereits geschriebene Liedtexte werden nicht rückgängig gemacht.",
   "settings.lyrics": "Songtexte",
   "settings.mode": "Modus",
   "settings.musicFolderPlaceholder": "Pfad zum Stammordner der Musikbibliothek",

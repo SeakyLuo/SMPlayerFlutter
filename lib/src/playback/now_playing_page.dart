@@ -630,7 +630,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
     final repository = ref.read(libraryRepositoryProvider);
-    final preferences = await repository.getPreferenceSettings();
+    final preferences = await repository.getPreferenceSettings(
+      unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
+    );
     if (!mounted) {
       return;
     }

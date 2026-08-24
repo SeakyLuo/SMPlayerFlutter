@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "пропущено",
   "settings.lyricsBatchStarting": "Подготовка задачи для текстов песен",
   "settings.lyricsBatchStopped": "Добавление текстов остановлено",
+  "settings.lyricsBatchCancelConfirmTitle": "Отменить пакетное добавление текстов?",
+  "settings.lyricsBatchCancelConfirmMessage": "Ход и результаты этой задачи будут удалены. Уже записанные тексты не будут отменены.",
   "settings.lyrics": "Тексты песен",
   "settings.mode": "режим",
   "settings.musicFolderPlaceholder": "Путь к корневой папке музыкальной библиотеки",

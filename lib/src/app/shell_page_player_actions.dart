@@ -124,7 +124,9 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     }
 
     final repository = ref.read(libraryRepositoryProvider);
-    final preferences = await repository.getPreferenceSettings();
+    final preferences = await repository.getPreferenceSettings(
+      unknownAlbumName: i18n.t('common.albumUnknown'),
+    );
     final songIds = quickPlaySongIds(
       songs: songs,
       playlists: snapshot!.playlists,

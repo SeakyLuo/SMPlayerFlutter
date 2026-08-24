@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "スキップしました",
   "settings.lyricsBatchStarting": "歌詞の準備タスク",
   "settings.lyricsBatchStopped": "歌詞の追加を停止しました",
+  "settings.lyricsBatchCancelConfirmTitle": "歌詞の一括追加をキャンセルしますか？",
+  "settings.lyricsBatchCancelConfirmMessage": "今回の進行状況と結果は破棄されます。すでに書き込まれた歌詞は元に戻りません。",
   "settings.lyrics": "歌詞",
   "settings.mode": "モード",
   "settings.musicFolderPlaceholder": "音楽ライブラリのルートフォルダーのパス",

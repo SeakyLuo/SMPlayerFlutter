@@ -10,7 +10,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
         .read(libraryRepositoryProvider)
-        .getPreferenceLevel('album', album.name);
+        .getPreferenceLevel('album', album.preferenceId);
     if (!mounted) {
       return;
     }
@@ -113,12 +113,12 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
               : () {
                 ref
                     .read(libraryRepositoryProvider)
-                    .removePreferenceItem('album', album.name);
+                    .removePreferenceItem('album', album.preferenceId);
               },
       onSetPreference: (level) {
         ref
             .read(libraryRepositoryProvider)
-            .addPreferenceItem('album', album.name, album.name, level);
+            .addPreferenceItem('album', album.preferenceId, album.name, level);
       },
     );
   }

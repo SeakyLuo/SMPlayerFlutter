@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "hoppade över",
   "settings.lyricsBatchStarting": "Förbereder textuppgift",
   "settings.lyricsBatchStopped": "Tillägg av texter har stoppats",
+  "settings.lyricsBatchCancelConfirmTitle": "Avbryta batchtillägg av låttexter?",
+  "settings.lyricsBatchCancelConfirmMessage": "Förloppet och resultaten för den här uppgiften tas bort. Redan sparade låttexter återställs inte.",
   "settings.lyrics": "Texter",
   "settings.mode": "läge",
   "settings.musicFolderPlaceholder": "Sökväg till musikbibliotekets rotmapp",

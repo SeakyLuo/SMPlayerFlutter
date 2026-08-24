@@ -71,7 +71,8 @@ class LibraryDatabaseService {
         MainWindowBounds TEXT DEFAULT '',
         MainWindowMaximized INTEGER DEFAULT 0,
         LastDisplayMode INTEGER DEFAULT 0,
-        QuitOnClose INTEGER DEFAULT 1
+        QuitOnClose INTEGER DEFAULT 1,
+        AiAgentEnabled INTEGER DEFAULT 0
       )
     ''');
     db.execute('''
@@ -459,6 +460,7 @@ class LibraryDatabaseService {
       'MainWindowMaximized': 'INTEGER DEFAULT 0',
       'LastDisplayMode': 'INTEGER DEFAULT 0',
       'QuitOnClose': 'INTEGER DEFAULT 1',
+      'AiAgentEnabled': 'INTEGER DEFAULT 0',
     });
     _addColumnsIfMissing(db, 'Music', {
       'Path': "TEXT DEFAULT ''",
