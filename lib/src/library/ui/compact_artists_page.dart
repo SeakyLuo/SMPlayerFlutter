@@ -73,7 +73,8 @@ class _CompactArtistsPage extends StatelessWidget {
   final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
+  final FutureOr<void> Function(Offset position, ArtistGroup artist)
+  onOpenArtistMenu;
   final void Function({
     required Offset position,
     required ArtistGroup artist,
@@ -255,7 +256,10 @@ class _CompactArtistsPage extends StatelessWidget {
                                         onPlayArtist(artist);
                                       },
                                       onOpenContextMenu: (position) {
-                                        onOpenArtistMenu(position, artist);
+                                        return onOpenArtistMenu(
+                                          position,
+                                          artist,
+                                        );
                                       },
                                     );
                                   },

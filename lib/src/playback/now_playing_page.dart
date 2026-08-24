@@ -526,7 +526,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         );
                       },
                       onOpenAddToPlaylist: (buttonContext, song) {
-                        _showQueueAddToPlaylistMenu(
+                        return _showQueueAddToPlaylistMenu(
                           buttonContext,
                           song,
                           customPlaylists,
@@ -548,17 +548,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         );
                       },
                       onOpenContextMenu: (position, song, queueIndex) {
-                        unawaited(
-                          _showQueueContextMenu(
-                            position,
-                            song,
-                            queueSongIds,
-                            queueIndex,
-                            customPlaylists,
-                            folders,
-                            _effectivePlaylists(snapshot.playlists),
-                            songsById,
-                          ),
+                        return _showQueueContextMenu(
+                          position,
+                          song,
+                          queueSongIds,
+                          queueIndex,
+                          customPlaylists,
+                          folders,
+                          _effectivePlaylists(snapshot.playlists),
+                          songsById,
                         );
                       },
                       compactScrollbarTrailingOffset: 8,
@@ -836,7 +834,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     if (!mounted) {
       return;
     }
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
@@ -1082,13 +1080,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     );
   }
 
-  void _showQueueAddToPlaylistMenu(
+  Future<void> _showQueueAddToPlaylistMenu(
     BuildContext buttonContext,
     LibrarySong song,
     List<MultiSelectCommandBarPlaylist> playlists,
     List<LibraryPlaylist> allPlaylists,
     Map<int, LibrarySong> songsById,
-  ) {
+  ) async {
     final box = buttonContext.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset(0, box.size.height + 8));
     final i18n = context.smPlayerI18n;
@@ -1127,7 +1125,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
         );
       },
     );
-    showMenuFlyout(context, position: position, items: addToItem!.submenu);
+    await showMenuFlyout(
+      context,
+      position: position,
+      items: addToItem!.submenu,
+    );
   }
 
   Future<void> _revealPath(String targetPath) async {

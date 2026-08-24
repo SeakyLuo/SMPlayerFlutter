@@ -53,7 +53,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
         _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [

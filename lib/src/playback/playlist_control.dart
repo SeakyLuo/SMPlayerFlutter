@@ -31,6 +31,7 @@ class PlaylistControlEntry {
     this.showFavoriteAction = true,
     this.favoriteAsHoverAction = false,
     this.keepFavoriteActionInCompact = false,
+    this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
     this.playNextLabel,
     this.removeLabel,
@@ -63,6 +64,7 @@ class PlaylistControlEntry {
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
+  final bool keepAddToActionInCompact;
   final bool favoriteLoading;
   final String? playNextLabel;
   final String? removeLabel;
@@ -74,10 +76,10 @@ class PlaylistControlEntry {
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onToggleFavoriteClick;
-  final ValueChanged<BuildContext>? onAddToPlaylistClick;
+  final PlaylistControlMenuHandler? onAddToPlaylistClick;
   final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final PlaylistControlContextMenuHandler onOpenContextMenu;
   final ValueChanged<String>? onSeeArtist;
   final VoidCallback? onSeeAlbum;
 }
@@ -177,6 +179,7 @@ class PlaylistControl extends StatelessWidget {
       showFavoriteAction: entry.showFavoriteAction,
       favoriteAsHoverAction: entry.favoriteAsHoverAction,
       keepFavoriteActionInCompact: entry.keepFavoriteActionInCompact,
+      keepAddToActionInCompact: entry.keepAddToActionInCompact,
       favoriteLoading: entry.favoriteLoading,
       playNextLabel: entry.playNextLabel,
       removeLabel: entry.removeLabel,

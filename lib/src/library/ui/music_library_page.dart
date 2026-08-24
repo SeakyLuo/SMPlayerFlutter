@@ -457,7 +457,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                       buttonContext,
                                                       song,
                                                     ) {
-                                                      _showSongAddToMenu(
+                                                      return _showSongAddToMenu(
                                                         buttonContext,
                                                         song,
                                                         customPlaylists,
@@ -467,7 +467,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                       position,
                                                       song,
                                                     ) {
-                                                      _openSongContextMenu(
+                                                      return _openSongContextMenu(
                                                         position,
                                                         song,
                                                         sortedSongs,
@@ -532,7 +532,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                       buttonContext,
                                                       song,
                                                     ) {
-                                                      _showSongAddToMenu(
+                                                      return _showSongAddToMenu(
                                                         buttonContext,
                                                         song,
                                                         customPlaylists,
@@ -542,7 +542,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                                                       position,
                                                       song,
                                                     ) {
-                                                      _openSongContextMenu(
+                                                      return _openSongContextMenu(
                                                         position,
                                                         song,
                                                         sortedSongs,
@@ -738,7 +738,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     });
   }
 
-  void _openSongContextMenu(
+  FutureOr<void> _openSongContextMenu(
     Offset position,
     LibrarySong song,
     List<LibrarySong> sortedSongs,
@@ -762,10 +762,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         selectedVisibleSongs,
         customPlaylists,
       );
-      return;
+      return Future<void>.value();
     }
 
-    _showSongContextMenu(
+    return _showSongContextMenu(
       position,
       song,
       sortedSongs.map((song) => song.id).toList(),
@@ -790,7 +790,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     if (!mounted) {
       return;
     }
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(

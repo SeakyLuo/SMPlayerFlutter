@@ -38,7 +38,8 @@ class FolderUpdateResultFileSection extends StatelessWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final ValueChanged<int> onPlay;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final double maxHeight;
 
   @override
@@ -206,7 +207,7 @@ class _FolderUpdateResultRow extends StatefulWidget {
   final bool current;
   final bool isPlaying;
   final VoidCallback? onPlay;
-  final ValueChanged<Offset>? onOpenSongMenu;
+  final FutureOr<void> Function(Offset)? onOpenSongMenu;
 
   @override
   State<_FolderUpdateResultRow> createState() => _FolderUpdateResultRowState();
@@ -214,6 +215,23 @@ class _FolderUpdateResultRow extends StatefulWidget {
 
 class _FolderUpdateResultRowState extends State<_FolderUpdateResultRow> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenSongMenu!(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +241,10 @@ class _FolderUpdateResultRowState extends State<_FolderUpdateResultRow> {
       playable: playable,
       odd: widget.odd,
     );
-    final rowColor = _hovered && playable ? colors.rowHover : background;
+    final rowColor =
+        (_hovered || _contextMenuOpen) && playable
+            ? colors.rowHover
+            : background;
 
     return MouseRegion(
       cursor: playable ? SystemMouseCursors.click : MouseCursor.defer,
@@ -234,7 +255,7 @@ class _FolderUpdateResultRowState extends State<_FolderUpdateResultRow> {
         onSecondaryTapDown:
             playable
                 ? (details) =>
-                    widget.onOpenSongMenu?.call(details.globalPosition)
+                    unawaited(_openContextMenu(details.globalPosition))
                 : null,
         child: Container(
           decoration: BoxDecoration(

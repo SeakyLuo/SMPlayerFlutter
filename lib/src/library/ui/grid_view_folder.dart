@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../i18n/app_i18n.dart';
@@ -35,7 +37,7 @@ class LocalGridViewFolder extends StatelessWidget {
   final bool isCompactLayout;
   final SmPlayerI18n i18n;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
@@ -180,7 +182,7 @@ class DraggableLocalFolderCard extends StatelessWidget {
   final bool treeExpandable;
   final VoidCallback? onToggleTreeExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;

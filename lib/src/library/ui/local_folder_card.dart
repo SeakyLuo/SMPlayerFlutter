@@ -55,12 +55,13 @@ class LocalFolderCard extends StatefulWidget {
   final bool treeExpandable;
   final VoidCallback? onToggleTreeExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
-  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final FutureOr<void> Function(FolderNode folder, Offset position)
+  onOpenFolderMenu;
   final ValueChanged<String> onToggleSelection;
   final bool Function(FolderNode folder, LocalItemsDragPayload payload)?
   onWillAcceptDrop;
@@ -75,6 +76,24 @@ class LocalFolderCard extends StatefulWidget {
 class _LocalFolderCardState extends State<LocalFolderCard> {
   var _hovered = false;
   var _focused = false;
+  var _addMenuOpen = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenFolderMenu(widget.folder, position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,8 +145,13 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       Theme.of(context).brightness,
     );
-    final active = widget.selected || _hovered || _focused;
-    final hovered = _hovered || _focused;
+    final active =
+        widget.selected ||
+        _hovered ||
+        _focused ||
+        _addMenuOpen ||
+        _contextMenuOpen;
+    final hovered = _hovered || _focused || _addMenuOpen || _contextMenuOpen;
     final hoverActionsOffset =
         Directionality.of(context) == TextDirection.ltr
             ? const Offset(0.18, 0)
@@ -138,8 +162,7 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
             : const Duration(milliseconds: 160);
     return GestureDetector(
       onSecondaryTapDown:
-          (details) =>
-              widget.onOpenFolderMenu(widget.folder, details.globalPosition),
+          (details) => unawaited(_openContextMenu(details.globalPosition)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap:
@@ -212,7 +235,9 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                               folder: widget.folder,
                               i18n: widget.i18n,
                               onPlayFolder: widget.onPlayFolder,
-                              onAddFolder: widget.onAddFolder,
+                              onAddFolder: (_, position) {
+                                unawaited(_openAddMenu(position));
+                              },
                             ),
                           ),
                         ),
@@ -266,13 +291,17 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       Theme.of(context).brightness,
     );
-    final active = widget.selected || _hovered || _focused;
+    final active =
+        widget.selected ||
+        _hovered ||
+        _focused ||
+        _addMenuOpen ||
+        _contextMenuOpen;
     final hasTreeToggle =
         widget.onToggleTreeExpanded != null && widget.treeExpandable;
     return GestureDetector(
       onSecondaryTapDown:
-          (details) =>
-              widget.onOpenFolderMenu(widget.folder, details.globalPosition),
+          (details) => unawaited(_openContextMenu(details.globalPosition)),
       child: InkWell(
         onTap:
             widget.multiSelect
@@ -427,11 +456,10 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                               _LocalIconAction.positioned(
                                 tooltip: widget.i18n.t('context.addToPlaylist'),
                                 icon: FluentIcons.add_20_regular,
-                                onPressedAtBottom:
-                                    (position) => widget.onAddFolder(
-                                      widget.folder,
-                                      position,
-                                    ),
+                                active: _addMenuOpen,
+                                onPressedAtBottom: (position) {
+                                  unawaited(_openAddMenu(position));
+                                },
                                 enabled:
                                     widget.folder.subtreeSongIds.isNotEmpty,
                               ),
@@ -491,6 +519,24 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
 
   void _open() {
     widget.onOpenFolder(widget.folder.relativePath);
+  }
+
+  Future<void> _openAddMenu(Offset position) async {
+    setState(() {
+      _addMenuOpen = true;
+    });
+    try {
+      await widget.onAddFolder(widget.folder, position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _addMenuOpen = false;
+        });
+      });
+    }
   }
 }
 
@@ -836,7 +882,7 @@ class _FolderCardActions extends StatelessWidget {
   final FolderNode folder;
   final SmPlayerI18n i18n;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -882,13 +928,15 @@ class _LocalIconAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
   }) : onPressedAtBottom = null,
-       enabled = true;
+       enabled = true,
+       active = false;
 
   const _LocalIconAction.positioned({
     required this.tooltip,
     required this.icon,
     required this.onPressedAtBottom,
     required this.enabled,
+    this.active = false,
   }) : onPressed = null;
 
   final String tooltip;
@@ -896,6 +944,7 @@ class _LocalIconAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final ValueChanged<Offset>? onPressedAtBottom;
   final bool enabled;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -914,12 +963,17 @@ class _LocalIconAction extends StatelessWidget {
         constraints: const BoxConstraints.tightFor(width: 28, height: 28),
         visualDensity: VisualDensity.compact,
         style: ButtonStyle(
-          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (active) {
+              return colors.accentSoft;
+            }
+            return Colors.transparent;
+          }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
               return colors.disabled;
             }
-            if (states.contains(WidgetState.hovered)) {
+            if (active || states.contains(WidgetState.hovered)) {
               return colors.accentStrong;
             }
             return colors.textStrong;

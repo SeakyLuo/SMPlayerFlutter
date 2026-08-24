@@ -32,7 +32,8 @@ class FolderUpdateResultDialog extends StatefulWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final ValueChanged<int> onPlay;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
   onApplyArtistSplits;
   final VoidCallback onDismissArtistSplitSuggestions;

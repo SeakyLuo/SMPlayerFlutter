@@ -122,14 +122,14 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     }
   }
 
-  void _showPlaylistMenu(
+  Future<void> _showPlaylistMenu(
     BuildContext context,
     SmPlayerI18n i18n,
     LibraryContentData snapshot,
     LibraryPlaylist playlist,
     Offset position,
-  ) {
-    showMenuFlyout(
+  ) async {
+    await showMenuFlyout(
       context,
       position: position,
       items: [

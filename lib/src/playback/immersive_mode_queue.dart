@@ -708,7 +708,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
             onToggleFavorite([song.id], !song.favorite);
           },
           onAddToPlaylistClick: (buttonContext) {
-            _showAddToPlaylistMenu(buttonContext, song);
+            return _showAddToPlaylistMenu(buttonContext, song);
           },
           onSeeAlbum: () {
             context.go(
@@ -721,7 +721,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
             onClose();
           },
           onOpenContextMenu: (position) {
-            _showQueueContextMenu(context, position, song, index);
+            return _showQueueContextMenu(context, position, song, index);
           },
         );
         final rowItem =

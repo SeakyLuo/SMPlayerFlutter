@@ -36,7 +36,7 @@ class _ArtistsDetail extends StatelessWidget {
     String? albumName,
   })
   onPlaySongs;
-  final void Function(
+  final FutureOr<void> Function(
     Offset position,
     ArtistGroup artist, {
     required bool showLocateArtist,
@@ -50,10 +50,11 @@ class _ArtistsDetail extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext context, LibrarySong song)
+  final FutureOr<void> Function(BuildContext context, LibrarySong song)
   onOpenSongAddToMenu;
   final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenSongContextMenu;
   final bool hasVisibleArtists;
   final bool compact;
   final bool compactHeaderInAppBar;

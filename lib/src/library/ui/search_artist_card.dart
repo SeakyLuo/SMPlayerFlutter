@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -32,7 +34,7 @@ class SearchArtistCard extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onPlay;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<SearchArtistCard> createState() => _SearchArtistCardState();
@@ -40,9 +42,27 @@ class SearchArtistCard extends StatefulWidget {
 
 class _SearchArtistCardState extends State<SearchArtistCard> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hoverActive = _hovered || _contextMenuOpen;
     final colors = _SearchArtistCardColors.forBrightness(
       Theme.of(context).brightness,
     );
@@ -61,7 +81,7 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
       child: GestureDetector(
         onTap: widget.multiSelect ? widget.onToggleSelection : widget.onOpen,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(_openContextMenu(details.globalPosition));
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
@@ -72,7 +92,7 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
             color:
                 widget.selected
                     ? colors.selectedSurface
-                    : _hovered
+                    : hoverActive
                     ? colors.hoverSurface
                     : Colors.transparent,
             border: Border.all(
@@ -81,7 +101,7 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
             ),
             borderRadius: BorderRadius.circular(10),
             boxShadow:
-                widget.selected || _hovered
+                widget.selected || hoverActive
                     ? const [
                       BoxShadow(
                         color: Color(0x141e2a3a),
@@ -97,7 +117,7 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
                 children: [
                   _SearchArtistArtwork(
                     artworkPath: widget.artworkPath,
-                    elevated: _hovered,
+                    elevated: hoverActive,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -132,7 +152,7 @@ class _SearchArtistCardState extends State<SearchArtistCard> {
                   ),
                 ],
               ),
-              if (_hovered && !widget.multiSelect)
+              if (hoverActive && !widget.multiSelect)
                 Positioned(
                   left: 0,
                   top: 0,

@@ -15,7 +15,7 @@ class _ArtistDetailHeader extends StatelessWidget {
   final bool responsive;
   final SmPlayerI18n i18n;
   final VoidCallback onPlaySongs;
-  final ValueChanged<Offset> onOpenArtistMenu;
+  final FutureOr<void> Function(Offset) onOpenArtistMenu;
 
   @override
   Widget build(BuildContext context) {

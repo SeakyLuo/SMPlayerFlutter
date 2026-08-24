@@ -98,7 +98,7 @@ class _SearchResultCard extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onPlay;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<_SearchResultCard> createState() => _SearchResultCardState();
@@ -106,6 +106,23 @@ class _SearchResultCard extends StatefulWidget {
 
 class _SearchResultCardState extends State<_SearchResultCard> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +144,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     }
     final artworkFile =
         widget.card.artworkUrl.isEmpty ? null : File(widget.card.artworkUrl);
+    final hoverActive = _hovered || _contextMenuOpen;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -143,7 +161,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       child: GestureDetector(
         onTap: widget.multiSelect ? widget.onToggleSelection : widget.onOpen,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(_openContextMenu(details.globalPosition));
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
@@ -166,7 +184,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
                   radius: 12,
                 ),
               ),
-              if (_hovered && !widget.multiSelect)
+              if (hoverActive && !widget.multiSelect)
                 Positioned(
                   top: 116,
                   right: 8,
@@ -190,7 +208,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     if (widget.selected) {
       return colors.cardSelected;
     }
-    if (_hovered) {
+    if (_hovered || _contextMenuOpen) {
       return colors.panel;
     }
     return Colors.transparent;

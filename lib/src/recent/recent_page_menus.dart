@@ -31,7 +31,7 @@ extension _RecentPageMenus on _RecentPageState {
     final canRemove =
         _activeTab == RecentTab.played &&
         _activePlayedFilter == RecentPlayedFilter.songs;
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
@@ -171,12 +171,12 @@ extension _RecentPageMenus on _RecentPageState {
     });
   }
 
-  void _showCollectionAddToMenu(
+  Future<void> _showCollectionAddToMenu(
     Offset position,
     String title,
     List<int> songIds,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = context.smPlayerI18n;
     final songsById = {
       for (final song in ref.read(recentPageDataProvider).value!.songs)
@@ -236,7 +236,7 @@ extension _RecentPageMenus on _RecentPageState {
       return;
     }
 
-    showMenuFlyout(context, position: position, items: addToItem.submenu);
+    await showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
   Future<void> _showArtistContextMenu(
@@ -310,7 +310,7 @@ extension _RecentPageMenus on _RecentPageState {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [

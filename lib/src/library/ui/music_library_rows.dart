@@ -38,9 +38,10 @@ class _CompactSongList extends StatelessWidget {
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(BuildContext buttonContext, LibrarySong song)
+  final FutureOr<void> Function(BuildContext buttonContext, LibrarySong song)
   onOpenAddToPlaylistMenu;
-  final void Function(Offset position, LibrarySong song) onOpenContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -86,12 +87,11 @@ class _CompactSongList extends StatelessWidget {
                 onPlayNext: () {
                   onPlayNext(song.id);
                 },
-                onOpenAddToPlaylistMenu: (buttonContext) {
-                  onOpenAddToPlaylistMenu(buttonContext, song);
-                },
-                onOpenContextMenu: (position) {
-                  onOpenContextMenu(position, song);
-                },
+                onOpenAddToPlaylistMenu:
+                    (buttonContext) =>
+                        onOpenAddToPlaylistMenu(buttonContext, song),
+                onOpenContextMenu:
+                    (position) => onOpenContextMenu(position, song),
               );
             },
           ),
@@ -250,8 +250,8 @@ class _CompactSongRow extends StatefulWidget {
   final VoidCallback onToggleSelection;
   final VoidCallback onToggleFavorite;
   final VoidCallback onPlayNext;
-  final ValueChanged<BuildContext> onOpenAddToPlaylistMenu;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(BuildContext) onOpenAddToPlaylistMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<_CompactSongRow> createState() => _CompactSongRowState();
@@ -259,20 +259,42 @@ class _CompactSongRow extends StatefulWidget {
 
 class _CompactSongRowState extends State<_CompactSongRow> {
   var _hovered = false;
+  var _menuOpen = false;
+
+  bool get _hoverActive => _hovered || _menuOpen;
+
+  Future<void> _openMenu(FutureOr<void> Function() open) async {
+    setState(() {
+      _menuOpen = true;
+    });
+    try {
+      await open();
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _menuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
+    final hoverActive = _hoverActive;
     final rowBackground =
         widget.selected
             ? colors.rowSelected
             : widget.current
             ? colors.rowCurrent
-            : _hovered
+            : hoverActive
             ? colors.rowHover
             : Colors.transparent;
     final rowSurface =
-        widget.selected || widget.current || _hovered
+        widget.selected || widget.current || hoverActive
             ? Color.alphaBlend(rowBackground, colors.panel)
             : Colors.transparent;
     return MouseRegion(
@@ -292,12 +314,15 @@ class _CompactSongRowState extends State<_CompactSongRow> {
         onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
         hoverColor: Colors.transparent,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(
+            _openMenu(() => widget.onOpenContextMenu(details.globalPosition)),
+          );
         },
         child: Container(
           key: ValueKey('MusicLibrary.CompactRow.${widget.song.id}'),
           decoration: BoxDecoration(
-            color: _hovered || widget.current ? rowSurface : Colors.transparent,
+            color:
+                hoverActive || widget.current ? rowSurface : Colors.transparent,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -305,7 +330,7 @@ class _CompactSongRowState extends State<_CompactSongRow> {
               padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
               decoration: BoxDecoration(
                 color:
-                    _hovered || widget.current
+                    hoverActive || widget.current
                         ? Colors.transparent
                         : rowSurface,
                 border: Border(top: BorderSide(color: colors.rowBorder)),
@@ -325,7 +350,7 @@ class _CompactSongRowState extends State<_CompactSongRow> {
                             size: 46,
                             current: widget.current,
                             playing: widget.playing,
-                            rowHovered: _hovered,
+                            rowHovered: hoverActive,
                             onPlay: widget.onAddNextAndPlay,
                             onTogglePlayPause: widget.onTogglePlayPause,
                           ),
@@ -439,16 +464,25 @@ class _CompactSongRowState extends State<_CompactSongRow> {
                     ],
                   ),
                   _CompactMusicLibraryRowActionOverlay(
-                    visible: _hovered,
+                    visible: hoverActive,
                     maskColor: rowSurface,
                     actions: _MusicLibraryRowActions(
                       song: widget.song,
                       visible: true,
                       i18n: widget.i18n,
                       onToggleFavorite: widget.onToggleFavorite,
-                      onAddToPlaylist: widget.onOpenAddToPlaylistMenu,
+                      onAddToPlaylist:
+                          (buttonContext) => unawaited(
+                            _openMenu(
+                              () =>
+                                  widget.onOpenAddToPlaylistMenu(buttonContext),
+                            ),
+                          ),
                       onPlayNext: widget.onPlayNext,
-                      onOpenContextMenu: widget.onOpenContextMenu,
+                      onOpenContextMenu:
+                          (position) => unawaited(
+                            _openMenu(() => widget.onOpenContextMenu(position)),
+                          ),
                     ),
                   ),
                 ],
@@ -476,9 +510,9 @@ class _MusicLibraryRowActions extends StatelessWidget {
   final bool visible;
   final SmPlayerI18n i18n;
   final VoidCallback onToggleFavorite;
-  final ValueChanged<BuildContext> onAddToPlaylist;
+  final FutureOr<void> Function(BuildContext) onAddToPlaylist;
   final VoidCallback onPlayNext;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {

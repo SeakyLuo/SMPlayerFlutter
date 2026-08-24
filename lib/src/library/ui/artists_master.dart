@@ -54,7 +54,8 @@ class _ArtistsMaster extends StatelessWidget {
   final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
+  final FutureOr<void> Function(Offset position, ArtistGroup artist)
+  onOpenArtistMenu;
   final void Function(Map<String, int> artistQuickJumpMap, String key)
   onJumpToArtistKey;
 
@@ -179,7 +180,10 @@ class _ArtistsMaster extends StatelessWidget {
                                           onPlayArtist(artist);
                                         },
                                         onOpenContextMenu: (position) {
-                                          onOpenArtistMenu(position, artist);
+                                          return onOpenArtistMenu(
+                                            position,
+                                            artist,
+                                          );
                                         },
                                       );
                                     },

@@ -172,8 +172,11 @@ extension _ArtistsPageActions on _ArtistsPageState {
     });
   }
 
-  void _showSongAddToMenu(BuildContext buttonContext, LibrarySong song) {
-    _showSongAddToMenuForArtistsPage(this, buttonContext, song);
+  Future<void> _showSongAddToMenu(
+    BuildContext buttonContext,
+    LibrarySong song,
+  ) {
+    return _showSongAddToMenuForArtistsPage(this, buttonContext, song);
   }
 
   String _allArtistsTitle(

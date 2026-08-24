@@ -37,10 +37,11 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext context, LibrarySong song)
+  final FutureOr<void> Function(BuildContext context, LibrarySong song)
   onOpenSongAddToMenu;
   final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenSongContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +170,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       compactTrailingPadding: songRowTrailingPadding,
       favoriteAsHoverAction: true,
       keepFavoriteActionInCompact: true,
+      keepAddToActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel: i18n.t('common.favorite'),
@@ -187,13 +189,13 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
         onToggleFavorite(song.id, !song.favorite);
       },
       onAddToPlaylistClick: (buttonContext) {
-        onOpenSongAddToMenu(buttonContext, song);
+        return onOpenSongAddToMenu(buttonContext, song);
       },
       onPlayNextClick: () {
         onPlayNext(song.id);
       },
       onOpenContextMenu: (position) {
-        onOpenSongContextMenu(position, song);
+        return onOpenSongContextMenu(position, song);
       },
       onSeeArtist: (artistName) {
         context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
