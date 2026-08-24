@@ -388,10 +388,6 @@ class _MainNavigationPlaylistItemButtonState
                 _focusNode.requestFocus();
                 unawaited(_showPlaylistMenu(context, details.globalPosition));
               },
-              onLongPressStart: (details) {
-                _focusNode.requestFocus();
-                unawaited(_showPlaylistMenu(context, details.globalPosition));
-              },
               child: Opacity(
                 opacity: widget.dragging ? 0.45 : 1,
                 child: Container(

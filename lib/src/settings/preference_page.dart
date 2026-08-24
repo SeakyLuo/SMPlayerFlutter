@@ -30,6 +30,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
   var _loadFailed = false;
+  var _loadStarted = false;
 
   @override
   void initState() {
@@ -37,7 +38,17 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
     if (widget.initialSnapshot == null) {
       _loading = true;
-      unawaited(_loadPreferenceSnapshot());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.initialSnapshot == null && !_loadStarted) {
+      _loadStarted = true;
+      unawaited(
+        _loadPreferenceSnapshot(context.smPlayerI18n.t('common.albumUnknown')),
+      );
     }
   }
 
@@ -153,9 +164,11 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     );
   }
 
-  Future<void> _loadPreferenceSnapshot() async {
+  Future<void> _loadPreferenceSnapshot(String unknownAlbumName) async {
     try {
-      final snapshot = await widget.libraryRepository.getPreferenceSettings();
+      final snapshot = await widget.libraryRepository.getPreferenceSettings(
+        unknownAlbumName: unknownAlbumName,
+      );
       if (!mounted) {
         return;
       }

@@ -240,6 +240,9 @@ class _ArtistsSortButton extends StatelessWidget {
       icon: FluentIcons.arrow_sort_24_regular,
       label: artistSortLabel(i18n, sortCriterion),
       showLabel: false,
+      minWidth: 40,
+      maxWidth: 40,
+      horizontalPadding: 0,
       canOverflow: false,
       onPressedWithContext: (buttonContext) {
         showMenuFlyout(buttonContext, items: sortItems);

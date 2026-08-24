@@ -925,8 +925,11 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
-    final preferences =
-        await ref.read(libraryRepositoryProvider).getPreferenceSettings();
+    final preferences = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceSettings(
+          unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
+        );
     _playQueueSongIds(
       quickPlaySongIds(
         songs: snapshot.songs,

@@ -61,6 +61,7 @@ const _queueItemSwipeLimit = 108.0;
 const _queueItemSwipeOpenTrigger = 58.0;
 const _queueActionSize = 32.0;
 const _queueActionGap = 8.0;
+final _openPlaylistSwipeOwner = ValueNotifier<Object?>(null);
 
 class PlaylistControlItem extends StatefulWidget {
   const PlaylistControlItem({
@@ -100,6 +101,8 @@ class PlaylistControlItem extends StatefulWidget {
     this.keepFavoriteActionInCompact = false,
     this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
+    this.swipeEnabled = true,
+    this.favoriteSwipeEnabled = true,
     this.searchQuery = '',
     this.showBottomBorder = true,
   });
@@ -139,6 +142,8 @@ class PlaylistControlItem extends StatefulWidget {
   final bool keepFavoriteActionInCompact;
   final bool keepAddToActionInCompact;
   final bool favoriteLoading;
+  final bool swipeEnabled;
+  final bool favoriteSwipeEnabled;
   final String searchQuery;
   final bool showBottomBorder;
 
@@ -150,7 +155,53 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   var _hovered = false;
   var _menuPin = _PlaylistControlMenuPin.none;
   var _swipeOffset = 0.0;
+  var _swipeDragDirection = 0;
   PointerDeviceKind? _pointerKind;
+  final _swipeOwner = Object();
+
+  @override
+  void initState() {
+    super.initState();
+    _openPlaylistSwipeOwner.addListener(_handleOpenSwipeOwnerChanged);
+  }
+
+  @override
+  void dispose() {
+    _openPlaylistSwipeOwner.removeListener(_handleOpenSwipeOwnerChanged);
+    if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
+      _openPlaylistSwipeOwner.value = null;
+    }
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistControlItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final currentDirectionUnavailable =
+        _swipeOffset < 0 && widget.onRemoveFromListClick == null ||
+        _swipeOffset > 0 &&
+            (!widget.favoriteSwipeEnabled ||
+                widget.onToggleFavoriteClick == null);
+    if (widget.song.id != oldWidget.song.id ||
+        widget.selectionMode ||
+        !widget.swipeEnabled ||
+        widget.favoriteLoading ||
+        currentDirectionUnavailable) {
+      _swipeOffset = 0;
+      if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
+        _openPlaylistSwipeOwner.value = null;
+      }
+    }
+  }
+
+  void _handleOpenSwipeOwnerChanged() {
+    if (!identical(_openPlaylistSwipeOwner.value, _swipeOwner) &&
+        _swipeOffset != 0) {
+      setState(() {
+        _swipeOffset = 0;
+      });
+    }
+  }
 
   bool get _hoverActive => _hovered || _menuPin != _PlaylistControlMenuPin.none;
 
@@ -179,6 +230,9 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     setState(() {
       _swipeOffset = 0;
     });
+    if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
+      _openPlaylistSwipeOwner.value = null;
+    }
   }
 
   void _activateRow() {
@@ -201,19 +255,43 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     widget.onPlayTrack();
   }
 
-  bool get _swipeEnabled =>
-      widget.onRemoveFromListClick != null &&
+  bool get _swipeConfigured =>
+      (widget.onRemoveFromListClick != null ||
+          (widget.favoriteSwipeEnabled &&
+              widget.onToggleFavoriteClick != null)) &&
+      widget.swipeEnabled &&
       !widget.selectionMode &&
-      _pointerKind == PointerDeviceKind.touch;
+      widget.dropPosition == null &&
+      _menuPin == _PlaylistControlMenuPin.none &&
+      !widget.favoriteLoading;
+
+  bool get _swipeEnabled =>
+      _swipeConfigured && _pointerKind == PointerDeviceKind.touch;
+
+  double get _physicalSwipeDirection =>
+      Directionality.of(context) == TextDirection.ltr ? 1 : -1;
 
   void _updateSwipe(DragUpdateDetails details) {
     if (!_swipeEnabled) {
       return;
     }
-    final nextOffset = (_swipeOffset + details.delta.dx).clamp(
-      -_queueItemSwipeLimit,
-      0.0,
-    );
+    final logicalDelta = details.delta.dx * _physicalSwipeDirection;
+    _swipeDragDirection = switch (_swipeDragDirection) {
+      0 when logicalDelta < 0 => -1,
+      0 when logicalDelta > 0 => 1,
+      _ => _swipeDragDirection,
+    };
+    final minimum =
+        widget.onRemoveFromListClick == null || _swipeDragDirection > 0
+            ? 0.0
+            : -_queueItemSwipeLimit;
+    final maximum =
+        !widget.favoriteSwipeEnabled ||
+                widget.onToggleFavoriteClick == null ||
+                _swipeDragDirection < 0
+            ? 0.0
+            : _queueItemSwipeLimit;
+    final nextOffset = (_swipeOffset + logicalDelta).clamp(minimum, maximum);
     setState(() {
       _swipeOffset = nextOffset;
     });
@@ -224,11 +302,20 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       return;
     }
     setState(() {
-      _swipeOffset =
-          _swipeOffset <= -_queueItemSwipeOpenTrigger
-              ? -_queueItemSwipeLimit
-              : 0;
+      _swipeOffset = switch (_swipeOffset) {
+        <= -_queueItemSwipeOpenTrigger => -_queueItemSwipeLimit,
+        >= _queueItemSwipeOpenTrigger => _queueItemSwipeLimit,
+        _ => 0,
+      };
     });
+    if (_swipeOffset == 0) {
+      if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
+        _openPlaylistSwipeOwner.value = null;
+      }
+    } else {
+      _openPlaylistSwipeOwner.value = _swipeOwner;
+    }
+    _swipeDragDirection = 0;
   }
 
   @override
@@ -663,18 +750,28 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       },
       child: Listener(
         onPointerDown: (event) {
+          if (!identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
+            _openPlaylistSwipeOwner.value = null;
+          }
           _pointerKind = event.kind;
         },
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onHorizontalDragStart: (details) {
-            _pointerKind = details.kind;
-          },
-          onHorizontalDragUpdate: _updateSwipe,
-          onHorizontalDragEnd: (_) {
-            _settleSwipe();
-          },
-          onHorizontalDragCancel: _resetSwipe,
+          onHorizontalDragStart:
+              _swipeConfigured
+                  ? (details) {
+                    _pointerKind = details.kind;
+                    _swipeDragDirection = _swipeOffset.sign.toInt();
+                  }
+                  : null,
+          onHorizontalDragUpdate: _swipeConfigured ? _updateSwipe : null,
+          onHorizontalDragEnd:
+              _swipeConfigured
+                  ? (_) {
+                    _settleSwipe();
+                  }
+                  : null,
+          onHorizontalDragCancel: _swipeConfigured ? _resetSwipe : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
@@ -684,14 +781,16 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   TweenAnimationBuilder<double>(
                     tween: Tween<double>(end: _swipeOffset),
                     duration:
-                        _swipeOffset == -_queueItemSwipeLimit ||
+                        MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : _swipeOffset.abs() == _queueItemSwipeLimit ||
                                 _swipeOffset == 0
                             ? const Duration(milliseconds: 170)
                             : Duration.zero,
                     curve: Curves.easeOut,
                     builder:
                         (context, offset, child) => Transform.translate(
-                          offset: Offset(offset, 0),
+                          offset: Offset(offset * _physicalSwipeDirection, 0),
                           child: child,
                         ),
                     child: content,
@@ -699,12 +798,15 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   if (widget.onRemoveFromListClick != null)
                     Positioned.fill(
                       child: IgnorePointer(
-                        ignoring: _swipeOffset == 0,
+                        ignoring: _swipeOffset >= 0,
                         child: AnimatedOpacity(
-                          opacity: _swipeOffset == 0 ? 0 : 1,
-                          duration: const Duration(milliseconds: 90),
+                          opacity: _swipeOffset < 0 ? 1 : 0,
+                          duration:
+                              MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 90),
                           child: Align(
-                            alignment: Alignment.centerRight,
+                            alignment: AlignmentDirectional.centerEnd,
                             child: _QueueSwipeRemoveAction(
                               label:
                                   widget.removeLabel ??
@@ -712,6 +814,35 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                               onPressed: () {
                                 _resetSwipe();
                                 widget.onRemoveFromListClick!();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (widget.favoriteSwipeEnabled &&
+                      widget.onToggleFavoriteClick != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: _swipeOffset <= 0,
+                        child: AnimatedOpacity(
+                          opacity: _swipeOffset > 0 ? 1 : 0,
+                          duration:
+                              MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 90),
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: _QueueSwipeFavoriteAction(
+                              favorite: widget.song.favorite,
+                              label: context.smPlayerI18n.t(
+                                widget.song.favorite
+                                    ? 'context.removeFavorite'
+                                    : 'context.addFavorite',
+                              ),
+                              onPressed: () {
+                                _resetSwipe();
+                                widget.onToggleFavoriteClick!();
                               },
                             ),
                           ),
@@ -795,6 +926,38 @@ class _QueueSwipeRemoveAction extends StatelessWidget {
         ),
         onPressed: onPressed,
         icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+}
+
+class _QueueSwipeFavoriteAction extends StatelessWidget {
+  const _QueueSwipeFavoriteAction({
+    required this.favorite,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool favorite;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _queueItemSwipeLimit,
+      height: double.infinity,
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: _PlaylistControlItemColors.favorite,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: const RoundedRectangleBorder(),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        onPressed: onPressed,
+        icon: SmPlayerFavoriteIcon(favorite: favorite, size: 18),
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );

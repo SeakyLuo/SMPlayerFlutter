@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "ignorado",
   "settings.lyricsBatchStarting": "Tarefa de preparação de letras",
   "settings.lyricsBatchStopped": "A adição de letras foi interrompida",
+  "settings.lyricsBatchCancelConfirmTitle": "Cancelar a adição de letras em lote?",
+  "settings.lyricsBatchCancelConfirmMessage": "O progresso e os resultados desta tarefa serão descartados. As letras já gravadas não serão revertidas.",
   "settings.lyrics": "Letras",
   "settings.mode": "modo",
   "settings.musicFolderPlaceholder": "Caminho da pasta raiz da biblioteca de música",

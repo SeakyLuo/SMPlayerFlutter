@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "пропущено",
   "settings.lyricsBatchStarting": "Підготовка завдання для текстів",
   "settings.lyricsBatchStopped": "Додавання тексту припинилося",
+  "settings.lyricsBatchCancelConfirmTitle": "Скасувати пакетне додавання текстів?",
+  "settings.lyricsBatchCancelConfirmMessage": "Перебіг і результати цього завдання буде відкинуто. Уже записані тексти не буде скасовано.",
   "settings.lyrics": "Тексти пісень",
   "settings.mode": "режим",
   "settings.musicFolderPlaceholder": "Шлях до кореневої папки музичної бібліотеки",

@@ -295,6 +295,10 @@ class LibraryRepository {
     db.dispose();
   }
 
+  Future<String> getDatabasePath() async {
+    return (await _resolveDatabaseFile()).path;
+  }
+
   Future<settings.SettingsSnapshot?> initializeSettingsSnapshot() async {
     final databaseFile = await _resolveDatabaseFile();
     databaseFile.parent.createSync(recursive: true);
@@ -1084,9 +1088,14 @@ class LibraryRepository {
     await _preferenceService.removePreferenceItem(databaseFile, type, itemId);
   }
 
-  Future<PreferenceSettingsSnapshot> getPreferenceSettings() async {
+  Future<PreferenceSettingsSnapshot> getPreferenceSettings({
+    required String unknownAlbumName,
+  }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _preferenceService.getPreferenceSettings(databaseFile);
+    return _preferenceService.getPreferenceSettings(
+      databaseFile,
+      unknownAlbumName: unknownAlbumName,
+    );
   }
 
   Future<void> updatePreferenceSettings(

@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "dilewati",
   "settings.lyricsBatchStarting": "Menyiapkan tugas lirik",
   "settings.lyricsBatchStopped": "Penambahan lirik telah dihentikan",
+  "settings.lyricsBatchCancelConfirmTitle": "Batalkan penambahan lirik massal?",
+  "settings.lyricsBatchCancelConfirmMessage": "Progres dan hasil tugas ini akan dibuang. Lirik yang sudah ditulis tidak akan dikembalikan.",
   "settings.lyrics": "Lirik",
   "settings.mode": "modus",
   "settings.musicFolderPlaceholder": "Jalur folder root perpustakaan musik",

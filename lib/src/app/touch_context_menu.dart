@@ -6,6 +6,15 @@ import 'package:flutter/material.dart';
 const touchContextMenuDelay = Duration(milliseconds: 650);
 const touchContextMenuMoveTolerance = 10.0;
 
+var _pendingTouchContextMenuInvocation = false;
+var _dispatchingSyntheticContextMenu = false;
+
+bool takeTouchContextMenuInvocation() {
+  final pending = _pendingTouchContextMenuInvocation;
+  _pendingTouchContextMenuInvocation = false;
+  return pending;
+}
+
 class TouchContextMenuAdapter extends StatefulWidget {
   const TouchContextMenuAdapter({super.key, required this.child});
 
@@ -27,6 +36,9 @@ class _TouchContextMenuAdapterState extends State<TouchContextMenuAdapter> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    if (!_dispatchingSyntheticContextMenu) {
+      _pendingTouchContextMenuInvocation = false;
+    }
     if (event.kind != PointerDeviceKind.touch ||
         event.buttons != kPrimaryButton) {
       return;
@@ -79,23 +91,29 @@ class _TouchContextMenuAdapterState extends State<TouchContextMenuAdapter> {
       ),
     );
 
-    final pointer = _syntheticPointer++;
-    binding.handlePointerEvent(
-      PointerDownEvent(
-        pointer: pointer,
-        position: pendingMenu.position,
-        kind: PointerDeviceKind.mouse,
-        buttons: kSecondaryMouseButton,
-      ),
-    );
-    binding.handlePointerEvent(
-      PointerUpEvent(
-        pointer: pointer,
-        position: pendingMenu.position,
-        kind: PointerDeviceKind.mouse,
-        buttons: 0,
-      ),
-    );
+    _pendingTouchContextMenuInvocation = true;
+    _dispatchingSyntheticContextMenu = true;
+    try {
+      final pointer = _syntheticPointer++;
+      binding.handlePointerEvent(
+        PointerDownEvent(
+          pointer: pointer,
+          position: pendingMenu.position,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        ),
+      );
+      binding.handlePointerEvent(
+        PointerUpEvent(
+          pointer: pointer,
+          position: pendingMenu.position,
+          kind: PointerDeviceKind.mouse,
+          buttons: 0,
+        ),
+      );
+    } finally {
+      _dispatchingSyntheticContextMenu = false;
+    }
   }
 
   void _clearPendingMenu() {

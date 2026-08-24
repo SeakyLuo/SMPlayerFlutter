@@ -49,6 +49,7 @@ import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
+import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -58,6 +59,7 @@ part 'shell_page_navigation_methods.dart';
 part 'shell_page_desktop_methods.dart';
 part 'shell_page_voice_methods.dart';
 part 'shell_page_queue_methods.dart';
+part 'shell_page_agent_methods.dart';
 
 bool _globalNavigationCollapsed = false;
 
@@ -230,6 +232,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     }
     unawaited(_restoreDesktopWindowMaximizedState());
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
+    unawaited(_initializeAiAgentRemote());
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
     _recordNavigationLocation(
@@ -275,6 +278,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     WidgetsBinding.instance.removeObserver(this);
     _mediaControlController.removeListener(_syncAudioPlayerFromController);
     _settingsController.removeListener(_handleSettingsChanged);
+    unawaited(aiAgentRemoteController.detach());
     _desktopLyricsRetryTimer?.cancel();
     for (final subscription in _audioSubscriptions) {
       unawaited(subscription.cancel());

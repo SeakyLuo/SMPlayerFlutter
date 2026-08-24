@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "ignorato",
   "settings.lyricsBatchStarting": "Preparazione attività testi",
   "settings.lyricsBatchStopped": "L'aggiunta dei testi è stata interrotta",
+  "settings.lyricsBatchCancelConfirmTitle": "Annullare l’aggiunta in blocco dei testi?",
+  "settings.lyricsBatchCancelConfirmMessage": "I progressi e i risultati di questa attività verranno eliminati. I testi già scritti non verranno ripristinati.",
   "settings.lyrics": "Testi",
   "settings.mode": "modalità",
   "settings.musicFolderPlaceholder": "Percorso della cartella principale della libreria musicale",

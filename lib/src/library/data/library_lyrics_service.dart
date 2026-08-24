@@ -251,6 +251,9 @@ class LibraryLyricsService {
         if (lastRequestStartedAt.millisecondsSinceEpoch > 0 && elapsed < 200) {
           await Future<void>.delayed(Duration(milliseconds: 200 - elapsed));
         }
+        if (isCanceled?.call() == true) {
+          break;
+        }
         lastRequestStartedAt = DateTime.now();
         final internetLyrics =
             _internetLyricsResolver == null
@@ -264,6 +267,9 @@ class LibraryLyricsService {
                   ),
                 )
                 : await _internetLyricsResolver(song);
+        if (isCanceled?.call() == true) {
+          break;
+        }
 
         if (internetLyrics.trim().isEmpty) {
           missing += 1;

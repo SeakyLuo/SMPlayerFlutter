@@ -7,12 +7,14 @@ class ToggleSettingRow extends StatelessWidget {
     required this.checked,
     required this.onChange,
     this.hint,
+    this.enabled = true,
   });
 
   final String label;
   final String? hint;
   final bool checked;
   final ValueChanged<bool> onChange;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +27,7 @@ class ToggleSettingRow extends StatelessWidget {
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-        onTap: () {
-          onChange(!checked);
-        },
+        onTap: enabled ? () => onChange(!checked) : null,
         child: Row(
           children: [
             Expanded(
@@ -58,11 +58,17 @@ class ToggleSettingRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            SmPlayerSwitch(
-              value: checked,
-              onChanged: onChange,
-              trackKey: const ValueKey('settings-toggle-track'),
-              thumbKey: const ValueKey('settings-toggle-thumb'),
+            IgnorePointer(
+              ignoring: !enabled,
+              child: Opacity(
+                opacity: enabled ? 1 : 0.55,
+                child: SmPlayerSwitch(
+                  value: checked,
+                  onChanged: onChange,
+                  trackKey: const ValueKey('settings-toggle-track'),
+                  thumbKey: const ValueKey('settings-toggle-thumb'),
+                ),
+              ),
             ),
           ],
         ),

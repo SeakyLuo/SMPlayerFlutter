@@ -652,6 +652,8 @@
   "settings.lyricsBatchSkipped": "overgeslagen",
   "settings.lyricsBatchStarting": "Tekstopdracht voorbereiden",
   "settings.lyricsBatchStopped": "Het toevoegen van songteksten is gestopt",
+  "settings.lyricsBatchCancelConfirmTitle": "Batchgewijs songteksten toevoegen annuleren?",
+  "settings.lyricsBatchCancelConfirmMessage": "De voortgang en resultaten van deze taak worden verwijderd. Reeds geschreven songteksten worden niet teruggedraaid.",
   "settings.lyrics": "Songteksten",
   "settings.mode": "modus",
   "settings.musicFolderPlaceholder": "Pad naar de hoofdmap van de muziekbibliotheek",
