@@ -114,7 +114,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -304,7 +304,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       return;
     }
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(

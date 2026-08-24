@@ -20,7 +20,7 @@ class ArtistListItem extends StatefulWidget {
   final SmPlayerI18n i18n;
   final VoidCallback onPressed;
   final VoidCallback onPlay;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
   final bool locateHighlighted;
   final int locatePulse;
   final bool compactNavMinimal;
@@ -36,6 +36,23 @@ class _ArtistListItemState extends State<ArtistListItem>
   late final AnimationController _locateHighlightController;
   var _hovered = false;
   var _focused = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -87,7 +104,8 @@ class _ArtistListItemState extends State<ArtistListItem>
       brightness,
     );
     final activeMuted = _ArtistsColors.artistRowActiveMuted(brightness);
-    final revealPlay = _hovered || _focused || _focusNode.hasFocus;
+    final hoverActive = _hovered || _focused || _contextMenuOpen;
+    final revealPlay = hoverActive || _focusNode.hasFocus;
     final rowBorderRadius = BorderRadius.circular(10);
     return SizedBox(
       height: artistRowHeight,
@@ -142,7 +160,7 @@ class _ArtistListItemState extends State<ArtistListItem>
                     }),
                     onTap: widget.onPressed,
                     onSecondaryTapDown: (details) {
-                      widget.onOpenContextMenu(details.globalPosition);
+                      unawaited(_openContextMenu(details.globalPosition));
                     },
                     child: AnimatedBuilder(
                       animation: _locateHighlightController,
@@ -184,7 +202,7 @@ class _ArtistListItemState extends State<ArtistListItem>
                                       ? _ArtistsColors.artistRowActiveBorder(
                                         brightness,
                                       )
-                                      : _hovered || _focused
+                                      : hoverActive
                                       ? _ArtistsColors.artistRowHoverBorder(
                                         brightness,
                                       )

@@ -3,12 +3,14 @@ part of 'recent_page.dart';
 const _recentSongActionButtonSize = 32.0;
 const _recentSongActionsSpacing = 4.0;
 const _recentSongActionsRightInset = 8.0;
-const _recentSongHoverActionsReservedWidth =
-    _recentSongActionButtonSize * 3 +
-    _recentSongActionsSpacing * 2 +
-    _recentSongActionsRightInset;
-const _recentSongActionOverlayWidth =
-    _recentSongHoverActionsReservedWidth + _recentSongActionButtonSize;
+double _recentSongActionOverlayWidth(int actionCount) {
+  return _recentSongActionButtonSize * actionCount +
+      _recentSongActionsSpacing * (actionCount - 1) +
+      _recentSongActionsRightInset +
+      _recentSongActionButtonSize;
+}
+
+enum _RecentSongMenuPin { none, addTo, more, contextMenu }
 
 class _GridViewMusicItemControl extends StatefulWidget {
   const _GridViewMusicItemControl({
@@ -37,11 +39,11 @@ class _GridViewMusicItemControl extends StatefulWidget {
   final _RecentSongTileMetrics metrics;
   final VoidCallback onPlayTrack;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onOpenAddToMenu;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenAddToMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
   final VoidCallback onToggleFavorite;
   final VoidCallback onPlayNext;
-  final ValueChanged<Offset> onOpenMoreMenu;
+  final FutureOr<void> Function(Offset) onOpenMoreMenu;
 
   @override
   State<_GridViewMusicItemControl> createState() =>
@@ -52,7 +54,41 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
     with SingleTickerProviderStateMixin {
   late final AnimationController _hoverActionsController;
   var _hovered = false;
+  var _menuPin = _RecentSongMenuPin.none;
   var _suppressNextTileTap = false;
+
+  bool get _hoverActive => _hovered || _menuPin != _RecentSongMenuPin.none;
+
+  void _syncHoverActions() {
+    if (_hoverActive && !widget.multiSelect) {
+      _hoverActionsController.forward();
+    } else {
+      _hoverActionsController.reverse();
+    }
+  }
+
+  Future<void> _openPinnedMenu(
+    _RecentSongMenuPin pin,
+    FutureOr<void> Function() open,
+  ) async {
+    setState(() {
+      _menuPin = pin;
+    });
+    _syncHoverActions();
+    try {
+      await open();
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _menuPin != pin) {
+          return;
+        }
+        setState(() {
+          _menuPin = _RecentSongMenuPin.none;
+        });
+        _syncHoverActions();
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -69,10 +105,9 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.multiSelect != widget.multiSelect) {
       if (widget.multiSelect) {
-        _hoverActionsController.reverse();
-      } else if (_hovered) {
-        _hoverActionsController.forward();
+        _menuPin = _RecentSongMenuPin.none;
       }
+      _syncHoverActions();
     }
   }
 
@@ -106,8 +141,11 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
 
   @override
   Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width <= 520;
+    final actionOverlayWidth = _recentSongActionOverlayWidth(narrow ? 4 : 3);
     final colors = _RecentSongTileColors.of(context);
-    final active = widget.selected || _hovered;
+    final hoverActive = _hoverActive;
+    final active = widget.selected || hoverActive;
     final selectedSurface = Color.alphaBlend(
       colors.activeSurface,
       Theme.of(context).scaffoldBackgroundColor,
@@ -119,28 +157,26 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
     final surface =
         widget.selected
             ? selectedSurface
-            : _hovered
+            : hoverActive
             ? hoverSurface
             : colors.inactiveSurface;
-    final showHoverActions = _hovered && !widget.multiSelect;
+    final showHoverActions = hoverActive && !widget.multiSelect;
     final textColor = widget.current ? colors.currentText : colors.textStrong;
     final artistColor = widget.current ? colors.currentMuted : colors.textMuted;
     final detailColor = widget.current ? colors.currentSoft : colors.textSoft;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
-        if (!widget.multiSelect) {
-          _hoverActionsController.forward();
-        }
         setState(() {
           _hovered = true;
         });
+        _syncHoverActions();
       },
       onExit: (_) {
-        _hoverActionsController.reverse();
         setState(() {
           _hovered = false;
         });
+        _syncHoverActions();
       },
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -148,7 +184,12 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
         hoverColor: Colors.transparent,
         highlightColor: Colors.transparent,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(
+            _openPinnedMenu(
+              _RecentSongMenuPin.contextMenu,
+              () => widget.onOpenContextMenu(details.globalPosition),
+            ),
+          );
         },
         onTap: _handleTileTap,
         child: AnimatedContainer(
@@ -225,38 +266,24 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                               ),
                             ),
                           )
-                        else if (_hovered)
+                        else if (hoverActive)
                           Positioned.fill(
                             child: Center(
-                              child: Builder(
-                                builder:
-                                    (buttonContext) =>
-                                        ArtworkFloatingActionButton(
-                                          tooltip: context.smPlayerI18n.t(
-                                            'context.addToPlaylist',
-                                          ),
-                                          size: 48,
-                                          iconSize: 19,
-                                          icon: const Icon(
-                                            FluentIcons.add_20_regular,
-                                            color: Colors.white,
-                                            size: 19,
-                                          ),
-                                          onPressed: () {
-                                            final box =
-                                                buttonContext.findRenderObject()
-                                                    as RenderBox;
-                                            widget.onOpenAddToMenu(
-                                              box.localToGlobal(
-                                                Offset(0, box.size.height + 8),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                              child: ArtworkFloatingActionButton(
+                                tooltip: context.smPlayerI18n.t('context.play'),
+                                size: 48,
+                                iconSize: 19,
+                                icon: const SmPlayerPlayIcon(
+                                  color: Colors.white,
+                                  size: 19,
+                                ),
+                                onPressed: widget.onPlayTrack,
                               ),
                             ),
                           ),
-                        if (widget.current && !_hovered && !widget.multiSelect)
+                        if (widget.current &&
+                            !hoverActive &&
+                            !widget.multiSelect)
                           Positioned.fill(
                             child: SmPlayerPlayingWaveGlass(
                               playing: widget.playing,
@@ -324,12 +351,11 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                     blendMode: BlendMode.dstIn,
                     shaderCallback: (bounds) {
                       final fadeStart = ((bounds.width -
-                                  _recentSongActionOverlayWidth * progress) /
+                                  actionOverlayWidth * progress) /
                               bounds.width)
                           .clamp(0.0, 1.0);
                       final fadeEnd = ((bounds.width -
-                                  (_recentSongActionOverlayWidth - 28) *
-                                      progress) /
+                                  (actionOverlayWidth - 28) * progress) /
                               bounds.width)
                           .clamp(0.0, 1.0);
                       return LinearGradient(
@@ -353,7 +379,7 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                 child: AnimatedBuilder(
                   animation: _hoverActionsController,
                   child: SizedBox(
-                    width: _recentSongActionOverlayWidth,
+                    width: actionOverlayWidth,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Padding(
@@ -364,17 +390,45 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                           mainAxisSize: MainAxisSize.min,
                           spacing: _recentSongActionsSpacing,
                           children: [
-                            _RecentSongActionButton(
-                              tooltip: context.smPlayerI18n.t(
-                                widget.song.favorite
-                                    ? 'context.removeFavorite'
-                                    : 'context.addFavorite',
+                            if (narrow)
+                              _RecentSongActionButton(
+                                tooltip: context.smPlayerI18n.t(
+                                  widget.song.favorite
+                                      ? 'context.removeFavorite'
+                                      : 'context.addFavorite',
+                                ),
+                                icon: SmPlayerFavoriteIcon(
+                                  favorite: widget.song.favorite,
+                                  size: 18,
+                                ),
+                                onPressed: widget.onToggleFavorite,
                               ),
-                              icon: SmPlayerFavoriteIcon(
-                                favorite: widget.song.favorite,
-                                size: 18,
-                              ),
-                              onPressed: widget.onToggleFavorite,
+                            Builder(
+                              builder:
+                                  (buttonContext) => _RecentSongActionButton(
+                                    tooltip: context.smPlayerI18n.t(
+                                      'context.addToPlaylist',
+                                    ),
+                                    icon: const Icon(
+                                      FluentIcons.add_20_regular,
+                                      size: 18,
+                                    ),
+                                    onPressed: () {
+                                      final box =
+                                          buttonContext.findRenderObject()
+                                              as RenderBox;
+                                      unawaited(
+                                        _openPinnedMenu(
+                                          _RecentSongMenuPin.addTo,
+                                          () => widget.onOpenAddToMenu(
+                                            box.localToGlobal(
+                                              Offset(0, box.size.height + 8),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                             ),
                             _RecentSongActionButton(
                               tooltip: context.smPlayerI18n.t(
@@ -397,9 +451,14 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                                       final box =
                                           buttonContext.findRenderObject()
                                               as RenderBox;
-                                      widget.onOpenMoreMenu(
-                                        box.localToGlobal(
-                                          Offset(0, box.size.height + 8),
+                                      unawaited(
+                                        _openPinnedMenu(
+                                          _RecentSongMenuPin.more,
+                                          () => widget.onOpenMoreMenu(
+                                            box.localToGlobal(
+                                              Offset(0, box.size.height + 8),
+                                            ),
+                                          ),
                                         ),
                                       );
                                     },
@@ -421,12 +480,12 @@ class _GridViewMusicItemControlState extends State<_GridViewMusicItemControl>
                     return IgnorePointer(
                       ignoring: !showHoverActions,
                       child: SizedBox(
-                        width: _recentSongActionOverlayWidth * progress,
+                        width: actionOverlayWidth * progress,
                         child: ClipRect(
                           child: OverflowBox(
                             alignment: Alignment.centerRight,
-                            minWidth: _recentSongActionOverlayWidth,
-                            maxWidth: _recentSongActionOverlayWidth,
+                            minWidth: actionOverlayWidth,
+                            maxWidth: actionOverlayWidth,
                             child: Opacity(
                               opacity: opacity,
                               child: Transform.translate(

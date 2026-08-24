@@ -68,7 +68,7 @@ class _RecentPlayedPage extends ConsumerWidget {
   onOpenSongContextMenu;
   final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(
+  final Future<void> Function(
     Offset position,
     String defaultName,
     List<int> songIds,
@@ -162,7 +162,7 @@ class _RecentPlayedPage extends ConsumerWidget {
               });
             },
             onOpenSongContextMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,
@@ -172,12 +172,12 @@ class _RecentPlayedPage extends ConsumerWidget {
             onToggleFavorite: onToggleFavorite,
             onPlayNext: onPlayNext,
             onOpenSongAddToMenu: (position, song) {
-              onOpenCollectionAddToMenu(position, song.title, [
+              return onOpenCollectionAddToMenu(position, song.title, [
                 song.id,
               ], customPlaylists);
             },
             onOpenAlbumAddMenu: (position, album) {
-              onOpenCollectionAddToMenu(
+              return onOpenCollectionAddToMenu(
                 position,
                 album.name,
                 album.songIds,
@@ -185,9 +185,7 @@ class _RecentPlayedPage extends ConsumerWidget {
               );
             },
             onOpenArtistContextMenu: (position, artist) {
-              unawaited(
-                onOpenArtistContextMenu(position, artist, customPlaylists),
-              );
+              return onOpenArtistContextMenu(position, artist, customPlaylists);
             },
             onTimelineLabelChange: onTimelineLabelChange,
           ),

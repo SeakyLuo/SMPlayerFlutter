@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -83,7 +85,8 @@ class LocalCompactTableContent extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
-  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final FutureOr<void> Function(FolderNode folder, Offset position)
+  onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
   final void Function({
     required List<int> songIds,
@@ -96,8 +99,9 @@ class LocalCompactTableContent extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
-  final void Function(LibrarySong song, Offset position) onAddSong;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position) onAddSong;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
   @override
@@ -257,6 +261,7 @@ class LocalCompactTableContent extends StatelessWidget {
     LocalCompactTreeRow? treeRow,
   }) {
     final rowContent = _CompactHoverRow(
+      onOpenContextMenu: (position) => onOpenFolderMenu(folder, position),
       child: _FolderRowSurface(
         folder: folder,
         treeRow: treeRow,
@@ -320,16 +325,12 @@ class LocalCompactTableContent extends StatelessWidget {
             targetFolderPath: folder.path,
           ),
       builder: (context, candidateData, rejectedData) {
-        final child = GestureDetector(
-          onSecondaryTapDown:
-              (details) => onOpenFolderMenu(folder, details.globalPosition),
-          child: InkWell(
-            onTap:
-                multiSelect
-                    ? () => onToggleFolderSelection(folder.relativePath)
-                    : () => onOpenFolder(folder.relativePath),
-            child: rowContent,
-          ),
+        final child = InkWell(
+          onTap:
+              multiSelect
+                  ? () => onToggleFolderSelection(folder.relativePath)
+                  : () => onOpenFolder(folder.relativePath),
+          child: rowContent,
         );
         return Draggable<LocalItemsDragPayload>(
           data: LocalItemsDragPayload(
@@ -392,22 +393,18 @@ class LocalCompactTableContent extends StatelessWidget {
           queueIds,
         ),
       ),
-      child: GestureDetector(
-        onSecondaryTapDown:
-            (details) => onOpenSongMenu(song, details.globalPosition),
-        child: InkWell(
-          onTap:
-              multiSelect
-                  ? () => onToggleSongSelection(song.id)
-                  : () => onPlayTrack(song.id, queueIds),
-          child: _songRowSurface(
-            song,
-            treeRow,
-            selected,
-            current,
-            playing,
-            queueIds,
-          ),
+      child: InkWell(
+        onTap:
+            multiSelect
+                ? () => onToggleSongSelection(song.id)
+                : () => onPlayTrack(song.id, queueIds),
+        child: _songRowSurface(
+          song,
+          treeRow,
+          selected,
+          current,
+          playing,
+          queueIds,
         ),
       ),
     );
@@ -422,6 +419,7 @@ class LocalCompactTableContent extends StatelessWidget {
     List<int> queueIds,
   ) {
     return _CompactHoverRow(
+      onOpenContextMenu: (position) => onOpenSongMenu(song, position),
       child: _SongRowSurface(
         song: song,
         depth: treeRow?.depth ?? 0,
@@ -711,9 +709,10 @@ class _CompactTableActions extends StatelessWidget {
 }
 
 class _CompactHoverRow extends StatefulWidget {
-  const _CompactHoverRow({required this.child});
+  const _CompactHoverRow({required this.child, this.onOpenContextMenu});
 
   final Widget child;
+  final FutureOr<void> Function(Offset)? onOpenContextMenu;
 
   @override
   State<_CompactHoverRow> createState() => _CompactHoverRowState();
@@ -722,17 +721,37 @@ class _CompactHoverRow extends StatefulWidget {
 class _CompactHoverRowState extends State<_CompactHoverRow> {
   var _hovered = false;
   var _focused = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() => _contextMenuOpen = true);
+    try {
+      await widget.onOpenContextMenu!(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _contextMenuOpen = false);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Focus(
-        onFocusChange: (focused) => setState(() => _focused = focused),
-        child: _CompactHoverState(
-          visible: _hovered || _focused,
-          child: widget.child,
+      child: GestureDetector(
+        onSecondaryTapDown:
+            widget.onOpenContextMenu == null
+                ? null
+                : (details) =>
+                    unawaited(_openContextMenu(details.globalPosition)),
+        child: Focus(
+          onFocusChange: (focused) => setState(() => _focused = focused),
+          child: _CompactHoverState(
+            visible: _hovered || _focused || _contextMenuOpen,
+            child: widget.child,
+          ),
         ),
       ),
     );

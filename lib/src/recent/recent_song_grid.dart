@@ -36,12 +36,21 @@ class _RecentSongGrid extends StatelessWidget {
   onPlaySong;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<String> onTimelineLabelChange;
-  final void Function(Offset position, LibrarySong song) onOpenAddToMenu;
-  final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenAddToMenu;
+  final FutureOr<void> Function(
+    Offset position,
+    LibrarySong song,
+    List<int> queueSongIds,
+  )
   onOpenContextMenu;
   final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
+  final FutureOr<void> Function(
+    Offset position,
+    LibrarySong song,
+    List<int> queueSongIds,
+  )
   onOpenMoreMenu;
 
   @override
@@ -137,29 +146,27 @@ class _RecentSongGrid extends StatelessWidget {
                                     onToggleSelection: () {
                                       onToggleSelection(song.id);
                                     },
-                                    onOpenAddToMenu: (position) {
-                                      onOpenAddToMenu(position, song);
-                                    },
+                                    onOpenAddToMenu:
+                                        (position) =>
+                                            onOpenAddToMenu(position, song),
                                     onToggleFavorite: () {
                                       onToggleFavorite(song);
                                     },
                                     onPlayNext: () {
                                       onPlayNext(song.id);
                                     },
-                                    onOpenMoreMenu: (position) {
-                                      onOpenMoreMenu(
-                                        position,
-                                        song,
-                                        queueSongIds,
-                                      );
-                                    },
-                                    onOpenContextMenu: (position) {
-                                      onOpenContextMenu(
-                                        position,
-                                        song,
-                                        queueSongIds,
-                                      );
-                                    },
+                                    onOpenMoreMenu:
+                                        (position) => onOpenMoreMenu(
+                                          position,
+                                          song,
+                                          queueSongIds,
+                                        ),
+                                    onOpenContextMenu:
+                                        (position) => onOpenContextMenu(
+                                          position,
+                                          song,
+                                          queueSongIds,
+                                        ),
                                   ),
                                 ),
                               ),

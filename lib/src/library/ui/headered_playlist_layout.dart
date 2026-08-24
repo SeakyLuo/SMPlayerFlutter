@@ -381,7 +381,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           },
         );
         if (item != null) {
-          showMenuFlyout(buttonContext, items: item.submenu);
+          return showMenuFlyout(buttonContext, items: item.submenu);
         }
       },
       onRemoveFromListClick:
@@ -394,8 +394,13 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
         _playNextSong(song.id);
       },
       onOpenContextMenu: (position) {
-        unawaited(
-          _showSongMenu(context, i18n, position, song, index, queueSongIds),
+        return _showSongMenu(
+          context,
+          i18n,
+          position,
+          song,
+          index,
+          queueSongIds,
         );
       },
       onSeeArtist: widget.onArtistClick,

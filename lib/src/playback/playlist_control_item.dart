@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show max;
 import 'dart:ui';
 
@@ -20,6 +21,11 @@ import 'package:smplayer_flutter/src/playback/playing_wave.dart';
 part 'playlist_control_item_overlays.dart';
 
 enum PlaylistControlItemVariant { standard, headeredPlaylist, compact }
+
+enum _PlaylistControlMenuPin { none, addTo, more, contextMenu }
+
+typedef PlaylistControlMenuHandler = FutureOr<void> Function(BuildContext);
+typedef PlaylistControlContextMenuHandler = FutureOr<void> Function(Offset);
 
 enum PlaylistControlDropPosition { before, after }
 
@@ -92,6 +98,7 @@ class PlaylistControlItem extends StatefulWidget {
     this.showFavoriteAction = true,
     this.favoriteAsHoverAction = false,
     this.keepFavoriteActionInCompact = false,
+    this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
     this.searchQuery = '',
     this.showBottomBorder = true,
@@ -115,10 +122,10 @@ class PlaylistControlItem extends StatefulWidget {
   final String? favoriteLabel;
   final String? moreLabel;
   final VoidCallback? onToggleFavoriteClick;
-  final ValueChanged<BuildContext>? onAddToPlaylistClick;
+  final PlaylistControlMenuHandler? onAddToPlaylistClick;
   final VoidCallback? onSeeAlbum;
   final ValueChanged<String>? onSeeArtist;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final PlaylistControlContextMenuHandler onOpenContextMenu;
   final PlaylistControlDropPosition? dropPosition;
   final PlaylistControlItemVariant variant;
   final PlaylistControlItemColors? colors;
@@ -130,6 +137,7 @@ class PlaylistControlItem extends StatefulWidget {
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
+  final bool keepAddToActionInCompact;
   final bool favoriteLoading;
   final String searchQuery;
   final bool showBottomBorder;
@@ -140,8 +148,32 @@ class PlaylistControlItem extends StatefulWidget {
 
 class _PlaylistControlItemState extends State<PlaylistControlItem> {
   var _hovered = false;
+  var _menuPin = _PlaylistControlMenuPin.none;
   var _swipeOffset = 0.0;
   PointerDeviceKind? _pointerKind;
+
+  bool get _hoverActive => _hovered || _menuPin != _PlaylistControlMenuPin.none;
+
+  Future<void> _openPinnedMenu(
+    _PlaylistControlMenuPin pin,
+    FutureOr<void> Function() open,
+  ) async {
+    setState(() {
+      _menuPin = pin;
+    });
+    try {
+      await open();
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _menuPin != pin) {
+          return;
+        }
+        setState(() {
+          _menuPin = _PlaylistControlMenuPin.none;
+        });
+      });
+    }
+  }
 
   void _resetSwipe() {
     setState(() {
@@ -210,11 +242,11 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final colors = widget.colors ?? _PlaylistControlItemColors.resolve(context);
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
-    final hoverActionsVisible = _hovered;
+    final hoverActionsVisible = _hoverActive;
     final showActionSlot = !widget.selectionMode || hoverActionsVisible;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
-    final rowHovered = _hovered;
+    final rowHovered = _hoverActive;
     final opaqueHover = Color.alphaBlend(
       colors.hover,
       Theme.of(context).scaffoldBackgroundColor,
@@ -251,7 +283,12 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       splashColor: Colors.transparent,
       onTap: _activateRow,
       onSecondaryTapDown: (details) {
-        widget.onOpenContextMenu(details.globalPosition);
+        unawaited(
+          _openPinnedMenu(
+            _PlaylistControlMenuPin.contextMenu,
+            () => widget.onOpenContextMenu(details.globalPosition),
+          ),
+        );
       },
       child: Container(
         height: rowHeight,
@@ -265,7 +302,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   : null,
           boxShadow:
               defaultColors
-                  ? widget.selected || _hovered
+                  ? widget.selected || _hoverActive
                       ? [
                         if (widget.selected && !multiSelectSelected)
                           const BoxShadow(
@@ -276,7 +313,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                           BoxShadow(color: colors.hoverBorder, spreadRadius: 1),
                       ]
                       : null
-                  : widget.selected || _hovered
+                  : widget.selected || _hoverActive
                   ? [BoxShadow(color: colors.hoverBorder, spreadRadius: 1)]
                   : null,
         ),
@@ -351,6 +388,15 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     : 74.0;
             final compactCollapsedActionCount =
                 1 +
+                (widget.keepFavoriteActionInCompact &&
+                        widget.showFavoriteAction &&
+                        widget.onToggleFavoriteClick != null
+                    ? 1
+                    : 0) +
+                (widget.keepAddToActionInCompact &&
+                        widget.onAddToPlaylistClick != null
+                    ? 1
+                    : 0) +
                 (widget.onPlayNextClick == null ? 0 : 1) +
                 (widget.onRemoveFromListClick == null ? 0 : 1);
             final compactCollapsedActionsWidth =
@@ -377,7 +423,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               song: widget.song,
               current: widget.current,
               playing: widget.playing,
-              hovered: _hovered,
+              hovered: _hoverActive,
               selectionMode: widget.selectionMode,
               selected: widget.selected,
               onPlayTrack: widget.onPlayTrack,
@@ -401,12 +447,32 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                     widget.showFavoriteAction && !hideFavoriteForCompact,
                 favoriteAsHoverAction: widget.favoriteAsHoverAction,
                 keepFavoriteActionInCompact: widget.keepFavoriteActionInCompact,
+                keepAddToActionInCompact: widget.keepAddToActionInCompact,
                 favoriteLoading: widget.favoriteLoading,
                 favoriteHoverVisible: hoverActionsVisible,
-                onAddToPlaylistClick: widget.onAddToPlaylistClick,
+                addMenuActive: _menuPin == _PlaylistControlMenuPin.addTo,
+                moreMenuActive: _menuPin == _PlaylistControlMenuPin.more,
+                onAddToPlaylistClick:
+                    widget.onAddToPlaylistClick == null
+                        ? null
+                        : (buttonContext) {
+                          unawaited(
+                            _openPinnedMenu(
+                              _PlaylistControlMenuPin.addTo,
+                              () => widget.onAddToPlaylistClick!(buttonContext),
+                            ),
+                          );
+                        },
                 onPlayNextClick: widget.onPlayNextClick,
                 onRemoveFromListClick: widget.onRemoveFromListClick,
-                onOpenContextMenu: widget.onOpenContextMenu,
+                onOpenContextMenu: (position) {
+                  unawaited(
+                    _openPinnedMenu(
+                      _PlaylistControlMenuPin.more,
+                      () => widget.onOpenContextMenu(position),
+                    ),
+                  );
+                },
                 colors: colors,
                 customColors: widget.colors != null,
                 compactCollapsed: compactCollapsed,
@@ -1126,8 +1192,11 @@ class _QueueActions extends StatelessWidget {
     required this.showFavoriteAction,
     required this.favoriteAsHoverAction,
     required this.keepFavoriteActionInCompact,
+    required this.keepAddToActionInCompact,
     required this.favoriteLoading,
     required this.favoriteHoverVisible,
+    required this.addMenuActive,
+    required this.moreMenuActive,
     this.onAddToPlaylistClick,
     this.onPlayNextClick,
     this.onRemoveFromListClick,
@@ -1151,8 +1220,11 @@ class _QueueActions extends StatelessWidget {
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
+  final bool keepAddToActionInCompact;
   final bool favoriteLoading;
   final bool favoriteHoverVisible;
+  final bool addMenuActive;
+  final bool moreMenuActive;
   final ValueChanged<BuildContext>? onAddToPlaylistClick;
   final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
@@ -1237,7 +1309,7 @@ class _QueueActions extends StatelessWidget {
             onPressed: favoriteLoading ? null : onToggleFavoriteClick,
           ),
       if (showPrimaryActions &&
-          !compactEssentialActionsOnly &&
+          (!compactEssentialActionsOnly || keepAddToActionInCompact) &&
           onAddToPlaylistClick != null)
         Builder(
           builder:
@@ -1249,6 +1321,7 @@ class _QueueActions extends StatelessWidget {
                   foregroundColor: colors.actionForeground,
                   hoverForegroundColor: colors.currentForeground,
                   hoverBackgroundColor: colors.actionHover,
+                  active: addMenuActive,
                   size: actionSize,
                   radius: actionRadius,
                   onPressed: () {
@@ -1295,6 +1368,7 @@ class _QueueActions extends StatelessWidget {
                 foregroundColor: colors.actionForeground,
                 hoverForegroundColor: colors.currentForeground,
                 hoverBackgroundColor: colors.actionHover,
+                active: moreMenuActive,
                 size: actionSize,
                 radius: actionRadius,
                 onPressed: () {
@@ -1366,6 +1440,7 @@ class _QueueActionButton extends StatefulWidget {
     required this.size,
     required this.radius,
     required this.onPressed,
+    this.active = false,
   });
 
   final String? tooltip;
@@ -1376,6 +1451,7 @@ class _QueueActionButton extends StatefulWidget {
   final double size;
   final double radius;
   final VoidCallback? onPressed;
+  final bool active;
 
   @override
   State<_QueueActionButton> createState() => _QueueActionButtonState();
@@ -1386,10 +1462,11 @@ class _QueueActionButtonState extends State<_QueueActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final highlighted = _hovered || widget.active;
     final backgroundColor =
-        _hovered ? widget.hoverBackgroundColor : Colors.transparent;
+        highlighted ? widget.hoverBackgroundColor : Colors.transparent;
     final foregroundColor =
-        _hovered ? widget.hoverForegroundColor : widget.foregroundColor;
+        highlighted ? widget.hoverForegroundColor : widget.foregroundColor;
     return MouseRegion(
       onEnter: (_) {
         setState(() {

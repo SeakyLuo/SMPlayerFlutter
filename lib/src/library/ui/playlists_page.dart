@@ -769,7 +769,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                                     }
                                                   },
                                                   onContextMenu: (position) {
-                                                    _showPlaylistMenu(
+                                                    return _showPlaylistMenu(
                                                       context,
                                                       i18n,
                                                       snapshot,

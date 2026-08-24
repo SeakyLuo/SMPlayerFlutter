@@ -83,7 +83,10 @@ class _ArtistsMasterDetail extends StatelessWidget {
   final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function({required Offset position, required ArtistGroup artist})
+  final FutureOr<void> Function({
+    required Offset position,
+    required ArtistGroup artist,
+  })
   onOpenArtistMenu;
   final void Function({
     required Offset position,
@@ -106,10 +109,11 @@ class _ArtistsMasterDetail extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext buttonContext, LibrarySong song)
+  final FutureOr<void> Function(BuildContext buttonContext, LibrarySong song)
   onOpenSongAddToMenu;
   final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenSongContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +147,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
         onOpenArtistDetail: onOpenArtistDetail,
         onPlayArtist: onPlayArtist,
         onOpenArtistMenu: (position, artist) {
-          onOpenArtistMenu(position: position, artist: artist);
+          return onOpenArtistMenu(position: position, artist: artist);
         },
         onOpenArtistDetailMenu: ({
           required position,
@@ -202,7 +206,7 @@ class _ArtistsMasterDetail extends StatelessWidget {
           onOpenArtistDetail: onOpenArtistDetail,
           onPlayArtist: onPlayArtist,
           onOpenArtistMenu: (position, artist) {
-            onOpenArtistMenu(position: position, artist: artist);
+            return onOpenArtistMenu(position: position, artist: artist);
           },
           onJumpToArtistKey: onJumpToArtistKey,
         ),

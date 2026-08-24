@@ -312,7 +312,7 @@ class _SearchResultSection extends StatelessWidget {
               onOpenAlbum(song_display.displayAlbum(songs[index], i18n));
             },
             onOpenContextMenu: (position) {
-              _showSongContextMenu(
+              return _showSongContextMenu(
                 context,
                 position,
                 songs[index],
@@ -364,7 +364,7 @@ class _SearchResultSection extends StatelessWidget {
               onOpenAlbum(song_display.displayAlbum(results[index].song, i18n));
             },
             onOpenContextMenu: (position) {
-              _showSongContextMenu(
+              return _showSongContextMenu(
                 context,
                 position,
                 results[index].song,
@@ -423,7 +423,7 @@ class _SearchResultSection extends StatelessWidget {
                 onSelectionChanged();
               },
               onOpenContextMenu: (position) {
-                _showCardContextMenu(context, position, card);
+                return _showCardContextMenu(context, position, card);
               },
             ),
         ],
@@ -476,7 +476,7 @@ class _SearchResultSection extends StatelessWidget {
                     onPlaySongs(playlistSongs.map((song) => song.id).toList());
                   },
                   onContextMenu: (position) {
-                    _showCardContextMenu(context, position, card);
+                    return _showCardContextMenu(context, position, card);
                   },
                 );
               },
@@ -557,7 +557,7 @@ class _SearchResultSection extends StatelessWidget {
                   onSelectionChanged();
                 },
                 onOpenContextMenu: (position) {
-                  _showCardContextMenu(context, position, card);
+                  return _showCardContextMenu(context, position, card);
                 },
               );
             },
@@ -576,7 +576,7 @@ class _SearchResultSection extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
@@ -695,7 +695,7 @@ class _SearchResultSection extends StatelessWidget {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -52,7 +54,7 @@ class AlbumTile extends StatefulWidget {
   final ValueChanged<Offset> onAddAlbum;
   final VoidCallback onToggleSelection;
   final String searchQuery;
-  final ValueChanged<Offset>? onOpenContextMenu;
+  final FutureOr<void> Function(Offset)? onOpenContextMenu;
 
   @override
   State<AlbumTile> createState() => _AlbumTileState();
@@ -60,9 +62,27 @@ class AlbumTile extends StatefulWidget {
 
 class _AlbumTileState extends State<AlbumTile> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu!(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hoverActive = _hovered || _contextMenuOpen;
     final brightness = Theme.of(context).brightness;
     final colors = _AlbumTileColors.forBrightness(brightness);
     final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
@@ -85,7 +105,9 @@ class _AlbumTileState extends State<AlbumTile> {
         onTap:
             widget.multiSelect ? widget.onToggleSelection : widget.onOpenAlbum,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu?.call(details.globalPosition);
+          if (widget.onOpenContextMenu != null) {
+            unawaited(_openContextMenu(details.globalPosition));
+          }
         },
         child: AnimatedContainer(
           key: const ValueKey('AlbumTile.Container'),
@@ -97,7 +119,7 @@ class _AlbumTileState extends State<AlbumTile> {
             color:
                 widget.selected
                     ? selectedStyle.background
-                    : _hovered
+                    : hoverActive
                     ? hoverStyle.background
                     : hoverStyle.transparentBackground,
             borderRadius: BorderRadius.circular(12),
@@ -105,14 +127,14 @@ class _AlbumTileState extends State<AlbumTile> {
               color:
                   widget.selected
                       ? selectedStyle.border
-                      : _hovered
+                      : hoverActive
                       ? hoverStyle.border
                       : hoverStyle.transparentBorder,
             ),
             boxShadow:
                 widget.selected
                     ? [selectedStyle.shadow]
-                    : _hovered
+                    : hoverActive
                     ? [hoverStyle.shadow]
                     : null,
           ),
@@ -156,7 +178,7 @@ class _AlbumTileState extends State<AlbumTile> {
                   ),
                 ],
               ),
-              if (_hovered && !widget.multiSelect)
+              if (hoverActive && !widget.multiSelect)
                 Positioned(
                   left: 0,
                   right: 0,

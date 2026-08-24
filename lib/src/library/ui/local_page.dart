@@ -403,10 +403,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
             clipBehavior: Clip.none,
             children: [
               Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (showsInlineTitle) ...[
                     Padding(
-                      padding: EdgeInsets.only(right: trailingAlignmentInset),
+                      padding: EdgeInsets.only(
+                        left: isCompactLayout ? 8 : 12,
+                        right: trailingAlignmentInset,
+                      ),
                       child: LocalTitleGrid(
                         songs: snapshot.songs,
                         folders: snapshot.folders,
@@ -449,7 +453,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                     const SizedBox(height: 12),
                   ],
                   Padding(
-                    padding: EdgeInsets.only(right: trailingAlignmentInset),
+                    padding: EdgeInsets.only(
+                      left: isCompactLayout ? 8 : 12,
+                      right: trailingAlignmentInset,
+                    ),
                     child: CommandBar(
                       contentSizing: CommandBarContentSizing.intrinsic,
                       overflowReserve: isCompactLayout ? 44 : 0,

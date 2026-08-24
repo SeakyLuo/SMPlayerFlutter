@@ -456,7 +456,7 @@ Future<void> _showGroupContextMenuForArtistsPage(
     },
   );
 
-  showMenuFlyout(
+  await showMenuFlyout(
     state.context,
     position: position,
     items: [
@@ -563,7 +563,7 @@ Future<void> _showSongContextMenuForArtistsPage(
   if (!state.mounted) {
     return;
   }
-  showMenuFlyout(
+  await showMenuFlyout(
     state.context,
     position: position,
     items: buildMusicMenuFlyoutItems(
@@ -710,11 +710,11 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   );
 }
 
-void _showSongAddToMenuForArtistsPage(
+Future<void> _showSongAddToMenuForArtistsPage(
   _ArtistsPageState state,
   BuildContext buttonContext,
   LibrarySong song,
-) {
+) async {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final customLibraryPlaylists =
       snapshot.playlists.where((playlist) => !playlist.isBuiltIn).toList();
@@ -782,5 +782,5 @@ void _showSongAddToMenuForArtistsPage(
   if (addToItem == null) {
     return;
   }
-  showMenuFlyout(buttonContext, items: addToItem.submenu);
+  await showMenuFlyout(buttonContext, items: addToItem.submenu);
 }

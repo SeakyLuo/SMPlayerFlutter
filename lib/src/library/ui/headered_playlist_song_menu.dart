@@ -28,7 +28,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             : widget.type == HeaderedPlaylistType.playlist
             ? currentSavedPlaylist!.name
             : widget.title;
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(

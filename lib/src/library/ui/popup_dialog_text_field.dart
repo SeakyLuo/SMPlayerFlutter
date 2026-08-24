@@ -11,6 +11,7 @@ class PopupDialogTextField extends StatelessWidget {
     this.errorText = '',
     this.onChanged,
     this.onSubmitted,
+    this.onTapOutside,
   });
 
   final TextEditingController controller;
@@ -21,6 +22,7 @@ class PopupDialogTextField extends StatelessWidget {
   final String errorText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final TapRegionCallback? onTapOutside;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +51,7 @@ class PopupDialogTextField extends StatelessWidget {
       ),
       onChanged: onChanged,
       onSubmitted: onSubmitted,
+      onTapOutside: onTapOutside,
     );
   }
 }

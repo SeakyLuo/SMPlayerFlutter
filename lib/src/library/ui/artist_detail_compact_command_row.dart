@@ -12,7 +12,7 @@ class _ArtistDetailCompactCommandRow extends StatelessWidget {
   final ArtistGroup artist;
   final SmPlayerI18n i18n;
   final VoidCallback onPlaySongs;
-  final ValueChanged<Offset> onOpenArtistMenu;
+  final FutureOr<void> Function(Offset) onOpenArtistMenu;
   final bool workspaceAppBarBottom;
 
   @override

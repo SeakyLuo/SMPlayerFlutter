@@ -547,12 +547,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                           _toggleAlbumSelection(album.name);
                                         },
                                         onOpenContextMenu: (position) {
-                                          unawaited(
-                                            _showAlbumContextMenu(
-                                              position,
-                                              album,
-                                              customPlaylists,
-                                            ),
+                                          return _showAlbumContextMenu(
+                                            position,
+                                            album,
+                                            customPlaylists,
                                           );
                                         },
                                       );

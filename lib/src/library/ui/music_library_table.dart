@@ -56,9 +56,10 @@ class _WideSongTable extends StatelessWidget {
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(BuildContext buttonContext, LibrarySong song)
+  final FutureOr<void> Function(BuildContext buttonContext, LibrarySong song)
   onOpenAddToPlaylistMenu;
-  final void Function(Offset position, LibrarySong song) onOpenContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -111,12 +112,11 @@ class _WideSongTable extends StatelessWidget {
                       onPlayNext: () {
                         onPlayNext(song.id);
                       },
-                      onOpenAddToPlaylistMenu: (buttonContext) {
-                        onOpenAddToPlaylistMenu(buttonContext, song);
-                      },
-                      onOpenContextMenu: (position) {
-                        onOpenContextMenu(position, song);
-                      },
+                      onOpenAddToPlaylistMenu:
+                          (buttonContext) =>
+                              onOpenAddToPlaylistMenu(buttonContext, song),
+                      onOpenContextMenu:
+                          (position) => onOpenContextMenu(position, song),
                     );
                   },
                 ),
@@ -588,8 +588,8 @@ class _WideSongRow extends StatefulWidget {
   final VoidCallback onToggleSelection;
   final VoidCallback onToggleFavorite;
   final VoidCallback onPlayNext;
-  final ValueChanged<BuildContext> onOpenAddToPlaylistMenu;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(BuildContext) onOpenAddToPlaylistMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<_WideSongRow> createState() => _WideSongRowState();
@@ -597,10 +597,32 @@ class _WideSongRow extends StatefulWidget {
 
 class _WideSongRowState extends State<_WideSongRow> {
   var _hovered = false;
+  var _menuOpen = false;
+
+  bool get _hoverActive => _hovered || _menuOpen;
+
+  Future<void> _openMenu(FutureOr<void> Function() open) async {
+    setState(() {
+      _menuOpen = true;
+    });
+    try {
+      await open();
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _menuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
+    final hoverActive = _hoverActive;
     return MouseRegion(
       opaque: false,
       onEnter: (_) {
@@ -624,7 +646,9 @@ class _WideSongRowState extends State<_WideSongRow> {
         onTap: widget.onSelected,
         onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(
+            _openMenu(() => widget.onOpenContextMenu(details.globalPosition)),
+          );
         },
         hoverColor: Colors.transparent,
         child: Stack(
@@ -638,7 +662,7 @@ class _WideSongRowState extends State<_WideSongRow> {
                         ? colors.rowSelected
                         : widget.current
                         ? colors.rowCurrent
-                        : _hovered
+                        : hoverActive
                         ? colors.rowHover
                         : Colors.transparent,
                 border: Border(top: BorderSide(color: colors.rowBorder)),
@@ -656,7 +680,7 @@ class _WideSongRowState extends State<_WideSongRow> {
                                 size: 42,
                                 current: widget.current,
                                 playing: widget.playing,
-                                rowHovered: _hovered,
+                                rowHovered: hoverActive,
                                 onPlay: widget.onAddNextAndPlay,
                                 onTogglePlayPause: widget.onTogglePlayPause,
                               ),
@@ -695,9 +719,10 @@ class _WideSongRowState extends State<_WideSongRow> {
                       alignment: Alignment.center,
                       children: [
                         IgnorePointer(
-                          ignoring: _hovered,
+                          ignoring: hoverActive,
                           child: AnimatedOpacity(
-                            opacity: widget.song.favorite && !_hovered ? 1 : 0,
+                            opacity:
+                                widget.song.favorite && !hoverActive ? 1 : 0,
                             duration: const Duration(milliseconds: 120),
                             child: IconButton(
                               tooltip: widget.i18n.t('common.favorite'),
@@ -712,9 +737,9 @@ class _WideSongRowState extends State<_WideSongRow> {
                           ),
                         ),
                         IgnorePointer(
-                          ignoring: !_hovered,
+                          ignoring: !hoverActive,
                           child: AnimatedOpacity(
-                            opacity: _hovered ? 1 : 0,
+                            opacity: hoverActive ? 1 : 0,
                             duration: const Duration(milliseconds: 120),
                             child: _MusicLibraryRowActionButton(
                               key: ValueKey(

@@ -476,7 +476,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                               );
                             },
                             onOpenArtistMenu: (position) {
-                              _showGroupContextMenu(
+                              return _showGroupContextMenu(
                                 position: position,
                                 type: _ArtistGroupMenuType.artist,
                                 label: compactSelectedArtist.name,
@@ -595,7 +595,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                       );
                     },
                     onOpenArtistMenu: ({required position, required artist}) {
-                      _showGroupContextMenu(
+                      return _showGroupContextMenu(
                         position: position,
                         type: _ArtistGroupMenuType.artist,
                         label: artist.name,
@@ -638,7 +638,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onOpenSongAddToMenu: _showSongAddToMenu,
                     onToggleSongSelection: _toggleSongSelection,
                     onOpenSongContextMenu: (position, song) {
-                      _showSongContextMenu(
+                      return _showSongContextMenu(
                         position,
                         song,
                         selectedArtistSongIds,

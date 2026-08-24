@@ -36,7 +36,7 @@ class _RecentAddedPage extends StatelessWidget {
   ])
   onPlaySong;
   final ValueChanged<int> onToggleSelection;
-  final void Function(
+  final Future<void> Function(
     Offset position,
     String defaultName,
     List<int> songIds,
@@ -88,12 +88,12 @@ class _RecentAddedPage extends StatelessWidget {
             onPlaySong: onPlaySong,
             onToggleSelection: onToggleSelection,
             onOpenAddToMenu: (position, song) {
-              onOpenSongAddToMenu(position, song.title, [
+              return onOpenSongAddToMenu(position, song.title, [
                 song.id,
               ], customPlaylists);
             },
             onOpenContextMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,
@@ -103,7 +103,7 @@ class _RecentAddedPage extends StatelessWidget {
             onToggleFavorite: onToggleFavorite,
             onPlayNext: onPlayNext,
             onOpenMoreMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,
