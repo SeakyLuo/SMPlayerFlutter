@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:smplayer_flutter/src/app/shell_models.dart';
@@ -53,12 +55,16 @@ class NowPlayingQueueView extends StatelessWidget {
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleQueueSelection;
   final ValueChanged<LibrarySong> onToggleFavorite;
-  final void Function(BuildContext buttonContext, LibrarySong song)
+  final FutureOr<void> Function(BuildContext buttonContext, LibrarySong song)
   onOpenAddToPlaylist;
   final void Function(int queueIndex, LibrarySong song) onRemoveQueueIndex;
   final ValueChanged<String> onOpenArtist;
   final ValueChanged<String> onOpenAlbum;
-  final void Function(Offset position, LibrarySong song, int queueIndex)
+  final FutureOr<void> Function(
+    Offset position,
+    LibrarySong song,
+    int queueIndex,
+  )
   onOpenContextMenu;
   final double compactScrollbarTrailingOffset;
 
@@ -160,6 +166,8 @@ class NowPlayingQueueView extends StatelessWidget {
               ? PlaylistControlItemVariant.compact
               : PlaylistControlItemVariant.standard,
       collapseCompactPrimaryActions: compactQueueLayout,
+      showCompactPrimaryActions: compactQueueLayout,
+      overlayCompactActions: compactQueueLayout,
       compactDurationWidth:
           compactQueueLayout ? _nowPlayingQueueCompactDurationWidth : null,
       compactTrailingPadding:
@@ -179,7 +187,7 @@ class NowPlayingQueueView extends StatelessWidget {
         onToggleFavorite(song);
       },
       onAddToPlaylistClick: (buttonContext) {
-        onOpenAddToPlaylist(buttonContext, song);
+        return onOpenAddToPlaylist(buttonContext, song);
       },
       onRemoveFromListClick: () {
         onRemoveQueueIndex(queueIndex, song);
@@ -189,7 +197,7 @@ class NowPlayingQueueView extends StatelessWidget {
         onOpenAlbum(displayAlbum(song, i18n));
       },
       onOpenContextMenu: (position) {
-        onOpenContextMenu(position, song, queueIndex);
+        return onOpenContextMenu(position, song, queueIndex);
       },
     );
   }

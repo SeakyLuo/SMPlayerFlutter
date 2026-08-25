@@ -123,6 +123,7 @@ class SettingsSnapshot {
     required this.hideMultiSelectCommandBarAfterOperation,
     required this.localViewMode,
     required this.quitOnClose,
+    required this.aiAgentEnabled,
     required this.lastPage,
     required this.lastPlaylistId,
     required this.lastReleaseNotesVersion,
@@ -178,6 +179,7 @@ class SettingsSnapshot {
       hideMultiSelectCommandBarAfterOperation = true,
       localViewMode = LocalViewMode.grid,
       quitOnClose = true,
+      aiAgentEnabled = false,
       lastPage = '/songs',
       lastPlaylistId = 0,
       lastReleaseNotesVersion = '';
@@ -231,6 +233,7 @@ class SettingsSnapshot {
   final bool hideMultiSelectCommandBarAfterOperation;
   final LocalViewMode localViewMode;
   final bool quitOnClose;
+  final bool aiAgentEnabled;
   final String lastPage;
   final int lastPlaylistId;
   final String lastReleaseNotesVersion;
@@ -293,6 +296,7 @@ class SettingsSnapshot {
     bool? hideMultiSelectCommandBarAfterOperation,
     LocalViewMode? localViewMode,
     bool? quitOnClose,
+    bool? aiAgentEnabled,
     String? lastPage,
     int? lastPlaylistId,
     String? lastReleaseNotesVersion,
@@ -364,6 +368,7 @@ class SettingsSnapshot {
           this.hideMultiSelectCommandBarAfterOperation,
       localViewMode: localViewMode ?? this.localViewMode,
       quitOnClose: quitOnClose ?? this.quitOnClose,
+      aiAgentEnabled: aiAgentEnabled ?? this.aiAgentEnabled,
       lastPage: lastPage ?? this.lastPage,
       lastPlaylistId: lastPlaylistId ?? this.lastPlaylistId,
       lastReleaseNotesVersion:
@@ -414,6 +419,7 @@ class AppSettingsUpdate {
     this.hideMultiSelectCommandBarAfterOperation,
     this.localViewMode,
     this.quitOnClose,
+    this.aiAgentEnabled,
     this.lastReleaseNotesVersion,
   });
 
@@ -457,6 +463,7 @@ class AppSettingsUpdate {
   final bool? hideMultiSelectCommandBarAfterOperation;
   final LocalViewMode? localViewMode;
   final bool? quitOnClose;
+  final bool? aiAgentEnabled;
   final String? lastReleaseNotesVersion;
 }
 
@@ -506,6 +513,7 @@ extension AppSettingsUpdateApply on SettingsSnapshot {
           update.hideMultiSelectCommandBarAfterOperation,
       localViewMode: update.localViewMode,
       quitOnClose: update.quitOnClose,
+      aiAgentEnabled: update.aiAgentEnabled,
       lastReleaseNotesVersion: update.lastReleaseNotesVersion,
     );
   }

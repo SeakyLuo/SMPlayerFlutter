@@ -49,6 +49,7 @@ import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
+import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -58,6 +59,7 @@ part 'shell_page_navigation_methods.dart';
 part 'shell_page_desktop_methods.dart';
 part 'shell_page_voice_methods.dart';
 part 'shell_page_queue_methods.dart';
+part 'shell_page_agent_methods.dart';
 
 bool _globalNavigationCollapsed = false;
 
@@ -230,6 +232,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     }
     unawaited(_restoreDesktopWindowMaximizedState());
     unawaited(ref.read(libraryRepositoryProvider).commitPendingDeletes());
+    unawaited(_initializeAiAgentRemote());
     _restorePlaybackRuntimeSettings();
     _restoreNavigationPaneState();
     _recordNavigationLocation(
@@ -275,6 +278,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     WidgetsBinding.instance.removeObserver(this);
     _mediaControlController.removeListener(_syncAudioPlayerFromController);
     _settingsController.removeListener(_handleSettingsChanged);
+    unawaited(aiAgentRemoteController.detach());
     _desktopLyricsRetryTimer?.cancel();
     for (final subscription in _audioSubscriptions) {
       unawaited(subscription.cancel());
@@ -385,6 +389,20 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         _refreshPlayerLyricsAfterSave(event.songId);
       }
     });
+    ref.listen(libraryContentDataProvider, (previous, next) {
+      final snapshot = next.valueOrNull;
+      final trackId = _mediaControlController.state.track.id;
+      if (snapshot == null || trackId == null) {
+        return;
+      }
+      final song =
+          snapshot.songs.where((song) => song.id == trackId).firstOrNull;
+      if (song != null) {
+        _mediaControlController.updateTrackMetadata(
+          mediaControlTrackForSong(song, context.smPlayerI18n),
+        );
+      }
+    });
     final currentLocation = widget.currentLocation ?? currentPath;
     final layout = ShellLayoutState.resolve(
       currentPath: currentPath,
@@ -489,7 +507,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 value,
                 type,
                 repository: ref.read(libraryRepositoryProvider),
-                onRecentSearchRecorded: _invalidateRecentSearchData,
               );
             },
             onRecentSearchSelected: _openSearchWithoutRecording,
@@ -505,21 +522,23 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onItemInvoked: _navigateTo,
             onRecentSearchRemove: (entryId) {
+              final recentSearches = ref.read(recentSearchesProvider.notifier);
               unawaited(
                 ref
                     .read(libraryRepositoryProvider)
                     .removeRecentSearches([entryId])
                     .then((_) {
-                      _invalidateRecentSearchData();
+                      return recentSearches.remove([entryId]);
                     }),
               );
             },
             onRecentSearchesClear: () {
+              final recentSearches = ref.read(recentSearchesProvider.notifier);
               unawaited(
                 ref.read(libraryRepositoryProvider).clearRecentSearches().then((
                   _,
                 ) {
-                  _invalidateRecentSearchData();
+                  return recentSearches.clear();
                 }),
               );
             },
@@ -574,9 +593,10 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             },
             onReorderPlaylists: (playlistIds) {
               unawaited(
-                ref
-                    .read(libraryRepositoryProvider)
-                    .reorderPlaylists(playlistIds),
+                _reorderPlaylistsFromNavigation(
+                  ref: ref,
+                  playlistIds: playlistIds,
+                ),
               );
             },
             onPlaylistRandomPlay: (playlistId) {
@@ -590,6 +610,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             layout: layout,
             windowControlsLight: _lastWindowControlsLight,
             isWindowMaximized: _isWindowMaximized,
+            onPaneToggle: _toggleNavigationPane,
             onGoBack: _goBack,
             onWindowDragStart: _startWindowDrag,
             onWindowDragEnd: _stopWindowDrag,

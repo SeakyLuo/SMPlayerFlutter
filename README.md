@@ -15,15 +15,12 @@ You may fork, modify, and redistribute this project for non-commercial purposes,
 # MIGHT DO
 1. Lock-Screen wall paper like Groove.
 2. Album properties.
+3. allow music artist and album in immersive mode
 
 ## TODO
-1. support for ai agent
-2. remote play
-3. allow music artist and album in immersive mode
-4. Search multiple lyrics choose one. Lyrics priority in notification.
-5. Search in lyrics.
-6. Batch edit music info.
+1. remote play
+2. Lyrics priority in notification.
+3. 正在播放支持swipe delete/like
 
 ## FIXME
 1. 最小高度宽屏和窄屏下不对
-2. 正在播放支持swipe delete/like

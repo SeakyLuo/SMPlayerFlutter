@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -400,6 +402,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       widget.i18n,
       View.of(context).platformDispatcher.locale,
     );
+    final useMacOSTitlebarActions =
+        widget.showTitlebar && defaultTargetPlatform == TargetPlatform.macOS;
     final topPadding = widget.showTitlebar ? 8.0 : 0.0;
 
     return Material(
@@ -443,26 +447,47 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                 : CrossAxisAlignment.start,
                         children: [
                           if (widget.showTitlebar) ...[
-                            _MainNavigationViewTitle(
-                              collapsed: contentCollapsed,
-                              hideAppName:
-                                  defaultTargetPlatform == TargetPlatform.macOS,
-                              appName: resolvedAppName,
-                              titlebarLeadingInset:
-                                  defaultTargetPlatform == TargetPlatform.macOS
-                                      ? _desktopTitlebarButtonInset
-                                      : 0,
-                              canGoBack:
-                                  contentCollapsed &&
-                                          defaultTargetPlatform ==
-                                              TargetPlatform.macOS
-                                      ? false
-                                      : widget.canGoBack,
-                              backLabel: widget.i18n.t('sidebar.back'),
-                              onGoBack: widget.onGoBack,
-                              onWindowDragStart: widget.onWindowDragStart,
-                              onWindowDragEnd: widget.onWindowDragEnd,
-                              onTitlebarTap: widget.onTitlebarTap,
+                            if (useMacOSTitlebarActions)
+                              const SizedBox(height: 32)
+                            else
+                              _MainNavigationViewTitle(
+                                collapsed: contentCollapsed,
+                                hideAppName: false,
+                                appName: resolvedAppName,
+                                titlebarLeadingInset: 0,
+                                canGoBack: widget.canGoBack,
+                                backLabel: widget.i18n.t('sidebar.back'),
+                                onGoBack: widget.onGoBack,
+                                onWindowDragStart: widget.onWindowDragStart,
+                                onWindowDragEnd: widget.onWindowDragEnd,
+                                onTitlebarTap: widget.onTitlebarTap,
+                                onTooltipRequested:
+                                    contentCollapsed
+                                        ? _showFloatingTooltip
+                                        : null,
+                                onTooltipDismissed: _hideFloatingTooltip,
+                              ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (!useMacOSTitlebarActions) ...[
+                            _NavigationIconButton(
+                              key: const ValueKey(
+                                'MainNavigationView.TogglePaneButton',
+                              ),
+                              icon: FluentIcons.line_horizontal_3_24_regular,
+                              tooltip:
+                                  contentCollapsed
+                                      ? widget.i18n.t(
+                                        'sidebar.expandNavigation',
+                                      )
+                                      : widget.i18n.t(
+                                        'sidebar.collapseNavigation',
+                                      ),
+                              collapsedContext: contentCollapsed,
+                              onPressed: () {
+                                _hideFloatingTooltip();
+                                widget.onPaneToggle();
+                              },
                               onTooltipRequested:
                                   contentCollapsed
                                       ? _showFloatingTooltip
@@ -471,27 +496,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                             ),
                             const SizedBox(height: 8),
                           ],
-                          _NavigationIconButton(
-                            key: const ValueKey(
-                              'MainNavigationView.TogglePaneButton',
-                            ),
-                            icon: FluentIcons.line_horizontal_3_24_regular,
-                            tooltip:
-                                contentCollapsed
-                                    ? widget.i18n.t('sidebar.expandNavigation')
-                                    : widget.i18n.t(
-                                      'sidebar.collapseNavigation',
-                                    ),
-                            collapsedContext: contentCollapsed,
-                            onPressed: () {
-                              _hideFloatingTooltip();
-                              widget.onPaneToggle();
-                            },
-                            onTooltipRequested:
-                                contentCollapsed ? _showFloatingTooltip : null,
-                            onTooltipDismissed: _hideFloatingTooltip,
-                          ),
-                          const SizedBox(height: 8),
                           _MainNavigationViewSearchBox(
                             collapsed: contentCollapsed,
                             value: widget.searchText,

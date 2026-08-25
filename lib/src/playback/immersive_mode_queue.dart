@@ -239,7 +239,6 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onUndoPreference,
     required this.onSetPreference,
     required this.onDeleteSongFromDisk,
-    required this.onHideSongFile,
     required this.onMoveSongToFolder,
     required this.onOpenSongDialog,
     required this.onRevealSong,
@@ -281,7 +280,6 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final Future<void> Function(int) onUndoPreference;
   final Future<void> Function(int, String, String) onSetPreference;
   final Future<void> Function(LibrarySong) onDeleteSongFromDisk;
-  final Future<void> Function(LibrarySong) onHideSongFile;
   final Future<void> Function(LibrarySong, String) onMoveSongToFolder;
   final ValueChanged<SongDialogMode> onOpenSongDialog;
   final ValueChanged<String> onRevealSong;
@@ -336,8 +334,6 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       widget.onSetPreference;
   Future<void> Function(LibrarySong) get onDeleteSongFromDisk =>
       widget.onDeleteSongFromDisk;
-  Future<void> Function(LibrarySong) get onHideSongFile =>
-      widget.onHideSongFile;
   Future<void> Function(LibrarySong, String) get onMoveSongToFolder =>
       widget.onMoveSongToFolder;
   ValueChanged<SongDialogMode> get onOpenSongDialog => widget.onOpenSongDialog;
@@ -488,8 +484,18 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       confirmLabel: i18n.t('common.clear'),
       i18n: i18n,
     );
+    if (!context.mounted) {
+      return;
+    }
     if (confirmed) {
+      final before = currentQueueSongIds();
       onClearNowPlaying();
+      showUndoableNotification(
+        context: context,
+        i18n: i18n,
+        message: i18n.t('notification.nowPlayingCleared'),
+        onUndo: () => onReplaceQueue(before),
+      );
     }
   }
 
@@ -607,7 +613,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                               'ImmersiveMode.QueueClearNowPlayingButton',
                             ),
                             tooltip: i18n.t('nowPlaying.clearNowPlaying'),
-                            icon: FluentIcons.delete_20_regular,
+                            icon: FluentIcons.broom_20_regular,
                             onPressed: () {
                               unawaited(_confirmClearNowPlaying(context));
                             },
@@ -664,6 +670,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           playing: current && isPlaying,
           selected: selection.isSelected(index),
           selectionMode: selection.multiSelect,
+          swipeEnabled: _draggedQueueIndex == null && dropPosition == null,
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
           collapseCompactPrimaryActions: true,
@@ -702,7 +709,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
             onToggleFavorite([song.id], !song.favorite);
           },
           onAddToPlaylistClick: (buttonContext) {
-            _showAddToPlaylistMenu(buttonContext, song);
+            return _showAddToPlaylistMenu(buttonContext, song);
           },
           onSeeAlbum: () {
             context.go(
@@ -715,7 +722,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
             onClose();
           },
           onOpenContextMenu: (position) {
-            _showQueueContextMenu(context, position, song, index);
+            return _showQueueContextMenu(context, position, song, index);
           },
         );
         final rowItem =
@@ -883,6 +890,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       return buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: isPlaying,
@@ -907,7 +915,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         onPlay: () {
           onPlayTrack(song, songIds, queueIndex);
         },
-        onPause: onTogglePlayPause,
+        onTogglePlayPause: onTogglePlayPause,
         onPlayNext: null,
         onAddToNowPlaying: () {
           onAddToNowPlaying(song);
@@ -964,9 +972,6 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         },
         onDelete: () {
           onDeleteSongFromDisk(song);
-        },
-        onHide: () {
-          onHideSongFile(song);
         },
         onMoveToFolder: (folderPath) {
           onMoveSongToFolder(song, folderPath);
@@ -1070,16 +1075,6 @@ String displayImmersiveModeFolderName(String path) {
   return index >= 0 ? normalized.substring(index + 1) : normalized;
 }
 
-List<({int index, int songId})> immersiveModeQueueEntriesForSong(
-  List<int> queueSongIds,
-  int songId,
-) {
-  return [
-    for (var index = 0; index < queueSongIds.length; index += 1)
-      if (queueSongIds[index] == songId) (index: index, songId: songId),
-  ];
-}
-
 List<int> insertImmersiveModeQueueSongs(
   List<int> queueSongIds,
   int insertIndex,
@@ -1096,27 +1091,6 @@ List<int> insertImmersiveModeQueueSongs(
     ...insertedSongIds,
     ...queueSongIds.skip(index),
   ];
-}
-
-List<int> insertImmersiveModeQueueEntries(
-  List<int> queueSongIds,
-  List<({int index, int songId})> entries,
-) {
-  var nextQueueSongIds = queueSongIds.toList();
-  for (final entry in entries) {
-    final index =
-        entry.index < 0
-            ? 0
-            : entry.index > nextQueueSongIds.length
-            ? nextQueueSongIds.length
-            : entry.index;
-    nextQueueSongIds = [
-      ...nextQueueSongIds.take(index),
-      entry.songId,
-      ...nextQueueSongIds.skip(index),
-    ];
-  }
-  return nextQueueSongIds;
 }
 
 class ImmersiveModeQueueEmptyState extends StatelessWidget {

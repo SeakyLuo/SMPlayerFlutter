@@ -8,7 +8,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
     }
     final i18n = context.smPlayerI18n;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     var sourceName = '';
@@ -30,12 +30,12 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _displayArtworkUrl = preparedPath;
         _artworkSourcePath = preparedPath;
         _artworkMissing = false;
+        _artworkDeletePending = false;
         _artworkRecommendation = null;
-        _showArtworkDeleteConfirm = false;
       });
     } on StateError {
       if (mounted) {
@@ -47,7 +47,7 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
@@ -59,83 +59,64 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       _showMessage(context.smPlayerI18n.t('song.processingRequest'));
       return;
     }
-    if (_artworkSourcePath.isEmpty) {
+    if (!_artworkDirty) {
       return;
     }
     final i18n = context.smPlayerI18n;
+    final deleteArtwork = _artworkDeletePending;
 
-    setState(() {
+    _updateState(() {
       _saving = true;
     });
     try {
-      await ref
-          .read(libraryRepositoryProvider)
-          .saveSongArtwork(widget.song.id, _artworkSourcePath);
+      final repository = ref.read(libraryRepositoryProvider);
+      if (deleteArtwork) {
+        await repository.deleteSongArtwork(widget.song.id);
+      } else {
+        await repository.saveSongArtwork(widget.song.id, _artworkSourcePath);
+      }
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _originalDisplayArtworkUrl = _displayArtworkUrl;
         _artworkSourcePath = '';
-        _artworkMissing = false;
-        _originalArtworkMissing = false;
+        _artworkDeletePending = false;
+        _artworkMissing = deleteArtwork;
+        _originalArtworkMissing = deleteArtwork;
         _artworkRecommendation = null;
       });
+      _syncSongMutation(_songWithArtwork(_displayArtworkUrl), i18n);
       _notifySaved();
-      _showMessage(i18n.t('song.albumArtSaved'));
+      _showMessage(
+        i18n.t(deleteArtwork ? 'song.albumArtDeleted' : 'song.albumArtSaved'),
+      );
     } catch (_) {
       if (mounted) {
         _showMessage(i18n.t('song.updateFailed'));
       }
     } finally {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _saving = false;
         });
       }
     }
   }
 
-  Future<void> _deleteArtwork() async {
+  void _deleteArtwork() {
     if (_saving) {
       _showMessage(context.smPlayerI18n.t('song.processingRequest'));
       return;
     }
-    final i18n = context.smPlayerI18n;
-
-    setState(() {
-      _saving = true;
+    _updateState(() {
+      _displayArtworkUrl = '';
+      _artworkSourcePath = '';
+      _artworkDeletePending = true;
+      _artworkMissing = true;
+      _artworkRecommendation = null;
+      _artworkRecommendationRequestKey = '';
     });
-    try {
-      await ref
-          .read(libraryRepositoryProvider)
-          .deleteSongArtwork(widget.song.id);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _displayArtworkUrl = '';
-        _originalDisplayArtworkUrl = '';
-        _artworkSourcePath = '';
-        _artworkMissing = true;
-        _originalArtworkMissing = true;
-        _artworkRecommendation = null;
-        _artworkRecommendationRequestKey = '';
-        _showArtworkDeleteConfirm = false;
-      });
-      _loadArtworkRecommendation();
-      _notifySaved();
-      _showMessage(i18n.t('song.albumArtDeleted'));
-    } catch (_) {
-      if (mounted) {
-        _showMessage(i18n.t('song.updateFailed'));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-        });
-      }
-    }
+    _loadArtworkRecommendation();
   }
 }

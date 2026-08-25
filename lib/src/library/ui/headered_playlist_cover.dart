@@ -49,12 +49,31 @@ class HeaderedPlaylistCover extends StatelessWidget {
             ? const _CoverFallback()
             : _CoverImage(artworkUrl: artworkUrls.first);
 
-    return DecoratedBox(
-      decoration: decoration,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: SizedBox.square(dimension: size, child: child),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration:
+          MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      child: DecoratedBox(
+        decoration: decoration,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: SizedBox.square(dimension: size, child: child),
+        ),
       ),
+      builder:
+          (context, progress, child) => Opacity(
+            opacity: progress,
+            child: Transform.translate(
+              offset: Offset(0, 12 * (1 - progress)),
+              child: Transform.scale(
+                scale: 0.96 + 0.04 * progress,
+                child: child,
+              ),
+            ),
+          ),
     );
   }
 }
@@ -68,7 +87,18 @@ class _CoverImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final file = File(artworkUrl);
     if (file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover);
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            cacheWidth: (constraints.maxWidth * devicePixelRatio).ceil(),
+            cacheHeight: (constraints.maxHeight * devicePixelRatio).ceil(),
+            gaplessPlayback: true,
+          );
+        },
+      );
     }
 
     return const _CoverFallback();

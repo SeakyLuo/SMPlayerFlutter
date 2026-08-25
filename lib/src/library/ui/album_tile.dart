@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 
 import '../data/library_models.dart';
 import 'selected_collection_card_style.dart';
@@ -39,6 +42,7 @@ class AlbumTile extends StatefulWidget {
     required this.onPlayAlbum,
     required this.onAddAlbum,
     required this.onToggleSelection,
+    this.searchQuery = '',
     this.onOpenContextMenu,
   });
 
@@ -49,7 +53,8 @@ class AlbumTile extends StatefulWidget {
   final VoidCallback onPlayAlbum;
   final ValueChanged<Offset> onAddAlbum;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset>? onOpenContextMenu;
+  final String searchQuery;
+  final FutureOr<void> Function(Offset)? onOpenContextMenu;
 
   @override
   State<AlbumTile> createState() => _AlbumTileState();
@@ -57,9 +62,27 @@ class AlbumTile extends StatefulWidget {
 
 class _AlbumTileState extends State<AlbumTile> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu!(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hoverActive = _hovered || _contextMenuOpen;
     final brightness = Theme.of(context).brightness;
     final colors = _AlbumTileColors.forBrightness(brightness);
     final selectedStyle = SelectedCollectionCardStyle.forBrightness(brightness);
@@ -82,7 +105,9 @@ class _AlbumTileState extends State<AlbumTile> {
         onTap:
             widget.multiSelect ? widget.onToggleSelection : widget.onOpenAlbum,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu?.call(details.globalPosition);
+          if (widget.onOpenContextMenu != null) {
+            unawaited(_openContextMenu(details.globalPosition));
+          }
         },
         child: AnimatedContainer(
           key: const ValueKey('AlbumTile.Container'),
@@ -94,7 +119,7 @@ class _AlbumTileState extends State<AlbumTile> {
             color:
                 widget.selected
                     ? selectedStyle.background
-                    : _hovered
+                    : hoverActive
                     ? hoverStyle.background
                     : hoverStyle.transparentBackground,
             borderRadius: BorderRadius.circular(12),
@@ -102,14 +127,14 @@ class _AlbumTileState extends State<AlbumTile> {
               color:
                   widget.selected
                       ? selectedStyle.border
-                      : _hovered
+                      : hoverActive
                       ? hoverStyle.border
                       : hoverStyle.transparentBorder,
             ),
             boxShadow:
                 widget.selected
                     ? [selectedStyle.shadow]
-                    : _hovered
+                    : hoverActive
                     ? [hoverStyle.shadow]
                     : null,
           ),
@@ -120,8 +145,9 @@ class _AlbumTileState extends State<AlbumTile> {
                 children: [
                   AlbumArtControl(album: widget.album),
                   const SizedBox(height: 12),
-                  Text(
-                    widget.album.name,
+                  SearchMatchText(
+                    text: widget.album.name,
+                    query: widget.searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -135,8 +161,9 @@ class _AlbumTileState extends State<AlbumTile> {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    widget.album.subtitle ?? widget.album.artist,
+                  SearchMatchText(
+                    text: widget.album.subtitle ?? widget.album.artist,
+                    query: widget.searchQuery,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -151,7 +178,7 @@ class _AlbumTileState extends State<AlbumTile> {
                   ),
                 ],
               ),
-              if (_hovered && !widget.multiSelect)
+              if (hoverActive && !widget.multiSelect)
                 Positioned(
                   left: 0,
                   right: 0,

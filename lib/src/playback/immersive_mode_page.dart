@@ -235,9 +235,10 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   @override
   Widget build(BuildContext context) {
     final snapshotValue = ref.watch(libraryContentDataProvider);
-    final recentSongs =
-        ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-        const <RecentLibrarySong>[];
+    final recentSongs = ref.watch(recentSongsProvider);
+    ref.watch(libraryPlaylistOverridesProvider);
+    ref.watch(libraryDeletedPlaylistIdsProvider);
+    ref.watch(libraryPlaylistOrderProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (
@@ -298,7 +299,9 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
         _ensureCoverColor(displayArtworkPath);
         final noticeKey = mediaState.playbackNoticeKey;
         final noticeText = noticeKey == null ? null : i18n.t(noticeKey);
-        final customPlaylists = _customPlaylists(snapshot.playlists);
+        final customPlaylists = _customPlaylists(
+          _effectivePlaylists(snapshot.playlists),
+        );
         final settings = smPlayerGlobalSettingsSnapshot;
         final immersiveNightActive =
             settings.nightMode == NightMode.onMode ||
@@ -324,7 +327,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               selection: _selection,
               scrollController: _queueController,
               playlists: customPlaylists,
-              playlistSnapshots: snapshot.playlists,
+              playlistSnapshots: _effectivePlaylists(snapshot.playlists),
               folders: snapshot.folders,
               onClose: () {
                 setState(() {
@@ -365,7 +368,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onUndoPreference: _undoSongPreference,
               onSetPreference: _setSongPreference,
               onDeleteSongFromDisk: _deleteSongFromDisk,
-              onHideSongFile: (song) => _hideSongFile(song, queueSongIds),
               onMoveSongToFolder: _moveSongToFolder,
               onOpenSongDialog: _openMusicDialog,
               onRevealSong: _revealPath,
@@ -526,7 +528,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                     playlists: customPlaylists,
                     defaultNewPlaylistName: getDefaultNewPlaylistName(
                       i18n,
-                      snapshot.playlists,
+                      _effectivePlaylists(snapshot.playlists),
                     ),
                     hideMultiSelectCommandBarAfterOperation:
                         snapshot.hideMultiSelectCommandBarAfterOperation,
@@ -752,11 +754,10 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
         songs: queueSongs,
         librarySongs: snapshot.songs,
         recentSongs: recentSongs,
-        playlists: snapshot.playlists,
+        playlists: _effectivePlaylists(snapshot.playlists),
         folders: snapshot.folders,
         randomLimit: nowPlayingQuickPlayLimit,
         onPlaySongs: _playSongIds,
-        includeQuickPlay: false,
       ),
       onVolumeChange: mediaController.onVolumeChange,
       onToggleMute: mediaController.onToggleMute,
@@ -778,7 +779,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       showFavoriteWhenUnavailable: true,
       currentSong: currentSong,
       nowPlayingSongIds: queueSongIds,
-      playlists: snapshot.playlists,
+      playlists: _effectivePlaylists(snapshot.playlists),
       onResolvePreferenceLevel:
           currentSong == null
               ? null
@@ -924,12 +925,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _quickPlay(LibraryContentData snapshot) async {
-    final preferences =
-        await ref.read(libraryRepositoryProvider).getPreferenceSettings();
+    final preferences = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceSettings(
+          unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
+        );
     _playQueueSongIds(
       quickPlaySongIds(
         songs: snapshot.songs,
-        playlists: snapshot.playlists,
+        playlists: _effectivePlaylists(snapshot.playlists),
         folders: snapshot.folders,
         preferences: preferences,
         randomLimit: nowPlayingQuickPlayLimit,
@@ -1177,7 +1181,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   Future<void> _addSongsToPlaylist(int playlistId, List<int> songIds) async {
@@ -1247,39 +1257,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
     );
   }
 
-  Future<void> _hideSongFile(LibrarySong song, List<int> queueSongIds) async {
-    final removedEntries = immersiveModeQueueEntriesForSong(
-      queueSongIds,
-      song.id,
-    );
-    await ref.read(libraryRepositoryProvider).hideSong(song.id);
-    ref.invalidate(libraryContentDataProvider);
-    _replaceQueue([
-      for (final songId in queueSongIds)
-        if (songId != song.id) songId,
-    ]);
-    if (!mounted) {
-      return;
-    }
-    _showUndo(
-      context.smPlayerI18n.t('notification.hiddenStorageItem', {
-        'name': song.title,
-      }),
-      () async {
-        await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(libraryContentDataProvider);
-        final snapshot =
-            await ref.read(libraryRepositoryProvider).getLibraryContentData();
-        final currentQueueSongIds =
-            ref.read(nowPlayingQueueOverrideProvider) ??
-            snapshot.nowPlaying.songIds;
-        _replaceQueue(
-          insertImmersiveModeQueueEntries(currentQueueSongIds, removedEntries),
-        );
-      },
-    );
-  }
-
   Future<void> _moveSongToFolder(LibrarySong song, String folderPath) async {
     await moveSongToFolderWithUndo(
       context: context,
@@ -1303,6 +1280,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
       i18n: context.smPlayerI18n,
       message: message,
       onUndo: action,
+    );
+  }
+
+  List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
     );
   }
 

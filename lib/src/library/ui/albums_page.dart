@@ -23,6 +23,7 @@ import '../../i18n/app_i18n.dart';
 import '../../playback/playback_queue_actions.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
+import 'album_artwork_dialog.dart';
 import 'album_tile.dart';
 import 'artists_page_model.dart';
 import 'command_bar.dart';
@@ -44,7 +45,6 @@ part 'albums_quick_jump.dart';
 part 'albums_progress.dart';
 part 'albums_page_panel.dart';
 part 'albums_empty_state.dart';
-part 'albums_art_preview_dialog.dart';
 part 'albums_colors.dart';
 part 'albums_page_search_actions.dart';
 part 'albums_page_selection_actions.dart';
@@ -81,6 +81,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
 
   @override
   void initState() {
@@ -315,7 +319,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           )),
         );
         final albumSearchHistoryEntries = latestSearchHistoryEntries(
-          snapshot.recentSearches,
+          ref.watch(recentSearchesProvider).valueOrNull ??
+              snapshot.recentSearches,
           SearchHistoryType.albums,
         );
         final customPlaylists =
@@ -521,9 +526,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                           _openAlbum(album.name);
                                         },
                                         onPlayAlbum: () {
-                                          ref
-                                              .read(libraryRepositoryProvider)
-                                              .recordAlbumPlayed(album.name);
+                                          unawaited(
+                                            recordRecentAlbumPlayback(
+                                              ref,
+                                              album.name,
+                                            ),
+                                          );
                                           _playSongIds(album.songIds);
                                         },
                                         onAddAlbum: (position) {
@@ -539,12 +547,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                           _toggleAlbumSelection(album.name);
                                         },
                                         onOpenContextMenu: (position) {
-                                          unawaited(
-                                            _showAlbumContextMenu(
-                                              position,
-                                              album,
-                                              customPlaylists,
-                                            ),
+                                          return _showAlbumContextMenu(
+                                            position,
+                                            album,
+                                            customPlaylists,
                                           );
                                         },
                                       );
@@ -653,14 +659,18 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                       setState(_selection.cancel);
                     },
                   ),
-                  if (_albumArtPreview != null)
-                    _AlbumArtPreviewDialog(
-                      album: _albumArtPreview!,
-                      i18n: i18n,
+                  if (_albumArtPreview case final album?)
+                    AlbumArtworkDialog(
+                      albumName: album.name,
+                      artworkUrl: album.artworkSong!.thumbnailPath,
+                      songId: album.artworkSong!.id,
                       onClose: () {
                         setState(() {
                           _albumArtPreview = null;
                         });
+                      },
+                      onSaved: () {
+                        ref.invalidate(libraryContentDataProvider);
                       },
                     ),
                 ],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -37,6 +39,7 @@ class LocalGridViewMusic extends StatelessWidget {
     required this.folderQueueSongIds,
     required this.i18n,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -63,12 +66,14 @@ class LocalGridViewMusic extends StatelessWidget {
   final List<int> folderQueueSongIds;
   final SmPlayerI18n i18n;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(LibrarySong song, Offset position) onAddSong;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position) onAddSong;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
   final ScrollController? scrollController;
 
@@ -112,6 +117,8 @@ class LocalGridViewMusic extends StatelessWidget {
                                 currentSongs[index].id,
                                 folderQueueSongIds,
                               ),
+                          onPlayButton:
+                              () => onPlaySong(currentSongs[index].id),
                           onTogglePlayPause: onTogglePlayPause,
                           onToggleSelection:
                               () =>
@@ -157,6 +164,7 @@ class LocalGridViewMusic extends StatelessWidget {
                       ),
                       i18n: i18n,
                       onPlay: () => onPlayTrack(song.id, folderQueueSongIds),
+                      onPlayButton: () => onPlaySong(song.id),
                       onTogglePlayPause: onTogglePlayPause,
                       onToggleSelection: () => onToggleSongSelection(song.id),
                       onAddSong: (position) => onAddSong(song, position),
@@ -251,6 +259,7 @@ class LocalSongGridItem extends StatefulWidget {
     required this.detailLabel,
     required this.i18n,
     required this.onPlay,
+    required this.onPlayButton,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onAddSong,
@@ -265,10 +274,11 @@ class LocalSongGridItem extends StatefulWidget {
   final String? detailLabel;
   final SmPlayerI18n i18n;
   final VoidCallback onPlay;
+  final VoidCallback onPlayButton;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onAddSong;
-  final ValueChanged<Offset> onOpenMenu;
+  final FutureOr<void> Function(Offset) onAddSong;
+  final FutureOr<void> Function(Offset) onOpenMenu;
 
   @override
   State<LocalSongGridItem> createState() => LocalSongGridItemState();
@@ -276,6 +286,25 @@ class LocalSongGridItem extends StatefulWidget {
 
 class LocalSongGridItemState extends State<LocalSongGridItem> {
   var _suppressNextCardTap = false;
+  var _menuOpen = false;
+
+  Future<void> _openMenu(FutureOr<void> Function() open) async {
+    setState(() {
+      _menuOpen = true;
+    });
+    try {
+      await open();
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _menuOpen = false;
+        });
+      });
+    }
+  }
 
   void _suppressCardTapForLink() {
     _suppressNextCardTap = true;
@@ -304,15 +333,19 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
         widget.detailLabel ?? getLocalDisplayArtists(widget.song, widget.i18n);
     final artistsLabel = getLocalDisplayArtists(widget.song, widget.i18n);
     final albumLabel = displayAlbum(widget.song, widget.i18n);
-    final foregroundColor = localColors.textMuted;
+    final foregroundColor =
+        widget.current ? localColors.accentStrong : localColors.textMuted;
     return LocalHoverRegion(
       builder: (context, hovered, focused) {
-        final actionsVisible = !widget.multiSelect && (hovered || focused);
+        final hoverActive = hovered || focused || _menuOpen;
+        final actionsVisible = !widget.multiSelect && hoverActive;
         final surfaceActive =
-            hovered || focused || (widget.multiSelect && widget.selected);
+            hoverActive || (widget.multiSelect && widget.selected);
         return GestureDetector(
           onSecondaryTapDown:
-              (details) => widget.onOpenMenu(details.globalPosition),
+              (details) => unawaited(
+                _openMenu(() => widget.onOpenMenu(details.globalPosition)),
+              ),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             hoverColor: Colors.transparent,
@@ -382,9 +415,12 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                           right: 8,
                           child: LocalCheckMark(selected: widget.selected),
                         ),
-                      if (widget.current && !hovered && !focused)
+                      if (widget.current && !hoverActive)
                         Positioned.fill(
                           child: SmPlayerPlayingWaveGlass(
+                            key: ValueKey(
+                              'LocalGridSong.Playing.${widget.song.id}',
+                            ),
                             playing: widget.playing,
                             dimension: 48,
                             keyPrefix:
@@ -418,15 +454,20 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                                   onPressed:
                                       widget.current
                                           ? widget.onTogglePlayPause
-                                          : widget.onPlay,
+                                          : widget.onPlayButton,
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 RoundSongAction(
                                   tooltip: widget.i18n.t(
                                     'context.addToPlaylist',
                                   ),
                                   icon: const Icon(FluentIcons.add_20_regular),
-                                  onPressedAt: widget.onAddSong,
+                                  onPressedAt:
+                                      (position) => unawaited(
+                                        _openMenu(
+                                          () => widget.onAddSong(position),
+                                        ),
+                                      ),
                                 ),
                               ],
                             ),
@@ -438,18 +479,21 @@ class LocalSongGridItemState extends State<LocalSongGridItem> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          widget.song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color:
-                                widget.current
-                                    ? localColors.accentStrong
-                                    : localColors.textStrong,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            height: 1.35,
+                        child: Tooltip(
+                          message: widget.song.title,
+                          child: Text(
+                            widget.song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color:
+                                  widget.current
+                                      ? localColors.accentStrong
+                                      : localColors.textStrong,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
                           ),
                         ),
                       ),
@@ -628,6 +672,7 @@ class CompactLocalSongRow extends StatelessWidget {
     required this.selectionMode,
     required this.i18n,
     required this.onPlay,
+    required this.onPlayButton,
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onPlayNext,
@@ -643,12 +688,13 @@ class CompactLocalSongRow extends StatelessWidget {
   final bool selectionMode;
   final SmPlayerI18n i18n;
   final VoidCallback onPlay;
+  final VoidCallback onPlayButton;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback onPlayNext;
   final VoidCallback onToggleFavorite;
-  final ValueChanged<Offset> onAddSong;
-  final ValueChanged<Offset> onOpenMenu;
+  final FutureOr<void> Function(Offset) onAddSong;
+  final FutureOr<void> Function(Offset) onOpenMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -660,7 +706,11 @@ class CompactLocalSongRow extends StatelessWidget {
       selectionMode: selectionMode,
       showAlbum: true,
       variant: PlaylistControlItemVariant.compact,
+      showCompactPrimaryActions: true,
       collapseCompactPrimaryActions: true,
+      favoriteAsHoverAction: true,
+      keepFavoriteActionInCompact: true,
+      keepAddToActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel:
@@ -668,14 +718,14 @@ class CompactLocalSongRow extends StatelessWidget {
               ? i18n.t('context.removeFavorite')
               : i18n.t('context.addFavorite'),
       moreLabel: i18n.t('player.more'),
-      onPlayTrack: onPlay,
+      onActivateRow: onPlay,
+      onPlayTrack: onPlayButton,
       onTogglePlayPause: onTogglePlayPause,
       onToggleSelection: onToggleSelection,
       onPlayNextClick: onPlayNext,
       onToggleFavoriteClick: onToggleFavorite,
-      onAddToPlaylistClick: (buttonContext) {
-        invokeAtButtonBottom(buttonContext, onAddSong);
-      },
+      onAddToPlaylistClick:
+          (buttonContext) => invokeAtButtonBottom(buttonContext, onAddSong),
       onSeeArtist: (artist) {
         context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
       },
@@ -701,7 +751,7 @@ class RoundSongAction extends StatelessWidget {
   final String tooltip;
   final Widget icon;
   final VoidCallback? onPressed;
-  final ValueChanged<Offset>? onPressedAt;
+  final FutureOr<void> Function(Offset)? onPressedAt;
 
   @override
   Widget build(BuildContext context) {
@@ -743,7 +793,10 @@ class LocalGridSongCardColors {
   }
 }
 
-void invokeAtButtonBottom(BuildContext context, ValueChanged<Offset> action) {
+FutureOr<void> invokeAtButtonBottom(
+  BuildContext context,
+  FutureOr<void> Function(Offset) action,
+) {
   final box = context.findRenderObject() as RenderBox;
-  action(box.localToGlobal(Offset(0, box.size.height + 6)));
+  return action(box.localToGlobal(Offset(0, box.size.height + 6)));
 }

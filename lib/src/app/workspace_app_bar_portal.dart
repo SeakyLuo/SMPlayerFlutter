@@ -27,7 +27,9 @@ class WorkspaceAppBarPortalEntry {
     required this.content,
     this.routeLocation,
     this.title,
+    this.titleTooltip,
     this.bottomContent,
+    this.bottomPadding,
     this.replacesTitle = false,
   });
 
@@ -36,7 +38,9 @@ class WorkspaceAppBarPortalEntry {
   final String? routeLocation;
   final Widget content;
   final String? title;
+  final String? titleTooltip;
   final Widget? bottomContent;
+  final double? bottomPadding;
   final bool replacesTitle;
 }
 

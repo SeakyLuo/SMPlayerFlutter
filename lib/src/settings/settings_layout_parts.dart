@@ -74,6 +74,67 @@ class _SettingsRowFrame extends StatelessWidget {
   }
 }
 
+class _CopyableSettingValue extends StatelessWidget {
+  const _CopyableSettingValue({
+    required this.label,
+    required this.value,
+    required this.copyTooltip,
+    required this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final String copyTooltip;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SettingsPageColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.textStrong,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Container(
+          constraints: const BoxConstraints(minHeight: 42),
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+          decoration: BoxDecoration(
+            color: colors.inputSurface,
+            border: Border.all(color: colors.inputBorder),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  value,
+                  style: TextStyle(
+                    color: colors.textStrong,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: copyTooltip,
+                onPressed: onCopy,
+                icon: const Icon(FluentIcons.copy_20_regular, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TimePicker extends StatefulWidget {
   const _TimePicker({required this.value, required this.onChange});
 
@@ -426,7 +487,8 @@ class _SettingsIconButton extends StatelessWidget {
         label: tooltip,
         loading: busy,
         showLabel: false,
-        minWidth: 52,
+        minWidth: 42,
+        maxWidth: 42,
         height: 42,
         iconSize: 24,
         onPressed: onPressed,
@@ -612,8 +674,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.onConfirm,
     this.confirmText,
     this.busy = false,
-    this.usePopupDialog = false,
-  });
+  }) : usePopupDialog = false;
 
   final String title;
   final String message;

@@ -166,6 +166,12 @@ class _ArtistsColors {
         : GlobalUI.hoverBgColorDay;
   }
 
+  static Color artistRowHoverBorder(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? GlobalUI.hoverBorderColorNight
+        : GlobalUI.hoverBorderColorDay;
+  }
+
   static Color artistRowActiveForeground(Brightness brightness) {
     return brightness == Brightness.dark
         ? const Color(0xff459de2)

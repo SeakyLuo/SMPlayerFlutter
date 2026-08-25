@@ -16,6 +16,9 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
+    hide displayAlbum, displayArtists;
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/default_album_artwork.dart';
@@ -28,7 +31,6 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
-import 'package:smplayer_flutter/src/library/ui/search_artist_card.dart';
 import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.dart';
 import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
@@ -42,6 +44,8 @@ import 'recent_search_list.dart';
 
 part 'recent_added_page.dart';
 part 'recent_played_page.dart';
+part 'recent_browses_page.dart';
+part 'recent_browse_list.dart';
 part 'recent_searches_page.dart';
 part 'recent_page_selection.dart';
 part 'recent_page_playback.dart';
@@ -54,14 +58,14 @@ part 'recent_song_grid.dart';
 part 'grid_view_music_item_control.dart';
 part 'recent_collection_grids.dart';
 part 'recent_page_shell.dart';
+part 'recent_keep_alive_page.dart';
 part 'recent_timeline.dart';
 part 'recent_theme.dart';
 
-enum RecentTab { added, played, searches }
+enum RecentTab { added, played, browsed, searches }
 
 enum RecentPlayedFilter { songs, artists, albums, playlists }
 
-const _recentMinimalContentBreakpoint = 656.0;
 const _recentMinimalPageHorizontalPadding = 8.0;
 const _recentPlayedFilterRadius = 999.0;
 const _recentCollectionTileWidth = 180.0;
@@ -70,7 +74,7 @@ const _recentCollectionColumnGap = 30.0;
 const _recentCollectionRowGap = 26.0;
 const _recentArtistMinColumnWidth = 260.0;
 const _recentArtistColumnGap = 12.0;
-const _recentArtistRowHeight = 86.0;
+const _recentArtistRowHeight = artistRowHeight;
 const _recentArtistRowGap = 2.0;
 const _recentSongTileWidth = 270.0;
 const _recentSongTileColumnGap = 28.0;
@@ -84,7 +88,8 @@ class RecentPage extends ConsumerStatefulWidget {
   ConsumerState<RecentPage> createState() => _RecentPageState();
 }
 
-class _RecentPageState extends ConsumerState<RecentPage> {
+class _RecentPageState extends ConsumerState<RecentPage>
+    with SingleTickerProviderStateMixin {
   static const recentAddedLimit = 500;
   static const _activeTabStorageKey = 'RecentPage.activeTab';
   static const _activePlayedFilterStorageKey = 'RecentPage.activePlayedFilter';
@@ -96,11 +101,13 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   var _recentPlayedTimelineLabel = '';
   final _selectedSongIds = <int>{};
   final _selectedCollectionKeys = <String>{};
+  final _selectedBrowseIds = <int>{};
   final _selectedSearchIds = <int>{};
   MusicDialogEntry? _musicDialog;
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+  late final TabController _tabController;
   var _pageStorageRestored = false;
 
   @override
@@ -112,6 +119,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   @override
   void dispose() {
     _clearAppBarPortalOwner();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -141,6 +149,12 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     if (storedFilter is RecentPlayedFilter) {
       _activePlayedFilter = storedFilter;
     }
+    _tabController = TabController(
+      length: RecentTab.values.length,
+      initialIndex: _activeTab.index,
+      animationDuration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
   }
 
   void _syncAppBarPortal({
@@ -150,11 +164,12 @@ class _RecentPageState extends ConsumerState<RecentPage> {
     required String title,
     required int addedCount,
     required int playedCount,
+    required int browsedCount,
     required int searchesCount,
     required bool showCount,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$searchesCount:$showCount';
+        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$browsedCount:$searchesCount:$showCount';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -176,11 +191,13 @@ class _RecentPageState extends ConsumerState<RecentPage> {
         routePath: routePath,
         title: title,
         replacesTitle: true,
+        bottomPadding: 2,
         content: _RecentAppBarTabs(
+          controller: _tabController,
           i18n: i18n,
-          activeTab: _activeTab,
           addedCount: addedCount,
           playedCount: playedCount,
+          browsedCount: browsedCount,
           searchesCount: searchesCount,
           showCount: showCount,
           onChanged: _switchTab,
@@ -190,10 +207,20 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   }
 
   void _switchTab(RecentTab tab) {
+    if (tab == _activeTab) {
+      return;
+    }
     setState(() {
       _activeTab = tab;
       _clearSelection();
     });
+    if (_tabController.index != tab.index) {
+      _tabController.animateTo(
+        tab.index,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+    }
     PageStorage.maybeOf(
       context,
     )?.writeState(context, tab, identifier: _activeTabStorageKey);
@@ -203,6 +230,15 @@ class _RecentPageState extends ConsumerState<RecentPage> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
+    final recentSongs = ref.watch(recentSongsProvider);
+    final recentPlayedCollectionsValue = ref.watch(
+      recentPlayedCollectionsProvider,
+    );
+    final recentSearchesValue = ref.watch(recentSearchesProvider);
+    final recentBrowsesValue = ref.watch(recentBrowsesProvider);
+    final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
+    final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final playlistOrder = ref.watch(libraryPlaylistOrderProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
         (controller) => (
@@ -233,6 +269,23 @@ class _RecentPageState extends ConsumerState<RecentPage> {
             ),
           ),
       data: (snapshot) {
+        final playlists = applyLibraryPlaylistOverridesToPlaylists(
+          snapshot.playlists,
+          playlistOverrides,
+          deletedPlaylistIds,
+          playlistOrder,
+        );
+        final recentSearches =
+            recentSearchesValue.valueOrNull ?? snapshot.recentSearches;
+        final recentBrowses =
+            recentBrowsesValue.valueOrNull ?? snapshot.recentBrowses;
+        final recentPlayedCollections =
+            recentPlayedCollectionsValue.valueOrNull ??
+            RecentPlayedCollections(
+              playlists: snapshot.recentPlaylists,
+              albums: snapshot.recentAlbums,
+              artists: snapshot.recentArtists,
+            );
         final recentAddedSongs =
             snapshot.songs.toList()..sort(
               (left, right) =>
@@ -240,31 +293,37 @@ class _RecentPageState extends ConsumerState<RecentPage> {
             );
         final addedSongs = recentAddedSongs.take(recentAddedLimit).toList();
         final recentPlaylistViews = buildRecentPlaylistViews(
-          snapshot.playlists,
+          playlists,
           snapshot.songs,
-          snapshot.recentPlaylists,
+          recentPlayedCollections.playlists,
         );
         final recentAlbumViews = buildRecentAlbumViews(
           snapshot.songs,
-          snapshot.recentAlbums,
+          recentPlayedCollections.albums,
           i18n,
         );
         final recentArtistViews = buildRecentArtistViews(
           snapshot.songs,
-          snapshot.recentArtists,
+          recentPlayedCollections.artists,
           i18n,
         );
         final recentPlayedCount =
-            snapshot.recentSongs.length +
-            snapshot.recentPlaylists.length +
-            snapshot.recentAlbums.length +
-            snapshot.recentArtists.length;
+            recentSongs.length +
+            recentPlayedCollections.playlists.length +
+            recentPlayedCollections.albums.length +
+            recentPlayedCollections.artists.length;
+        final recentBrowseViews = buildRecentBrowseViews(
+          recentBrowses,
+          snapshot.songs,
+          playlists,
+          i18n,
+        );
         final visibleSongs =
             _activeTab == RecentTab.added
                 ? addedSongs
                 : _activeTab == RecentTab.played &&
                     _activePlayedFilter == RecentPlayedFilter.songs
-                ? snapshot.recentSongs
+                ? recentSongs
                 : const <LibrarySong>[];
         final selectedVisibleSongIds =
             visibleSongs
@@ -272,16 +331,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 .map((song) => song.id)
                 .toList();
         final selectedSearchIds =
-            snapshot.recentSearches
+            recentSearches
                 .where((entry) => _selectedSearchIds.contains(entry.id))
                 .map((entry) => entry.id)
                 .toList();
+        final selectedBrowseIds =
+            recentBrowseViews
+                .where((view) => _selectedBrowseIds.contains(view.entry.id))
+                .map((view) => view.entry.id)
+                .toList();
         final selectedCount =
-            _activeTab == RecentTab.searches
+            _activeTab == RecentTab.browsed
+                ? selectedBrowseIds.length
+                : _activeTab == RecentTab.searches
                 ? selectedSearchIds.length
-                : _activePlayedFilter == RecentPlayedFilter.songs
-                ? selectedVisibleSongIds.length
-                : _selectedCollectionKeys.length;
+                : _activeTab == RecentTab.played &&
+                    _activePlayedFilter != RecentPlayedFilter.songs
+                ? _selectedCollectionKeys.length
+                : selectedVisibleSongIds.length;
         final selectedOperationSongIds =
             _activeTab == RecentTab.played &&
                     _activePlayedFilter != RecentPlayedFilter.songs
@@ -292,7 +359,7 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 )
                 : selectedVisibleSongIds;
         final customPlaylists =
-            snapshot.playlists
+            playlists
                 .where((playlist) => !playlist.isBuiltIn)
                 .map(
                   (playlist) => MultiSelectCommandBarPlaylist(
@@ -303,10 +370,9 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 )
                 .toList();
         return _RecentPagePanel(
+          topPadding: 0,
           child: LayoutBuilder(
-            builder: (context, constraints) {
-              final useAppBarTabs =
-                  constraints.maxWidth < _recentMinimalContentBreakpoint;
+            builder: (context, _) {
               final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(
                 context,
               );
@@ -317,7 +383,8 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                 title: i18n.t('common.recent'),
                 addedCount: addedSongs.length,
                 playedCount: recentPlayedCount,
-                searchesCount: snapshot.recentSearches.length,
+                browsedCount: recentBrowseViews.length,
+                searchesCount: recentSearches.length,
                 showCount: snapshot.showCount,
               );
 
@@ -327,134 +394,203 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                   Column(
                     spacing: 4,
                     children: [
-                      if (useAppBarTabs && !useWorkspaceAppBar)
-                        _RecentAppBarTabs(
-                          i18n: i18n,
-                          activeTab: _activeTab,
-                          addedCount: addedSongs.length,
-                          playedCount: recentPlayedCount,
-                          searchesCount: snapshot.recentSearches.length,
-                          showCount: snapshot.showCount,
-                          onChanged: _switchTab,
-                        )
-                      else if (!useWorkspaceAppBar)
-                        _RecentTabs(
-                          i18n: i18n,
-                          activeTab: _activeTab,
-                          addedCount: addedSongs.length,
-                          playedCount: recentPlayedCount,
-                          searchesCount: snapshot.recentSearches.length,
-                          showCount: snapshot.showCount,
-                          onChanged: _switchTab,
+                      if (!useWorkspaceAppBar)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 26, bottom: 10),
+                          child: _RecentAppBarTabs(
+                            controller: _tabController,
+                            i18n: i18n,
+                            addedCount: addedSongs.length,
+                            playedCount: recentPlayedCount,
+                            browsedCount: recentBrowseViews.length,
+                            searchesCount: recentSearches.length,
+                            showCount: snapshot.showCount,
+                            onChanged: _switchTab,
+                          ),
                         ),
                       Expanded(
-                        child: switch (_activeTab) {
-                          RecentTab.searches => _RecentSearchesPage(
-                            entries: snapshot.recentSearches,
-                            i18n: i18n,
-                            multiSelect: _multiSelect,
-                            selectedEntryIds: _selectedSearchIds,
-                            routeForSearchHistory: _routeForSearchHistory,
-                            onToggleMultiSelect: () {
-                              setState(() {
-                                _multiSelect = !_multiSelect;
-                                _clearSelection();
-                              });
-                            },
-                            onClearSelection: () {
-                              setState(_clearSelection);
-                            },
-                            onToggleSelection: _toggleSearchSelection,
-                            onRemove: (entryId) {
-                              unawaited(
-                                _removeRecentSearchesWithUndo([entryId]),
-                              );
-                            },
-                          ),
-                          RecentTab.played => _RecentPlayedPage(
-                            filter: _activePlayedFilter,
-                            songs: snapshot.recentSongs,
-                            playlists: recentPlaylistViews,
-                            albums: recentAlbumViews,
-                            artists: recentArtistViews,
-                            i18n: i18n,
-                            timelineLabel: _recentPlayedTimelineLabel,
-                            playedCount: recentPlayedCount,
-                            customPlaylists: customPlaylists,
-                            multiSelect: _multiSelect,
-                            selectedSongIds: _selectedSongIds,
-                            selectedCollectionKeys: _selectedCollectionKeys,
-                            currentTrackId: mediaState.trackId,
-                            isPlaying: mediaState.isPlaying,
-                            onFilterChanged: (filter) {
-                              setState(() {
-                                _activePlayedFilter = filter;
-                                _clearSelection();
-                              });
-                              PageStorage.maybeOf(context)?.writeState(
-                                context,
-                                filter,
-                                identifier: _activePlayedFilterStorageKey,
-                              );
-                            },
-                            onToggleMultiSelect: () {
-                              setState(() {
-                                _multiSelect = !_multiSelect;
-                                _clearSelection();
-                              });
-                            },
-                            onClearSelection: () {
-                              setState(_clearSelection);
-                            },
-                            onPlaySongs: _playSongIds,
-                            onPlaySong: _playSong,
-                            onPlayNext: _playNext,
-                            onToggleSongSelection: _toggleSongSelection,
-                            onToggleCollectionSelection:
-                                _toggleCollectionSelection,
-                            onRecordCollectionPlayed:
-                                _recordRecentCollectionPlayed,
-                            onOpenSongContextMenu: _showSongContextMenu,
-                            onOpenCollectionAddToMenu: _showCollectionAddToMenu,
-                            onOpenArtistContextMenu: _showArtistContextMenu,
-                            onTimelineLabelChange:
-                                _setRecentPlayedTimelineLabel,
-                          ),
-                          RecentTab.added => _RecentAddedPage(
-                            songs: addedSongs,
-                            i18n: i18n,
-                            timelineLabel: _recentAddedTimelineLabel,
-                            customPlaylists: customPlaylists,
-                            selectedSongIds: _selectedSongIds,
-                            multiSelect: _multiSelect,
-                            currentTrackId: mediaState.trackId,
-                            isPlaying: mediaState.isPlaying,
-                            onToggleMultiSelect: () {
-                              setState(() {
-                                _multiSelect = !_multiSelect;
-                                _clearSelection();
-                              });
-                            },
-                            onPlaySong: _playSong,
-                            onPlayNext: _playNext,
-                            onToggleSelection: _toggleSongSelection,
-                            onOpenSongAddToMenu: _showCollectionAddToMenu,
-                            onOpenSongContextMenu: _showSongContextMenu,
-                            onTimelineLabelChange: _setRecentAddedTimelineLabel,
-                          ),
-                        },
+                        child: TabBarView(
+                          controller: _tabController,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            _RecentKeepAlivePage(
+                              active: _activeTab == RecentTab.added,
+                              child: _RecentAddedPage(
+                                songs: addedSongs,
+                                i18n: i18n,
+                                timelineLabel: _recentAddedTimelineLabel,
+                                customPlaylists: customPlaylists,
+                                selectedSongIds: _selectedSongIds,
+                                multiSelect: _multiSelect,
+                                currentTrackId: mediaState.trackId,
+                                isPlaying: mediaState.isPlaying,
+                                onToggleMultiSelect: () {
+                                  setState(() {
+                                    _multiSelect = !_multiSelect;
+                                    _clearSelection();
+                                  });
+                                },
+                                onPlaySong: _playSong,
+                                onPlayNext: _playNext,
+                                onToggleFavorite: (song) {
+                                  unawaited(
+                                    setSongsFavoriteWithUndo(
+                                      context: context,
+                                      ref: ref,
+                                      i18n: i18n,
+                                      songIds: [song.id],
+                                      favorite: !song.favorite,
+                                    ),
+                                  );
+                                },
+                                onToggleSelection: _toggleSongSelection,
+                                onOpenSongAddToMenu: _showCollectionAddToMenu,
+                                onOpenSongContextMenu: _showSongContextMenu,
+                                onTimelineLabelChange:
+                                    _setRecentAddedTimelineLabel,
+                              ),
+                            ),
+                            _RecentKeepAlivePage(
+                              active: _activeTab == RecentTab.played,
+                              child: _RecentPlayedPage(
+                                filter: _activePlayedFilter,
+                                songs: recentSongs,
+                                playlists: recentPlaylistViews,
+                                albums: recentAlbumViews,
+                                artists: recentArtistViews,
+                                i18n: i18n,
+                                timelineLabel: _recentPlayedTimelineLabel,
+                                playedCount: recentPlayedCount,
+                                customPlaylists: customPlaylists,
+                                multiSelect: _multiSelect,
+                                selectedSongIds: _selectedSongIds,
+                                selectedCollectionKeys: _selectedCollectionKeys,
+                                currentTrackId: mediaState.trackId,
+                                isPlaying: mediaState.isPlaying,
+                                onFilterChanged: (filter) {
+                                  setState(() {
+                                    _activePlayedFilter = filter;
+                                    _clearSelection();
+                                  });
+                                  PageStorage.maybeOf(context)?.writeState(
+                                    context,
+                                    filter,
+                                    identifier: _activePlayedFilterStorageKey,
+                                  );
+                                },
+                                onToggleMultiSelect: () {
+                                  setState(() {
+                                    _multiSelect = !_multiSelect;
+                                    _clearSelection();
+                                  });
+                                },
+                                onClearSelection: () {
+                                  setState(_clearSelection);
+                                },
+                                onPlaySongs: _playSongIds,
+                                onPlaySong: _playSong,
+                                onPlayNext: _playNext,
+                                onToggleFavorite: (song) {
+                                  unawaited(
+                                    setSongsFavoriteWithUndo(
+                                      context: context,
+                                      ref: ref,
+                                      i18n: i18n,
+                                      songIds: [song.id],
+                                      favorite: !song.favorite,
+                                    ),
+                                  );
+                                },
+                                onToggleSongSelection: _toggleSongSelection,
+                                onToggleCollectionSelection:
+                                    _toggleCollectionSelection,
+                                onRecordCollectionPlayed:
+                                    _recordRecentCollectionPlayed,
+                                onOpenSongContextMenu: _showSongContextMenu,
+                                onOpenCollectionAddToMenu:
+                                    _showCollectionAddToMenu,
+                                onOpenArtistContextMenu: _showArtistContextMenu,
+                                onTimelineLabelChange:
+                                    _setRecentPlayedTimelineLabel,
+                              ),
+                            ),
+                            _RecentKeepAlivePage(
+                              active: _activeTab == RecentTab.browsed,
+                              child: _RecentBrowsesPage(
+                                entries: recentBrowseViews,
+                                allEntryIds:
+                                    recentBrowses
+                                        .map((entry) => entry.id)
+                                        .toList(),
+                                i18n: i18n,
+                                multiSelect: _multiSelect,
+                                selectedEntryIds: _selectedBrowseIds,
+                                onOpen: _openRecentBrowse,
+                                onToggleMultiSelect: () {
+                                  setState(() {
+                                    _multiSelect = !_multiSelect;
+                                    _clearSelection();
+                                  });
+                                },
+                                onClearSelection: () {
+                                  setState(_clearSelection);
+                                },
+                                onToggleSelection: _toggleBrowseSelection,
+                                onRemove: (entryId) {
+                                  unawaited(
+                                    _removeRecentBrowsesWithUndo([entryId]),
+                                  );
+                                },
+                                onClear: (entryIds) {
+                                  unawaited(
+                                    _removeRecentBrowsesWithUndo(entryIds),
+                                  );
+                                },
+                              ),
+                            ),
+                            _RecentKeepAlivePage(
+                              active: _activeTab == RecentTab.searches,
+                              child: _RecentSearchesPage(
+                                entries: recentSearches,
+                                i18n: i18n,
+                                multiSelect: _multiSelect,
+                                selectedEntryIds: _selectedSearchIds,
+                                routeForSearchHistory: _routeForSearchHistory,
+                                onToggleMultiSelect: () {
+                                  setState(() {
+                                    _multiSelect = !_multiSelect;
+                                    _clearSelection();
+                                  });
+                                },
+                                onClearSelection: () {
+                                  setState(_clearSelection);
+                                },
+                                onToggleSelection: _toggleSearchSelection,
+                                onRemove: (entryId) {
+                                  unawaited(
+                                    _removeRecentSearchesWithUndo([entryId]),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                   MultiSelectCommandBar(
                     visible: _multiSelect,
                     bottomInset: multiSelectCommandBarShellBottomInset,
-                    leftBleed: useAppBarTabs ? 8 : 24,
-                    rightBleed: useAppBarTabs ? 8 : 18,
+                    leftBleed: 8,
+                    rightBleed: 8,
                     selectedCount: selectedCount,
                     playlists: customPlaylists,
-                    showPlay: _activeTab != RecentTab.searches,
-                    showAddTo: _activeTab != RecentTab.searches,
+                    showPlay:
+                        _activeTab != RecentTab.searches &&
+                        _activeTab != RecentTab.browsed,
+                    showAddTo:
+                        _activeTab != RecentTab.searches &&
+                        _activeTab != RecentTab.browsed,
                     addToSongIds: selectedOperationSongIds,
                     nowPlayingSongIds: snapshot.nowPlaying.songIds,
                     includeNowPlayingInAddTo: true,
@@ -509,10 +645,10 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                         context: context,
                         ref: ref,
                         i18n: i18n,
-                        playlists: snapshot.playlists,
+                        playlists: playlists,
                         defaultName: _selectedPlaylistDefaultName(
                           i18n,
-                          snapshot.playlists,
+                          playlists,
                           recentPlaylistViews,
                           recentAlbumViews,
                           recentArtistViews,
@@ -554,12 +690,19 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                                     selectedSearchIds,
                                   ),
                                 );
+                              } else if (_activeTab == RecentTab.browsed) {
+                                unawaited(
+                                  _removeRecentBrowsesWithUndo(
+                                    selectedBrowseIds,
+                                  ),
+                                );
                               } else {
-                                ref
-                                    .read(libraryRepositoryProvider)
-                                    .removeRecentPlayed(selectedVisibleSongIds);
+                                unawaited(
+                                  _removeRecentPlayedWithUndo(
+                                    selectedVisibleSongIds,
+                                  ),
+                                );
                               }
-                              ref.invalidate(recentPageDataProvider);
                               setState(() {
                                 _hideAfterOperation(
                                   snapshot
@@ -570,22 +713,24 @@ class _RecentPageState extends ConsumerState<RecentPage> {
                     onSelectAll: () {
                       setState(() {
                         _selectAll(
-                          snapshot,
+                          recentSearches,
                           visibleSongs,
                           recentPlaylistViews,
                           recentAlbumViews,
                           recentArtistViews,
+                          recentBrowseViews,
                         );
                       });
                     },
                     onReverseSelection: () {
                       setState(() {
                         _reverseSelection(
-                          snapshot,
+                          recentSearches,
                           visibleSongs,
                           recentPlaylistViews,
                           recentAlbumViews,
                           recentArtistViews,
+                          recentBrowseViews,
                         );
                       });
                     },

@@ -14,6 +14,19 @@ bool _isArtistsPageCompactWorkspace(BuildContext context) {
   return _artistsPageWorkspaceWidth(context) <= 720;
 }
 
+void _listenForArtistsListRequests(_ArtistsPageState state) {
+  state.ref.listen(artistsListRequestProvider, (_, _) {
+    if (state._selectedArtistName.isEmpty) {
+      return;
+    }
+    // ignore: invalid_use_of_protected_member
+    state.setState(() {
+      state._selectedArtistName = '';
+      state._selection.cancel();
+    });
+  });
+}
+
 void _clearArtistsAppBarPortalOwner(_ArtistsPageState state) {
   clearWorkspaceAppBarPortalOwnerAfterDispose(
     state._appBarPortalNotifier,
@@ -27,13 +40,15 @@ void _syncArtistsAppBarPortal(
   required String routePath,
   required Widget content,
   required String compactTitle,
+  String? titleTooltip,
   required String layoutSignature,
   required int searchSuggestionCount,
   required int searchHistoryCount,
   Widget? bottomContent,
 }) {
+  final brightness = Theme.of(state.context).brightness;
   final signature =
-      '$showPortal:$routePath:$layoutSignature:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
+      '$showPortal:$routePath:$layoutSignature:$brightness:${state._appBarSearchOpen}:${state._artistSearch}:${state._artistSearchFocused}:${state._artistSortCriterion}:${state._reverseArtistDisplayOrder}:$compactTitle:$titleTooltip:$searchSuggestionCount:$searchHistoryCount:${bottomContent != null}';
   if (state._appBarPortalSignature == signature) {
     return;
   }
@@ -55,6 +70,7 @@ void _syncArtistsAppBarPortal(
       routePath: routePath,
       content: content,
       title: compactTitle.isEmpty ? null : compactTitle,
+      titleTooltip: titleTooltip,
       bottomContent: bottomContent,
       replacesTitle: state._appBarSearchOpen,
     );
@@ -67,12 +83,15 @@ void _recordLoadingArtistSearchForArtistsPage(_ArtistsPageState state) {
     return;
   }
 
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .addRecentSearch(query, SearchHistoryType.artists)
-        .then((_) {
-          invalidateRecentSearchData(state.ref);
+        .then((entry) {
+          if (entry != null) {
+            return recentSearches.record(entry);
+          }
         }),
   );
 }
@@ -91,29 +110,32 @@ void _removeArtistRecentSearchForArtistsPage(
   _ArtistsPageState state,
   int entryId,
 ) {
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .removeRecentSearches([entryId])
         .then((_) {
-          invalidateRecentSearchData(state.ref);
+          return recentSearches.remove([entryId]);
         }),
   );
 }
 
 void _clearArtistRecentSearchesForArtistsPage(_ArtistsPageState state) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final entryIds =
-      snapshot.recentSearches
+      state.ref
+          .read(recentSearchesProvider)
+          .value!
           .where((entry) => entry.type == SearchHistoryType.artists)
           .map((entry) => entry.id)
           .toList();
+  final recentSearches = state.ref.read(recentSearchesProvider.notifier);
   unawaited(
     state.ref
         .read(libraryRepositoryProvider)
         .removeRecentSearches(entryIds)
         .then((_) {
-          invalidateRecentSearchData(state.ref);
+          return recentSearches.remove(entryIds);
         }),
   );
 }
@@ -127,6 +149,7 @@ void _openArtistDetailForArtistsPage(
     state._selectedArtistName = artistName;
     state._selection.cancel();
   });
+  state._recordBrowseAfterFrame(artistName);
   if (_isArtistsPageCompactWorkspace(state.context)) {
     state._pendingOpenedArtistRoute = artistName;
     state.context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');
@@ -313,13 +336,11 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
   final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
   setNowPlayingQueue(state.ref, nextSongIds);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  showUndoableNotification(
+  showPlayNextUndoNotification(
     context: state.context,
     i18n: state.context.smPlayerI18n,
-    message: state.context.smPlayerI18n.t('notification.playNext', {
-      'title': songsById[songId]!.title,
-    }),
-    onUndo: () async {
+    songTitle: songsById[songId]!.title,
+    onUndo: () {
       setNowPlayingQueue(state.ref, previousSongIds);
     },
   );
@@ -327,24 +348,11 @@ void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
 
 void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final queueSongIds = currentNowPlayingSongIds(state.ref, snapshot);
-  var queueIndex = queueSongIds.indexOf(songId);
-  if (queueIndex == -1) {
-    final currentIndex = currentQueueIndexForPlaybackOccurrence(
-      mediaState,
-      queueSongIds,
-    );
-    queueIndex = currentIndex == -1 ? queueSongIds.length : currentIndex + 1;
-    queueSongIds.insert(queueIndex, songId);
-  }
-
-  replaceNowPlayingQueueAndPlayIndex(
+  insertOrPlayNowPlayingSong(
     ref: state.ref,
     snapshot: snapshot,
     i18n: state.context.smPlayerI18n,
-    songIds: queueSongIds,
-    queueIndex: queueIndex,
+    songId: songId,
   );
 }
 
@@ -355,10 +363,10 @@ void _playShuffledSongIdsForArtistsPage(
   String? albumName,
 }) {
   if (artistName != null) {
-    state.ref.read(libraryRepositoryProvider).recordArtistPlayed(artistName);
+    unawaited(recordRecentArtistPlayback(state.ref, artistName));
   }
   if (albumName != null) {
-    state.ref.read(libraryRepositoryProvider).recordAlbumPlayed(albumName);
+    unawaited(recordRecentAlbumPlayback(state.ref, albumName));
   }
   final queueSongIds = songIds.toList()..shuffle(Random());
   state._playSongIds(queueSongIds);
@@ -448,7 +456,7 @@ Future<void> _showGroupContextMenuForArtistsPage(
     },
   );
 
-  showMenuFlyout(
+  await showMenuFlyout(
     state.context,
     position: position,
     items: [
@@ -555,12 +563,13 @@ Future<void> _showSongContextMenuForArtistsPage(
   if (!state.mounted) {
     return;
   }
-  showMenuFlyout(
+  await showMenuFlyout(
     state.context,
     position: position,
     items: buildMusicMenuFlyoutItems(
       i18n: i18n,
       songId: song.id,
+      songTitle: song.title,
       isFavorite: song.favorite,
       isCurrentTrack: song.id == currentTrackId,
       isPlaying: mediaState.isPlaying,
@@ -580,7 +589,8 @@ Future<void> _showSongContextMenuForArtistsPage(
       onPlay: () {
         state._moveToMusicOrPlay(song.id);
       },
-      onPause: state.ref.read(mediaControlControllerProvider).onTogglePlayPause,
+      onTogglePlayPause:
+          state.ref.read(mediaControlControllerProvider).onTogglePlayPause,
       onPlayNext: () {
         state._playNext(song.id);
       },
@@ -596,9 +606,12 @@ Future<void> _showSongContextMenuForArtistsPage(
         unawaited(_requestSongContextPlaylistForArtistsPage(state, i18n, song));
       },
       onCreatePlaylist: () async {
-        await state.ref.read(libraryRepositoryProvider).createPlaylist(
-          song.title,
-          [song.id],
+        await createPlaylistAndSync(
+          context: state.context,
+          ref: state.ref,
+          i18n: i18n,
+          name: song.title,
+          songIds: [song.id],
         );
       },
       onAddToPlaylist: (playlistId) {
@@ -672,31 +685,36 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   SmPlayerI18n i18n,
   LibrarySong song,
 ) async {
+  final context = state.context;
   await Future<void>.delayed(Duration.zero);
-  if (!state.mounted) {
+  if (!context.mounted) {
     return;
   }
   final name = await showSmPlayerInputDialog(
-    context: state.context,
+    context: context,
     i18n: i18n,
     title: i18n.t('playlists.newName'),
     defaultValue: song.title,
     placeholder: i18n.t('playlists.namePlaceholder'),
     confirmText: i18n.t('common.confirm'),
   );
-  if (name == null) {
+  if (name == null || !context.mounted) {
     return;
   }
-  await state.ref.read(libraryRepositoryProvider).createPlaylist(name, [
-    song.id,
-  ]);
+  await createPlaylistAndSync(
+    context: context,
+    ref: state.ref,
+    i18n: i18n,
+    name: name,
+    songIds: [song.id],
+  );
 }
 
-void _showSongAddToMenuForArtistsPage(
+Future<void> _showSongAddToMenuForArtistsPage(
   _ArtistsPageState state,
   BuildContext buttonContext,
   LibrarySong song,
-) {
+) async {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final customLibraryPlaylists =
       snapshot.playlists.where((playlist) => !playlist.isBuiltIn).toList();
@@ -764,5 +782,5 @@ void _showSongAddToMenuForArtistsPage(
   if (addToItem == null) {
     return;
   }
-  showMenuFlyout(buttonContext, items: addToItem.submenu);
+  await showMenuFlyout(buttonContext, items: addToItem.submenu);
 }

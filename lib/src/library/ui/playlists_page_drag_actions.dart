@@ -60,7 +60,7 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _previewPlaylistIds = nextIds;
     });
   }
@@ -72,15 +72,18 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
         startPlaylistIds != null &&
         !_idsEqual(startPlaylistIds, nextPlaylistIds)) {
       _committedPlaylistIds = nextPlaylistIds;
-      unawaited(
-        ref.read(libraryRepositoryProvider).reorderPlaylists(nextPlaylistIds),
-      );
+      unawaited(_persistPlaylistOrder(nextPlaylistIds));
     }
     _clearPlaylistDrag();
   }
 
+  Future<void> _persistPlaylistOrder(List<int> playlistIds) async {
+    await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
+    setLibraryPlaylistOrder(ref, playlistIds);
+  }
+
   void _clearPlaylistDrag() {
-    setState(() {
+    _updateState(() {
       _draggingPlaylistId = null;
       _previewPlaylistIds = null;
       _dragStartPlaylistIds = null;

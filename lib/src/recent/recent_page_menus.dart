@@ -3,6 +3,15 @@ part of 'recent_page.dart';
 // ignore_for_file: invalid_use_of_protected_member
 
 extension _RecentPageMenus on _RecentPageState {
+  List<LibraryPlaylist> _currentPlaylists(RecentPageData snapshot) {
+    return applyLibraryPlaylistOverridesToPlaylists(
+      snapshot.playlists,
+      ref.read(libraryPlaylistOverridesProvider),
+      ref.read(libraryDeletedPlaylistIdsProvider),
+      ref.read(libraryPlaylistOrderProvider),
+    );
+  }
+
   Future<void> _showSongContextMenu(
     Offset position,
     LibrarySong song,
@@ -22,12 +31,13 @@ extension _RecentPageMenus on _RecentPageState {
     final canRemove =
         _activeTab == RecentTab.played &&
         _activePlayedFilter == RecentPlayedFilter.songs;
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
@@ -49,7 +59,8 @@ extension _RecentPageMenus on _RecentPageState {
         onPlay: () {
           _playSong(song, queueSongIds, queueSongIds.indexOf(song.id));
         },
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () {
           _playNext(song.id);
         },
@@ -62,12 +73,13 @@ extension _RecentPageMenus on _RecentPageState {
           );
         },
         onCreatePlaylist: () async {
+          final currentPlaylists = _currentPlaylists(snapshot);
           await createPlaylistWithSongs(
             context: context,
             ref: ref,
             i18n: i18n,
-            playlists: snapshot.playlists,
-            defaultName: getNextPlaylistName(song.title, snapshot.playlists),
+            playlists: currentPlaylists,
+            defaultName: getNextPlaylistName(song.title, currentPlaylists),
             songIds: [song.id],
           );
         },
@@ -123,14 +135,6 @@ extension _RecentPageMenus on _RecentPageState {
             song: song,
           );
         },
-        onHide: () {
-          hideSongFileWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            song: song,
-          );
-        },
         onSeeArtist: () {
           context.go(
             '/artists?artist=${Uri.encodeQueryComponent(displayArtists(song, i18n))}',
@@ -167,12 +171,12 @@ extension _RecentPageMenus on _RecentPageState {
     });
   }
 
-  void _showCollectionAddToMenu(
+  Future<void> _showCollectionAddToMenu(
     Offset position,
     String title,
     List<int> songIds,
     List<MultiSelectCommandBarPlaylist> playlists,
-  ) {
+  ) async {
     final i18n = context.smPlayerI18n;
     final songsById = {
       for (final song in ref.read(recentPageDataProvider).value!.songs)
@@ -208,12 +212,13 @@ extension _RecentPageMenus on _RecentPageState {
       },
       onCreatePlaylist: () async {
         final snapshot = ref.read(recentPageDataProvider).value!;
+        final currentPlaylists = _currentPlaylists(snapshot);
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(title, snapshot.playlists),
+          playlists: currentPlaylists,
+          defaultName: getNextPlaylistName(title, currentPlaylists),
           songIds: songIds,
         );
       },
@@ -231,7 +236,7 @@ extension _RecentPageMenus on _RecentPageState {
       return;
     }
 
-    showMenuFlyout(context, position: position, items: addToItem.submenu);
+    await showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
   Future<void> _showArtistContextMenu(
@@ -284,12 +289,13 @@ extension _RecentPageMenus on _RecentPageState {
                 );
               },
       onCreatePlaylist: () async {
+        final currentPlaylists = _currentPlaylists(snapshot);
         await createPlaylistWithSongs(
           context: context,
           ref: ref,
           i18n: i18n,
-          playlists: snapshot.playlists,
-          defaultName: getNextPlaylistName(artist.name, snapshot.playlists),
+          playlists: currentPlaylists,
+          defaultName: getNextPlaylistName(artist.name, currentPlaylists),
           songIds: songIds,
         );
       },
@@ -304,7 +310,7 @@ extension _RecentPageMenus on _RecentPageState {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -314,7 +320,7 @@ extension _RecentPageMenus on _RecentPageState {
           useShuffleIcon: true,
           onPressed: () {
             _recordRecentCollectionPlayed(
-              (repository) => repository.recordArtistPlayed(artist.name),
+              () => recordRecentArtistPlayback(ref, artist.name),
             );
             _playShuffledSongIds(songIds);
           },
@@ -356,16 +362,17 @@ extension _RecentPageMenus on _RecentPageState {
   }
 
   Future<void> _removeRecentSearchesWithUndo(List<int> entryIds) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     final entryIdSet = entryIds.toSet();
     final entries =
         ref
-            .read(recentPageDataProvider)
+            .read(recentSearchesProvider)
             .value!
-            .recentSearches
             .where((entry) => entryIdSet.contains(entry.id))
             .toList();
-    await ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds);
-    invalidateRecentSearchData(ref);
+    await repository.removeRecentSearches(entryIds);
+    await recentSearches.remove(entryIds);
     if (!mounted) {
       return;
     }
@@ -374,17 +381,49 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),
       onUndo: () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .restoreRecentSearches(entries);
-        invalidateRecentSearchData(ref);
+        await repository.restoreRecentSearches(entries);
+        await recentSearches.restore(entries);
+      },
+    );
+  }
+
+  Future<void> _removeRecentBrowsesWithUndo(List<int> entryIds) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entryIdSet = entryIds.toSet();
+    final entries =
+        ref
+            .read(recentBrowsesProvider)
+            .value!
+            .where((entry) => entryIdSet.contains(entry.id))
+            .toList();
+    await repository.removeRecentBrowses(entryIds);
+    await recentBrowses.remove(entryIds);
+    if (!mounted) {
+      return;
+    }
+    showUndoableNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      message: context.smPlayerI18n.t('notification.operationDone'),
+      onUndo: () async {
+        await repository.restoreRecentBrowses(entryIds);
+        await recentBrowses.restore(entries);
       },
     );
   }
 
   Future<void> _removeRecentPlayedWithUndo(List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).removeRecentPlayed(songIds);
-    ref.invalidate(recentPageDataProvider);
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSongs = ref.read(recentSongsProvider.notifier);
+    final songIdSet = songIds.toSet();
+    final removedSongs =
+        ref
+            .read(recentSongsProvider)
+            .where((song) => songIdSet.contains(song.id))
+            .toList();
+    await repository.removeRecentPlayed(songIds);
+    recentSongs.remove(songIds);
     if (!mounted) {
       return;
     }
@@ -393,8 +432,8 @@ extension _RecentPageMenus on _RecentPageState {
       i18n: context.smPlayerI18n,
       message: context.smPlayerI18n.t('notification.operationDone'),
       onUndo: () async {
-        await ref.read(libraryRepositoryProvider).restoreRecentPlayed(songIds);
-        ref.invalidate(recentPageDataProvider);
+        await repository.restoreRecentPlayed(songIds);
+        recentSongs.restore(removedSongs);
       },
     );
   }

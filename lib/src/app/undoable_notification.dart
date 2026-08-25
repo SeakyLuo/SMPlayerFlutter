@@ -107,8 +107,19 @@ Future<AppNotificationClosedReason> showUndoableNotification({
   required String message,
   required FutureOr<void> Function() onUndo,
 }) {
+  return showUndoableAppNotification(
+    i18n: i18n,
+    message: message,
+    onUndo: onUndo,
+  );
+}
+
+Future<AppNotificationClosedReason> showUndoableAppNotification({
+  required SmPlayerI18n i18n,
+  required String message,
+  required FutureOr<void> Function() onUndo,
+}) {
   return _showAppOverlayNotification(
-    context: context,
     message: message,
     duration: undoableNotificationDuration,
     actionLabel: i18n.t('common.undo'),
@@ -125,7 +136,6 @@ Future<AppNotificationClosedReason> showAppNotification({
   List<AppNotificationAction>? actions,
 }) {
   return _showAppOverlayNotification(
-    context: context,
     message: message,
     duration: duration,
     actionLabel: actionLabel,
@@ -134,8 +144,11 @@ Future<AppNotificationClosedReason> showAppNotification({
   );
 }
 
+void hideAppNotification() {
+  _currentNotification?.close(AppNotificationClosedReason.hide);
+}
+
 Future<AppNotificationClosedReason> _showAppOverlayNotification({
-  required BuildContext context,
   required String message,
   required Duration duration,
   String? actionLabel,
@@ -191,9 +204,12 @@ class AppNotificationHost extends StatelessWidget {
           onAction: (actionIndex) async {
             final action = presentation.actions[actionIndex];
             controller.setRunning(actionIndex);
-            await SchedulerBinding.instance.endOfFrame;
-            await Future<void>.sync(action.onPressed);
-            controller.close(AppNotificationClosedReason.action);
+            try {
+              await SchedulerBinding.instance.endOfFrame;
+              await Future<void>.sync(action.onPressed);
+            } finally {
+              controller.close(AppNotificationClosedReason.action);
+            }
           },
         );
       },

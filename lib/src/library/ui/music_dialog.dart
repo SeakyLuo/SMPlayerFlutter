@@ -27,6 +27,8 @@ import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
+import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode;
 import 'package:path/path.dart' as p;
@@ -107,6 +109,7 @@ class MusicDialog extends ConsumerStatefulWidget {
     this.onPlayTrack,
     this.onReveal,
     this.onSaved,
+    this.initialLyricsMatch,
   });
 
   final LibrarySong song;
@@ -120,6 +123,7 @@ class MusicDialog extends ConsumerStatefulWidget {
   final MusicDialogPlayTrackCallback? onPlayTrack;
   final ValueChanged<String>? onReveal;
   final VoidCallback? onSaved;
+  final String? initialLyricsMatch;
 
   @override
   ConsumerState<MusicDialog> createState() => _MusicDialogState();
@@ -128,6 +132,10 @@ class MusicDialog extends ConsumerStatefulWidget {
 class _MusicDialogState extends ConsumerState<MusicDialog> {
   static const maxArtistCells = 6;
 
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
+
   late var _mode = widget.initialMode;
   var _loading = true;
   var _lyricsLoading = true;
@@ -135,7 +143,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _saving = false;
   var _updatingControllers = false;
   var _showLyricsTimestamps = true;
-  var _showArtworkDeleteConfirm = false;
+  var _artworkDeletePending = false;
   var _discardLyricsConfirmOpen = false;
   SongPropertiesSnapshot? _properties;
   SongPropertiesSnapshot? _originalProperties;
@@ -152,6 +160,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   AlbumArtRecommendation? _artworkRecommendation;
   var _libraryArtworkPickerOpen = false;
   var _loadGeneration = 0;
+  int? _scheduledBrowseSongId;
   var _dependenciesInitialized = false;
   final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');
 
@@ -180,6 +189,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   void initState() {
     super.initState();
     _addControllerListeners();
+    _recordBrowseAfterFrame(widget.song.id);
   }
 
   @override
@@ -216,8 +226,32 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     }
     if (oldWidget.song.id != widget.song.id) {
       _mode = widget.initialMode;
+      _recordBrowseAfterFrame(widget.song.id);
       _loadSong();
     }
+  }
+
+  void _recordBrowseAfterFrame(int songId) {
+    if (_scheduledBrowseSongId == songId) {
+      return;
+    }
+    _scheduledBrowseSongId = songId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          widget.song.id != songId ||
+          _scheduledBrowseSongId != songId) {
+        return;
+      }
+      unawaited(_recordBrowse(songId));
+    });
+  }
+
+  Future<void> _recordBrowse(int songId) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.song, '$songId');
+    await recentBrowses.record(entry);
   }
 
   void _addControllerListeners() {
@@ -430,7 +464,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 artworkUrl: _displayArtworkUrl,
                 artworkDirty: _artworkDirty,
                 recommendation: _artworkMissing ? _artworkRecommendation : null,
-                showDeleteConfirm: _showArtworkDeleteConfirm,
                 onApplyRecommendation: _applyAlbumArtRecommendation,
                 onChangeArtwork: _changeArtwork,
                 onChooseArtworkFromLibrary: () {
@@ -440,17 +473,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 },
                 onSaveArtwork: _saveArtwork,
                 onResetArtwork: _resetArtwork,
-                onRequestDelete: () {
-                  setState(() {
-                    _showArtworkDeleteConfirm = true;
-                  });
-                },
-                onConfirmDelete: _deleteArtwork,
-                onCancelDelete: () {
-                  setState(() {
-                    _showArtworkDeleteConfirm = false;
-                  });
-                },
+                onRequestDelete: _deleteArtwork,
               ),
             },
           ),

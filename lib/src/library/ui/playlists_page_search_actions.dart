@@ -3,8 +3,7 @@ part of 'playlists_page.dart';
 extension _PlaylistsPageSearchActions on _PlaylistsPageState {
   void _submitSearch({bool closeAppBar = false}) {
     final query = _searchDraft.trim();
-    // ignore: invalid_use_of_protected_member
-    setState(() {
+    _updateState(() {
       _searchDraft = query;
       _searchQuery = query;
       _searchFocused = false;
@@ -17,8 +16,7 @@ extension _PlaylistsPageSearchActions on _PlaylistsPageState {
 
   void _selectSearchQuery(String query) {
     FocusManager.instance.primaryFocus?.unfocus();
-    // ignore: invalid_use_of_protected_member
-    setState(() {
+    _updateState(() {
       _searchDraft = query;
       _searchQuery = query;
       _searchFocused = false;
@@ -27,8 +25,7 @@ extension _PlaylistsPageSearchActions on _PlaylistsPageState {
   }
 
   void _clearSearch() {
-    // ignore: invalid_use_of_protected_member
-    setState(() {
+    _updateState(() {
       _searchDraft = '';
       _searchQuery = '';
     });
@@ -38,34 +35,34 @@ extension _PlaylistsPageSearchActions on _PlaylistsPageState {
   }
 
   void _changeSearchFocus(bool focused) {
-    // ignore: invalid_use_of_protected_member
-    setState(() {
+    _updateState(() {
       _searchFocused = focused;
     });
   }
 
   void _removeRecentSearch(int entryId) {
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
         _,
       ) {
-        invalidateRecentSearchData(ref);
+        return recentSearches.remove([entryId]);
       }),
     );
   }
 
   void _clearRecentSearches() {
-    final snapshot = ref.read(libraryContentDataProvider).value!;
     final entryIds =
         latestSearchHistoryEntries(
-          snapshot.recentSearches,
+          ref.read(recentSearchesProvider).value!,
           SearchHistoryType.playlists,
         ).map((entry) => entry.id).toList();
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
         _,
       ) {
-        invalidateRecentSearchData(ref);
+        return recentSearches.remove(entryIds);
       }),
     );
   }
@@ -74,12 +71,15 @@ extension _PlaylistsPageSearchActions on _PlaylistsPageState {
     if (query.isEmpty) {
       return;
     }
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(query, SearchHistoryType.playlists)
-          .then((_) {
-            invalidateRecentSearchData(ref);
+          .then((entry) {
+            if (entry != null) {
+              return recentSearches.record(entry);
+            }
           }),
     );
   }

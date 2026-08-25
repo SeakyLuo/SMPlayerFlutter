@@ -15,6 +15,8 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
 
+part 'shell_workspace_app_bar_title.dart';
+
 class SmPlayerShellWorkspaceKeys {
   const SmPlayerShellWorkspaceKeys._();
 
@@ -25,9 +27,6 @@ class SmPlayerShellWorkspaceKeys {
 
 const _workspaceNavigationAppBarTopRowHeight = 40.0;
 const _workspaceNavigationAppBarBottomPadding = 8.0;
-const _workspaceNavigationAppBarHeight =
-    _workspaceNavigationAppBarTopRowHeight +
-    _workspaceNavigationAppBarBottomPadding;
 
 class SmPlayerWorkspace extends ConsumerStatefulWidget {
   const SmPlayerWorkspace({
@@ -242,6 +241,9 @@ class _WorkspacePageSurface extends StatelessWidget {
         (workspaceAppBarPortal?.replacesTitle == true
             ? ''
             : workspaceAppBarPortal?.title ?? synchronousPortalTitle ?? title);
+    final workspaceAppBarBottomPadding =
+        workspaceAppBarPortal?.bottomPadding ??
+        _workspaceNavigationAppBarBottomPadding;
     final workspaceNavigationAppBar =
         showNavigationAppBar && !overlayNavigationAppBar
             ? _WorkspaceNavigationAppBar(
@@ -252,6 +254,7 @@ class _WorkspacePageSurface extends StatelessWidget {
                               workspaceAppBarPortal?.replacesTitle == true
                       ? ''
                       : pageTitle,
+              titleTooltip: workspaceAppBarPortal?.titleTooltip,
               navigationMenuLabel: navigationMenuLabel,
               onNavigationMenuPressed: onNavigationMenuPressed,
               titleContent:
@@ -265,6 +268,7 @@ class _WorkspacePageSurface extends StatelessWidget {
                       ? null
                       : workspaceAppBarPortal?.content),
               bottomContent: workspaceAppBarPortal?.bottomContent,
+              bottomPadding: workspaceAppBarBottomPadding,
               topInset: 0,
             )
             : null;
@@ -272,7 +276,8 @@ class _WorkspacePageSurface extends StatelessWidget {
         workspaceNavigationAppBar == null
             ? 0.0
             : workspaceAppBarPortal?.bottomContent == null
-            ? _workspaceNavigationAppBarHeight
+            ? _workspaceNavigationAppBarTopRowHeight +
+                workspaceAppBarBottomPadding
             : _workspaceNavigationAppBarTopRowHeight * 2;
     final content = WorkspaceNavigationAppBarScope(
       active: showNavigationAppBar || localTitleContent != null,
@@ -290,7 +295,11 @@ class _WorkspacePageSurface extends StatelessWidget {
               else if (!overlayNavigationAppBar && localTitleContent != null)
                 _WorkspaceLocalHeader(child: localTitleContent!)
               else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
-                _WorkspaceHeader(title: pageTitle, height: headerHeight),
+                _WorkspaceHeader(
+                  title: pageTitle,
+                  tooltip: workspaceAppBarPortal?.titleTooltip,
+                  height: headerHeight,
+                ),
               Expanded(child: content),
             ],
           ),
@@ -313,11 +322,13 @@ class _WorkspacePageSurface extends StatelessWidget {
               child: _WorkspaceNavigationAppBar(
                 headeredPlaylistAppBar: headeredPlaylistAppBar,
                 title: headeredPlaylistAppBar!.title,
+                titleTooltip: null,
                 navigationMenuLabel: navigationMenuLabel,
                 onNavigationMenuPressed: onNavigationMenuPressed,
                 titleContent: null,
                 actions: headeredPlaylistCommandBar,
                 bottomContent: null,
+                bottomPadding: _workspaceNavigationAppBarBottomPadding,
                 topInset: navigationAppBarTopInset,
               ),
             ),
@@ -409,21 +420,25 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
   const _WorkspaceNavigationAppBar({
     required this.headeredPlaylistAppBar,
     required this.title,
+    required this.titleTooltip,
     required this.navigationMenuLabel,
     required this.onNavigationMenuPressed,
     required this.titleContent,
     required this.actions,
     required this.bottomContent,
+    required this.bottomPadding,
     required this.topInset,
   });
 
   final HeaderedPlaylistAppBarPortalEntry? headeredPlaylistAppBar;
   final String title;
+  final String? titleTooltip;
   final String navigationMenuLabel;
   final VoidCallback onNavigationMenuPressed;
   final Widget? titleContent;
   final Widget? actions;
   final Widget? bottomContent;
+  final double bottomPadding;
   final double topInset;
 
   @override
@@ -465,6 +480,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                       : effectiveActions == null
                       ? _WorkspaceNavigationAppBarTitle(
                         title: title,
+                        tooltip: titleTooltip,
                         color: titleColor,
                       )
                       : LayoutBuilder(
@@ -474,6 +490,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                               Expanded(
                                 child: _WorkspaceNavigationAppBarTitle(
                                   title: title,
+                                  tooltip: titleTooltip,
                                   color: titleColor,
                                 ),
                               ),
@@ -503,15 +520,12 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
               height:
                   topInset +
                   _workspaceNavigationAppBarTopRowHeight +
-                  (topInset == 0 ? _workspaceNavigationAppBarBottomPadding : 0),
+                  (topInset == 0 ? bottomPadding : 0),
               child: Column(
                 children: [
                   if (topInset > 0) SizedBox(height: topInset),
                   topRow,
-                  if (topInset == 0)
-                    const SizedBox(
-                      height: _workspaceNavigationAppBarBottomPadding,
-                    ),
+                  if (topInset == 0) SizedBox(height: bottomPadding),
                 ],
               ),
             )
@@ -597,67 +611,6 @@ Color _immersiveAppBarForeground(BuildContext context) {
 
 bool _isEmptyWorkspaceAppBarActions(Widget? actions) {
   return actions is SizedBox && actions.width == 0 && actions.height == 0;
-}
-
-class _WorkspaceNavigationAppBarTitle extends StatelessWidget {
-  const _WorkspaceNavigationAppBarTitle({
-    required this.title,
-    required this.color,
-  });
-
-  final String title;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    if (title.isEmpty) {
-      return const SizedBox.expand();
-    }
-    return Text(
-      title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textScaler: TextScaler.noScaling,
-      style: TextStyle(
-        color: color,
-        fontSize: 16,
-        height: 1.1,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _WorkspaceHeader extends StatelessWidget {
-  const _WorkspaceHeader({required this.title, required this.height});
-
-  final String title;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    final shellColors = ShellThemeColors.of(context);
-    return SizedBox(
-      height: height,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 142, 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: shellColors.headerText,
-              fontSize: 40,
-              height: 1.1,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 String? _synchronousWorkspaceAppBarTitle({

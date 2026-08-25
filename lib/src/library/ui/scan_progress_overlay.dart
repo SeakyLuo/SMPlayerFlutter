@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -6,7 +8,7 @@ import '../data/library_models.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
 
-class ScanProgressOverlay extends StatelessWidget {
+class ScanProgressOverlay extends StatefulWidget {
   const ScanProgressOverlay({
     super.key,
     required this.title,
@@ -19,7 +21,35 @@ class ScanProgressOverlay extends StatelessWidget {
   final VoidCallback? onCancel;
 
   @override
+  State<ScanProgressOverlay> createState() => _ScanProgressOverlayState();
+}
+
+class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
+  final _overlayController = OverlayPortalController(
+    debugLabel: 'ScanProgressOverlay',
+  );
+
+  String get title => widget.title;
+  LocalFolderRefreshProgress get progress => widget.progress;
+  VoidCallback? get onCancel => widget.onCancel;
+
+  @override
+  void initState() {
+    super.initState();
+    _overlayController.show();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return OverlayPortal(
+      controller: _overlayController,
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: _buildOverlay,
+      child: const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildOverlay(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = LocalPageColors.of(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
@@ -37,150 +67,196 @@ class ScanProgressOverlay extends StatelessWidget {
       ),
     };
 
-    return ColoredBox(
-      color: nightMode ? const Color(0x5204080d) : const Color(0x38121b26),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
-            decoration: BoxDecoration(
-              color:
-                  nightMode ? const Color(0xf0161c24) : const Color(0xf0ffffff),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
+    return Positioned.fill(
+      child: FocusScope(
+        autofocus: true,
+        child: Material(
+          color: Colors.transparent,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: ColoredBox(
                 color:
                     nightMode
-                        ? const Color(0x24d6e0ec)
-                        : const Color(0xb3ccd5e0),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      nightMode
-                          ? const Color(0x7a000000)
-                          : const Color(0x3d1a2738),
-                  blurRadius: 80,
-                  offset: Offset(0, 26),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colors.accentSoft,
-                      ),
-                      child: Icon(
-                        FluentIcons.arrow_sync_24_regular,
-                        color: colors.accentStrong,
-                        size: 30,
-                      ),
-                    ),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          color: colors.textStrong,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 26),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-                  decoration: BoxDecoration(
-                    color:
-                        nightMode
-                            ? const Color(0xb8121820)
-                            : const Color(0x94ffffff),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color:
-                          nightMode
-                              ? const Color(0x24d6e0ec)
-                              : const Color(0xb8ccd5e0),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          _LocalRefreshPercent(value: value, percent: percent),
-                          const SizedBox(width: 18),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  stageText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: colors.textStrong,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                        ? const Color(0x7004080d)
+                        : const Color(0x47181e26),
+                child: Semantics(
+                  label: title,
+                  namesRoute: true,
+                  scopesRoute: true,
+                  explicitChildNodes: true,
+                  child: SafeArea(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
+                          decoration: BoxDecoration(
+                            color:
+                                nightMode
+                                    ? const Color(0xf0161c24)
+                                    : const Color(0xf0ffffff),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color:
+                                  nightMode
+                                      ? const Color(0x24d6e0ec)
+                                      : const Color(0xb3ccd5e0),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    nightMode
+                                        ? const Color(0x7a000000)
+                                        : const Color(0x3d1a2738),
+                                blurRadius: 80,
+                                offset: const Offset(0, 26),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: colors.accentSoft,
+                                    ),
+                                    child: _LocalRefreshSpinner(
+                                      color: colors.accentStrong,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 18),
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        color: colors.textStrong,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 26),
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                  22,
+                                  20,
+                                  22,
+                                  20,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      nightMode
+                                          ? const Color(0xb8121820)
+                                          : const Color(0x94ffffff),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color:
+                                        nightMode
+                                            ? const Color(0x24d6e0ec)
+                                            : const Color(0xb8ccd5e0),
                                   ),
                                 ),
-                                const SizedBox(height: 7),
-                                Text(
-                                  _progressDescription(i18n),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: colors.textMuted,
-                                    fontSize: 14,
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        _LocalRefreshPercent(
+                                          value: value,
+                                          percent: percent,
+                                        ),
+                                        const SizedBox(width: 18),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                stageText,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: colors.textStrong,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 7),
+                                              Text(
+                                                _progressDescription(i18n),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: colors.textMuted,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _LocalRefreshStats(progress: progress),
+                                  ],
+                                ),
+                              ),
+                              if (onCancel != null) ...[
+                                const SizedBox(height: 28),
+                                Center(
+                                  child: SizedBox(
+                                    height: 48,
+                                    child: OutlinedButton(
+                                      onPressed:
+                                          progress.canCancel ? onCancel : null,
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size(160, 48),
+                                        foregroundColor: const Color(
+                                          0xffdc2626,
+                                        ),
+                                        disabledForegroundColor: const Color(
+                                          0x9e5b697a,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0x3ddc2626),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        i18n.t(
+                                          'local.updateFolderProgressStop',
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      _LocalRefreshStats(progress: progress),
-                    ],
-                  ),
-                ),
-                if (onCancel != null) ...[
-                  const SizedBox(height: 28),
-                  Center(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: progress.canCancel ? onCancel : null,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(160, 48),
-                          foregroundColor: const Color(0xffdc2626),
-                          disabledForegroundColor: const Color(0x9e5b697a),
-                          side: const BorderSide(color: Color(0x3ddc2626)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                            ],
                           ),
                         ),
-                        child: Text(i18n.t('local.updateFolderProgressStop')),
                       ),
                     ),
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
         ),
@@ -212,6 +288,47 @@ class ScanProgressOverlay extends StatelessWidget {
       'count': progress.processedSongCount,
       'total': progress.songCount,
     });
+  }
+}
+
+class _LocalRefreshSpinner extends StatefulWidget {
+  const _LocalRefreshSpinner({required this.color});
+
+  final Color color;
+
+  @override
+  State<_LocalRefreshSpinner> createState() => _LocalRefreshSpinnerState();
+}
+
+class _LocalRefreshSpinnerState extends State<_LocalRefreshSpinner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _controller,
+      child: Icon(
+        FluentIcons.arrow_sync_24_regular,
+        color: widget.color,
+        size: 30,
+      ),
+    );
   }
 }
 

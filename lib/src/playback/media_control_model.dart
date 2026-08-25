@@ -258,6 +258,19 @@ class MediaControlController extends ChangeNotifier {
     loadTrack(const MediaControlTrack.empty());
   }
 
+  void updateTrackMetadata(MediaControlTrack track) {
+    if (_state.track.id != track.id) {
+      return;
+    }
+    _state = _state.copyWith(
+      track: track.copyWith(
+        isLoading: _state.track.isLoading,
+        favorite: _state.track.favorite,
+      ),
+    );
+    notifyListeners();
+  }
+
   void playTrack(
     MediaControlTrack track, {
     required double durationSeconds,

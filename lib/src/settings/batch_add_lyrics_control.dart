@@ -16,58 +16,15 @@ class _LyricsBatchOptionsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    return PopupDialog(
-      className: 'lyrics-batch-options-dialog ContentDialog',
-      navClassName: 'lyrics-batch-options-dialog-nav',
-      navLabel: i18n.t('settings.batchAddLyrics'),
-      ariaLabel: i18n.t('settings.batchAddLyrics'),
-      width: 430,
-      height: 220,
-      closeOnBackdrop: true,
-      onClose: onCancel,
-      navChildren: [
-        Expanded(child: PopupDialogTitle(i18n.t('settings.batchAddLyrics'))),
-      ],
-      footer: PopupDialogActions(
-        children: [
-          PopupDialogActionButton(
-            label: i18n.t('common.start'),
-            primary: true,
-            onPressed: onStart,
-          ),
-          PopupDialogActionButton(
-            label: i18n.t('common.cancel'),
-            onPressed: onCancel,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
-        child: _LyricsBatchOptionsContent(
-          overwrite: overwrite,
-          onOverwriteChanged: onOverwriteChanged,
-        ),
-      ),
-    );
-  }
-}
-
-class _LyricsBatchOptionsContent extends StatelessWidget {
-  const _LyricsBatchOptionsContent({
-    required this.overwrite,
-    required this.onOverwriteChanged,
-  });
-
-  final bool overwrite;
-  final ValueChanged<bool> onOverwriteChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
-    return Align(
-      alignment: Alignment.topLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
+    return RemoveDialog(
+      title: i18n.t('settings.batchAddLyrics'),
+      message: '',
+      confirmText: i18n.t('common.start'),
+      destructive: false,
+      onCancel: onCancel,
+      onConfirm: onStart,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
         child: ToggleSettingRow(
           label: i18n.t('settings.lyricsBatchOverwriteToggle'),
           checked: overwrite,

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/library_detail_transition_page.dart';
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/shell_page.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
@@ -18,6 +19,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
+import 'package:smplayer_flutter/src/library/ui/artists_navigation_provider.dart';
 import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
@@ -103,17 +105,23 @@ GoRouter createSmPlayerRouter({
             routes: [
               GoRoute(
                 path: '/albums',
-                pageBuilder:
-                    (context, state) => _smPlayerBranchPage(
+                pageBuilder: (context, state) {
+                  final albumName = state.uri.queryParameters['album'];
+                  if (albumName == null) {
+                    return _smPlayerBranchPage(
                       state: state,
                       settingsController: settingsController,
-                      child:
-                          state.uri.queryParameters['album'] == null
-                              ? const AlbumsPage()
-                              : AlbumDetailPage(
-                                albumName: state.uri.queryParameters['album']!,
-                              ),
-                    ),
+                      child: const AlbumsPage(),
+                    );
+                  }
+                  return _smPlayerDetailBranchPage(
+                    context: context,
+                    state: state,
+                    settingsController: settingsController,
+                    pageKey: ValueKey('AlbumDetail.$albumName'),
+                    child: AlbumDetailPage(albumName: albumName),
+                  );
+                },
               ),
             ],
           ),
@@ -208,16 +216,18 @@ GoRouter createSmPlayerRouter({
               ),
               GoRoute(
                 path: '/playlists/:playlistId',
-                pageBuilder:
-                    (context, state) => _smPlayerBranchPage(
-                      state: state,
-                      settingsController: settingsController,
-                      child: PlaylistsPage(
-                        selectedPlaylistId: int.parse(
-                          state.pathParameters['playlistId']!,
-                        ),
-                      ),
+                pageBuilder: (context, state) {
+                  final playlistId = state.pathParameters['playlistId']!;
+                  return _smPlayerDetailBranchPage(
+                    context: context,
+                    state: state,
+                    settingsController: settingsController,
+                    pageKey: ValueKey('PlaylistDetail.$playlistId'),
+                    child: PlaylistsPage(
+                      selectedPlaylistId: int.parse(playlistId),
                     ),
+                  );
+                },
               ),
             ],
           ),
@@ -378,6 +388,24 @@ Page<void> _smPlayerBranchPage({
   );
 }
 
+Page<void> _smPlayerDetailBranchPage({
+  required BuildContext context,
+  required GoRouterState state,
+  required SettingsController? settingsController,
+  required LocalKey pageKey,
+  required Widget child,
+}) {
+  return smPlayerLibraryDetailPage(
+    context: context,
+    key: pageKey,
+    child: _LibraryRootGate(
+      path: state.uri.path,
+      settingsController: settingsController,
+      child: child,
+    ),
+  );
+}
+
 class _SmPlayerRouteShell extends ConsumerWidget {
   const _SmPlayerRouteShell({
     required this.state,
@@ -403,6 +431,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
         path == '/artists' && uri.queryParameters.containsKey('artist');
+    final isRecentBrowseOrigin =
+        uri.queryParameters['origin'] == 'recentBrowse';
+    final isRecentBrowseDetailRoute =
+        isRecentBrowseOrigin &&
+        (isPlaylistDetailRoute || isAlbumDetailRoute || isArtistDetailRoute);
     final windowWidth = MediaQuery.sizeOf(context).width;
     final navigationMode = SmPlayerShellMetrics.navigationModeForWidth(
       windowWidth,
@@ -419,6 +452,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         workspaceWidth <= SmPlayerShellMetrics.navigationMinimalBreakpoint;
     final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
+        isRecentBrowseDetailRoute ||
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
         isCompactArtistDetailRoute ||
@@ -433,8 +467,9 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       settingsController: settingsController,
       settingsRepository: repository,
       onNavigate: (target) {
-        if (target == '/artists' && isCompactArtistDetailRoute) {
-          context.go('/artists');
+        if (target == '/artists' && path == '/artists') {
+          ref.read(artistsListRequestProvider.notifier).state += 1;
+          navigationShell.goBranch(1, initialLocation: true);
           return;
         }
         if (target == '/albums' && isCompactAlbumDetailRoute) {
@@ -464,6 +499,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         context.go(target);
       },
       onGoBack: () {
+        if (isRecentBrowseDetailRoute) {
+          context.go('/recent');
+          return;
+        }
+
         if (isPlaylistDetailRoute) {
           context.go('/playlists');
           return;
@@ -521,7 +561,7 @@ int? _branchRootIndex(String location) {
   };
 }
 
-const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerEletron/issues';
+const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerFlutter/issues';
 const _feedbackEmailAddress = 'luokiss9@qq.com';
 
 const _feedbackEmailSubjects = {

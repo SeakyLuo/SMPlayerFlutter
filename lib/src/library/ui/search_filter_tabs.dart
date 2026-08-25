@@ -15,6 +15,11 @@ class _SearchFilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final songIds = results.songs.map((song) => song.id).toSet();
+    final lyricsOnlyCount =
+        results.lyrics
+            .where((result) => !songIds.contains(result.song.id))
+            .length;
     final tabs = <({SearchFilterKey key, String label, int count, int order})>[
       (
         key: SearchFilterKey.all,
@@ -23,6 +28,7 @@ class _SearchFilterTabs extends StatelessWidget {
             results.artists.length +
             results.albums.length +
             results.songs.length +
+            lyricsOnlyCount +
             results.playlists.length +
             results.folders.length,
         order: 0,
@@ -46,16 +52,22 @@ class _SearchFilterTabs extends StatelessWidget {
         order: 3,
       ),
       (
+        key: SearchFilterKey.lyrics,
+        label: i18n.t('nowPlaying.lyrics'),
+        count: results.lyrics.length,
+        order: 4,
+      ),
+      (
         key: SearchFilterKey.playlists,
         label: i18n.t('common.playlists'),
         count: results.playlists.length,
-        order: 4,
+        order: 5,
       ),
       (
         key: SearchFilterKey.folders,
         label: i18n.t('common.folders'),
         count: results.folders.length,
-        order: 5,
+        order: 6,
       ),
     ];
     final orderedTabs = [
@@ -73,7 +85,9 @@ class _SearchFilterTabs extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44),
+        constraints: const BoxConstraints(
+          minHeight: smPlayerFilterPillBarHeight,
+        ),
         child: Padding(
           padding: const EdgeInsets.only(bottom: 2),
           child: Row(
@@ -156,8 +170,8 @@ class _SearchFilterTab extends StatelessWidget {
         opacityWhenDisabled: 0.46,
         onPressed: onPressed,
         minWidth: 72,
-        height: 36,
-        horizontalPadding: 18,
+        height: smPlayerFilterPillHeight,
+        horizontalPadding: smPlayerFilterPillHorizontalPadding,
         iconSize: 18,
         iconGap: 8,
         borderRadius: 999,
@@ -193,9 +207,10 @@ class _SearchFilterTabIcon extends StatelessWidget {
     final color = IconTheme.of(context).color;
     return switch (filter) {
       SearchFilterKey.all => const Icon(FluentIcons.grid_20_regular, size: 18),
-      SearchFilterKey.artists => const Icon(FluentIcons.people_20_regular),
+      SearchFilterKey.artists => const Icon(FluentIcons.people_24_regular),
       SearchFilterKey.albums => SmPlayerAlbumIcon(size: 18, color: color),
       SearchFilterKey.songs => const Icon(FluentIcons.music_note_2_20_regular),
+      SearchFilterKey.lyrics => const Icon(FluentIcons.comment_text_20_regular),
       SearchFilterKey.playlists => SmPlayerPlaylistIcon(size: 18, color: color),
       SearchFilterKey.folders => const Icon(FluentIcons.folder_20_regular),
     };

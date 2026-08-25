@@ -10,7 +10,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
         .read(libraryRepositoryProvider)
-        .getPreferenceLevel('album', album.name);
+        .getPreferenceLevel('album', album.preferenceId);
     if (!mounted) {
       return;
     }
@@ -53,7 +53,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
         _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -62,9 +62,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           text: i18n.t('nowPlaying.randomPlay'),
           useShuffleIcon: true,
           onPressed: () async {
-            await ref
-                .read(libraryRepositoryProvider)
-                .recordAlbumPlayed(album.name);
+            await recordRecentAlbumPlayback(ref, album.name);
             await _playSongIds(album.songIds, shuffle: true);
           },
         ),
@@ -74,7 +72,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           text: i18n.t('context.select'),
           icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () {
-            setState(() {
+            _updateState(() {
               _selection.enterMultiSelect();
               _selection.selectSingle(album.name);
             });
@@ -90,7 +88,7 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
               if (!mounted) {
                 return;
               }
-              setState(() {
+              _updateState(() {
                 _albumArtPreview = album;
               });
             });
@@ -115,12 +113,12 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
               : () {
                 ref
                     .read(libraryRepositoryProvider)
-                    .removePreferenceItem('album', album.name);
+                    .removePreferenceItem('album', album.preferenceId);
               },
       onSetPreference: (level) {
         ref
             .read(libraryRepositoryProvider)
-            .addPreferenceItem('album', album.name, album.name, level);
+            .addPreferenceItem('album', album.preferenceId, album.name, level);
       },
     );
   }

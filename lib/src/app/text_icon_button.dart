@@ -5,6 +5,10 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
+const smPlayerFilterPillHeight = 36.0;
+const smPlayerFilterPillBarHeight = 44.0;
+const smPlayerFilterPillHorizontalPadding = 18.0;
+
 const _textIconButtonGlassSettings = LiquidGlassSettings(
   blur: 30,
   thickness: 12,
@@ -112,28 +116,29 @@ class SmPlayerTextIconButton extends StatefulWidget {
 class _SmPlayerTextIconButtonState extends State<SmPlayerTextIconButton> {
   @override
   Widget build(BuildContext context) {
-    if (!widget.tooltipEnabled) {
-      return _SmPlayerTextIconButtonInteraction(configuration: widget);
-    }
-    final tooltip = widget.tooltip ?? (widget.showLabel ? null : widget.label);
-    if (tooltip == null) {
-      return _SmPlayerTextIconButtonInteraction(configuration: widget);
-    }
-    return _SmPlayerTextIconButtonInteraction(
+    final tooltip =
+        widget.tooltipEnabled
+            ? widget.tooltip ?? (widget.showLabel ? null : widget.label)
+            : null;
+    final button = _SmPlayerTextIconButtonInteraction(
       configuration: widget,
-      tooltip: tooltip,
+      semanticTooltip: tooltip,
     );
+    if (tooltip == null) {
+      return button;
+    }
+    return Tooltip(message: tooltip, child: button);
   }
 }
 
 class _SmPlayerTextIconButtonInteraction extends StatefulWidget {
   const _SmPlayerTextIconButtonInteraction({
     required this.configuration,
-    this.tooltip,
+    this.semanticTooltip,
   });
 
   final SmPlayerTextIconButton configuration;
-  final String? tooltip;
+  final String? semanticTooltip;
 
   @override
   State<_SmPlayerTextIconButtonInteraction> createState() =>
@@ -142,16 +147,8 @@ class _SmPlayerTextIconButtonInteraction extends StatefulWidget {
 
 class _SmPlayerTextIconButtonInteractionState
     extends State<_SmPlayerTextIconButtonInteraction> {
-  final _tooltipAnchorKey = GlobalKey();
   var _hovered = false;
   var _focused = false;
-  OverlayEntry? _tooltipOverlayEntry;
-
-  @override
-  void dispose() {
-    _removeTooltipOverlay();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +329,7 @@ class _SmPlayerTextIconButtonInteractionState
             button: true,
             enabled: enabled,
             label: config.showLabel ? null : config.label,
-            tooltip: widget.tooltip,
+            tooltip: widget.semanticTooltip,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapUp: enabled ? (_) => config.onPressed?.call() : null,
@@ -342,7 +339,7 @@ class _SmPlayerTextIconButtonInteractionState
         ),
       ),
     );
-    return KeyedSubtree(key: _tooltipAnchorKey, child: button);
+    return button;
   }
 
   void _setHovered(bool hovered) {
@@ -352,7 +349,6 @@ class _SmPlayerTextIconButtonInteractionState
     setState(() {
       _hovered = hovered;
     });
-    _updateTooltipOverlay();
   }
 
   void _setFocused(bool focused) {
@@ -362,107 +358,6 @@ class _SmPlayerTextIconButtonInteractionState
     setState(() {
       _focused = focused;
     });
-    _updateTooltipOverlay();
-  }
-
-  void _updateTooltipOverlay() {
-    if (widget.tooltip == null) {
-      return;
-    }
-    if (_hovered || _focused) {
-      _showTooltipOverlay();
-    } else {
-      _removeTooltipOverlay();
-    }
-  }
-
-  void _showTooltipOverlay() {
-    if (_tooltipOverlayEntry != null) {
-      return;
-    }
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) {
-      return;
-    }
-    final anchorBox =
-        _tooltipAnchorKey.currentContext!.findRenderObject()! as RenderBox;
-    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
-    final anchorOrigin = overlayBox.globalToLocal(
-      anchorBox.localToGlobal(Offset.zero),
-    );
-    _tooltipOverlayEntry = OverlayEntry(
-      builder:
-          (overlayContext) => _SmPlayerTextIconButtonTooltipOverlay(
-            message: widget.tooltip!,
-            anchor: anchorOrigin & anchorBox.size,
-          ),
-    );
-    overlay.insert(_tooltipOverlayEntry!);
-  }
-
-  void _removeTooltipOverlay() {
-    _tooltipOverlayEntry?.remove();
-    _tooltipOverlayEntry = null;
-  }
-}
-
-class _SmPlayerTextIconButtonTooltipOverlay extends StatelessWidget {
-  const _SmPlayerTextIconButtonTooltipOverlay({
-    required this.message,
-    required this.anchor,
-  });
-
-  final String message;
-  final Rect anchor;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark ? const Color(0xf5222222) : const Color(0xfafdfdfd);
-    final border = dark ? const Color(0x5cffffff) : const Color(0x3d1f2a36);
-    final foreground = dark ? const Color(0xffffffff) : const Color(0xff1f252b);
-    return Positioned(
-      top: anchor.bottom + 8,
-      left: anchor.center.dx - 120,
-      width: 240,
-      child: IgnorePointer(
-        child: Center(
-          child: DecoratedBox(
-            key: const ValueKey('SmPlayerTextIconButton.Tooltip'),
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: border),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x26000000),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 240),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                child: Text(
-                  message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

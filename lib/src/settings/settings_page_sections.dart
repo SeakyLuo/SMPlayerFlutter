@@ -38,9 +38,8 @@ extension _SettingsPageSections on _SettingsPageState {
                 ),
               ),
               const SizedBox(width: 12),
-              SizedBox(
-                width: 52,
-                height: 42,
+              SizedBox.square(
+                dimension: 42,
                 child: _SettingsIconButton(
                   icon: FluentIcons.folder_24_regular,
                   tooltip: i18n.t('common.folders'),
@@ -140,13 +139,10 @@ extension _SettingsPageSections on _SettingsPageState {
                 onClick: _handleLyricsBatchPrimaryAction,
                 child: Text(_lyricsBatchPrimaryLabel(i18n)),
               ),
-              if (_lyricsBatchRunning)
+              if (_lyricsBatchRunning && !_lyricsBatchCancelRequested)
                 SettingsActionButton(
                   onClick: () {
-                    setState(() {
-                      _lyricsBatchCancelRequested = true;
-                      _lyricsBatchPaused = false;
-                    });
+                    unawaited(_requestCancelLyricsBatch(i18n));
                   },
                   child: Text(i18n.t('common.cancel')),
                 ),
@@ -166,7 +162,6 @@ extension _SettingsPageSections on _SettingsPageState {
                     setState(() {
                       _lyricsBatchResult = null;
                       _lyricsBatchProgress = null;
-                      _lyricsBatchStopped = false;
                       _showLyricsBatchDetails = false;
                     });
                   },
@@ -197,8 +192,6 @@ extension _SettingsPageSections on _SettingsPageState {
               message:
                   _lyricsBatchRunning
                       ? i18n.t('settings.lyricsBatchRequesting')
-                      : _lyricsBatchStopped
-                      ? i18n.t('settings.lyricsBatchStopped')
                       : i18n.t('settings.lyricsBatchDone'),
             ),
         ],
@@ -305,6 +298,7 @@ extension _SettingsPageSections on _SettingsPageState {
   }
 
   List<Widget> _buildRightColumn(BuildContext context, SmPlayerI18n i18n) {
+    final colors = SettingsPageColors.of(context);
     return [
       SettingsCard(
         title: i18n.t('settings.display'),
@@ -446,6 +440,57 @@ extension _SettingsPageSections on _SettingsPageState {
               );
             },
           ),
+        ],
+      ),
+      SettingsCard(
+        title: i18n.t('settings.aiAgent'),
+        children: [
+          ToggleSettingRow(
+            label: i18n.t('settings.aiAgentEnabled'),
+            hint: i18n.t('settings.aiAgentEnabledHint'),
+            checked: _snapshot.aiAgentEnabled,
+            enabled:
+                !_updatingAiAgent &&
+                !aiAgentRemoteController.isBusy &&
+                aiAgentRemoteController.databasePath != null,
+            onChange: (checked) {
+              unawaited(_setAiAgentEnabled(checked, i18n));
+            },
+          ),
+          if (_snapshot.aiAgentEnabled &&
+              aiAgentRemoteController.databasePath != null) ...[
+            Text(
+              i18n.t('settings.aiAgentNextStep'),
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+            _CopyableSettingValue(
+              label: i18n.t('settings.aiAgentEndpoint'),
+              value: aiAgentRemoteController.endpoint,
+              copyTooltip: i18n.t('common.copy'),
+              onCopy: () {
+                unawaited(
+                  _copyAiAgentValue(aiAgentRemoteController.endpoint, i18n),
+                );
+              },
+            ),
+            _CopyableSettingValue(
+              label: i18n.t('settings.aiAgentDatabasePath'),
+              value: aiAgentRemoteController.databasePath!,
+              copyTooltip: i18n.t('common.copy'),
+              onCopy: () {
+                unawaited(
+                  _copyAiAgentValue(
+                    aiAgentRemoteController.databasePath!,
+                    i18n,
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
       SettingsCard(

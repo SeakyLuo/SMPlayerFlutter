@@ -115,12 +115,15 @@ extension _LocalPageFolderActions on _LocalPageState {
     }
 
     if (result.addToRecentSearches) {
+      final recentSearches = ref.read(recentSearchesProvider.notifier);
       unawaited(
         ref
             .read(libraryRepositoryProvider)
             .addRecentSearch(result.query, SearchHistoryType.folders)
-            .then((_) {
-              invalidateRecentSearchData(ref);
+            .then((entry) {
+              if (entry != null) {
+                return recentSearches.record(entry);
+              }
             }),
       );
     }
@@ -140,7 +143,8 @@ extension _LocalPageFolderActions on _LocalPageState {
   _requestSearchDirectoryQuery(FolderNode folder, SmPlayerI18n i18n) async {
     final recentSearches =
         latestSearchHistoryEntries(
-          ref.read(libraryContentDataProvider).value!.recentSearches,
+          ref.read(recentSearchesProvider).valueOrNull ??
+              ref.read(libraryContentDataProvider).value!.recentSearches,
           SearchHistoryType.folders,
         ).toList();
     var selectedSearchHistory = false;
@@ -169,22 +173,24 @@ extension _LocalPageFolderActions on _LocalPageState {
   }
 
   void _removeSearchDirectoryHistory(int entryId) {
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref.read(libraryRepositoryProvider).removeRecentSearches([entryId]).then((
         _,
       ) {
-        invalidateRecentSearchData(ref);
+        return recentSearches.remove([entryId]);
       }),
     );
   }
 
   void _clearSearchDirectoryHistory(List<SearchHistoryEntry> entries) {
     final entryIds = entries.map((entry) => entry.id).toList();
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref.read(libraryRepositoryProvider).removeRecentSearches(entryIds).then((
         _,
       ) {
-        invalidateRecentSearchData(ref);
+        return recentSearches.remove(entryIds);
       }),
     );
   }
@@ -259,9 +265,10 @@ extension _LocalPageFolderActions on _LocalPageState {
     final result = await showSmPlayerInputDialog(
       context: context,
       i18n: i18n,
-      title: title ?? i18n.t('local.newFolderPrompt'),
+      title: title ?? i18n.t('local.createFolderTitle'),
       defaultValue: defaultName,
-      confirmText: i18n.t('playlists.create'),
+      placeholder: i18n.t('local.newFolderPrompt'),
+      confirmText: i18n.t('common.confirm'),
       validate: validate,
     );
     return result;

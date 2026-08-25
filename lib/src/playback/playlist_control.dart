@@ -18,17 +18,22 @@ class PlaylistControlEntry {
     required this.onTogglePlayPause,
     required this.onToggleSelection,
     required this.onOpenContextMenu,
+    this.onActivateRow,
     this.logicalIndex,
     this.showAlbum = false,
     this.variant = PlaylistControlItemVariant.standard,
     this.colors,
     this.showCompactPrimaryActions = false,
     this.collapseCompactPrimaryActions = false,
+    this.overlayCompactActions = false,
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
     this.favoriteAsHoverAction = false,
+    this.keepFavoriteActionInCompact = false,
+    this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
+    this.favoriteSwipeEnabled = true,
     this.playNextLabel,
     this.removeLabel,
     this.addToPlaylistLabel,
@@ -54,24 +59,29 @@ class PlaylistControlEntry {
   final PlaylistControlItemColors? colors;
   final bool showCompactPrimaryActions;
   final bool collapseCompactPrimaryActions;
+  final bool overlayCompactActions;
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
   final bool favoriteAsHoverAction;
+  final bool keepFavoriteActionInCompact;
+  final bool keepAddToActionInCompact;
   final bool favoriteLoading;
+  final bool favoriteSwipeEnabled;
   final String? playNextLabel;
   final String? removeLabel;
   final String? addToPlaylistLabel;
   final String? favoriteLabel;
   final String? moreLabel;
   final VoidCallback onPlayTrack;
+  final VoidCallback? onActivateRow;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onToggleSelection;
   final VoidCallback? onToggleFavoriteClick;
-  final ValueChanged<BuildContext>? onAddToPlaylistClick;
+  final PlaylistControlMenuHandler? onAddToPlaylistClick;
   final VoidCallback? onPlayNextClick;
   final VoidCallback? onRemoveFromListClick;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final PlaylistControlContextMenuHandler onOpenContextMenu;
   final ValueChanged<String>? onSeeArtist;
   final VoidCallback? onSeeAlbum;
 }
@@ -165,17 +175,23 @@ class PlaylistControl extends StatelessWidget {
       colors: entry.colors,
       showCompactPrimaryActions: entry.showCompactPrimaryActions,
       collapseCompactPrimaryActions: entry.collapseCompactPrimaryActions,
+      overlayCompactActions: entry.overlayCompactActions,
       compactDurationWidth: entry.compactDurationWidth,
       compactTrailingPadding: entry.compactTrailingPadding,
       showFavoriteAction: entry.showFavoriteAction,
       favoriteAsHoverAction: entry.favoriteAsHoverAction,
+      keepFavoriteActionInCompact: entry.keepFavoriteActionInCompact,
+      keepAddToActionInCompact: entry.keepAddToActionInCompact,
       favoriteLoading: entry.favoriteLoading,
+      swipeEnabled: onReorder == null,
+      favoriteSwipeEnabled: entry.favoriteSwipeEnabled,
       playNextLabel: entry.playNextLabel,
       removeLabel: entry.removeLabel,
       addToPlaylistLabel: entry.addToPlaylistLabel,
       favoriteLabel: entry.favoriteLabel,
       moreLabel: entry.moreLabel,
       onPlayTrack: entry.onPlayTrack,
+      onActivateRow: entry.onActivateRow,
       onTogglePlayPause: entry.onTogglePlayPause,
       onToggleSelection: entry.onToggleSelection,
       onToggleFavoriteClick: entry.onToggleFavoriteClick,

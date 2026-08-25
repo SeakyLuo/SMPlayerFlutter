@@ -16,6 +16,8 @@ enum AlbumSortCriterion { defaultSort, name, artist, reverse }
 
 enum SearchHistoryType { sidebar, artists, albums, songs, playlists, folders }
 
+enum RecentBrowseType { song, artist, album, playlist }
+
 enum LocalFolderSortCriterion { title, artist, album, reverse }
 
 enum PlaylistSortCriterion {
@@ -246,6 +248,31 @@ class LyricsSnapshot {
   final List<LyricsLine> lines;
 }
 
+class LocalLyricsSearchMatch {
+  const LocalLyricsSearchMatch({
+    required this.songId,
+    required this.snippet,
+    required this.contextLines,
+    required this.timestampMs,
+    required this.additionalMatchCount,
+    required this.relevance,
+  });
+
+  final int songId;
+  final String snippet;
+  final List<String> contextLines;
+  final int? timestampMs;
+  final int additionalMatchCount;
+  final int relevance;
+}
+
+class LocalLyricsIndexProgress {
+  const LocalLyricsIndexProgress({required this.current, required this.total});
+
+  final int current;
+  final int total;
+}
+
 enum SongArtworkSource { cached, embedded, shell, none }
 
 class SongArtworkSnapshot {
@@ -348,6 +375,20 @@ class SearchHistoryEntry {
   final String query;
   final SearchHistoryType type;
   final String searchedAt;
+}
+
+class RecentBrowseEntry {
+  const RecentBrowseEntry({
+    required this.id,
+    required this.type,
+    required this.itemId,
+    required this.browsedAt,
+  });
+
+  final int id;
+  final RecentBrowseType type;
+  final String itemId;
+  final String browsedAt;
 }
 
 List<SearchHistoryEntry> latestSearchHistoryEntries(
@@ -560,6 +601,7 @@ class RecentPageData {
     required this.recentAlbums,
     required this.recentArtists,
     required this.recentSearches,
+    this.recentBrowses = const [],
     required this.playlists,
     required this.favoritePlaylistId,
     required this.nowPlaying,
@@ -573,6 +615,7 @@ class RecentPageData {
   final List<RecentAlbumPlayback> recentAlbums;
   final List<RecentArtistPlayback> recentArtists;
   final List<SearchHistoryEntry> recentSearches;
+  final List<RecentBrowseEntry> recentBrowses;
   final List<LibraryPlaylist> playlists;
   final int favoritePlaylistId;
   final NowPlayingSnapshot nowPlaying;

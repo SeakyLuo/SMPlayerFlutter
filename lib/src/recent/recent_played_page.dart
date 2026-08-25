@@ -25,6 +25,7 @@ class _RecentPlayedPage extends ConsumerWidget {
     required this.onToggleCollectionSelection,
     required this.onRecordCollectionPlayed,
     required this.onOpenSongContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenCollectionAddToMenu,
     required this.onOpenArtistContextMenu,
@@ -57,10 +58,7 @@ class _RecentPlayedPage extends ConsumerWidget {
   onPlaySong;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<String> onToggleCollectionSelection;
-  final void Function(
-    Future<void> Function(LibraryRepository repository) record,
-  )
-  onRecordCollectionPlayed;
+  final void Function(Future<void> Function() record) onRecordCollectionPlayed;
   final Future<void> Function(
     Offset position,
     LibrarySong song,
@@ -68,8 +66,9 @@ class _RecentPlayedPage extends ConsumerWidget {
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   )
   onOpenSongContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(
+  final Future<void> Function(
     Offset position,
     String defaultName,
     List<int> songIds,
@@ -109,7 +108,7 @@ class _RecentPlayedPage extends ConsumerWidget {
               onPressed: onToggleMultiSelect,
             ),
             CommandBarButton(
-              icon: FluentIcons.dismiss_20_regular,
+              icon: FluentIcons.broom_20_regular,
               label: i18n.t('recent.clearHistory'),
               disabled: playedCount == 0,
               onPressed: () {
@@ -148,36 +147,37 @@ class _RecentPlayedPage extends ConsumerWidget {
               context.go('/playlists/$playlistId');
             },
             onRecordPlaylistPlayed: (playlistId) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordPlaylistPlayed(playlistId),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentPlaylistPlayback(ref, playlistId);
+              });
             },
             onRecordAlbumPlayed: (albumName) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordAlbumPlayed(albumName),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentAlbumPlayback(ref, albumName);
+              });
             },
             onRecordArtistPlayed: (artistName) {
-              onRecordCollectionPlayed(
-                (repository) => repository.recordArtistPlayed(artistName),
-              );
+              onRecordCollectionPlayed(() {
+                return recordRecentArtistPlayback(ref, artistName);
+              });
             },
             onOpenSongContextMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,
                 customPlaylists,
               );
             },
+            onToggleFavorite: onToggleFavorite,
             onPlayNext: onPlayNext,
             onOpenSongAddToMenu: (position, song) {
-              onOpenCollectionAddToMenu(position, song.title, [
+              return onOpenCollectionAddToMenu(position, song.title, [
                 song.id,
               ], customPlaylists);
             },
             onOpenAlbumAddMenu: (position, album) {
-              onOpenCollectionAddToMenu(
+              return onOpenCollectionAddToMenu(
                 position,
                 album.name,
                 album.songIds,
@@ -185,9 +185,7 @@ class _RecentPlayedPage extends ConsumerWidget {
               );
             },
             onOpenArtistContextMenu: (position, artist) {
-              unawaited(
-                onOpenArtistContextMenu(position, artist, customPlaylists),
-              );
+              return onOpenArtistContextMenu(position, artist, customPlaylists);
             },
             onTimelineLabelChange: onTimelineLabelChange,
           ),
@@ -206,6 +204,11 @@ class _RecentPlayedPage extends ConsumerWidget {
   }
 
   Future<void> _confirmClearHistory(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSongs = ref.read(recentSongsProvider.notifier);
+    final recentCollections = ref.read(
+      recentPlayedCollectionsProvider.notifier,
+    );
     final confirmed = await showPopupConfirmDialog(
       context: context,
       title: i18n.t('common.confirm'),
@@ -216,8 +219,11 @@ class _RecentPlayedPage extends ConsumerWidget {
     if (!confirmed) {
       return;
     }
-    ref.read(libraryRepositoryProvider).clearRecentPlayed();
-    ref.invalidate(recentPageDataProvider);
-    onClearSelection();
+    await repository.clearRecentPlayed();
+    recentSongs.clear();
+    await recentCollections.clear();
+    if (context.mounted) {
+      onClearSelection();
+    }
   }
 }

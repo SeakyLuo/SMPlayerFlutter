@@ -30,14 +30,14 @@ extension _LocalPageAddToActions on _LocalPageState {
     );
   }
 
-  void _showAddToMenu({
+  Future<void> _showAddToMenu({
     required Offset position,
     required List<int> songIds,
     required String defaultPlaylistName,
     required List<MultiSelectCommandBarPlaylist> playlists,
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
-  }) {
+  }) async {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
@@ -67,7 +67,7 @@ extension _LocalPageAddToActions on _LocalPageState {
       return;
     }
 
-    showMenuFlyout(context, position: position, items: addToItem.submenu);
+    await showMenuFlyout(context, position: position, items: addToItem.submenu);
   }
 
   Future<void> _createPlaylist(
@@ -84,8 +84,17 @@ extension _LocalPageAddToActions on _LocalPageState {
     if (name == null) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: i18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   Future<String?> _requestPlaylistName({

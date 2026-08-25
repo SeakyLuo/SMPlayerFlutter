@@ -15,40 +15,51 @@ class _RecentPlayedFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 44,
-      child: ListView(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 2),
-        children: [
-          _FilterButton(
-            visualKey: const ValueKey('Recent.FilterButton.songs'),
-            active: activeFilter == RecentPlayedFilter.songs,
-            icon: const Icon(FluentIcons.music_note_2_20_regular, size: 18),
-            label: i18n.t('common.songs'),
-            onPressed: () => onChanged(RecentPlayedFilter.songs),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: smPlayerFilterPillBarHeight,
           ),
-          _FilterButton(
-            visualKey: const ValueKey('Recent.FilterButton.artists'),
-            active: activeFilter == RecentPlayedFilter.artists,
-            icon: const Icon(FluentIcons.people_24_regular, size: 18),
-            label: i18n.t('recent.artists'),
-            onPressed: () => onChanged(RecentPlayedFilter.artists),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              children: [
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.songs'),
+                  active: activeFilter == RecentPlayedFilter.songs,
+                  icon: const Icon(
+                    FluentIcons.music_note_2_20_regular,
+                    size: 18,
+                  ),
+                  label: i18n.t('common.songs'),
+                  onPressed: () => onChanged(RecentPlayedFilter.songs),
+                ),
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.artists'),
+                  active: activeFilter == RecentPlayedFilter.artists,
+                  icon: const Icon(FluentIcons.people_24_regular, size: 18),
+                  label: i18n.t('recent.artists'),
+                  onPressed: () => onChanged(RecentPlayedFilter.artists),
+                ),
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.albums'),
+                  active: activeFilter == RecentPlayedFilter.albums,
+                  icon: const _RecentFilterAlbumIcon(),
+                  label: i18n.t('recent.albums'),
+                  onPressed: () => onChanged(RecentPlayedFilter.albums),
+                ),
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.playlists'),
+                  active: activeFilter == RecentPlayedFilter.playlists,
+                  icon: const _RecentFilterPlaylistIcon(),
+                  label: i18n.t('recent.playlists'),
+                  onPressed: () => onChanged(RecentPlayedFilter.playlists),
+                ),
+              ],
+            ),
           ),
-          _FilterButton(
-            visualKey: const ValueKey('Recent.FilterButton.albums'),
-            active: activeFilter == RecentPlayedFilter.albums,
-            icon: const _RecentFilterAlbumIcon(),
-            label: i18n.t('recent.albums'),
-            onPressed: () => onChanged(RecentPlayedFilter.albums),
-          ),
-          _FilterButton(
-            visualKey: const ValueKey('Recent.FilterButton.playlists'),
-            active: activeFilter == RecentPlayedFilter.playlists,
-            icon: const _RecentFilterPlaylistIcon(),
-            label: i18n.t('recent.playlists'),
-            onPressed: () => onChanged(RecentPlayedFilter.playlists),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -74,64 +85,54 @@ class _FilterButton extends StatelessWidget {
     final colors = RecentThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: SizedBox(
+      child: KeyedSubtree(
         key: visualKey,
-        height: 36,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_recentPlayedFilterRadius),
-            boxShadow: active ? colors.playedFilterActiveShadow : const [],
+        child: SmPlayerTextIconButtonTheme(
+          colors: _recentTabButtonColors(
+            commandText:
+                active
+                    ? colors.playedFilterActiveText
+                    : colors.playedFilterText,
+            commandTextHover:
+                active
+                    ? colors.playedFilterActiveText
+                    : colors.appBarTabHoverText,
+            control:
+                active
+                    ? colors.playedFilterActiveSurface
+                    : colors.playedFilterSurface,
+            controlHover:
+                active
+                    ? colors.playedFilterActiveSurface
+                    : colors.appBarTabHoverSurface,
+            controlBorder:
+                active
+                    ? colors.playedFilterActiveBorder
+                    : colors.playedFilterBorder,
+            controlHoverBorder:
+                active
+                    ? colors.playedFilterActiveBorder
+                    : colors.appBarTabHoverBorder,
+            controlActive: colors.playedFilterActiveSurface,
+            accentStrong: colors.playedFilterActiveText,
           ),
-          child: SmPlayerTextIconButtonTheme(
-            colors: _recentTabButtonColors(
-              commandText:
-                  active
-                      ? colors.playedFilterActiveText
-                      : colors.playedFilterText,
-              commandTextHover:
-                  active
-                      ? colors.playedFilterActiveText
-                      : colors.appBarTabHoverText,
-              control:
-                  active
-                      ? colors.playedFilterActiveSurface
-                      : colors.playedFilterSurface,
-              controlHover:
-                  active
-                      ? colors.playedFilterActiveSurface
-                      : colors.appBarTabHoverSurface,
-              controlBorder:
-                  active
-                      ? colors.playedFilterActiveBorder
-                      : colors.playedFilterBorder,
-              controlHoverBorder:
-                  active
-                      ? colors.playedFilterActiveBorder
-                      : colors.appBarTabHoverBorder,
-              controlActive: colors.playedFilterActiveSurface,
-              accentStrong: colors.playedFilterActiveText,
-            ),
-            child: SmPlayerTextIconButton(
-              label: label,
-              active: active,
-              onPressed: onPressed,
-              minWidth: 72,
-              height: 36,
-              horizontalPadding: 18,
-              iconSize: 18,
-              iconGap: 8,
-              borderRadius: _recentPlayedFilterRadius,
-              iconWidget: icon,
-              glassEnabled: false,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+          child: SmPlayerTextIconButton(
+            label: label,
+            active: active,
+            onPressed: onPressed,
+            minWidth: 72,
+            height: smPlayerFilterPillHeight,
+            horizontalPadding: smPlayerFilterPillHorizontalPadding,
+            iconSize: 18,
+            iconGap: 8,
+            borderRadius: _recentPlayedFilterRadius,
+            iconWidget: icon,
+            glassEnabled: false,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ),
         ),

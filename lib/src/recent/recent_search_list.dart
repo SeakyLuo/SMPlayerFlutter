@@ -9,9 +9,7 @@ import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'recent_page_model.dart';
 import 'recent_scrollbar.dart';
 
-const _recentSearchMinimalContentBreakpoint = 656.0;
-const _recentSearchMinimalScrollbarOffset = 8.0;
-const _recentSearchWideScrollbarOffset = 18.0;
+const _recentSearchScrollbarOffset = 8.0;
 
 class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
@@ -23,6 +21,8 @@ class RecentSearchList extends StatelessWidget {
     required this.onSearch,
     required this.onToggleSelection,
     required this.onRemove,
+    this.removeTooltip,
+    this.typeTooltip,
   });
 
   final List<SearchHistoryEntry> entries;
@@ -32,6 +32,8 @@ class RecentSearchList extends StatelessWidget {
   final ValueChanged<SearchHistoryEntry> onSearch;
   final ValueChanged<int> onToggleSelection;
   final ValueChanged<int> onRemove;
+  final String Function(SearchHistoryEntry entry)? removeTooltip;
+  final String Function(SearchHistoryEntry entry)? typeTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -39,47 +41,44 @@ class RecentSearchList extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final minimal =
-            constraints.maxWidth < _recentSearchMinimalContentBreakpoint;
-        return RecentScrollbar(
-          trailingEdgeOffset:
-              minimal
-                  ? _recentSearchMinimalScrollbarOffset
-                  : _recentSearchWideScrollbarOffset,
-          builder:
-              (controller) => ListView.builder(
-                controller: controller,
-                padding: EdgeInsets.fromLTRB(
-                  8,
-                  2,
-                  0,
-                  multiSelect ? multiSelectCommandBarScrollSpacer : 92,
-                ),
-                itemExtent: 56,
-                itemCount: entries.length,
-                itemBuilder: (context, index) {
-                  final entry = entries[index];
-                  return _RecentSearchRow(
-                    entry: entry,
-                    i18n: i18n,
-                    selected: selectedEntryIds.contains(entry.id),
-                    multiSelect: multiSelect,
-                    onSearch: () {
-                      onSearch(entry);
-                    },
-                    onToggleSelection: () {
-                      onToggleSelection(entry.id);
-                    },
-                    onRemove: () {
-                      onRemove(entry.id);
-                    },
-                  );
+    return RecentScrollbar(
+      trailingEdgeOffset: _recentSearchScrollbarOffset,
+      builder:
+          (controller) => ListView.builder(
+            controller: controller,
+            padding: EdgeInsets.fromLTRB(
+              8,
+              2,
+              0,
+              multiSelect ? multiSelectCommandBarScrollSpacer : 92,
+            ),
+            itemExtent: 56,
+            itemCount: entries.length,
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return _RecentSearchRow(
+                entry: entry,
+                i18n: i18n,
+                selected: selectedEntryIds.contains(entry.id),
+                multiSelect: multiSelect,
+                onSearch: () {
+                  onSearch(entry);
                 },
-              ),
-        );
-      },
+                onToggleSelection: () {
+                  onToggleSelection(entry.id);
+                },
+                onRemove: () {
+                  onRemove(entry.id);
+                },
+                removeTooltip:
+                    removeTooltip?.call(entry) ??
+                    i18n.t('sidebar.removeRecentSearch', {
+                      'query': entry.query,
+                    }),
+                typeTooltip: typeTooltip?.call(entry),
+              );
+            },
+          ),
     );
   }
 }
@@ -93,6 +92,8 @@ class _RecentSearchRow extends StatefulWidget {
     required this.onSearch,
     required this.onToggleSelection,
     required this.onRemove,
+    required this.removeTooltip,
+    this.typeTooltip,
   });
 
   final SearchHistoryEntry entry;
@@ -102,6 +103,8 @@ class _RecentSearchRow extends StatefulWidget {
   final VoidCallback onSearch;
   final VoidCallback onToggleSelection;
   final VoidCallback onRemove;
+  final String removeTooltip;
+  final String? typeTooltip;
 
   @override
   State<_RecentSearchRow> createState() => _RecentSearchRowState();
@@ -180,10 +183,7 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
                                   child: SizedBox.square(
                                     dimension: 20,
                                     child: Center(
-                                      child: _RecentSearchTypeIcon(
-                                        type: widget.entry.type,
-                                        color: colors.textMuted,
-                                      ),
+                                      child: _buildTypeIcon(colors),
                                     ),
                                   ),
                                 ),
@@ -225,9 +225,7 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Tooltip(
-                          message: widget.i18n.t('sidebar.removeRecentSearch', {
-                            'query': widget.entry.query,
-                          }),
+                          message: widget.removeTooltip,
                           child: MouseRegion(
                             cursor: SystemMouseCursors.click,
                             onEnter: (_) {
@@ -321,6 +319,21 @@ class _RecentSearchRowState extends State<_RecentSearchRow> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTypeIcon(RecentSearchThemeColors colors) {
+    final icon = _RecentSearchTypeIcon(
+      type: widget.entry.type,
+      color: colors.textMuted,
+    );
+    final tooltip = widget.typeTooltip;
+    if (tooltip == null) {
+      return icon;
+    }
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(label: tooltip, child: icon),
     );
   }
 }

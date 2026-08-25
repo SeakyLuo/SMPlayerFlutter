@@ -15,6 +15,7 @@ class _RecentAddedPage extends StatelessWidget {
     required this.onToggleSelection,
     required this.onOpenSongAddToMenu,
     required this.onOpenSongContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onTimelineLabelChange,
   });
@@ -35,7 +36,7 @@ class _RecentAddedPage extends StatelessWidget {
   ])
   onPlaySong;
   final ValueChanged<int> onToggleSelection;
-  final void Function(
+  final Future<void> Function(
     Offset position,
     String defaultName,
     List<int> songIds,
@@ -49,6 +50,7 @@ class _RecentAddedPage extends StatelessWidget {
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   )
   onOpenSongContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
   final ValueChanged<String> onTimelineLabelChange;
 
@@ -86,21 +88,22 @@ class _RecentAddedPage extends StatelessWidget {
             onPlaySong: onPlaySong,
             onToggleSelection: onToggleSelection,
             onOpenAddToMenu: (position, song) {
-              onOpenSongAddToMenu(position, song.title, [
+              return onOpenSongAddToMenu(position, song.title, [
                 song.id,
               ], customPlaylists);
             },
             onOpenContextMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,
                 customPlaylists,
               );
             },
+            onToggleFavorite: onToggleFavorite,
             onPlayNext: onPlayNext,
             onOpenMoreMenu: (position, song, queueSongIds) {
-              onOpenSongContextMenu(
+              return onOpenSongContextMenu(
                 position,
                 song,
                 queueSongIds,

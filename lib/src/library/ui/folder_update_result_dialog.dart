@@ -32,7 +32,8 @@ class FolderUpdateResultDialog extends StatefulWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final ValueChanged<int> onPlay;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
   onApplyArtistSplits;
   final VoidCallback onDismissArtistSplitSuggestions;
@@ -110,7 +111,7 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
           tab: FolderUpdateResultTab.artists,
           label: i18n.t('local.refreshArtistUpdatesTab'),
           count: _artistUpdateCount,
-          icon: FluentIcons.people_20_regular,
+          icon: FluentIcons.people_24_regular,
         ),
     ];
 

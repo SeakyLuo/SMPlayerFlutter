@@ -15,6 +15,7 @@ import 'local_folder_model.dart';
 import 'local_i18n_counts.dart';
 import 'local_page_quick_jump.dart';
 import 'playlist_artwork.dart';
+import 'search_match_text.dart';
 import 'selected_collection_card_style.dart';
 
 class LocalFolderCard extends StatefulWidget {
@@ -40,6 +41,7 @@ class LocalFolderCard extends StatefulWidget {
     required this.onToggleSelection,
     this.onWillAcceptDrop,
     this.onAcceptDrop,
+    this.searchQuery = '',
   });
 
   final FolderNode folder;
@@ -53,17 +55,19 @@ class LocalFolderCard extends StatefulWidget {
   final bool treeExpandable;
   final VoidCallback? onToggleTreeExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
-  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final FutureOr<void> Function(FolderNode folder, Offset position)
+  onOpenFolderMenu;
   final ValueChanged<String> onToggleSelection;
   final bool Function(FolderNode folder, LocalItemsDragPayload payload)?
   onWillAcceptDrop;
   final void Function(FolderNode folder, LocalItemsDragPayload payload)?
   onAcceptDrop;
+  final String searchQuery;
 
   @override
   State<LocalFolderCard> createState() => _LocalFolderCardState();
@@ -72,6 +76,24 @@ class LocalFolderCard extends StatefulWidget {
 class _LocalFolderCardState extends State<LocalFolderCard> {
   var _hovered = false;
   var _focused = false;
+  var _addMenuOpen = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenFolderMenu(widget.folder, position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,12 +145,24 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       Theme.of(context).brightness,
     );
-    final active = widget.selected || _hovered || _focused;
-    final hovered = _hovered || _focused;
+    final active =
+        widget.selected ||
+        _hovered ||
+        _focused ||
+        _addMenuOpen ||
+        _contextMenuOpen;
+    final hovered = _hovered || _focused || _addMenuOpen || _contextMenuOpen;
+    final hoverActionsOffset =
+        Directionality.of(context) == TextDirection.ltr
+            ? const Offset(0.18, 0)
+            : const Offset(-0.18, 0);
+    final hoverActionsDuration =
+        MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 160);
     return GestureDetector(
       onSecondaryTapDown:
-          (details) =>
-              widget.onOpenFolderMenu(widget.folder, details.globalPosition),
+          (details) => unawaited(_openContextMenu(details.globalPosition)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap:
@@ -185,13 +219,28 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                       right: 8,
                       child: _LocalCheckMark(selected: widget.selected),
                     ),
-                  if (!widget.multiSelect && active)
+                  if (!widget.multiSelect)
                     Positioned.fill(
-                      child: _FolderCardActions(
-                        folder: widget.folder,
-                        i18n: widget.i18n,
-                        onPlayFolder: widget.onPlayFolder,
-                        onAddFolder: widget.onAddFolder,
+                      child: IgnorePointer(
+                        ignoring: !hovered,
+                        child: AnimatedSlide(
+                          offset: hovered ? Offset.zero : hoverActionsOffset,
+                          duration: hoverActionsDuration,
+                          curve: Curves.easeInOutCubic,
+                          child: AnimatedOpacity(
+                            opacity: hovered ? 1 : 0,
+                            duration: hoverActionsDuration,
+                            curve: Curves.easeInOutCubic,
+                            child: _FolderCardActions(
+                              folder: widget.folder,
+                              i18n: widget.i18n,
+                              onPlayFolder: widget.onPlayFolder,
+                              onAddFolder: (_, position) {
+                                unawaited(_openAddMenu(position));
+                              },
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   const Positioned(
@@ -202,10 +251,9 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                widget.folder.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              _OverflowTooltipText(
+                text: widget.folder.name,
+                query: widget.searchQuery,
                 style: TextStyle(
                   color:
                       widget.selected
@@ -243,13 +291,17 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       Theme.of(context).brightness,
     );
-    final active = widget.selected || _hovered || _focused;
+    final active =
+        widget.selected ||
+        _hovered ||
+        _focused ||
+        _addMenuOpen ||
+        _contextMenuOpen;
     final hasTreeToggle =
         widget.onToggleTreeExpanded != null && widget.treeExpandable;
     return GestureDetector(
       onSecondaryTapDown:
-          (details) =>
-              widget.onOpenFolderMenu(widget.folder, details.globalPosition),
+          (details) => unawaited(_openContextMenu(details.globalPosition)),
       child: InkWell(
         onTap:
             widget.multiSelect
@@ -345,10 +397,9 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
               const _FolderListIcon(),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  widget.folder.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: _OverflowTooltipText(
+                  text: widget.folder.name,
+                  query: widget.searchQuery,
                   style: TextStyle(
                     color:
                         widget.selected
@@ -387,6 +438,7 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                         alignment: Alignment.centerRight,
                         child: _LocalRevealedActions(
                           visible: active,
+                          slideFromTrailing: true,
                           child: Row(
                             key: const ValueKey('LocalFolderCard.ListActions'),
                             mainAxisSize: MainAxisSize.min,
@@ -404,11 +456,10 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                               _LocalIconAction.positioned(
                                 tooltip: widget.i18n.t('context.addToPlaylist'),
                                 icon: FluentIcons.add_20_regular,
-                                onPressedAtBottom:
-                                    (position) => widget.onAddFolder(
-                                      widget.folder,
-                                      position,
-                                    ),
+                                active: _addMenuOpen,
+                                onPressedAtBottom: (position) {
+                                  unawaited(_openAddMenu(position));
+                                },
                                 enabled:
                                     widget.folder.subtreeSongIds.isNotEmpty,
                               ),
@@ -469,9 +520,64 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
   void _open() {
     widget.onOpenFolder(widget.folder.relativePath);
   }
+
+  Future<void> _openAddMenu(Offset position) async {
+    setState(() {
+      _addMenuOpen = true;
+    });
+    try {
+      await widget.onAddFolder(widget.folder, position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _addMenuOpen = false;
+        });
+      });
+    }
+  }
 }
 
 enum LocalFolderCardVariant { grid, list }
+
+class _OverflowTooltipText extends StatelessWidget {
+  const _OverflowTooltipText({
+    required this.text,
+    required this.style,
+    this.query = '',
+  });
+
+  final String text;
+  final TextStyle style;
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.maybeLocaleOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final label = SearchMatchText(
+          text: text,
+          query: query,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        );
+        return painter.didExceedMaxLines
+            ? Tooltip(message: text, child: label)
+            : label;
+      },
+    );
+  }
+}
 
 class _FolderListInfoText extends StatelessWidget {
   const _FolderListInfoText({
@@ -502,20 +608,40 @@ class _FolderListInfoText extends StatelessWidget {
 }
 
 class _LocalRevealedActions extends StatelessWidget {
-  const _LocalRevealedActions({required this.visible, required this.child});
+  const _LocalRevealedActions({
+    required this.visible,
+    required this.child,
+    this.slideFromTrailing = false,
+  });
 
   final bool visible;
   final Widget child;
+  final bool slideFromTrailing;
 
   @override
   Widget build(BuildContext context) {
+    final duration =
+        MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 160);
+    final hiddenOffset =
+        !slideFromTrailing
+            ? Offset.zero
+            : Directionality.of(context) == TextDirection.ltr
+            ? const Offset(0.18, 0)
+            : const Offset(-0.18, 0);
     return IgnorePointer(
       ignoring: !visible,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: child,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : hiddenOffset,
+        duration: duration,
+        curve: Curves.easeInOutCubic,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: duration,
+          curve: Curves.easeInOutCubic,
+          child: child,
+        ),
       ),
     );
   }
@@ -756,7 +882,7 @@ class _FolderCardActions extends StatelessWidget {
   final FolderNode folder;
   final SmPlayerI18n i18n;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -802,13 +928,15 @@ class _LocalIconAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
   }) : onPressedAtBottom = null,
-       enabled = true;
+       enabled = true,
+       active = false;
 
   const _LocalIconAction.positioned({
     required this.tooltip,
     required this.icon,
     required this.onPressedAtBottom,
     required this.enabled,
+    this.active = false,
   }) : onPressed = null;
 
   final String tooltip;
@@ -816,6 +944,7 @@ class _LocalIconAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final ValueChanged<Offset>? onPressedAtBottom;
   final bool enabled;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -834,12 +963,17 @@ class _LocalIconAction extends StatelessWidget {
         constraints: const BoxConstraints.tightFor(width: 28, height: 28),
         visualDensity: VisualDensity.compact,
         style: ButtonStyle(
-          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (active) {
+              return colors.accentSoft;
+            }
+            return Colors.transparent;
+          }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
               return colors.disabled;
             }
-            if (states.contains(WidgetState.hovered)) {
+            if (active || states.contains(WidgetState.hovered)) {
               return colors.accentStrong;
             }
             return colors.textStrong;

@@ -114,7 +114,7 @@ extension _LocalPageContextMenus on _LocalPageState {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -304,12 +304,13 @@ extension _LocalPageContextMenus on _LocalPageState {
       return;
     }
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: mediaState.track.id == song.id,
         isPlaying: mediaState.isPlaying,
@@ -324,7 +325,8 @@ extension _LocalPageContextMenus on _LocalPageState {
         showDelete: showDelete,
         showHideFile: true,
         onPlay: () => _playTrack(song.id, queueSongIds),
-        onPause: ref.read(mediaControlControllerProvider).onTogglePlayPause,
+        onTogglePlayPause:
+            ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () => _playNext(song.id),
         onAddToNowPlaying: () => _addSongsToNowPlaying([song.id]),
         onCreatePlaylist: () {

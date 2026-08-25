@@ -246,7 +246,6 @@ class _LibraryColors {
   static const emptyStateSurface = Color(0x94ffffff);
   static const emptyStateBorder = Color(0x94ffffff);
   static const panelShadow = Color(0x1f1f2a38);
-  static const quickJumpPanel = Color(0xf5f4f6f9);
   static const quickJumpPanelShadow = Color(0x1f2a384e);
   static const quickJumpPanelButton = Color(0xadffffff);
   static const quickJumpPanelButtonBorder = Color(0x1a677486);
@@ -408,7 +407,7 @@ class _LibraryQuickJumpPanelColors {
   final Color disabledText;
 
   static const light = _LibraryQuickJumpPanelColors(
-    panel: _LibraryColors.quickJumpPanel,
+    panel: SmPlayerAppSurfaceColors.minimalToolbarSurface,
     panelShadow: _LibraryColors.quickJumpPanelShadow,
     headerText: _LibraryColors.textStrong,
     toggleHover: _LibraryColors.appBarButtonHover,
@@ -423,7 +422,7 @@ class _LibraryQuickJumpPanelColors {
   );
 
   static const dark = _LibraryQuickJumpPanelColors(
-    panel: Color(0xf5101419),
+    panel: SmPlayerAppSurfaceColors.nightShellSurface,
     panelShadow: Color(0x5c000000),
     headerText: Color(0xf0f6f9fc),
     toggleHover: Color(0x14ffffff),

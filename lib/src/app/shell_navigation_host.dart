@@ -177,11 +177,14 @@ class _ShellNavigationContent extends ConsumerWidget {
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
     final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final playlistOrder = ref.watch(libraryPlaylistOrderProvider);
     final i18n =
         ref.watch(smPlayerI18nProvider).value ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
     final recentSearches =
-        snapshot?.recentSearches ?? const <SearchHistoryEntry>[];
+        ref.watch(recentSearchesProvider).valueOrNull ??
+        snapshot?.recentSearches ??
+        const <SearchHistoryEntry>[];
     final playlists =
         snapshot == null
             ? const <LibraryPlaylist>[]
@@ -189,6 +192,7 @@ class _ShellNavigationContent extends ConsumerWidget {
               snapshot.playlists,
               playlistOverrides,
               deletedPlaylistIds,
+              playlistOrder,
             );
     return MainNavigationView(
       isPaneOpen: layout.isNavigationPaneVisible,

@@ -295,6 +295,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       selectionMode: _selection.multiSelect,
       showAlbum: widget.showAlbum,
       variant: PlaylistControlItemVariant.headeredPlaylist,
+      showCompactPrimaryActions: widget.type != HeaderedPlaylistType.favorites,
       playNextLabel: i18n.t('context.playNext'),
       removeLabel:
           widget.type == HeaderedPlaylistType.favorites
@@ -303,10 +304,16 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel: i18n.t('common.favorite'),
       moreLabel: i18n.t('player.more'),
-      favoriteAsHoverAction: widget.type == HeaderedPlaylistType.favorites,
+      showFavoriteAction: widget.type != HeaderedPlaylistType.favorites,
+      favoriteAsHoverAction: true,
+      keepFavoriteActionInCompact: true,
       favoriteLoading:
           widget.type == HeaderedPlaylistType.favorites &&
           _pendingFavoriteSongIds.contains(song.id),
+      favoriteSwipeEnabled: widget.type != HeaderedPlaylistType.favorites,
+      onActivateRow: () {
+        widget.onPlayTrack(song.id, queueSongIds);
+      },
       onPlayTrack: () {
         _playSong(song, queueSongIds);
       },
@@ -340,6 +347,8 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 currentPlaylistName == i18n.t('common.nowPlaying'),
           ),
           includeFavorites: widget.type != HeaderedPlaylistType.favorites,
+          favoritesDisabled: song.favorite,
+          favoritesSelected: song.favorite,
           onAddToNowPlaying: () {
             _addSongsToNowPlaying([song.id]);
           },
@@ -373,7 +382,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           },
         );
         if (item != null) {
-          showMenuFlyout(buttonContext, items: item.submenu);
+          return showMenuFlyout(buttonContext, items: item.submenu);
         }
       },
       onRemoveFromListClick:
@@ -386,8 +395,13 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
         _playNextSong(song.id);
       },
       onOpenContextMenu: (position) {
-        unawaited(
-          _showSongMenu(context, i18n, position, song, index, queueSongIds),
+        return _showSongMenu(
+          context,
+          i18n,
+          position,
+          song,
+          index,
+          queueSongIds,
         );
       },
       onSeeArtist: widget.onArtistClick,

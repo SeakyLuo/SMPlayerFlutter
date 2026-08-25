@@ -28,13 +28,15 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             : widget.type == HeaderedPlaylistType.playlist
             ? currentSavedPlaylist!.name
             : widget.title;
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
+        keepFavoritesInAddTo: widget.type != HeaderedPlaylistType.favorites,
         isCurrentTrack: widget.selectedTrackId == song.id,
         isPlaying: widget.isPlaying,
         currentTrackId: widget.selectedTrackId,
@@ -64,7 +66,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             _currentVisibleSongs().map((item) => item.id).toList(),
           );
         },
-        onPause: () {
+        onTogglePlayPause: () {
           widget.onTogglePlayPause?.call();
         },
         onPlayNext: () {
@@ -137,17 +139,6 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
               i18n: i18n,
               song: song,
               folderPath: folderPath,
-            ),
-          );
-        },
-        showHideFile: true,
-        onHide: () {
-          unawaited(
-            hideSongFileWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              song: song,
             ),
           );
         },

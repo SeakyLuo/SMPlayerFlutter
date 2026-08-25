@@ -64,9 +64,7 @@ class ShellImmersiveModeSyncHost extends ConsumerWidget {
     final mediaControlState = mediaControlController.state;
     final currentSong = resolvePlayerSong(mediaControlState, snapshot);
     ensurePlayerArtworkResolved(currentSong, ref);
-    final recentSongs =
-        ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-        const <LibrarySong>[];
+    final recentSongs = ref.watch(recentSongsProvider);
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ??
         const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});

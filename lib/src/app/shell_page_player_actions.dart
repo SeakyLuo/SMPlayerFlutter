@@ -25,9 +25,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         );
         final mediaControlState = _mediaControlController.state;
         final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-        final recentSongs =
-            ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
-            const <RecentLibrarySong>[];
+        final recentSongs = ref.watch(recentSongsProvider);
         _scheduleRestorePlaybackTrack(snapshot);
         final currentSong = _resolvePlayerSong(mediaControlState, snapshot);
         _ensurePlayerArtworkResolved(currentSong, ref);
@@ -126,7 +124,9 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     }
 
     final repository = ref.read(libraryRepositoryProvider);
-    final preferences = await repository.getPreferenceSettings();
+    final preferences = await repository.getPreferenceSettings(
+      unknownAlbumName: i18n.t('common.albumUnknown'),
+    );
     final songIds = quickPlaySongIds(
       songs: songs,
       playlists: snapshot!.playlists,
@@ -244,12 +244,15 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     final playlist = await ref
         .read(libraryRepositoryProvider)
         .createPlaylist(name, const []);
-    await _settingsController.saveViewState(lastPlaylistId: playlist.id);
     patchLibraryPlaylistOverride(ref, playlist);
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
-    _navigateTo('/playlists/${playlist.id}');
+    showPlaylistCreatedNotification(
+      context: context,
+      i18n: i18n,
+      playlist: playlist,
+    );
   }
 
   Future<void> _duplicatePlaylistFromNavigation({
@@ -269,6 +272,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
           playlist.songIds,
         );
     patchLibraryPlaylistOverride(ref, duplicate);
+    if (mounted) {
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: context.smPlayerI18n,
+        playlist: duplicate,
+      );
+    }
   }
 
   Future<void> _renamePlaylistFromNavigation({
@@ -328,5 +338,13 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
         patchLibraryPlaylistOverride(ref, playlist);
       },
     );
+  }
+
+  Future<void> _reorderPlaylistsFromNavigation({
+    required WidgetRef ref,
+    required List<int> playlistIds,
+  }) async {
+    await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
+    setLibraryPlaylistOrder(ref, playlistIds);
   }
 }

@@ -13,14 +13,14 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
     }
     final targetRow = targetIndex ~/ columns;
 
-    setState(() {
+    _updateState(() {
       _albumQuickJumpTargetKey = key;
       _albumQuickJumpJumping = true;
     });
     _albumGridScrollController.jumpTo(targetRow * albumRowHeight);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() {
+        _updateState(() {
           _albumQuickJumpJumping = false;
         });
       }
@@ -32,7 +32,7 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _albumScrollTop = 0;
       _albumQuickJumpTargetKey = null;
       _albumQuickJumpJumping = false;
@@ -46,7 +46,7 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _albumScrollTop = nextScrollTop;
       if (!_albumQuickJumpJumping) {
         _albumQuickJumpTargetKey = null;
@@ -74,14 +74,14 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
 
   void _showProcessing() {
     _processingTimer?.cancel();
-    setState(() {
+    _updateState(() {
       _processing = true;
     });
     _processingTimer = Timer(const Duration(milliseconds: 180), () {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _updateState(() {
         _processing = false;
       });
     });
